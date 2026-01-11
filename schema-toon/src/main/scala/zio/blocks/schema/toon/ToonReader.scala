@@ -205,6 +205,121 @@ final class ToonReader(
    */
   def isEof: Boolean = peek() == 0.toChar
 
+  /**
+   * Reads a long value.
+   */
+  def readLong(): Long = {
+    skipWhitespace()
+    val sb    = new StringBuilder
+    var first = true
+    var done  = false
+    while (!done) {
+      val n = peek()
+      if (n.isDigit || (first && n == '-')) {
+        sb.append(nextChar().toChar)
+        first = false
+      } else {
+        done = true
+      }
+    }
+    sb.toString().toLong
+  }
+
+  /**
+   * Reads a double value.
+   */
+  def readDouble(): Double = {
+    skipWhitespace()
+    val s = readString()
+    if (s == "null") Double.NaN else s.toDouble
+  }
+
+  /**
+   * Reads a float value.
+   */
+  def readFloat(): Float = {
+    skipWhitespace()
+    val s = readString()
+    if (s == "null") Float.NaN else s.toFloat
+  }
+
+  /**
+   * Skips a newline character if present.
+   *
+   * @return
+   *   true if a newline was skipped, false otherwise
+   */
+  def skipNewline(): Boolean =
+    if (peek() == '\n') {
+      nextChar()
+      true
+    } else {
+      false
+    }
+
+  /**
+   * Peeks at the next non-whitespace character on the current line.
+   */
+  def peekNextNonWhitespace(): Char = {
+    skipWhitespace()
+    peek()
+  }
+
+  /**
+   * Reads content until a newline or end of input.
+   */
+  def readUntilNewline(): String = {
+    val sb   = new StringBuilder
+    var done = false
+    while (!done) {
+      val c = peek()
+      if (c == '\n' || c == 0.toChar) {
+        done = true
+      } else {
+        sb.append(nextChar().toChar)
+      }
+    }
+    sb.toString().trim
+  }
+
+  /**
+   * Reads a value that might be on the same line or on the next line with
+   * indentation. Returns the value as a string.
+   */
+  def readValue(): String = {
+    skipWhitespace()
+    val c = peek()
+    if (c == '\n' || c == 0.toChar) {
+      // Value is on next line(s) - this is a nested structure
+      ""
+    } else {
+      readUntilNewline()
+    }
+  }
+
+  /**
+   * Checks if current position is at a list item marker (- ).
+   */
+  def isListItem(): Boolean =
+    peek() == '-'
+
+  /**
+   * Skips a list item marker (- ) if present.
+   *
+   * @return
+   *   true if a list marker was skipped
+   */
+  def skipListMarker(): Boolean =
+    if (peek() == '-') {
+      nextChar()
+      if (peek() == ' ') {
+        nextChar()
+      }
+      true
+    } else {
+      false
+    }
+
   private def skipWhitespace(): Unit = {
     var done = false
     while (!done) {

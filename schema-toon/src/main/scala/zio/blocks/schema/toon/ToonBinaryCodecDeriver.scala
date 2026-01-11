@@ -394,13 +394,26 @@ class ToonBinaryCodecDeriver private[toon] (
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[A]] = Lazy {
 
     // Collect field info - derive codec for each field
-    case class FieldInfo(name: String, codec: ToonBinaryCodec[Any], index: Int)
+    case class FieldInfo(
+      name: String,
+      codec: ToonBinaryCodec[Any],
+      index: Int,
+      term: Term[F, A, ?],
+      defaultValue: Option[Any]
+    )
 
     val fieldInfos = fields.indices.map { idx =>
       val field     = fields(idx)
       val fieldName = fieldNameMapper(field.name)
       val codec     = deriveFromReflect(field.value)(F, D).asInstanceOf[ToonBinaryCodec[Any]]
-      FieldInfo(fieldName, codec, idx)
+
+      // Extract default value if available
+      val default = field.value match {
+        case r: Reflect.Record[F, _] => None
+        case _                       => None // TODO: Extract from binding if available
+      }
+
+      FieldInfo(fieldName, codec, idx, field, default)
     }.toArray
 
     new ToonBinaryCodec[A] {
@@ -419,15 +432,43 @@ class ToonBinaryCodecDeriver private[toon] (
           val info       = infos(i)
           val fieldValue = product.productElement(info.index)
 
-          if (!first) out.newLine()
-          first = false
+          // Check if field should be skipped (transient handling)
+          var shouldSkip = false
 
-          // Write field name
-          out.writeRaw(info.name)
-          out.writeRaw(": ")
+          // Check for None values
+          if (transientNone && fieldValue == None) {
+            shouldSkip = true
+          }
 
-          // Write field value
-          info.codec.encodeValue(fieldValue, out)
+          // Check for empty collections
+          if (transientEmptyCollection && !shouldSkip) {
+            fieldValue match {
+              case seq: Seq[_] if seq.isEmpty    => shouldSkip = true
+              case map: Map[_, _] if map.isEmpty => shouldSkip = true
+              case set: Set[_] if set.isEmpty    => shouldSkip = true
+              case _                             => // Not a collection or not empty
+            }
+          }
+
+          // Check for default values
+          if (transientDefaultValue && !shouldSkip) {
+            info.defaultValue match {
+              case Some(default) if fieldValue == default => shouldSkip = true
+              case _                                      => // No default or value differs
+            }
+          }
+
+          if (!shouldSkip) {
+            if (!first) out.newLine()
+            first = false
+
+            // Write field name
+            out.writeRaw(info.name)
+            out.writeRaw(": ")
+
+            // Write field value
+            info.codec.encodeValue(fieldValue, out)
+          }
 
           i += 1
         }
