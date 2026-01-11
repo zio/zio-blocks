@@ -4,7 +4,8 @@ import scala.language.experimental.macros
 
 trait MigrationBuilderVersionSpecific[A, B] { self: MigrationBuilder[A, B] =>
 
-  def addField[T](selector: B => T, default: T)(implicit schema: Schema[T]): MigrationBuilder[A, B] = macro MigrationMacros.addField[A, B, T]
+  def addField[T](selector: B => T, default: T)(implicit schema: Schema[T]): MigrationBuilder[A, B] =
+    macro MigrationMacros.addField[A, B, T]
 
   def renameField[T](from: A => T, to: B => T): MigrationBuilder[A, B] = macro MigrationMacros.renameField[A, B, T]
 

@@ -8,10 +8,10 @@ private[schema] object MigrationMacros {
     import c.universe._
 
     def extractName(tree: Tree): String = tree match {
-      case q"($_) => $body" => extractName(body)
+      case q"($_) => $body"  => extractName(body)
       case q"$parent.$child" => child.decodedName.toString
-      case Ident(name) => name.decodedName.toString
-      case _ => c.abort(c.enclosingPosition, s"Expected a field selector (e.g. _.fieldName), but got: $tree")
+      case Ident(name)       => name.decodedName.toString
+      case _                 => c.abort(c.enclosingPosition, s"Expected a field selector (e.g. _.fieldName), but got: $tree")
     }
 
     c.Expr[String](q"${extractName(path.tree)}")
@@ -21,11 +21,11 @@ private[schema] object MigrationMacros {
     import c.universe._
 
     def extractCaseName(tree: Tree): String = tree match {
-      case q"($_) => $body" => extractCaseName(body)
+      case q"($_) => $body"      => extractCaseName(body)
       case q"$_.when[$typeTree]" => typeTree.tpe.typeSymbol.name.toString
-      case q"$parent.$child" => child.decodedName.toString
-      case Ident(name) => name.decodedName.toString
-      case _ => c.abort(c.enclosingPosition, s"Expected a case selector (e.g. _.when[CaseName]), but got: $tree")
+      case q"$parent.$child"     => child.decodedName.toString
+      case Ident(name)           => name.decodedName.toString
+      case _                     => c.abort(c.enclosingPosition, s"Expected a case selector (e.g. _.when[CaseName]), but got: $tree")
     }
 
     c.Expr[String](q"${extractCaseName(path.tree)}")
@@ -44,7 +44,7 @@ private[schema] object MigrationMacros {
   )(from: c.Expr[A => T], to: c.Expr[B => T]): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
     val fromName = fieldName(c)(from)
-    val toName = fieldName(c)(to)
+    val toName   = fieldName(c)(to)
     c.Expr[MigrationBuilder[A, B]](q"${c.prefix}.renameField($fromName, $toName)")
   }
 
@@ -61,7 +61,7 @@ private[schema] object MigrationMacros {
   )(from: c.Expr[A => T], to: c.Expr[B => T]): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
     val fromName = caseName(c)(from)
-    val toName = caseName(c)(to)
+    val toName   = caseName(c)(to)
     c.Expr[MigrationBuilder[A, B]](q"${c.prefix}.renameCase($fromName, $toName)")
   }
 
