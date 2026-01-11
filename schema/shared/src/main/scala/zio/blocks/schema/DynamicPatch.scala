@@ -330,6 +330,14 @@ object DynamicPatch {
              DynamicPatch(Vector(DynamicPatchOp(toIdentityOptic, Operation.PrimitiveDelta(PrimitiveOp.FloatDelta(n - o)))))
           case (PrimitiveValue.Double(o), PrimitiveValue.Double(n)) =>
              DynamicPatch(Vector(DynamicPatchOp(toIdentityOptic, Operation.PrimitiveDelta(PrimitiveOp.DoubleDelta(n - o)))))
+          case (PrimitiveValue.BigInt(o), PrimitiveValue.BigInt(n)) =>
+             DynamicPatch(Vector(DynamicPatchOp(toIdentityOptic, Operation.PrimitiveDelta(PrimitiveOp.BigIntDelta(n - o)))))
+          case (PrimitiveValue.BigDecimal(o), PrimitiveValue.BigDecimal(n)) =>
+             DynamicPatch(Vector(DynamicPatchOp(toIdentityOptic, Operation.PrimitiveDelta(PrimitiveOp.BigDecimalDelta(n - o)))))
+          case (PrimitiveValue.Duration(o), PrimitiveValue.Duration(n)) =>
+             DynamicPatch(Vector(DynamicPatchOp(toIdentityOptic, Operation.PrimitiveDelta(PrimitiveOp.DurationDelta(n.minus(o))))))
+          case (PrimitiveValue.Instant(o), PrimitiveValue.Instant(n)) =>
+             DynamicPatch(Vector(DynamicPatchOp(toIdentityOptic, Operation.PrimitiveDelta(PrimitiveOp.InstantDelta(java.time.Duration.between(o, n))))))
           case (PrimitiveValue.String(o), PrimitiveValue.String(n)) =>
              val edits = Diff.diff(o.toIndexedSeq, n.toIndexedSeq)
              val ops = editsToStringOps(edits)
@@ -373,6 +381,13 @@ object DynamicPatch {
                  Vector.empty
               case _ => Vector.empty
             }
+         }
+         DynamicPatch(ops)
+
+      case (DynamicValue.Variant(oldCase, oldVal), DynamicValue.Variant(newCase, newVal)) if oldCase == newCase =>
+         val ops = diff(oldVal, newVal).ops.map { op =>
+           val newOptic = DynamicOptic(DynamicOptic.Node.Case(oldCase) +: op.optic.nodes)
+           op.copy(optic = newOptic)
          }
          DynamicPatch(ops)
          

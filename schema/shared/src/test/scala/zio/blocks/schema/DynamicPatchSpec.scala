@@ -118,6 +118,13 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val patch = DynamicPatch.diff(oldRec, newRec)
         val result = patch.apply(oldRec, PatchMode.Strict)
         assert(result)(isRight(equalTo(newRec)))
+      },
+      test("diff(a, b).apply(a) == b for variants with same case") {
+        val oldDyn = DynamicValue.Variant("Foo", DynamicValue.Primitive(PrimitiveValue.Int(10)))
+        val newDyn = DynamicValue.Variant("Foo", DynamicValue.Primitive(PrimitiveValue.Int(20)))
+        val patch = DynamicPatch.diff(oldDyn, newDyn)
+        val result = patch.apply(oldDyn, PatchMode.Strict)
+        assert(result)(isRight(equalTo(newDyn)))
       }
     ),
     suite("Operation Application")(
