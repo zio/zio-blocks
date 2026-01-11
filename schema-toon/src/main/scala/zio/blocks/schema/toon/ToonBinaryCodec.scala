@@ -41,8 +41,13 @@ abstract class ToonBinaryCodec[A] extends BinaryCodec[A] {
     out.toByteArray
   }
 
-  def encodeToString(value: A): String =
+  def encodeToString(value: A): String = {
     new String(encodeToBytes(value), StandardCharsets.UTF_8)
+  }
+
+  def decodeFromString(value: String): Either[SchemaError, A] = {
+    decode(new ByteArrayInputStream(value.getBytes(StandardCharsets.UTF_8)))
+  }
 }
 
 object ToonBinaryCodec {
