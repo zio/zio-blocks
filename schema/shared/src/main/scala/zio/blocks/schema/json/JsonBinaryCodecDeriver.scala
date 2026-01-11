@@ -1434,8 +1434,8 @@ class JsonBinaryCodecDeriver private[json] (
       } else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isMap) {
       val mapUnknown = reflect.asMapUnknown.get
-      type K = mapUnknown.KeyType
-      type V = mapUnknown.ValueType
+      type K       = mapUnknown.KeyType
+      type V       = mapUnknown.ValueType
       type M[X, Y] = mapUnknown.MapType[X, Y]
       val map = mapUnknown.map.asInstanceOf[Reflect.Map.Bound[K, V, M]]
       if (map.mapBinding.isInstanceOf[Binding[?, ?]]) {

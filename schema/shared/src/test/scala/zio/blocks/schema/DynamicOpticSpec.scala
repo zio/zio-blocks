@@ -21,7 +21,19 @@ object DynamicOpticSpec extends ZIOSpecDefault {
       assert(
         DynamicOptic.root
           .apply(DynamicOptic(Vector(DynamicOptic.Node.AtIndices(Seq(0, 1, 2)))))
-          .apply(DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Vector(DynamicValue.Primitive(PrimitiveValue.String("X")), DynamicValue.Primitive(PrimitiveValue.String("Y")), DynamicValue.Primitive(PrimitiveValue.String("Z")))))))
+          .apply(
+            DynamicOptic(
+              Vector(
+                DynamicOptic.Node.AtMapKeys(
+                  Vector(
+                    DynamicValue.Primitive(PrimitiveValue.String("X")),
+                    DynamicValue.Primitive(PrimitiveValue.String("Y")),
+                    DynamicValue.Primitive(PrimitiveValue.String("Z"))
+                  )
+                )
+              )
+            )
+          )
       )(equalTo(DynamicOptic.root.atIndices(0, 1, 2).atKeys("X", "Y", "Z"))) &&
       assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped)(
         equalTo(

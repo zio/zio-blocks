@@ -7,6 +7,7 @@ import zio.blocks.schema.binding.SeqDeconstructor._
 import zio.blocks.schema._
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
+import zio.blocks.schema.binding.Binding.bindingHasBinding
 import java.math.{BigInteger, MathContext}
 import java.nio.ByteBuffer
 import scala.util.control.NonFatal
@@ -1182,7 +1183,13 @@ object AvroFormat
                       val v =
                         try valueCodec.decodeUnsafe(decoder)
                         catch {
-                          case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtMapKey(k), error)
+                          case error if NonFatal(error) =>
+                            decodeError(
+                              new DynamicOptic.Node.AtMapKey(
+                                map.key.asInstanceOf[Reflect[Binding, Key]].toDynamicValue(k)
+                              ),
+                              error
+                            )
                         }
                       constructor.addObject(builder, k, v)
                       count += 1

@@ -2,13 +2,13 @@ package zio.blocks.schema
 
 object Diff {
   sealed trait Edit[+A]
-  case class Keep[A](value: A) extends Edit[A]
+  case class Keep[A](value: A)   extends Edit[A]
   case class Insert[A](value: A) extends Edit[A]
   case class Delete[A](value: A) extends Edit[A]
 
   /**
-   * Computes the Longest Common Subsequence (LCS) based edit script
-   * to transform xs into ys.
+   * Computes the Longest Common Subsequence (LCS) based edit script to
+   * transform xs into ys.
    */
   def diff[A](xs: IndexedSeq[A], ys: IndexedSeq[A]): Vector[Edit[A]] = {
     val m = xs.length
@@ -22,8 +22,8 @@ object Diff {
     }
 
     // Backtrack to generate edits in reverse order
-    var i = m
-    var j = n
+    var i     = m
+    var j     = n
     var edits = List.empty[Edit[A]]
 
     while (i > 0 || j > 0) {

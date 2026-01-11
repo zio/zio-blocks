@@ -648,7 +648,9 @@ object Optional {
     new OptionalImpl(Array(seq), Array(seq.element.asTerm("at")), Array[Any](index))
   }
 
-  def atKey[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], key: K)(implicit @nowarn("unused") schema: Schema[K]): Optional[M[K, V], V] =
+  def atKey[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], key: K)(implicit
+    @nowarn("unused") schema: Schema[K]
+  ): Optional[M[K, V], V] =
     new OptionalImpl(Array(map), Array(map.value.asTerm("atKey")), Array(key))
 
   def wrapped[A, B](wrapper: Reflect.Wrapper.Bound[A, B]): Optional[A, B] =
@@ -704,8 +706,8 @@ object Optional {
             )
           case source =>
             val mapUnknown = source.asMapUnknown.get
-            type K = mapUnknown.KeyType
-            type V = mapUnknown.ValueType
+            type K       = mapUnknown.KeyType
+            type V       = mapUnknown.ValueType
             type M[X, Y] = mapUnknown.MapType[X, Y]
             val map = mapUnknown.map.asInstanceOf[Reflect.Map.Bound[K, V, M]]
             bindings(idx) = new AtKeyBinding(
@@ -1204,7 +1206,7 @@ object Optional {
             case at: AtBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndex(at.index)
             case binding =>
-              val atKey = binding.asInstanceOf[AtKeyBinding[Key, Map]]
+              val atKey      = binding.asInstanceOf[AtKeyBinding[Key, Map]]
               val mapReflect = sources(idx).asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
               val dynamicKey = mapReflect.key.toDynamicValue(atKey.key)(Binding.bindingHasBinding)
               new DynamicOptic.Node.AtMapKey(dynamicKey)
@@ -1274,7 +1276,9 @@ object Traversal {
     new TraversalImpl(Array(seq), Array(seq.element.asTerm("atIndices")), Array[Any](sortedIndices))
   }
 
-  def atKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], keys: Seq[K])(implicit @nowarn("unused") schema: Schema[K]): Traversal[M[K, V], V] = {
+  def atKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], keys: Seq[K])(implicit
+    @nowarn("unused") schema: Schema[K]
+  ): Traversal[M[K, V], V] = {
     require(keys.nonEmpty)
     new TraversalImpl(Array(map), Array(map.value.asTerm("atKeys")), Array(keys))
   }
@@ -1429,8 +1433,8 @@ object Traversal {
             }
           case source =>
             val mapUnknown = source.asMapUnknown.get
-            type K = mapUnknown.KeyType
-            type V = mapUnknown.ValueType
+            type K       = mapUnknown.KeyType
+            type V       = mapUnknown.ValueType
             type M[X, Y] = mapUnknown.MapType[X, Y]
             val map = mapUnknown.map.asInstanceOf[Reflect.Map.Bound[K, V, M]]
             if (focusTermName == "atKey") {
@@ -2866,8 +2870,9 @@ object Traversal {
             case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndices(ArraySeq.unsafeWrapArray(atIndices.indices))
             case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
-              val mapReflect = sources(idx).asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
-              val dynamicKeys = atKeys.keys.toVector.map(k => mapReflect.key.toDynamicValue(k)(Binding.bindingHasBinding))
+              val mapReflect  = sources(idx).asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
+              val dynamicKeys =
+                atKeys.keys.toVector.map(k => mapReflect.key.toDynamicValue(k)(Binding.bindingHasBinding))
               new DynamicOptic.Node.AtMapKeys(dynamicKeys)
             case _: SeqBinding[Col] @scala.unchecked =>
               DynamicOptic.Node.Elements

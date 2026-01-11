@@ -1471,12 +1471,15 @@ object SchemaSpec extends ZIOSpecDefault {
               SchemaError(
                 errors = ::(
                   ExpectationMismatch(
-                    source = DynamicOptic(nodes = Vector(MapValues, AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(1))))),
+                    source =
+                      DynamicOptic(nodes = Vector(MapValues, AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(1))))),
                     expectation = "Expected Long"
                   ),
                   ::(
                     ExpectationMismatch(
-                      source = DynamicOptic(nodes = Vector(MapValues, AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(1))))),
+                      source = DynamicOptic(nodes =
+                        Vector(MapValues, AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+                      ),
                       expectation = "Expected Long"
                     ),
                     Nil

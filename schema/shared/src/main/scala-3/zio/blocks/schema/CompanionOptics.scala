@@ -349,7 +349,9 @@ private object CompanionOptics {
                         val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
                         optic.apply(
                           optic.focus.asMapUnknown
-                            .map(x => Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType])(new Schema(x.map.key)))
+                            .map(x =>
+                              Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType])(new Schema(x.map.key))
+                            )
                             .getOrElse(throw new IllegalStateException("Expected a map"))
                             .asInstanceOf[Optional[p, v]]
                         )
@@ -359,7 +361,9 @@ private object CompanionOptics {
                         val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
                         optic.apply(
                           optic.focus.asMapUnknown
-                            .map(x => Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType])(new Schema(x.map.key)))
+                            .map(x =>
+                              Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType])(new Schema(x.map.key))
+                            )
                             .getOrElse(throw new IllegalStateException("Expected a map"))
                             .asInstanceOf[Optional[p & S, v]]
                         )
@@ -369,7 +373,9 @@ private object CompanionOptics {
                         val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
                         optic.apply(
                           optic.focus.asMapUnknown
-                            .map(x => Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType])(new Schema(x.map.key)))
+                            .map(x =>
+                              Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType])(new Schema(x.map.key))
+                            )
                             .getOrElse(throw new IllegalStateException("Expected a map"))
                             .asInstanceOf[Optional[p, v]]
                         )
@@ -379,7 +385,9 @@ private object CompanionOptics {
                         val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
                         optic.apply(
                           optic.focus.asMapUnknown
-                            .map(x => Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType])(new Schema(x.map.key)))
+                            .map(x =>
+                              Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType])(new Schema(x.map.key))
+                            )
                             .getOrElse(throw new IllegalStateException("Expected a map"))
                             .asInstanceOf[Optional[p, v]]
                         )
@@ -430,7 +438,9 @@ private object CompanionOptics {
                   toOptic(parent).fold {
                     '{
                       $schema.reflect.asMapUnknown
-                        .map(x => Traversal.atKeys(x.map, $keysExpr.asInstanceOf[Seq[x.KeyType]])(new Schema(x.map.key)))
+                        .map(x =>
+                          Traversal.atKeys(x.map, $keysExpr.asInstanceOf[Seq[x.KeyType]])(new Schema(x.map.key))
+                        )
                         .getOrElse(throw new IllegalStateException("Expected a map"))
                         .asInstanceOf[Traversal[p, v]]
                     }
@@ -440,7 +450,9 @@ private object CompanionOptics {
                         val optic = ${ x.asInstanceOf[Expr[Optic[S, p]]] }
                         optic.apply(
                           optic.focus.asMapUnknown
-                            .map(x => Traversal.atKeys(x.map, $keysExpr.asInstanceOf[Seq[x.KeyType]])(new Schema(x.map.key)))
+                            .map(x =>
+                              Traversal.atKeys(x.map, $keysExpr.asInstanceOf[Seq[x.KeyType]])(new Schema(x.map.key))
+                            )
                             .getOrElse(throw new IllegalStateException("Expected a map"))
                             .asInstanceOf[Traversal[p, v]]
                         )

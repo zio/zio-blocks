@@ -23,10 +23,10 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def atKeys(keys: DynamicValue*): DynamicOptic = new DynamicOptic(nodes :+ Node.AtMapKeys(keys.toVector))
 
-  def atKeys(keys: String*)(implicit d: DummyImplicit): DynamicOptic = 
+  def atKeys(keys: String*)(implicit d: DummyImplicit): DynamicOptic =
     atKeys(keys.map(k => DynamicValue.Primitive(PrimitiveValue.String(k))): _*)
 
-  def atKeys(keys: Int*)(implicit d: DummyImplicit, d2: DummyImplicit): DynamicOptic = 
+  def atKeys(keys: Int*)(implicit d: DummyImplicit, d2: DummyImplicit): DynamicOptic =
     atKeys(keys.map(k => DynamicValue.Primitive(PrimitiveValue.Int(k))): _*)
 
   def elements: DynamicOptic = new DynamicOptic(nodes :+ Node.Elements)
