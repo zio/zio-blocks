@@ -30,11 +30,13 @@ fi
 app_dir="$PWD/golem/quickstart/app"
 script_file="$PWD/golem/quickstart/script-test.rib"
 
+agent_id="agent-$(date +%s)"
+
 (
   cd "$app_dir"
-  env -u ARGV0 golem-cli "${flags[@]}" --yes app deploy scala:quickstart-counter
-  env -u ARGV0 golem-cli "${flags[@]}" --yes agent invoke 'scala:quickstart-counter/counter-agent("agent-1")' 'scala:quickstart-counter/counter-agent.{increment}'
-  env -u ARGV0 golem-cli "${flags[@]}" --yes agent invoke 'scala:quickstart-counter/counter-agent("agent-1")' 'scala:quickstart-counter/counter-agent.{increment}'
-  env -u ARGV0 golem-cli "${flags[@]}" --yes agent invoke 'scala:quickstart-counter/counter-agent("another")' 'scala:quickstart-counter/counter-agent.{increment}'
-  env -u ARGV0 golem-cli "${flags[@]}" --yes agent invoke 'scala:quickstart-counter/shard-agent("demo",42)' 'scala:quickstart-counter/shard-agent.{id}'
+  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
+  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" agent invoke "scala:quickstart-counter/counter-agent(\"$agent_id\")" 'increment'
+  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" agent invoke "scala:quickstart-counter/counter-agent(\"$agent_id\")" 'increment'
+  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" agent invoke 'scala:quickstart-counter/counter-agent("another")' 'increment'
+  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" agent invoke 'scala:quickstart-counter/shard-agent("demo",42)' 'id'
 )

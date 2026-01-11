@@ -30,13 +30,24 @@ fi
 app_dir="$PWD/golem/examples/app"
 script_file="$PWD/golem/examples/repl-minimal-agent-to-agent.rib"
 
+# Use fresh agent ids on each run to avoid "Previous Invocation Failed" poisoning.
+coord_id="demo-$(date +%s)-$RANDOM"
+shard_name="demo-$(date +%s)-$RANDOM"
+tmp_script="$(mktemp)"
+trap 'rm -f "$tmp_script"' EXIT
+sed \
+  -e "s/coordinator(\"demo\")/coordinator(\"$coord_id\")/" \
+  -e "s/\\.route(\"demo\", 42/\\.route(\"$shard_name\", 42/" \
+  -e "s/\\.route-typed(\"demo\", 42/\\.route-typed(\"$shard_name\", 42/" \
+  "$script_file" > "$tmp_script"
+
 out="$(
   cd "$app_dir"
-  env -u ARGV0 golem-cli "${flags[@]}" --yes app deploy scala:examples
-  env -u ARGV0 golem-cli "${flags[@]}" --yes repl scala:examples --script-file "$script_file" --disable-stream
+  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
+  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$tmp_script" --disable-stream
 )"
 echo "$out"
-echo "$out" | grep -q 'demo:42:olleh'
+echo "$out" | grep -q "${shard_name}:42:olleh"
 echo "$out" | grep -q 'cba'
 
 

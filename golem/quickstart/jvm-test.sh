@@ -31,7 +31,11 @@ app_dir="$PWD/golem/quickstart/app"
 
 (
   cd "$app_dir"
-  env -u ARGV0 golem-cli "${flags[@]}" --yes app deploy scala:quickstart-counter
+  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
 )
 
-sbt -batch -no-colors -Dsbt.supershell=false 'zioGolemQuickstartJVM/runMain golem.quickstart.QuickstartClient'
+# Ensure the CLI-backed JVM client is also executed under the same app manifest,
+# otherwise golem-cli cannot pick an environment for `agent invoke`.
+GOLEM_CLI_FLAGS_FOR_JVM="${GOLEM_CLI_FLAGS_FOR_JVM:-${GOLEM_CLI_FLAGS} --app-manifest-path $app_dir/golem.yaml}"
+env GOLEM_CLI_FLAGS="$GOLEM_CLI_FLAGS_FOR_JVM" \
+  sbt -batch -no-colors -Dsbt.supershell=false 'zioGolemQuickstartJVM/runMain golem.quickstart.QuickstartClient'

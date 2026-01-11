@@ -1,9 +1,13 @@
 # golem-app-manifest-header
 
-templates:
+componentTemplates:
   scala.js:
     build:
     - command: bash ../../build-scalajs.sh {{ component_name }}
+      sources:
+      - src
+      targets:
+      - src/scala.js
     - injectToPrebuiltQuickjs: ../../wasm/agent_guest.wasm
       module: src/scala.js
       moduleWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm

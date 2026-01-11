@@ -37,3 +37,7 @@ metals.sbt
 task-results/
 golem-temp/
 .tmp-getting-started-e2e/
+.generated/
+tmp-wit/
+tmpgolemts/
+scala.js

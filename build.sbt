@@ -65,7 +65,6 @@ lazy val root = project
     zioGolemExamples.js,
     zioGolemQuickstart.js,
     zioGolemQuickstart.jvm,
-    docs,
     examples
   )
 
@@ -191,8 +190,8 @@ lazy val benchmarks = project
   .dependsOn(`schema-avro`)
   .enablePlugins(JmhPlugin)
   .settings(
-    scalaVersion       := "3.7.4",
-    crossScalaVersions := Seq("3.7.4"),
+    scalaVersion       := "3.3.7",
+    crossScalaVersions := Seq("3.3.7"),
     Compile / skip     := true,
     Test / skip        := true,
     libraryDependencies ++= Seq(
@@ -349,7 +348,10 @@ lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
   )
   .jsSettings(jsSettings)
   .jsSettings(
-    scalaJSUseMainModuleInitializer := false,
+    // For golem-cli wrapper generation, ensure agent registration runs when the JS module is loaded.
+    // We do this via a tiny Scala.js `main` (see `golem/quickstart/js/.../Boot.scala`).
+    scalaJSUseMainModuleInitializer := true,
+    Compile / mainClass             := Some("golem.quickstart.Boot"),
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / test           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
     Test / testOnly       := (Test / test).value,
@@ -372,6 +374,11 @@ lazy val docs = project
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
+    // The docs site build is not meant to be part of `+Test / compile`.
+    // Website plugin settings can pull in Scala 2.12 (sbt's Scala), which then tries to resolve
+    // unpublished `_2.12` artifacts for project dependencies.
+    Compile / skip := true,
+    Test / skip    := true,
     publish / skip                             := true
   )
   .dependsOn(schema.jvm)

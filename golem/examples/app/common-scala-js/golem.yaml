@@ -1,6 +1,6 @@
 # golem-app-manifest-header
 
-templates:
+componentTemplates:
   scala.js:
     build:
     - command: bash ../../build-scalajs.sh {{ component_name }}

@@ -78,5 +78,7 @@ fi
 
 mkdir -p "$(dirname "$out_file")"
 cp "$bundle" "$out_file"
+
+
 echo "[scala.js] Wrote Scala.js bundle to $out_file" >&2
 

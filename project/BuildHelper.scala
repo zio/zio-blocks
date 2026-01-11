@@ -9,7 +9,7 @@ import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
   val Scala213: String = "2.13.18"
-  val Scala3: String   = "3.7.4"
+  val Scala3: String   = "3.3.7"
 
   lazy val isRelease: Boolean = {
     val value = sys.env.contains("CI_RELEASE_MODE")
@@ -74,11 +74,15 @@ object BuildHelper {
     name                     := prjName,
     crossScalaVersions       := scalaVersions,
     scalaVersion             := scalaVersions.head,
-    ThisBuild / scalaVersion := scalaVersions.head,
-    ThisBuild / dependencyOverrides ++= Seq(
-      "org.scala-lang" %% "scala3-library"    % Scala3,
-      "org.scala-lang" %% "scala3-interfaces" % Scala3
-    ),
+    dependencyOverrides ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, _)) =>
+        Seq(
+          "org.scala-lang" %% "scala3-library"    % scalaVersion.value,
+          "org.scala-lang" %% "scala3-interfaces" % scalaVersion.value
+        )
+      case _ =>
+        Seq.empty
+    }),
     ThisBuild / publishTo := {
       val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
       if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
@@ -95,7 +99,6 @@ object BuildHelper {
         Seq(
           "-release",
           if (minor < 8) "11" else "17",
-          "-experimental",
           "-rewrite",
           "-no-indent",
           "-explain",
@@ -106,7 +109,7 @@ object BuildHelper {
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
           "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s"
-        )
+        ) ++ (if (minor >= 4) Seq("-experimental") else Seq())
       case _ =>
         Seq(
           "-release",

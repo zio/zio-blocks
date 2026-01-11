@@ -1,7 +1,5 @@
 components:
   scala:quickstart-counter:
-    template: scala.js
-
-dependencies:
-  scala:quickstart-counter:
+    # Use the shared Scala.js component template defined in common-scala-js/golem.yaml
+    templates: scala.js
 

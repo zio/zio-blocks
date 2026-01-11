@@ -92,9 +92,11 @@ private object AgentClientInlineMacros {
 
     case class MethodPlanData(
       method: Symbol,
+      params: List[(String, TypeRepr)],
       accessMode: MethodParamAccess,
       inputType: TypeRepr,
       outputType: TypeRepr,
+      returnType: TypeRepr,
       invocation: InvocationKind
     )
 
@@ -109,13 +111,15 @@ private object AgentClientInlineMacros {
         val params                       = extractParameters(method)
         val accessMode                   = methodAccess(params)
         val inputType                    = inputTypeFor(accessMode, params)
-        val (invocationKind, outputType) = methodInvocationInfo(method)
+        val (invocationKind, outputType, returnType) = methodInvocationInfo(method)
 
         MethodPlanData(
           method = method,
+          params = params,
           accessMode = accessMode,
           inputType = inputType,
           outputType = outputType,
+          returnType = returnType,
           invocation = invocationKind
         )
     }
@@ -205,59 +209,80 @@ private object AgentClientInlineMacros {
       }
     }
 
-    var methodSymbols = List.empty[(MethodPlanData, Symbol)]
+    def encodeTypeName(tpe0: TypeRepr): String = {
+      val tpe = tpe0.dealias.widen
 
-    val parents     = List(TypeRepr.of[Object], traitRepr)
-    val classSymbol = Symbol.newClass(
-      Symbol.spliceOwner,
-      traitSymbol.name + "$agentClient",
-      parents,
-      cls => {
-        val decls = pendingMethods.map { data =>
-          val methodType = traitRepr.memberType(data.method)
-          val symbol     = Symbol.newMethod(
-            cls,
-            data.method.name,
-            methodType,
-            Flags.Override | Flags.Method,
-            Symbol.noSymbol
-          )
-          methodSymbols = methodSymbols :+ (data -> symbol)
-          symbol
+      if tpe =:= TypeRepr.of[Unit] then "V"
+      else if tpe =:= TypeRepr.of[Boolean] then "Z"
+      else if tpe =:= TypeRepr.of[Byte] then "B"
+      else if tpe =:= TypeRepr.of[Short] then "S"
+      else if tpe =:= TypeRepr.of[Char] then "C"
+      else if tpe =:= TypeRepr.of[Int] then "I"
+      else if tpe =:= TypeRepr.of[Long] then "J"
+      else if tpe =:= TypeRepr.of[Float] then "F"
+      else if tpe =:= TypeRepr.of[Double] then "D"
+      else if tpe =:= TypeRepr.of[String] then "T"
+      else
+        tpe match {
+          case AppliedType(arr, List(elem)) if arr.typeSymbol.fullName == "scala.Array" =>
+            "A" + encodeTypeName(elem)
+          case AppliedType(constructor, _) =>
+            encodeTypeName(constructor)
+          case _ =>
+            val full = tpe.typeSymbol.fullName
+            if full.startsWith("scala.scalajs.") then
+              "sjs_" + full.stripPrefix("scala.scalajs.").replace('.', '_')
+            else if full.startsWith("scala.") then
+              "s_" + full.stripPrefix("scala.").replace('.', '_')
+            else if full.startsWith("java.lang.") then
+              "jl_" + full.stripPrefix("java.lang.").replace('.', '_')
+            else if full.startsWith("java.util.") then
+              "ju_" + full.stripPrefix("java.util.").replace('.', '_')
+            else if full == "" || full == "<none>" then
+              "O"
+            else
+              "L" + full.replace('.', '_')
         }
-        decls
-      },
-      selfType = None
-    )
-
-    val ctorSymbol = classSymbol.primaryConstructor
-
-    if ctorSymbol == Symbol.noSymbol then report.errorAndAbort("Failed to synthesize agent client stub constructor")
-
-    val methodDefs = methodSymbols.map { case (data, symbol) =>
-      DefDef(
-        symbol,
-        paramss => {
-          val paramRefs = paramss.flatten.collect { case term: Term =>
-            term.asExprOf[Any]
-          }
-
-          val bodyExpr = buildMethodBody(data, paramRefs)
-          Some(bodyExpr.asTerm.changeOwner(symbol))
-        }
-      )
     }
 
-    val parentsTrees = List(TypeTree.of[Object], TypeTree.of[Trait])
-    // Omit an explicit constructor definition; Scala 3's constructors phase will synthesize it.
-    // This avoids pickler assertion failures observed for macro-generated local classes on some versions.
-    val classDef = ClassDef(classSymbol, parentsTrees, body = methodDefs)
+    def scalaJsMethodName(planData: MethodPlanData): String = {
+      val paramTypeNames = planData.params.map(_._2).map(encodeTypeName)
+      val resultTypeName = encodeTypeName(planData.returnType)
+      if paramTypeNames.isEmpty then s"${planData.method.name}__${resultTypeName}"
+      else s"${planData.method.name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
+    }
 
-    val newInstance = Apply(Select(New(TypeIdent(classSymbol)), ctorSymbol), Nil)
+    val objSym = Symbol.newVal(Symbol.spliceOwner, "$agentClient", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
+    val objVal = ValDef(objSym, Some('{ js.Dynamic.literal() }.asTerm))
+    val objRef = Ref(objSym).asExprOf[js.Dynamic]
+
+    val updates: List[Statement] =
+      pendingMethods.map { data =>
+        val jsName = scalaJsMethodName(data)
+        val methodTpe = traitRepr.memberType(data.method)
+        val lambdaTerm = methodTpe match {
+          case mt: MethodType =>
+            Lambda(
+              Symbol.spliceOwner,
+              mt,
+              (owner, params) => {
+                val paramExprs = params.collect { case t: Term => t.asExprOf[Any] }.toList
+                buildMethodBody(data, paramExprs).asTerm.changeOwner(owner)
+              }
+            )
+          case other =>
+            report.errorAndAbort(s"Unsupported agent method shape for ${data.method.name}: ${other.show}")
+        }
+        val fnExpr = lambdaTerm.asExprOf[Any]
+        '{ $objRef.updateDynamic(${Expr(jsName)})($fnExpr.asInstanceOf[js.Any]) }.asTerm
+      }
+
+    val casted =
+      '{ $objRef.asInstanceOf[Trait] }.asTerm
 
     Block(
-      List(resolvedVal, classDef),
-      newInstance
+      resolvedVal :: objVal :: updates,
+      casted
     ).asExprOf[Trait]
   }
 
@@ -300,16 +325,16 @@ private object AgentClientInlineMacros {
     Quotes
   )(
     method: quotes.reflect.Symbol
-  ): (InvocationKind, quotes.reflect.TypeRepr) = {
+  ): (InvocationKind, quotes.reflect.TypeRepr, quotes.reflect.TypeRepr) = {
     import quotes.reflect.*
     method.tree match {
       case d: DefDef =>
         val returnType = d.returnTpt.tpe
         returnType match {
           case AppliedType(constructor, args) if isAsyncReturn(constructor) && args.nonEmpty =>
-            (InvocationKind.Awaitable, args.head)
+            (InvocationKind.Awaitable, args.head, returnType)
           case _ =>
-            if returnType =:= TypeRepr.of[Unit] then (InvocationKind.FireAndForget, TypeRepr.of[Unit])
+            if returnType =:= TypeRepr.of[Unit] then (InvocationKind.FireAndForget, TypeRepr.of[Unit], TypeRepr.of[Unit])
             else {
               report.errorAndAbort(
                 s"Agent client method ${method.name} must return scala.concurrent.Future[...] or Unit, found: ${returnType.show}"
