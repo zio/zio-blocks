@@ -1,18 +1,18 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicValue, Schema}
+import zio.blocks.schema.{DynamicValue, Schema, ToStructural}
 
 import scala.quoted.*
 
 /** Typed DSL that compiles to PURE DynamicMigration data.
   *
-  * No closures are stored: the macro expands into Path(...) + DynamicMigration ops.
-  * We only allow: field selectors like _.foo.bar and constant defaults.
+  * No closures are stored: the macro expands into Path(...) + DynamicMigration
+  * ops. We only allow: field selectors like _.foo.bar and constant defaults.
   */
 object MigrationDsl {
 
-  /** Builder used only during macro-expanded program construction.
-    * It accumulates ops; we then build DynamicMigration.sequence(...) from them.
+  /** Builder used only during macro-expanded program construction. It
+    * accumulates ops; we then build DynamicMigration.sequence(...) from them.
     */
   final class MigrationBuilder[A] private[migration] (
       private[migration] var ops: List[DynamicMigration]
@@ -27,8 +27,8 @@ object MigrationDsl {
 
   /** Build a typed Migration[A, B] from a compile-time validated program.
     *
-    * IMPORTANT: we capture STRUCTURAL schemas via Schema#structural (PR #614/#589)
-    * so the migration aligns with Issue #519.
+    * IMPORTANT: we capture STRUCTURAL schemas via Schema#structural (PR
+    * #614/#589) so the migration aligns with Issue #519.
     */
   inline def migration[A, B](
       inline f: MigrationBuilder[A] ?=> Unit
@@ -47,9 +47,9 @@ object MigrationDsl {
 
     /** Add a field with a default value.
       *
-      * NOTE: This stores the default as DynamicValue using Schema[D]. If you want
-      * to strictly enforce "literal/inline constant only", add quoted AST checks
-      * in addFieldImpl.
+      * NOTE: This stores the default as DynamicValue using Schema[D]. If you
+      * want to strictly enforce "literal/inline constant only", add quoted AST
+      * checks in addFieldImpl.
       */
     inline def addField[A, D](
         inline at: A => Any,
@@ -76,13 +76,14 @@ object MigrationDsl {
   )(using Quotes): Expr[Migration[A, B]] = {
     '{
       val b = MigrationBuilder.empty[A]
-      f(using b)
+      $f(using b)
 
       // preserve user order (ops were prepended)
       val program = DynamicMigration.sequence(b.ops.reverse*)
 
       // capture STRUCTURAL schemas using PR #614/#589
-      Migration.fromProgram[A, B](program, $sa, $sb)
+      Migration.fromProgram[A, B](program)(using $sa, $sb, summon[ToStructural[A]], summon[ToStructural[B]])
+
     }
   }
 
@@ -128,8 +129,8 @@ object MigrationDsl {
     '{ $b.add(DynamicMigration.DeleteField($path, $field)) }
   }
 
-  /** Extract Path from selector like: _.person.address.street
-    * Produces: Path.root / "person" / "address" / "street"
+  /** Extract Path from selector like: _.person.address.street Produces:
+    * Path.root / "person" / "address" / "street"
     *
     * Validates that it's ONLY field-selection (no arbitrary code).
     */
@@ -169,7 +170,10 @@ object MigrationDsl {
   // ─────────────────────────────────────────────
 
   /** Force structural schemas (PR #614/#589 adds Schema#structural). */
-  inline def structuralSchemaOf[A](using s: Schema[A]): Schema[A] =
+  inline def structuralSchemaOf[A](using
+      s: Schema[A],
+      ts: ToStructural[A]
+  ): Schema[ts.StructuralType] =
     s.structural
 
   /** DSL entry point that always stores STRUCTURAL schemas. */
@@ -177,7 +181,7 @@ object MigrationDsl {
       sa: Schema[A],
       sb: Schema[B]
   ): Migration[A, B] =
-    migration[A, B](f)(using structuralSchemaOf[A], structuralSchemaOf[B])
+    migration[A, B](f)
 
   // ─────────────────────────────────────────────
   // derive + copy structural shape helper
