@@ -38,6 +38,7 @@ lazy val root = project
     schema.js,
     schema.native,
     `schema-avro`,
+    `schema-toon`,
     streams.jvm,
     streams.js,
     streams.native,
@@ -152,6 +153,7 @@ lazy val `chunk-benchmarks` = project
     mimaPreviousArtifacts := Set()
   )
 
+
 lazy val `schema-avro` = project
   .settings(stdSettings("zio-blocks-schema-avro"))
   .dependsOn(schema.jvm)
@@ -171,6 +173,19 @@ lazy val `schema-avro` = project
         )
     })
   )
+
+lazy val `schema-toon` = project
+  .settings(stdSettings("zio-blocks-schema-toon"))
+  .dependsOn(schema.jvm)
+  .settings(buildInfoSettings("zio.blocks.schema.toon"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
+    )
+  )
+
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
