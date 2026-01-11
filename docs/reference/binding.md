@@ -79,19 +79,19 @@ val personRecord: Binding.Record[Person] =
     constructor = new Constructor[Person] {
       def usedRegisters = initialRegisters
 
-      def construct(in: Registers, base: RegisterOffset): Person =
+      def construct(in: Registers, offset: RegisterOffset): Person =
         Person(
-          in.getObject(base, RegisterOffset.getObjects(RegisterOffset.Zero)).asInstanceOf[String],
-          in.getInt(base, RegisterOffset.getBytes(RegisterOffset(objects = 1)))
+          in.getObject(offset).asInstanceOf[String],
+          in.getInt(offset + RegisterOffset(objects = 1))
         )
     },
     deconstructor = new Deconstructor[Person] {
 
       def usedRegisters = initialRegisters
 
-      def deconstruct(out: Registers, base: RegisterOffset, p: Person): Unit = {
-        out.setObject(base, RegisterOffset.getObjects(RegisterOffset.Zero), p.name)
-        out.setInt(base, RegisterOffset.getBytes(RegisterOffset(objects = 1)), p.age)
+      def deconstruct(out: Registers, offset: RegisterOffset, p: Person): Unit = {
+        out.setObject(offset, p.name)
+        out.setInt(offset + RegisterOffset(objects = 1), p.age)
       }
     }
   )

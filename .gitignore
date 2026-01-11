@@ -41,3 +41,7 @@ golem-temp/
 tmp-wit/
 tmpgolemts/
 scala.js
+project/metals.sbt
+
+# Compilation log files
+*.log
