@@ -32,6 +32,13 @@ sealed trait Optic[S, A] { self =>
 
   def apply[B](that: Traversal[A, B]): Traversal[S, B]
 
+  def apply[B](that: Optic[A, B]): Optic[S, B] = that match {
+    case l: Lens[A, B]      => apply(l)
+    case p: Prism[A, B]     => apply(p)
+    case o: Optional[A, B]  => apply(o)
+    case t: Traversal[A, B] => apply(t)
+  }
+
   def check(s: S): Option[OpticCheck]
 
   def modify(s: S, f: A => A): S
@@ -215,6 +222,28 @@ object Lens {
     val lens1 = first.asInstanceOf[LensImpl[?, ?]]
     val lens2 = second.asInstanceOf[LensImpl[?, ?]]
     new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
+  }
+
+  def identity[S](implicit schema: Schema[S]): Lens[S, S] = new IdentityLens(schema)
+
+  private[schema] case class IdentityLens[S](schema: Schema[S]) extends Lens[S, S] {
+    override def source: Reflect.Bound[S] = schema.reflect
+
+    override def focus: Reflect.Bound[S] = schema.reflect
+
+    override def check(s: S): None.type = None
+
+    override def get(s: S): S = s
+
+    override def replace(s: S, a: S): S = a
+
+    override def modify(s: S, f: S => S): S = f(s)
+
+    override def modifyOption(s: S, f: S => S): Option[S] = new Some(f(s))
+
+    override def modifyOrFail(s: S, f: S => S): Either[OpticCheck, S] = new Right(f(s))
+
+    lazy val toDynamic: DynamicOptic = DynamicOptic.root
   }
 
   private[schema] case class LensImpl[S, A](

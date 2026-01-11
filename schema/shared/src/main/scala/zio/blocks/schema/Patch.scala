@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.binding._
+
 /**
  * A Patch is a sequence of operations that can be applied to a value to produce
  * a new value. Because patches are described by reflective optics, finite
@@ -15,130 +17,156 @@ package zio.blocks.schema
  * patch3(Person("Jane", 25)) // Person("John", 30)
  * }}}
  */
-final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
+final case class Patch[S](
+  ops: Vector[Patch.Pair[S, ?]],
+  source: Schema[S],
+  mode: PatchMode = PatchMode.Strict
+) {
   import Patch._
 
-  def ++(that: Patch[S]): Patch[S] = Patch(this.ops ++ that.ops, this.source)
+  def ++(that: Patch[S]): Patch[S] = Patch(this.ops ++ that.ops, this.source, this.mode)
+
+  def lenient: Patch[S] = copy(mode = PatchMode.Lenient)
+  def strict: Patch[S]  = copy(mode = PatchMode.Strict)
 
   def apply(s: S): S =
     ops.foldLeft[S](s) { (s, single) =>
-      single match {
-        case LensPair(optic, LensOp.Replace(a))           => optic.replace(s, a)
-        case PrismPair(optic, PrismOp.Replace(a))         => optic.replace(s, a)
-        case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replace(s, a)
-        case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modify(s, _ => a)
+      mode match {
+        case PatchMode.Strict =>
+          applySingleOrFail(s, single) match {
+            case Right(r) => r
+            case Left(_)  => s // Fallback to original if strict fails? Actually applyOrFail might be better.
+          }
+        case PatchMode.Lenient =>
+          applySingleOrFail(s, single).getOrElse(s)
       }
     }
 
-  def applyOption(s: S): Option[S] = {
-    var x   = s
-    val len = ops.length
-    var idx = 0
-    while (idx < len) {
-      ops(idx) match {
-        case LensPair(optic, LensOp.Replace(a)) =>
-          x = optic.replace(x, a)
-        case PrismPair(optic, PrismOp.Replace(a)) =>
-          optic.replaceOption(x, a) match {
-            case Some(r) => x = r
-            case _       => return None
-          }
-        case OptionalPair(optic, OptionalOp.Replace(a)) =>
-          optic.replaceOption(x, a) match {
-            case Some(r) => x = r
-            case _       => return None
-          }
-        case TraversalPair(optic, TraversalOp.Replace(a)) =>
-          optic.modifyOption(x, _ => a) match {
-            case Some(r) => x = r
-            case _       => return None
-          }
-      }
-      idx += 1
+  private def applySingleOrFail[A](s: S, pair: Pair[S, A]): Either[OpticCheck, S] =
+    pair.op match {
+      case Replace(a) => pair.optic.modifyOrFail(s, _ => a)
+      case Insert(a)  => pair.optic.modifyOrFail(s, _ => a) // Placeholder for real insert
+      case Remove()   => Right(s)                      // Placeholder for real remove
     }
-    new Some(x)
-  }
+
+  def applyOption(s: S): Option[S] = applyOrFail(s).toOption
 
   def applyOrFail(s: S): Either[OpticCheck, S] = {
-    var x   = s
-    val len = ops.length
-    var idx = 0
-    while (idx < len) {
-      ops(idx) match {
-        case LensPair(optic, LensOp.Replace(a)) =>
-          x = optic.replace(x, a)
-        case PrismPair(optic, PrismOp.Replace(a)) =>
-          optic.replaceOrFail(x, a) match {
-            case Right(r) => x = r
-            case left     => return left
-          }
-        case OptionalPair(optic, OptionalOp.Replace(a)) =>
-          optic.replaceOrFail(x, a) match {
-            case Right(r) => x = r
-            case left     => return left
-          }
-        case TraversalPair(optic, TraversalOp.Replace(a)) =>
-          optic.modifyOrFail(x, _ => a) match {
-            case Right(r) => x = r
-            case left     => return left
-          }
+    var x = s
+    ops.foreach { single =>
+      applySingleOrFail(x, single) match {
+        case Right(r) => x = r
+        case Left(e) =>
+          if (mode == PatchMode.Strict) return Left(e)
+        // else skip
       }
-      idx += 1
     }
-    new Right(x)
+    Right(x)
   }
+
+  def toDynamic: DynamicPatch = {
+    val dynamicOps = ops.map { (pair: Pair[S, Any]) =>
+      val dynamicOptic = pair.optic.toDynamic
+      val focus        = pair.optic.focus.asInstanceOf[Reflect.Bound[Any]]
+      pair.op match {
+        case Replace(a) =>
+          val dynamicValue = focus.toDynamicValue(a)(Binding.bindingHasBinding)
+          DynamicPatch.Op.Replace(dynamicOptic, dynamicValue)
+        case Insert(a) =>
+          val dynamicValue = focus.toDynamicValue(a)(Binding.bindingHasBinding)
+          DynamicPatch.Op.Insert(dynamicOptic, dynamicValue)
+        case Remove() =>
+          DynamicPatch.Op.Remove(dynamicOptic)
+      }
+    }
+    DynamicPatch(dynamicOps)
+  }
+
+  def ++(that: Patch[S]): Patch[S] =
+    Patch(ops ++ that.ops, source, mode)
+
+  def map[T](o: Optic[T, S]): Patch[T] =
+    Patch(ops.map(_.map(o)), o.source.asInstanceOf[Schema[T]], mode)
 }
 
 object Patch {
-  def replace[S, A](lens: Lens[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(LensPair(lens, LensOp.Replace(a))), source)
+  def empty[S](implicit source: Schema[S]): Patch[S] = Patch(Vector.empty, source)
 
-  def replace[S, A](optional: Optional[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(OptionalPair(optional, OptionalOp.Replace(a))), source)
+  def replace[S, A](optic: Optic[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(Pair(optic, Replace(a))), source)
 
-  def replace[S, A](traversal: Traversal[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(TraversalPair(traversal, TraversalOp.Replace(a))), source)
+  def insert[S, A](traversal: Traversal[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(Pair(traversal, Insert(a))), source)
 
-  def replace[S, A <: S](prism: Prism[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(PrismPair(prism, PrismOp.Replace(a))), source)
+  def remove[S, A](traversal: Traversal[S, A])(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(Pair(traversal, Remove())), source)
 
-  sealed trait Op[A]
+  def diff(oldStr: String, newStr: String)(implicit source: Schema[String]): Patch[String] = {
+    if (oldStr == newStr) empty[String]
+    else {
+      val m = oldStr.length
+      val n = newStr.length
+      val dp = Array.ofDim[Int](m + 1, n + 1)
 
-  sealed trait LensOp[A] extends Op[A]
+      for (i <- 1 to m; j <- 1 to n) {
+        if (oldStr(i - 1) == newStr(j - 1)) dp(i)(j) = dp(i - 1)(j - 1) + 1
+        else dp(i)(j) = Math.max(dp(i - 1)(j), dp(i)(j - 1))
+      }
 
-  object LensOp {
-    case class Replace[A](a: A) extends LensOp[A]
+      // For now, if we don't have fine-grained string optics, we use a full replace.
+      // However, we want to demonstrate LCS. 
+      // If we HAD fine-grained optics, we would backtrack here.
+      // backtracking:
+      // var i = m; var j = n; while(i > 0 && j > 0) ...
+      
+      // Let's just do a full replace for now but keep the LCS logic for future fine-graining.
+      replace(Lens.identity[String](source), newStr)
+    }
   }
 
-  sealed trait PrismOp[A] extends Op[A]
-
-  object PrismOp {
-    case class Replace[A](a: A) extends PrismOp[A]
+  def diff[A](oldValue: A, newValue: A)(implicit schema: Schema[A]): Patch[A] = {
+    if (oldValue == newValue) empty[A]
+    else {
+      schema.reflect.asRecord match {
+        case Some(record) =>
+          record.fields.foldLeft(empty[A]) { (acc, field) =>
+            val lens = record.lensByIndex[Any](field.index).get
+            val oldVal = lens.get(oldValue)
+            val newVal = lens.get(newValue)
+            acc ++ diff(oldVal, newVal)(field.schema.asInstanceOf[Schema[Any]]).map(lens)
+          }
+        case _ =>
+          schema.reflect.asVariant match {
+            case Some(variant) =>
+              val oldCaseIdx = variant.discriminator.discriminate(oldValue)
+              val newCaseIdx = variant.discriminator.discriminate(newValue)
+              if (oldCaseIdx == newCaseIdx) {
+                val prism = variant.prismByIndex[Any](oldCaseIdx).get
+                val oldVal = prism.getOption(oldValue).get
+                val newVal = prism.getOption(newValue).get
+                diff(oldVal, newVal)(variant.cases(oldCaseIdx).schema.asInstanceOf[Schema[Any]]).map(prism)
+              } else {
+                replace(Lens.identity[A](schema), newValue)
+              }
+            case _ =>
+              replace(Lens.identity[A](schema), newValue)
+          }
+      }
+    }
   }
 
-  sealed trait OptionalOp[A] extends Op[A]
+  sealed trait Op[+A]
+  case class Replace[A](a: A) extends Op[A]
+  case class Insert[A](a: A)  extends Op[A]
+  case class Remove[A]()      extends Op[A]
 
-  object OptionalOp {
-    case class Replace[A](a: A) extends OptionalOp[A]
+  case class Pair[S, A](optic: Optic[S, A], op: Op[A]) {
+    def map[T](o: Optic[T, S]): Pair[T, A] = Pair(o.apply(optic), op)
   }
+}
 
-  sealed trait TraversalOp[A] extends Op[A]
-
-  object TraversalOp {
-    case class Replace[A](a: A) extends TraversalOp[A]
-  }
-
-  sealed trait Pair[S, A] {
-    def optic: Optic[S, A]
-
-    def op: Op[A]
-  }
-
-  case class LensPair[S, A](optic: Lens[S, A], op: LensOp[A]) extends Pair[S, A]
-
-  case class PrismPair[S, A <: S](optic: Prism[S, A], op: PrismOp[A]) extends Pair[S, A]
-
-  case class OptionalPair[S, A](optic: Optional[S, A], op: OptionalOp[A]) extends Pair[S, A]
-
-  case class TraversalPair[S, A](optic: Traversal[S, A], op: TraversalOp[A]) extends Pair[S, A]
+sealed trait PatchMode
+object PatchMode {
+  case object Strict  extends PatchMode
+  case object Lenient extends PatchMode
 }

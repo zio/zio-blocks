@@ -13,6 +13,39 @@ object PatchSpec extends ZIOSpecDefault {
       assert(patch(person1))(equalTo(person2)) &&
       assert(patch.applyOption(person1))(isSome(equalTo(person2))) &&
       assert(patch.applyOrFail(person1))(isRight(equalTo(person2)))
+    } &&
+    test("diff two records") {
+      val p1 = Person(1, "A", "addr1", Nil)
+      val p2 = Person(1, "B", "addr1", Nil)
+      val patch = Patch.diff(p1, p2)
+      assert(patch(p1))(equalTo(p2))
+    } &&
+    test("diff nested records") {
+      case class Company(owner: Person, name: String)
+      implicit val companySchema: Schema[Company] = Reflect.derive[Company].schema
+
+      val c1 = Company(Person(1, "A", "addr1", Nil), "Co1")
+      val c2 = Company(Person(1, "B", "addr1", Nil), "Co1")
+      val patch = Patch.diff(c1, c2)
+      assert(patch(c1))(equalTo(c2))
+    } &&
+    test("Monoid laws: identity") {
+      val p1 = Person(1, "A", "addr1", Nil)
+      val patch = Patch.replace(Person.name, "B")
+      val empty = Patch.empty[Person]
+      val combined1 = patch ++ empty
+      val combined2 = empty ++ patch
+      assert(combined1(p1))(equalTo(patch(p1))) &&
+      assert(combined2(p1))(equalTo(patch(p1)))
+    } &&
+    test("Monoid laws: associativity") {
+      val p1 = Person(1, "A", "addr1", Nil)
+      val patch1 = Patch.replace(Person.name, "B")
+      val patch2 = Patch.replace(Person.address, "addr2")
+      val patch3 = Patch.replace(Person.id, 2L)
+      val combined1 = (patch1 ++ patch2) ++ patch3
+      val combined2 = patch1 ++ (patch2 ++ patch3)
+      assert(combined1(p1))(equalTo(combined2(p1)))
     },
     test("replace a case with a new value") {
       val paymentMethod1 = PayPal("x@gmail.com")
