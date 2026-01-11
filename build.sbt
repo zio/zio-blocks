@@ -379,7 +379,7 @@ lazy val docs = project
     // unpublished `_2.12` artifacts for project dependencies.
     Compile / skip := true,
     Test / skip    := true,
-    publish / skip                             := true
+    publish / skip := true
   )
   .dependsOn(schema.jvm)
   .enablePlugins(WebsitePlugin)

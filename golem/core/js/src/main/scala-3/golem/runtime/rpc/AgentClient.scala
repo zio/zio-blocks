@@ -108,9 +108,9 @@ private object AgentClientInlineMacros {
 
     val pendingMethods = traitSymbol.methodMembers.collect {
       case method if method.flags.is(Flags.Deferred) && method.isDefDef && method.name != "new" =>
-        val params                       = extractParameters(method)
-        val accessMode                   = methodAccess(params)
-        val inputType                    = inputTypeFor(accessMode, params)
+        val params                                   = extractParameters(method)
+        val accessMode                               = methodAccess(params)
+        val inputType                                = inputTypeFor(accessMode, params)
         val (invocationKind, outputType, returnType) = methodInvocationInfo(method)
 
         MethodPlanData(
@@ -230,18 +230,12 @@ private object AgentClientInlineMacros {
             encodeTypeName(constructor)
           case _ =>
             val full = tpe.typeSymbol.fullName
-            if full.startsWith("scala.scalajs.") then
-              "sjs_" + full.stripPrefix("scala.scalajs.").replace('.', '_')
-            else if full.startsWith("scala.") then
-              "s_" + full.stripPrefix("scala.").replace('.', '_')
-            else if full.startsWith("java.lang.") then
-              "jl_" + full.stripPrefix("java.lang.").replace('.', '_')
-            else if full.startsWith("java.util.") then
-              "ju_" + full.stripPrefix("java.util.").replace('.', '_')
-            else if full == "" || full == "<none>" then
-              "O"
-            else
-              "L" + full.replace('.', '_')
+            if full.startsWith("scala.scalajs.") then "sjs_" + full.stripPrefix("scala.scalajs.").replace('.', '_')
+            else if full.startsWith("scala.") then "s_" + full.stripPrefix("scala.").replace('.', '_')
+            else if full.startsWith("java.lang.") then "jl_" + full.stripPrefix("java.lang.").replace('.', '_')
+            else if full.startsWith("java.util.") then "ju_" + full.stripPrefix("java.util.").replace('.', '_')
+            else if full == "" || full == "<none>" then "O"
+            else "L" + full.replace('.', '_')
         }
     }
 
@@ -252,14 +246,15 @@ private object AgentClientInlineMacros {
       else s"${planData.method.name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
     }
 
-    val objSym = Symbol.newVal(Symbol.spliceOwner, "$agentClient", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
+    val objSym =
+      Symbol.newVal(Symbol.spliceOwner, "$agentClient", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
     val objVal = ValDef(objSym, Some('{ js.Dynamic.literal() }.asTerm))
     val objRef = Ref(objSym).asExprOf[js.Dynamic]
 
     val updates: List[Statement] =
       pendingMethods.map { data =>
-        val jsName = scalaJsMethodName(data)
-        val methodTpe = traitRepr.memberType(data.method)
+        val jsName     = scalaJsMethodName(data)
+        val methodTpe  = traitRepr.memberType(data.method)
         val lambdaTerm = methodTpe match {
           case mt: MethodType =>
             Lambda(
@@ -274,7 +269,7 @@ private object AgentClientInlineMacros {
             report.errorAndAbort(s"Unsupported agent method shape for ${data.method.name}: ${other.show}")
         }
         val fnExpr = lambdaTerm.asExprOf[Any]
-        '{ $objRef.updateDynamic(${Expr(jsName)})($fnExpr.asInstanceOf[js.Any]) }.asTerm
+        '{ $objRef.updateDynamic(${ Expr(jsName) })($fnExpr.asInstanceOf[js.Any]) }.asTerm
       }
 
     val casted =
@@ -334,7 +329,8 @@ private object AgentClientInlineMacros {
           case AppliedType(constructor, args) if isAsyncReturn(constructor) && args.nonEmpty =>
             (InvocationKind.Awaitable, args.head, returnType)
           case _ =>
-            if returnType =:= TypeRepr.of[Unit] then (InvocationKind.FireAndForget, TypeRepr.of[Unit], TypeRepr.of[Unit])
+            if returnType =:= TypeRepr.of[Unit] then
+              (InvocationKind.FireAndForget, TypeRepr.of[Unit], TypeRepr.of[Unit])
             else {
               report.errorAndAbort(
                 s"Agent client method ${method.name} must return scala.concurrent.Future[...] or Unit, found: ${returnType.show}"

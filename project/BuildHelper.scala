@@ -71,9 +71,9 @@ object BuildHelper {
   )
 
   def stdSettings(prjName: String, scalaVersions: Seq[String] = Seq(Scala3, Scala213)): Seq[Def.Setting[?]] = Seq(
-    name                     := prjName,
-    crossScalaVersions       := scalaVersions,
-    scalaVersion             := scalaVersions.head,
+    name               := prjName,
+    crossScalaVersions := scalaVersions,
+    scalaVersion       := scalaVersions.head,
     dependencyOverrides ++= (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((3, _)) =>
         Seq(
