@@ -13,10 +13,17 @@ import zio.blocks.schema.Schema
  * 2. Apply the `dynamicMigration` to transform the dynamic value
  * 3. Convert the result back to `B` using `targetSchema`
  *
+ * The schemas can be any `Schema[A]` and `Schema[B]`, including:
+ * - Regular schemas derived from case classes/enums
+ * - Structural schemas (JVM only) for compile-time-only types
+ *
+ * This allows migrations between current runtime types and past structural versions
+ * without requiring old case classes to exist at runtime.
+ *
  * @tparam A The source type
  * @tparam B The target type
- * @param sourceSchema Schema for the source type (used to convert A to DynamicValue)
- * @param targetSchema Schema for the target type (used to convert DynamicValue to B)
+ * @param sourceSchema Schema for the source type (can be structural or regular)
+ * @param targetSchema Schema for the target type (can be structural or regular)
  * @param dynamicMigration The underlying untyped migration
  */
 final case class Migration[A, B](
