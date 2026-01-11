@@ -137,10 +137,8 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
   }
 
   def optionalizeFieldImpl[A: WeakTypeTag, B: WeakTypeTag](
-    source: c.Expr[A => Any],
-    target: c.Expr[B => Option[_]]
+    source: c.Expr[A => Any]
   ): c.Expr[MigrationBuilder[A, B]] = {
-    val _                  = target
     val path               = extractPath(source.tree)
     val (fieldName, optic) = splitPath(path, source.tree.pos)
     val builder            = c.prefix
@@ -157,5 +155,206 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
     val (fieldName, optic) = splitPath(path, source.tree.pos)
     val builder            = c.prefix
     c.Expr[MigrationBuilder[A, B]](q"$builder.mandateField($fieldName, $default, $optic)")
+  }
+  // ============================================================================
+  // Compile-time Validation Logic
+  // ============================================================================
+
+  sealed trait ExtractedAction
+  object ExtractedAction {
+    case class Rename(from: String, to: String)           extends ExtractedAction
+    case class Drop(fieldName: String)                    extends ExtractedAction
+    case class Add(fieldName: String)                     extends ExtractedAction
+    case class Optionalize(fieldName: String)             extends ExtractedAction
+    case class Mandate(fieldName: String)                 extends ExtractedAction
+    case class ChangeType(from: String, to: String)       extends ExtractedAction
+    case class RenameCase(from: String, to: String)       extends ExtractedAction
+    case object Opaque                                    extends ExtractedAction
+  }
+
+  def buildImpl[A: WeakTypeTag, B: WeakTypeTag]: c.Expr[Migration[A, B]] = {
+    import c.universe._
+
+    val builderTree = c.prefix.tree
+
+    // 1. Extract Actions
+    val actions = extractActionsFromBuilder(builderTree)
+
+    // 2. Extract Types
+    val sourceFields = extractTypeFields(weakTypeOf[A])
+    val targetFields = extractTypeFields(weakTypeOf[B])
+
+    // 3. Simulate Transformation
+    // Fields existing in both are implicit
+    val (handledSource, producedTarget) = simulateTransformation(sourceFields, actions)
+
+    // 4. Calculate Unmapped
+    val unmappedSource = sourceFields.diff(handledSource).diff(targetFields)
+    val unmappedTarget = targetFields.diff(producedTarget).diff(sourceFields)
+
+    // 5. Report Errors
+     val hasOpaque = actions.contains(ExtractedAction.Opaque)
+
+     if (hasOpaque) {
+       if (unmappedSource.nonEmpty || unmappedTarget.nonEmpty) {
+         c.warning(c.enclosingPosition,
+           s"Migration contains opaque/runtime values. Potential issues: " +
+           (if (unmappedSource.nonEmpty) s"unmapped source [${unmappedSource.mkString(", ")}] " else "") +
+           (if (unmappedTarget.nonEmpty) s"unmapped target [${unmappedTarget.mkString(", ")}]" else "")
+         )
+       }
+     } else {
+       if (unmappedSource.nonEmpty) {
+         c.error(c.enclosingPosition,
+           s"Migration from ${weakTypeOf[A]} to ${weakTypeOf[B]} is incomplete: " +
+           s"source fields [${unmappedSource.mkString(", ")}] are not handled."
+         )
+       }
+       if (unmappedTarget.nonEmpty) {
+         c.error(c.enclosingPosition,
+           s"Migration from ${weakTypeOf[A]} to ${weakTypeOf[B]} is incomplete: " +
+           s"target fields [${unmappedTarget.mkString(", ")}] are not produced."
+         )
+       }
+     }
+
+    // 6. Return runtime build call
+    c.Expr[Migration[A, B]](q"$builderTree.buildValidating")
+  }
+
+  private def extractActionsFromBuilder(tree: Tree): List[ExtractedAction] = {
+    def loop(t: Tree, acc: List[ExtractedAction]): List[ExtractedAction] = t match {
+      case Apply(Select(qual, name), args) =>
+        val action = extractActionFromMethod(name.decodedName.toString, args)
+        loop(qual, action :: acc)
+
+      // Generic methods
+      case Apply(TypeApply(Select(qual, name), _), args) =>
+        val action = extractActionFromMethod(name.decodedName.toString, args)
+        loop(qual, action :: acc)
+
+       // Typed/Inlined wrappers
+      case Typed(inner, _) => loop(inner, acc)
+      case Block(_, expr) => loop(expr, acc)
+
+      case _ => acc
+    }
+    loop(tree, Nil)
+  }
+
+  private def extractActionFromMethod(name: String, args: List[Tree]): ExtractedAction = {
+    name match {
+      case "renameField" if args.length >= 2 =>
+        (extractStringOrSelector(args(0)), extractStringOrSelector(args(1))) match {
+          case (Some(f), Some(t)) => ExtractedAction.Rename(f, t)
+          case _ => ExtractedAction.Opaque
+        }
+      case "dropField" | "dropFieldWithDefault" if args.nonEmpty =>
+        extractStringOrSelector(args(0)).map(ExtractedAction.Drop).getOrElse(ExtractedAction.Opaque)
+
+      case "addField" | "addFieldWithDefault" if args.nonEmpty =>
+        extractStringOrSelector(args(0)).map(ExtractedAction.Add).getOrElse(ExtractedAction.Opaque)
+
+      case "optionalizeField" if args.nonEmpty =>
+        extractStringOrSelector(args(0)).map(ExtractedAction.Optionalize).getOrElse(ExtractedAction.Opaque)
+
+      case "mandateField" | "mandateFieldWithDefault" if args.nonEmpty =>
+        extractStringOrSelector(args(0)).map(ExtractedAction.Mandate).getOrElse(ExtractedAction.Opaque)
+
+      case "changeFieldType" if args.nonEmpty =>
+        // usually checks args(0)
+        extractStringOrSelector(args(0)) match {
+          case Some(_) if args.size > 1 && args(1).tpe <:< typeOf[String] => // internal overload?
+             ExtractedAction.Opaque // internal private overload with string usually
+          case Some(f) => ExtractedAction.ChangeType(f, f) // simple assume same name
+          case _ => ExtractedAction.Opaque
+        }
+
+      case "renameCase" if args.length >= 2 =>
+         (extractStringLiteral(args(0)), extractStringLiteral(args(1))) match {
+           case (Some(f), Some(t)) => ExtractedAction.RenameCase(f, t)
+           case _ => ExtractedAction.Opaque
+         }
+
+      case _ => ExtractedAction.Opaque
+    }
+  }
+
+  // Tries to extract string from literal OR from selector lambda
+  private def extractStringOrSelector(tree: Tree): Option[String] = {
+    extractStringLiteral(tree).orElse {
+       // Check if it is a selector lambda _.field
+       // The tree passed here might be the lambda logic itself or an Expr wrapping it
+       // In the builder chain, arguments are trees.
+       // E.g. .renameField(_.a, _.b) -> args(0) is the lambda tree for _.a
+       tryExtractSelector(tree)
+    }
+  }
+
+  private def extractStringLiteral(tree: Tree): Option[String] = tree match {
+    case Literal(Constant(s: String)) => Some(s)
+    case Typed(t, _) => extractStringLiteral(t)
+    case Block(_, t) => extractStringLiteral(t)
+    case _ => None
+  }
+
+  // Reuse logic from extractPath, but handle the Lambda tree structure
+  private def tryExtractSelector(tree: Tree): Option[String] = {
+     tree match {
+       // Function(List(ValDef(...)), Select(Ident(...), name))
+       case Function(_, body) =>
+         // Hack: reuse extractPath which expects Function(List(_), body) but logic separates
+         // extractPath implementation expects Function or just body?
+         // extractPath(selector: Tree) { selector match case Function ... }
+         // So we can pass tree directly.
+          try {
+             val p = extractPath(tree)
+             if (p.nonEmpty) {
+               p.last match {
+                 case PathNode.Field(n) => Some(n)
+                 case PathNode.Case(n) => Some(n)
+                 case _ => None
+               }
+             } else None
+          } catch {
+             case _: Throwable => None
+          }
+       case _ => None
+     }
+  }
+
+  private def extractTypeFields(tpe: Type): Set[String] = {
+    tpe.decls.collect {
+      case m: MethodSymbol if m.isCaseAccessor => m.name.decodedName.toString
+    }.toSet
+  }
+
+  private def simulateTransformation(
+    sourceFields: Set[String],
+    actions: List[ExtractedAction]
+  ): (Set[String], Set[String]) = {
+    var handledSource = Set.empty[String]
+    var producedTarget = Set.empty[String]
+
+    actions.foreach {
+      case ExtractedAction.Rename(from, to) =>
+        handledSource += from
+        producedTarget += to
+      case ExtractedAction.Drop(name) =>
+        handledSource += name
+      case ExtractedAction.Add(name) =>
+        producedTarget += name
+      case ExtractedAction.Optionalize(name) =>
+        handledSource += name
+        producedTarget += name
+      case ExtractedAction.Mandate(name) =>
+        handledSource += name
+        producedTarget += name
+      case ExtractedAction.ChangeType(from, to) =>
+        handledSource += from
+        producedTarget += to
+      case _ => ()
+    }
+    (handledSource, producedTarget)
   }
 }

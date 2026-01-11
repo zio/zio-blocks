@@ -23,7 +23,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = Migration
           .builder[PersonV0, PersonV1]
           .addFieldWithDefault("country", "USA")
-          .build
+          .buildPartial
 
         assertTrue(migration.dynamicMigration.actions.length == 1) &&
         assertTrue(migration.dynamicMigration.actions.head.isInstanceOf[MigrationAction.AddField])
@@ -33,7 +33,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
           .builder[PersonV0, PersonV1]
           .addFieldWithDefault("country", "USA")
           .mandateFieldWithDefault("country", "Unknown")
-          .build
+          .buildPartial
 
         assertTrue(migration.dynamicMigration.actions.length == 2)
       },
@@ -76,7 +76,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = Migration
           .builder[PersonV0, PersonV1]
           .addFieldWithDefault("country", "USA")
-          .build
+          .buildPartial
 
         val input  = PersonV0("John Doe", 30)
         val result = migration.apply(input)

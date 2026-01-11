@@ -13,7 +13,10 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
   /**
    * Build the final migration. (Scala 2 validation is runtime-only via buildValidating).
    */
-  def build: Migration[A, B] = self.buildValidating
+  /**
+   * Build the final migration.
+   */
+  def build: Migration[A, B] = macro MigrationBuilderMacros.buildImpl[A, B]
 
   // ============================================================================
   // Selector-based Macros
@@ -26,7 +29,7 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
 
   def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] = macro MigrationBuilderMacros.renameFieldImpl[A, B]
 
-  def optionalizeField(source: A => Any, target: B => Option[_]): MigrationBuilder[A, B] = macro MigrationBuilderMacros.optionalizeFieldImpl[A, B]
+  def optionalizeField(source: A => Any): MigrationBuilder[A, B] = macro MigrationBuilderMacros.optionalizeFieldImpl[A, B]
 
 
   def mandateField(
