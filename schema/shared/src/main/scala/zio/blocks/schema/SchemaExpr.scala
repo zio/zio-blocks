@@ -314,13 +314,37 @@ object SchemaExpr {
     def eval(input: S): Either[OpticCheck, Seq[A]] =
       schema.getDefaultValue match {
         case Some(value) => new Right(value :: Nil)
-        case None        => new Left(OpticCheck(::(OpticCheck.WrappingError(DynamicOptic.root, DynamicOptic.root, s"No default value for schema ${schema.reflect.typeName}"), Nil)))
+        case None        =>
+          new Left(
+            OpticCheck(
+              ::(
+                OpticCheck.WrappingError(
+                  DynamicOptic.root,
+                  DynamicOptic.root,
+                  s"No default value for schema ${schema.reflect.typeName}"
+                ),
+                Nil
+              )
+            )
+          )
       }
 
     def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] =
       schema.getDefaultValue match {
         case Some(value) => new Right(schema.toDynamicValue(value) :: Nil)
-        case None        => new Left(OpticCheck(::(OpticCheck.WrappingError(DynamicOptic.root, DynamicOptic.root, s"No default value for schema ${schema.reflect.typeName}"), Nil)))
+        case None        =>
+          new Left(
+            OpticCheck(
+              ::(
+                OpticCheck.WrappingError(
+                  DynamicOptic.root,
+                  DynamicOptic.root,
+                  s"No default value for schema ${schema.reflect.typeName}"
+                ),
+                Nil
+              )
+            )
+          )
       }
   }
 }

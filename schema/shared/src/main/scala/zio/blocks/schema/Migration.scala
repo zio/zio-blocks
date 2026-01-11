@@ -1,15 +1,16 @@
 package zio.blocks.schema
 
 /**
- * A `Migration` represents a structural transformation between two schema versions.
- * Migrations are pure, algebraic data that can be:
+ * A `Migration` represents a structural transformation between two schema
+ * versions. Migrations are pure, algebraic data that can be:
  *   - serialized and stored
  *   - composed with other migrations
  *   - applied to transform values from one schema version to another
  *   - reversed to enable downgrade paths
  *
- * The migration system works with structural types (records and enums) and allows
- * users to evolve schemas without keeping old case classes in their codebase.
+ * The migration system works with structural types (records and enums) and
+ * allows users to evolve schemas without keeping old case classes in their
+ * codebase.
  *
  * {{{
  * val migration =
@@ -36,8 +37,9 @@ sealed trait Migration[A, B] { self =>
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue]
 
   /**
-   * Reverse this migration to create a migration that goes in the opposite direction.
-   * Note: Not all migrations are perfectly reversible. Some information may be lost.
+   * Reverse this migration to create a migration that goes in the opposite
+   * direction. Note: Not all migrations are perfectly reversible. Some
+   * information may be lost.
    */
   def reverse: Migration[B, A]
 }
@@ -164,7 +166,7 @@ object Migration extends MigrationCompanionVersionSpecific {
       value: DynamicValue,
       nodes: IndexedSeq[DynamicOptic.Node],
       idx: Int
-    ): Either[MigrationError, DynamicValue] = {
+    ): Either[MigrationError, DynamicValue] =
       if (idx >= nodes.length) {
         transform(value)
       } else {
@@ -188,7 +190,7 @@ object Migration extends MigrationCompanionVersionSpecific {
             value match {
               case DynamicValue.Sequence(elements) =>
                 val results = elements.map(e => applyAtPath(e, nodes, idx + 1))
-                val errors = results.collect { case Left(e) => e }
+                val errors  = results.collect { case Left(e) => e }
                 if (errors.nonEmpty) {
                   Left(errors.head)
                 } else {
@@ -218,7 +220,6 @@ object Migration extends MigrationCompanionVersionSpecific {
             Left(MigrationError.UnsupportedOpticNode(optic))
         }
       }
-    }
 
     def reverse: Migration[Any, Any] =
       TransformValue(optic, reverseTransform, transform)
@@ -234,7 +235,7 @@ object Migration extends MigrationCompanionVersionSpecific {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       value match {
         case DynamicValue.Record(fields) =>
-          val fieldMap = fields.toMap
+          val fieldMap  = fields.toMap
           val reordered = newOrder.flatMap(name => fieldMap.get(name).map(v => (name, v)))
           // Add any fields not in newOrder at the end
           val remaining = fields.filterNot(f => newOrder.contains(f._1))
@@ -341,7 +342,9 @@ object Migration extends MigrationCompanionVersionSpecific {
    * Derive a migration between two types A and B using explicit actions.
    */
   def derive[A, B](actions: Migration[Any, Any]*): Migration[A, B] =
-    actions.foldLeft[Migration[Any, Any]](Migration.Identity[Any]())((acc, action) => acc ++ action).asInstanceOf[Migration[A, B]]
+    actions
+      .foldLeft[Migration[Any, Any]](Migration.Identity[Any]())((acc, action) => acc ++ action)
+      .asInstanceOf[Migration[A, B]]
 }
 
 /**
@@ -418,11 +421,10 @@ final class MigrationBuilder[A, B] private[schema] (
   /**
    * Build the final migration.
    */
-  def build: Migration[A, B] = {
+  def build: Migration[A, B] =
     if (actions.isEmpty) {
       Migration.Identity().asInstanceOf[Migration[A, B]]
     } else {
       actions.reduceLeft[Migration[Any, Any]](_ ++ _).asInstanceOf[Migration[A, B]]
     }
-  }
 }
