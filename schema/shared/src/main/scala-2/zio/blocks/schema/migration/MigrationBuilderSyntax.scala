@@ -28,7 +28,7 @@ object MigrationBuilderMacros {
 
   def dropFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(
     source: c.Expr[A => Any],
-    defaultForReverse: c.Expr[DynamicValue]
+    defaultForReverse: c.Expr[Option[DynamicValue]]
   ): c.Tree = {
     import c.universe._
     val sourcePath = SelectorMacros.toPathImpl[A, Any](c)(source.asInstanceOf[c.Expr[A => Any]])
@@ -39,7 +39,7 @@ object MigrationBuilderMacros {
         case _ => throw new IllegalArgumentException("Source selector must end with a field access")
       }
       val parentPath = _root_.zio.blocks.schema.DynamicOptic(sourcePath.nodes.dropRight(1))
-      ${c.prefix}.appendAction(_root_.zio.blocks.schema.migration.MigrationAction.DropField(parentPath, fieldName, _root_.scala.Some($defaultForReverse)))
+      ${c.prefix}.appendAction(_root_.zio.blocks.schema.migration.MigrationAction.DropField(parentPath, fieldName, $defaultForReverse))
     }"""
   }
 

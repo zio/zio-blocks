@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.DynamicValue
+import zio.blocks.schema.{DynamicValue, SchemaError}
 
 /**
  * A pure, serializable migration that operates on `DynamicValue`.
@@ -25,9 +25,9 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
    * Apply this migration to a `DynamicValue`.
    *
    * @param value The input value to migrate
-   * @return Either a `MigrationError` or the migrated value
+   * @return Either a `SchemaError` or the migrated value
    */
-  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+  def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
     DynamicMigration.execute(actions, value)
 
   /**
@@ -94,7 +94,7 @@ object DynamicMigration {
   private[migration] def execute(
     actions: Vector[MigrationAction],
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[SchemaError, DynamicValue] = {
     var current: DynamicValue = value
     var idx                   = 0
     val len                   = actions.length
@@ -120,7 +120,7 @@ object DynamicMigration {
 private[migration] object ActionExecutor {
   import MigrationAction._
 
-  def execute(action: MigrationAction, value: DynamicValue): Either[MigrationError, DynamicValue] =
+  def execute(action: MigrationAction, value: DynamicValue): Either[SchemaError, DynamicValue] =
     action match {
       case AddField(at, fieldName, default) =>
         executeAddField(at, fieldName, default, value)
@@ -172,44 +172,44 @@ private[migration] object ActionExecutor {
     fieldName: String,
     default: DynamicValue,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Record(fields) =>
         if (fields.exists(_._1 == fieldName)) {
-          Left(MigrationError.fieldAlreadyExists(at, fieldName))
+          Left(SchemaError.fieldAlreadyExists(at, fieldName))
         } else {
           Right(DynamicValue.Record(fields :+ (fieldName -> default)))
         }
       case other =>
-        Left(MigrationError.typeMismatch(at, "Record", other.getClass.getSimpleName))
+        Left(SchemaError.typeMismatch(at, "Record", other.getClass.getSimpleName))
     }
 
   private def executeDropField(
     at: zio.blocks.schema.DynamicOptic,
     fieldName: String,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Record(fields) =>
         val idx = fields.indexWhere(_._1 == fieldName)
         if (idx < 0) {
-          Left(MigrationError.fieldNotFound(at, fieldName))
+          Left(SchemaError.fieldNotFound(at, fieldName))
         } else {
           Right(DynamicValue.Record(fields.patch(idx, Nil, 1)))
         }
       case other =>
-        Left(MigrationError.typeMismatch(at, "Record", other.getClass.getSimpleName))
+        Left(SchemaError.typeMismatch(at, "Record", other.getClass.getSimpleName))
     }
 
   private def executeRename(
     at: zio.blocks.schema.DynamicOptic,
     to: String,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[SchemaError, DynamicValue] = {
     // Extract from name and parent path
     val from = at.nodes.lastOption match {
       case Some(zio.blocks.schema.DynamicOptic.Node.Field(name)) => name
-      case _ => return Left(MigrationError.transformFailed(at, "Rename path must end with a Field node"))
+      case _ => return Left(SchemaError.transformFailed(at, "Rename path must end with a Field node"))
     }
     val parentPath = zio.blocks.schema.DynamicOptic(at.nodes.dropRight(1))
 
@@ -217,15 +217,15 @@ private[migration] object ActionExecutor {
       case DynamicValue.Record(fields) =>
         val idx = fields.indexWhere(_._1 == from)
         if (idx < 0) {
-          Left(MigrationError.fieldNotFound(at, from))
+          Left(SchemaError.fieldNotFound(at, from))
         } else if (fields.exists(_._1 == to)) {
-          Left(MigrationError.fieldAlreadyExists(at, to))
+          Left(SchemaError.fieldAlreadyExists(at, to))
         } else {
           val (_, v) = fields(idx)
           Right(DynamicValue.Record(fields.updated(idx, (to, v))))
         }
       case other =>
-        Left(MigrationError.typeMismatch(at, "Record", other.getClass.getSimpleName))
+        Left(SchemaError.typeMismatch(at, "Record", other.getClass.getSimpleName))
     }
   }
 
@@ -233,7 +233,7 @@ private[migration] object ActionExecutor {
     at: zio.blocks.schema.DynamicOptic,
     transform: DynamicTransform,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) { v =>
       applyTransform(transform, v, at)
     }
@@ -242,7 +242,7 @@ private[migration] object ActionExecutor {
     at: zio.blocks.schema.DynamicOptic,
     default: DynamicValue,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       // Option is represented as a Variant with cases "None" and "Some"
       case DynamicValue.Variant("None", _) =>
@@ -257,7 +257,7 @@ private[migration] object ActionExecutor {
   private def executeOptionalize(
     at: zio.blocks.schema.DynamicOptic,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) { v =>
       // Wrap the value in Some
       Right(DynamicValue.Variant("Some", v))
@@ -268,13 +268,13 @@ private[migration] object ActionExecutor {
     sourcePaths: Vector[zio.blocks.schema.DynamicOptic],
     combiner: DynamicTransform,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[SchemaError, DynamicValue] = {
     // Collect values from all source paths
-    val collectedValues = sourcePaths.foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
+    val collectedValues = sourcePaths.foldLeft[Either[SchemaError, Vector[DynamicValue]]](Right(Vector.empty)) {
       case (Right(acc), path) =>
         getAt(path, value) match {
           case Some(v) => Right(acc :+ v)
-          case None    => Left(MigrationError.pathNotFound(path))
+          case None    => Left(SchemaError.pathNotFound(path))
         }
       case (left, _) => left
     }
@@ -310,7 +310,7 @@ private[migration] object ActionExecutor {
                   Right(combinedValue)
               }
             case other =>
-              Left(MigrationError.typeMismatch(at, "Record", other.getClass.getSimpleName))
+              Left(SchemaError.typeMismatch(at, "Record", other.getClass.getSimpleName))
           }
         }
       }
@@ -322,16 +322,16 @@ private[migration] object ActionExecutor {
     targetPaths: Vector[zio.blocks.schema.DynamicOptic],
     splitter: DynamicTransform,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[SchemaError, DynamicValue] = {
     // Get the value to split
     getAt(at, value) match {
-      case None => Left(MigrationError.pathNotFound(at))
+      case None => Left(SchemaError.pathNotFound(at))
       case Some(sourceValue) =>
         // Apply the splitter transform - should produce a record with fields _0, _1, etc.
         applyTransform(splitter, sourceValue, at).flatMap {
           case DynamicValue.Record(splitFields) =>
             if (splitFields.length != targetPaths.length) {
-              Left(MigrationError.transformFailed(at,
+              Left(SchemaError.transformFailed(at,
                 s"Splitter produced ${splitFields.length} values, but ${targetPaths.length} target paths specified"))
             } else {
               // Get the parent record and modify it
@@ -350,7 +350,7 @@ private[migration] object ActionExecutor {
                   }
 
                   // Add the split values at their target locations
-                  val newFields = targetPaths.zip(splitFields).foldLeft[Either[MigrationError, Vector[(String, DynamicValue)]]](
+                  val newFields = targetPaths.zip(splitFields).foldLeft[Either[SchemaError, Vector[(String, DynamicValue)]]](
                     Right(filteredFields)
                   ) {
                     case (Right(acc), (targetPath, (_, splitValue))) =>
@@ -358,7 +358,7 @@ private[migration] object ActionExecutor {
                         case Some(zio.blocks.schema.DynamicOptic.Node.Field(targetName)) =>
                           Right(acc :+ (targetName -> splitValue))
                         case _ =>
-                          Left(MigrationError.transformFailed(targetPath, "Target path must end with a field name"))
+                          Left(SchemaError.transformFailed(targetPath, "Target path must end with a field name"))
                       }
                     case (left, _) => left
                   }
@@ -366,11 +366,11 @@ private[migration] object ActionExecutor {
                   newFields.map(DynamicValue.Record(_))
 
                 case other =>
-                  Left(MigrationError.typeMismatch(parentPath, "Record", other.getClass.getSimpleName))
+                  Left(SchemaError.typeMismatch(parentPath, "Record", other.getClass.getSimpleName))
               }
             }
           case other =>
-            Left(MigrationError.typeMismatch(at, "Record (from splitter)", other.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Record (from splitter)", other.getClass.getSimpleName))
         }
     }
   }
@@ -446,7 +446,7 @@ private[migration] object ActionExecutor {
     at: zio.blocks.schema.DynamicOptic,
     converter: DynamicTransform,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) { v =>
       applyTransform(converter, v, at)
     }
@@ -458,7 +458,7 @@ private[migration] object ActionExecutor {
     from: String,
     to: String,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Variant(caseName, inner) if caseName == from =>
         Right(DynamicValue.Variant(to, inner))
@@ -466,7 +466,7 @@ private[migration] object ActionExecutor {
         // Different case, no change needed
         Right(v)
       case other =>
-        Left(MigrationError.typeMismatch(at, "Variant", other.getClass.getSimpleName))
+        Left(SchemaError.typeMismatch(at, "Variant", other.getClass.getSimpleName))
     }
 
   private def executeTransformCase(
@@ -474,7 +474,7 @@ private[migration] object ActionExecutor {
     caseName: String,
     actions: Vector[MigrationAction],
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Variant(name, inner) if name == caseName =>
         DynamicMigration.execute(actions, inner).map(DynamicValue.Variant(name, _))
@@ -482,7 +482,7 @@ private[migration] object ActionExecutor {
         // Different case, no change needed
         Right(v)
       case other =>
-        Left(MigrationError.typeMismatch(at, "Variant", other.getClass.getSimpleName))
+        Left(SchemaError.typeMismatch(at, "Variant", other.getClass.getSimpleName))
     }
 
   // ==================== Collection Action Execution ====================
@@ -491,10 +491,10 @@ private[migration] object ActionExecutor {
     at: zio.blocks.schema.DynamicOptic,
     transform: DynamicTransform,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Sequence(elements) =>
-        val transformed = elements.foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
+        val transformed = elements.foldLeft[Either[SchemaError, Vector[DynamicValue]]](Right(Vector.empty)) {
           case (Right(acc), elem) =>
             applyTransform(transform, elem, at).map(acc :+ _)
           case (left, _) =>
@@ -502,17 +502,17 @@ private[migration] object ActionExecutor {
         }
         transformed.map(DynamicValue.Sequence(_))
       case other =>
-        Left(MigrationError.typeMismatch(at, "Sequence", other.getClass.getSimpleName))
+        Left(SchemaError.typeMismatch(at, "Sequence", other.getClass.getSimpleName))
     }
 
   private def executeTransformKeys(
     at: zio.blocks.schema.DynamicOptic,
     transform: DynamicTransform,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Map(entries) =>
-        val transformed = entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
+        val transformed = entries.foldLeft[Either[SchemaError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
           case (Right(acc), (k, v)) =>
             applyTransform(transform, k, at).map(newK => acc :+ (newK -> v))
           case (left, _) =>
@@ -520,17 +520,17 @@ private[migration] object ActionExecutor {
         }
         transformed.map(DynamicValue.Map(_))
       case other =>
-        Left(MigrationError.typeMismatch(at, "Map", other.getClass.getSimpleName))
+        Left(SchemaError.typeMismatch(at, "Map", other.getClass.getSimpleName))
     }
 
   private def executeTransformValues(
     at: zio.blocks.schema.DynamicOptic,
     transform: DynamicTransform,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Map(entries) =>
-        val transformed = entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
+        val transformed = entries.foldLeft[Either[SchemaError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
           case (Right(acc), (k, v)) =>
             applyTransform(transform, v, at).map(newV => acc :+ (k -> newV))
           case (left, _) =>
@@ -538,7 +538,7 @@ private[migration] object ActionExecutor {
         }
         transformed.map(DynamicValue.Map(_))
       case other =>
-        Left(MigrationError.typeMismatch(at, "Map", other.getClass.getSimpleName))
+        Left(SchemaError.typeMismatch(at, "Map", other.getClass.getSimpleName))
     }
 
   // ==================== Helper Methods ====================
@@ -550,7 +550,7 @@ private[migration] object ActionExecutor {
   private def modifyAt(
     path: zio.blocks.schema.DynamicOptic,
     value: DynamicValue
-  )(f: DynamicValue => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] = {
+  )(f: DynamicValue => Either[SchemaError, DynamicValue]): Either[SchemaError, DynamicValue] = {
     val nodes = path.nodes
     if (nodes.isEmpty) {
       f(value)
@@ -564,7 +564,7 @@ private[migration] object ActionExecutor {
     idx: Int,
     value: DynamicValue,
     fullPath: zio.blocks.schema.DynamicOptic
-  )(f: DynamicValue => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] = {
+  )(f: DynamicValue => Either[SchemaError, DynamicValue]): Either[SchemaError, DynamicValue] = {
     import zio.blocks.schema.DynamicOptic.Node
 
     if (idx >= nodes.length) {
@@ -576,7 +576,7 @@ private[migration] object ActionExecutor {
             case DynamicValue.Record(fields) =>
               val fieldIdx = fields.indexWhere(_._1 == name)
               if (fieldIdx < 0) {
-                Left(MigrationError.fieldNotFound(fullPath, name))
+                Left(SchemaError.fieldNotFound(fullPath, name))
               } else {
                 val (fieldName, fieldValue) = fields(fieldIdx)
                 modifyAtPath(nodes, idx + 1, fieldValue, fullPath)(f).map { newFieldValue =>
@@ -584,7 +584,7 @@ private[migration] object ActionExecutor {
                 }
               }
             case other =>
-              Left(MigrationError.typeMismatch(fullPath, "Record", other.getClass.getSimpleName))
+              Left(SchemaError.typeMismatch(fullPath, "Record", other.getClass.getSimpleName))
           }
 
         case Node.Case(caseName) =>
@@ -594,15 +594,15 @@ private[migration] object ActionExecutor {
                 DynamicValue.Variant(name, newInner)
               }
             case DynamicValue.Variant(_, _) =>
-              Left(MigrationError.caseNotFound(fullPath, caseName))
+              Left(SchemaError.caseNotFound(fullPath, caseName))
             case other =>
-              Left(MigrationError.typeMismatch(fullPath, "Variant", other.getClass.getSimpleName))
+              Left(SchemaError.typeMismatch(fullPath, "Variant", other.getClass.getSimpleName))
           }
 
         case Node.Elements =>
           value match {
             case DynamicValue.Sequence(elements) =>
-              val results = elements.foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
+              val results = elements.foldLeft[Either[SchemaError, Vector[DynamicValue]]](Right(Vector.empty)) {
                 case (Right(acc), elem) =>
                   modifyAtPath(nodes, idx + 1, elem, fullPath)(f).map(acc :+ _)
                 case (left, _) =>
@@ -610,13 +610,13 @@ private[migration] object ActionExecutor {
               }
               results.map(DynamicValue.Sequence(_))
             case other =>
-              Left(MigrationError.typeMismatch(fullPath, "Sequence", other.getClass.getSimpleName))
+              Left(SchemaError.typeMismatch(fullPath, "Sequence", other.getClass.getSimpleName))
           }
 
         case Node.MapKeys =>
           value match {
             case DynamicValue.Map(entries) =>
-              val results = entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
+              val results = entries.foldLeft[Either[SchemaError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
                 case (Right(acc), (k, v)) =>
                   modifyAtPath(nodes, idx + 1, k, fullPath)(f).map(newK => acc :+ (newK -> v))
                 case (left, _) =>
@@ -624,13 +624,13 @@ private[migration] object ActionExecutor {
               }
               results.map(DynamicValue.Map(_))
             case other =>
-              Left(MigrationError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
+              Left(SchemaError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
           }
 
         case Node.MapValues =>
           value match {
             case DynamicValue.Map(entries) =>
-              val results = entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
+              val results = entries.foldLeft[Either[SchemaError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
                 case (Right(acc), (k, v)) =>
                   modifyAtPath(nodes, idx + 1, v, fullPath)(f).map(newV => acc :+ (k -> newV))
                 case (left, _) =>
@@ -638,21 +638,21 @@ private[migration] object ActionExecutor {
               }
               results.map(DynamicValue.Map(_))
             case other =>
-              Left(MigrationError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
+              Left(SchemaError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
           }
 
         case Node.AtIndex(index) =>
           value match {
             case DynamicValue.Sequence(elements) =>
               if (index < 0 || index >= elements.length) {
-                Left(MigrationError.pathNotFound(fullPath))
+                Left(SchemaError.pathNotFound(fullPath))
               } else {
                 modifyAtPath(nodes, idx + 1, elements(index), fullPath)(f).map { newElem =>
                   DynamicValue.Sequence(elements.updated(index, newElem))
                 }
               }
             case other =>
-              Left(MigrationError.typeMismatch(fullPath, "Sequence", other.getClass.getSimpleName))
+              Left(SchemaError.typeMismatch(fullPath, "Sequence", other.getClass.getSimpleName))
           }
 
         case Node.AtMapKey(key) =>
@@ -661,7 +661,7 @@ private[migration] object ActionExecutor {
               val keyValue = key.asInstanceOf[DynamicValue]
               val entryIdx = entries.indexWhere(_._1 == keyValue)
               if (entryIdx < 0) {
-                Left(MigrationError.pathNotFound(fullPath))
+                Left(SchemaError.pathNotFound(fullPath))
               } else {
                 val (k, v) = entries(entryIdx)
                 modifyAtPath(nodes, idx + 1, v, fullPath)(f).map { newV =>
@@ -669,7 +669,7 @@ private[migration] object ActionExecutor {
                 }
               }
             case other =>
-              Left(MigrationError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
+              Left(SchemaError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
           }
 
         case Node.Wrapped =>
@@ -677,7 +677,7 @@ private[migration] object ActionExecutor {
           modifyAtPath(nodes, idx + 1, value, fullPath)(f)
 
         case _ =>
-          Left(MigrationError.transformFailed(fullPath, s"Unsupported path node: ${nodes(idx)}"))
+          Left(SchemaError.transformFailed(fullPath, s"Unsupported path node: ${nodes(idx)}"))
       }
     }
   }
@@ -689,7 +689,7 @@ private[migration] object ActionExecutor {
     transform: DynamicTransform,
     value: DynamicValue,
     path: zio.blocks.schema.DynamicOptic
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[SchemaError, DynamicValue] = {
     import zio.blocks.schema.PrimitiveValue
 
     transform match {
@@ -701,7 +701,7 @@ private[migration] object ActionExecutor {
 
       case DynamicTransform.DefaultValue =>
         // This should be resolved at build time with the actual default
-        Left(MigrationError.missingDefault(path, "DefaultValue not resolved"))
+        Left(SchemaError.missingDefault(path, "DefaultValue not resolved"))
 
       case DynamicTransform.ToString =>
         value match {
@@ -721,7 +721,7 @@ private[migration] object ActionExecutor {
             }
             Right(DynamicValue.Primitive(PrimitiveValue.String(str)))
           case _ =>
-            Left(MigrationError.typeMismatch(path, "Primitive", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "Primitive", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.ParseInt =>
@@ -731,10 +731,10 @@ private[migration] object ActionExecutor {
               Right(DynamicValue.Primitive(PrimitiveValue.Int(s.toInt)))
             } catch {
               case _: NumberFormatException =>
-                Left(MigrationError.transformFailed(path, s"Cannot parse '$s' as Int"))
+                Left(SchemaError.transformFailed(path, s"Cannot parse '$s' as Int"))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(path, "String", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "String", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.ParseLong =>
@@ -744,10 +744,10 @@ private[migration] object ActionExecutor {
               Right(DynamicValue.Primitive(PrimitiveValue.Long(s.toLong)))
             } catch {
               case _: NumberFormatException =>
-                Left(MigrationError.transformFailed(path, s"Cannot parse '$s' as Long"))
+                Left(SchemaError.transformFailed(path, s"Cannot parse '$s' as Long"))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(path, "String", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "String", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.ParseDouble =>
@@ -757,10 +757,10 @@ private[migration] object ActionExecutor {
               Right(DynamicValue.Primitive(PrimitiveValue.Double(s.toDouble)))
             } catch {
               case _: NumberFormatException =>
-                Left(MigrationError.transformFailed(path, s"Cannot parse '$s' as Double"))
+                Left(SchemaError.transformFailed(path, s"Cannot parse '$s' as Double"))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(path, "String", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "String", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.ParseBoolean =>
@@ -769,10 +769,10 @@ private[migration] object ActionExecutor {
             s.toLowerCase match {
               case "true"  => Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
               case "false" => Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
-              case _       => Left(MigrationError.transformFailed(path, s"Cannot parse '$s' as Boolean"))
+              case _       => Left(SchemaError.transformFailed(path, s"Cannot parse '$s' as Boolean"))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(path, "String", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "String", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.IntToLong =>
@@ -780,7 +780,7 @@ private[migration] object ActionExecutor {
           case DynamicValue.Primitive(PrimitiveValue.Int(i)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Long(i.toLong)))
           case _ =>
-            Left(MigrationError.typeMismatch(path, "Int", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "Int", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.IntToDouble =>
@@ -788,7 +788,7 @@ private[migration] object ActionExecutor {
           case DynamicValue.Primitive(PrimitiveValue.Int(i)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Double(i.toDouble)))
           case _ =>
-            Left(MigrationError.typeMismatch(path, "Int", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "Int", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.LongToInt =>
@@ -796,7 +796,7 @@ private[migration] object ActionExecutor {
           case DynamicValue.Primitive(PrimitiveValue.Long(l)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Int(l.toInt)))
           case _ =>
-            Left(MigrationError.typeMismatch(path, "Long", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "Long", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.LongToDouble =>
@@ -804,7 +804,7 @@ private[migration] object ActionExecutor {
           case DynamicValue.Primitive(PrimitiveValue.Long(l)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Double(l.toDouble)))
           case _ =>
-            Left(MigrationError.typeMismatch(path, "Long", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "Long", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.DoubleToInt =>
@@ -812,7 +812,7 @@ private[migration] object ActionExecutor {
           case DynamicValue.Primitive(PrimitiveValue.Double(d)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Int(d.toInt)))
           case _ =>
-            Left(MigrationError.typeMismatch(path, "Double", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "Double", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.DoubleToLong =>
@@ -820,7 +820,7 @@ private[migration] object ActionExecutor {
           case DynamicValue.Primitive(PrimitiveValue.Double(d)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Long(d.toLong)))
           case _ =>
-            Left(MigrationError.typeMismatch(path, "Double", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "Double", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.ConcatFields(separator, fieldNames) =>
@@ -836,10 +836,10 @@ private[migration] object ActionExecutor {
             if (values.length == fieldNames.length) {
               Right(DynamicValue.Primitive(PrimitiveValue.String(values.mkString(separator))))
             } else {
-              Left(MigrationError.transformFailed(path, "Some fields not found or not convertible to String"))
+              Left(SchemaError.transformFailed(path, "Some fields not found or not convertible to String"))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(path, "Record", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "Record", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.SplitToFields(separator, fieldNames) =>
@@ -852,10 +852,10 @@ private[migration] object ActionExecutor {
               }
               Right(DynamicValue.Record(fields))
             } else {
-              Left(MigrationError.transformFailed(path, s"Expected ${fieldNames.length} parts, got ${parts.length}"))
+              Left(SchemaError.transformFailed(path, s"Expected ${fieldNames.length} parts, got ${parts.length}"))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(path, "String", value.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(path, "String", value.getClass.getSimpleName))
         }
 
       case DynamicTransform.Compose(first, second) =>

@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{Schema, SchemaError}
 
 /**
  * A typed migration that transforms values from type `A` to type `B`.
@@ -36,15 +36,12 @@ final case class Migration[A, B](
    * Apply this migration to transform a value from type `A` to type `B`.
    *
    * @param value The input value to migrate
-   * @return Either a `MigrationError` or the migrated value
+   * @return Either a `SchemaError` or the migrated value
    */
-  def apply(value: A): Either[MigrationError, B] = {
+  def apply(value: A): Either[SchemaError, B] = {
     val dynamicValue = sourceSchema.toDynamicValue(value)
     dynamicMigration(dynamicValue).flatMap { result =>
-      targetSchema.fromDynamicValue(result) match {
-        case Right(b)    => Right(b)
-        case Left(error) => Left(MigrationError.fromSchemaError(error))
-      }
+      targetSchema.fromDynamicValue(result)
     }
   }
 

@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import scala.language.experimental.macros
 import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema}
 
 /**
@@ -38,7 +39,7 @@ final class MigrationBuilder[A, B](
    */
   def dropField(
     source: A => Any,
-    defaultForReverse: DynamicValue = DynamicValue.Record(Vector.empty)
+    defaultForReverse: Option[DynamicValue] = None
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.dropFieldImpl[A, B]
 
   /**
