@@ -1,47 +1,34 @@
 package zio.blocks.schema.migration
 
-import zio.schema.{Schema, DynamicValue}
-import zio.blocks.schema.migration.optic.DynamicOptic // Import needed
+import zio.blocks.schema.Schema
+import zio.blocks.schema.DynamicValue
 
 final case class Migration[A, B](
+  dynamicMigration: DynamicMigration,
   sourceSchema: Schema[A],
-  targetSchema: Schema[B],
-  dynamicMigration: DynamicMigration
+  targetSchema: Schema[B]
 ) {
   def apply(value: A): Either[MigrationError, B] = {
-    // Mocking implementation for test
-    val inputDv = value.asInstanceOf[DynamicValue] 
-    dynamicMigration.apply(inputDv).flatMap { migratedDv =>
-      try {
-        Right(migratedDv.asInstanceOf[B])
-      } catch {
-        case _: Throwable => 
-          Left(MigrationError(DynamicOptic.empty, "Failed to cast back to Target Type"))
+    // সমস্যা ১: মেথডের নাম সম্ভবত toDynamicValue
+    // যদি আপনার Schema.scala-তে নাম অন্য কিছু থাকে, তবে সেই নামটি এখানে দিন
+    val dynamicValue: DynamicValue = sourceSchema.toDynamicValue(value)
+
+    // সমস্যা ২: match ব্লকের বদলে flatMap ব্যবহার করা হয়েছে টাইপ সেফটির জন্য
+    dynamicMigration.apply(dynamicValue).flatMap { (dynamicResult: DynamicValue) =>
+      targetSchema.fromDynamicValue(dynamicResult) match {
+        case Left(schemaError) => 
+          Left(MigrationError.SchemaMismatch(schemaError.toString))
+        case Right(v) => 
+          Right(v)
       }
     }
   }
 
-  def ++[C](that: Migration[B, C]): Migration[A, C] =
-    Migration(
-      sourceSchema, 
-      that.targetSchema, 
-      this.dynamicMigration ++ that.dynamicMigration
-    )
+  def ++[C](that: Migration[B, C]): Migration[A, C] = 
+    Migration(this.dynamicMigration ++ that.dynamicMigration, this.sourceSchema, that.targetSchema)
 
-  def reverse: Migration[B, A] =
-    Migration(
-      targetSchema,
-      sourceSchema,
-      dynamicMigration.reverse
-    )
-}
+  def andThen[C](that: Migration[B, C]): Migration[A, C] = this ++ that
 
-object Migration {
-  // FIX: 'using' -> 'implicit' (Scala 2 Compatible)
-  def identity[A](implicit schema: Schema[A]): Migration[A, A] =
-    Migration(schema, schema, DynamicMigration.identity)
-
-  // FIX: 'using' -> 'implicit'
-  def newBuilder[A, B](implicit src: Schema[A], tgt: Schema[B]): MigrationBuilder[A, B] =
-    new MigrationBuilder(src, tgt, Vector.empty)
+  def reverse: Migration[B, A] = 
+    Migration(this.dynamicMigration.reverse, targetSchema, sourceSchema)
 }
