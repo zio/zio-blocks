@@ -5,6 +5,37 @@ import zio.blocks.schema._
 
 /**
  * A type-safe builder for creating migrations between schema versions.
+ *
+ * ==Design for Structural Type Compatibility==
+ *
+ * This builder is designed to work with any `Schema[A]` and `Schema[B]`,
+ * including future structural type schemas derived via `Schema.structural`.
+ * Key design decisions that enable this:
+ *
+ *   - All transformations operate on `DynamicValue`, not concrete types
+ *   - Path-based actions use `DynamicOptic` which works with any schema structure
+ *   - The builder is parameterized by types `A` and `B` but internally works
+ *     with the dynamic representation
+ *
+ * When `Schema.structural` is implemented (separately specified work), users
+ * can define old schema versions as structural types:
+ *
+ * {{{
+ *   type PersonV0 = { val name: String; val age: Int }
+ *   type PersonV1 = { val fullName: String; val age: Int; val country: String }
+ *
+ *   // No runtime case classes needed for old versions!
+ *   val migration = Migration.builder[PersonV0, PersonV1]
+ *     .renameField(_.name, _.fullName)
+ *     .addField(_.country, DynamicValue.Primitive(PrimitiveValue.String("USA")))
+ *     .build
+ * }}}
+ *
+ * ==Compile-Time Validation==
+ *
+ * The `build` method performs compile-time validation (via macros) to ensure
+ * all source fields are handled and all target fields are produced. Use
+ * `buildPartial` to skip validation during incremental development.
  */
 
 final class MigrationBuilder[A, B](

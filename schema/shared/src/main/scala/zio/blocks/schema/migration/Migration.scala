@@ -10,7 +10,34 @@ import zio.blocks.schema._
  * version B. It provides a high-level, type-safe API for running migrations on
  * typed values.
  *
- * **Laws:**
+ * ==Structural Type Compatibility==
+ *
+ * This migration system is designed to work with structural types, enabling
+ * schema evolution where old versions exist only at compile time with zero
+ * runtime overhead. When `Schema.structural` is implemented (separately
+ * specified work), users can define migrations like:
+ *
+ * {{{
+ *   // Old version as structural type (no runtime representation)
+ *   type PersonV0 = { val firstName: String; val lastName: String }
+ *
+ *   // Current version as real case class
+ *   case class Person(fullName: String, age: Int)
+ *
+ *   // Migration between structural and runtime types
+ *   implicit val v0Schema: Schema[PersonV0] = Schema.structural[PersonV0]
+ *   implicit val personSchema: Schema[Person] = Schema.derived
+ *
+ *   val migration = Migration.builder[PersonV0, Person]
+ *     .addField(_.age, DynamicValue.Primitive(PrimitiveValue.Int(0)))
+ *     .build
+ * }}}
+ *
+ * The migration system operates on `DynamicValue`, making it agnostic to
+ * whether the source/target types are case classes, structural types, or any
+ * other representation that has a `Schema` instance.
+ *
+ * ==Laws==
  *
  * Identity:
  * {{{

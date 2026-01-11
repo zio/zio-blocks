@@ -9,11 +9,20 @@ import zio.blocks.schema._
  * transformations to apply to a `DynamicValue`. It can be composed, reversed,
  * and serialized for offline migration scenarios.
  *
- * **Design Principles:**
- *   - Pure and referentially transparent
- *   - Fully serializable (can be persisted and transmitted)
- *   - Composable via the monoid instance
- *   - Introspectable (can analyze migration structure)
+ * ==Design Principles==
+ *
+ *   - '''Pure and referentially transparent''': No side effects, fully
+ *     deterministic
+ *   - '''Fully serializable''': Can be persisted, transmitted, and applied
+ *     offline
+ *   - '''Composable''': Forms a monoid with `++` and `empty`
+ *   - '''Introspectable''': Can analyze migration structure for DDL generation,
+ *     etc.
+ *   - '''Structural type compatible''': Operates on `DynamicValue` which is the
+ *     common representation for all schema types (case classes, structural
+ *     types, etc.). This enables migrations between types that may not have
+ *     runtime representations (e.g., structural types exist only at compile
+ *     time).
  *
  * **Laws:**
  *
