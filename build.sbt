@@ -41,11 +41,16 @@ lazy val root = project
     streams.jvm,
     streams.js,
     streams.native,
+    chunk.jvm,
+    chunk.js,
+    chunk.native,
+    `chunk-benchmarks`,
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
     benchmarks,
-    docs
+    docs,
+    examples
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -118,6 +123,35 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     )
   )
 
+lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-chunk"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.chunk"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    )
+  )
+
+lazy val `chunk-benchmarks` = project
+  .settings(stdSettings("zio-blocks-chunk-benchmarks", Seq("3.3.7")))
+  .dependsOn(chunk.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-test"     % "2.1.24",
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    publish / skip        := true,
+    mimaPreviousArtifacts := Set()
+  )
+
 lazy val `schema-avro` = project
   .settings(stdSettings("zio-blocks-schema-avro"))
   .dependsOn(schema.jvm)
@@ -153,6 +187,15 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   )
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
+
+lazy val examples = project
+  .settings(stdSettings("zio-blocks-examples"))
+  .dependsOn(schema.jvm)
+  .dependsOn(streams.jvm)
+  .dependsOn(`schema-avro`)
+  .settings(
+    publish / skip := true
+  )
 
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))

@@ -1199,7 +1199,7 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("gets and updates sequence documentation") {
         assert(Schema[List[Double]].doc)(equalTo(Doc.Empty)) &&
-        assert(Schema[Seq[Int]].doc("Seq (updated)").doc)(equalTo(Doc("Seq (updated)")))
+        assert(Schema.derived[Seq[Int]].doc("Seq (updated)").doc)(equalTo(Doc("Seq (updated)")))
       },
       test("gets and updates sequence examples") {
         assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
@@ -1230,6 +1230,23 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(
           schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
         )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
+      },
+      test("has consistent newObjectBuilder, addObject and resultObject") {
+        val schema1      = Schema.derived[Array[Int]]
+        val schema2      = Schema.derived[ArraySeq[Int]]
+        val constructor1 = schema1.reflect.asSequence.get.seqBinding.asInstanceOf[Binding.Seq[Array, Int]].constructor
+        val constructor2 =
+          schema2.reflect.asSequence.get.seqBinding.asInstanceOf[Binding.Seq[ArraySeq, Int]].constructor
+        val xs1 = constructor1.newObjectBuilder[Int](0)
+        val xs2 = constructor2.newObjectBuilder[Int](0)
+        constructor1.addObject(xs1, 1)
+        constructor2.addObject(xs2, 1)
+        constructor1.addObject(xs1, 2)
+        constructor2.addObject(xs2, 2)
+        constructor1.addObject(xs1, 3)
+        constructor2.addObject(xs2, 3)
+        assert(constructor1.resultObject(xs1))(equalTo(Array(1, 2, 3))) &&
+        assert(constructor2.resultObject(xs2))(equalTo(ArraySeq(1, 2, 3)))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[Seq[Int]].fromDynamicValue(Schema[Seq[Int]].toDynamicValue(Seq(1, 2, 3))))(

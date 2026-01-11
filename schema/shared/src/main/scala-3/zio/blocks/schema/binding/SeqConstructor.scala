@@ -67,6 +67,24 @@ trait SeqConstructor[C[_]] {
   def resultDouble(builder: DoubleBuilder): C[Double]
 
   def resultChar(builder: CharBuilder): C[Char]
+
+  def emptyObject[A]: C[A]
+
+  def emptyBoolean: C[Boolean]
+
+  def emptyByte: C[Byte]
+
+  def emptyShort: C[Short]
+
+  def emptyInt: C[Int]
+
+  def emptyLong: C[Long]
+
+  def emptyFloat: C[Float]
+
+  def emptyDouble: C[Double]
+
+  def emptyChar: C[Char]
 }
 
 object SeqConstructor {
@@ -127,6 +145,22 @@ object SeqConstructor {
     def resultDouble(builder: DoubleBuilder): C[Double] = resultObject(builder)
 
     def resultChar(builder: CharBuilder): C[Char] = resultObject(builder)
+
+    def emptyBoolean: C[Boolean] = emptyObject
+
+    def emptyByte: C[Byte] = emptyObject
+
+    def emptyShort: C[Short] = emptyObject
+
+    def emptyInt: C[Int] = emptyObject
+
+    def emptyLong: C[Long] = emptyObject
+
+    def emptyFloat: C[Float] = emptyObject
+
+    def emptyDouble: C[Double] = emptyObject
+
+    def emptyChar: C[Char] = emptyObject
   }
 
   val setConstructor: SeqConstructor[Set] = new Boxed[Set] {
@@ -137,6 +171,8 @@ object SeqConstructor {
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): Set[A] = builder.result()
+
+    def emptyObject[A]: Set[A] = Set.empty
   }
 
   val listConstructor: SeqConstructor[List] = new Boxed[List] {
@@ -147,6 +183,8 @@ object SeqConstructor {
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): List[A] = builder.toList
+
+    def emptyObject[A]: List[A] = Nil
   }
 
   val vectorConstructor: SeqConstructor[Vector] = new Boxed[Vector] {
@@ -157,6 +195,8 @@ object SeqConstructor {
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): Vector[A] = builder.result()
+
+    def emptyObject[A]: Vector[A] = Vector.empty
   }
 
   abstract class ArraySeqConstructor extends SeqConstructor[ArraySeq] {
@@ -187,17 +227,6 @@ object SeqConstructor {
     def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](Math.max(sizeHint, 1)), 0)
 
     def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 1)), 0)
-
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
 
     def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = {
       var buf = builder.buffer
@@ -285,13 +314,6 @@ object SeqConstructor {
       }
       buf(idx) = a
       builder.size = idx + 1
-    }
-
-    def resultObject[A](builder: ObjectBuilder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
     }
 
     def resultBoolean(builder: BooleanBuilder): ArraySeq[Boolean] = ArraySeq.unsafeWrapArray {
@@ -349,6 +371,22 @@ object SeqConstructor {
       if (buf.length == size) buf
       else java.util.Arrays.copyOf(buf, size)
     }
+
+    val emptyBoolean: ArraySeq[Boolean] = ArraySeq.empty
+
+    val emptyByte: ArraySeq[Byte] = ArraySeq.empty
+
+    val emptyShort: ArraySeq[Short] = ArraySeq.empty
+
+    val emptyInt: ArraySeq[Int] = ArraySeq.empty
+
+    val emptyLong: ArraySeq[Long] = ArraySeq.empty
+
+    val emptyFloat: ArraySeq[Float] = ArraySeq.empty
+
+    val emptyDouble: ArraySeq[Double] = ArraySeq.empty
+
+    val emptyChar: ArraySeq[Char] = ArraySeq.empty
   }
 
   val indexedSeqConstructor: SeqConstructor[IndexedSeq] = new Boxed[IndexedSeq] {
@@ -359,6 +397,8 @@ object SeqConstructor {
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): IndexedSeq[A] = builder.result()
+
+    def emptyObject[A]: IndexedSeq[A] = Vector.empty
   }
 
   val seqConstructor: SeqConstructor[collection.immutable.Seq] = new Boxed[collection.immutable.Seq] {
@@ -369,6 +409,8 @@ object SeqConstructor {
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): collection.immutable.Seq[A] = builder.result()
+
+    def emptyObject[A]: Seq[A] = Nil
   }
 
   abstract class ArrayConstructor extends SeqConstructor[Array] {
@@ -399,17 +441,6 @@ object SeqConstructor {
     def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](Math.max(sizeHint, 1)), 0)
 
     def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 1)), 0)
-
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
 
     def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = {
       var buf = builder.buffer
@@ -497,13 +528,6 @@ object SeqConstructor {
       }
       buf(idx) = a
       builder.size = idx + 1
-    }
-
-    def resultObject[A](builder: ObjectBuilder[A]): Array[A] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
     }
 
     def resultBoolean(builder: BooleanBuilder): Array[Boolean] = {
@@ -561,6 +585,22 @@ object SeqConstructor {
       if (buf.length == size) buf
       else java.util.Arrays.copyOf(buf, size)
     }
+
+    val emptyBoolean: Array[Boolean] = Array.emptyBooleanArray
+
+    val emptyByte: Array[Byte] = Array.emptyByteArray
+
+    val emptyShort: Array[Short] = Array.emptyShortArray
+
+    val emptyInt: Array[Int] = Array.emptyIntArray
+
+    val emptyLong: Array[Long] = Array.emptyLongArray
+
+    val emptyFloat: Array[Float] = Array.emptyFloatArray
+
+    val emptyDouble: Array[Double] = Array.emptyDoubleArray
+
+    val emptyChar: Array[Char] = Array.emptyCharArray
   }
 
   abstract class IArrayConstructor extends SeqConstructor[IArray] {
@@ -591,17 +631,6 @@ object SeqConstructor {
     def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](Math.max(sizeHint, 1)), 0)
 
     def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 1)), 0)
-
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
 
     def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = {
       var buf = builder.buffer
@@ -691,13 +720,6 @@ object SeqConstructor {
       builder.size = idx + 1
     }
 
-    def resultObject[A](builder: ObjectBuilder[A]): IArray[A] = IArray.unsafeFromArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
-    }
-
     def resultBoolean(builder: BooleanBuilder): IArray[Boolean] = IArray.unsafeFromArray {
       val buf  = builder.buffer
       val size = builder.size
@@ -753,5 +775,21 @@ object SeqConstructor {
       if (buf.length == size) buf
       else java.util.Arrays.copyOf(buf, size)
     }
+
+    val emptyBoolean: IArray[Boolean] = IArray.unsafeFromArray(Array.emptyBooleanArray)
+
+    val emptyByte: IArray[Byte] = IArray.unsafeFromArray(Array.emptyByteArray)
+
+    val emptyShort: IArray[Short] = IArray.unsafeFromArray(Array.emptyShortArray)
+
+    val emptyInt: IArray[Int] = IArray.unsafeFromArray(Array.emptyIntArray)
+
+    val emptyLong: IArray[Long] = IArray.unsafeFromArray(Array.emptyLongArray)
+
+    val emptyFloat: IArray[Float] = IArray.unsafeFromArray(Array.emptyFloatArray)
+
+    val emptyDouble: IArray[Double] = IArray.unsafeFromArray(Array.emptyDoubleArray)
+
+    val emptyChar: IArray[Char] = IArray.unsafeFromArray(Array.emptyCharArray)
   }
 }

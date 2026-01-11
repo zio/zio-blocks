@@ -8,7 +8,7 @@ import scala.scalanative.build.{LTO, Mode}
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
-  val Scala213: String = "2.13.17"
+  val Scala213: String = "2.13.18"
   val Scala3: String   = "3.3.7"
 
   lazy val isRelease: Boolean = {
