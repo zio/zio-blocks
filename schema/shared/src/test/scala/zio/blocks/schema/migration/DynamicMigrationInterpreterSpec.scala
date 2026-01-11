@@ -30,7 +30,6 @@ object DynamicMigrationInterpreterSpec extends ZIOSpecDefault {
           )
         )
       },
-
       test("wrap and unwrap array") {
         val dv = DynamicValue.Primitive(PrimitiveValue.Int(42))
 
@@ -42,7 +41,6 @@ object DynamicMigrationInterpreterSpec extends ZIOSpecDefault {
 
         assertTrue(DynamicMigrationInterpreter(mig, dv) == Right(dv))
       },
-
       test("primitive conversion") {
         val dv = DynamicValue.Primitive(PrimitiveValue.Int(5))
 

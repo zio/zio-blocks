@@ -1,0 +1,285 @@
+./scalaNextTests/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:273:          val a: Traversal[HKNamedTuple2[List, Set], Int]       = $(_.a.each)
+./scalaNextTests/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:274:          val b: Traversal[HKNamedTuple2[List, Set], String]    = $(_.b.each)
+./scalaNextTests/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:360:          val l10_i1s: Traversal[NamedTuple24, Int]        = $(_(9).each(0))
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:664:        decodeError[Option[Int]](Array[Byte](2, 0xff.toByte), "Unexpected end of input at: .when[Some].value")
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:763:        decodeError[DynamicValue](Array[Byte](0), "Unexpected end of input at: .when[Primitive]") &&
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:766:          "Expected enum index from 0 to 29, got 30 at: .when[Primitive]"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:770:          "Unexpected end of input at: .when[Primitive].value"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:772:        decodeError[DynamicValue](Array[Byte](2), "Unexpected end of input at: .when[Record].fields") &&
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:775:          "Expected positive collection part size, got -1 at: .when[Record].fields"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:779:          "Unexpected end of input at: .when[Record].fields.at(0)._1"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:783:          "Expected enum index from 0 to 4, got 5 at: .when[Record].fields.at(0)._2"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:787:          "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Record].fields"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:789:        decodeError[DynamicValue](Array[Byte](4, 2), "Unexpected end of input at: .when[Variant].caseName") &&
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:792:          "Expected enum index from 0 to 4, got 5 at: .when[Variant].value"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:796:          "Expected positive collection part size, got -1 at: .when[Sequence].elements"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:800:          "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Sequence].elements"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:804:          "Expected enum index from 0 to 4, got 5 at: .when[Sequence].elements.at(0)"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:808:          "Expected positive collection part size, got -1 at: .when[Map].entries"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:812:          "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Map].entries"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:816:          "Expected enum index from 0 to 4, got 5 at: .when[Map].entries.at(0)._1"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:820:          "Expected enum index from 0 to 4, got 5 at: .when[Map].entries.at(0)._2"
+./schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:976:    val optKey_None: Optional[Record4, None.type] = $(_.optKey.when[None.type])
+./benchmarks/src/main/scala/zio/blocks/schema/TraversalBenchmark.scala:75:  val a_i_quicklens: Array[Int] => PathModify[Array[Int], Int] = modify(_: Array[Int])(_.each)
+./benchmarks/src/main/scala/zio/blocks/schema/OptionalBenchmark.scala:108:    val b_b1_c_c1_d_d1_e_e1_s: Optional[A1, String] = optic(_.b.when[B1].c.when[C1].d.when[D1].e.when[E1].s)
+./benchmarks/src/main/scala/zio/blocks/schema/OptionalBenchmark.scala:116:        .andThenModify(modify(_: B)(_.when[B1]))
+./benchmarks/src/main/scala/zio/blocks/schema/OptionalBenchmark.scala:118:        .andThenModify(modify(_: C)(_.when[C1]))
+./benchmarks/src/main/scala/zio/blocks/schema/OptionalBenchmark.scala:120:        .andThenModify(modify(_: D)(_.when[D1]))
+./benchmarks/src/main/scala/zio/blocks/schema/OptionalBenchmark.scala:122:        .andThenModify(modify(_: E)(_.when[E1]))
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:46:./benchmarks/src/main/scala/zio/blocks/schema/OptionalBenchmark.scala:108:    val b_b1_c_c1_d_d1_e_e1_s: Optional[A1, String] = optic(_.b.when[B1].c.when[C1].d.when[D1].e.when[E1].s)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:100:./schema/shared/src/main/scala-3/zio/blocks/schema/CompanionOptics.scala:8:    inline def when[B <: A]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:392:./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:628:          val case1: Prism[Variant1, Case1]      = optic(_.when[Case1])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:393:./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:629:          val case2: Prism[Variant1, Case2]      = optic(_.when[Case2])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:394:./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:630:          val case3: Prism[Variant1, Case3.type] = optic(_.when[Case3.type])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:431:./schema/shared/src/test/scala/zio/blocks/schema/DynamicOpticSpec.scala:80:      assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo(".each.eachKey.eachValue.wrapped"))
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:434:./schema/shared/src/test/scala/zio/blocks/schema/DynamicOpticSpec.scala:102:    val x: Prism[A, X]             = optic(_.when[X])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:435:./schema/shared/src/test/scala/zio/blocks/schema/DynamicOpticSpec.scala:103:    val y: Prism[A, Y]             = optic(_.when[Y])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:440:./schema/shared/src/test/scala/zio/blocks/schema/example.scala:12:    val childrenAges: Traversal[Person, Int] = optic(_.childrenAges.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:441:./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:99:  val creditCard: Prism[PaymentMethod, CreditCard]     = optic(_.when[CreditCard])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:442:./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:100:  val bankTransfer: Prism[PaymentMethod, BankTransfer] = optic(_.when[BankTransfer])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:443:./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:101:  val payPal: Prism[PaymentMethod, PayPal]             = optic(_.when[PayPal])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:444:./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:102:  val payPalEmail: Optional[PaymentMethod, String]     = optic(_.when[PayPal].email)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:448:./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:132:  val paymentMethods: Traversal[Person, PaymentMethod] = optic(_.paymentMethods.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:449:./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:133:  val payPalPaymentMethods: Traversal[Person, PayPal]  = optic(_.paymentMethods.each.when[PayPal])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:462:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:327:          val mx: Traversal[Record4, Int]          = optic((x: Record4) => x.mx.each.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:465:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:403:          val su: Traversal[Record5, Unit]     = optic(_.su.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:466:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:450:          val u: Optional[Record6, Unit]       = optic(_.u.when[Some[Unit]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:467:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:451:          val bl: Optional[Record6, Boolean]   = optic(_.bl.when[Some[Boolean]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:468:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:452:          val b: Optional[Record6, Byte]       = optic(_.b.when[Some[Byte]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:469:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:453:          val c: Optional[Record6, Char]       = optic(_.c.when[Some[Char]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:470:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:454:          val s: Optional[Record6, Short]      = optic(_.s.when[Some[Short]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:471:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:455:          val f: Optional[Record6, Float]      = optic(_.f.when[Some[Float]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:472:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:456:          val i: Optional[Record6, Int]        = optic(_.i.when[Some[Int]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:473:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:457:          val d: Optional[Record6, Double]     = optic(_.d.when[Some[Double]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:474:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:458:          val l: Optional[Record6, Long]       = optic(_.l.when[Some[Long]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:475:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:459:          val r: Optional[Record6, Record6]    = optic(_.r.when[Some[Record6]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:476:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:460:          val rn: Optional[Record6, None.type] = optic(_.r.when[None.type])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:478:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:502:          val od: Optional[Record7, DynamicValue]   = optic(_.od.when[Some[DynamicValue]].value)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:479:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:503:          val isd: Traversal[Record7, DynamicValue] = optic(_.isd.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:484:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:877:          val case1: Prism[Variant1, `Case-1`]      = optic(_.when[`Case-1`])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:485:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:878:          val case2: Prism[Variant1, `Case-2`]      = optic(_.when[`Case-2`])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:486:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:879:          val case3: Prism[Variant1, `Case-3`.type] = optic(_.when[`Case-3`.type])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:487:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:976:          val missingValue: Prism[Variant2[String], MissingValue.type] = optic(_.when[MissingValue.type])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:488:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:977:          val nullValue: Prism[Variant2[String], NullValue.type]       = optic(_.when[NullValue.type])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:489:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:978:          val value: Prism[Variant2[String], Value[String]]            = optic(_.when[Value[String]])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:490:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1080:          val case1: Prism[`Variant-3`[Option], `Case-1`[Option]] = optic(_.when[`Case-1`[Option]])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:491:./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1081:          val case2: Prism[`Variant-3`[Option], `Case-2`[Option]] = optic(_.when[`Case-2`[Option]])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:516:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:304:            val prism                         = optic(_.when[Test])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:655:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2514:            val traversal                     = optic(_.a.each.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:671:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3284:    val vi: Traversal[Record2, Int]            = optic(_.vi.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:678:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3300:    lazy val v1_c1: Optional[Record3, Case1]   = optic(_.v1.when[Case1])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:679:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3308:    val c1: Prism[Variant1, Case1]                       = optic(_.when[Case1])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:680:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3309:    val c2: Prism[Variant1, Case2]                       = optic(_.when[Case2])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:681:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3310:    val v2: Prism[Variant1, Variant2]                    = optic(_.when[Variant2])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:682:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3311:    val v2_c3: Prism[Variant1, Case3]                    = optic(_.when[Variant2].when[Case3])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:683:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3312:    val v2_c4: Prism[Variant1, Case4]                    = optic(_.when[Variant2].when[Case4])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:684:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3315:    val v2_c4_lr3: Traversal[Variant1, Record3]          = optic(_.when[Variant2].when[Case4].lr3.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:685:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3316:    val v2_c3_v1: Optional[Variant1, Variant1]           = optic(_.when[Variant2].when[Case3].v1)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:686:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3317:    val c1_d: Optional[Variant1, Double]                 = optic(_.when[Case1].d)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:687:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3318:    val c2_r3: Optional[Variant1, Record3]               = optic(_.when[Case2].r3)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:688:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3319:    val c2_r3_r1: Optional[Variant1, Record1]            = optic(_.when[Case2].r3.r1)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:689:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3322:    lazy val c2_r3_v1_c1: Optional[Variant1, Case1]      = optic(_.when[Case2].r3.v1.when[Case1])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:692:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3339:    lazy val r3_v1_c1: Optional[Case2, Case1] = optic(_.r3.v1.when[Case1])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:693:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3347:    val c3: Prism[Variant2, Case3]                         = optic(_.when[Case3])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:694:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3348:    val c4: Prism[Variant2, Case4]                         = optic(_.when[Case4])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:695:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3349:    val v3: Prism[Variant2, Variant3]                      = optic(_.when[Variant3])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:696:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3351:    lazy val c3_v1: Optional[Variant2, Variant1]           = optic(_.when[Case3].v1)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:697:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3356:    lazy val c3_v1_v2: Optional[Variant2, Variant2]        = optic(_.when[Case3].v1.when[Variant2])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:698:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3357:    lazy val c3_v1_v2_c4_lr3: Traversal[Variant2, Record3] = optic(_.when[Case3].v1.when[Variant2].when[Case4].lr3.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:699:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3358:    lazy val c3_v1_v2_c4: Optional[Variant2, Case4]        = optic(_.when[Case3].v1.when[Variant2].when[Case4])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:701:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3367:    lazy val v1_c1: Optional[Case3, Case1]             = optic(_.v1.when[Case1])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:702:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3370:    lazy val v1_v2: Optional[Case3, Variant2]          = optic(_.v1.when[Variant2])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:703:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3371:    lazy val v1_v2_c3_v1_v2: Optional[Case3, Variant2] = optic(_.v1.when[Variant2].when[Case3].v1.when[Variant2])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:704:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3379:    val lr3: Traversal[Case4, Record3]       = optic(_.lr3.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:705:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3380:    val lr3_r2: Traversal[Case4, Record2]    = optic(_.lr3.each.r2)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:706:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3381:    val lr3_r2_r1: Traversal[Case4, Record1] = optic(_.lr3.each.r2.r1)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:707:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3389:    val c5: Prism[Variant3, Case5]                = optic(_.when[Case5])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:708:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3397:    val si: Traversal[Case5, Int]              = optic(_.si.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:709:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3398:    val as: Traversal[Case5, String]           = optic(_.as.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:719:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3434:    val w_wr1: Optional[Wrappers, Record1]       = optic(_.when[Wrapper].wrapped[Record1])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:722:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3467:    val vw_wr1_b: Traversal[Record4, Boolean]  = optic(_.vw.each.wrapped[Record1].b)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:723:./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3468:    val w_w_wr1: Optional[Record4, Record1]    = optic(_.w.when[Wrapper].wrapped[Record1])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:740:./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:36:    val dog: Prism[Animal, Dog]           = optic(_.when[Dog])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:741:./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:37:    val cat: Prism[Animal, Cat]           = optic(_.when[Cat])
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:742:./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:38:    val dogName: Optional[Animal, String] = optic(_.when[Dog].name)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:743:./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:39:    val catLives: Optional[Animal, Int]   = optic(_.when[Cat].lives)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:746:./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:57:    val allMembers: Traversal[Team, Person]     = optic(_.members.each)
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:747:./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:58:    val allMemberNames: Traversal[Team, String] = optic(_.members.each.name)
+./schema/shared/src/main/scala-3/zio/blocks/schema/CompanionOptics.scala:8:    inline def when[B <: A]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
+./schema/shared/src/main/scala-3/zio/blocks/schema/CompanionOptics.scala:514:                s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '${term.show}'"
+./schema/shared/src/main/scala/zio/blocks/schema/DynamicOptic.scala:37:        case Node.Case(name)     => sb.append(".when[").append(name).append(']')
+./schema/shared/src/main/scala/zio/blocks/schema/DynamicOptic.scala:42:        case Node.Elements       => sb.append(".each")
+./schema/shared/src/main/scala-2/zio/blocks/schema/CompanionOptics.scala:9:    def when[B <: A]: B = ???
+./schema/shared/src/main/scala-2/zio/blocks/schema/CompanionOptics.scala:63:      case q"$_[..$_]($parent).each" =>
+./schema/shared/src/main/scala-2/zio/blocks/schema/CompanionOptics.scala:117:      case q"$_[..$_]($parent).when[$caseTree]" =>
+./schema/shared/src/main/scala-2/zio/blocks/schema/CompanionOptics.scala:237:          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '$tree'"
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:628:          val case1: Prism[Variant1, Case1]      = optic(_.when[Case1])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:629:          val case2: Prism[Variant1, Case2]      = optic(_.when[Case2])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:630:          val case3: Prism[Variant1, Case3.type] = optic(_.when[Case3.type])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:759:          val int: Prism[Value, Int]              = $(_.when[Int])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:760:          val boolean: Prism[Value, Boolean]      = $(_.when[Boolean])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:761:          val tuple: Prism[Value, (Int, Boolean)] = $(_.when[(Int, Boolean)])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:762:          val tuple_1: Optional[Value, Int]       = $(_.when[(Int, Boolean)](0))
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:763:          val li: Prism[Value, List[Int]]         = $(_.when[List[Int]])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:764:          val li_1: Optional[Value, Int]          = $(_.when[List[Int]].at(0))
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:765:          val mil: Prism[Value, Map[Int, Long]]   = $(_.when[Map[Int, Long]])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:766:          val mil_1: Optional[Value, Long]        = $(_.when[Map[Int, Long]].atKey(1))
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:837:          val v3_s: Optional[Unions, String]    = $(_.v3.when[String])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:958:    val red: Prism[Color, Color.Red.type]     = $(_.when[Color.Red.type])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:959:    val green: Prism[Color, Color.Green.type] = $(_.when[Color.Green.type])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:960:    val blue: Prism[Color, Color.Blue.type]   = $(_.when[Color.Blue.type])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:961:    val mix: Prism[Color, Color.Mix]          = $(_.when[Color.Mix])
+./schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:962:    val mix_mix: Optional[Color, Int]         = $(_.when[Color.Mix].mix)
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:1487:          "missing required field \"f00\" at: .f67.when[Some].value"
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2624:          "illegal number with leading zero at: .when[SimpleGeoJSON].when[Feature].geometry.when[SimpleGeometry].when[Point].coordinates._1",
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2630:          "illegal number with leading zero at: .when[SimpleGeoJSON].when[Feature].geometry.when[SimpleGeometry].when[Point].coordinates._1"
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2659:        decodeError[RGBColor]("""{"Mixed":{"color":1]}""", "expected '}' or ',' at: .when[Mix]") &&
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2660:        decodeError[RGBColor]("""{"Mixed":{"color":01}}""", "illegal number with leading zero at: .when[Mix].rgb") &&
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2662:        decodeError[RGBColor]("""{"Mixed":{"rgb":1193046}}""", "missing required field \"color\" at: .when[Mix]")
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2667:        decodeError[Option[Int]]("""08""", "illegal number with leading zero at: .when[Some].value") &&
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2668:        decodeError[Option[Int]]("""nuts""", "expected null at: .when[None]")
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2675:        decodeError[Either[String, Int]]("""{"Right":{"value":42]}""", "expected '}' or ',' at: .when[Right]") &&
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2679:          "illegal number with leading zero at: .when[Right].value"
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2683:          "missing required field \"value\" at: .when[Left]"
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2694:        decodeError("""{"$type":"Right","value":42]""", "expected '}' or ',' at: .when[Right]", codec) &&
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2697:          "illegal number with leading zero at: .when[Right].value",
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:2700:        decodeError("""{"$type":"Left","left":"VVV"}""", "unexpected field \"left\" at: .when[Left]", codec) &&
+./schema/shared/src/test/scala/zio/blocks/schema/json/JsonBinaryCodecDeriverSpec.scala:3225:    val red: Prism[Color, Color.Red.type] = $(_.when[Color.Red.type])
+./schema/shared/src/test/scala/zio/blocks/schema/DynamicOpticSpec.scala:73:      assert(A.x.toDynamic.toString)(equalTo(".when[X]")) &&
+./schema/shared/src/test/scala/zio/blocks/schema/DynamicOpticSpec.scala:74:      assert(A.x(X.y).toDynamic.toString)(equalTo(".when[X].y")) &&
+./schema/shared/src/test/scala/zio/blocks/schema/DynamicOpticSpec.scala:75:      assert(A.x(X.y)(Y.z).toDynamic.toString)(equalTo(".when[X].y.z")) &&
+./schema/shared/src/test/scala/zio/blocks/schema/DynamicOpticSpec.scala:80:      assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo(".each.eachKey.eachValue.wrapped"))
+./schema/shared/src/test/scala/zio/blocks/schema/DynamicOpticSpec.scala:102:    val x: Prism[A, X]             = optic(_.when[X])
+./schema/shared/src/test/scala/zio/blocks/schema/DynamicOpticSpec.scala:103:    val y: Prism[A, Y]             = optic(_.when[Y])
+./schema/shared/src/test/scala/zio/blocks/schema/example.scala:12:    val childrenAges: Traversal[Person, Int] = optic(_.childrenAges.each)
+./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:99:  val creditCard: Prism[PaymentMethod, CreditCard]     = optic(_.when[CreditCard])
+./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:100:  val bankTransfer: Prism[PaymentMethod, BankTransfer] = optic(_.when[BankTransfer])
+./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:101:  val payPal: Prism[PaymentMethod, PayPal]             = optic(_.when[PayPal])
+./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:102:  val payPalEmail: Optional[PaymentMethod, String]     = optic(_.when[PayPal].email)
+./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:132:  val paymentMethods: Traversal[Person, PaymentMethod] = optic(_.paymentMethods.each)
+./schema/shared/src/test/scala/zio/blocks/schema/PatchSpec.scala:133:  val payPalPaymentMethods: Traversal[Person, PayPal]  = optic(_.paymentMethods.each.when[PayPal])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:327:          val mx: Traversal[Record4, Int]          = optic((x: Record4) => x.mx.each.each)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:403:          val su: Traversal[Record5, Unit]     = optic(_.su.each)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:450:          val u: Optional[Record6, Unit]       = optic(_.u.when[Some[Unit]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:451:          val bl: Optional[Record6, Boolean]   = optic(_.bl.when[Some[Boolean]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:452:          val b: Optional[Record6, Byte]       = optic(_.b.when[Some[Byte]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:453:          val c: Optional[Record6, Char]       = optic(_.c.when[Some[Char]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:454:          val s: Optional[Record6, Short]      = optic(_.s.when[Some[Short]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:455:          val f: Optional[Record6, Float]      = optic(_.f.when[Some[Float]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:456:          val i: Optional[Record6, Int]        = optic(_.i.when[Some[Int]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:457:          val d: Optional[Record6, Double]     = optic(_.d.when[Some[Double]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:458:          val l: Optional[Record6, Long]       = optic(_.l.when[Some[Long]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:459:          val r: Optional[Record6, Record6]    = optic(_.r.when[Some[Record6]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:460:          val rn: Optional[Record6, None.type] = optic(_.r.when[None.type])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:502:          val od: Optional[Record7, DynamicValue]   = optic(_.od.when[Some[DynamicValue]].value)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:503:          val isd: Traversal[Record7, DynamicValue] = optic(_.isd.each)
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:849:          isLeft(hasError("Expected String at: .when[Case2].s"))
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:877:          val case1: Prism[Variant1, `Case-1`]      = optic(_.when[`Case-1`])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:878:          val case2: Prism[Variant1, `Case-2`]      = optic(_.when[`Case-2`])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:879:          val case3: Prism[Variant1, `Case-3`.type] = optic(_.when[`Case-3`.type])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:976:          val missingValue: Prism[Variant2[String], MissingValue.type] = optic(_.when[MissingValue.type])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:977:          val nullValue: Prism[Variant2[String], NullValue.type]       = optic(_.when[NullValue.type])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:978:          val value: Prism[Variant2[String], Value[String]]            = optic(_.when[Value[String]])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1039:          val c: Prism[Level1.MultiLevel, SchemaSpec.Case.type] = $(_.when[SchemaSpec.Case.type])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1040:          val l1_c: Prism[Level1.MultiLevel, Level1.Case.type]  = $(_.when[Level1.Case.type])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1080:          val case1: Prism[`Variant-3`[Option], `Case-1`[Option]] = optic(_.when[`Case-1`[Option]])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1081:          val case2: Prism[`Variant-3`[Option], `Case-2`[Option]] = optic(_.when[`Case-2`[Option]])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1300:        )(isLeft(hasError("Expected Boolean at: .each.at(0)\nExpected Boolean at: .each.at(1)"))) &&
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1305:        )(isLeft(hasError("Expected Byte at: .each.at(0)"))) &&
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1310:        )(isLeft(hasError("Expected Char at: .each.at(0)"))) &&
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1315:        )(isLeft(hasError("Expected Short at: .each.at(0)"))) &&
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1320:        )(isLeft(hasError("Expected Int at: .each.at(0)"))) &&
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1325:        )(isLeft(hasError("Expected Float at: .each.at(0)"))) &&
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1330:        )(isLeft(hasError("Expected Long at: .each.at(0)"))) &&
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1335:        )(isLeft(hasError("Expected Double at: .each.at(0)"))) &&
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1340:        )(isLeft(hasError("Expected String at: .each.at(0)"))) &&
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1839:    val case1: Prism[Variant, Case1]     = $(_.when[Case1])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1840:    val case2: Prism[Variant, Case2]     = $(_.when[Case2])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1857:    val a1: Prism[A, B.A1.type]    = $(_.when[B.A1.type])
+./schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala:1858:    val a2: Prism[A, B.A2.type]    = $(_.when[B.A2.type])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:144:                "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:304:            val prism                         = optic(_.when[Test])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:366:              "During attempted access at .when[Case1], encountered an unexpected case at .when[Case1]: expected Case1, but got Case2"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:373:              "During attempted access at .when[Case2], encountered an unexpected case at .when[Case2]: expected Case2, but got Case1"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:380:              "During attempted access at .when[Variant2], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:387:              "During attempted access at .when[Variant2].when[Case3], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:394:              "During attempted access at .when[Case3], encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:401:              "During attempted access at .when[Case4], encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:408:              "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:415:              "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]: expected Case5, but got Case6"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1219:              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1340:              "During attempted access at .when[Case2].r3.r1, encountered an unexpected case at .when[Case2]: expected Case2, but got Variant2"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1347:              "During attempted access at .r3.v1.when[Case1], encountered an unexpected case at .r3.v1.when[Case1]: expected Case1, but got Variant2"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1354:              "During attempted access at .when[Case2].r3.v1.when[Case1], encountered an unexpected case at .when[Case2].r3.v1.when[Case1]: expected Case1, but got Variant2"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1361:              "During attempted access at .when[Case3].v1.when[Variant2].when[Case4], encountered an unexpected case at .when[Case3].v1.when[Variant2]: expected Variant2, but got Case1"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1368:              "During attempted access at .when[Case3].v1.when[Case1], encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1375:              "During attempted access at .when[Case3].v1.when[Case1], encountered an unexpected case at .when[Case3].v1.when[Case1]: expected Case1, but got Case2"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1382:              "During attempted access at .when[Case3].v1.when[Case1].d, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1389:              "During attempted access at .when[Case3].v1, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1396:              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:1403:              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2514:            val traversal                     = optic(_.a.each.each)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2545:          val traversal: Traversal[Vector[String], String] = $(_.each)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2565:          val traversal: Traversal[Vector[Vector[String]], String] = $(_.each.at(1))
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2569:          val traversal: Traversal[Vector[Map[Int, Long]], Long] = $(_.each.atKey(1))
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2573:          val traversal: Optional[Option[Vector[String]], String] = $(_.when[Some[Vector[String]]].value.at(1))
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2577:          val traversal: Optional[Option[Map[Int, Long]], Long] = $(_.when[Some[Map[Int, Long]]].value.atKey(1))
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2679:              "During attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Case2\nDuring attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Variant2"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2692:              "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an empty sequence at .when[Case3].v1.when[Variant2].when[Case4].lr3.each"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2699:              "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2706:              "During attempted access at .when[Case4].lr3.each, encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2713:              "During attempted access at .at(1).each, encountered a sequence out of bounds at .at(1): index is 1, but size is 1"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2720:              "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>)"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2727:              "During attempted access at .each.at(1), encountered a sequence out of bounds at .each.at(1): index is 1, but size is 0"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2734:              "During attempted access at .at(1).each, encountered a sequence out of bounds at .at(1): index is 1, but size is 1"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2741:              "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>): index is 1, but size is 1"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2748:              "During attempted access at .each.at(1), encountered a sequence out of bounds at .each.at(1): index is 1, but size is 0"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2754:            hasError("During attempted access at .atKey(<key>).each, encountered missing key at .atKey(<key>)")
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2759:            hasError("During attempted access at .atKeys(<keys>).each, encountered missing key at .atKeys(<keys>)")
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2764:            hasError("During attempted access at .each.atKey(<key>), encountered missing key at .each.atKey(<key>)")
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3082:              "During attempted access at .each.wrapped, encountered an error at .each.wrapped: Unexpected 'Wrapper' value"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3284:    val vi: Traversal[Record2, Int]            = optic(_.vi.each)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3300:    lazy val v1_c1: Optional[Record3, Case1]   = optic(_.v1.when[Case1])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3308:    val c1: Prism[Variant1, Case1]                       = optic(_.when[Case1])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3309:    val c2: Prism[Variant1, Case2]                       = optic(_.when[Case2])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3310:    val v2: Prism[Variant1, Variant2]                    = optic(_.when[Variant2])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3311:    val v2_c3: Prism[Variant1, Case3]                    = optic(_.when[Variant2].when[Case3])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3312:    val v2_c4: Prism[Variant1, Case4]                    = optic(_.when[Variant2].when[Case4])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3315:    val v2_c4_lr3: Traversal[Variant1, Record3]          = optic(_.when[Variant2].when[Case4].lr3.each)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3316:    val v2_c3_v1: Optional[Variant1, Variant1]           = optic(_.when[Variant2].when[Case3].v1)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3317:    val c1_d: Optional[Variant1, Double]                 = optic(_.when[Case1].d)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3318:    val c2_r3: Optional[Variant1, Record3]               = optic(_.when[Case2].r3)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3319:    val c2_r3_r1: Optional[Variant1, Record1]            = optic(_.when[Case2].r3.r1)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3322:    lazy val c2_r3_v1_c1: Optional[Variant1, Case1]      = optic(_.when[Case2].r3.v1.when[Case1])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3339:    lazy val r3_v1_c1: Optional[Case2, Case1] = optic(_.r3.v1.when[Case1])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3347:    val c3: Prism[Variant2, Case3]                         = optic(_.when[Case3])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3348:    val c4: Prism[Variant2, Case4]                         = optic(_.when[Case4])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3349:    val v3: Prism[Variant2, Variant3]                      = optic(_.when[Variant3])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3351:    lazy val c3_v1: Optional[Variant2, Variant1]           = optic(_.when[Case3].v1)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3356:    lazy val c3_v1_v2: Optional[Variant2, Variant2]        = optic(_.when[Case3].v1.when[Variant2])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3357:    lazy val c3_v1_v2_c4_lr3: Traversal[Variant2, Record3] = optic(_.when[Case3].v1.when[Variant2].when[Case4].lr3.each)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3358:    lazy val c3_v1_v2_c4: Optional[Variant2, Case4]        = optic(_.when[Case3].v1.when[Variant2].when[Case4])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3367:    lazy val v1_c1: Optional[Case3, Case1]             = optic(_.v1.when[Case1])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3370:    lazy val v1_v2: Optional[Case3, Variant2]          = optic(_.v1.when[Variant2])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3371:    lazy val v1_v2_c3_v1_v2: Optional[Case3, Variant2] = optic(_.v1.when[Variant2].when[Case3].v1.when[Variant2])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3379:    val lr3: Traversal[Case4, Record3]       = optic(_.lr3.each)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3380:    val lr3_r2: Traversal[Case4, Record2]    = optic(_.lr3.each.r2)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3381:    val lr3_r2_r1: Traversal[Case4, Record1] = optic(_.lr3.each.r2.r1)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3389:    val c5: Prism[Variant3, Case5]                = optic(_.when[Case5])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3397:    val si: Traversal[Case5, Int]              = optic(_.si.each)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3398:    val as: Traversal[Case5, String]           = optic(_.as.each)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3434:    val w_wr1: Optional[Wrappers, Record1]       = optic(_.when[Wrapper].wrapped[Record1])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3467:    val vw_wr1_b: Traversal[Record4, Boolean]  = optic(_.vw.each.wrapped[Record1].b)
+./schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:3468:    val w_w_wr1: Optional[Record4, Record1]    = optic(_.w.when[Wrapper].wrapped[Record1])
+./schema/shared/src/test/scala/zio/blocks/schema/OpticCheckSpec.scala:25:          "During attempted access at .when[Case2].lr3.each, encountered an unexpected case at .when[Case2]: expected Case2, but got Case1"
+./schema/shared/src/test/scala/zio/blocks/schema/OpticCheckSpec.scala:42:        equalTo("During attempted access at .each.eachKey, encountered an empty sequence at .each")
+./schema/shared/src/test/scala/zio/blocks/schema/OpticCheckSpec.scala:72:          "During attempted access at .when[Case2].lr3.each, encountered an unexpected case at .when[Case2]: expected Case2, but got Case1\nDuring attempted access at .eachValue.each, encountered an empty map at .eachValue"
+./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:36:    val dog: Prism[Animal, Dog]           = optic(_.when[Dog])
+./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:37:    val cat: Prism[Animal, Cat]           = optic(_.when[Cat])
+./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:38:    val dogName: Optional[Animal, String] = optic(_.when[Dog].name)
+./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:39:    val catLives: Optional[Animal, Int]   = optic(_.when[Cat].lives)
+./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:57:    val allMembers: Traversal[Team, Person]     = optic(_.members.each)
+./schema/shared/src/test/scala/zio/blocks/schema/patch/TypedPatchSpec.scala:58:    val allMemberNames: Traversal[Team, String] = optic(_.members.each.name)
+./schema/js-jvm/src/test/scala-3/zio/blocks/schema/NeotypeSupportSpec.scala:57:        "Validation Failed at: .distanceFromSun.when[Some].value"
+./schema/js-jvm/src/test/scala-3/zio/blocks/schema/NeotypeSupportSpec.scala:335:    val id_some_value: Optional[Stats, Id]              = $(_.id.when[Some[Id]].value)
+./schema/js-jvm/src/test/scala-3/zio/blocks/schema/NeotypeSupportSpec.scala:337:    val responseTimes_wrapped: Traversal[Stats, Double] = $(_.responseTimes.each.wrapped[Double])

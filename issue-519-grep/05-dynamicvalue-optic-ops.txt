@@ -1,0 +1,4 @@
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:209:./schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:64:  def get(dynamic: DynamicOptic): Option[Reflect[F, ?]] = {
+./issue-519-grep/01-optic-macro-and-dynamic-optic.txt:325:./schema/shared/src/main/scala/zio/blocks/schema/Schema.scala:61:  def get(dynamic: DynamicOptic): Option[Reflect.Bound[?]] = reflect.get(dynamic)
+./schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:64:  def get(dynamic: DynamicOptic): Option[Reflect[F, ?]] = {
+./schema/shared/src/main/scala/zio/blocks/schema/Schema.scala:61:  def get(dynamic: DynamicOptic): Option[Reflect.Bound[?]] = reflect.get(dynamic)

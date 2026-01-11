@@ -1,0 +1,6 @@
+./benchmarks/src/main/scala/zio/blocks/schema/DynamicValueBenchmark.scala:25:object DynamicValueDomain {
+./benchmarks/src/test/scala/zio/blocks/schema/DynamicValueBenchmarkSpec.scala:6:object DynamicValueBenchmarkSpec extends ZIOSpecDefault {
+./schema/shared/src/main/scala/zio/blocks/schema/DynamicValue.scala:3:sealed trait DynamicValue {
+./schema/shared/src/main/scala/zio/blocks/schema/DynamicValue.scala:17:object DynamicValue {
+./schema/shared/src/test/scala/zio/blocks/schema/DynamicValueGen.scala:7:object DynamicValueGen {
+./schema/shared/src/test/scala/zio/blocks/schema/DynamicValueSpec.scala:8:object DynamicValueSpec extends ZIOSpecDefault {
