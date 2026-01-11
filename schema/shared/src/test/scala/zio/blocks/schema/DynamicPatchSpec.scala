@@ -73,6 +73,13 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         check(genDynamicPatch, genDynamicPatch, genDynamicPatch) { (p1, p2, p3) =>
           assert((p1 ++ p2) ++ p3)(equalTo(p1 ++ (p2 ++ p3)))
         }
+      },
+      test("Semantic Composition: (p1 ++ p2).apply(v) == p1.apply(v).flatMap(p2.apply(_))") {
+        check(genStableDynamicValue, genStableDynamicPatch, genStableDynamicPatch) { (v, p1, p2) =>
+          val result1 = (p1 ++ p2).apply(v, PatchMode.Lenient) // Use Lenient to ensure it usually succeeds
+          val result2 = p1.apply(v, PatchMode.Lenient).flatMap(p2.apply(_, PatchMode.Lenient))
+          assert(result1)(equalTo(result2))
+        }
       }
     ),
     suite("Roundtrip Law")(
