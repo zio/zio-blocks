@@ -70,10 +70,10 @@ private[schema] object MigrationMacros {
   )(schemaA: c.Expr[Schema[A]], schemaB: c.Expr[Schema[B]]): c.Expr[Migration[A, B]] = {
     import c.universe._
 
-      val typeA = weakTypeOf[A]
-      val typeB = weakTypeOf[B]
+    val typeA = weakTypeOf[A]
+    val typeB = weakTypeOf[B]
 
-      c.Expr[Migration[A, B]](q"""{
+    c.Expr[Migration[A, B]](q"""{
         import _root_.zio.blocks.schema.Reflect
         import _root_.zio.blocks.schema.Migration
 
@@ -109,5 +109,5 @@ private[schema] object MigrationMacros {
           foldLeft[Migration[Any, Any]](Migration.Identity[Any]())((acc, action) => acc ++ action)
           .asInstanceOf[Migration[$typeA, $typeB]]
       }""")
-    }
+  }
 }
