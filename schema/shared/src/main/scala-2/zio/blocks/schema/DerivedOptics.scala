@@ -235,6 +235,7 @@ private[schema] object DerivedOpticsMacros {
     prefixUnderscore: Boolean
   ): c.Tree = {
     import c.universe._
+    val _ = implicitly[c.WeakTypeTag[S]] // Silence unused warning
 
     // Get case class fields from primary constructor
     val primaryConstructor = tpe.decls.collectFirst {
@@ -285,6 +286,7 @@ private[schema] object DerivedOpticsMacros {
     prefixUnderscore: Boolean
   ): c.Tree = {
     import c.universe._
+    val _ = implicitly[c.WeakTypeTag[S]] // Silence unused warning
 
     // Get direct subtypes
     val subtypes = CommonMacroOps.directSubTypes(c)(tpe)
