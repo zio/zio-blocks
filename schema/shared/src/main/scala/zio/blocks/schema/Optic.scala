@@ -220,11 +220,11 @@ object Lens {
 
   def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] =
     (first, second) match {
-      case (_: IdentityLens[?], l2)                  => l2.asInstanceOf[Lens[S, A]]
-      case (l1, _: IdentityLens[?])                  => l1.asInstanceOf[Lens[S, A]]
+      case (_: IdentityLens[?], l2)                 => l2.asInstanceOf[Lens[S, A]]
+      case (l1, _: IdentityLens[?])                 => l1.asInstanceOf[Lens[S, A]]
       case (l1: LensImpl[?, ?], l2: LensImpl[?, ?]) =>
         new LensImpl(l1.sources ++ l2.sources, l1.focusTerms ++ l2.focusTerms)
-      case _                                         => throw new IllegalArgumentException("Unknown Lens implementation")
+      case _ => throw new IllegalArgumentException("Unknown Lens implementation")
     }
 
   def identity[S](implicit schema: Schema[S]): Lens[S, S] = new IdentityLens(schema)
@@ -581,7 +581,7 @@ object Optional {
         )
       case (opt, _: Lens.IdentityLens[?]) => opt.asInstanceOf[Optional[S, A]]
       case _                              => throw new IllegalArgumentException("Unknown implementation")
-    }       
+    }
 
   def apply[S, T, A <: T](first: Optional[S, T], second: Prism[T, A]): Optional[S, A] = {
     val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]

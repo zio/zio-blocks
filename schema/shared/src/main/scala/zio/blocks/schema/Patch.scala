@@ -24,7 +24,6 @@ final case class Patch[S](
 ) {
   import Patch._
 
-
   def ++(that: Patch[S]): Patch[S] = Patch(this.ops ++ that.ops, this.source, this.mode)
 
   def lenient: Patch[S] = copy(mode = PatchMode.Lenient)
@@ -83,8 +82,6 @@ final case class Patch[S](
     DynamicPatch(dynamicOps)
   }
 
-
-
   def map[T](o: Optic[T, S]): Patch[T] =
     Patch(ops.map(_.map(o)), new Schema(o.source.asInstanceOf[Reflect.Bound[T]]), mode)
 }
@@ -130,10 +127,10 @@ object Patch {
         case Some(record) =>
           val recordBound = record.asInstanceOf[Reflect.Record.Bound[A]]
           recordBound.fields.zipWithIndex.foldLeft(empty[A]) { case (acc, (field, idx)) =>
-            val fieldBound = field.asInstanceOf[Term.Bound[A, Any]]
-            val lens       = recordBound.lensByIndex[Any](idx).get
-            val oldVal     = lens.get(oldValue)
-            val newVal     = lens.get(newValue)
+            val fieldBound  = field.asInstanceOf[Term.Bound[A, Any]]
+            val lens        = recordBound.lensByIndex[Any](idx).get
+            val oldVal      = lens.get(oldValue)
+            val newVal      = lens.get(newValue)
             val fieldSchema = new Schema(fieldBound.value.asInstanceOf[Reflect.Bound[Any]])
             acc ++ diff(oldVal, newVal)(fieldSchema).map(lens)
           }
@@ -141,15 +138,15 @@ object Patch {
           schema.reflect.asVariant match {
             case Some(variant) =>
               val variantBound = variant.asInstanceOf[Reflect.Variant.Bound[A]]
-              val oldCaseIdx = variantBound.discriminator.asInstanceOf[Discriminator[A]].discriminate(oldValue)
-              val newCaseIdx = variantBound.discriminator.asInstanceOf[Discriminator[A]].discriminate(newValue)
+              val oldCaseIdx   = variantBound.discriminator.asInstanceOf[Discriminator[A]].discriminate(oldValue)
+              val newCaseIdx   = variantBound.discriminator.asInstanceOf[Discriminator[A]].discriminate(newValue)
               if (oldCaseIdx == newCaseIdx) {
-                val caseTerm = variantBound.cases(oldCaseIdx).asInstanceOf[Term.Bound[A, A]]
-                val prism    = Prism(variantBound, caseTerm)
-                val prismAny = prism.asInstanceOf[Optic[A, Any]]
+                val caseTerm  = variantBound.cases(oldCaseIdx).asInstanceOf[Term.Bound[A, A]]
+                val prism     = Prism(variantBound, caseTerm)
+                val prismAny  = prism.asInstanceOf[Optic[A, Any]]
                 val oldValOpt = prism.getOption(oldValue)
                 val newValOpt = prism.getOption(newValue)
-                
+
                 (oldValOpt, newValOpt) match {
                   case (Some(ov), Some(nv)) =>
                     val fieldSchema = new Schema(caseTerm.value.asInstanceOf[Reflect.Bound[Any]])
