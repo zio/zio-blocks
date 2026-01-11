@@ -70,39 +70,44 @@ private[schema] object MigrationMacros {
   )(schemaA: c.Expr[Schema[A]], schemaB: c.Expr[Schema[B]]): c.Expr[Migration[A, B]] = {
     import c.universe._
 
-    c.Expr[Migration[A, B]](q"""{
-      import _root_.zio.blocks.schema.Reflect
-      import _root_.zio.blocks.schema.Migration
+      val typeA = weakTypeOf[A]
+      val typeB = weakTypeOf[B]
 
-      val reflectA = $schemaA.reflect
-      val reflectB = $schemaB.reflect
+      c.Expr[Migration[A, B]](q"""{
+        import _root_.zio.blocks.schema.Reflect
+        import _root_.zio.blocks.schema.Migration
 
-      val recordA = reflectA.asRecord.getOrElse(throw new Exception("Migration.derived only supports records (case classes)"))
-      val recordB = reflectB.asRecord.getOrElse(throw new Exception("Migration.derived only supports records (case classes)"))
+        val reflectA = $schemaA.reflect
+        val reflectB = $schemaB.reflect
 
-      val fieldsA = recordA.fields.map(f => f.name -> f).toMap
-      val fieldsB = recordB.fields.map(f => f.name -> f).toMap
+        val recordA = reflectA.asRecord.getOrElse(throw new Exception("Migration.derived only supports records (case classes)"))
+        val recordB = reflectB.asRecord.getOrElse(throw new Exception("Migration.derived only supports records (case classes)"))
 
-      val actions = Vector.newBuilder[Migration[Any, Any]]
+        val fieldsA = recordA.fields.map(f => f.name -> f).toMap
+        val fieldsB = recordB.fields.map(f => f.name -> f).toMap
 
-      fieldsA.keys.foreach { name =>
-        if (!fieldsB.contains(name)) {
-          actions += Migration.RemoveField(name)
+        val actions = Vector.newBuilder[Migration[Any, Any]]
+
+        fieldsA.keys.foreach { name =>
+          if (!fieldsB.contains(name)) {
+            actions += Migration.RemoveField(name)
+          }
         }
-      }
 
-      recordB.fields.foreach { fieldB =>
-        if (!fieldsA.contains(fieldB.name)) {
-          val rb = fieldB.value.asInstanceOf[Reflect.Bound[Any]]
-          val defaultValue = rb.getDefaultValue.map(v => rb.toDynamicValue(v))
-            .getOrElse(throw new Exception("No default value for added field " + fieldB.name + " in " + reflectB.typeName))
-          actions += Migration.AddField(fieldB.name, defaultValue)
+        recordB.fields.foreach { fieldB =>
+          if (!fieldsA.contains(fieldB.name)) {
+            val rb = fieldB.value.asInstanceOf[Reflect.Bound[Any]]
+            val defaultValue = rb.getDefaultValue.map(v => rb.toDynamicValue(v))
+              .getOrElse(throw new Exception("No default value for added field " + fieldB.name + " in " + reflectB.typeName))
+            actions += Migration.AddField(fieldB.name, defaultValue)
+          }
         }
-      }
 
-      actions += Migration.ReorderFields(recordB.fields.map(_.name).toVector)
+        actions += Migration.ReorderFields(recordB.fields.map(_.name).toVector)
 
-      actions.result().foldLeft[Migration[Any, Any]](Migration.Identity[Any]())((acc, action) => acc ++ action).asInstanceOf[Migration[A, B]]
-    }""")
-  }
+        actions.result().
+          foldLeft[Migration[Any, Any]](Migration.Identity[Any]())((acc, action) => acc ++ action)
+          .asInstanceOf[Migration[$typeA, $typeB]]
+      }""")
+    }
 }
