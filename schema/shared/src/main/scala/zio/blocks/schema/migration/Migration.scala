@@ -88,7 +88,7 @@ final case class Migration[A, B](
   def actions: Vector[MigrationAction] = dynamicMigration.actions
 }
 
-object Migration {
+object Migration extends MigrationSelectorSyntax {
 
   /**
    * Create an identity migration that performs no transformations.
@@ -100,6 +100,10 @@ object Migration {
   /**
    * Create a new migration builder for constructing migrations
    * from type `A` to type `B`.
+   * 
+   * The companion object extends `MigrationSelectorSyntax`, making selector
+   * extension methods (like `.each`, `.when[T]`, `.at()`) available in scope
+   * when using the builder.
    */
   def newBuilder[A, B](implicit
     sourceSchema: Schema[A],

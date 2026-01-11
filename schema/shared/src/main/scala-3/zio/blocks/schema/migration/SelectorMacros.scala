@@ -109,29 +109,4 @@ object SelectorMacros {
   }
 }
 
-/**
- * Extension methods for selector syntax in migrations.
- * These are compile-time-only placeholders that get transformed by the macros.
- */
-transparent trait MigrationSelectorSyntax {
-  import scala.compiletime.error
-
-  extension [A](a: A) {
-    inline def when[B <: A]: B = error("Can only be used inside migration selector macros")
-    inline def wrapped[B]: B = error("Can only be used inside migration selector macros")
-  }
-
-  extension [C[_], A](c: C[A]) {
-    inline def at(index: Int): A = error("Can only be used inside migration selector macros")
-    inline def each: A = error("Can only be used inside migration selector macros")
-  }
-
-  extension [M[_, _], K, V](m: M[K, V]) {
-    inline def atKey(key: K): V = error("Can only be used inside migration selector macros")
-    inline def eachKey: K = error("Can only be used inside migration selector macros")
-    inline def eachValue: V = error("Can only be used inside migration selector macros")
-  }
-}
-
-object MigrationSelectorSyntax extends MigrationSelectorSyntax
 

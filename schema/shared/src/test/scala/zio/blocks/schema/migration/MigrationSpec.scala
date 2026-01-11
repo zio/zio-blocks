@@ -136,6 +136,76 @@ object MigrationSpec extends ZIOSpecDefault {
           transform(DynamicTransform.IntToDouble, intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Double(42.0)))
         )
       }
+    ),
+
+    suite("Selector Syntax")(
+      test("simple field selector") {
+        case class PersonV1(name: String)
+        case class PersonV2(name: String, age: Int)
+        
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+        
+        val migration = Migration.newBuilder[PersonV1, PersonV2]
+          .addField(_.age, DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          .build
+        
+        val input = PersonV1("Alice")
+        val result = migration(input)
+        
+        assertTrue(result == Right(PersonV2("Alice", 0)))
+      },
+
+      test("renameField selector syntax") {
+        case class PersonV1(firstName: String)
+        case class PersonV2(fullName: String)
+        
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+        
+        val migration = Migration.newBuilder[PersonV1, PersonV2]
+          .renameField(_.firstName, _.fullName)
+          .build
+        
+        val input = PersonV1("Alice")
+        val result = migration(input)
+        
+        assertTrue(result == Right(PersonV2("Alice")))
+      },
+
+      test("dropField selector syntax") {
+        case class PersonV1(name: String, age: Int)
+        case class PersonV2(name: String)
+        
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+        
+        val migration = Migration.newBuilder[PersonV1, PersonV2]
+          .dropField(_.age, Some(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .build
+        
+        val input = PersonV1("Alice", 30)
+        val result = migration(input)
+        
+        assertTrue(result == Right(PersonV2("Alice")))
+      },
+
+      test("transformField selector syntax") {
+        case class PersonV1(age: Int)
+        case class PersonV2(age: Long)
+        
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+        
+        val migration = Migration.newBuilder[PersonV1, PersonV2]
+          .transformField(_.age, _.age, DynamicTransform.IntToLong)
+          .build
+        
+        val input = PersonV1(30)
+        val result = migration(input)
+        
+        assertTrue(result == Right(PersonV2(30L)))
+      }
     )
   )
 }

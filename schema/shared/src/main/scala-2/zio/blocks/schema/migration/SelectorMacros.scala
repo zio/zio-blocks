@@ -1,6 +1,5 @@
 package zio.blocks.schema.migration
 
-import scala.annotation.compileTimeOnly
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 import zio.blocks.schema.DynamicOptic
@@ -92,39 +91,4 @@ object SelectorMacros {
   }
 }
 
-/**
- * Extension methods for selector syntax in migrations.
- * These are compile-time-only placeholders that get transformed by the macros.
- */
-trait MigrationSelectorSyntax {
-
-  implicit class ValueExtension[A](a: A) {
-    @compileTimeOnly("Can only be used inside migration selector macros")
-    def when[B <: A]: B = ???
-
-    @compileTimeOnly("Can only be used inside migration selector macros")
-    def wrapped[B]: B = ???
-  }
-
-  implicit class SequenceExtension[C[_], A](c: C[A]) {
-    @compileTimeOnly("Can only be used inside migration selector macros")
-    def at(index: Int): A = ???
-
-    @compileTimeOnly("Can only be used inside migration selector macros")
-    def each: A = ???
-  }
-
-  implicit class MapExtension[M[_, _], K, V](m: M[K, V]) {
-    @compileTimeOnly("Can only be used inside migration selector macros")
-    def atKey(key: K): V = ???
-
-    @compileTimeOnly("Can only be used inside migration selector macros")
-    def eachKey: K = ???
-
-    @compileTimeOnly("Can only be used inside migration selector macros")
-    def eachValue: V = ???
-  }
-}
-
-object MigrationSelectorSyntax extends MigrationSelectorSyntax
 

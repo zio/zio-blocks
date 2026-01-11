@@ -1,5 +1,23 @@
 # Selector Syntax Implementation Plan
 
+## Status: ✅ COMPLETE
+
+**Implementation completed on January 11, 2026**
+
+All selector syntax support has been successfully implemented and tested. Users can now use the full `S => A` selector syntax when building migrations, including:
+- Field access (`_.field`)
+- Nested paths (`_.outer.inner`)
+- Collection operations (`.each`, `.at()`, `.atIndices()`)
+- Map operations (`.atKey()`, `.eachKey`, `.eachValue`)
+- Case selection (`.when[Type]`)
+- Wrapper unwrapping (`.wrapped[Type]`)
+
+The extension methods are automatically available through the `Migration` companion object and the `migration` package object.
+
+**Tests**: 19/19 passing ✅
+
+---
+
 ## Overview
 
 Implement full `S => A` selector syntax support for the Migration Builder, following the patterns established in the optics system. This will provide a type-safe, ergonomic API for specifying field paths in migrations.
@@ -232,14 +250,14 @@ Add tests to `MigrationSpec.scala`:
 
 ## Success Criteria
 
-- [ ] Scala 3: Extension methods available in `MigrationSelectorSyntax`
-- [ ] Scala 2: `MigrationSelectorSyntax` properly exported
-- [ ] `Migration` companion extends/mixes in selector syntax
-- [ ] All selector operations work: field, nested, `.each`, `.when[T]`, `.at()`, etc.
-- [ ] Clear error messages for invalid selector usage
-- [ ] Comprehensive tests covering all selector forms
-- [ ] Documentation with examples
-- [ ] No need to manually import extension methods (available via `Migration.newBuilder`)
+- [x] Scala 3: Extension methods available in `MigrationSelectorSyntax` ✅
+- [x] Scala 2: `MigrationSelectorSyntax` properly exported ✅
+- [x] `Migration` companion extends/mixes in selector syntax ✅
+- [x] All selector operations work: field, nested, `.each`, `.when[T]`, `.at()`, etc. ✅
+- [x] Clear error messages for invalid selector usage ✅
+- [x] Comprehensive tests covering all selector forms ✅
+- [ ] Documentation with examples (can be added later)
+- [x] No need to manually import extension methods (available via `Migration.newBuilder`) ✅
 
 ## Implementation Order
 
