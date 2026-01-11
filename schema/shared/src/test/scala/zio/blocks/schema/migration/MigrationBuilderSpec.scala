@@ -41,31 +41,34 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = Migration
           .builder[PersonV0, PersonV1]
           .renameCase("OldCase", "NewCase")
-          .build
+          .buildPartial
 
         assertTrue(migration.dynamicMigration.actions.head.isInstanceOf[MigrationAction.RenameCase])
       },
       test("builds migration with renameField") {
         val migration = Migration
-          .builder[PersonV0, PersonV1]
-          .renameField("oldField", "newField")
-          .build
+          .builder[PersonV0, PersonV2]
+          .renameField(_.name, _.fullName)
+          .buildPartial
 
         assertTrue(migration.dynamicMigration.actions.head.isInstanceOf[MigrationAction.Rename])
       },
       test("builds migration with dropField") {
         val migration = Migration
           .builder[PersonV0, PersonV1]
-          .dropField("obsoleteField")
-          .build
+          .dropField(_.name)
+          .buildPartial
 
         assertTrue(migration.dynamicMigration.actions.head.isInstanceOf[MigrationAction.DropField])
       },
       test("builds migration with optionalizeField") {
+        case class PersonOpt(name: Option[String], age: Int)
+        implicit val schemaOpt: Schema[PersonOpt] = Schema.derived[PersonOpt]
+
         val migration = Migration
-          .builder[PersonV0, PersonV1]
-          .optionalizeField("maybeField")
-          .build
+          .builder[PersonV0, PersonOpt]
+          .optionalizeField(_.name)
+          .buildPartial
 
         assertTrue(migration.dynamicMigration.actions.head.isInstanceOf[MigrationAction.Optionalize])
       },
@@ -93,30 +96,30 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
       },
       test("describe returns human-readable description with paths") {
         val migration = Migration
-          .builder[PersonV0, PersonV1]
-          .renameField("old", "new")
+          .builder[PersonV0, PersonV2]
+          .renameField(_.name, _.fullName)
           .addFieldWithDefault("country", "USA")
-          .build
+          .buildPartial
 
         assertTrue(migration.describe.contains("Rename")) &&
         assertTrue(migration.describe.contains("Add field"))
       },
       test("all actions have 'at' field set to root by default") {
         val migration = Migration
-          .builder[PersonV0, PersonV1]
-          .renameField("a", "b")
-          .build
+          .builder[PersonV0, PersonV2]
+          .renameField(_.name, _.fullName)
+          .buildPartial
 
         assertTrue(migration.dynamicMigration.actions.head.at == DynamicOptic.root)
       },
-      test("convenience methods work") {
+      test("selector methods work") {
         val migration = Migration
-          .builder[PersonV0, PersonV1]
-          .rename("old", "new")
-          .add("country", "USA")
-          .build
+          .builder[PersonV0, PersonV2]
+          .renameField(_.name, _.fullName)
+          .buildPartial
 
-        assertTrue(migration.dynamicMigration.actions.length == 2)
+        assertTrue(migration.dynamicMigration.actions.length == 1) &&
+        assertTrue(migration.dynamicMigration.actions.head.isInstanceOf[MigrationAction.Rename])
       },
       test("builds migration with type-safe selectors") {
         val migration = Migration

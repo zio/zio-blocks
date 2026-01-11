@@ -72,4 +72,34 @@ object SchemaError {
   case class UnknownCase(source: DynamicOptic, caseName: String) extends Single {
     override def message: String = s"Unknown case '$caseName' at: $source"
   }
+
+  // ============================================================================
+  // Migration-specific errors
+  // ============================================================================
+
+  /** Type mismatch during migration (expected vs actual type). */
+  case class TypeMismatch(source: DynamicOptic, expected: String, actual: String) extends Single {
+    override def message: String = s"Type mismatch at $source: expected $expected but got $actual"
+  }
+
+  /** Schema expression evaluation failed during migration. */
+  case class EvaluationFailed(source: DynamicOptic, reason: String) extends Single {
+    override def message: String = s"Expression evaluation failed at $source: $reason"
+  }
+
+  /** Migration action could not be reversed. */
+  case class NotReversible(source: DynamicOptic, action: String) extends Single {
+    override def message: String = s"Migration action '$action' is not reversible at: $source"
+  }
+
+  // Migration-specific factory methods
+
+  def typeMismatch(source: DynamicOptic, expected: String, actual: String): SchemaError =
+    new SchemaError(new ::(TypeMismatch(source, expected, actual), Nil))
+
+  def evaluationFailed(source: DynamicOptic, reason: String): SchemaError =
+    new SchemaError(new ::(EvaluationFailed(source, reason), Nil))
+
+  def notReversible(source: DynamicOptic, action: String): SchemaError =
+    new SchemaError(new ::(NotReversible(source, action), Nil))
 }

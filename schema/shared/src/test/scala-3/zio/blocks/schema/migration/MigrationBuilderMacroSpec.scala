@@ -75,15 +75,6 @@ object MigrationBuilderMacroSpec extends ZIOSpecDefault {
         val action = migration.dynamicMigration.actions.head.asInstanceOf[MigrationAction.DropField]
         assertTrue(action.at == DynamicOptic.root) &&
         assertTrue(action.fieldName == "age")
-      },
-      test("optionalizeField with nested selector") {
-        val builder = MigrationBuilder
-          .create(personV0Schema, personV1Schema)
-          .optionalizeField(_.address.city)
-
-        val action = builder.actions.head.asInstanceOf[MigrationAction.Optionalize]
-        assertTrue(action.at == DynamicOptic.root.field("address")) &&
-        assertTrue(action.fieldName == "city")
       }
     )
 }

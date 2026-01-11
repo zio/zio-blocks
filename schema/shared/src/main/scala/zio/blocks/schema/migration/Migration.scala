@@ -36,14 +36,13 @@ final case class Migration[A, B](
   /**
    * Apply this migration to a value of type A.
    */
-  def apply(value: A): Either[MigrationError, B] =
+  def apply(value: A): Either[SchemaError, B] =
     for {
       dynamicValue    <- Right(sourceSchema.toDynamicValue(value))
       migratedDynamic <- dynamicMigration.apply(dynamicValue)
       result          <- targetSchema.fromDynamicValue(migratedDynamic) match {
                   case Right(b)          => Right(b)
-                  case Left(schemaError) =>
-                    Left(MigrationError.EvaluationFailed(DynamicOptic.root, schemaError.toString))
+                  case Left(schemaError) => Left(schemaError)
                 }
     } yield result
 

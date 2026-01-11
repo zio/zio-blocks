@@ -40,8 +40,8 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
    * Apply this migration to a DynamicValue. Actions are applied in sequence,
    * short-circuiting on first error.
    */
-  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-    actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) { (acc, action) =>
+  def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
+    actions.foldLeft[Either[SchemaError, DynamicValue]](Right(value)) { (acc, action) =>
       acc.flatMap(action.apply)
     }
 

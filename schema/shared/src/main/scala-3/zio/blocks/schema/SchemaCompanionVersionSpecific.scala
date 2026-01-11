@@ -12,20 +12,6 @@ import zio.blocks.schema.CommonMacroOps
 
 trait SchemaCompanionVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }
-
-  /**
-   * Derive a schema from a structural (refinement) type.
-   *
-   * Example:
-   * ```
-   * type PersonV0 = { val name: String; val age: Int }
-   * val schema = Schema.structural[PersonV0]
-   * ```
-   *
-   * The structural type must have val/def members with primitive types. The
-   * resulting schema operates on DynamicValue and supports migration use cases.
-   */
-  inline def structural[A]: Schema[A] = ${ StructuralSchemaDerivation.derive[A] }
 }
 
 private object SchemaCompanionVersionSpecificImpl {

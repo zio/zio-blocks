@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+// format: off
 import zio.blocks.schema._
 
 /**
@@ -45,10 +46,15 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
 
   /**
    * Make a field optional using type-safe selector. Supports nested paths:
-   * `.optionalizeField(_.address.field)`
+   * `.optionalizeField(_.address.field, _.address.optionalField)`
+   *
+   * Note: The target selector is used for type-checking but the actual path is
+   * extracted from the source selector.
    */
-  inline def optionalizeField(inline selector: A => Any): MigrationBuilder[A, B] = ${
-    MigrationBuilderMacros.optionalizeImpl[A, B]('self, 'selector)
+  inline def optionalizeField(
+    inline source: A => Any
+  ): MigrationBuilder[A, B] = ${
+    MigrationBuilderMacros.optionalizeImpl[A, B]('self, 'source)
   }
 
   /**
@@ -105,28 +111,4 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
   ): MigrationBuilder[A, B] = ${
     MigrationBuilderMacros.transformValuesImpl[A, B]('self, 'selector, 'transform)
   }
-
-  // ============================================================================
-  // String-based convenience methods (always available)
-  // ============================================================================
-
-  /** Rename using strings. */
-  def rename(from: String, to: String): MigrationBuilder[A, B] =
-    self.renameField(from, to)
-
-  /** Drop using string. */
-  def drop(fieldName: String): MigrationBuilder[A, B] =
-    self.dropField(fieldName)
-
-  /** Add using typed default. */
-  def add[T](fieldName: String, defaultValue: T)(implicit schema: Schema[T]): MigrationBuilder[A, B] =
-    self.addFieldWithDefault(fieldName, defaultValue)
-
-  /** Mandate using typed default. */
-  def mandate[T](fieldName: String, defaultForNone: T)(implicit schema: Schema[T]): MigrationBuilder[A, B] =
-    self.mandateFieldWithDefault(fieldName, defaultForNone)
-
-  /** Optionalize using string. */
-  def optionalize(fieldName: String): MigrationBuilder[A, B] =
-    self.optionalizeField(fieldName)
 }

@@ -1,10 +1,12 @@
 package zio.blocks.schema.migration
 
+// format: off
 import zio.blocks.schema._
 
 /**
  * A type-safe builder for creating migrations between schema versions.
  */
+
 final class MigrationBuilder[A, B](
   val sourceSchema: Schema[A],
   val targetSchema: Schema[B],
@@ -16,9 +18,9 @@ final class MigrationBuilder[A, B](
   // ============================================================================
 
   /**
-   * Add a new field with a default value.
+   * Add a new field with a default value. (Internal - use selector-based API)
    */
-  def addField(
+  private[migration] def addField(
     fieldName: String,
     default: DynamicValue,
     at: DynamicOptic = DynamicOptic.root
@@ -34,9 +36,9 @@ final class MigrationBuilder[A, B](
   }
 
   /**
-   * Drop a field from the source.
+   * Drop a field from the source. (Internal - use selector-based API)
    */
-  def dropField(
+  private[migration] def dropField(
     fieldName: String,
     at: DynamicOptic = DynamicOptic.root
   ): MigrationBuilder[A, B] =
@@ -53,9 +55,9 @@ final class MigrationBuilder[A, B](
   }
 
   /**
-   * Rename a field.
+   * Rename a field. (Internal - use selector-based API)
    */
-  def renameField(
+  private[migration] def renameField(
     from: String,
     to: String,
     at: DynamicOptic = DynamicOptic.root
@@ -72,9 +74,10 @@ final class MigrationBuilder[A, B](
     copy(actions :+ MigrationAction.TransformValue(fieldPath, transform))
 
   /**
-   * Make an optional field required with a default for None.
+   * Make an optional field required with a default for None. (Internal - use
+   * selector-based API)
    */
-  def mandateField(
+  private[migration] def mandateField(
     fieldName: String,
     default: DynamicValue,
     at: DynamicOptic = DynamicOptic.root
@@ -92,18 +95,20 @@ final class MigrationBuilder[A, B](
   }
 
   /**
-   * Make a field optional by wrapping in Some.
+   * Make a field optional by wrapping in Some. (Internal - use selector-based
+   * API)
    */
-  def optionalizeField(
+  private[migration] def optionalizeField(
     fieldName: String,
     at: DynamicOptic = DynamicOptic.root
   ): MigrationBuilder[A, B] =
     copy(actions :+ MigrationAction.Optionalize(at, fieldName))
 
   /**
-   * Change the type of a field using a converter expression.
+   * Change the type of a field using a converter expression. (Internal - use
+   * selector-based API)
    */
-  def changeFieldType(
+  private[migration] def changeFieldType(
     fieldName: String,
     converter: SchemaExpr[DynamicValue, DynamicValue],
     at: DynamicOptic = DynamicOptic.root
@@ -187,44 +192,10 @@ final class MigrationBuilder[A, B](
   // ============================================================================
 
   /**
-   * Build the final migration with validation. Warns about unmapped fields at
-   * runtime.
+   * Build migration with validation and return errors for unmapped fields.
+   * This is called by the compile-time validation macro (in Scala 3) or directly (in Scala 2).
    */
-  def build: Migration[A, B] = {
-    // Extract field names affected by actions
-    val handledSourceFields = actions.flatMap(extractSourceFields).toSet
-    val handledTargetFields = actions.flatMap(extractTargetFields).toSet
-
-    // Extract source and target field names from schemas (runtime introspection)
-    val sourceFields = extractSchemaFields(sourceSchema)
-    val targetFields = extractSchemaFields(targetSchema)
-
-    // Check for unmapped source fields (fields in source not handled by drop/rename/transform)
-    val unmappedSource = sourceFields.diff(handledSourceFields)
-    if (unmappedSource.nonEmpty) {
-      System.err.println(
-        s"[Migration Warning] Unmapped source fields: ${unmappedSource.mkString(", ")}. " +
-          "These fields will be dropped silently."
-      )
-    }
-
-    // Check for unmapped target fields (fields in target not added/renamed to)
-    val unmappedTarget = targetFields.diff(handledTargetFields)
-    if (unmappedTarget.nonEmpty) {
-      System.err.println(
-        s"[Migration Warning] Unmapped target fields: ${unmappedTarget.mkString(", ")}. " +
-          "These fields may be missing in the result."
-      )
-    }
-
-    Migration[A, B](DynamicMigration(actions), sourceSchema, targetSchema)
-  }
-
-  /**
-   * Build migration with validation and return errors for unmapped fields. This
-   * is called by the compile-time validation macro.
-   */
-  def buildWithValidation: Migration[A, B] = {
+  def buildValidating: Migration[A, B] = {
     // Extract field names affected by actions
     val handledSourceFields = actions.flatMap(extractSourceFields).toSet
     val handledTargetFields = actions.flatMap(extractTargetFields).toSet
@@ -233,9 +204,12 @@ final class MigrationBuilder[A, B](
     val sourceFields = extractSchemaFields(sourceSchema)
     val targetFields = extractSchemaFields(targetSchema)
 
+    // Fields that exist in both source and target are implicitly handled
+    val implicitFields = sourceFields.intersect(targetFields)
+
     // Check for unmapped source fields
-    val unmappedSource = sourceFields.diff(handledSourceFields)
-    val unmappedTarget = targetFields.diff(handledTargetFields)
+    val unmappedSource = sourceFields.diff(handledSourceFields).diff(implicitFields)
+    val unmappedTarget = targetFields.diff(handledTargetFields).diff(implicitFields)
 
     // Throw at runtime if there are unmapped fields (compile-time check already warned)
     if (unmappedSource.nonEmpty || unmappedTarget.nonEmpty) {

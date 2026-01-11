@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+// format: off
 import scala.reflect.macros.whitebox
 
 private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {

@@ -342,8 +342,8 @@ object MigrationSpec extends ZIOSpecDefault {
           implicit val v2Schema: Schema[V2] = Schema.derived
 
           val migration = MigrationBuilder[V1, V2]
-            .renameField("oldName", "newName")
-            .build
+            .renameField(_.oldName, _.newName)
+            .buildValidating
 
           val result = migration.apply(V1("Alice", 30))
           assert(result)(isRight) &&
@@ -357,8 +357,8 @@ object MigrationSpec extends ZIOSpecDefault {
           implicit val v2Schema: Schema[V2] = Schema.derived
 
           val builder = MigrationBuilder[V1, V2]
-            .renameField("a", "c")
-            .renameField("b", "d")
+            .renameField(_.a, _.c)
+            .renameField(_.b, _.d)
 
           assertTrue(builder.actions.forall(_.at == DynamicOptic.root))
         },
@@ -371,7 +371,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
           val defaultValue = DynamicValue.Primitive(PrimitiveValue.Int(42))
           val builder      = MigrationBuilder[V1, V2]
-            .addField("newField", defaultValue)
+            .addField(_.newField, defaultValue)
 
           assertTrue(builder.actions.length == 1) &&
           assertTrue(builder.actions.head.isInstanceOf[MigrationAction.AddField])
