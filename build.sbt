@@ -153,7 +153,6 @@ lazy val `chunk-benchmarks` = project
     mimaPreviousArtifacts := Set()
   )
 
-
 lazy val `schema-avro` = project
   .settings(stdSettings("zio-blocks-schema-avro"))
   .dependsOn(schema.jvm)
@@ -181,11 +180,10 @@ lazy val `schema-toon` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
-      "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
+      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
     )
   )
-
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)

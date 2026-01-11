@@ -340,7 +340,6 @@ class ToonBinaryCodecDeriver private[toon] (
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[A]] = Lazy {
-    val len = fields.length
 
     // Collect field info - derive codec for each field
     case class FieldInfo(name: String, codec: ToonBinaryCodec[Any], index: Int)
@@ -458,7 +457,6 @@ class ToonBinaryCodecDeriver private[toon] (
     new ToonBinaryCodec[C[A]] {
       private[this] val codec         = elementCodec
       private[this] val deconstructor = seqBinding.deconstructor
-      private[this] val constructor   = seqBinding.constructor
 
       override def decodeValue(in: ToonReader, default: C[A]): C[A] =
         throw new UnsupportedOperationException("Sequence decoding not yet implemented")
@@ -530,7 +528,6 @@ class ToonBinaryCodecDeriver private[toon] (
       private[this] val kCodec        = keyCodec
       private[this] val vCodec        = valueCodec
       private[this] val deconstructor = mapBinding.deconstructor
-      private[this] val constructor   = mapBinding.constructor
 
       override def decodeValue(in: ToonReader, default: M[K, V]): M[K, V] =
         throw new UnsupportedOperationException("Map decoding not yet implemented")

@@ -94,11 +94,6 @@ object ToonBinaryCodec {
     false
   }
 
-  // Pre-allocated byte arrays for common strings
-  private[this] val TRUE_BYTES  = "true".getBytes(java.nio.charset.StandardCharsets.UTF_8)
-  private[this] val FALSE_BYTES = "false".getBytes(java.nio.charset.StandardCharsets.UTF_8)
-  private[this] val NULL_BYTES  = "null".getBytes(java.nio.charset.StandardCharsets.UTF_8)
-
   // Cached integer strings for small values (0-999)
   private[this] val SMALL_INT_STRINGS: Array[String] = {
     val arr = new Array[String](1000)
