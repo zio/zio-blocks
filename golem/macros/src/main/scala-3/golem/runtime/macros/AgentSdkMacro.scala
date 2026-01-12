@@ -1,7 +1,7 @@
 package golem.runtime.macros
 
 // Macro annotations live in a separate module; do not depend on them here.
-import golem.runtime.plan.AgentClientPlan
+import golem.runtime.agenttype.AgentType
 import golem.AgentApi
 
 import scala.quoted.*
@@ -64,11 +64,11 @@ object AgentSdkMacro {
         '{
           new AgentApi[Trait] {
             override type Constructor = ctor
-            override val typeName: String                   = $typeNameExpr
-            override val plan: AgentClientPlan[Trait, ctor] =
+            override val typeName: String = $typeNameExpr
+            override val agentType: AgentType[Trait, ctor] =
               golem.runtime.macros.AgentClientMacro
-                .plan[Trait]
-                .asInstanceOf[AgentClientPlan[Trait, ctor]]
+                .agentType[Trait]
+                .asInstanceOf[AgentType[Trait, ctor]]
           }
         }
     }

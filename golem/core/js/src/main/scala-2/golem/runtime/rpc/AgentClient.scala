@@ -1,45 +1,45 @@
 package golem.runtime.rpc
 
-import golem.runtime.plan.AgentClientPlan
+import golem.runtime.agenttype.{AgentMethod, AgentType}
 import scala.language.experimental.macros
 
 object AgentClient {
   /**
    * Resolves an agent id + RPC invoker for a trait + constructor args.
    *
-   * In Scala 2 (Scala.js), prefer: 1) `val plan = AgentClient.plan[MyAgent]` 2)
-   * `val resolved = AgentClient.resolve(plan, ctorArgs)` 3)
+   * In Scala 2 (Scala.js), prefer: 1) `val agentType = AgentClient.agentType[MyAgent]` 2)
+   * `val resolved = AgentClient.resolve(agentType, ctorArgs)` 3)
    * `val client = AgentClient.bind[MyAgent](resolved)`
    *
    * This avoids relying on Java reflection proxies (which Scala.js doesn't
    * support).
    */
   def resolve[Trait, Constructor](
-    plan: AgentClientPlan[Trait, Constructor],
+    agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor
   ): Either[String, AgentClientRuntime.ResolvedAgent[Trait]] =
-    AgentClientRuntime.resolve(plan, constructorArgs)
+    AgentClientRuntime.resolve(agentType, constructorArgs)
 
   def bind[Trait](
     resolved: AgentClientRuntime.ResolvedAgent[Trait]
   ): Trait = macro AgentClientBindMacro.bindImpl[Trait]
 
-  def plan[Trait]: AgentClientPlan[Trait, _] = macro golem.runtime.macros.AgentClientMacroImpl.planImpl[Trait]
+  def agentType[Trait]: AgentType[Trait, _] = macro golem.runtime.macros.AgentClientMacroImpl.agentTypeImpl[Trait]
 
   /**
-   * Typed plan accessor (no user-land casts).
+   * Typed agent-type accessor (no user-land casts).
    *
    * Validates at compile-time that `Constructor` matches
    * `type AgentInput = ...` on the agent trait.
    */
-  def planWithCtor[Trait, Constructor]: AgentClientPlan[Trait, Constructor] =
-    macro AgentClientPlanWithCtorMacro.planWithCtorImpl[Trait, Constructor]
+  def agentTypeWithCtor[Trait, Constructor]: AgentType[Trait, Constructor] =
+    macro AgentTypeWithCtorMacro.agentTypeWithCtorImpl[Trait, Constructor]
 }
 
-private[rpc] object AgentClientPlanWithCtorMacro {
-  def planWithCtorImpl[Trait: c.WeakTypeTag, Constructor: c.WeakTypeTag](
+private[rpc] object AgentTypeWithCtorMacro {
+  def agentTypeWithCtorImpl[Trait: c.WeakTypeTag, Constructor: c.WeakTypeTag](
     c: scala.reflect.macros.blackbox.Context
-  ): c.Expr[AgentClientPlan[Trait, Constructor]] = {
+  ): c.Expr[AgentType[Trait, Constructor]] = {
     import c.universe._
 
     val traitType   = weakTypeOf[Trait].dealias
@@ -66,12 +66,12 @@ private[rpc] object AgentClientPlanWithCtorMacro {
     if (!(gotCtor =:= expectedCtor)) {
       c.abort(
         c.enclosingPosition,
-        s"AgentClient.planWithCtor requires: type AgentInput = $expectedCtor (found: $gotCtor)"
+        s"AgentClient.agentTypeWithCtor requires: type AgentInput = $expectedCtor (found: $gotCtor)"
       )
     }
 
-    c.Expr[AgentClientPlan[Trait, Constructor]](
-      q"_root_.golem.runtime.rpc.AgentClient.plan[$traitType].asInstanceOf[_root_.golem.runtime.plan.AgentClientPlan[$traitType, $gotCtor]]"
+    c.Expr[AgentType[Trait, Constructor]](
+      q"_root_.golem.runtime.rpc.AgentClient.agentType[$traitType].asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitType, $gotCtor]]"
     )
   }
 }
@@ -112,14 +112,14 @@ private[rpc] object AgentClientBindMacro {
     val resolvedValDef  = q"val $resolvedValName = $resolved"
     val resolvedRef     = Ident(resolvedValName)
 
-    def methodPlanLookup(methodName: String, inTpe: Type, outTpe: Type): Tree =
+    def methodLookup(methodName: String, inTpe: Type, outTpe: Type): Tree =
       q"""
-        $resolvedRef.plan.methods
+        $resolvedRef.agentType.methods
           .collectFirst {
             case p if p.metadata.name == $methodName =>
-              p.asInstanceOf[_root_.golem.runtime.plan.ClientMethodPlan[$traitTpe, $inTpe, $outTpe]]
+              p.asInstanceOf[_root_.golem.runtime.agenttype.AgentMethod[$traitTpe, $inTpe, $outTpe]]
           }
-          .getOrElse(throw new _root_.java.lang.IllegalStateException("Method plan for " + $methodName + " not found"))
+          .getOrElse(throw new _root_.java.lang.IllegalStateException("Method definition for " + $methodName + " not found"))
       """
 
     def inputExpr(paramss: List[List[ValDef]]): Tree = {
@@ -159,13 +159,13 @@ private[rpc] object AgentClientBindMacro {
         }
 
       if (returnTpe =:= typeOf[Unit]) {
-        val planLookup = methodPlanLookup(methodNameStr, inType, typeOf[Unit])
+        val methodLookup0 = methodLookup(methodNameStr, inType, typeOf[Unit])
         val inValue    = inputExpr(paramss)
         val rhs        =
           q"""
-            val plan = $planLookup
+            val method = $methodLookup0
             $resolvedRef
-              .trigger(plan, $inValue.asInstanceOf[$inType])
+              .trigger(method, $inValue.asInstanceOf[$inType])
               .failed
               .foreach(err => _root_.scala.scalajs.js.Dynamic.global.console.error("RPC trigger " + $methodNameStr + " failed", err.asInstanceOf[_root_.scala.scalajs.js.Any]))
             ()
@@ -173,12 +173,12 @@ private[rpc] object AgentClientBindMacro {
         mkMethodDef(m, rhs)
       } else if (isFutureReturn(returnTpe) || isPromiseReturn(returnTpe)) {
         val outType    = unwrapAsync(returnTpe)
-        val planLookup = methodPlanLookup(methodNameStr, inType, outType)
+        val methodLookup0 = methodLookup(methodNameStr, inType, outType)
         val inValue    = inputExpr(paramss)
         val rhs        =
           q"""
-            val plan = $planLookup
-            $resolvedRef.call(plan, $inValue.asInstanceOf[$inType])
+            val method = $methodLookup0
+            $resolvedRef.call(method, $inValue.asInstanceOf[$inType])
           """
         mkMethodDef(m, rhs)
       } else {

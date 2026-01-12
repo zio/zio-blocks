@@ -7,7 +7,7 @@ import golem.data._
 import golem.runtime.annotations.{agentDefinition, description, prompt}
 import golem.runtime.annotations.DurabilityMode
 import golem.runtime.macros.{AgentClientMacro, AgentImplementationMacro, AgentMacros}
-import golem.runtime.plan.{AsyncMethodPlan, ClientInvocation}
+import golem.runtime.agenttype.{AsyncImplementationMethod, MethodInvocation}
 import golem.tools.AgentTypeJsonEncoder
 import org.scalatest.funsuite.AnyFunSuite
 import ujson.Value
@@ -21,12 +21,12 @@ final class RustAgentParitySpec extends AnyFunSuite {
   private val ephemeralMetadata       = AgentMacros.agentMetadata[EphemeralAgent]
   private val durableDefaultMetadata  = AgentMacros.agentMetadata[DurableDefaultAgent]
   private val durableExplicitMetadata = AgentMacros.agentMetadata[DurableExplicitAgent]
-  private val durableDefaultPlan      =
-    AgentImplementationMacro.plan[DurableDefaultAgent](new DurableDefaultAgentImpl)
-  private val durableExplicitPlan =
-    AgentImplementationMacro.plan[DurableExplicitAgent](new DurableExplicitAgentImpl)
+  private val durableDefaultImplType =
+    AgentImplementationMacro.implementationType[DurableDefaultAgent](new DurableDefaultAgentImpl)
+  private val durableExplicitImplType =
+    AgentImplementationMacro.implementationType[DurableExplicitAgent](new DurableExplicitAgentImpl)
   private val snapshotMetadata = AgentMacros.agentMetadata[SnapshotAgent]
-  private val rpcPlan          = AgentImplementationMacro.plan[RpcParityAgent](new RpcParityAgent {
+  private val rpcImplType      = AgentImplementationMacro.implementationType[RpcParityAgent](new RpcParityAgent {
     override def rpcCall(payload: String): Future[String] = Future.successful(payload)
     override def rpcCallTrigger(payload: String): Unit    = ()
   })
@@ -101,19 +101,19 @@ final class RustAgentParitySpec extends AnyFunSuite {
   }
 
   test("AgentImplementationMacro preserves annotated agent mode") {
-    val plan = AgentImplementationMacro.plan[EphemeralAgent](new EphemeralAgentImpl)
-    assert(plan.metadata.mode.contains("ephemeral"))
+    val implType = AgentImplementationMacro.implementationType[EphemeralAgent](new EphemeralAgentImpl)
+    assert(implType.metadata.mode.contains("ephemeral"))
   }
 
   test("AgentImplementationMacro leaves mode unset for durable defaults") {
     // Depending on how Scala represents default annotation args, the durable default may appear as None or Some("durable").
     // Both are acceptable; what we *don't* want is an unexpected non-durable value here.
-    assert(durableDefaultPlan.metadata.mode.forall(_ == "durable"))
+    assert(durableDefaultImplType.metadata.mode.forall(_ == "durable"))
   }
 
-  test("AgentImplementationMacro preserves durable annotations in plan metadata") {
+  test("AgentImplementationMacro preserves durable annotations in implementation metadata") {
     // Durable is the default; we allow it to be elided (None) even if explicitly set via @agentDefinition(mode = Durable).
-    assert(durableExplicitPlan.metadata.mode.forall(_ == "durable"))
+    assert(durableExplicitImplType.metadata.mode.forall(_ == "durable"))
   }
 
   @agentDefinition("durable-default-agent")
@@ -268,15 +268,15 @@ final class RustAgentParitySpec extends AnyFunSuite {
   }
 
   test("AgentClientMacro produces fire-and-forget invocation for Unit-returning method") {
-    val plan          = AgentClientMacro.plan[RpcParityAgent]
-    val triggerMethod = plan.methods.find(_.metadata.name == "rpcCallTrigger").getOrElse(fail("rpcCallTrigger missing"))
-    assert(triggerMethod.invocation == ClientInvocation.FireAndForget)
+    val agentType     = AgentClientMacro.agentType[RpcParityAgent]
+    val triggerMethod = agentType.methods.find(_.metadata.name == "rpcCallTrigger").getOrElse(fail("rpcCallTrigger missing"))
+    assert(triggerMethod.invocation == MethodInvocation.FireAndForget)
   }
 
-  test("AgentImplementationMacro preserves invocation kinds") {
+  test("AgentImplementationMacro preserves method invocation kinds") {
     val awaitable =
-      rpcPlan.methods.collectFirst {
-        case m: AsyncMethodPlan[RpcParityAgent @unchecked, ?, String] if m.metadata.name == "rpcCall" =>
+      rpcImplType.methods.collectFirst {
+        case m: AsyncImplementationMethod[RpcParityAgent @unchecked, ?, String] if m.metadata.name == "rpcCall" =>
           m
       }
     assert(awaitable.isDefined)

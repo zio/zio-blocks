@@ -1,7 +1,7 @@
 package golem.runtime.rpc
 
 import golem.data.GolemSchema
-import golem.runtime.plan.{AgentClientPlan, ClientInvocation, ClientMethodPlan}
+import golem.runtime.agenttype.{AgentMethod, AgentType, MethodInvocation}
 import golem.runtime.util.FutureInterop
 import golem.Uuid
 
@@ -14,17 +14,17 @@ object AgentClientRuntime {
   @volatile private var clientBinderOverride: Option[Any => Any]                                                  = None
 
   def resolve[Trait, Constructor](
-    plan: AgentClientPlan[Trait, Constructor],
+    agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor
   ): Either[String, ResolvedAgent[Trait]] =
-    resolveWithPhantom(plan, constructorArgs, phantom = None)
+    resolveWithPhantom(agentType, constructorArgs, phantom = None)
 
   def resolveWithPhantom[Trait, Constructor](
-    plan: AgentClientPlan[Trait, Constructor],
+    agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor,
     phantom: Option[Uuid]
   ): Either[String, ResolvedAgent[Trait]] = {
-    implicit val ctorSchema: GolemSchema[Constructor] = plan.constructor.schema
+    implicit val ctorSchema: GolemSchema[Constructor] = agentType.constructor.schema
 
     for {
       // For agent-id construction, golem:agent/host.makeAgentId expects a golem:agent/common.DataValue:
@@ -48,8 +48,8 @@ object AgentClientRuntime {
           }
         }
       }
-      remote <- resolveRemote(plan.traitName, payload, phantom)
-    } yield ResolvedAgent(plan.asInstanceOf[AgentClientPlan[Trait, Any]], remote)
+      remote <- resolveRemote(agentType.typeName, payload, phantom)
+    } yield ResolvedAgent(agentType.asInstanceOf[AgentType[Trait, Any]], remote)
   }
 
   private def resolveRemote(
@@ -62,14 +62,14 @@ object AgentClientRuntime {
       case None         => RemoteAgentClient.resolve(agentTypeName, payload, phantom)
     }
 
-  final case class ResolvedAgent[Trait](plan: AgentClientPlan[Trait, Any], client: RemoteAgentClient) {
+  final case class ResolvedAgent[Trait](agentType: AgentType[Trait, Any], client: RemoteAgentClient) {
     def agentId: String = client.agentId
 
-    def call[In, Out](method: ClientMethodPlan[Trait, In, Out], input: In): Future[Out] =
+    def call[In, Out](method: AgentMethod[Trait, In, Out], input: In): Future[Out] =
       method.invocation match {
-        case ClientInvocation.Awaitable =>
+        case MethodInvocation.Awaitable =>
           runAwaitable(method, input)
-        case ClientInvocation.FireAndForget =>
+        case MethodInvocation.FireAndForget =>
           runFireAndForget(method, input).map(_ =>
             throw new IllegalStateException("Fire-and-forget methods return Unit")
           )
@@ -77,29 +77,29 @@ object AgentClientRuntime {
 
     private[golem] def callByName[In, Out](methodName: String, input: In): Future[Out] = {
       val method =
-        plan.methods.collectFirst {
+        agentType.methods.collectFirst {
           case p if p.metadata.name == methodName =>
-            p.asInstanceOf[ClientMethodPlan[Trait, In, Out]]
+            p.asInstanceOf[AgentMethod[Trait, In, Out]]
         }
-          .getOrElse(throw new IllegalStateException(s"Method plan for $methodName not found"))
+          .getOrElse(throw new IllegalStateException(s"Method definition for $methodName not found"))
 
       call(method, input)
     }
 
-    def trigger[In](method: ClientMethodPlan[Trait, In, Unit], input: In): Future[Unit] =
+    def trigger[In](method: AgentMethod[Trait, In, Unit], input: In): Future[Unit] =
       method.invocation match {
-        case ClientInvocation.FireAndForget => runFireAndForget(method, input)
-        case ClientInvocation.Awaitable     => FutureInterop.failed("Method is awaitable; use call(...) instead")
+        case MethodInvocation.FireAndForget => runFireAndForget(method, input)
+        case MethodInvocation.Awaitable     => FutureInterop.failed("Method is awaitable; use call(...) instead")
       }
 
-    def schedule[In](method: ClientMethodPlan[Trait, In, Unit], datetime: js.Dynamic, input: In): Future[Unit] =
+    def schedule[In](method: AgentMethod[Trait, In, Unit], datetime: js.Dynamic, input: In): Future[Unit] =
       method.invocation match {
-        case ClientInvocation.FireAndForget => runScheduled(method, datetime, input)
-        case ClientInvocation.Awaitable     =>
+        case MethodInvocation.FireAndForget => runScheduled(method, datetime, input)
+        case MethodInvocation.Awaitable     =>
           FutureInterop.failed("Method is awaitable; scheduling is only supported for fire-and-forget methods")
       }
 
-    private def runAwaitable[In, Out](method: ClientMethodPlan[Trait, In, Out], input: In): Future[Out] = {
+    private def runAwaitable[In, Out](method: AgentMethod[Trait, In, Out], input: In): Future[Out] = {
       implicit val inSchema: GolemSchema[In] = method.inputSchema
 
       val encoded                     = RpcValueCodec.encodeArgs(input)
@@ -115,7 +115,7 @@ object AgentClientRuntime {
       FutureInterop.fromEither(result)
     }
 
-    private def runFireAndForget[In, Out0](method: ClientMethodPlan[Trait, In, Out0], input: In): Future[Unit] = {
+    private def runFireAndForget[In, Out0](method: AgentMethod[Trait, In, Out0], input: In): Future[Unit] = {
       implicit val inSchema: GolemSchema[In] = method.inputSchema
 
       val result: Either[String, Unit] = for {
@@ -127,7 +127,7 @@ object AgentClientRuntime {
     }
 
     private def runScheduled[In, Out0](
-      method: ClientMethodPlan[Trait, In, Out0],
+      method: AgentMethod[Trait, In, Out0],
       datetime: js.Dynamic,
       input: In
     ): Future[Unit] = {

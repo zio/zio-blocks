@@ -1,7 +1,7 @@
 package golem.runtime.rpc
 
 import golem.runtime.macros.AgentClientMacro
-import golem.runtime.plan.{AgentClientPlan, ClientMethodPlan}
+import golem.runtime.agenttype.{AgentMethod, AgentType}
 import golem.Uuid
 
 import scala.collection.immutable.Vector
@@ -9,32 +9,32 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.scalajs.js
 
 object AgentClient {
-  transparent inline def plan[Trait]: AgentClientPlan[Trait, ?] =
-    AgentClientMacro.plan[Trait]
+  transparent inline def agentType[Trait]: AgentType[Trait, ?] =
+    AgentClientMacro.agentType[Trait]
 
   /**
-   * Typed plan accessor (no user-land casts).
+   * Typed agent-type accessor (no user-land casts).
    *
    * This exists because Scala.js cannot safely cast a plain JS object to a
-   * Scala trait at runtime. When you need to operate at the "plan + resolved
+   * Scala trait at runtime. When you need to operate at the "agent type + resolved
    * client" level (e.g. in internal wiring), use this API to keep examples
    * cast-free.
    */
-  transparent inline def planWithCtor[Trait, Constructor]: AgentClientPlan[Trait, Constructor] =
-    ${ AgentClientPlanMacro.planWithCtorImpl[Trait, Constructor] }
+  transparent inline def agentTypeWithCtor[Trait, Constructor]: AgentType[Trait, Constructor] =
+    ${ AgentTypeMacro.agentTypeWithCtorImpl[Trait, Constructor] }
 
   transparent inline def connect[Trait, Constructor](
-    plan: AgentClientPlan[Trait, Constructor],
+    agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor
   ): Future[Trait] =
-    AgentClientInlineMacros.connect[Trait, Constructor](plan, constructorArgs)
+    AgentClientInlineMacros.connect[Trait, Constructor](agentType, constructorArgs)
 
   transparent inline def connectPhantom[Trait, Constructor](
-    plan: AgentClientPlan[Trait, Constructor],
+    agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor,
     phantom: Uuid
   ): Future[Trait] =
-    AgentClientInlineMacros.connectPhantom[Trait, Constructor](plan, constructorArgs, phantom)
+    AgentClientInlineMacros.connectPhantom[Trait, Constructor](agentType, constructorArgs, phantom)
 
   transparent inline def bind[Trait](
     resolved: AgentClientRuntime.ResolvedAgent[Trait]
@@ -44,10 +44,10 @@ object AgentClient {
     }
 }
 
-private object AgentClientPlanMacro {
+private object AgentTypeMacro {
   import scala.quoted.*
 
-  def planWithCtorImpl[Trait: Type, Constructor: Type](using Quotes): Expr[AgentClientPlan[Trait, Constructor]] = {
+  def agentTypeWithCtorImpl[Trait: Type, Constructor: Type](using Quotes): Expr[AgentType[Trait, Constructor]] = {
     import quotes.reflect.*
 
     val traitRepr   = TypeRepr.of[Trait]
@@ -72,10 +72,10 @@ private object AgentClientPlanMacro {
 
     if !(gotCtor =:= expectedCtor) then
       report.errorAndAbort(
-        s"AgentClient.planWithCtor requires: type AgentInput = ${expectedCtor.show} (found: ${gotCtor.show})"
+        s"AgentClient.agentTypeWithCtor requires: type AgentInput = ${expectedCtor.show} (found: ${gotCtor.show})"
       )
 
-    '{ AgentClientMacro.plan[Trait].asInstanceOf[AgentClientPlan[Trait, Constructor]] }
+    '{ AgentClientMacro.agentType[Trait].asInstanceOf[AgentType[Trait, Constructor]] }
   }
 }
 
@@ -83,17 +83,17 @@ private object AgentClientInlineMacros {
   import scala.quoted.*
 
   transparent inline def connect[Trait, Constructor](
-    plan: AgentClientPlan[Trait, Constructor],
+    agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor
   ): Future[Trait] =
-    ${ connectImpl[Trait, Constructor]('plan, 'constructorArgs) }
+    ${ connectImpl[Trait, Constructor]('agentType, 'constructorArgs) }
 
   transparent inline def connectPhantom[Trait, Constructor](
-    plan: AgentClientPlan[Trait, Constructor],
+    agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor,
     phantom: Uuid
   ): Future[Trait] =
-    ${ connectPhantomImpl[Trait, Constructor]('plan, 'constructorArgs, 'phantom) }
+    ${ connectPhantomImpl[Trait, Constructor]('agentType, 'constructorArgs, 'phantom) }
 
   transparent inline def bind[Trait](
     resolved: AgentClientRuntime.ResolvedAgent[Trait]
@@ -101,11 +101,11 @@ private object AgentClientInlineMacros {
     ${ stubImpl[Trait]('resolved) }
 
   private def connectImpl[Trait: Type, Constructor: Type](
-    planExpr: Expr[AgentClientPlan[Trait, Constructor]],
+    agentTypeExpr: Expr[AgentType[Trait, Constructor]],
     constructorExpr: Expr[Constructor]
   )(using Quotes): Expr[Future[Trait]] =
     '{
-      AgentClientRuntime.resolve[Trait, Constructor]($planExpr, $constructorExpr) match {
+      AgentClientRuntime.resolve[Trait, Constructor]($agentTypeExpr, $constructorExpr) match {
         case Left(err) =>
           Future.failed(js.JavaScriptException(err))
         case Right(resolved) =>
@@ -114,13 +114,13 @@ private object AgentClientInlineMacros {
     }
 
   private def connectPhantomImpl[Trait: Type, Constructor: Type](
-    planExpr: Expr[AgentClientPlan[Trait, Constructor]],
+    agentTypeExpr: Expr[AgentType[Trait, Constructor]],
     constructorExpr: Expr[Constructor],
     phantomExpr: Expr[Uuid]
   )(using Quotes): Expr[Future[Trait]] =
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Constructor](
-        $planExpr,
+        $agentTypeExpr,
         $constructorExpr,
         phantom = Some($phantomExpr)
       ) match {
@@ -136,7 +136,7 @@ private object AgentClientInlineMacros {
   )(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
 
-    case class MethodPlanData(
+    case class MethodData(
       method: Symbol,
       params: List[(String, TypeRepr)],
       accessMode: MethodParamAccess,
@@ -159,7 +159,7 @@ private object AgentClientInlineMacros {
         val inputType                                = inputTypeFor(accessMode, params)
         val (invocationKind, outputType, returnType) = methodInvocationInfo(method)
 
-        MethodPlanData(
+        MethodData(
           method = method,
           params = params,
           accessMode = accessMode,
@@ -197,48 +197,48 @@ private object AgentClientInlineMacros {
           }
       }
 
-    def buildMethodPlanLookup[In: Type, Out: Type](methodName: String): Expr[ClientMethodPlan[Trait, In, Out]] = {
+    def findMethod[In: Type, Out: Type](methodName: String): Expr[AgentMethod[Trait, In, Out]] = {
       val methodNameExpr = Expr(methodName)
       '{
-        $resolvedRef.plan.methods.collectFirst {
-          case plan if plan.metadata.name == $methodNameExpr =>
-            plan.asInstanceOf[ClientMethodPlan[Trait, In, Out]]
+        $resolvedRef.agentType.methods.collectFirst {
+          case m if m.metadata.name == $methodNameExpr =>
+            m.asInstanceOf[AgentMethod[Trait, In, Out]]
         }
-          .getOrElse(throw new IllegalStateException(s"Method plan for ${$methodNameExpr} not found"))
+          .getOrElse(throw new IllegalStateException(s"Method definition for ${$methodNameExpr} not found"))
       }
     }
 
-    def buildMethodBody(planData: MethodPlanData, paramExprs: List[Expr[Any]]): Expr[Any] = {
-      val methodNameExpr: Expr[String] = Expr(planData.method.name)
+    def buildMethodBody(methodData: MethodData, paramExprs: List[Expr[Any]]): Expr[Any] = {
+      val methodNameExpr: Expr[String] = Expr(methodData.method.name)
 
-      planData.inputType.asType match {
+      methodData.inputType.asType match {
         case '[input] =>
-          planData.outputType.asType match {
+          methodData.outputType.asType match {
             case '[output] =>
               val inputValueExpr =
-                buildInputValueExpr(planData.accessMode, planData.inputType, paramExprs).asExprOf[input]
-              val methodPlanExpr =
-                buildMethodPlanLookup[input, output](planData.method.name)
+                buildInputValueExpr(methodData.accessMode, methodData.inputType, paramExprs).asExprOf[input]
+              val methodExpr =
+                findMethod[input, output](methodData.method.name)
 
-              planData.invocation match {
+              methodData.invocation match {
                 case InvocationKind.Awaitable =>
                   '{
 
                     $resolvedRef.call[input, output](
-                      $methodPlanExpr,
+                      $methodExpr,
                       $inputValueExpr
                     )
                   }
                 case InvocationKind.FireAndForget =>
-                  if !(planData.outputType =:= TypeRepr.of[Unit]) then
-                    report.errorAndAbort(s"Fire-and-forget method ${planData.method.name} must return Unit")
-                  val triggerPlanExpr =
-                    methodPlanExpr.asExprOf[ClientMethodPlan[Trait, input, Unit]]
+                  if !(methodData.outputType =:= TypeRepr.of[Unit]) then
+                    report.errorAndAbort(s"Fire-and-forget method ${methodData.method.name} must return Unit")
+                  val triggerMethodExpr =
+                    methodExpr.asExprOf[AgentMethod[Trait, input, Unit]]
                   '{
                     import scala.concurrent.ExecutionContext.Implicits.global
                     $resolvedRef
                       .trigger[input](
-                        $triggerPlanExpr,
+                        $triggerMethodExpr,
                         $inputValueExpr
                       )
                       .failed
@@ -285,11 +285,11 @@ private object AgentClientInlineMacros {
         }
     }
 
-    def scalaJsMethodName(planData: MethodPlanData): String = {
-      val paramTypeNames = planData.params.map(_._2).map(encodeTypeName)
-      val resultTypeName = encodeTypeName(planData.returnType)
-      if paramTypeNames.isEmpty then s"${planData.method.name}__${resultTypeName}"
-      else s"${planData.method.name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
+    def scalaJsMethodName(methodData: MethodData): String = {
+      val paramTypeNames = methodData.params.map(_._2).map(encodeTypeName)
+      val resultTypeName = encodeTypeName(methodData.returnType)
+      if paramTypeNames.isEmpty then s"${methodData.method.name}__${resultTypeName}"
+      else s"${methodData.method.name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
     }
 
     val objSym =

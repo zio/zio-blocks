@@ -1,7 +1,7 @@
 package golem
 
 import golem.runtime.macros.{AgentClientMacro, AgentNameMacro}
-import golem.runtime.plan.AgentClientPlan
+import golem.runtime.agenttype.AgentType
 import golem.runtime.rpc.jvm.JvmAgentClient
 
 import scala.annotation.unused
@@ -20,25 +20,25 @@ trait AgentCompanion[Trait <: AnyRef] extends AgentCompanionBase[Trait] {
   transparent inline def typeName: String =
     AgentNameMacro.typeName[Trait]
 
-  /** Pre-computed client plan (schemas + function names). */
-  transparent inline def plan: AgentClientPlan[Trait, ?] =
-    AgentClientMacro.plan[Trait]
+  /** Reflected agent type (schemas + function names). */
+  transparent inline def agentType: AgentType[Trait, ?] =
+    AgentClientMacro.agentType[Trait]
 
   /** Connect to (or create) an agent instance from constructor input. */
   transparent inline def get[In](input: In): Future[Trait] =
-    Future.successful(JvmAgentClient.connect[Trait](plan, input))
+    Future.successful(JvmAgentClient.connect[Trait](agentType, input))
 
   /** Unit-constructor convenience. */
   transparent inline def get(): Future[Trait] =
-    Future.successful(JvmAgentClient.connect[Trait](plan, ()))
+    Future.successful(JvmAgentClient.connect[Trait](agentType, ()))
 
   /** Tuple2 constructor convenience. */
   transparent inline def get[A1, A2](a1: A1, a2: A2): Future[Trait] =
-    Future.successful(JvmAgentClient.connect[Trait](plan, (a1, a2)))
+    Future.successful(JvmAgentClient.connect[Trait](agentType, (a1, a2)))
 
   /** Tuple3 constructor convenience. */
   transparent inline def get[A1, A2, A3](a1: A1, a2: A2, a3: A3): Future[Trait] =
-    Future.successful(JvmAgentClient.connect[Trait](plan, (a1, a2, a3)))
+    Future.successful(JvmAgentClient.connect[Trait](agentType, (a1, a2, a3)))
 
   // Phantom instances are not currently supported by the CLI-backed JVM test client.
   final def getPhantom(@unused input: Any, @unused phantom: Uuid): Future[Trait] =

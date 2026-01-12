@@ -1,6 +1,6 @@
 package golem.runtime.macros
 
-import golem.runtime.plan.AgentClientPlan
+import golem.runtime.agenttype.AgentType
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
@@ -60,24 +60,24 @@ object AgentCompanionMacro {
     }
   }
 
-  def planImpl(c: blackbox.Context): c.Tree = {
+  def agentTypeImpl(c: blackbox.Context): c.Tree = {
     import c.universe._
     val (traitTpe, inTpe) = prefixTraitAndInput(c)
     q"""
        _root_.golem.runtime.rpc.AgentClient
-         .plan[$traitTpe]
-         .asInstanceOf[_root_.golem.runtime.plan.AgentClientPlan[$traitTpe, $inTpe]]
+         .agentType[$traitTpe]
+         .asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitTpe, $inTpe]]
      """
   }
 
   def getImpl(c: blackbox.Context)(input: c.Tree): c.Tree = {
     import c.universe._
     val (traitTpe, inTpe) = prefixTraitAndInput(c)
-    val planExpr          = planImpl(c)
+    val agentTypeExpr     = agentTypeImpl(c)
     q"""
        _root_.golem.runtime.rpc.AgentClientRuntime
          .resolve[$traitTpe, $inTpe](
-           $planExpr.asInstanceOf[_root_.golem.runtime.plan.AgentClientPlan[$traitTpe, $inTpe]],
+           $agentTypeExpr.asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitTpe, $inTpe]],
            $input.asInstanceOf[$inTpe]
          ) match {
            case _root_.scala.util.Left(err) =>
@@ -93,10 +93,10 @@ object AgentCompanionMacro {
   def getPhantomImpl(c: blackbox.Context)(input: c.Tree, phantom: c.Tree): c.Tree = {
     import c.universe._
     val (traitTpe, inTpe) = prefixTraitAndInput(c)
-    val planExpr          = planImpl(c)
+    val agentTypeExpr     = agentTypeImpl(c)
     q"""
        _root_.golem.runtime.rpc.AgentClientRuntime.resolveWithPhantom[$traitTpe, $inTpe](
-         $planExpr.asInstanceOf[_root_.golem.runtime.plan.AgentClientPlan[$traitTpe, $inTpe]],
+         $agentTypeExpr.asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitTpe, $inTpe]],
          $input.asInstanceOf[$inTpe],
          phantom = _root_.scala.Some($phantom.asInstanceOf[_root_.golem.Uuid])
        ) match {

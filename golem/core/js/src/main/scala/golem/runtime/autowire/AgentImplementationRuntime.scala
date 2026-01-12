@@ -2,43 +2,43 @@ package golem.runtime.autowire
 
 import golem.data.GolemSchema
 import golem.data.StructuredSchema
-import golem.runtime.plan.{AgentImplementationPlan, AsyncMethodPlan, SyncMethodPlan}
+import golem.runtime.agenttype.{AgentImplementationType, AsyncImplementationMethod, SyncImplementationMethod}
 
 private[autowire] object AgentImplementationRuntime {
   def register[Trait, Ctor](
     typeName: String,
     mode: AgentMode,
-    plan: AgentImplementationPlan[Trait, Ctor]
+    implType: AgentImplementationType[Trait, Ctor]
   ): AgentDefinition[Trait] = {
     val constructor =
-      plan.constructorSchema.schema match {
+      implType.constructorSchema.schema match {
         case StructuredSchema.Tuple(elements) if elements.isEmpty =>
-          val instance = plan.buildInstance(().asInstanceOf[Ctor])
+          val instance = implType.buildInstance(().asInstanceOf[Ctor])
           AgentConstructor.noArgs[Trait](
-            description = plan.metadata.description.getOrElse(typeName),
+            description = implType.metadata.description.getOrElse(typeName),
             prompt = None
           )(instance)
         case _ =>
-          implicit val ctorSchema: GolemSchema[Ctor] = plan.constructorSchema
+          implicit val ctorSchema: GolemSchema[Ctor] = implType.constructorSchema
           AgentConstructor.sync[Ctor, Trait](
             ConstructorMetadata(
               name = None,
-              description = plan.metadata.description.getOrElse(typeName),
+              description = implType.metadata.description.getOrElse(typeName),
               promptHint = None
             )
-          )(plan.buildInstance)
+          )(implType.buildInstance)
       }
 
-    val bindings = plan.methods.map {
-      case sync: SyncMethodPlan[Trait @unchecked, in, out] =>
+    val bindings = implType.methods.map {
+      case sync: SyncImplementationMethod[Trait @unchecked, in, out] =>
         buildSyncBinding[Trait, in, out](sync)
-      case async: AsyncMethodPlan[Trait @unchecked, in, out] =>
+      case async: AsyncImplementationMethod[Trait @unchecked, in, out] =>
         buildAsyncBinding[Trait, in, out](async)
     }
 
     val definition = new AgentDefinition[Trait](
       typeName = typeName,
-      metadata = plan.metadata,
+      metadata = implType.metadata,
       constructor = constructor,
       bindings = bindings,
       mode = mode
@@ -51,25 +51,25 @@ private[autowire] object AgentImplementationRuntime {
   def registerWithCtor[Trait, Ctor](
     typeName: String,
     mode: AgentMode,
-    plan: AgentImplementationPlan[Trait, Ctor]
+    implType: AgentImplementationType[Trait, Ctor]
   ): AgentDefinition[Trait] =
-    register[Trait, Ctor](typeName, mode, plan)
+    register[Trait, Ctor](typeName, mode, implType)
 
-  private def buildSyncBinding[Trait, In, Out](plan: SyncMethodPlan[Trait, In, Out]): MethodBinding[Trait] = {
-    implicit val inSchema: GolemSchema[In]   = plan.inputSchema
-    implicit val outSchema: GolemSchema[Out] = plan.outputSchema
+  private def buildSyncBinding[Trait, In, Out](method: SyncImplementationMethod[Trait, In, Out]): MethodBinding[Trait] = {
+    implicit val inSchema: GolemSchema[In]   = method.inputSchema
+    implicit val outSchema: GolemSchema[Out] = method.outputSchema
 
-    MethodBinding.sync[Trait, In, Out](plan.metadata) { (instance, input) =>
-      plan.handler(instance, input)
+    MethodBinding.sync[Trait, In, Out](method.metadata) { (instance, input) =>
+      method.handler(instance, input)
     }
   }
 
-  private def buildAsyncBinding[Trait, In, Out](plan: AsyncMethodPlan[Trait, In, Out]): MethodBinding[Trait] = {
-    implicit val inSchema: GolemSchema[In]   = plan.inputSchema
-    implicit val outSchema: GolemSchema[Out] = plan.outputSchema
+  private def buildAsyncBinding[Trait, In, Out](method: AsyncImplementationMethod[Trait, In, Out]): MethodBinding[Trait] = {
+    implicit val inSchema: GolemSchema[In]   = method.inputSchema
+    implicit val outSchema: GolemSchema[Out] = method.outputSchema
 
-    MethodBinding.async[Trait, In, Out](plan.metadata) { (instance, input) =>
-      plan.handler(instance, input)
+    MethodBinding.async[Trait, In, Out](method.metadata) { (instance, input) =>
+      method.handler(instance, input)
     }
   }
 }

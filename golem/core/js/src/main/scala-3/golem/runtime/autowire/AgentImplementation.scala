@@ -17,19 +17,19 @@ private[golem] object AgentImplementation {
    * public `AgentImplementation`, allowing the underlying runtime
    * (`AgentImplementationRuntime`) to remain package-private.
    */
-  def registerPlan[Trait](
+  def registerType[Trait](
     typeName: String,
     mode: AgentMode,
-    plan: golem.runtime.plan.AgentImplementationPlan[Trait, Unit]
+    implType: golem.runtime.agenttype.AgentImplementationType[Trait, Unit]
   ): AgentDefinition[Trait] =
-    AgentImplementationRuntime.register(typeName, mode, plan)
+    AgentImplementationRuntime.register(typeName, mode, implType)
 
-  def registerWithCtorPlan[Trait, Ctor](
+  def registerWithCtorType[Trait, Ctor](
     typeName: String,
     mode: AgentMode,
-    plan: golem.runtime.plan.AgentImplementationPlan[Trait, Ctor]
+    implType: golem.runtime.agenttype.AgentImplementationType[Trait, Ctor]
   ): AgentDefinition[Trait] =
-    AgentImplementationRuntime.registerWithCtor(typeName, mode, plan)
+    AgentImplementationRuntime.registerWithCtor(typeName, mode, implType)
 
   /**
    * Registers an agent implementation with the default mode (Durable).
@@ -95,18 +95,18 @@ private[golem] object AgentImplementation {
   private inline def registerInternal[Trait](typeName: String, modeOverride: Option[AgentMode])(
     inline build: => Trait
   ): AgentDefinition[Trait] = {
-    val plan          = AgentImplementationMacro.plan[Trait](build)
-    val metadataMode  = plan.metadata.mode.flatMap(AgentMode.fromString)
+    val implType      = AgentImplementationMacro.implementationType[Trait](build)
+    val metadataMode  = implType.metadata.mode.flatMap(AgentMode.fromString)
     val effectiveMode = modeOverride.orElse(metadataMode).getOrElse(AgentMode.Durable)
-    registerPlan(typeName, effectiveMode, plan)
+    registerType(typeName, effectiveMode, implType)
   }
 
   private inline def registerWithCtorInternal[Trait <: AnyRef { type AgentInput }, Ctor](typeName: String)(
     inline build: Ctor => Trait
   ): AgentDefinition[Trait] = {
-    val plan         = AgentImplementationMacro.planWithCtor[Trait, Ctor](build)
-    val metadataMode = plan.metadata.mode.flatMap(AgentMode.fromString)
+    val implType     = AgentImplementationMacro.implementationTypeWithCtor[Trait, Ctor](build)
+    val metadataMode = implType.metadata.mode.flatMap(AgentMode.fromString)
     val effective    = metadataMode.getOrElse(AgentMode.Durable)
-    registerWithCtorPlan(typeName, effective, plan)
+    registerWithCtorType(typeName, effective, implType)
   }
 }

@@ -1,6 +1,6 @@
 package golem
 
-import golem.runtime.plan.AgentClientPlan
+import golem.runtime.agenttype.AgentType
 import golem.runtime.rpc.AgentClient
 import golem.Uuid
 
@@ -25,7 +25,7 @@ private[golem] object AgentCompanionMacro {
       )
     '{
       AgentClient.connect[Trait, In](
-        AgentClient.plan[Trait].asInstanceOf[AgentClientPlan[Trait, In]],
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
         $input
       )
     }
@@ -41,7 +41,7 @@ private[golem] object AgentCompanionMacro {
       )
     '{
       AgentClient.connectPhantom[Trait, In](
-        AgentClient.plan[Trait].asInstanceOf[AgentClientPlan[Trait, In]],
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
         $input,
         $phantom
       )
@@ -55,7 +55,7 @@ private[golem] object AgentCompanionMacro {
       report.errorAndAbort(s"get() requires: type AgentInput = Unit (found: ${expected.show})")
     '{
       AgentClient.connect[Trait, Unit](
-        AgentClient.plan[Trait].asInstanceOf[AgentClientPlan[Trait, Unit]],
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
         ()
       )
     }
@@ -68,7 +68,7 @@ private[golem] object AgentCompanionMacro {
       report.errorAndAbort(s"getPhantom(phantom) requires: type AgentInput = Unit (found: ${expected.show})")
     '{
       AgentClient.connectPhantom[Trait, Unit](
-        AgentClient.plan[Trait].asInstanceOf[AgentClientPlan[Trait, Unit]],
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
         (),
         $phantom
       )
@@ -84,7 +84,7 @@ private[golem] object AgentCompanionMacro {
     val tup = '{ Tuple2($a1, $a2) }
     '{
       AgentClient.connect[Trait, Tuple2[A1, A2]](
-        AgentClient.plan[Trait].asInstanceOf[AgentClientPlan[Trait, Tuple2[A1, A2]]],
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple2[A1, A2]]],
         $tup
       )
     }
@@ -105,7 +105,7 @@ private[golem] object AgentCompanionMacro {
     val tup = '{ Tuple2($a1, $a2) }
     '{
       AgentClient.connectPhantom[Trait, Tuple2[A1, A2]](
-        AgentClient.plan[Trait].asInstanceOf[AgentClientPlan[Trait, Tuple2[A1, A2]]],
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple2[A1, A2]]],
         $tup,
         $phantom
       )
@@ -123,7 +123,7 @@ private[golem] object AgentCompanionMacro {
     val tup = '{ Tuple3($a1, $a2, $a3) }
     '{
       AgentClient.connect[Trait, Tuple3[A1, A2, A3]](
-        AgentClient.plan[Trait].asInstanceOf[AgentClientPlan[Trait, Tuple3[A1, A2, A3]]],
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple3[A1, A2, A3]]],
         $tup
       )
     }
@@ -145,7 +145,7 @@ private[golem] object AgentCompanionMacro {
     val tup = '{ Tuple3($a1, $a2, $a3) }
     '{
       AgentClient.connectPhantom[Trait, Tuple3[A1, A2, A3]](
-        AgentClient.plan[Trait].asInstanceOf[AgentClientPlan[Trait, Tuple3[A1, A2, A3]]],
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple3[A1, A2, A3]]],
         $tup,
         $phantom
       )

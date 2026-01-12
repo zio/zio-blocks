@@ -1,22 +1,27 @@
 package golem.runtime.macros
 
 import golem.data.GolemSchema
-import golem.runtime.plan.{AgentImplementationPlan, AsyncMethodPlan, MethodPlan, SyncMethodPlan}
+import golem.runtime.agenttype.{
+  AgentImplementationType,
+  AsyncImplementationMethod,
+  ImplementationMethod,
+  SyncImplementationMethod
+}
 import golem.runtime.{AgentMetadata, MethodMetadata}
 import scala.quoted.*
 
 object AgentImplementationMacro {
-  inline def plan[Trait](inline build: => Trait): AgentImplementationPlan[Trait, Unit] =
-    ${ planImpl[Trait]('build) }
+  inline def implementationType[Trait](inline build: => Trait): AgentImplementationType[Trait, Unit] =
+    ${ implementationTypeImpl[Trait]('build) }
 
-  inline def planWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
+  inline def implementationTypeWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
     inline build: Ctor => Trait
-  ): AgentImplementationPlan[Trait, Ctor] =
-    ${ planWithCtorImpl[Trait, Ctor]('build) }
+  ): AgentImplementationType[Trait, Ctor] =
+    ${ implementationTypeWithCtorImpl[Trait, Ctor]('build) }
 
-  private def planImpl[Trait: Type](
+  private def implementationTypeImpl[Trait: Type](
     buildExpr: Expr[Trait]
-  )(using Quotes): Expr[AgentImplementationPlan[Trait, Unit]] = {
+  )(using Quotes): Expr[AgentImplementationType[Trait, Unit]] = {
     import quotes.reflect.*
 
     val traitRepr   = TypeRepr.of[Trait]
@@ -31,7 +36,7 @@ object AgentImplementationMacro {
     }
 
     val metadataExpr = '{ AgentDefinitionMacro.generate[Trait] }
-    val methodsExpr  = buildMethodPlansExpr[Trait](methodSymbols, metadataExpr)
+    val methodsExpr  = buildImplementationMethodsExpr[Trait](methodSymbols, metadataExpr)
 
     val ctorSchemaExpr =
       Expr.summon[GolemSchema[Unit]].getOrElse {
@@ -40,7 +45,7 @@ object AgentImplementationMacro {
 
     '{
       val metadata = $metadataExpr
-      AgentImplementationPlan[Trait, Unit](
+      AgentImplementationType[Trait, Unit](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
         buildInstance = (_: Unit) => $buildExpr,
@@ -49,9 +54,9 @@ object AgentImplementationMacro {
     }
   }
 
-  private def planWithCtorImpl[Trait <: AnyRef { type AgentInput }: Type, Ctor: Type](
+  private def implementationTypeWithCtorImpl[Trait <: AnyRef { type AgentInput }: Type, Ctor: Type](
     buildExpr: Expr[Any]
-  )(using Quotes): Expr[AgentImplementationPlan[Trait, Ctor]] = {
+  )(using Quotes): Expr[AgentImplementationType[Trait, Ctor]] = {
     import quotes.reflect.*
 
     val traitRepr   = TypeRepr.of[Trait]
@@ -68,7 +73,7 @@ object AgentImplementationMacro {
       )
 
     val metadataExpr = '{ AgentDefinitionMacro.generate[Trait] }
-    val methodsExpr  = buildMethodPlansExpr[Trait](
+    val methodsExpr  = buildImplementationMethodsExpr[Trait](
       traitSymbol.methodMembers.collect {
         case method if method.owner == traitSymbol && method.flags.is(Flags.Deferred) && method.isDefDef => method
       },
@@ -86,7 +91,7 @@ object AgentImplementationMacro {
 
     '{
       val metadata = $metadataExpr
-      AgentImplementationPlan[Trait, Ctor](
+      AgentImplementationType[Trait, Ctor](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
         buildInstance = (input: Ctor) => $buildTyped(input),
@@ -109,15 +114,15 @@ object AgentImplementationMacro {
     }
   }
 
-  private def buildMethodPlansExpr[Trait: Type](using
+  private def buildImplementationMethodsExpr[Trait: Type](using
     quotes: Quotes
   )(
     methods: List[quotes.reflect.Symbol],
     metadataExpr: Expr[AgentMetadata]
-  ): Expr[List[MethodPlan[Trait]]] = {
+  ): Expr[List[ImplementationMethod[Trait]]] = {
     import quotes.reflect.*
 
-    val planExprs: List[Expr[MethodPlan[Trait]]] = methods.map { methodSymbol =>
+    val methodExprs: List[Expr[ImplementationMethod[Trait]]] = methods.map { methodSymbol =>
       val methodName       = methodSymbol.name
       val methodMetadata   = methodMetadataExpr(metadataExpr, methodName)
       val parameterDetails = extractParameters(methodSymbol)
@@ -138,7 +143,7 @@ object AgentImplementationMacro {
 
       val (isAsync, payloadTpe, handlerTpe) = methodReturnInfo(methodSymbol)
 
-      val plan: Expr[MethodPlan[Trait]] =
+      val methodImpl: Expr[ImplementationMethod[Trait]] =
         inputTypeRepr.asType match {
           case '[in] =>
             payloadTpe.asType match {
@@ -156,7 +161,7 @@ object AgentImplementationMacro {
                   val handlerExpr = handlerLambda[Trait, in, out](methodSymbol, accessMode, parameterDetails)
                   '{
                     val metadataEntry = $methodMetadata
-                    SyncMethodPlan[Trait, in, out](
+                    SyncImplementationMethod[Trait, in, out](
                       metadata = metadataEntry,
                       inputSchema = $inputSchemaExpr,
                       outputSchema = $outputSchemaExpr,
@@ -172,7 +177,7 @@ object AgentImplementationMacro {
                         handlerExpr.asExprOf[(Trait, in) => scala.concurrent.Future[out]]
                       '{
                         val metadataEntry = $methodMetadata
-                        AsyncMethodPlan[Trait, in, out](
+                        AsyncImplementationMethod[Trait, in, out](
                           metadata = metadataEntry,
                           inputSchema = $inputSchemaExpr,
                           outputSchema = $outputSchemaExpr,
@@ -189,10 +194,10 @@ object AgentImplementationMacro {
             report.errorAndAbort(s"Unsupported input type for method $methodName")
         }
 
-      plan
+      methodImpl
     }
 
-    Expr.ofList(planExprs)
+    Expr.ofList(methodExprs)
   }
 
   private def methodMetadataExpr(using

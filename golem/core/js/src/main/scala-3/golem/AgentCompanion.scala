@@ -1,7 +1,7 @@
 package golem
 
 import golem.runtime.macros.AgentNameMacro
-import golem.runtime.plan.AgentClientPlan
+import golem.runtime.agenttype.AgentType
 import golem.runtime.rpc.AgentClient
 
 import scala.concurrent.Future
@@ -24,9 +24,9 @@ trait AgentCompanion[Trait] extends AgentCompanionBase[Trait] {
   transparent inline def typeName: String =
     AgentNameMacro.typeName[Trait]
 
-  /** Pre-computed client plan (schemas + function names). */
-  transparent inline def plan: AgentClientPlan[Trait, ?] =
-    AgentClient.plan[Trait]
+  /** Reflected agent type (schemas + function names). */
+  transparent inline def agentType: AgentType[Trait, ?] =
+    AgentClient.agentType[Trait]
 
   /** Connect to (or create) an agent instance from constructor input. */
   transparent inline def get[In](input: In): Future[Trait] =

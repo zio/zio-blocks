@@ -1,25 +1,26 @@
 package golem.runtime.macros
 
 import golem.data.GolemSchema
-import golem.runtime.plan.AgentImplementationPlan
+import golem.runtime.agenttype.AgentImplementationType
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 // format: off
 object AgentImplementationMacro {
-  def plan[Trait](build: => Trait): AgentImplementationPlan[Trait, Unit] =
-    macro AgentImplementationMacroImpl.planImpl[Trait]
+  def implementationType[Trait](build: => Trait): AgentImplementationType[Trait, Unit] =
+    macro AgentImplementationMacroImpl.implementationTypeImpl[Trait]
 
-  def planWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
+  def implementationTypeWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
     build: Ctor => Trait
-  ): AgentImplementationPlan[Trait, Ctor] = macro AgentImplementationMacroImpl.planWithCtorImpl[Trait, Ctor]
+  ): AgentImplementationType[Trait, Ctor] =
+    macro AgentImplementationMacroImpl.implementationTypeWithCtorImpl[Trait, Ctor]
 }
 
 object AgentImplementationMacroImpl {
-  def planImpl[Trait: c.WeakTypeTag](c: blackbox.Context)(
+  def implementationTypeImpl[Trait: c.WeakTypeTag](c: blackbox.Context)(
     build: c.Expr[Trait]
-  ): c.Expr[AgentImplementationPlan[Trait, Unit]] = {
+  ): c.Expr[AgentImplementationType[Trait, Unit]] = {
     import c.universe._
 
     val traitType   = weakTypeOf[Trait]
@@ -30,14 +31,14 @@ object AgentImplementationMacroImpl {
     }
 
     val metadataExpr = q"_root_.golem.runtime.macros.AgentDefinitionMacro.generate[$traitType]"
-    val methodsExpr  = buildMethodPlansExpr(c)(traitType, metadataExpr)
+    val methodsExpr  = buildImplementationMethodsExpr(c)(traitType, metadataExpr)
 
     val ctorSchemaExpr =
       c.inferImplicitValue(appliedType(typeOf[GolemSchema[_]].typeConstructor, typeOf[Unit]))
 
-    c.Expr[AgentImplementationPlan[Trait, Unit]](q"""
+    c.Expr[AgentImplementationType[Trait, Unit]](q"""
       val metadata = $metadataExpr
-      _root_.golem.runtime.plan.AgentImplementationPlan[$traitType, _root_.scala.Unit](
+      _root_.golem.runtime.agenttype.AgentImplementationType[$traitType, _root_.scala.Unit](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
         buildInstance = (_: _root_.scala.Unit) => $build,
@@ -46,9 +47,9 @@ object AgentImplementationMacroImpl {
     """)
   }
 
-  def planWithCtorImpl[Trait: c.WeakTypeTag, Ctor: c.WeakTypeTag](c: blackbox.Context)(
+  def implementationTypeWithCtorImpl[Trait: c.WeakTypeTag, Ctor: c.WeakTypeTag](c: blackbox.Context)(
     build: c.Expr[Any]
-  ): c.Expr[AgentImplementationPlan[Trait, Ctor]] = {
+  ): c.Expr[AgentImplementationType[Trait, Ctor]] = {
     import c.universe._
 
     val traitType   = weakTypeOf[Trait]
@@ -79,7 +80,7 @@ object AgentImplementationMacroImpl {
     }
 
     val metadataExpr = q"_root_.golem.runtime.macros.AgentDefinitionMacro.generate[$traitType]"
-    val methodsExpr  = buildMethodPlansExpr(c)(traitType, metadataExpr)
+    val methodsExpr  = buildImplementationMethodsExpr(c)(traitType, metadataExpr)
 
     val ctorSchemaTpe  = appliedType(typeOf[GolemSchema[_]].typeConstructor, ctorType)
     val ctorSchemaExpr = c.inferImplicitValue(ctorSchemaTpe)
@@ -90,20 +91,20 @@ object AgentImplementationMacroImpl {
       )
     }
 
-    c.Expr[AgentImplementationPlan[Trait, Ctor]](
+    c.Expr[AgentImplementationType[Trait, Ctor]](
       q"""
       val metadata = $metadataExpr
-      _root_.golem.runtime.plan.AgentImplementationPlan[$traitType, $ctorType](
+      _root_.golem.runtime.agenttype.AgentImplementationType[$traitType, $ctorType](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
         buildInstance = ($build).asInstanceOf[$ctorType => $traitType],
         methods = $methodsExpr
-      ).asInstanceOf[_root_.golem.runtime.plan.AgentImplementationPlan[$traitType, ${weakTypeOf[Ctor]}]]
+      ).asInstanceOf[_root_.golem.runtime.agenttype.AgentImplementationType[$traitType, ${weakTypeOf[Ctor]}]]
       """
     )
   }
 
-  private def buildMethodPlansExpr(c: blackbox.Context)(
+  private def buildImplementationMethodsExpr(c: blackbox.Context)(
     traitType: c.universe.Type,
     metadataExpr: c.Tree
   ): c.Tree = {
@@ -114,7 +115,7 @@ object AgentImplementationMacroImpl {
         method
     }.toList
 
-    val planExprs = methods.map { method =>
+    val methodExprs = methods.map { method =>
       val methodName         = method.name.toString
       val methodMetadataExpr =
         q"""
@@ -131,13 +132,13 @@ object AgentImplementationMacroImpl {
       val accessMode             = paramAccessMode(params)
       val inputType              = inputTypeFor(c)(accessMode, params)
 
-      buildMethodPlan(c)(traitType, method, methodMetadataExpr, params, accessMode, inputType, payloadType, isAsync)
+      buildImplementationMethod(c)(traitType, method, methodMetadataExpr, params, accessMode, inputType, payloadType, isAsync)
     }
 
-    q"List(..$planExprs)"
+    q"List(..$methodExprs)"
   }
 
-  private def buildMethodPlan(c: blackbox.Context)(
+  private def buildImplementationMethod(c: blackbox.Context)(
     traitType: c.universe.Type,
     method: c.universe.MethodSymbol,
     methodMetadataExpr: c.Tree,
@@ -179,7 +180,7 @@ object AgentImplementationMacroImpl {
 
     if (isAsync) {
       q"""
-        _root_.golem.runtime.plan.AsyncMethodPlan[$traitType, $inputType, $outputType](
+        _root_.golem.runtime.agenttype.AsyncImplementationMethod[$traitType, $inputType, $outputType](
           metadata = $methodMetadataExpr,
           inputSchema = $inputSchemaExpr,
           outputSchema = $outputSchemaInstance,
@@ -188,7 +189,7 @@ object AgentImplementationMacroImpl {
       """
     } else {
       q"""
-        _root_.golem.runtime.plan.SyncMethodPlan[$traitType, $inputType, $outputType](
+        _root_.golem.runtime.agenttype.SyncImplementationMethod[$traitType, $inputType, $outputType](
           metadata = $methodMetadataExpr,
           inputSchema = $inputSchemaExpr,
           outputSchema = $outputSchemaInstance,

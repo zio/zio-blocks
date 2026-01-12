@@ -1,15 +1,15 @@
 package golem.runtime.rpc
 
-import golem.runtime.autowire.{AgentImplementation, WitValueBuilder}
-import golem.runtime.plan.ClientMethodPlan
 import golem.data.{DataType, DataValue}
+import golem.runtime.agenttype.AgentMethod
 import golem.runtime.annotations.{DurabilityMode, agentDefinition}
+import golem.runtime.autowire.{AgentImplementation, WitValueBuilder}
 import org.scalatest.funsuite.AsyncFunSuite
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.scalajs.js
 
-final class AgentClientPlanEndToEndSpec extends AsyncFunSuite {
+final class AgentClientTypeEndToEndSpec extends AsyncFunSuite {
   override implicit def executionContext: ExecutionContext =
     scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 
@@ -18,7 +18,7 @@ final class AgentClientPlanEndToEndSpec extends AsyncFunSuite {
     def echo(in: String): Future[String]
   }
 
-  test("client plan loopback via AgentClientRuntime.resolve (Future-returning method)") {
+  test("client type loopback via AgentClientRuntime.resolve (Future-returning method)") {
     val impl = new AsyncEchoAgent {
       override def echo(in: String): Future[String] =
         Future.successful(s"hello $in")
@@ -26,7 +26,7 @@ final class AgentClientPlanEndToEndSpec extends AsyncFunSuite {
 
     AgentImplementation.register[AsyncEchoAgent]("e2e-client-async")(impl)
 
-    val plan = golem.runtime.macros.AgentClientMacro.plan[AsyncEchoAgent]
+    val agentType = golem.runtime.macros.AgentClientMacro.agentType[AsyncEchoAgent]
 
     val rpc = new RpcInvoker {
       override def invokeAndAwait(functionName: String, params: js.Array[js.Dynamic]): Either[String, js.Dynamic] =
@@ -38,7 +38,10 @@ final class AgentClientPlanEndToEndSpec extends AsyncFunSuite {
             DataValue.TupleValue(List(DataValue.StringValue(res)))
           )
         }
-      override def trigger(functionName: String, params: js.Array[js.Dynamic]): Either[String, Unit] = Left("not used")
+
+      override def trigger(functionName: String, params: js.Array[js.Dynamic]): Either[String, Unit] =
+        Left("not used")
+
       override def scheduleInvocation(
         datetime: js.Dynamic,
         functionName: String,
@@ -49,13 +52,15 @@ final class AgentClientPlanEndToEndSpec extends AsyncFunSuite {
 
     val resolvedAgent =
       AgentClientRuntime.ResolvedAgent(
-        plan.asInstanceOf[golem.runtime.plan.AgentClientPlan[AsyncEchoAgent, Any]],
+        agentType.asInstanceOf[golem.runtime.agenttype.AgentType[AsyncEchoAgent, Any]],
         RemoteAgentClient("e2e-client-async", "fake-id", null, rpc)
       )
-    val echo = plan.methods.collectFirst { case m: ClientMethodPlan[AsyncEchoAgent, String, String] @unchecked =>
+
+    val echo = agentType.methods.collectFirst { case m: AgentMethod[AsyncEchoAgent, String, String] @unchecked =>
       m
     }.get
 
     resolvedAgent.call(echo, "world").map(out => assert(out == "hello world"))
   }
 }
+

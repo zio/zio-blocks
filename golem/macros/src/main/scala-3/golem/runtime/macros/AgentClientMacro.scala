@@ -2,16 +2,16 @@ package golem.runtime.macros
 
 import golem.data.{ElementSchema, GolemSchema, NamedElementSchema, StructuredSchema}
 import golem.runtime.MethodMetadata
-import golem.runtime.plan.{AgentClientPlan, ClientInvocation, ClientMethodPlan, ConstructorPlan}
+import golem.runtime.agenttype.{AgentMethod, AgentType, ConstructorType, MethodInvocation}
 // Macro annotations live in a separate module; do not depend on them here.
 
 import scala.quoted.*
 
 object AgentClientMacro {
-  transparent inline def plan[Trait]: AgentClientPlan[Trait, ?] =
-    ${ planImpl[Trait] }
+  transparent inline def agentType[Trait]: AgentType[Trait, ?] =
+    ${ agentTypeImpl[Trait] }
 
-  private def planImpl[Trait: Type](using Quotes): Expr[AgentClientPlan[Trait, ?]] = {
+  private def agentTypeImpl[Trait: Type](using Quotes): Expr[AgentType[Trait, ?]] = {
     import quotes.reflect.*
 
     val traitRepr   = TypeRepr.of[Trait]
@@ -20,37 +20,37 @@ object AgentClientMacro {
     if !traitSymbol.flags.is(Flags.Trait) then
       report.errorAndAbort(s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
 
-    val (constructorType, constructorPlanExpr) = buildConstructorPlan(traitRepr, traitSymbol)
-    val agentTypeName                          = agentTypeNameOrDefault(traitSymbol)
+    val (constructorTpe, constructorTypeExpr) = buildConstructorType(traitRepr, traitSymbol)
+    val agentTypeName                         = agentTypeNameOrDefault(traitSymbol)
 
     val methods = traitSymbol.methodMembers.collect {
       case method if method.flags.is(Flags.Deferred) && method.isDefDef && method.name != "new" =>
-        buildMethodPlan[Trait](method)
+        buildMethod[Trait](method)
     }
 
     val traitNameExpr   = Expr(agentTypeName)
-    val methodPlansExpr = Expr.ofList(methods)
+    val methodsExpr     = Expr.ofList(methods)
 
-    constructorType.asType match {
+    constructorTpe.asType match {
       case '[ctor] =>
         val traitClassNameExpr = Expr(traitSymbol.fullName)
         '{
-          AgentClientPlan[Trait, ctor](
+          AgentType[Trait, ctor](
             traitClassName = $traitClassNameExpr,
-            traitName = $traitNameExpr,
-            constructor = $constructorPlanExpr.asInstanceOf[ConstructorPlan[ctor]],
-            methods = $methodPlansExpr
+            typeName = $traitNameExpr,
+            constructor = $constructorTypeExpr.asInstanceOf[ConstructorType[ctor]],
+            methods = $methodsExpr
           )
         }
     }
   }
 
-  private def buildConstructorPlan(using
+  private def buildConstructorType(using
     Quotes
   )(
     traitRepr: quotes.reflect.TypeRepr,
     traitSymbol: quotes.reflect.Symbol
-  ): (quotes.reflect.TypeRepr, Expr[ConstructorPlan[?]]) = {
+  ): (quotes.reflect.TypeRepr, Expr[ConstructorType[?]]) = {
     import quotes.reflect.*
 
     val inputType  = agentInputType(traitRepr, traitSymbol)
@@ -60,7 +60,7 @@ object AgentClientMacro {
     val parameters =
       if accessMode == MethodParamAccess.SingleArg then List(("args", inputType)) else Nil
 
-    val planExpr =
+    val typeExpr =
       inputType.asType match {
         case '[input] =>
           val schemaExpr: Expr[GolemSchema[input]] = accessMode match {
@@ -69,10 +69,10 @@ object AgentClientMacro {
             case _ =>
               summonSchema[input]("new", "input")
           }
-          '{ ConstructorPlan[input]($schemaExpr) }
+          '{ ConstructorType[input]($schemaExpr) }
       }
 
-    (inputType, planExpr)
+    (inputType, typeExpr)
   }
 
   private def agentTypeNameOrDefault(using Quotes)(traitSymbol: quotes.reflect.Symbol): String = {
@@ -124,11 +124,11 @@ object AgentClientMacro {
     }
   }
 
-  private def buildMethodPlan[Trait: Type](using
+  private def buildMethod[Trait: Type](using
     Quotes
   )(
     method: quotes.reflect.Symbol
-  ): Expr[ClientMethodPlan[Trait, ?, ?]] = {
+  ): Expr[AgentMethod[Trait, ?, ?]] = {
 
     val metadataExpr = methodMetadata(method)
     val agentType    = agentTypeNameOrDefault(method.owner)
@@ -140,8 +140,8 @@ object AgentClientMacro {
     val inputType                    = inputTypeFor(accessMode, parameters)
     val (invocationKind, outputType) = methodInvocationInfo(method)
     val invocationExpr               = invocationKind match {
-      case InvocationKind.Awaitable     => '{ ClientInvocation.Awaitable }
-      case InvocationKind.FireAndForget => '{ ClientInvocation.FireAndForget }
+      case InvocationKind.Awaitable     => '{ MethodInvocation.Awaitable }
+      case InvocationKind.FireAndForget => '{ MethodInvocation.FireAndForget }
     }
 
     inputType.asType match {
@@ -165,7 +165,7 @@ object AgentClientMacro {
               }
 
             '{
-              ClientMethodPlan[Trait, input, output](
+              AgentMethod[Trait, input, output](
                 metadata = $metadataExpr,
                 functionName = $functionName,
                 inputSchema = $inputSchemaExpr,

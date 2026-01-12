@@ -1,6 +1,6 @@
 package golem.runtime.rpc.jvm
 
-import golem.runtime.plan.AgentClientPlan
+import golem.runtime.agenttype.AgentType
 import golem.runtime.rpc.jvm.internal.{GolemCliProcess, WaveTextCodec}
 
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
@@ -31,11 +31,11 @@ object JvmAgentClient {
     )
 
   def connect[Trait](
-    plan: AgentClientPlan[Trait, ?],
+    agentType: AgentType[Trait, ?],
     ctorArgs: Any
   )(implicit ev: Trait <:< AnyRef): Trait = {
     val cfg0         = configOrThrow
-    val agentType    = plan.traitName
+    val agentTypeName = agentType.typeName
     val ctorRendered =
       ctorArgs match {
         case ()    => ""
@@ -46,9 +46,9 @@ object JvmAgentClient {
           }
       }
     val ctorPart = s"($ctorRendered)"
-    val agentId  = s"${cfg0.component}/$agentType$ctorPart"
-    val handler  = new CliInvocationHandler(cfg0, agentId, plan)
-    val iface    = java.lang.Class.forName(plan.traitClassName)
+    val agentId  = s"${cfg0.component}/$agentTypeName$ctorPart"
+    val handler  = new CliInvocationHandler(cfg0, agentId, agentType)
+    val iface    = java.lang.Class.forName(agentType.traitClassName)
     Proxy
       .newProxyInstance(
         iface.getClassLoader,
@@ -61,7 +61,7 @@ object JvmAgentClient {
   private final class CliInvocationHandler[Trait](
     cfg: JvmAgentClientConfig,
     agentId: String,
-    plan: AgentClientPlan[Trait, ?]
+    agentType: AgentType[Trait, ?]
   ) extends InvocationHandler {
     private implicit val ec: ExecutionContext = ExecutionContext.global
 
@@ -80,8 +80,8 @@ object JvmAgentClient {
       // Convert scala method name to WIT function id:
       // full id: "<component>/<agent-type>.{<kebab-method>}"
       val methodPlanFn =
-        plan.methods.collectFirst { case p if p.metadata.name == name => p.functionName }
-          .getOrElse(s"${plan.traitName}.{${kebab(name)}}")
+        agentType.methods.collectFirst { case p if p.metadata.name == name => p.functionName }
+          .getOrElse(s"${agentType.typeName}.{${kebab(name)}}")
       val fn = s"${cfg.component}/$methodPlanFn"
 
       // Render args as wave literals for golem-cli

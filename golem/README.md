@@ -82,10 +82,10 @@ From another component, connect to a remote agent:
 import golem.runtime.rpc.AgentClient
 import scala.concurrent.Future
 
-val plan = AgentClient.plan[NameAgent] // uses @agentDefinition + NameAgent.AgentInput
+val agentType = AgentClient.agentType[NameAgent] // uses @agentDefinition + NameAgent.AgentInput
 
 // Connect and invoke
-val result: Future[NameAgent] = AgentClient.connect(plan, ())
+val result: Future[NameAgent] = AgentClient.connect(agentType, ())
 ```
 
 ### Optional companion ergonomics (Scala-only)

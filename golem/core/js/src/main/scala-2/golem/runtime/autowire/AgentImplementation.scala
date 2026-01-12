@@ -15,19 +15,19 @@ private[golem] object AgentImplementation {
   // Internal hooks used by macro expansions
   // ---------------------------------------------------------------------------
 
-  def registerPlan[Trait](
+  def registerType[Trait](
     typeName: String,
     mode: AgentMode,
-    plan: _root_.golem.runtime.plan.AgentImplementationPlan[Trait, _root_.scala.Unit]
+    implType: _root_.golem.runtime.agenttype.AgentImplementationType[Trait, _root_.scala.Unit]
   ): AgentDefinition[Trait] =
-    AgentImplementationRuntime.register(typeName, mode, plan)
+    AgentImplementationRuntime.register(typeName, mode, implType)
 
-  def registerWithCtorPlan[Trait, Ctor](
+  def registerWithCtorType[Trait, Ctor](
     typeName: String,
     mode: AgentMode,
-    plan: _root_.golem.runtime.plan.AgentImplementationPlan[Trait, Ctor]
+    implType: _root_.golem.runtime.agenttype.AgentImplementationType[Trait, Ctor]
   ): AgentDefinition[Trait] =
-    AgentImplementationRuntime.registerWithCtor(typeName, mode, plan)
+    AgentImplementationRuntime.registerWithCtor(typeName, mode, implType)
 
   /**
    * Registers an agent implementation with the default mode (Durable).
@@ -109,10 +109,10 @@ private[golem] object AgentImplementationMacroFacade {
 
     c.Expr[AgentDefinition[Trait]](q"""
       {
-        val plan = _root_.golem.runtime.macros.AgentImplementationMacro.plan[$traitType]($build)
-        val metadataMode = plan.metadata.mode.flatMap(_root_.golem.runtime.autowire.AgentMode.fromString)
+        val implType = _root_.golem.runtime.macros.AgentImplementationMacro.implementationType[$traitType]($build)
+        val metadataMode = implType.metadata.mode.flatMap(_root_.golem.runtime.autowire.AgentMode.fromString)
         val effectiveMode = metadataMode.getOrElse(_root_.golem.runtime.autowire.AgentMode.Durable)
-        _root_.golem.runtime.autowire.AgentImplementation.registerPlan($typeName, effectiveMode, plan)
+        _root_.golem.runtime.autowire.AgentImplementation.registerType($typeName, effectiveMode, implType)
       }
     """)
   }
@@ -126,10 +126,10 @@ private[golem] object AgentImplementationMacroFacade {
 
     c.Expr[AgentDefinition[Trait]](q"""
       {
-        val plan = _root_.golem.runtime.macros.AgentImplementationMacro.plan[$traitType]($build)
-        val metadataMode = plan.metadata.mode.flatMap(_root_.golem.runtime.autowire.AgentMode.fromString)
+        val implType = _root_.golem.runtime.macros.AgentImplementationMacro.implementationType[$traitType]($build)
+        val metadataMode = implType.metadata.mode.flatMap(_root_.golem.runtime.autowire.AgentMode.fromString)
         val effectiveMode = Some($mode).orElse(metadataMode).getOrElse(_root_.golem.runtime.autowire.AgentMode.Durable)
-        _root_.golem.runtime.autowire.AgentImplementation.registerPlan($typeName, effectiveMode, plan)
+        _root_.golem.runtime.autowire.AgentImplementation.registerType($typeName, effectiveMode, implType)
       }
     """)
   }
@@ -212,12 +212,12 @@ private[golem] object AgentImplementationMacroFacade {
     c.Expr[AgentDefinition[Trait]](
       q"""
       {
-        val plan = _root_.golem.runtime.macros.AgentImplementationMacro.planWithCtor[$traitType, ${weakTypeOf[
+        val implType = _root_.golem.runtime.macros.AgentImplementationMacro.implementationTypeWithCtor[$traitType, ${weakTypeOf[
           Ctor
         ]}]($build)
-        val metadataMode = plan.metadata.mode.flatMap(_root_.golem.runtime.autowire.AgentMode.fromString)
+        val metadataMode = implType.metadata.mode.flatMap(_root_.golem.runtime.autowire.AgentMode.fromString)
         val effectiveMode = metadataMode.getOrElse(_root_.golem.runtime.autowire.AgentMode.Durable)
-        _root_.golem.runtime.autowire.AgentImplementation.registerWithCtorPlan($typeName, effectiveMode, plan)
+        _root_.golem.runtime.autowire.AgentImplementation.registerWithCtorType($typeName, effectiveMode, implType)
       }
       """
     )

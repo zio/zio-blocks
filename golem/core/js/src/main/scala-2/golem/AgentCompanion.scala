@@ -1,6 +1,6 @@
 package golem
 
-import golem.runtime.plan.AgentClientPlan
+import golem.runtime.agenttype.AgentType
 
 import scala.concurrent.Future
 import scala.language.experimental.macros
@@ -24,8 +24,8 @@ trait AgentCompanion[Trait <: AnyRef { type AgentInput }] extends AgentCompanion
   def typeName: String =
     macro golem.runtime.macros.AgentCompanionMacro.typeNameImpl
 
-  def plan: AgentClientPlan[Trait, AgentInput] =
-    macro golem.runtime.macros.AgentCompanionMacro.planImpl
+  def agentType: AgentType[Trait, AgentInput] =
+    macro golem.runtime.macros.AgentCompanionMacro.agentTypeImpl
 
   def get(input: AgentInput): Future[Trait] =
     macro golem.runtime.macros.AgentCompanionMacro.getImpl

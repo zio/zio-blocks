@@ -1,9 +1,9 @@
 package golem
 
-import golem.runtime.plan.AgentClientPlan
+import golem.runtime.agenttype.AgentType
 
 /**
- * Pure metadata + plan for an agent trait.
+ * Pure metadata + reflected type for an agent trait.
  *
  * This lives in `model` so macros can derive it without depending on the
  * runtime (`core`).
@@ -14,6 +14,6 @@ trait AgentApi[Trait] {
   /** Golem agent type name, from `@agentDefinition("...")`. */
   def typeName: String
 
-  /** Pre-computed client plan (schemas + function names). */
-  def plan: AgentClientPlan[Trait, Constructor]
+  /** Reflected agent type (schemas + function names). */
+  def agentType: AgentType[Trait, Constructor]
 }

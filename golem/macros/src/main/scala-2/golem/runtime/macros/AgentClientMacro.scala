@@ -1,18 +1,18 @@
 package golem.runtime.macros
 
 import golem.data.GolemSchema
-import golem.runtime.plan.AgentClientPlan
+import golem.runtime.agenttype.AgentType
 // Macro annotations live in a separate module; do not depend on them here.
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object AgentClientMacro {
-  def plan[Trait]: AgentClientPlan[Trait, _] = macro AgentClientMacroImpl.planImpl[Trait]
+  def agentType[Trait]: AgentType[Trait, _] = macro AgentClientMacroImpl.agentTypeImpl[Trait]
 }
 
 object AgentClientMacroImpl {
-  def planImpl[Trait: c.WeakTypeTag](c: blackbox.Context): c.Expr[AgentClientPlan[Trait, _]] = {
+  def agentTypeImpl[Trait: c.WeakTypeTag](c: blackbox.Context): c.Expr[AgentType[Trait, _]] = {
     import c.universe._
 
     val traitType   = weakTypeOf[Trait]
@@ -22,21 +22,21 @@ object AgentClientMacroImpl {
       c.abort(c.enclosingPosition, s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
     }
 
-    val (constructorType, constructorPlanExpr) = buildConstructorPlan(c)(traitType)
-    val methodPlans                            = buildMethodPlans(c)(traitType)
+    val (constructorType, constructorTypeExpr) = buildConstructorType(c)(traitType)
+    val methods                                = buildMethods(c)(traitType)
     val traitName                              = agentTypeNameOrDefault(c)(traitSymbol)
 
-    c.Expr[AgentClientPlan[Trait, _]](q"""
-      _root_.golem.runtime.plan.AgentClientPlan[$traitType, $constructorType](
+    c.Expr[AgentType[Trait, _]](q"""
+      _root_.golem.runtime.agenttype.AgentType[$traitType, $constructorType](
         traitClassName = ${Literal(Constant(traitSymbol.fullName))},
-        traitName = $traitName,
-        constructor = $constructorPlanExpr.asInstanceOf[_root_.golem.runtime.plan.ConstructorPlan[$constructorType]],
-        methods = List(..$methodPlans)
+        typeName = $traitName,
+        constructor = $constructorTypeExpr.asInstanceOf[_root_.golem.runtime.agenttype.ConstructorType[$constructorType]],
+        methods = List(..$methods)
       )
     """)
   }
 
-  private def buildConstructorPlan(c: blackbox.Context)(traitType: c.universe.Type): (c.universe.Type, c.Tree) = {
+  private def buildConstructorType(c: blackbox.Context)(traitType: c.universe.Type): (c.universe.Type, c.Tree) = {
     import c.universe._
 
     val inputType  = agentInputType(c)(traitType)
@@ -55,8 +55,8 @@ object AgentClientMacroImpl {
         schemaInstance
     }
 
-    val planExpr = q"_root_.golem.runtime.plan.ConstructorPlan[$inputType]($schemaExpr)"
-    (inputType, planExpr)
+    val typeExpr = q"_root_.golem.runtime.agenttype.ConstructorType[$inputType]($schemaExpr)"
+    (inputType, typeExpr)
   }
 
   private def agentTypeNameOrDefault(c: blackbox.Context)(symbol: c.universe.Symbol): String = {
@@ -100,18 +100,18 @@ object AgentClientMacroImpl {
     }
   }
 
-  private def buildMethodPlans(c: blackbox.Context)(
+  private def buildMethods(c: blackbox.Context)(
     traitType: c.universe.Type
   ): List[c.Tree] = {
     import c.universe._
 
     traitType.decls.collect {
       case method: MethodSymbol if method.isAbstract && method.isMethod && method.name.toString != "new" =>
-        buildMethodPlan(c)(traitType, method)
+        buildMethod(c)(traitType, method)
     }.toList
   }
 
-  private def buildMethodPlan(
+  private def buildMethod(
     c: blackbox.Context
   )(traitType: c.universe.Type, method: c.universe.MethodSymbol): c.Tree = {
     import c.universe._
@@ -127,8 +127,8 @@ object AgentClientMacroImpl {
     val (invocationKind, outputType) = methodInvocationInfo(c)(method)
 
     val invocationExpr = invocationKind match {
-      case InvocationKind.Awaitable     => q"_root_.golem.runtime.plan.ClientInvocation.Awaitable"
-      case InvocationKind.FireAndForget => q"_root_.golem.runtime.plan.ClientInvocation.FireAndForget"
+      case InvocationKind.Awaitable     => q"_root_.golem.runtime.agenttype.MethodInvocation.Awaitable"
+      case InvocationKind.FireAndForget => q"_root_.golem.runtime.agenttype.MethodInvocation.FireAndForget"
     }
 
     val inputSchemaExpr = accessMode match {
@@ -156,7 +156,7 @@ object AgentClientMacroImpl {
     }
 
     q"""
-      _root_.golem.runtime.plan.ClientMethodPlan[$traitType, $inputType, $outputType](
+      _root_.golem.runtime.agenttype.AgentMethod[$traitType, $inputType, $outputType](
         metadata = $metadataExpr,
         functionName = $functionName,
         inputSchema = $inputSchemaExpr,
