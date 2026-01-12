@@ -29,15 +29,15 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; benchmarks/test; examples/test"
+  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; +schema-toonJVM/test; benchmarks/test; examples/test"
 )
 addCommandAlias(
   "testJS",
-  "+schemaJS/test; +chunkJS/test; +streamsJS/test"
+  "+schemaJS/test; +chunkJS/test; +streamsJS/test; +schema-toonJS/test"
 )
 addCommandAlias(
   "testNative",
-  "+schemaNative/test; +chunkNative/test; +streamsNative/test"
+  "+schemaNative/test; +chunkNative/test; +streamsNative/test; +schema-toonNative/test"
 )
 
 lazy val root = project
@@ -61,7 +61,10 @@ lazy val root = project
     scalaNextTests.native,
     benchmarks,
     docs,
-    examples
+    examples,
+    `schema-toon`.jvm,
+    `schema-toon`.js,
+    `schema-toon`.native
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -240,3 +243,32 @@ lazy val docs = project
   )
   .dependsOn(schema.jvm)
   .enablePlugins(WebsitePlugin)
+
+lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-schema-toon"))
+  .dependsOn(schema)
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.schema.toon"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    )
+  )
+  .jsSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
+  )
+  .nativeSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
+  )

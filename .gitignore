@@ -28,3 +28,4 @@ project/metals.sbt
 
 # Compilation log files
 *.log
+.DS_Store
