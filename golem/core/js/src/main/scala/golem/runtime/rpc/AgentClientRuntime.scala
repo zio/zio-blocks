@@ -75,6 +75,17 @@ object AgentClientRuntime {
           )
       }
 
+    private[golem] def callByName[In, Out](methodName: String, input: In): Future[Out] = {
+      val method =
+        plan.methods.collectFirst {
+          case p if p.metadata.name == methodName =>
+            p.asInstanceOf[ClientMethodPlan[Trait, In, Out]]
+        }
+          .getOrElse(throw new IllegalStateException(s"Method plan for $methodName not found"))
+
+      call(method, input)
+    }
+
     def trigger[In](method: ClientMethodPlan[Trait, In, Unit], input: In): Future[Unit] =
       method.invocation match {
         case ClientInvocation.FireAndForget => runFireAndForget(method, input)

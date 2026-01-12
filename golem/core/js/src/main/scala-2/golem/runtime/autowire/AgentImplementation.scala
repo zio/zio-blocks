@@ -5,43 +5,12 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 /**
- * Entry point for registering agent implementations using compile-time
- * autowiring.
- *
- * This object provides macros that automatically generate RPC handlers, WIT
- * types, and metadata from a Scala trait definition. Use [[register]] to bind
- * an implementation to the agent registry.
- *
- * ==Basic Usage==
- * {{{
- * trait MyAgent {
- *   def process(input: Input): Output
- * }
- *
- * class MyAgentImpl extends MyAgent {
- *   override def process(input: Input): Output = ???
- * }
- *
- * val definition = AgentImplementation.register[MyAgent](
- *   typeName = "my-agent"
- * )(new MyAgentImpl)
- * }}}
- *
- * ==With Mode Override==
- * {{{
- * val definition = AgentImplementation.register[MyAgent](
- *   typeName = "my-agent",
- *   mode = AgentMode.Ephemeral
- * )(new MyAgentImpl)
- * }}}
- *
- * @see
- *   [[AgentDefinition]] for the resulting definition type
- * @see
- *   [[AgentMode]] for available agent modes
+ * @hidden
+ *   Internal registration wiring used by generated code; not part of the user
+ *   API.
  */
 // format: off
-object AgentImplementation {
+private[golem] object AgentImplementation {
   // ---------------------------------------------------------------------------
   // Internal hooks used by macro expansions
   // ---------------------------------------------------------------------------
@@ -91,8 +60,7 @@ object AgentImplementation {
    * Registers an agent implementation using constructor input, as defined by
    * `type AgentInput = ...` on the agent trait.
    *
-   * The agent mode is taken from the trait annotations (e.g.
-   * `@mode(DurabilityMode.Durable)`) or defaults to Durable when not specified.
+   * The agent mode is taken from `@agentDefinition(mode = ...)` on the trait, or defaults to Durable.
    */
   def register[Trait <: AnyRef { type AgentInput }, Ctor](build: Ctor => Trait): AgentDefinition[Trait] =
     macro AgentImplementationMacroFacade.registerFromAnnotationCtorImpl[Trait, Ctor]
@@ -122,7 +90,8 @@ object AgentImplementation {
     macro AgentImplementationMacroFacade.registerFromAnnotationWithModeImpl[Trait]
 }
 
-object AgentImplementationMacroFacade {
+/** @hidden Internal macro facade; not part of the user API. */
+private[golem] object AgentImplementationMacroFacade {
   private def defaultTypeNameFromTrait(c: blackbox.Context)(sym: c.universe.Symbol): String = {
     val raw = sym.name.decodedName.toString
     raw

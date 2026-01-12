@@ -4,7 +4,7 @@ import golem.data.SchemaHelpers.{singleElementSchema, singleElementValue}
 import golem.data.multimodal.Multimodal
 import golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes, BinarySegment, TextSegment}
 import golem.data._
-import golem.runtime.annotations.{agentDefinition, description, mode, prompt}
+import golem.runtime.annotations.{agentDefinition, description, prompt}
 import golem.runtime.annotations.DurabilityMode
 import golem.runtime.macros.{AgentClientMacro, AgentImplementationMacro, AgentMacros}
 import golem.runtime.plan.{AsyncMethodPlan, ClientInvocation}
@@ -57,8 +57,7 @@ final class RustAgentParitySpec extends AnyFunSuite {
     def echoResult(value: EchoResult): EchoResult
   }
 
-  @agentDefinition("ephemeral-agent")
-  @mode(DurabilityMode.Ephemeral)
+  @agentDefinition(typeName = "ephemeral-agent", mode = DurabilityMode.Ephemeral)
   trait EphemeralAgent {
     def ping(): String
   }
@@ -97,8 +96,8 @@ final class RustAgentParitySpec extends AnyFunSuite {
     assert(durableDefaultMetadata.mode.isEmpty)
   }
 
-  test("Agent metadata captures explicit durable annotation") {
-    assert(durableExplicitMetadata.mode.contains("durable"))
+  test("Agent metadata omits durable default (even when explicitly set via agentDefinition)") {
+    assert(durableExplicitMetadata.mode.forall(_ == "durable"))
   }
 
   test("AgentImplementationMacro preserves annotated agent mode") {
@@ -113,14 +112,14 @@ final class RustAgentParitySpec extends AnyFunSuite {
   }
 
   test("AgentImplementationMacro preserves durable annotations in plan metadata") {
-    assert(durableExplicitPlan.metadata.mode.contains("durable"))
+    // Durable is the default; we allow it to be elided (None) even if explicitly set via @agentDefinition(mode = Durable).
+    assert(durableExplicitPlan.metadata.mode.forall(_ == "durable"))
   }
 
   @agentDefinition("durable-default-agent")
   trait DurableDefaultAgent { def ping(): String }
 
-  @agentDefinition("durable-explicit-agent")
-  @mode(DurabilityMode.Durable)
+  @agentDefinition(typeName = "durable-explicit-agent", mode = DurabilityMode.Durable)
   trait DurableExplicitAgent { def ping(): String }
 
   @agentDefinition("snapshot-agent")

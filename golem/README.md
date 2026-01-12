@@ -193,7 +193,7 @@ import golem.runtime.annotations.DurabilityMode
 
 @description("Human-readable description")
 @prompt("LLM prompt for AI-driven invocation")
-@mode(DurabilityMode.Ephemeral) // or DurabilityMode.Durable
+@agentDefinition(mode = DurabilityMode.Ephemeral) // or DurabilityMode.Durable
 trait MyAgent {
 ...
 }

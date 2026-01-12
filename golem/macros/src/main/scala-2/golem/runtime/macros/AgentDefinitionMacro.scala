@@ -49,18 +49,15 @@ object AgentDefinitionMacroImpl {
     }
 
     val descriptionType = typeOf[golem.runtime.annotations.description]
-    val modeType        = typeOf[golem.runtime.annotations.mode]
     val promptType      = typeOf[golem.runtime.annotations.prompt]
 
     val traitDescription = annotationString(c)(typeSymbol, descriptionType)
     val traitMode        =
-      annotationModeWireValueExpr(c)(typeSymbol, modeType).orElse(
-        agentDefinitionModeWireValueExpr(c)(typeSymbol, agentDefinitionType)
-      )
+      agentDefinitionModeWireValueExpr(c)(typeSymbol, agentDefinitionType)
 
     val methods = tpe.decls.collect {
       case method: MethodSymbol if method.isAbstract && method.isMethod && method.name.toString != "new" =>
-        methodMetadata(c)(method, descriptionType, promptType, modeType)
+        methodMetadata(c)(method, descriptionType, promptType)
     }.toList
 
     val constructorSchema = inferConstructorSchema(c)(tpe)
@@ -83,15 +80,13 @@ object AgentDefinitionMacroImpl {
   private def methodMetadata(c: blackbox.Context)(
     method: c.universe.MethodSymbol,
     descriptionType: c.universe.Type,
-    promptType: c.universe.Type,
-    modeType: c.universe.Type
+    promptType: c.universe.Type
   ): c.Tree = {
     import c.universe._
 
     val methodName   = method.name.toString
     val descExpr     = optionalStringExpr(c)(annotationString(c)(method, descriptionType))
     val promptExpr   = optionalStringExpr(c)(annotationString(c)(method, promptType))
-    val modeExpr     = optionalTreeExpr(c)(annotationModeWireValueExpr(c)(method, modeType))
     val inputSchema  = methodInputSchema(c)(method)
     val outputSchema = methodOutputSchema(c)(method)
 
@@ -100,7 +95,7 @@ object AgentDefinitionMacroImpl {
         name = $methodName,
         description = $descExpr,
         prompt = $promptExpr,
-        mode = $modeExpr,
+        mode = _root_.scala.None,
         input = $inputSchema,
         output = $outputSchema
       )
@@ -193,22 +188,6 @@ object AgentDefinitionMacroImpl {
       case ann if ann.tree.tpe =:= annType =>
         ann.tree.children.tail.collectFirst { case Literal(Constant(value: String)) =>
           value
-        }
-    }.flatten
-  }
-
-  private def annotationModeWireValueExpr(
-    c: blackbox.Context
-  )(symbol: c.universe.Symbol, annType: c.universe.Type): Option[c.Tree] = {
-    import c.universe._
-    symbol.annotations.collectFirst {
-      case ann if ann.tree.tpe =:= annType =>
-        ann.tree.children.tail.headOption.map {
-          case Literal(Constant(value: String)) =>
-            // (Legacy) allow stringly-typed annotations if present.
-            Literal(Constant(value))
-          case other =>
-            q"$other.wireValue()"
         }
     }.flatten
   }

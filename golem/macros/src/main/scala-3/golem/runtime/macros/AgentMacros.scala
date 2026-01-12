@@ -2,13 +2,13 @@ package golem.runtime.macros
 
 import golem.data.{ElementSchema, GolemSchema, NamedElementSchema, StructuredSchema}
 import golem.runtime.{AgentMetadata, MethodMetadata}
-import golem.runtime.annotations.{DurabilityMode, description, mode, prompt}
+import golem.runtime.annotations.{DurabilityMode, description, prompt}
 
 import scala.quoted.*
 
 object AgentMacros {
   inline def agentMetadata[T]: AgentMetadata =
-    ${ agentMetadataImpl[T] }
+    AgentDefinitionMacro.generate[T]
 
   private def agentMetadataImpl[T: Type](using Quotes): Expr[AgentMetadata] = {
     import quotes.reflect.*
@@ -20,14 +20,13 @@ object AgentMacros {
     if !typeSymbol.flags.is(Flags.Trait) then report.errorAndAbort(s"@agent target must be a trait, found: $typeName")
 
     val traitDescription = annotationString(typeSymbol, TypeRepr.of[description])
-    val traitMode        = annotationMode(typeSymbol, TypeRepr.of[mode])
+    val traitMode        = None
 
     val methods = typeSymbol.methodMembers.collect {
       case method if method.flags.is(Flags.Deferred) =>
         val methodName = method.name
         val descExpr   = optionalString(annotationString(method, TypeRepr.of[description]))
         val promptExpr = optionalString(annotationString(method, TypeRepr.of[prompt]))
-        val modeExpr   = optionalExprString(annotationMode(method, TypeRepr.of[mode]))
 
         val inputSchemaExpr  = methodInputSchema(method)
         val outputSchemaExpr = methodOutputSchema(method)
@@ -37,7 +36,7 @@ object AgentMacros {
             name = ${ Expr(methodName) },
             description = $descExpr,
             prompt = $promptExpr,
-            mode = $modeExpr,
+            mode = None,
             input = $inputSchemaExpr,
             output = $outputSchemaExpr
           )
@@ -52,7 +51,7 @@ object AgentMacros {
       AgentMetadata(
         name = ${ Expr(typeName) },
         description = ${ optionalString(traitDescription) },
-        mode = ${ optionalExprString(traitMode) },
+        mode = None,
         methods = $methodsExpr,
         constructor = $ctorSchema
       )

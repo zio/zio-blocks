@@ -26,6 +26,55 @@ object AgentClient {
   ): Trait = macro AgentClientBindMacro.bindImpl[Trait]
 
   def plan[Trait]: AgentClientPlan[Trait, _] = macro golem.runtime.macros.AgentClientMacroImpl.planImpl[Trait]
+
+  /**
+   * Typed plan accessor (no user-land casts).
+   *
+   * Validates at compile-time that `Constructor` matches
+   * `type AgentInput = ...` on the agent trait.
+   */
+  def planWithCtor[Trait, Constructor]: AgentClientPlan[Trait, Constructor] =
+    macro AgentClientPlanWithCtorMacro.planWithCtorImpl[Trait, Constructor]
+}
+
+private[rpc] object AgentClientPlanWithCtorMacro {
+  def planWithCtorImpl[Trait: c.WeakTypeTag, Constructor: c.WeakTypeTag](
+    c: scala.reflect.macros.blackbox.Context
+  ): c.Expr[AgentClientPlan[Trait, Constructor]] = {
+    import c.universe._
+
+    val traitType   = weakTypeOf[Trait].dealias
+    val traitSymbol = traitType.typeSymbol
+
+    if (!traitSymbol.isClass || !traitSymbol.asClass.isTrait) {
+      c.abort(c.enclosingPosition, s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
+    }
+
+    val expectedCtor: Type = {
+      val member = traitType.member(TypeName("AgentInput"))
+      if (member == NoSymbol) typeOf[Unit]
+      else {
+        val sig = member.typeSignatureIn(traitType)
+        sig match {
+          case TypeBounds(_, hi) => hi.dealias
+          case other             => other.dealias
+        }
+      }
+    }
+
+    val gotCtor = weakTypeOf[Constructor].dealias
+
+    if (!(gotCtor =:= expectedCtor)) {
+      c.abort(
+        c.enclosingPosition,
+        s"AgentClient.planWithCtor requires: type AgentInput = $expectedCtor (found: $gotCtor)"
+      )
+    }
+
+    c.Expr[AgentClientPlan[Trait, Constructor]](
+      q"_root_.golem.runtime.rpc.AgentClient.plan[$traitType].asInstanceOf[_root_.golem.runtime.plan.AgentClientPlan[$traitType, $gotCtor]]"
+    )
+  }
 }
 
 private[rpc] object AgentClientBindMacro {

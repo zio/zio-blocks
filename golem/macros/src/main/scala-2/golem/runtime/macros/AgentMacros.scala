@@ -8,7 +8,7 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object AgentMacros {
-  def agentMetadata[T]: AgentMetadata = macro AgentMacrosImpl.agentMetadataImpl[T]
+  def agentMetadata[T]: AgentMetadata = macro golem.runtime.macros.AgentDefinitionMacroImpl.impl[T]
 }
 
 object AgentMacrosImpl {
@@ -23,18 +23,16 @@ object AgentMacrosImpl {
     }
 
     val descriptionType = typeOf[golem.runtime.annotations.description]
-    val modeType        = typeOf[golem.runtime.annotations.mode]
     val promptType      = typeOf[golem.runtime.annotations.prompt]
 
     val traitDescription = annotationString(c)(typeSymbol, descriptionType)
-    val traitMode        = annotationModeWireValueExpr(c)(typeSymbol, modeType)
+    val traitMode        = None
 
     val methods = tpe.decls.collect {
       case method: MethodSymbol if method.isAbstract && method.isMethod =>
         val methodName       = method.name.toString
         val descExpr         = optionalStringExpr(c)(annotationString(c)(method, descriptionType))
         val promptExpr       = optionalStringExpr(c)(annotationString(c)(method, promptType))
-        val modeExpr         = optionalTreeExpr(c)(annotationModeWireValueExpr(c)(method, modeType))
         val inputSchemaExpr  = methodInputSchema(c)(method)
         val outputSchemaExpr = methodOutputSchema(c)(method)
 
@@ -43,7 +41,7 @@ object AgentMacrosImpl {
             name = $methodName,
             description = $descExpr,
             prompt = $promptExpr,
-            mode = $modeExpr,
+            mode = _root_.scala.None,
             input = $inputSchemaExpr,
             output = $outputSchemaExpr
           )
@@ -155,21 +153,7 @@ object AgentMacrosImpl {
     }.flatten
   }
 
-  private def annotationModeWireValueExpr(
-    c: blackbox.Context
-  )(symbol: c.universe.Symbol, annType: c.universe.Type): Option[c.Tree] = {
-    import c.universe._
-    symbol.annotations.collectFirst {
-      case ann if ann.tree.tpe =:= annType =>
-        ann.tree.children.tail.headOption.map {
-          case Literal(Constant(value: String)) =>
-            // (Legacy) allow stringly-typed annotations if present.
-            Literal(Constant(value))
-          case other =>
-            q"$other.wireValue()"
-        }
-    }.flatten
-  }
+  // Note: @mode was removed; trait/method mode are sourced from @agentDefinition(mode=...) only.
 
   private def optionalStringExpr(c: blackbox.Context)(value: Option[String]): c.Tree = {
     import c.universe._

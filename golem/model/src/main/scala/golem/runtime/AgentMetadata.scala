@@ -44,7 +44,7 @@ final case class MethodMetadata(
  * @param description
  *   Human-readable description (from `@description` annotation)
  * @param mode
- *   The agent's persistence mode (from `@mode` annotation)
+ *   The agent's persistence mode (from `@agentDefinition(mode = ...)`)
  * @param methods
  *   Metadata for each method in the agent trait
  * @param constructor

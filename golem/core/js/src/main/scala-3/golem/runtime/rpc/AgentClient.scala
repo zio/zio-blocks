@@ -12,6 +12,17 @@ object AgentClient {
   transparent inline def plan[Trait]: AgentClientPlan[Trait, ?] =
     AgentClientMacro.plan[Trait]
 
+  /**
+   * Typed plan accessor (no user-land casts).
+   *
+   * This exists because Scala.js cannot safely cast a plain JS object to a
+   * Scala trait at runtime. When you need to operate at the "plan + resolved
+   * client" level (e.g. in internal wiring), use this API to keep examples
+   * cast-free.
+   */
+  transparent inline def planWithCtor[Trait, Constructor]: AgentClientPlan[Trait, Constructor] =
+    ${ AgentClientPlanMacro.planWithCtorImpl[Trait, Constructor] }
+
   transparent inline def connect[Trait, Constructor](
     plan: AgentClientPlan[Trait, Constructor],
     constructorArgs: Constructor
@@ -31,6 +42,41 @@ object AgentClient {
     AgentClientRuntime.TestHooks.bindOverride(resolved).getOrElse {
       AgentClientInlineMacros.bind[Trait](resolved)
     }
+}
+
+private object AgentClientPlanMacro {
+  import scala.quoted.*
+
+  def planWithCtorImpl[Trait: Type, Constructor: Type](using Quotes): Expr[AgentClientPlan[Trait, Constructor]] = {
+    import quotes.reflect.*
+
+    val traitRepr   = TypeRepr.of[Trait]
+    val traitSymbol = traitRepr.typeSymbol
+
+    if !traitSymbol.flags.is(Flags.Trait) then
+      report.errorAndAbort(s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
+
+    val expectedCtor: TypeRepr = {
+      traitSymbol.typeMembers.find(_.name == "AgentInput") match {
+        case None =>
+          TypeRepr.of[Unit]
+        case Some(tSym) =>
+          traitRepr.memberType(tSym) match {
+            case TypeBounds(_, hi) => hi
+            case other             => other
+          }
+      }
+    }.dealias.widen
+
+    val gotCtor = TypeRepr.of[Constructor].dealias.widen
+
+    if !(gotCtor =:= expectedCtor) then
+      report.errorAndAbort(
+        s"AgentClient.planWithCtor requires: type AgentInput = ${expectedCtor.show} (found: ${gotCtor.show})"
+      )
+
+    '{ AgentClientMacro.plan[Trait].asInstanceOf[AgentClientPlan[Trait, Constructor]] }
+  }
 }
 
 private object AgentClientInlineMacros {

@@ -2,30 +2,7 @@ package golem.runtime.autowire
 
 import scala.collection.mutable
 
-/**
- * Global registry of agent definitions available in this component.
- *
- * When you register an agent via [[AgentImplementation.register]], the
- * resulting [[AgentDefinition]] is stored here. The Golem runtime queries this
- * registry to discover available agent types and route incoming RPC calls.
- *
- * ==Thread Safety==
- * All operations are synchronized for safe concurrent access.
- *
- * ==Usage==
- * You typically don't interact with this directly. Agent definitions are
- * registered automatically by the autowiring macros.
- *
- * {{{
- * // Registered by macro
- * AgentImplementation.register[MyAgent]("my-agent")(new MyAgentImpl)
- *
- * // Query programmatically
- * val definition = AgentRegistry.get("my-agent")
- * val allAgents = AgentRegistry.all
- * }}}
- */
-object AgentRegistry {
+private[golem] object AgentRegistry {
   private val definitions: mutable.LinkedHashMap[String, AgentDefinition[Any]] =
     mutable.LinkedHashMap.empty
 

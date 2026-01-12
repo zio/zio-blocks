@@ -8,7 +8,6 @@ private[golem] trait GolemPackageBase {
   type agentImplementation = runtime.annotations.agentImplementation
   type description         = runtime.annotations.description
   type prompt              = runtime.annotations.prompt
-  type mode                = runtime.annotations.mode
 
   type DurabilityMode = runtime.annotations.DurabilityMode
   val DurabilityMode: runtime.annotations.DurabilityMode.type = runtime.annotations.DurabilityMode

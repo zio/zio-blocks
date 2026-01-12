@@ -13,11 +13,6 @@ final class description(val value: String) extends StaticAnnotation
 @Target(Array(ElementType.METHOD))
 final class prompt(val value: String) extends StaticAnnotation
 
-/** Agent/method mode hint. */
-@Retention(RetentionPolicy.RUNTIME)
-@Target(Array(ElementType.TYPE, ElementType.METHOD))
-final class mode(val value: DurabilityMode) extends StaticAnnotation
-
 /** Marks a class/object as an agent implementation. */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(Array(ElementType.TYPE))

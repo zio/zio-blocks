@@ -347,8 +347,9 @@ lazy val zioGolemExamples = crossProject(JSPlatform, JVMPlatform)
 
 lazy val zioGolemExamplesJS = zioGolemExamples.js
   .settings(
-    name                            := "zio-golem-examples-js",
-    scalaJSUseMainModuleInitializer := false,
+    name                               := "zio-golem-examples-js",
+    scalaJSUseMainModuleInitializer    := false,
+    golemAutoRegisterAgentsBasePackage := Some("golem.examples"),
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
     Test / test := {
@@ -360,6 +361,7 @@ lazy val zioGolemExamplesJS = zioGolemExamples.js
     Test / testQuick      := (Test / test).value,
     Test / testFrameworks := Nil
   )
+  .enablePlugins(GolemPlugin)
 
 lazy val zioGolemExamplesJVM = zioGolemExamples.jvm
   .settings(
@@ -383,14 +385,16 @@ lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(
     // For golem-cli wrapper generation, ensure agent registration runs when the JS module is loaded.
     // We do this via a tiny Scala.js `main` (see `golem/quickstart/js/.../Boot.scala`).
-    scalaJSUseMainModuleInitializer := true,
-    Compile / mainClass             := Some("golem.quickstart.Boot"),
+    scalaJSUseMainModuleInitializer    := true,
+    golemAutoRegisterAgentsBasePackage := Some("golem.quickstart"),
+    Compile / mainClass                := Some("golem.quickstart.Boot"),
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / test           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
     Test / testOnly       := (Test / test).value,
     Test / testQuick      := (Test / test).value,
     Test / testFrameworks := Nil
   )
+  .jsEnablePlugins(GolemPlugin)
   .jsConfigure(_.dependsOn(zioGolemCoreJS, zioGolemMacros))
   .jvmConfigure(_.dependsOn(zioGolemCoreJVM, zioGolemMacros))
 
@@ -414,5 +418,12 @@ lazy val docs = project
     Test / skip    := true,
     publish / skip := true
   )
-  .dependsOn(schema.jvm)
   .enablePlugins(WebsitePlugin)
+  .settings(
+    // The zio-sbt-website plugin adds a dependency on `dev.zio:zio-blocks-schema` using this
+    // project's Scala version (often sbt's Scala 2.12). That artifact is not published for 2.12,
+    // and in a multi-project checkout we don't want to resolve our own modules from Maven Central.
+    //
+    // Keeping docs resolvable avoids Metals/sbt-structure failures during import.
+    libraryDependencies ~= (_.filterNot(m => m.organization == "dev.zio" && m.name.startsWith("zio-blocks-schema")))
+  )
