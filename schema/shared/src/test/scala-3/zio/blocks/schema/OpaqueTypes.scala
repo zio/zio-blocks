@@ -8,4 +8,6 @@ object Variant {
 
 opaque type StructureId <: String = String
 
-given Schema[StructureId] = Schema.string
+object StructureId {
+  given Schema[StructureId] = Schema.string
+}
