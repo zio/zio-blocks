@@ -43,24 +43,44 @@ object ToonFormat
               case _: PrimitiveType.BigInt     => ToonBinaryCodec.bigIntCodec.asInstanceOf[TC[A]]
               case _: PrimitiveType.BigDecimal => ToonBinaryCodec.bigDecimalCodec.asInstanceOf[TC[A]]
               // java.time types - encode as strings for MVP
-              case _: PrimitiveType.Instant        => stringWrapper[java.time.Instant](_.toString, java.time.Instant.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.LocalDate      => stringWrapper[java.time.LocalDate](_.toString, java.time.LocalDate.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.LocalTime      => stringWrapper[java.time.LocalTime](_.toString, java.time.LocalTime.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.LocalDateTime  => stringWrapper[java.time.LocalDateTime](_.toString, java.time.LocalDateTime.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.OffsetDateTime => stringWrapper[java.time.OffsetDateTime](_.toString, java.time.OffsetDateTime.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.ZonedDateTime  => stringWrapper[java.time.ZonedDateTime](_.toString, java.time.ZonedDateTime.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.Duration       => stringWrapper[java.time.Duration](_.toString, java.time.Duration.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.Period         => stringWrapper[java.time.Period](_.toString, java.time.Period.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.Year           => intWrapper[java.time.Year](_.getValue, java.time.Year.of(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.YearMonth      => stringWrapper[java.time.YearMonth](_.toString, java.time.YearMonth.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.MonthDay       => stringWrapper[java.time.MonthDay](_.toString, java.time.MonthDay.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.Month          => stringWrapper[java.time.Month](_.toString, java.time.Month.valueOf(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.DayOfWeek      => stringWrapper[java.time.DayOfWeek](_.toString, java.time.DayOfWeek.valueOf(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.ZoneId         => stringWrapper[java.time.ZoneId](_.toString, java.time.ZoneId.of(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.ZoneOffset     => stringWrapper[java.time.ZoneOffset](_.toString, java.time.ZoneOffset.of(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.OffsetTime     => stringWrapper[java.time.OffsetTime](_.toString, java.time.OffsetTime.parse(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.UUID           => stringWrapper[java.util.UUID](_.toString, java.util.UUID.fromString(_)).asInstanceOf[TC[A]]
-              case _: PrimitiveType.Currency       => stringWrapper[java.util.Currency](_.getCurrencyCode, java.util.Currency.getInstance(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.Instant =>
+                stringWrapper[java.time.Instant](_.toString, java.time.Instant.parse(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.LocalDate =>
+                stringWrapper[java.time.LocalDate](_.toString, java.time.LocalDate.parse(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.LocalTime =>
+                stringWrapper[java.time.LocalTime](_.toString, java.time.LocalTime.parse(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.LocalDateTime =>
+                stringWrapper[java.time.LocalDateTime](_.toString, java.time.LocalDateTime.parse(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.OffsetDateTime =>
+                stringWrapper[java.time.OffsetDateTime](_.toString, java.time.OffsetDateTime.parse(_))
+                  .asInstanceOf[TC[A]]
+              case _: PrimitiveType.ZonedDateTime =>
+                stringWrapper[java.time.ZonedDateTime](_.toString, java.time.ZonedDateTime.parse(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.Duration =>
+                stringWrapper[java.time.Duration](_.toString, java.time.Duration.parse(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.Period =>
+                stringWrapper[java.time.Period](_.toString, java.time.Period.parse(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.Year =>
+                intWrapper[java.time.Year](_.getValue, java.time.Year.of(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.YearMonth =>
+                stringWrapper[java.time.YearMonth](_.toString, java.time.YearMonth.parse(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.MonthDay =>
+                stringWrapper[java.time.MonthDay](_.toString, java.time.MonthDay.parse(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.Month =>
+                stringWrapper[java.time.Month](_.toString, java.time.Month.valueOf(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.DayOfWeek =>
+                stringWrapper[java.time.DayOfWeek](_.toString, java.time.DayOfWeek.valueOf(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.ZoneId =>
+                stringWrapper[java.time.ZoneId](_.toString, java.time.ZoneId.of(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.ZoneOffset =>
+                stringWrapper[java.time.ZoneOffset](_.toString, java.time.ZoneOffset.of(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.OffsetTime =>
+                stringWrapper[java.time.OffsetTime](_.toString, java.time.OffsetTime.parse(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.UUID =>
+                stringWrapper[java.util.UUID](_.toString, java.util.UUID.fromString(_)).asInstanceOf[TC[A]]
+              case _: PrimitiveType.Currency =>
+                stringWrapper[java.util.Currency](_.getCurrencyCode, java.util.Currency.getInstance(_))
+                  .asInstanceOf[TC[A]]
             }
           } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
         }
@@ -73,12 +93,12 @@ object ToonFormat
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[A]] = Lazy {
           if (binding.isInstanceOf[Binding[?, ?]]) {
-            val b       = binding.asInstanceOf[Binding.Record[A]]
-            val len     = fields.length
-            val codecs  = new Array[ToonBinaryCodec[?]](len)
-            val names   = new Array[String](len)
-            var offset  = 0L
-            var idx     = 0
+            val b      = binding.asInstanceOf[Binding.Record[A]]
+            val len    = fields.length
+            val codecs = new Array[ToonBinaryCodec[?]](len)
+            val names  = new Array[String](len)
+            var offset = 0L
+            var idx    = 0
             while (idx < len) {
               val field = fields(idx)
               val codec = deriveCodec(field.value)
@@ -153,11 +173,11 @@ object ToonFormat
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[A]] = Lazy {
           if (binding.isInstanceOf[Binding[?, ?]]) {
-            val b       = binding.asInstanceOf[Binding.Variant[A]]
-            val len     = cases.length
-            val codecs  = new Array[ToonBinaryCodec[?]](len)
-            val names   = new Array[String](len)
-            var idx     = 0
+            val b      = binding.asInstanceOf[Binding.Variant[A]]
+            val len    = cases.length
+            val codecs = new Array[ToonBinaryCodec[?]](len)
+            val names  = new Array[String](len)
+            var idx    = 0
             while (idx < len) {
               val c = cases(idx)
               codecs(idx) = deriveCodec(c.value)
@@ -181,7 +201,7 @@ object ToonFormat
               }
 
               override def decodeBytes(bytes: Array[Byte], offset: Int, length: Int): Either[SchemaError, A] =
-                Left(SchemaError.expectationMismatch(Nil,"TOON variant decoding not yet implemented"))
+                Left(SchemaError.expectationMismatch(Nil, "TOON variant decoding not yet implemented"))
             }
           } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
         }
@@ -194,7 +214,7 @@ object ToonFormat
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[C[A]]] = Lazy {
           if (binding.isInstanceOf[Binding[?, ?]]) {
-            val b           = binding.asInstanceOf[Binding.Seq[C, A]]
+            val b            = binding.asInstanceOf[Binding.Seq[C, A]]
             val elementCodec = deriveCodec(element)
 
             new ToonBinaryCodec[C[A]] {
@@ -214,7 +234,7 @@ object ToonFormat
               }
 
               override def decodeBytes(bytes: Array[Byte], offset: Int, length: Int): Either[SchemaError, C[A]] =
-                Left(SchemaError.expectationMismatch(Nil,"TOON sequence decoding not yet implemented"))
+                Left(SchemaError.expectationMismatch(Nil, "TOON sequence decoding not yet implemented"))
             }
           } else binding.asInstanceOf[BindingInstance[TC, ?, C[A]]].instance.force
         }
@@ -228,9 +248,9 @@ object ToonFormat
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[M[K, V]]] = Lazy {
           if (binding.isInstanceOf[Binding[?, ?]]) {
-            val b         = binding.asInstanceOf[Binding.Map[M, K, V]]
-            val keyCodec  = deriveCodec(key)
-            val valCodec  = deriveCodec(value)
+            val b        = binding.asInstanceOf[Binding.Map[M, K, V]]
+            val keyCodec = deriveCodec(key)
+            val valCodec = deriveCodec(value)
 
             new ToonBinaryCodec[M[K, V]] {
               private[this] val deconstructor = b.deconstructor
@@ -249,7 +269,7 @@ object ToonFormat
               }
 
               override def decodeBytes(bytes: Array[Byte], offset: Int, length: Int): Either[SchemaError, M[K, V]] =
-                Left(SchemaError.expectationMismatch(Nil,"TOON map decoding not yet implemented"))
+                Left(SchemaError.expectationMismatch(Nil, "TOON map decoding not yet implemented"))
             }
           } else binding.asInstanceOf[BindingInstance[TC, ?, M[K, V]]].instance.force
         }
@@ -264,7 +284,7 @@ object ToonFormat
               out.writeString(x.toString) // Fallback for MVP
 
             override def decodeBytes(bytes: Array[Byte], offset: Int, length: Int): Either[SchemaError, DynamicValue] =
-              Left(SchemaError.expectationMismatch(Nil,"TOON dynamic decoding not yet implemented"))
+              Left(SchemaError.expectationMismatch(Nil, "TOON dynamic decoding not yet implemented"))
           }
         }
 
@@ -277,7 +297,7 @@ object ToonFormat
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[A]] = Lazy {
           if (binding.isInstanceOf[Binding[?, ?]]) {
-            val b           = binding.asInstanceOf[Binding.Wrapper[A, B]]
+            val b            = binding.asInstanceOf[Binding.Wrapper[A, B]]
             val wrappedCodec = deriveCodec(wrapped)
 
             new ToonBinaryCodec[A] {
@@ -287,7 +307,7 @@ object ToonFormat
                 wrappedCodec.encodeValue(unwrap(x), out)
 
               override def decodeBytes(bytes: Array[Byte], offset: Int, length: Int): Either[SchemaError, A] =
-                Left(SchemaError.expectationMismatch(Nil,"TOON wrapper decoding not yet implemented"))
+                Left(SchemaError.expectationMismatch(Nil, "TOON wrapper decoding not yet implemented"))
             }
           } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
         }
@@ -319,24 +339,37 @@ object ToonFormat
                 case _: PrimitiveType.BigInt     => ToonBinaryCodec.bigIntCodec
                 case _: PrimitiveType.BigDecimal => ToonBinaryCodec.bigDecimalCodec
                 // java.time types - encode as strings for MVP
-                case _: PrimitiveType.Instant        => stringWrapper[java.time.Instant](_.toString, java.time.Instant.parse(_))
-                case _: PrimitiveType.LocalDate      => stringWrapper[java.time.LocalDate](_.toString, java.time.LocalDate.parse(_))
-                case _: PrimitiveType.LocalTime      => stringWrapper[java.time.LocalTime](_.toString, java.time.LocalTime.parse(_))
-                case _: PrimitiveType.LocalDateTime  => stringWrapper[java.time.LocalDateTime](_.toString, java.time.LocalDateTime.parse(_))
-                case _: PrimitiveType.OffsetDateTime => stringWrapper[java.time.OffsetDateTime](_.toString, java.time.OffsetDateTime.parse(_))
-                case _: PrimitiveType.ZonedDateTime  => stringWrapper[java.time.ZonedDateTime](_.toString, java.time.ZonedDateTime.parse(_))
-                case _: PrimitiveType.Duration       => stringWrapper[java.time.Duration](_.toString, java.time.Duration.parse(_))
-                case _: PrimitiveType.Period         => stringWrapper[java.time.Period](_.toString, java.time.Period.parse(_))
-                case _: PrimitiveType.Year           => intWrapper[java.time.Year](_.getValue, java.time.Year.of(_))
-                case _: PrimitiveType.YearMonth      => stringWrapper[java.time.YearMonth](_.toString, java.time.YearMonth.parse(_))
-                case _: PrimitiveType.MonthDay       => stringWrapper[java.time.MonthDay](_.toString, java.time.MonthDay.parse(_))
-                case _: PrimitiveType.Month          => stringWrapper[java.time.Month](_.toString, java.time.Month.valueOf(_))
-                case _: PrimitiveType.DayOfWeek      => stringWrapper[java.time.DayOfWeek](_.toString, java.time.DayOfWeek.valueOf(_))
-                case _: PrimitiveType.ZoneId         => stringWrapper[java.time.ZoneId](_.toString, java.time.ZoneId.of(_))
-                case _: PrimitiveType.ZoneOffset     => stringWrapper[java.time.ZoneOffset](_.toString, java.time.ZoneOffset.of(_))
-                case _: PrimitiveType.OffsetTime     => stringWrapper[java.time.OffsetTime](_.toString, java.time.OffsetTime.parse(_))
-                case _: PrimitiveType.UUID           => stringWrapper[java.util.UUID](_.toString, java.util.UUID.fromString(_))
-                case _: PrimitiveType.Currency       => stringWrapper[java.util.Currency](_.getCurrencyCode, java.util.Currency.getInstance(_))
+                case _: PrimitiveType.Instant =>
+                  stringWrapper[java.time.Instant](_.toString, java.time.Instant.parse(_))
+                case _: PrimitiveType.LocalDate =>
+                  stringWrapper[java.time.LocalDate](_.toString, java.time.LocalDate.parse(_))
+                case _: PrimitiveType.LocalTime =>
+                  stringWrapper[java.time.LocalTime](_.toString, java.time.LocalTime.parse(_))
+                case _: PrimitiveType.LocalDateTime =>
+                  stringWrapper[java.time.LocalDateTime](_.toString, java.time.LocalDateTime.parse(_))
+                case _: PrimitiveType.OffsetDateTime =>
+                  stringWrapper[java.time.OffsetDateTime](_.toString, java.time.OffsetDateTime.parse(_))
+                case _: PrimitiveType.ZonedDateTime =>
+                  stringWrapper[java.time.ZonedDateTime](_.toString, java.time.ZonedDateTime.parse(_))
+                case _: PrimitiveType.Duration =>
+                  stringWrapper[java.time.Duration](_.toString, java.time.Duration.parse(_))
+                case _: PrimitiveType.Period    => stringWrapper[java.time.Period](_.toString, java.time.Period.parse(_))
+                case _: PrimitiveType.Year      => intWrapper[java.time.Year](_.getValue, java.time.Year.of(_))
+                case _: PrimitiveType.YearMonth =>
+                  stringWrapper[java.time.YearMonth](_.toString, java.time.YearMonth.parse(_))
+                case _: PrimitiveType.MonthDay =>
+                  stringWrapper[java.time.MonthDay](_.toString, java.time.MonthDay.parse(_))
+                case _: PrimitiveType.Month     => stringWrapper[java.time.Month](_.toString, java.time.Month.valueOf(_))
+                case _: PrimitiveType.DayOfWeek =>
+                  stringWrapper[java.time.DayOfWeek](_.toString, java.time.DayOfWeek.valueOf(_))
+                case _: PrimitiveType.ZoneId     => stringWrapper[java.time.ZoneId](_.toString, java.time.ZoneId.of(_))
+                case _: PrimitiveType.ZoneOffset =>
+                  stringWrapper[java.time.ZoneOffset](_.toString, java.time.ZoneOffset.of(_))
+                case _: PrimitiveType.OffsetTime =>
+                  stringWrapper[java.time.OffsetTime](_.toString, java.time.OffsetTime.parse(_))
+                case _: PrimitiveType.UUID     => stringWrapper[java.util.UUID](_.toString, java.util.UUID.fromString(_))
+                case _: PrimitiveType.Currency =>
+                  stringWrapper[java.util.Currency](_.getCurrencyCode, java.util.Currency.getInstance(_))
               }
             } else primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else if (reflect.isRecord) {
@@ -492,7 +525,11 @@ object ToonFormat
                   }
                 }
 
-                override def decodeBytes(bytes: Array[Byte], offset: Int, length: Int): Either[SchemaError, MapType[Key, Value]] =
+                override def decodeBytes(
+                  bytes: Array[Byte],
+                  offset: Int,
+                  length: Int
+                ): Either[SchemaError, MapType[Key, Value]] =
                   Left(SchemaError.expectationMismatch(Nil, "TOON map decoding not yet implemented"))
               }
             } else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -503,7 +540,11 @@ object ToonFormat
                 override def encodeValue(x: DynamicValue, out: ToonWriter): Unit =
                   out.writeString(x.toString) // Fallback for MVP
 
-                override def decodeBytes(bytes: Array[Byte], offset: Int, length: Int): Either[SchemaError, DynamicValue] =
+                override def decodeBytes(
+                  bytes: Array[Byte],
+                  offset: Int,
+                  length: Int
+                ): Either[SchemaError, DynamicValue] =
                   Left(SchemaError.expectationMismatch(Nil, "TOON dynamic decoding not yet implemented"))
               }
             } else dynamic.dynamicBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -532,7 +573,7 @@ object ToonFormat
         // Helper for string-based types
         private def stringWrapper[A](enc: A => String, dec: String => A): ToonBinaryCodec[A] =
           new ToonBinaryCodec[A] {
-            override def encodeValue(x: A, out: ToonWriter): Unit = out.writeString(enc(x))
+            override def encodeValue(x: A, out: ToonWriter): Unit                                          = out.writeString(enc(x))
             override def decodeBytes(bytes: Array[Byte], offset: Int, length: Int): Either[SchemaError, A] =
               try Right(dec(new String(bytes, offset, length, UTF_8).trim))
               catch { case e: Exception => Left(SchemaError.expectationMismatch(Nil, e.getMessage)) }
@@ -541,7 +582,7 @@ object ToonFormat
         // Helper for int-based types
         private def intWrapper[A](enc: A => Int, dec: Int => A): ToonBinaryCodec[A] =
           new ToonBinaryCodec[A](ToonBinaryCodec.intType) {
-            override def encodeValue(x: A, out: ToonWriter): Unit = out.writeInt(enc(x))
+            override def encodeValue(x: A, out: ToonWriter): Unit                                          = out.writeInt(enc(x))
             override def decodeBytes(bytes: Array[Byte], offset: Int, length: Int): Either[SchemaError, A] =
               try Right(dec(new String(bytes, offset, length, UTF_8).trim.toInt))
               catch { case e: Exception => Left(SchemaError.expectationMismatch(Nil, e.getMessage)) }

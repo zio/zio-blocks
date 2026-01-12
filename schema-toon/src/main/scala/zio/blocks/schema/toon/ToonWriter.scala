@@ -3,20 +3,22 @@ package zio.blocks.schema.toon
 import java.nio.charset.StandardCharsets.UTF_8
 
 /**
- * A writer for serializing values to TOON (Token-Oriented Object Notation) format.
+ * A writer for serializing values to TOON (Token-Oriented Object Notation)
+ * format.
  *
- * TOON is an indentation-based format optimized for LLM token efficiency.
- * This writer handles:
- * - Primitives (strings, numbers, booleans, null)
- * - Records with indented key-value pairs
- * - Arrays in inline format: `[N]: a,b,c`
- * - ADTs with Key discriminator: `TypeName:` followed by indented content
+ * TOON is an indentation-based format optimized for LLM token efficiency. This
+ * writer handles:
+ *   - Primitives (strings, numbers, booleans, null)
+ *   - Records with indented key-value pairs
+ *   - Arrays in inline format: `[N]: a,b,c`
+ *   - ADTs with Key discriminator: `TypeName:` followed by indented content
  *
- * @param indentSize Number of spaces per indentation level (default: 2)
+ * @param indentSize
+ *   Number of spaces per indentation level (default: 2)
  */
 final class ToonWriter(indentSize: Int = 2) {
-  private[this] val buf       = new java.lang.StringBuilder(256)
-  private[this] var indent    = 0
+  private[this] val buf         = new java.lang.StringBuilder(256)
+  private[this] var indent      = 0
   private[this] var atLineStart = true
 
   /** Returns the current TOON output as a string. */
@@ -54,7 +56,7 @@ final class ToonWriter(indentSize: Int = 2) {
         case '\n' => buf.append("\\n")
         case '\r' => buf.append("\\r")
         case '\t' => buf.append("\\t")
-        case _ =>
+        case _    =>
           if (c < 32) buf.append(f"\\u${c.toInt}%04x")
           else buf.append(c)
       }
@@ -119,7 +121,7 @@ final class ToonWriter(indentSize: Int = 2) {
   /** Write indentation if at start of line. */
   def writeIndentIfNeeded(): Unit =
     if (atLineStart) {
-      var i = 0
+      var i      = 0
       val spaces = indent * indentSize
       while (i < spaces) {
         buf.append(' ')
@@ -131,8 +133,8 @@ final class ToonWriter(indentSize: Int = 2) {
   // === Records ===
 
   /**
-   * Start a nested object. Writes `:` and newline, increases indent.
-   * Called after writeKey for nested records.
+   * Start a nested object. Writes `:` and newline, increases indent. Called
+   * after writeKey for nested records.
    */
   def startNestedObject(): Unit = {
     // Remove the `: ` that writeKey added, replace with just `:`
@@ -149,8 +151,8 @@ final class ToonWriter(indentSize: Int = 2) {
   // === Arrays (Inline format only for MVP) ===
 
   /**
-   * Write an inline array header: `[N]: ` where N is the element count.
-   * Caller should then write comma-separated values.
+   * Write an inline array header: `[N]: ` where N is the element count. Caller
+   * should then write comma-separated values.
    */
   def writeArrayHeader(size: Int): Unit = {
     writeIndentIfNeeded()
@@ -178,8 +180,8 @@ final class ToonWriter(indentSize: Int = 2) {
   // === ADTs with Key discriminator ===
 
   /**
-   * Write ADT discriminator in Key style: `TypeName:`
-   * followed by newline and increased indent.
+   * Write ADT discriminator in Key style: `TypeName:` followed by newline and
+   * increased indent.
    */
   def writeDiscriminator(typeName: String): Unit = {
     writeIndentIfNeeded()
@@ -212,6 +214,7 @@ final class ToonWriter(indentSize: Int = 2) {
 }
 
 object ToonWriter {
+
   /** Create a new ToonWriter with default settings. */
   def apply(): ToonWriter = new ToonWriter()
 

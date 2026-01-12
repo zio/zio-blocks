@@ -6,10 +6,10 @@ import java.nio.charset.StandardCharsets.UTF_8
  * A reader for deserializing TOON (Token-Oriented Object Notation) format.
  *
  * Handles:
- * - Primitives (strings, numbers, booleans, null)
- * - Records with indented key-value pairs
- * - Arrays in inline format: `[N]: a,b,c`
- * - ADTs with Key discriminator: `TypeName:` followed by indented content
+ *   - Primitives (strings, numbers, booleans, null)
+ *   - Records with indented key-value pairs
+ *   - Arrays in inline format: `[N]: a,b,c`
+ *   - ADTs with Key discriminator: `TypeName:` followed by indented content
  */
 final class ToonReader private (input: String) {
   private[this] var pos   = 0
@@ -173,16 +173,18 @@ final class ToonReader private (input: String) {
   def parseFloat(): Float = {
     val s = readStringValue()
     if (s == "null") Float.NaN
-    else try s.toFloat
-    catch { case _: NumberFormatException => throw new ToonReaderError(s"Expected float at position $pos") }
+    else
+      try s.toFloat
+      catch { case _: NumberFormatException => throw new ToonReaderError(s"Expected float at position $pos") }
   }
 
   /** Parse double value. */
   def parseDouble(): Double = {
     val s = readStringValue()
     if (s == "null") Double.NaN
-    else try s.toDouble
-    catch { case _: NumberFormatException => throw new ToonReaderError(s"Expected double at position $pos") }
+    else
+      try s.toDouble
+      catch { case _: NumberFormatException => throw new ToonReaderError(s"Expected double at position $pos") }
   }
 
   /** Unquote a string if it's quoted. */
@@ -193,6 +195,7 @@ final class ToonReader private (input: String) {
 }
 
 object ToonReader {
+
   /** Create a new ToonReader from string. */
   def apply(input: String): ToonReader = new ToonReader(input)
 
