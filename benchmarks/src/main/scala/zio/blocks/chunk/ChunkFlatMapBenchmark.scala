@@ -14,21 +14,14 @@
  * limitations under the License.
  */
 
-package zio.blocks.chunk.benchmarks
+package zio.blocks.chunk
 
-import org.openjdk.jmh.annotations.{Scope => JScope, _}
+import org.openjdk.jmh.annotations._
+import zio.blocks.BaseBenchmark
 import zio.blocks.chunk.Chunk
 
-import java.util.concurrent.TimeUnit
-
-@State(JScope.Thread)
-@BenchmarkMode(Array(Mode.AverageTime))
-@OutputTimeUnit(TimeUnit.NANOSECONDS)
-@Warmup(iterations = 3, time = 1)
-@Measurement(iterations = 3, time = 1)
-@Fork(1)
-class ChunkUpdateBenchmarks {
-  @Param(Array("1000"))
+class ChunkFlatMapBenchmark extends BaseBenchmark {
+  @Param(Array("100"))
   var size: Int = _
 
   var chunk: Chunk[Int]   = _
@@ -42,8 +35,8 @@ class ChunkUpdateBenchmarks {
   }
 
   @Benchmark
-  def updatedChunk(): Chunk[Int] = chunk.updated(size / 2, 0)
+  def flatMapChunk(): Chunk[Int] = chunk.flatMap(i => Chunk(i, i + 1))
 
   @Benchmark
-  def updatedVector(): Vector[Int] = vector.updated(size / 2, 0)
+  def flatMapVector(): Vector[Int] = vector.flatMap(i => Vector(i, i + 1))
 }

@@ -36,7 +36,7 @@ jobs:
       - name: Lint code
         run: sbt "++2.13; check; ++3.3; check; ++3.7; check"
 
-  test:
+  testJVM:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -44,6 +44,7 @@ jobs:
       matrix:
         java: [11, 25]
         os: ['ubuntu-22.04']
+        platform: ['JVM']
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.1
@@ -62,13 +63,67 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
       - name: Run Scala Next tests for macros
-        run: sbt ++3.7.4! scalaNextTestsJVM/test scalaNextTestsJS/test scalaNextTestsNative/test benchmarks/test
+        run: sbt ++3.7.4! scalaNextTests${{ matrix.platform }}/test
       - name: Run tests
-        run: sbt +test
+        run: sbt test${{ matrix.platform }}
+
+  testJS:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [11]
+        os: ['ubuntu-22.04']
+        platform: ['JS']
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
+      - name: Setup Action
+        uses: coursier/setup-action@v2
+        with:
+          jvm: temurin:${{ matrix.java }}
+          jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
+          apps: sbt
+      - name: Cache scala dependencies
+        uses: coursier/cache-action@v7
+      - name: Run Scala Next tests for macros
+        run: sbt ++3.7.4! scalaNextTests${{ matrix.platform }}/test
+      - name: Run tests
+        run: sbt test${{ matrix.platform }}
+
+  testNative:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [11]
+        os: ['ubuntu-22.04']
+        platform: ['Native']
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
+      - name: Setup Action
+        uses: coursier/setup-action@v2
+        with:
+          jvm: temurin:${{ matrix.java }}
+          jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
+          apps: sbt
+      - name: Cache scala dependencies
+        uses: coursier/cache-action@v7
+      - name: Run Scala Next tests for macros
+        run: sbt ++3.7.4! scalaNextTests${{ matrix.platform }}/test
+      - name: Run tests
+        run: sbt test${{ matrix.platform }}
 
   ci:
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, testJVM, testJS, testNative]
     steps:
       - name: Aggregate of lint, and all tests
         run: echo "ci passed"

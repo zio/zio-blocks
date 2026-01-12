@@ -1,15 +1,10 @@
-package zio.blocks.chunk.benchmarks
+package zio.blocks.chunk
 
-import org.openjdk.jmh.annotations.{Scope => JScope, _}
+import org.openjdk.jmh.annotations._
 import org.openjdk.jmh.infra.Blackhole
-import zio.blocks.chunk._
+import zio.blocks.BaseBenchmark
 
-import java.util.concurrent.TimeUnit
-
-@BenchmarkMode(Array(Mode.AverageTime))
-@OutputTimeUnit(TimeUnit.NANOSECONDS)
-@State(JScope.Benchmark)
-class ChunkIndexedSeqComparison {
+class ChunkIndexedSeqBenchmark extends BaseBenchmark {
   @Param(Array("1000"))
   var size: Int = _
 

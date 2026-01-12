@@ -14,20 +14,13 @@
  * limitations under the License.
  */
 
-package zio.blocks.chunk.benchmarks
+package zio.blocks.chunk
 
-import org.openjdk.jmh.annotations.{Scope => JScope, _}
+import org.openjdk.jmh.annotations._
+import zio.blocks.BaseBenchmark
 import zio.blocks.chunk.Chunk
 
-import java.util.concurrent.TimeUnit
-
-@State(JScope.Thread)
-@BenchmarkMode(Array(Mode.AverageTime))
-@OutputTimeUnit(TimeUnit.NANOSECONDS)
-@Warmup(iterations = 3, time = 1)
-@Measurement(iterations = 3, time = 1)
-@Fork(1)
-class ChunkMapBenchmarks {
+class ChunkMapBenchmark extends BaseBenchmark {
   @Param(Array("1000"))
   var size: Int = _
 

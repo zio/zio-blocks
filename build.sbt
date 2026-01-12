@@ -37,6 +37,18 @@ addCommandAlias(
   "golemPublishLocal",
   """set ThisBuild / version := "0.0.0-SNAPSHOT"; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal"""
 )
+addCommandAlias(
+  "testJVM",
+  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; benchmarks/test; examples/test"
+)
+addCommandAlias(
+  "testJS",
+  "+schemaJS/test; +chunkJS/test; +streamsJS/test"
+)
+addCommandAlias(
+  "testNative",
+  "+schemaNative/test; +chunkNative/test; +streamsNative/test"
+)
 
 lazy val root = project
   .in(file("."))
@@ -54,7 +66,6 @@ lazy val root = project
     chunk.jvm,
     chunk.js,
     chunk.native,
-    `chunk-benchmarks`,
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
@@ -159,19 +170,6 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     )
   )
 
-lazy val `chunk-benchmarks` = project
-  .settings(stdSettings("zio-blocks-chunk-benchmarks", Seq("3.3.7")))
-  .dependsOn(chunk.jvm)
-  .enablePlugins(JmhPlugin)
-  .settings(
-    libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-test"     % "2.1.24",
-      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
-    ),
-    publish / skip        := true,
-    mimaPreviousArtifacts := Set()
-  )
-
 lazy val `schema-avro` = project
   .settings(stdSettings("zio-blocks-schema-avro"))
   .dependsOn(schema.jvm)
@@ -220,6 +218,7 @@ lazy val examples = project
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
   .dependsOn(schema.jvm)
+  .dependsOn(chunk.jvm)
   .dependsOn(`schema-avro`)
   .enablePlugins(JmhPlugin)
   .settings(
