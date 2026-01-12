@@ -201,5 +201,5 @@ object JsonTestUtils {
 
   private[this] val codecs     = new ConcurrentHashMap[Schema[?], JsonBinaryCodec[?]]()
   private[this] val random     = new Random()
-  private[this] val maxBufSize = 16384
+  private[this] val maxBufSize = 1024
 }

@@ -2084,8 +2084,8 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           override lazy val hashCode: Int = java.util.Arrays.hashCode(bs)
 
           override def equals(obj: Any): Boolean = obj match {
-            case that: RawVal @unchecked => java.util.Arrays.equals(bs, that.bs)
-            case _                       => false
+            case that: RawVal => java.util.Arrays.equals(bs, that.bs)
+            case _            => false
           }
 
           lazy val isValid: Boolean = RawVal.TopLevel.codec.decode(bs) match {
