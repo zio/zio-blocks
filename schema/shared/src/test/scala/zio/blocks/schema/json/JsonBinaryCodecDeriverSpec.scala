@@ -7,7 +7,6 @@ import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.NameMapper._
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect._
 import java.math.MathContext
 import java.nio.charset.StandardCharsets
 import java.time._
@@ -3026,7 +3025,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip[Dynamic](value, """{"primitive":1,"record":{"VVV":1,"WWW":2}}""")
       }
     )
-  ) @@ exceptNative
+  )
 
   private[this] def toISO8601(year: Year): String = {
     val x = year.getValue

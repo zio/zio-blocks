@@ -14,19 +14,13 @@
  * limitations under the License.
  */
 
-package zio.blocks.chunk.benchmarks
+package zio.blocks.chunk
 
 import org.openjdk.jmh.annotations._
+import zio.blocks.BaseBenchmark
 import zio.blocks.chunk.Chunk
 
-import java.util.concurrent.TimeUnit
-
-@State(Scope.Thread)
-@BenchmarkMode(Array(Mode.Throughput))
-@OutputTimeUnit(TimeUnit.SECONDS)
-@Warmup(iterations = 10, time = 10)
-@Measurement(iterations = 10, time = 10)
-class ChunkPrependBenchmarks {
+class ChunkAppendBenchmark extends BaseBenchmark {
 
   val chunk: Chunk[Int]   = Chunk(1)
   val vector: Vector[Int] = Vector(1)
@@ -37,12 +31,12 @@ class ChunkPrependBenchmarks {
   var size: Int = _
 
   @Benchmark
-  def chunkPrepend(): Chunk[Int] = {
+  def chunkAppend(): Chunk[Int] = {
     var i       = 0
     var current = chunk
 
     while (i < size) {
-      current = i +: current
+      current = current :+ i
       i += 1
     }
 
@@ -50,12 +44,12 @@ class ChunkPrependBenchmarks {
   }
 
   @Benchmark
-  def vectorPrepend(): Vector[Int] = {
+  def vectorAppend(): Vector[Int] = {
     var i       = 0
     var current = vector
 
     while (i < size) {
-      current = i +: current
+      current = current :+ i
       i += 1
     }
 
@@ -63,12 +57,12 @@ class ChunkPrependBenchmarks {
   }
 
   @Benchmark
-  def arrayPrepend(): Array[Int] = {
+  def arrayAppend(): Array[Int] = {
     var i       = 0
     var current = array
 
     while (i < size) {
-      current = i +: current
+      current = current :+ i
       i += 1
     }
 
@@ -76,12 +70,12 @@ class ChunkPrependBenchmarks {
   }
 
   @Benchmark
-  def listPrepend(): List[Int] = {
+  def listAppend(): List[Int] = {
     var i       = 0
     var current = list
 
     while (i < size) {
-      current = i +: current
+      current = current :+ i
       i += 1
     }
 
