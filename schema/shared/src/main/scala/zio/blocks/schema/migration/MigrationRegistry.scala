@@ -20,7 +20,7 @@ final class MigrationRegistry(private val edges: Vector[StoredMigration]) {
     val outgoing: Map[SchemaId, Vector[StoredMigration]] =
       edges.groupBy(_.from).view.mapValues(Vector.from).toMap
 
-    val queue = mutable.Queue[(SchemaId, DynamicMigration)]((from, DynamicMigration.Id))
+    val queue = mutable.Queue[(SchemaId, DynamicMigration)]((from, DynamicMigration.id))
     val seen  = mutable.Set[SchemaId](from)
 
     while (queue.nonEmpty) {

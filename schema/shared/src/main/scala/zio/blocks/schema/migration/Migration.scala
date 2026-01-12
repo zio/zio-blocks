@@ -27,11 +27,17 @@ final class Migration[A, B] private (
   ): Either[MigrationError, B] =
     for {
       aStruct <- asA.into(value).left.map(e => MigrationError.InvalidOp("IntoStructural", e.toString))
-      dynB    <- DynamicMigrationInterpreter(program, sourceSchema.toDynamicValue(aStruct))
+
+      dynA = sourceSchema.toDynamicValue(aStruct)
+
+      // IMPORTANT: thread schemas into interpreter so DefaultValueExpr can be resolved.
+      dynB <- DynamicMigrationInterpreter(program, dynA, sourceSchema, targetSchema)
+
       bStruct <- targetSchema
-                   .fromDynamicValue(dynB)
-                   .left
-                   .map(err => MigrationError.InvalidOp("DecodeStructural", err.toString))
+        .fromDynamicValue(dynB)
+        .left
+        .map(err => MigrationError.InvalidOp("DecodeStructural", err.toString))
+
       outB <- asB.from(bStruct).left.map(e => MigrationError.InvalidOp("FromStructural", e.toString))
     } yield outB
 }
@@ -47,5 +53,5 @@ object Migration {
     new Migration[A, B](program, tsa, tsb, sa.structural, sb.structural)
 
   def id[A](using s: Schema[A], ts: ToStructural[A]): Migration[A, A] =
-    fromProgram[A, A](DynamicMigration.Id)
+    fromProgram[A, A](DynamicMigration.id)
 }
