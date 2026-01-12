@@ -18,6 +18,9 @@ import scala.collection.immutable.ArraySeq
  * @param valueType Optimization hint for primitive types
  */
 abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectType) extends BinaryCodec[A] {
+  /** Whether this codec encodes a nested/complex value that needs its own indentation block. */
+  def isNested: Boolean = false
+
   val valueOffset: RegisterOffset.RegisterOffset = valueType match {
     case ToonBinaryCodec.objectType  => RegisterOffset(objects = 1)
     case ToonBinaryCodec.booleanType => RegisterOffset(booleans = 1)
@@ -50,7 +53,6 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
   override def encode(value: A, output: ByteBuffer): Unit =
     output.put(encodeToBytes(value))
 
-  // Decoding will be added in Phase 3 (ToonReader)
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
     var pos             = input.position
     val len             = input.limit - pos

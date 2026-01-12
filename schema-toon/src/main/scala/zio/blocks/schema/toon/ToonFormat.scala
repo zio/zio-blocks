@@ -94,6 +94,8 @@ object ToonFormat
               private[this] val fieldNames    = names
               private[this] val usedRegisters = offset
 
+              override def isNested: Boolean = true
+
               override def encodeValue(x: A, out: ToonWriter): Unit = {
                 val regs = Registers(usedRegisters)
                 deconstructor.deconstruct(regs, 0L, x)
@@ -103,27 +105,34 @@ object ToonFormat
                   if (idx > 0) out.newLine()
                   out.writeKey(fieldNames(idx))
                   val codec = fieldCodecs(idx)
-                  codec.valueType match {
-                    case ToonBinaryCodec.objectType =>
-                      codec.asInstanceOf[ToonBinaryCodec[AnyRef]].encodeValue(regs.getObject(regOffset), out)
-                    case ToonBinaryCodec.booleanType =>
-                      codec.asInstanceOf[ToonBinaryCodec[Boolean]].encodeValue(regs.getBoolean(regOffset), out)
-                    case ToonBinaryCodec.byteType =>
-                      codec.asInstanceOf[ToonBinaryCodec[Byte]].encodeValue(regs.getByte(regOffset), out)
-                    case ToonBinaryCodec.charType =>
-                      codec.asInstanceOf[ToonBinaryCodec[Char]].encodeValue(regs.getChar(regOffset), out)
-                    case ToonBinaryCodec.shortType =>
-                      codec.asInstanceOf[ToonBinaryCodec[Short]].encodeValue(regs.getShort(regOffset), out)
-                    case ToonBinaryCodec.floatType =>
-                      codec.asInstanceOf[ToonBinaryCodec[Float]].encodeValue(regs.getFloat(regOffset), out)
-                    case ToonBinaryCodec.intType =>
-                      codec.asInstanceOf[ToonBinaryCodec[Int]].encodeValue(regs.getInt(regOffset), out)
-                    case ToonBinaryCodec.doubleType =>
-                      codec.asInstanceOf[ToonBinaryCodec[Double]].encodeValue(regs.getDouble(regOffset), out)
-                    case ToonBinaryCodec.longType =>
-                      codec.asInstanceOf[ToonBinaryCodec[Long]].encodeValue(regs.getLong(regOffset), out)
-                    case _ =>
-                      codec.asInstanceOf[ToonBinaryCodec[Unit]].encodeValue((), out)
+                  // If the field codec is a nested type, use nested formatting
+                  if (codec.isNested) {
+                    out.startNestedObject()
+                    codec.asInstanceOf[ToonBinaryCodec[AnyRef]].encodeValue(regs.getObject(regOffset), out)
+                    out.endNestedObject()
+                  } else {
+                    codec.valueType match {
+                      case ToonBinaryCodec.objectType =>
+                        codec.asInstanceOf[ToonBinaryCodec[AnyRef]].encodeValue(regs.getObject(regOffset), out)
+                      case ToonBinaryCodec.booleanType =>
+                        codec.asInstanceOf[ToonBinaryCodec[Boolean]].encodeValue(regs.getBoolean(regOffset), out)
+                      case ToonBinaryCodec.byteType =>
+                        codec.asInstanceOf[ToonBinaryCodec[Byte]].encodeValue(regs.getByte(regOffset), out)
+                      case ToonBinaryCodec.charType =>
+                        codec.asInstanceOf[ToonBinaryCodec[Char]].encodeValue(regs.getChar(regOffset), out)
+                      case ToonBinaryCodec.shortType =>
+                        codec.asInstanceOf[ToonBinaryCodec[Short]].encodeValue(regs.getShort(regOffset), out)
+                      case ToonBinaryCodec.floatType =>
+                        codec.asInstanceOf[ToonBinaryCodec[Float]].encodeValue(regs.getFloat(regOffset), out)
+                      case ToonBinaryCodec.intType =>
+                        codec.asInstanceOf[ToonBinaryCodec[Int]].encodeValue(regs.getInt(regOffset), out)
+                      case ToonBinaryCodec.doubleType =>
+                        codec.asInstanceOf[ToonBinaryCodec[Double]].encodeValue(regs.getDouble(regOffset), out)
+                      case ToonBinaryCodec.longType =>
+                        codec.asInstanceOf[ToonBinaryCodec[Long]].encodeValue(regs.getLong(regOffset), out)
+                      case _ =>
+                        codec.asInstanceOf[ToonBinaryCodec[Unit]].encodeValue((), out)
+                    }
                   }
                   regOffset += codec.valueOffset
                   idx += 1
@@ -354,6 +363,8 @@ object ToonFormat
                 private[this] val fieldNames    = names
                 private[this] val usedRegisters = offset
 
+                override def isNested: Boolean = true
+
                 override def encodeValue(x: A, out: ToonWriter): Unit = {
                   val regs = Registers(usedRegisters)
                   deconstructor.deconstruct(regs, 0L, x)
@@ -363,27 +374,34 @@ object ToonFormat
                     if (idx > 0) out.newLine()
                     out.writeKey(fieldNames(idx))
                     val codec = fieldCodecs(idx)
-                    codec.valueType match {
-                      case ToonBinaryCodec.objectType =>
-                        codec.asInstanceOf[ToonBinaryCodec[AnyRef]].encodeValue(regs.getObject(regOffset), out)
-                      case ToonBinaryCodec.booleanType =>
-                        codec.asInstanceOf[ToonBinaryCodec[Boolean]].encodeValue(regs.getBoolean(regOffset), out)
-                      case ToonBinaryCodec.byteType =>
-                        codec.asInstanceOf[ToonBinaryCodec[Byte]].encodeValue(regs.getByte(regOffset), out)
-                      case ToonBinaryCodec.charType =>
-                        codec.asInstanceOf[ToonBinaryCodec[Char]].encodeValue(regs.getChar(regOffset), out)
-                      case ToonBinaryCodec.shortType =>
-                        codec.asInstanceOf[ToonBinaryCodec[Short]].encodeValue(regs.getShort(regOffset), out)
-                      case ToonBinaryCodec.floatType =>
-                        codec.asInstanceOf[ToonBinaryCodec[Float]].encodeValue(regs.getFloat(regOffset), out)
-                      case ToonBinaryCodec.intType =>
-                        codec.asInstanceOf[ToonBinaryCodec[Int]].encodeValue(regs.getInt(regOffset), out)
-                      case ToonBinaryCodec.doubleType =>
-                        codec.asInstanceOf[ToonBinaryCodec[Double]].encodeValue(regs.getDouble(regOffset), out)
-                      case ToonBinaryCodec.longType =>
-                        codec.asInstanceOf[ToonBinaryCodec[Long]].encodeValue(regs.getLong(regOffset), out)
-                      case _ =>
-                        codec.asInstanceOf[ToonBinaryCodec[Unit]].encodeValue((), out)
+                    // If the field codec is a nested type, use nested formatting
+                    if (codec.isNested) {
+                      out.startNestedObject()
+                      codec.asInstanceOf[ToonBinaryCodec[AnyRef]].encodeValue(regs.getObject(regOffset), out)
+                      out.endNestedObject()
+                    } else {
+                      codec.valueType match {
+                        case ToonBinaryCodec.objectType =>
+                          codec.asInstanceOf[ToonBinaryCodec[AnyRef]].encodeValue(regs.getObject(regOffset), out)
+                        case ToonBinaryCodec.booleanType =>
+                          codec.asInstanceOf[ToonBinaryCodec[Boolean]].encodeValue(regs.getBoolean(regOffset), out)
+                        case ToonBinaryCodec.byteType =>
+                          codec.asInstanceOf[ToonBinaryCodec[Byte]].encodeValue(regs.getByte(regOffset), out)
+                        case ToonBinaryCodec.charType =>
+                          codec.asInstanceOf[ToonBinaryCodec[Char]].encodeValue(regs.getChar(regOffset), out)
+                        case ToonBinaryCodec.shortType =>
+                          codec.asInstanceOf[ToonBinaryCodec[Short]].encodeValue(regs.getShort(regOffset), out)
+                        case ToonBinaryCodec.floatType =>
+                          codec.asInstanceOf[ToonBinaryCodec[Float]].encodeValue(regs.getFloat(regOffset), out)
+                        case ToonBinaryCodec.intType =>
+                          codec.asInstanceOf[ToonBinaryCodec[Int]].encodeValue(regs.getInt(regOffset), out)
+                        case ToonBinaryCodec.doubleType =>
+                          codec.asInstanceOf[ToonBinaryCodec[Double]].encodeValue(regs.getDouble(regOffset), out)
+                        case ToonBinaryCodec.longType =>
+                          codec.asInstanceOf[ToonBinaryCodec[Long]].encodeValue(regs.getLong(regOffset), out)
+                        case _ =>
+                          codec.asInstanceOf[ToonBinaryCodec[Unit]].encodeValue((), out)
+                      }
                     }
                     regOffset += codec.valueOffset
                     idx += 1
@@ -529,4 +547,9 @@ object ToonFormat
               catch { case e: Exception => Left(SchemaError.expectationMismatch(Nil, e.getMessage)) }
           }
       }
-    )
+    ) {
+
+  /** Convenience method to derive a ToonBinaryCodec from a Schema. */
+  def codec[A](implicit schema: Schema[A]): ToonBinaryCodec[A] =
+    schema.derive(deriver)
+}
