@@ -80,11 +80,12 @@ object MigrationDsl {
       ${ addFieldExprImpl[A, B]('targetSel, 'defaultExpr, 'b, 'sb) }
 
     /** Drop a field using a source selector (recommended). */
-    inline def dropField[A](inline sourceSel: A => Any, inline defaultForReverse: SchemaExpr[Any, Any] = DefaultValueExpr)(using
-      b: MigrationBuilder[A],
-      sa: Schema[A]
-    ): Unit =
-      ${ dropFieldImpl[A]('sourceSel, 'defaultForReverse, 'b, 'sa) }
+    inline def dropField[A](
+  inline sourceSel: A => Any,
+  inline defaultForReverse: SchemaExpr[Any, Any]
+)(using b: MigrationBuilder[A], sa: Schema[A]): Unit =
+  ${ dropFieldImpl[A]('sourceSel, 'defaultForReverse, 'b, 'sa) }
+
   }
 
   // ----- macro impls -----
@@ -123,7 +124,8 @@ object MigrationDsl {
     sa: Expr[Schema[A]]
   )(using Quotes): Expr[Unit] = {
     val dyn = extractDynamicOptic[A, B](at, sa)
-    '{ $b.add(RenameField($dyn, $from, $to)) }
+    '{ $b.add(Rename($dyn.field($from), $to)) }
+
   }
 
   private def addFieldImpl[A: Type, B: Type, D: Type](
@@ -144,7 +146,8 @@ object MigrationDsl {
     val expr: Expr[SchemaExpr[Any, Any]] =
       '{ SchemaExpr.Literal[Any, D]($default, $schemaD).asInstanceOf[SchemaExpr[Any, Any]] }
 
-    '{ $b.add(AddField($dyn, $field, $expr)) }
+    '{ $b.add(AddField($dyn.field($field), $expr)) }
+
   }
 
   private def deleteFieldImpl[A: Type, B: Type](
@@ -155,7 +158,8 @@ object MigrationDsl {
   )(using Quotes): Expr[Unit] = {
     val dyn = extractDynamicOptic[A, B](at, sa)
     // reverse default: DefaultValueExpr
-    '{ $b.add(DropField($dyn, $field, DefaultValueExpr)) }
+    '{ $b.add(DropField($dyn, $field, MigrationSchemaExpr.default[Any, Any](using zio.blocks.schema.Schema.dynamicValueSchema).asInstanceOf[SchemaExpr[Any, Any]])) }
+
   }
 
   

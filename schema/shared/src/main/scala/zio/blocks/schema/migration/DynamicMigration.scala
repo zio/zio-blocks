@@ -36,23 +36,6 @@ object DynamicMigration {
     DynamicMigration(Vector.from(actions))
 }
 
-/** Migration-only marker expression: "use schema default".
-  *
-  * This cannot be evaluated from runtime input alone; the interpreter must
-  * resolve it using the field schema at the place it is applied.
-  */
-case object DefaultValueExpr extends SchemaExpr[Any, Any] {
-  override def eval(input: Any): Either[OpticCheck, Seq[Any]] =
-    Left(
-      new OpticCheck("DefaultValueExpr must be resolved using schema defaults")
-    )
-
-  override def evalDynamic(input: Any): Either[OpticCheck, Seq[DynamicValue]] =
-    Left(
-      new OpticCheck("DefaultValueExpr must be resolved using schema defaults")
-    )
-}
-
 /** The algebra of migrations.
   *
   * IMPORTANT:
@@ -71,102 +54,101 @@ object MigrationAction {
   // Record operations
   // ─────────────────────────────────────────────
 
-  /** Add a field (in a record selected by `at`) with a given field name and
-    * default expression.
-    *
-    * defaultExpr is SchemaExpr[Any, Any] because this is the serializable core;
-    * the typed DSL is responsible for supplying a correctly typed SchemaExpr.
-    */
-  final case class AddField(
-      at: DynamicOptic,
-      fieldName: String,
-      defaultExpr: SchemaExpr[Any, Any]
-  ) extends MigrationAction {
-    override def reverse: MigrationAction =
-      DropField(
-        at = at,
-        fieldName = fieldName,
-        defaultForReverse = DefaultValueExpr
-      )
-  }
+  object MigrationAction {
 
-  /** Drop a field. Reverse needs a way to re-create it: defaultForReverse. In
-    * most cases, reverse should use DefaultValueExpr.
-    */
-  final case class DropField(
-      at: DynamicOptic,
-      fieldName: String,
-      defaultForReverse: SchemaExpr[Any, Any]
-  ) extends MigrationAction {
-    override def reverse: MigrationAction =
-      AddField(at = at, fieldName = fieldName, defaultExpr = defaultForReverse)
-  }
+    // ─────────────────────────────────────────────
+    // Record operations (PATH-ONLY)
+    // ─────────────────────────────────────────────
 
-  final case class RenameField(
-      at: DynamicOptic,
-      from: String,
-      to: String
-  ) extends MigrationAction {
-    override def reverse: MigrationAction =
-      RenameField(at = at, from = to, to = from)
-  }
+    /** Add a field at `at` (which must end in `.field("x")`), using
+      * `defaultExpr`.
+      */
+    final case class AddField(
+        at: DynamicOptic,
+        defaultExpr: SchemaExpr[Any, Any]
+    ) extends MigrationAction {
+      override def reverse: MigrationAction =
+        DropField(
+          at = at,
+          fieldName = fieldName,
+          defaultForReverse = defaultExpr
+        )
+      // NOTE: you will likely want to supply the correct schema in the DSL;
+      // see Step 4 where we do it properly.
+    }
 
-  /** Transform a field from one optic to another using a SchemaExpr. (Later:
-    * you may refine the constraints based on #519 rules.)
-    */
-  final case class TransformField(
-      from: DynamicOptic,
-      to: DynamicOptic,
-      transformExpr: SchemaExpr[Any, Any]
-  ) extends MigrationAction {
-    override def reverse: MigrationAction =
-      TransformField(
-        from = to,
-        to = from,
-        transformExpr = transformExpr
-      ) // best-effort: keep same expr
-  }
+    /** Drop a field at `at`. `defaultForReverse` is used when reversing. */
+    final case class DropField(
+        at: DynamicOptic,
+        defaultForReverse: SchemaExpr[Any, Any]
+    ) extends MigrationAction {
+      override def reverse: MigrationAction =
+        AddField(at = at, defaultExpr = defaultForReverse)
+    }
 
-  /** Make an optional field mandatory (Option[A] -> A), using defaultExpr when
-    * None.
-    */
-  final case class MandateField(
-      sourceOpt: DynamicOptic,
-      target: DynamicOptic,
-      defaultExpr: SchemaExpr[Any, Any]
-  ) extends MigrationAction {
-    override def reverse: MigrationAction =
-      OptionalizeField(source = target, targetOpt = sourceOpt)
-  }
+    /** Rename the field at `at` to `to`. */
+    final case class Rename(
+        at: DynamicOptic,
+        to: String
+    ) extends MigrationAction {
+      override def reverse: MigrationAction =
+        Rename(
+          at = at.field(to),
+          to =
+            MigrationDsl.RuntimeOptic.lastFieldNameOrFail(at, "Rename.reverse")
+        )
+    }
 
-  /** Make a mandatory field optional (A -> Option[A]).
-    */
-  final case class OptionalizeField(
-      source: DynamicOptic,
-      targetOpt: DynamicOptic
-  ) extends MigrationAction {
-    override def reverse: MigrationAction =
-      MandateField(
-        sourceOpt = targetOpt,
-        target = source,
-        defaultExpr = DefaultValueExpr
-      )
-  }
+    /** Transform value at `at` using `transformExpr` */
+    final case class TransformValue(
+        at: DynamicOptic,
+        transformExpr: SchemaExpr[Any, Any]
+    ) extends MigrationAction {
+      override def reverse: MigrationAction =
+        TransformValue(at = at, transformExpr = transformExpr) // best-effort
+    }
 
-  /** Change field type (primitive->primitive etc.) using a converter
-    * expression.
-    */
-  final case class ChangeFieldType(
-      source: DynamicOptic,
-      target: DynamicOptic,
-      converterExpr: SchemaExpr[Any, Any]
-  ) extends MigrationAction {
-    override def reverse: MigrationAction =
-      ChangeFieldType(
-        source = target,
-        target = source,
-        converterExpr = converterExpr
-      ) // best-effort
+    /** Make optional value mandatory (Option[A] -> A) */
+    final case class MandateField(
+        sourceOpt: DynamicOptic, // points to Option[A] in the source
+        target: DynamicOptic, // points to A in the target
+        defaultExpr: SchemaExpr[Any, Any] // used when source is None
+    ) extends MigrationAction {
+      override def reverse: MigrationAction =
+        OptionalizeField(
+          source = target, // A becomes source
+          targetOpt = sourceOpt, // Option[A] becomes target
+          defaultForReverse = defaultExpr // keep it for lawful reverse
+        )
+    }
+
+    /** Make value optional (A -> Option[A]) */
+    final case class OptionalizeField(
+        source: DynamicOptic, // points to A in the source
+        targetOpt: DynamicOptic, // points to Option[A] in the target
+        defaultForReverse: SchemaExpr[
+          Any,
+          Any
+        ] // stored so reverse Mandate is defined
+    ) extends MigrationAction {
+      override def reverse: MigrationAction =
+        MandateField(
+          sourceOpt = targetOpt,
+          target = source,
+          defaultExpr = defaultForReverse
+        )
+    }
+
+    /** Change primitive type at `at` using converter */
+    final case class ChangeType(
+        at: DynamicOptic,
+        converterExpr: SchemaExpr[Any, Any]
+    ) extends MigrationAction {
+      override def reverse: MigrationAction =
+        ChangeType(at = at, converterExpr = converterExpr) // best-effort
+    }
+
+    // keep your Enum/Collection/Map ops for now, but convert them later similarly
   }
 
   // ─────────────────────────────────────────────

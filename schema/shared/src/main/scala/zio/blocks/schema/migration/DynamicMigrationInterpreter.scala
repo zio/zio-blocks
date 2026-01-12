@@ -15,86 +15,41 @@ object DynamicMigrationInterpreter {
     *   - It fully supports AddField / DropField / RenameField.
     *   - Other actions return a clear "Not implemented yet" MigrationError.
     */
-  def apply(
-      m: DynamicMigration,
-      value: DynamicValue,
-      sourceSchema: zio.blocks.schema.Schema[_],
-      targetSchema: zio.blocks.schema.Schema[_]
-  ): Either[MigrationError, DynamicValue] =
-    m.actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
-      (acc, action) =>
-        acc.flatMap(v => applyAction(action, v, sourceSchema, targetSchema))
-    }
+ def apply(m: DynamicMigration, value: DynamicValue): Either[MigrationError, DynamicValue] =
+  m.actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
+    (acc, action) => acc.flatMap(v => applyAction(action, v))
+  }
 
-  private def defaultForField(
-      targetSchema: zio.blocks.schema.Schema[_],
-      fieldName: String
-  ): Either[MigrationError, DynamicValue] =
-    targetSchema match {
-      case zio.blocks.schema.Schema.Record(fields, _) =>
-        fields.find(_._1 == fieldName) match {
-          case Some((_, fieldSchema)) =>
-            fieldSchema.defaultValue match {
-              case Some(dv) => Right(dv)
-              case None =>
-                Left(
-                  MigrationError.InvalidOp(
-                    "DefaultValue",
-                    s"No default defined for field '$fieldName'"
-                  )
-                )
-            }
-          case None =>
-            Left(MigrationError.MissingPath(DynamicOptic.root.field(fieldName)))
-        }
 
-      case _ =>
-        Left(
-          MigrationError.InvalidOp("Schema", "Target is not a record schema")
-        )
-    }
-
+  
   // ─────────────────────────────────────────────
   // Action dispatcher
   // ─────────────────────────────────────────────
 
     private def applyAction(
-      action: MigrationAction,
-      value: DynamicValue,
-      sourceSchema: zio.blocks.schema.Schema[_],
-      targetSchema: zio.blocks.schema.Schema[_]
-  ): Either[MigrationError, DynamicValue] =
+  action: MigrationAction,
+  value: DynamicValue
+): Either[MigrationError, DynamicValue] =
+
     action match {
 
       // ───────────────
       // Record ops
       // ───────────────
 
-      case AddField(at, fieldName, defaultExpr) =>
-        val provider = () => defaultForField(targetSchema, fieldName)
+      case MigrationAction.AddField(at, defaultExpr) =>
+  evalExprToOneDynamic(expr = defaultExpr, input = DynamicValue.Unit).flatMap { dv =>
+    upsertField(at, value, dv)
+  }
 
-        for {
-          dv <- evalExprToOneDynamic(
-            expr = defaultExpr,
-            input = DynamicValue.Unit, // no meaningful input; default expr should be literal/default
-            defaultProvider = provider
-          )
-          out <- modifyRecord(at, value) { fields =>
-            if (fields.exists(_._1 == fieldName)) fields
-            else fields :+ (fieldName -> dv)
-          }
-        } yield out
 
-      case DropField(at, fieldName, _) =>
-        modifyRecord(at, value)(_.filterNot(_._1 == fieldName))
+      case MigrationAction.DropField(at, defaultForReverse) =>
+        // if you want: you could store removed value somewhere for reverse; spec uses a default for reverse
+        removeField(at, value)
 
-      case RenameField(at, from, to) =>
-        modifyRecord(at, value) { fields =>
-          fields.map {
-            case (`from`, v) => (to, v)
-            case other       => other
-          }
-        }
+      case MigrationAction.Rename(at, to) =>
+        renameField(at, value, to)
+
 
       case OptionalizeField(source, _) =>
         modifyAt(source, value) { case dv =>
@@ -105,11 +60,8 @@ object DynamicMigrationInterpreter {
         modifyAt(sourceOpt, value) {
           case DynamicValue.Variant("Some", dv) => Right(dv)
           case DynamicValue.Variant("None", _) =>
-            evalExprToOneDynamic(
-              expr = defaultExpr,
-              input = DynamicValue.Unit,
-              defaultProvider = () => defaultForField(targetSchema, "<unknown>")
-            )
+  evalExprToOneDynamic(expr = defaultExpr, input = DynamicValue.Unit)
+
           case other =>
             Left(
               MigrationError.TypeMismatch(sourceOpt, "Option", other.toString)
@@ -121,9 +73,8 @@ object DynamicMigrationInterpreter {
           // evaluate expression using current value as input (only works when you add dynamic expr eval later)
            evalExprToOneDynamic(
             expr = expr,
-            input = cur, // IMPORTANT: expression sees the current focused value
-            defaultProvider = () =>
-              Left(MigrationError.InvalidOp("DefaultValue", "No default in TransformValue"))
+            input = cur // IMPORTANT: expression sees the current focused value
+            
           )
         }
 
@@ -139,9 +90,10 @@ object DynamicMigrationInterpreter {
         modifyAt(at, value) {
           case DynamicValue.Variant(`caseName`, payload) =>
             val nested = DynamicMigration(actions)
-            DynamicMigrationInterpreter(nested, payload, sourceSchema, targetSchema).map { newPayload =>
-              DynamicValue.Variant(caseName, newPayload)
-            }
+            DynamicMigrationInterpreter(nested, payload).map { newPayload =>
+  DynamicValue.Variant(caseName, newPayload)
+}
+
           case DynamicValue.Variant(other, payload) =>
             Right(DynamicValue.Variant(other, payload)) // no-op if different case
           case other =>
@@ -157,7 +109,8 @@ object DynamicMigrationInterpreter {
               case (acc, elem) =>
                 for {
                   xs <- acc
-                  out <- DynamicMigrationInterpreter(nested, elem, sourceSchema, targetSchema)
+                  out <- DynamicMigrationInterpreter(nested, elem)
+)
                 } yield xs :+ out
             }.map(DynamicValue.Sequence.apply)
 
@@ -175,10 +128,10 @@ object DynamicMigrationInterpreter {
                   xs <- acc
                   newK <- evalExprToOneDynamic(
                     expr = expr,
-                    input = k, // IMPORTANT: expression sees the key
-                    defaultProvider = () =>
-                      Left(MigrationError.InvalidOp("DefaultValue", "no default for key transform"))
-                  )                } yield xs :+ (newK -> v)
+                    input = k // IMPORTANT: expression sees the key
+                    
+                  )               
+                } yield xs :+ (newK -> v)
             }.map(DynamicValue.Dictionary.apply)
 
           case other =>
@@ -215,26 +168,20 @@ object DynamicMigrationInterpreter {
     *   (migration actions should normally target a single primitive result).
     */
   private def evalExprToOneDynamic(
-      expr: SchemaExpr[Any, Any],
-      input: DynamicValue,
-      defaultProvider: () => Either[MigrationError, DynamicValue]
-  ): Either[MigrationError, DynamicValue] =
-    expr match {
-      case DefaultValueExpr =>
-        defaultProvider()
+    expr: SchemaExpr[Any, Any],
+    input: DynamicValue
+): Either[MigrationError, DynamicValue] =
+  expr.evalDynamic(input) match {
+    case Right(values) if values.nonEmpty =>
+      Right(values.head)
 
-      case other =>
-        other.evalDynamic(input) match { // uses SchemaExpr API :contentReference[oaicite:2]{index=2}
-          case Right(values) if values.nonEmpty =>
-            Right(values.head)
+    case Right(_) =>
+      Left(MigrationError.InvalidOp("SchemaExpr", "Expression produced no results"))
 
-          case Right(_) =>
-            Left(MigrationError.InvalidOp("SchemaExpr", "Expression produced no results"))
+    case Left(check) =>
+      Left(MigrationError.OpticCheckFailed(check))
+  }
 
-          case Left(check) =>
-            Left(MigrationError.OpticCheckFailed(check))
-        }
-    }
 
 
   // ─────────────────────────────────────────────
@@ -362,4 +309,57 @@ object DynamicMigrationInterpreter {
 
     loop(0, root)
   }
+
+    private def splitParentAndField(at: DynamicOptic): Either[MigrationError, (DynamicOptic, String)] = {
+    at.nodes.lastOption match {
+      case Some(DynamicOptic.Node.Field(name)) =>
+        val parentNodes = at.nodes.toVector.dropRight(1)
+        val parent = MigrationDsl.RuntimeOptic.rebuildFromNodes(parentNodes)
+        Right((parent, name))
+
+      case other =>
+        Left(MigrationError.InvalidOp("DynamicOptic", s"Expected field path, got: $other"))
+    }
+  }
+
+  private def upsertField(at: DynamicOptic, root: DynamicValue, value: DynamicValue): Either[MigrationError, DynamicValue] =
+    splitParentAndField(at).flatMap { case (parent, field) =>
+      modifyAt(parent, root) {
+        case DynamicValue.Record(fields) =>
+          val idx = fields.indexWhere(_._1 == field)
+          if (idx >= 0) Right(DynamicValue.Record(fields.updated(idx, field -> value)))
+          else Right(DynamicValue.Record(fields :+ (field -> value)))
+
+        case other =>
+          Left(MigrationError.ExpectedRecord(parent, other))
+      }
+    }
+
+  private def removeField(at: DynamicOptic, root: DynamicValue): Either[MigrationError, DynamicValue] =
+    splitParentAndField(at).flatMap { case (parent, field) =>
+      modifyAt(parent, root) {
+        case DynamicValue.Record(fields) =>
+          Right(DynamicValue.Record(fields.filterNot(_._1 == field)))
+        case other =>
+          Left(MigrationError.ExpectedRecord(parent, other))
+      }
+    }
+
+  private def renameField(at: DynamicOptic, root: DynamicValue, to: String): Either[MigrationError, DynamicValue] =
+    splitParentAndField(at).flatMap { case (parent, from) =>
+      modifyAt(parent, root) {
+        case DynamicValue.Record(fields) =>
+          val idx = fields.indexWhere(_._1 == from)
+          if (idx < 0) Right(DynamicValue.Record(fields)) // or error if you want strict
+          else {
+            val v = fields(idx)._2
+            val without = fields.filterNot(_._1 == from)
+            Right(DynamicValue.Record(without :+ (to -> v)))
+          }
+
+        case other =>
+          Left(MigrationError.ExpectedRecord(parent, other))
+      }
+    }
+
 }
