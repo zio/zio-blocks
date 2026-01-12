@@ -1,7 +1,6 @@
 package golem.examples.minimal
 
 import golem.runtime.annotations.agentImplementation
-import golem.runtime.rpc.{AgentClient, AgentClientRuntime}
 
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
@@ -25,39 +24,8 @@ final class WorkerImpl(private val shardName: String, private val shardIndex: In
 @agentImplementation()
 final class CoordinatorImpl(id: String) extends Coordinator {
   override def route(shardName: String, shardIndex: Int, input: String): Future[String] =
-    AgentClientRuntime
-      .resolve[Worker, (String, Int)](
-        AgentClient.planWithCtor[Worker, (String, Int)],
-        (shardName, shardIndex)
-      ) match {
-      case Left(err) =>
-        Future.failed(new RuntimeException(err))
-      case Right(resolved) =>
-        resolved
-          .callByName[String, String]("reverse", input)
-          .recover { case t: Throwable =>
-            s"agent-to-agent failed: ${t.toString}"
-          }
-    }
+    Worker.get(shardName, shardIndex).flatMap(_.reverse(input))
 
   override def routeTyped(shardName: String, shardIndex: Int, payload: TypedPayload): Future[TypedReply] =
-    AgentClientRuntime
-      .resolve[Worker, (String, Int)](
-        AgentClient.planWithCtor[Worker, (String, Int)],
-        (shardName, shardIndex)
-      ) match {
-      case Left(err) =>
-        Future.failed(new RuntimeException(err))
-      case Right(resolved) =>
-        resolved
-          .callByName[TypedPayload, TypedReply]("handle", payload)
-          .recover { case t: Throwable =>
-            TypedReply(
-              shardName = shardName,
-              shardIndex = shardIndex,
-              reversed = s"agent-to-agent failed: ${t.toString}",
-              payload = payload
-            )
-          }
-    }
+    Worker.get(shardName, shardIndex).flatMap(_.handle(payload))
 }

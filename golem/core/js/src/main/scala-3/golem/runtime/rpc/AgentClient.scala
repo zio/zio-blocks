@@ -314,15 +314,52 @@ private object AgentClientInlineMacros {
           case other =>
             report.errorAndAbort(s"Unsupported agent method shape for ${data.method.name}: ${other.show}")
         }
+
         val fnExpr = lambdaTerm.asExprOf[Any]
-        '{ $objRef.updateDynamic(${ Expr(jsName) })($fnExpr.asInstanceOf[js.Any]) }.asTerm
+
+        val jsFnExpr: Expr[js.Any] =
+          data.params.length match {
+            case 0 => '{ js.Any.fromFunction0($fnExpr.asInstanceOf[() => Any]) }
+            case 1 => '{ js.Any.fromFunction1($fnExpr.asInstanceOf[Any => Any]) }
+            case 2 => '{ js.Any.fromFunction2($fnExpr.asInstanceOf[(Any, Any) => Any]) }
+            case 3 => '{ js.Any.fromFunction3($fnExpr.asInstanceOf[(Any, Any, Any) => Any]) }
+            case n =>
+              report.errorAndAbort(s"Unsupported agent method arity for ${data.method.name}: $n (supported: 0-3)")
+          }
+
+        '{ $objRef.updateDynamic(${ Expr(jsName) })($jsFnExpr) }.asTerm
       }
+
+    // Minimal Scala.js runtime type info: provide `$classData.ancestors[...]` entries so `$as_...` succeeds.
+    def encodeAncestor(fullName: String): String =
+      "L" + fullName.replace('.', '_')
+
+    val ancestorKeys: List[String] =
+      traitRepr.baseClasses
+        .map(_.fullName)
+        .distinct
+        .map(encodeAncestor)
+
+    val classDataSym =
+      Symbol.newVal(Symbol.spliceOwner, "$classData", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
+    val classDataVal =
+      ValDef(classDataSym, Some('{ js.Dynamic.literal("ancestors" -> js.Dynamic.literal()) }.asTerm))
+    val classDataRef = Ref(classDataSym).asExprOf[js.Dynamic]
+    val ancestorsRef = '{ $classDataRef.selectDynamic("ancestors").asInstanceOf[js.Dynamic] }
+
+    val ancestorUpdates: List[Statement] =
+      ancestorKeys.map { key =>
+        '{ $ancestorsRef.updateDynamic(${ Expr(key) })(1.asInstanceOf[js.Any]) }.asTerm
+      }
+
+    val attachClassData: Statement =
+      '{ $objRef.updateDynamic("$classData")($classDataRef.asInstanceOf[js.Any]) }.asTerm
 
     val casted =
       '{ $objRef.asInstanceOf[Trait] }.asTerm
 
     Block(
-      resolvedVal :: objVal :: updates,
+      resolvedVal :: objVal :: classDataVal :: (updates ++ ancestorUpdates :+ attachClassData),
       casted
     ).asExprOf[Trait]
   }

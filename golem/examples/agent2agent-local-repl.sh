@@ -44,11 +44,25 @@ sed \
 out="$(
   cd "$app_dir"
   env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
-  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$tmp_script" --disable-stream
+  if [[ -n "${REPL_TIMEOUT_SECS:-}" ]]; then
+    timeout "$REPL_TIMEOUT_SECS" env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$tmp_script" --disable-stream < /dev/null 2>&1
+  else
+    env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$tmp_script" --disable-stream < /dev/null 2>&1
+  fi
 )"
+
+# Fail fast if repl printed a worker-side error but still returned 0.
+if echo "$out" | grep -F -q 'CustomError(' || \
+   echo "$out" | grep -F -q 'JavaScript error:' || \
+   echo "$out" | grep -F -q 'Exception during call' || \
+   echo "$out" | grep -F -q '[ERROR'; then
+  echo "[agent2agent-local-repl] ERROR: repl output contains an error:" >&2
+  echo "$out" >&2
+  exit 1
+fi
 echo "$out"
-echo "$out" | grep -q "${shard_name}:42:olleh"
-echo "$out" | grep -q 'cba'
+echo "$out" | grep -F -q "${shard_name}:42:olleh"
+echo "$out" | grep -F -q 'cba'
 
 
 

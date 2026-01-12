@@ -4,7 +4,6 @@ import golem.runtime.plan.AgentClientPlan
 import scala.language.experimental.macros
 
 object AgentClient {
-
   /**
    * Resolves an agent id + RPC invoker for a trait + constructor args.
    *

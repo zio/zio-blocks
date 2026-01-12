@@ -44,5 +44,9 @@ sed \
 (
   cd "$app_dir"
   env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
-  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$tmp_script" --disable-stream
+  if [[ -n "${REPL_TIMEOUT_SECS:-}" ]]; then
+    timeout "$REPL_TIMEOUT_SECS" env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$tmp_script" --disable-stream < /dev/null
+  else
+    env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$tmp_script" --disable-stream < /dev/null
+  fi
 )
