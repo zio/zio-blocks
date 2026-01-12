@@ -1,21 +1,9 @@
-package zio.blocks.chunk.benchmarks
+package zio.blocks.chunk
 
-import org.openjdk.jmh.annotations.{Scope => JScope, _}
-import zio.blocks.chunk._
+import org.openjdk.jmh.annotations._
+import zio.blocks.BaseBenchmark
 
-import java.util.concurrent.TimeUnit
-
-/**
- * Benchmarks for mixed chunk operations (sliced, concatenated chunks). This is
- * a port of ZIO's MixedChunkBenchmarks, excluding ZIO-effect-based methods.
- */
-@State(JScope.Thread)
-@BenchmarkMode(Array(Mode.AverageTime))
-@OutputTimeUnit(TimeUnit.NANOSECONDS)
-@Warmup(iterations = 10, time = 10)
-@Measurement(iterations = 10, time = 10)
-@Fork(1)
-class MixedChunkBenchmarks {
+class MixedChunkBenchmark extends BaseBenchmark {
   @Param(Array("1000"))
   var size: Int = _
 
