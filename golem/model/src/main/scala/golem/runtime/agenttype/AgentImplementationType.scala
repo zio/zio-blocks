@@ -8,7 +8,8 @@ import scala.concurrent.Future
 /**
  * Reflected structure + handlers for an agent implementation.
  *
- * This is produced by macros and consumed by the runtime to wire incoming calls.
+ * This is produced by macros and consumed by the runtime to wire incoming
+ * calls.
  */
 final case class AgentImplementationType[Instance, Ctor](
   metadata: AgentMetadata,
@@ -34,4 +35,3 @@ final case class AsyncImplementationMethod[Instance, In, Out](
   outputSchema: GolemSchema[Out],
   handler: (Instance, In) => Future[Out]
 ) extends ImplementationMethod[Instance]
-

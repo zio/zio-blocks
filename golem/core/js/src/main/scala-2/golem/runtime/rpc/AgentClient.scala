@@ -3,11 +3,13 @@ package golem.runtime.rpc
 import golem.runtime.agenttype.{AgentMethod, AgentType}
 import scala.language.experimental.macros
 
+// format: off
 object AgentClient {
   /**
    * Resolves an agent id + RPC invoker for a trait + constructor args.
    *
-   * In Scala 2 (Scala.js), prefer: 1) `val agentType = AgentClient.agentType[MyAgent]` 2)
+   * In Scala 2 (Scala.js), prefer: 1)
+   * `val agentType = AgentClient.agentType[MyAgent]` 2)
    * `val resolved = AgentClient.resolve(agentType, ctorArgs)` 3)
    * `val client = AgentClient.bind[MyAgent](resolved)`
    *
@@ -160,8 +162,8 @@ private[rpc] object AgentClientBindMacro {
 
       if (returnTpe =:= typeOf[Unit]) {
         val methodLookup0 = methodLookup(methodNameStr, inType, typeOf[Unit])
-        val inValue    = inputExpr(paramss)
-        val rhs        =
+        val inValue       = inputExpr(paramss)
+        val rhs           =
           q"""
             val method = $methodLookup0
             $resolvedRef
@@ -172,10 +174,10 @@ private[rpc] object AgentClientBindMacro {
           """
         mkMethodDef(m, rhs)
       } else if (isFutureReturn(returnTpe) || isPromiseReturn(returnTpe)) {
-        val outType    = unwrapAsync(returnTpe)
+        val outType       = unwrapAsync(returnTpe)
         val methodLookup0 = methodLookup(methodNameStr, inType, outType)
-        val inValue    = inputExpr(paramss)
-        val rhs        =
+        val inValue       = inputExpr(paramss)
+        val rhs           =
           q"""
             val method = $methodLookup0
             $resolvedRef.call(method, $inValue.asInstanceOf[$inType])

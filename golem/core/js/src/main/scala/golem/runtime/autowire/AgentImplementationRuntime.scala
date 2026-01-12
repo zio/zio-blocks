@@ -55,7 +55,9 @@ private[autowire] object AgentImplementationRuntime {
   ): AgentDefinition[Trait] =
     register[Trait, Ctor](typeName, mode, implType)
 
-  private def buildSyncBinding[Trait, In, Out](method: SyncImplementationMethod[Trait, In, Out]): MethodBinding[Trait] = {
+  private def buildSyncBinding[Trait, In, Out](
+    method: SyncImplementationMethod[Trait, In, Out]
+  ): MethodBinding[Trait] = {
     implicit val inSchema: GolemSchema[In]   = method.inputSchema
     implicit val outSchema: GolemSchema[Out] = method.outputSchema
 
@@ -64,7 +66,9 @@ private[autowire] object AgentImplementationRuntime {
     }
   }
 
-  private def buildAsyncBinding[Trait, In, Out](method: AsyncImplementationMethod[Trait, In, Out]): MethodBinding[Trait] = {
+  private def buildAsyncBinding[Trait, In, Out](
+    method: AsyncImplementationMethod[Trait, In, Out]
+  ): MethodBinding[Trait] = {
     implicit val inSchema: GolemSchema[In]   = method.inputSchema
     implicit val outSchema: GolemSchema[Out] = method.outputSchema
 

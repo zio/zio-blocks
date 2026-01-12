@@ -21,7 +21,7 @@ final class RustAgentParitySpec extends AnyFunSuite {
   private val ephemeralMetadata       = AgentMacros.agentMetadata[EphemeralAgent]
   private val durableDefaultMetadata  = AgentMacros.agentMetadata[DurableDefaultAgent]
   private val durableExplicitMetadata = AgentMacros.agentMetadata[DurableExplicitAgent]
-  private val durableDefaultImplType =
+  private val durableDefaultImplType  =
     AgentImplementationMacro.implementationType[DurableDefaultAgent](new DurableDefaultAgentImpl)
   private val durableExplicitImplType =
     AgentImplementationMacro.implementationType[DurableExplicitAgent](new DurableExplicitAgentImpl)
@@ -269,7 +269,8 @@ final class RustAgentParitySpec extends AnyFunSuite {
 
   test("AgentClientMacro produces fire-and-forget invocation for Unit-returning method") {
     val agentType     = AgentClientMacro.agentType[RpcParityAgent]
-    val triggerMethod = agentType.methods.find(_.metadata.name == "rpcCallTrigger").getOrElse(fail("rpcCallTrigger missing"))
+    val triggerMethod =
+      agentType.methods.find(_.metadata.name == "rpcCallTrigger").getOrElse(fail("rpcCallTrigger missing"))
     assert(triggerMethod.invocation == MethodInvocation.FireAndForget)
   }
 

@@ -19,10 +19,10 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
 
   test("ResolvedAgent encodes awaitable inputs and decodes results") {
     val agentType = rpcAgentType
-    val invoker  = new RecordingRpcInvoker
-    val resolved = resolvedAgent(invoker, agentType)
+    val invoker   = new RecordingRpcInvoker
+    val resolved  = resolvedAgent(invoker, agentType)
 
-    val method = findMethod[RpcParityAgent, SampleInput, SampleOutput](agentType, "rpcCall")
+    val method   = findMethod[RpcParityAgent, SampleInput, SampleOutput](agentType, "rpcCall")
     val expected = SampleOutput("ack")
     invoker.enqueueInvokeResult(encodeValue(expected)(using method.outputSchema))
 
@@ -35,9 +35,9 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
 
   test("ResolvedAgent routes fire-and-forget calls through trigger and schedule") {
     val agentType = rpcAgentType
-    val invoker  = new RecordingRpcInvoker
-    val resolved = resolvedAgent(invoker, agentType)
-    val method   = findMethod[RpcParityAgent, String, Unit](agentType, "fireAndForget")
+    val invoker   = new RecordingRpcInvoker
+    val resolved  = resolvedAgent(invoker, agentType)
+    val method    = findMethod[RpcParityAgent, String, Unit](agentType, "fireAndForget")
 
     val triggerF  = resolved.trigger(method, "event")
     val scheduleF = resolved.schedule(method, js.Dynamic.literal("ts" -> 42), "event")
@@ -62,7 +62,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
   }
 
   test("Trigger rejects awaitable methods") {
-    val resolved                                                 = resolvedAgent()
+    val resolved                                          = resolvedAgent()
     val method: AgentMethod[RpcParityAgent, String, Unit] =
       findMethod[RpcParityAgent, String, Unit](rpcAgentType, "fireAndForget")
     val awaitableMethod: AgentMethod[RpcParityAgent, String, Unit] =
@@ -76,7 +76,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
   }
 
   test("Schedule rejects awaitable methods") {
-    val resolved                                                 = resolvedAgent()
+    val resolved                                          = resolvedAgent()
     val method: AgentMethod[RpcParityAgent, String, Unit] =
       findMethod[RpcParityAgent, String, Unit](rpcAgentType, "fireAndForget")
     val awaitableMethod: AgentMethod[RpcParityAgent, String, Unit] =
@@ -91,8 +91,8 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
 
   test("AgentClient binder override proxies awaitable RPC methods") {
     val agentType = rpcAgentType
-    val invoker  = new RecordingRpcInvoker
-    val resolved = resolvedAgent(invoker, agentType)
+    val invoker   = new RecordingRpcInvoker
+    val resolved  = resolvedAgent(invoker, agentType)
 
     TestHooks.withClientBinder(manualBinder(agentType)) {
       val client =
@@ -111,8 +111,8 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
 
   test("AgentClient binder override proxies fire-and-forget RPC methods") {
     val agentType = rpcAgentType
-    val invoker  = new RecordingRpcInvoker
-    val resolved = resolvedAgent(invoker, agentType)
+    val invoker   = new RecordingRpcInvoker
+    val resolved  = resolvedAgent(invoker, agentType)
 
     TestHooks.withClientBinder(manualBinder(agentType)) {
       val client =

@@ -16,9 +16,9 @@ object AgentClient {
    * Typed agent-type accessor (no user-land casts).
    *
    * This exists because Scala.js cannot safely cast a plain JS object to a
-   * Scala trait at runtime. When you need to operate at the "agent type + resolved
-   * client" level (e.g. in internal wiring), use this API to keep examples
-   * cast-free.
+   * Scala trait at runtime. When you need to operate at the "agent type +
+   * resolved client" level (e.g. in internal wiring), use this API to keep
+   * examples cast-free.
    */
   transparent inline def agentTypeWithCtor[Trait, Constructor]: AgentType[Trait, Constructor] =
     ${ AgentTypeMacro.agentTypeWithCtorImpl[Trait, Constructor] }

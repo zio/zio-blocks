@@ -63,4 +63,3 @@ final class AgentClientTypeEndToEndSpec extends AsyncFunSuite {
     resolvedAgent.call(echo, "world").map(out => assert(out == "hello world"))
   }
 }
-

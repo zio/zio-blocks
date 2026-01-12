@@ -6,8 +6,8 @@ import golem.runtime.MethodMetadata
 import scala.annotation.nowarn
 
 /**
- * Reflected structure of an agent trait for client-side calling:
- * schemas, WIT function names, and invocation kind.
+ * Reflected structure of an agent trait for client-side calling: schemas, WIT
+ * function names, and invocation kind.
  */
 final case class AgentType[Trait, Constructor](
   traitClassName: String,
@@ -34,7 +34,6 @@ object AgentType {
 sealed trait MethodInvocation
 
 object MethodInvocation {
-  case object Awaitable extends MethodInvocation
+  case object Awaitable     extends MethodInvocation
   case object FireAndForget extends MethodInvocation
 }
-

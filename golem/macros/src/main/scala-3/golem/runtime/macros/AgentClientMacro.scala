@@ -28,8 +28,8 @@ object AgentClientMacro {
         buildMethod[Trait](method)
     }
 
-    val traitNameExpr   = Expr(agentTypeName)
-    val methodsExpr     = Expr.ofList(methods)
+    val traitNameExpr = Expr(agentTypeName)
+    val methodsExpr   = Expr.ofList(methods)
 
     constructorTpe.asType match {
       case '[ctor] =>

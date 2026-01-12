@@ -34,9 +34,9 @@ object JvmAgentClient {
     agentType: AgentType[Trait, ?],
     ctorArgs: Any
   )(implicit ev: Trait <:< AnyRef): Trait = {
-    val cfg0         = configOrThrow
+    val cfg0          = configOrThrow
     val agentTypeName = agentType.typeName
-    val ctorRendered =
+    val ctorRendered  =
       ctorArgs match {
         case ()    => ""
         case other =>
