@@ -14,17 +14,13 @@
  * limitations under the License.
  */
 
-package zio.blocks.chunk.benchmarks
+package zio.blocks.chunk
 
-import org.openjdk.jmh.annotations.{Benchmark, BenchmarkMode, Mode, OutputTimeUnit, Scope, Setup, State}
+import org.openjdk.jmh.annotations._
+import zio.blocks.BaseBenchmark
 import zio.blocks.chunk.Chunk
 
-import java.util.concurrent.TimeUnit
-
-@State(Scope.Thread)
-@BenchmarkMode(Array(Mode.AverageTime))
-@OutputTimeUnit(TimeUnit.NANOSECONDS)
-class ChunkCreationBenchmarks {
+class ChunkCreationBenchmark extends BaseBenchmark {
 
   var a01: Int = _
   var a02: Int = _
