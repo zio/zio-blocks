@@ -54,26 +54,34 @@ abstract class ToonBinaryCodec[A] extends BinaryCodec[A] {
   /**
    * Decodes a key from TOON format.
    *
-   * Used for map keys and field names. Not yet implemented.
+   * Used for map keys. Override this method for types that can be used as map
+   * keys. Default implementation throws UnsupportedOperationException.
    *
    * @param in
    *   the TOON reader to read from
    * @return
    *   the decoded key
+   * @throws UnsupportedOperationException
+   *   if this type doesn't support key decoding
    */
-  def decodeKey(in: ToonReader): A = ???
+  def decodeKey(in: ToonReader): A =
+    throw new UnsupportedOperationException(s"Key decoding not supported for ${getClass.getSimpleName}")
 
   /**
    * Encodes a key to TOON format.
    *
-   * Used for map keys and field names. Not yet implemented.
+   * Used for map keys. Override this method for types that can be used as map
+   * keys. Default implementation throws UnsupportedOperationException.
    *
    * @param x
    *   the key to encode
    * @param out
    *   the TOON writer to write to
+   * @throws UnsupportedOperationException
+   *   if this type doesn't support key encoding
    */
-  def encodeKey(x: A, out: ToonWriter): Unit = ???
+  def encodeKey(x: A, out: ToonWriter): Unit =
+    throw new UnsupportedOperationException(s"Key encoding not supported for ${getClass.getSimpleName}")
 
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
     // Simple wrapper: ByteBuffer -> bytes -> InputStream
@@ -249,6 +257,8 @@ object ToonBinaryCodec {
       } else {
         out.writeRaw(x)
       }
+    override def decodeKey(in: ToonReader): String           = in.readKey()
+    override def encodeKey(x: String, out: ToonWriter): Unit = out.writeRaw(x)
   }
 
   /**
@@ -294,7 +304,7 @@ object ToonBinaryCodec {
     override def decodeValue(in: ToonReader, default: Char): Char = {
       val s = in.readString()
       if (s.length == 1) s.charAt(0)
-      else throw new RuntimeException(s"Expected single character, got: $s")
+      else throw ToonCodecError.atLine(in.getLine, s"Expected single character, got: $s")
     }
     override def encodeValue(x: Char, out: ToonWriter): Unit = {
       val s = x.toString
@@ -321,6 +331,18 @@ object ToonBinaryCodec {
   val intCodec: ToonBinaryCodec[Int] = new ToonBinaryCodec[Int] {
     override def decodeValue(in: ToonReader, default: Int): Int = in.readInt()
     override def encodeValue(x: Int, out: ToonWriter): Unit     = out.writeRaw(intToString(x))
+    override def decodeKey(in: ToonReader): Int                 = {
+      // Read key enclosed in brackets: [42]
+      in.consume('[')
+      val value = in.readInt()
+      in.consume(']')
+      value
+    }
+    override def encodeKey(x: Int, out: ToonWriter): Unit = {
+      out.writeRaw("[")
+      out.writeRaw(intToString(x))
+      out.writeRaw("]")
+    }
   }
 
   /**
@@ -639,5 +661,109 @@ object ToonBinaryCodec {
       java.time.ZoneOffset.of(in.readString())
     override def encodeValue(x: java.time.ZoneOffset, out: ToonWriter): Unit =
       out.writeQuotedString(x.getId)
+  }
+
+  /**
+   * Codec for java.util.UUID values.
+   *
+   * Encodes UUIDs in their canonical string format.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.uuidCodec
+   * codec.encodeToString(UUID.randomUUID())
+   * // Result: "\"550e8400-e29b-41d4-a716-446655440000\""
+   * }}}
+   */
+  val uuidCodec: ToonBinaryCodec[java.util.UUID] = new ToonBinaryCodec[java.util.UUID] {
+    override def decodeValue(in: ToonReader, default: java.util.UUID): java.util.UUID =
+      java.util.UUID.fromString(in.readString())
+    override def encodeValue(x: java.util.UUID, out: ToonWriter): Unit =
+      out.writeQuotedString(x.toString)
+    override def decodeKey(in: ToonReader): java.util.UUID =
+      java.util.UUID.fromString(in.readKey())
+    override def encodeKey(x: java.util.UUID, out: ToonWriter): Unit =
+      out.writeRaw(x.toString)
+  }
+
+  /**
+   * Codec for java.util.Currency values.
+   *
+   * Encodes currencies by their ISO 4217 currency code.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.currencyCodec
+   * codec.encodeToString(Currency.getInstance("USD"))
+   * // Result: "USD"
+   * }}}
+   */
+  val currencyCodec: ToonBinaryCodec[java.util.Currency] = new ToonBinaryCodec[java.util.Currency] {
+    override def decodeValue(in: ToonReader, default: java.util.Currency): java.util.Currency =
+      java.util.Currency.getInstance(in.readString())
+    override def encodeValue(x: java.util.Currency, out: ToonWriter): Unit =
+      out.writeRaw(x.getCurrencyCode)
+    override def decodeKey(in: ToonReader): java.util.Currency =
+      java.util.Currency.getInstance(in.readKey())
+    override def encodeKey(x: java.util.Currency, out: ToonWriter): Unit =
+      out.writeRaw(x.getCurrencyCode)
+  }
+
+  /**
+   * Codec for java.time.DayOfWeek values.
+   */
+  val dayOfWeekCodec: ToonBinaryCodec[java.time.DayOfWeek] = new ToonBinaryCodec[java.time.DayOfWeek] {
+    override def decodeValue(in: ToonReader, default: java.time.DayOfWeek): java.time.DayOfWeek =
+      java.time.DayOfWeek.valueOf(in.readString().toUpperCase)
+    override def encodeValue(x: java.time.DayOfWeek, out: ToonWriter): Unit =
+      out.writeRaw(x.name())
+  }
+
+  /**
+   * Codec for java.time.Month values.
+   */
+  val monthCodec: ToonBinaryCodec[java.time.Month] = new ToonBinaryCodec[java.time.Month] {
+    override def decodeValue(in: ToonReader, default: java.time.Month): java.time.Month =
+      java.time.Month.valueOf(in.readString().toUpperCase)
+    override def encodeValue(x: java.time.Month, out: ToonWriter): Unit =
+      out.writeRaw(x.name())
+  }
+
+  /**
+   * Codec for java.time.Year values.
+   */
+  val yearCodec: ToonBinaryCodec[java.time.Year] = new ToonBinaryCodec[java.time.Year] {
+    override def decodeValue(in: ToonReader, default: java.time.Year): java.time.Year =
+      java.time.Year.of(in.readInt())
+    override def encodeValue(x: java.time.Year, out: ToonWriter): Unit =
+      out.writeRaw(x.getValue.toString)
+  }
+
+  /**
+   * Codec for java.time.YearMonth values.
+   */
+  val yearMonthCodec: ToonBinaryCodec[java.time.YearMonth] = new ToonBinaryCodec[java.time.YearMonth] {
+    override def decodeValue(in: ToonReader, default: java.time.YearMonth): java.time.YearMonth =
+      java.time.YearMonth.parse(in.readString())
+    override def encodeValue(x: java.time.YearMonth, out: ToonWriter): Unit =
+      out.writeQuotedString(x.toString)
+  }
+
+  /**
+   * Codec for java.time.MonthDay values.
+   */
+  val monthDayCodec: ToonBinaryCodec[java.time.MonthDay] = new ToonBinaryCodec[java.time.MonthDay] {
+    override def decodeValue(in: ToonReader, default: java.time.MonthDay): java.time.MonthDay =
+      java.time.MonthDay.parse(in.readString())
+    override def encodeValue(x: java.time.MonthDay, out: ToonWriter): Unit =
+      out.writeQuotedString(x.toString)
+  }
+
+  /**
+   * Codec for java.time.OffsetTime values.
+   */
+  val offsetTimeCodec: ToonBinaryCodec[java.time.OffsetTime] = new ToonBinaryCodec[java.time.OffsetTime] {
+    override def decodeValue(in: ToonReader, default: java.time.OffsetTime): java.time.OffsetTime =
+      java.time.OffsetTime.parse(in.readString())
+    override def encodeValue(x: java.time.OffsetTime, out: ToonWriter): Unit =
+      out.writeQuotedString(x.toString)
   }
 }

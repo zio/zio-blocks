@@ -222,7 +222,15 @@ class ToonBinaryCodecDeriver private[toon] (
       case _: PrimitiveType.Period         => ToonBinaryCodec.periodCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.ZoneId         => ToonBinaryCodec.zoneIdCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.ZoneOffset     => ToonBinaryCodec.zoneOffsetCodec.asInstanceOf[ToonBinaryCodec[A]]
-      case _                               => ??? // TODO: Add remaining primitive types as needed
+      case _: PrimitiveType.UUID           => ToonBinaryCodec.uuidCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.Currency       => ToonBinaryCodec.currencyCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.DayOfWeek      => ToonBinaryCodec.dayOfWeekCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.Month          => ToonBinaryCodec.monthCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.Year           => ToonBinaryCodec.yearCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.YearMonth      => ToonBinaryCodec.yearMonthCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.MonthDay       => ToonBinaryCodec.monthDayCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.OffsetTime     => ToonBinaryCodec.offsetTimeCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _                               => throw new UnsupportedOperationException(s"Unsupported primitive type: $primitiveType")
     }
   }
 
@@ -393,35 +401,200 @@ class ToonBinaryCodecDeriver private[toon] (
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[A]] = Lazy {
 
+    // Value type constants matching JSON codec pattern
+    val objectType  = 0
+    val intType     = 1
+    val longType    = 2
+    val floatType   = 3
+    val doubleType  = 4
+    val booleanType = 5
+    val byteType    = 6
+    val charType    = 7
+    val shortType   = 8
+    val unitType    = 9
+
     // Collect field info - derive codec for each field
     case class FieldInfo(
       name: String,
       codec: ToonBinaryCodec[Any],
       index: Int,
       term: Term[F, A, ?],
-      defaultValue: Option[Any]
+      defaultValue: Option[Any],
+      valueType: Int,
+      valueOffset: RegisterOffset.RegisterOffset
     )
+
+    // Compute value type from Reflect
+    def getValueType(reflect: Reflect[F, ?]): Int = reflect match {
+      case p: Reflect.Primitive[F, _] =>
+        p.primitiveType match {
+          case _: PrimitiveType.Int       => intType
+          case _: PrimitiveType.Long      => longType
+          case _: PrimitiveType.Float     => floatType
+          case _: PrimitiveType.Double    => doubleType
+          case _: PrimitiveType.Boolean   => booleanType
+          case _: PrimitiveType.Byte      => byteType
+          case _: PrimitiveType.Char      => charType
+          case _: PrimitiveType.Short     => shortType
+          case _: PrimitiveType.Unit.type => unitType
+          case _                          => objectType
+        }
+      case _ => objectType
+    }
+
+    // Compute offset based on type
+    def getValueOffset(vt: Int): RegisterOffset.RegisterOffset = vt match {
+      case 1 => RegisterOffset(ints = 1)
+      case 2 => RegisterOffset(longs = 1)
+      case 3 => RegisterOffset(floats = 1)
+      case 4 => RegisterOffset(doubles = 1)
+      case 5 => RegisterOffset(booleans = 1)
+      case 6 => RegisterOffset(bytes = 1)
+      case 7 => RegisterOffset(chars = 1)
+      case 8 => RegisterOffset(shorts = 1)
+      case _ => RegisterOffset(objects = 1)
+    }
 
     val fieldInfos = fields.indices.map { idx =>
       val field     = fields(idx)
       val fieldName = fieldNameMapper(field.name)
       val codec     = deriveFromReflect(field.value)(F, D).asInstanceOf[ToonBinaryCodec[Any]]
+      val vt        = getValueType(field.value)
+      val vo        = getValueOffset(vt)
 
       // Extract default value if available
       val default = field.value match {
-        case r: Reflect.Record[F, _] => None
-        case _                       => None // TODO: Extract from binding if available
+        case _: Reflect.Record[F, _] => None
+        case _                       => None // Default value extraction not yet supported
       }
 
-      FieldInfo(fieldName, codec, idx, field, default)
+      FieldInfo(fieldName, codec, idx, field, default, vt, vo)
     }.toArray
 
-    new ToonBinaryCodec[A] {
-      private[this] val infos = fieldInfos
+    // Compute total register size and per-field offsets
+    val recordBinding = binding.asInstanceOf[Binding.Record[A]]
+    val constructor   = recordBinding.constructor
+    val totalOffset   = constructor.usedRegisters
 
-      override def decodeValue(in: ToonReader, default: A): A =
-        // TODO: Implement full TOON record parsing
-        throw new UnsupportedOperationException("Record decoding not yet implemented")
+    // Compute cumulative offsets for each field
+    val fieldOffsets                                    = new Array[RegisterOffset.RegisterOffset](fieldInfos.length)
+    var cumulativeOffset: RegisterOffset.RegisterOffset = 0L
+    var i                                               = 0
+    while (i < fieldInfos.length) {
+      fieldOffsets(i) = cumulativeOffset
+      cumulativeOffset = cumulativeOffset + fieldInfos(i).valueOffset
+      i += 1
+    }
+
+    new ToonBinaryCodec[A] {
+      private[this] val infos   = fieldInfos
+      private[this] val offsets = fieldOffsets
+
+      override def decodeValue(in: ToonReader, default: A): A = {
+        val values = new Array[Any](infos.length)
+        val found  = new Array[Boolean](infos.length)
+
+        // Build field name lookup map (String -> Integer to handle null properly)
+        val fieldMap = new java.util.HashMap[String, Integer](infos.length)
+        var i        = 0
+        while (i < infos.length) {
+          fieldMap.put(infos(i).name, Integer.valueOf(i))
+          i += 1
+        }
+
+        // Track expected indentation for this record's fields
+        val baseIndent = in.getCurrentIndentLevel
+
+        // Parse fields
+        var done = false
+        while (!done && !in.isEof) {
+          // Check if we're still at a valid field position
+          val c = in.peek()
+          if (c == '\n') {
+            in.skipNewline()
+            in.skipIndentation()
+            if (in.getCurrentIndentLevel < baseIndent || in.isEof) {
+              done = true
+            }
+          } else if (c == '-' || c == 0.toChar) {
+            // List item marker or EOF - not a field
+            done = true
+          } else {
+            // Read field
+            val key = in.readKey()
+            if (key.isEmpty) {
+              done = true
+            } else {
+              in.expectColon()
+
+              val fieldIdxBox = fieldMap.get(key)
+              if (fieldIdxBox ne null) {
+                val fieldIdx = fieldIdxBox.intValue()
+                val info     = infos(fieldIdx)
+                // Check if value is on same line or next line
+                in.peekNextNonWhitespace() // Skip whitespace
+                values(fieldIdx) = info.codec.decodeValue(in, null.asInstanceOf[Any])
+                found(fieldIdx) = true
+              } else {
+                // Unknown field
+                if (rejectExtraFields) {
+                  throw ToonCodecError.atLine(in.getLine, s"Unexpected field: $key")
+                } else {
+                  in.skipValue()
+                }
+              }
+
+              // Move to next line if present
+              if (!in.isEof && in.peek() == '\n') {
+                in.skipNewline()
+                in.skipIndentation()
+                if (in.getCurrentIndentLevel < baseIndent) {
+                  done = true
+                }
+              } else if (in.isEof) {
+                done = true
+              }
+            }
+          }
+        }
+
+        // Set defaults for missing optional fields
+        i = 0
+        while (i < infos.length) {
+          if (!found(i)) {
+            infos(i).defaultValue match {
+              case Some(defVal) => values(i) = defVal
+              case None         => // Leave as null, will fail in construct if required
+            }
+          }
+          i += 1
+        }
+
+        // Use registers to construct record with proper type handling
+        val registers = Registers(totalOffset)
+
+        i = 0
+        while (i < infos.length) {
+          val info   = infos(i)
+          val offset = offsets(i)
+          val value  = values(i)
+
+          info.valueType match {
+            case 1 => registers.setInt(offset, value.asInstanceOf[Int])
+            case 2 => registers.setLong(offset, value.asInstanceOf[Long])
+            case 3 => registers.setFloat(offset, value.asInstanceOf[Float])
+            case 4 => registers.setDouble(offset, value.asInstanceOf[Double])
+            case 5 => registers.setBoolean(offset, value.asInstanceOf[Boolean])
+            case 6 => registers.setByte(offset, value.asInstanceOf[Byte])
+            case 7 => registers.setChar(offset, value.asInstanceOf[Char])
+            case 8 => registers.setShort(offset, value.asInstanceOf[Short])
+            case _ => registers.setObject(offset, value.asInstanceOf[AnyRef])
+          }
+          i += 1
+        }
+
+        constructor.construct(registers, 0L)
+      }
 
       override def encodeValue(x: A, out: ToonWriter): Unit = {
         // Use Product interface for case classes
@@ -526,7 +699,52 @@ class ToonBinaryCodecDeriver private[toon] (
       private[this] val discriminator = variantBinding.discriminator
 
       override def decodeValue(in: ToonReader, default: A): A =
-        throw new UnsupportedOperationException("Variant decoding not yet implemented")
+        discriminatorKind match {
+          case DiscriminatorKind.Key =>
+            // Format: CaseName:\n  fields...
+            val caseName = in.readKey()
+            in.expectColon()
+
+            // Find case by name
+            var idx = -1
+            var i   = 0
+            while (i < infos.length && idx == -1) {
+              if (infos(i).name == caseName) idx = i
+              i += 1
+            }
+            if (idx == -1) throw ToonCodecError.atLine(in.getLine, s"Unknown variant case: $caseName")
+
+            // Move to next line and decode
+            in.skipNewline()
+            in.skipIndentation()
+            infos(idx).codec.decodeValue(in, null).asInstanceOf[A]
+
+          case DiscriminatorKind.Field(fieldName) =>
+            // Format: type: CaseName\nfields...
+            // First read discriminator field
+            val key = in.readKey()
+            if (key != fieldName) {
+              throw ToonCodecError.atLine(in.getLine, s"Expected discriminator field '$fieldName' but got '$key'")
+            }
+            in.expectColon()
+            val caseName = in.readString()
+
+            var idx = -1
+            var i   = 0
+            while (i < infos.length && idx == -1) {
+              if (infos(i).name == caseName) idx = i
+              i += 1
+            }
+            if (idx == -1) throw ToonCodecError.atLine(in.getLine, s"Unknown variant case: $caseName")
+
+            in.skipNewline()
+            in.skipIndentation()
+            infos(idx).codec.decodeValue(in, null).asInstanceOf[A]
+
+          case DiscriminatorKind.None =>
+            // Try each case until one succeeds (not ideal for performance)
+            throw new UnsupportedOperationException("DiscriminatorKind.None decoding not yet implemented")
+        }
 
       override def encodeValue(x: A, out: ToonWriter): Unit = {
         val caseIdx    = discriminator.discriminate(x)
@@ -605,8 +823,53 @@ class ToonBinaryCodecDeriver private[toon] (
       private[this] val codec         = elementCodec
       private[this] val deconstructor = seqBinding.deconstructor
 
-      override def decodeValue(in: ToonReader, default: C[A]): C[A] =
-        throw new UnsupportedOperationException("Sequence decoding not yet implemented")
+      override def decodeValue(in: ToonReader, default: C[A]): C[A] = {
+        // Expect [N]: format
+        if (!in.consume('[')) {
+          throw ToonCodecError.atLine(in.getLine, "Expected '[' for array")
+        }
+        val length = in.readInt()
+        if (!in.consume(']')) {
+          throw ToonCodecError.atLine(in.getLine, "Expected ']' after array length")
+        }
+        in.expectColon()
+
+        val constructor = seqBinding.constructor
+
+        if (length == 0) {
+          // Empty array
+          constructor.emptyObject[A]
+        } else {
+          // Check if inline or list format
+          val isInline = in.peek() != '\n'
+
+          val builder = constructor.newObjectBuilder[A](length)
+
+          if (isInline) {
+            // Inline format: [N]: val1,val2,val3
+            var i = 0
+            while (i < length) {
+              if (i > 0) in.consume(',')
+              constructor.addObject(builder, codec.decodeValue(in, null.asInstanceOf[A]))
+              i += 1
+            }
+          } else {
+            // List format: [N]:\n  - val1\n  - val2
+            in.skipNewline()
+            var i = 0
+            while (i < length) {
+              in.skipIndentation()
+              in.skipListMarker()
+              constructor.addObject(builder, codec.decodeValue(in, null.asInstanceOf[A]))
+              if (i < length - 1) {
+                in.skipNewline()
+              }
+              i += 1
+            }
+          }
+          constructor.resultObject(builder)
+        }
+      }
 
       override def encodeValue(x: C[A], out: ToonWriter): Unit = {
         val it    = deconstructor.deconstruct(x)
@@ -707,8 +970,57 @@ class ToonBinaryCodecDeriver private[toon] (
       private[this] val vCodec        = valueCodec
       private[this] val deconstructor = mapBinding.deconstructor
 
-      override def decodeValue(in: ToonReader, default: M[K, V]): M[K, V] =
-        throw new UnsupportedOperationException("Map decoding not yet implemented")
+      override def decodeValue(in: ToonReader, default: M[K, V]): M[K, V] = {
+        val constructor = mapBinding.constructor
+        val builder     = constructor.newObjectBuilder[K, V]()
+        val baseIndent  = in.getCurrentIndentLevel
+
+        var done = false
+        while (!done && !in.isEof) {
+          val c = in.peek()
+          if (c == '\n') {
+            in.skipNewline()
+            in.skipIndentation()
+            if (in.getCurrentIndentLevel < baseIndent || in.isEof) {
+              done = true
+            }
+          } else if (c == 0.toChar || c == '-') {
+            done = true
+          } else {
+            val mapKey = if (isStringKey) {
+              // String key: read as identifier
+              kCodec.decodeValue(in, null.asInstanceOf[K])
+            } else {
+              // Non-string key: [key]: value
+              if (!in.consume('[')) {
+                throw ToonCodecError.atLine(in.getLine, "Expected '[' for map key")
+              }
+              val k = kCodec.decodeValue(in, null.asInstanceOf[K])
+              if (!in.consume(']')) {
+                throw ToonCodecError.atLine(in.getLine, "Expected ']' after map key")
+              }
+              k
+            }
+
+            in.expectColon()
+            val mapValue = vCodec.decodeValue(in, null.asInstanceOf[V])
+            constructor.addObject(builder, mapKey, mapValue)
+
+            // Move to next line if present
+            if (!in.isEof && in.peek() == '\n') {
+              in.skipNewline()
+              in.skipIndentation()
+              if (in.getCurrentIndentLevel < baseIndent) {
+                done = true
+              }
+            } else if (in.isEof) {
+              done = true
+            }
+          }
+        }
+
+        constructor.resultObject(builder)
+      }
 
       override def encodeValue(x: M[K, V], out: ToonWriter): Unit = {
         val it    = deconstructor.deconstruct(x)
@@ -848,7 +1160,7 @@ class ToonBinaryCodecDeriver private[toon] (
         val b = codec.decodeValue(in, null.asInstanceOf[B])
         wrap(b) match {
           case Right(a)  => a
-          case Left(err) => throw new RuntimeException(s"Wrapper validation failed: $err")
+          case Left(err) => throw ToonCodecError.atLine(in.getLine, s"Wrapper validation failed: $err")
         }
       }
 

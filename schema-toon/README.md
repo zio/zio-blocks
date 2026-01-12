@@ -43,12 +43,14 @@ fieldName: value
 ### Strings
 
 Simple strings are unquoted:
+
 ```
 name: Alice
 city: Springfield
 ```
 
 Strings with special characters are quoted:
+
 ```
 message: "Hello, World!"
 path: "C:\\Users\\Alice"
@@ -72,6 +74,7 @@ deleted: false
 ### Arrays (Inline Format)
 
 For simple primitive arrays:
+
 ```
 [3]: 1,2,3
 ```
@@ -79,6 +82,7 @@ For simple primitive arrays:
 ### Arrays (List Format)
 
 For complex objects:
+
 ```
 [2]:
   - name: Alice
@@ -183,6 +187,7 @@ ArrayFormat.Tabular
 ### Example Comparison
 
 **JSON:**
+
 ```json
 {
   "name": "Alice",
@@ -196,6 +201,7 @@ ArrayFormat.Tabular
 ```
 
 **TOON:**
+
 ```
 name: Alice
 age: 30
@@ -208,21 +214,25 @@ tags[2]: developer,designer
 ## Type Support
 
 ### Primitives
+
 - `Unit`, `Boolean`
 - `Int`, `Long`, `Float`, `Double`
 - `BigInt`, `BigDecimal`
 - `String`
 
 ### Java Time
+
 - `Instant`, `Duration`, `Period`
 - `LocalDate`, `LocalTime`, `LocalDateTime`
 - `OffsetDateTime`, `ZonedDateTime`
 
 ### Collections
+
 - `List`, `Vector`, `Set`, `Seq`
 - `Map[String, V]`
 
 ### ADTs
+
 - Case classes (records)
 - Sealed traits (variants)
 - Case objects
@@ -278,7 +288,6 @@ sbt schema-toon/test
 
 ## Current Limitations
 
-- Decoding is not yet fully implemented (encoding-only for now)
 - Comments are not yet supported
 - Multi-line strings use escape sequences
 

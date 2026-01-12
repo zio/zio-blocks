@@ -77,7 +77,7 @@ final class ToonReader(
       var done = false
       while (!done) {
         val n = nextChar()
-        if (n == -1) throw new RuntimeException(s"Unexpected EOF inside string at line $line, col $col")
+        if (n == -1) throw ToonCodecError.atLine(line, s"Unexpected EOF inside string")
         if (n == '"') {
           done = true
         } else if (n == '\\') {
@@ -146,7 +146,7 @@ final class ToonReader(
     s.toLowerCase match {
       case "true"  => true
       case "false" => false
-      case _       => throw new RuntimeException(s"Invalid boolean value: $s at line $line")
+      case _       => throw ToonCodecError.atLine(line, s"Invalid boolean value: $s")
     }
   }
 
@@ -169,7 +169,7 @@ final class ToonReader(
 
     // Validate indentation is a multiple of indentSize if strict mode
     if (config.strictArrayLength && spaces % 2 != 0) {
-      throw new RuntimeException(s"Invalid indentation: $spaces spaces is not a multiple of 2 at line $line")
+      throw ToonCodecError.atLine(line, s"Invalid indentation: $spaces spaces is not a multiple of 2")
     }
 
     currentIndent = spaces / 2 // Assuming indentSize of 2
@@ -183,7 +183,7 @@ final class ToonReader(
     skipWhitespace()
     val c = nextChar()
     if (c != ':') {
-      throw new RuntimeException(s"Expected ':' but got '${c.toChar}' at line $line, col $col")
+      throw ToonCodecError.atLine(line, s"Expected ':' but got '${c.toChar}'")
     }
   }
 
@@ -319,6 +319,89 @@ final class ToonReader(
     } else {
       false
     }
+
+  /**
+   * Consumes the specified character if it matches the next character.
+   * @return
+   *   true if the character was consumed, false otherwise
+   */
+  def consume(expected: Char): Boolean = {
+    skipWhitespace()
+    if (peek() == expected) {
+      nextChar()
+      true
+    } else {
+      false
+    }
+  }
+
+  /**
+   * Reads a single value from a comma-separated inline list. Stops at comma,
+   * newline, or EOF.
+   */
+  def readInlineValue(): String = {
+    skipWhitespace()
+    val sb   = new StringBuilder
+    var done = false
+    while (!done) {
+      val c = peek()
+      if (c == ',' || c == '\n' || c == 0.toChar || c == ']') {
+        done = true
+      } else {
+        sb.append(nextChar().toChar)
+      }
+    }
+    sb.toString().trim
+  }
+
+  /**
+   * Skips an entire value, including nested structures. Used for skipping
+   * unknown fields.
+   */
+  def skipValue(): Unit = {
+    skipWhitespace()
+    val c = peek()
+    if (c == '\n') {
+      // Nested structure - skip until we return to current or lower indent
+      val baseIndent = currentIndent
+      skipNewline()
+      var done = false
+      while (!done && !isEof) {
+        val spaces = skipIndentation()
+        if (currentIndent <= baseIndent && peek() != '\n') {
+          // Back to base level or higher - we're done
+          done = true
+        } else {
+          // Skip this line
+          skipToNextLine()
+        }
+      }
+    } else if (c == '[') {
+      // Array - skip entire array
+      nextChar() // consume [
+      // Read until matching ]
+      var depth = 1
+      while (depth > 0 && !isEof) {
+        val n = nextChar()
+        if (n == '[') depth += 1
+        else if (n == ']') depth -= 1
+      }
+      // Skip rest of line if inline, or skip block
+      if (!consume(':')) {
+        // Not an array header, just bracket content
+      } else {
+        skipValue() // Recurse for the array contents
+      }
+    } else {
+      // Simple value on same line
+      readUntilNewline()
+    }
+  }
+
+  /**
+   * Reads a character directly. Exposed for parsing control.
+   */
+  def readChar(): Int = nextChar()
 
   private def skipWhitespace(): Unit = {
     var done = false
