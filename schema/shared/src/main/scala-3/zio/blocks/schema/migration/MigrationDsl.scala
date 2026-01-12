@@ -26,11 +26,16 @@ object MigrationDsl {
     def empty[A]: MigrationBuilder[A] = new MigrationBuilder[A](Nil)
   }
 
-  /** Build a typed Migration[A, B] from a compile-time validated program. */
-  inline def migration[A, B](
+    inline def buildPartial[A, B](
       inline f: MigrationBuilder[A] ?=> Unit
   )(using sa: Schema[A], sb: Schema[B]): Migration[A, B] =
-    ${ migrationImpl[A, B]('f, 'sa, 'sb) }
+    ${ migrationImpl[A, B]('f, 'sa, 'sb, validate = Expr(false)) }
+
+  inline def build[A, B](
+      inline f: MigrationBuilder[A] ?=> Unit
+  )(using sa: Schema[A], sb: Schema[B]): Migration[A, B] =
+    ${ migrationImpl[A, B]('f, 'sa, 'sb, validate = Expr(true)) }
+
 
   object ops {
 
@@ -85,16 +90,21 @@ object MigrationDsl {
   // ----- macro impls -----
 
   private def migrationImpl[A: Type, B: Type](
-      f: Expr[MigrationBuilder[A] ?=> Unit],
-      sa: Expr[Schema[A]],
-      sb: Expr[Schema[B]]
-  )(using Quotes): Expr[Migration[A, B]] = {
+    f: Expr[MigrationBuilder[A] ?=> Unit],
+    sa: Expr[Schema[A]],
+    sb: Expr[Schema[B]],
+    validate: Expr[Boolean]
+)(using Quotes): Expr[Migration[A, B]] = {
     '{
       val b = MigrationBuilder.empty[A]
       $f(using b)
 
       // preserve user order (ops were prepended)
       val program = DynamicMigration(b.ops.reverse.toVector)
+
+      if ($validate) {
+        MigrationValidator.validateOrThrow(program, $sa.structural, $sb.structural)
+      }
 
       Migration.fromProgram[A, B](program)(using
         $sa,
@@ -148,7 +158,9 @@ object MigrationDsl {
     '{ $b.add(DropField($dyn, $field, DefaultValueExpr)) }
   }
 
-  private def renameFieldSelectorsImpl[A: Type, B: Type](
+  
+
+    private def renameFieldSelectorsImpl[A: Type, B: Type](
     fromSel: Expr[A => Any],
     toSel: Expr[B => Any],
     b: Expr[MigrationBuilder[A]],
@@ -158,13 +170,11 @@ object MigrationDsl {
     val fromDyn = extractDynamicOptic[A, Any](fromSel, sa)
     val toDyn   = extractDynamicOptic[B, Any](toSel, sb)
 
-    val fromName = lastFieldNameOrAbort(fromDyn, "renameField(fromSel)")
-    val toName   = lastFieldNameOrAbort(toDyn, "renameField(toSel)")
+    val fromNameE = lastFieldName(fromDyn, "renameField(fromSel)")
+    val toNameE   = lastFieldName(toDyn, "renameField(toSel)")
+    val parentDyn = parentOfField(fromDyn, "renameField(fromSel)")
 
-    // rename operates at the parent record optic:
-    val parentDyn = dropLastNodeOrAbort(fromDyn, "renameField(fromSel)")
-
-    '{ $b.add(RenameField($parentDyn, ${Expr(fromName)}, ${Expr(toName)})) }
+    '{ $b.add(RenameField($parentDyn, $fromNameE, $toNameE)) }
   }
 
   private def addFieldExprImpl[A: Type, B: Type](
@@ -174,9 +184,9 @@ object MigrationDsl {
     sb: Expr[Schema[B]]
   )(using Quotes): Expr[Unit] = {
     val targetDyn = extractDynamicOptic[B, Any](targetSel, sb)
-    val name      = lastFieldNameOrAbort(targetDyn, "addFieldExpr(targetSel)")
-    val parent    = dropLastNodeOrAbort(targetDyn, "addFieldExpr(targetSel)")
-    '{ $b.add(AddField($parent, ${Expr(name)}, $defaultExpr)) }
+    val nameE     = lastFieldName(targetDyn, "addFieldExpr(targetSel)")
+    val parentE   = parentOfField(targetDyn, "addFieldExpr(targetSel)")
+    '{ $b.add(AddField($parentE, $nameE, $defaultExpr)) }
   }
 
   private def dropFieldImpl[A: Type](
@@ -186,10 +196,11 @@ object MigrationDsl {
     sa: Expr[Schema[A]]
   )(using Quotes): Expr[Unit] = {
     val sourceDyn = extractDynamicOptic[A, Any](sourceSel, sa)
-    val name      = lastFieldNameOrAbort(sourceDyn, "dropField(sourceSel)")
-    val parent    = dropLastNodeOrAbort(sourceDyn, "dropField(sourceSel)")
-    '{ $b.add(DropField($parent, ${Expr(name)}, $defaultForReverse)) }
+    val nameE     = lastFieldName(sourceDyn, "dropField(sourceSel)")
+    val parentE   = parentOfField(sourceDyn, "dropField(sourceSel)")
+    '{ $b.add(DropField($parentE, $nameE, $defaultForReverse)) }
   }
+
 
   /** Extract DynamicOptic from selector */
   private def extractDynamicOptic[A: Type, B: Type](
@@ -204,22 +215,14 @@ object MigrationDsl {
 
   // ----- optic node helpers (field name / parent optic) -----
 
-  private def lastFieldNameOrAbort(dyn: Expr[DynamicOptic], ctx: String)(using Quotes): String = {
-    import quotes.reflect.*
-    dyn match {
-      case '{ $d: DynamicOptic } =>
-        // we can’t inspect runtime value at compile time, but in practice DynamicOptic produced by optic macro
-        // is a constant tree; simplest beginner approach is to generate runtime checks.
-        // So: emit a runtime check by returning a placeholder and letting parent function build runtime logic.
-        // For now, we do a runtime-only approach by returning a dummy and using runtime helpers.
-        report.errorAndAbort(s"$ctx: currently requires runtime field extraction; implement compile-time extraction if needed.")
-    }
-  }
+  
+  private def lastFieldName(dyn: Expr[DynamicOptic], ctx: String)(using Quotes): Expr[String] =
+    '{ MigrationDsl.RuntimeOptic.lastFieldNameOrFail($dyn, ${Expr(ctx)}) }
 
-  private def dropLastNodeOrAbort(dyn: Expr[DynamicOptic], ctx: String)(using Quotes): Expr[DynamicOptic] = {
-    import quotes.reflect.*
-    quotes.reflect.report.errorAndAbort(s"$ctx: currently requires runtime parent optic extraction; implement compile-time extraction if needed.")
-  }
+  private def parentOfField(dyn: Expr[DynamicOptic], ctx: String)(using Quotes): Expr[DynamicOptic] =
+    '{ MigrationDsl.RuntimeOptic.dropLastNodeOrFail($dyn, ${Expr(ctx)}) }
+
+  
 
   // ─────────────────────────────────────────────
   // structural-schema helpers (unchanged)
@@ -230,4 +233,55 @@ object MigrationDsl {
       ts: ToStructural[A]
   ): Schema[ts.StructuralType] =
     s.structural
+
+
+    // ─────────────────────────────────────────────
+  // Runtime DynamicOptic helpers (BEGINNER-FRIENDLY)
+  // ─────────────────────────────────────────────
+  private[migration] object RuntimeOptic {
+
+    /** Last node must be `.field("name")` for field ops. */
+    def lastFieldNameOrFail(d: DynamicOptic, ctx: String): String =
+      d.nodes.lastOption match {
+        case Some(DynamicOptic.Node.Field(name)) => name
+        case Some(other) =>
+          throw new IllegalArgumentException(
+            s"$ctx: selector must end with a field access, but ended with: $other"
+          )
+        case None =>
+          throw new IllegalArgumentException(s"$ctx: empty optic is not allowed")
+      }
+
+    /** Remove last node. Used to get "parent record optic" from a field optic. */
+    def dropLastNodeOrFail(d: DynamicOptic, ctx: String): DynamicOptic = {
+      if (d.nodes.isEmpty)
+        throw new IllegalArgumentException(s"$ctx: empty optic is not allowed")
+
+      val init = d.nodes.dropRight(1)
+      rebuildFromNodes(init)
+    }
+
+    /** Rebuild a DynamicOptic from nodes using only public constructors. */
+    def rebuildFromNodes(nodes: Seq[DynamicOptic.Node]): DynamicOptic = {
+      // If your DynamicOptic has a public constructor taking nodes, you can do:
+      // DynamicOptic(nodes.toVector)
+      //
+      // But to be safe, rebuild using root + operations:
+      nodes.foldLeft(DynamicOptic.root) { (acc, n) =>
+        n match {
+          case DynamicOptic.Node.Field(name) => acc.field(name)
+          case DynamicOptic.Node.Elements    => acc.elements
+          case DynamicOptic.Node.MapKeys     => acc.mapKeys
+          case DynamicOptic.Node.MapValues   => acc.mapValues
+          case DynamicOptic.Node.Case(name)  => acc.caseOf(name)
+          case DynamicOptic.Node.Wrapped     => acc.wrapped
+          case DynamicOptic.Node.AtIndex(i)  => acc.atIndex(i)
+          case DynamicOptic.Node.AtIndices(ixs) => acc.atIndices(ixs)
+          case DynamicOptic.Node.AtMapKey(k) => acc.atMapKey(k)
+          case DynamicOptic.Node.AtMapKeys(ks) => acc.atMapKeys(ks)
+        }
+      }
+    }
+  }
+  
 }

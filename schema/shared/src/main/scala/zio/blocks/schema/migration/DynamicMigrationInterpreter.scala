@@ -1,7 +1,8 @@
+
 package zio.blocks.schema.migration
 
 import scala.collection.immutable.Vector
-import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaExpr}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaExpr, OpticCheck}
 
 import zio.blocks.schema.migration.MigrationAction._
 
@@ -22,7 +23,7 @@ object DynamicMigrationInterpreter {
   ): Either[MigrationError, DynamicValue] =
     m.actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
       (acc, action) =>
-        acc.flatMap(v => applyAction(action, v))
+        acc.flatMap(v => applyAction(action, v, sourceSchema, targetSchema))
     }
 
   private def defaultForField(
@@ -57,9 +58,11 @@ object DynamicMigrationInterpreter {
   // Action dispatcher
   // ─────────────────────────────────────────────
 
-  private def applyAction(
+    private def applyAction(
       action: MigrationAction,
-      value: DynamicValue
+      value: DynamicValue,
+      sourceSchema: zio.blocks.schema.Schema[_],
+      targetSchema: zio.blocks.schema.Schema[_]
   ): Either[MigrationError, DynamicValue] =
     action match {
 
@@ -71,7 +74,11 @@ object DynamicMigrationInterpreter {
         val provider = () => defaultForField(targetSchema, fieldName)
 
         for {
-          dv <- evalExprToDynamic(defaultExpr, provider)
+          dv <- evalExprToOneDynamic(
+            expr = defaultExpr,
+            input = DynamicValue.Unit, // no meaningful input; default expr should be literal/default
+            defaultProvider = provider
+          )
           out <- modifyRecord(at, value) { fields =>
             if (fields.exists(_._1 == fieldName)) fields
             else fields :+ (fieldName -> dv)
@@ -98,9 +105,10 @@ object DynamicMigrationInterpreter {
         modifyAt(sourceOpt, value) {
           case DynamicValue.Variant("Some", dv) => Right(dv)
           case DynamicValue.Variant("None", _) =>
-            evalExprToDynamic(
-              defaultExpr,
-              () => defaultForField(targetSchema, "<unknown>")
+            evalExprToOneDynamic(
+              expr = defaultExpr,
+              input = DynamicValue.Unit,
+              defaultProvider = () => defaultForField(targetSchema, "<unknown>")
             )
           case other =>
             Left(
@@ -108,64 +116,126 @@ object DynamicMigrationInterpreter {
             )
         }
 
-      // ───────────────
-      // Everything else: clear error for now
-      // ───────────────
-
-      case other =>
-        Left(
-          MigrationError.InvalidOp(
-            "MigrationAction",
-            s"Not implemented yet: ${other.getClass.getSimpleName}"
+      case TransformValue(at, expr) =>
+        modifyAt(at, value) { cur =>
+          // evaluate expression using current value as input (only works when you add dynamic expr eval later)
+           evalExprToOneDynamic(
+            expr = expr,
+            input = cur, // IMPORTANT: expression sees the current focused value
+            defaultProvider = () =>
+              Left(MigrationError.InvalidOp("DefaultValue", "No default in TransformValue"))
           )
-        )
+        }
+
+      case RenameCase(at, from, to) =>
+        modifyAt(at, value) {
+          case DynamicValue.Variant(`from`, dv) => Right(DynamicValue.Variant(to, dv))
+          case DynamicValue.Variant(other, _)   => Right(DynamicValue.Variant(other, value)) // no-op if different case
+          case other =>
+            Left(MigrationError.TypeMismatch(at, "enum/variant", other.getClass.getSimpleName))
+        }
+
+      case TransformCase(at, caseName, actions) =>
+        modifyAt(at, value) {
+          case DynamicValue.Variant(`caseName`, payload) =>
+            val nested = DynamicMigration(actions)
+            DynamicMigrationInterpreter(nested, payload, sourceSchema, targetSchema).map { newPayload =>
+              DynamicValue.Variant(caseName, newPayload)
+            }
+          case DynamicValue.Variant(other, payload) =>
+            Right(DynamicValue.Variant(other, payload)) // no-op if different case
+          case other =>
+            Left(MigrationError.TypeMismatch(at, "enum/variant", other.getClass.getSimpleName))
+        }
+
+      case TransformElements(at, actions) =>
+        modifyAt(at, value) {
+          case DynamicValue.Sequence(values) =>
+            val nested = DynamicMigration(actions)
+            // apply nested to each element
+            values.foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
+              case (acc, elem) =>
+                for {
+                  xs <- acc
+                  out <- DynamicMigrationInterpreter(nested, elem, sourceSchema, targetSchema)
+                } yield xs :+ out
+            }.map(DynamicValue.Sequence.apply)
+
+          case other =>
+            Left(MigrationError.TypeMismatch(at, "sequence", other.getClass.getSimpleName))
+        }
+
+      case TransformKeys(at, expr) =>
+        modifyAt(at, value) {
+          case DynamicValue.Dictionary(entries) =>
+            // keys are DynamicValue; interpret expr as key->key
+            entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
+              case (acc, (k, v)) =>
+                for {
+                  xs <- acc
+                  newK <- evalExprToOneDynamic(
+                    expr = expr,
+                    input = k, // IMPORTANT: expression sees the key
+                    defaultProvider = () =>
+                      Left(MigrationError.InvalidOp("DefaultValue", "no default for key transform"))
+                  )                } yield xs :+ (newK -> v)
+            }.map(DynamicValue.Dictionary.apply)
+
+          case other =>
+            Left(MigrationError.TypeMismatch(at, "dictionary/map", other.getClass.getSimpleName))
+        }
+
+      case TransformValues(at, expr) =>
+        modifyAt(at, value) {
+          case DynamicValue.Dictionary(entries) =>
+            entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
+              case (acc, (k, v)) =>
+                for {
+                  xs <- acc
+                  newV <- evalExprToOneDynamic(
+                    expr = expr,
+                    input = v, // IMPORTANT: expression sees the value
+                    defaultProvider = () =>
+                      Left(MigrationError.InvalidOp("DefaultValue", "no default for value transform"))
+                  )
+                } yield xs :+ (k -> newV)
+            }.map(DynamicValue.Dictionary.apply)
+
+          case other =>
+            Left(MigrationError.TypeMismatch(at, "dictionary/map", other.getClass.getSimpleName))
+        }
+  
     }
 
-  // ─────────────────────────────────────────────
-  // SchemaExpr handling (minimal for now)
-  // ─────────────────────────────────────────────
-  //
-  // IMPORTANT:
-  // Your current Migration.apply converts values to DynamicValue first.
-  // That means SchemaExpr must either:
-  //  1) be evaluatable without input (Literal), OR
-  //  2) be a migration marker (DefaultValueExpr), OR
-  //  3) be interpreted by a dedicated dynamic-expression evaluator later.
-  //
-  // For now we support only Literal + DefaultValueExpr.
-  //
-
-  private def evalExprToDynamic(
+    /** Evaluate a SchemaExpr to a single DynamicValue.
+    *
+    * - Uses SchemaExpr.evalDynamic (already implemented in zio-blocks) :contentReference[oaicite:1]{index=1}
+    * - Special-cases DefaultValueExpr (migration-only marker)
+    * - If the expression returns multiple results (Traversal, etc.), we take the first
+    *   (migration actions should normally target a single primitive result).
+    */
+  private def evalExprToOneDynamic(
       expr: SchemaExpr[Any, Any],
+      input: DynamicValue,
       defaultProvider: () => Either[MigrationError, DynamicValue]
   ): Either[MigrationError, DynamicValue] =
     expr match {
       case DefaultValueExpr =>
-        defaultProvider.defaultValueOrFail
-
-      case lit: SchemaExpr.Literal[Any, Any] @unchecked =>
-        // Literal already contains a Schema[A] and precomputes toDynamicValue internally. :contentReference[oaicite:1]{index=1}
-        lit.evalDynamic(()) match {
-          case Right(values) if values.nonEmpty => Right(values.head)
-          case Right(_) =>
-            Left(
-              MigrationError.InvalidOp(
-                "SchemaExpr.Literal",
-                "Produced no dynamic values"
-              )
-            )
-          case Left(check) =>
-            Left(MigrationError.InvalidOp("SchemaExpr.Literal", check.toString))
-        }
+        defaultProvider()
 
       case other =>
-        Left(
-          MigrationError.InvalidOp(
-            "SchemaExpr",
-            s"Only SchemaExpr.Literal (and DefaultValueExpr marker) are supported right now. Got: ${other.getClass.getSimpleName}"
-          )
-        )
+        other.evalDynamic(input) match { // uses SchemaExpr API :contentReference[oaicite:2]{index=2}
+          case Right(values) if values.nonEmpty =>
+            Right(values.head)
+
+          case Right(_) =>
+            Left(MigrationError.InvalidOp("SchemaExpr", "Expression produced no results"))
+
+          case Left(check) =>
+            Left(MigrationError.OpticCheckFailed(check))
+        }
     }
+
 
   // ─────────────────────────────────────────────
   // Optic helpers (reused from your previous interpreter style)
