@@ -96,7 +96,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC44" % Test,
+      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC45" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.24"     % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -114,7 +114,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
   )
@@ -128,7 +128,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
   )
@@ -186,7 +186,7 @@ lazy val `schema-avro` = project
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     })
   )

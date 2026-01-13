@@ -19,14 +19,15 @@ package zio.blocks.chunk
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
 import zio.blocks.chunk.Chunk
+import scala.compiletime.uninitialized
 
 class ChunkFoldBenchmark extends BaseBenchmark {
   @Param(Array("1000"))
-  var size: Int = _
+  var size: Int = uninitialized
 
-  var chunk: Chunk[Int]   = _
-  var vector: Vector[Int] = _
-  var list: List[Int]     = _
+  var chunk: Chunk[Int]   = uninitialized
+  var vector: Vector[Int] = uninitialized
+  var list: List[Int]     = uninitialized
 
   @Setup(Level.Trial)
   def setup(): Unit = {

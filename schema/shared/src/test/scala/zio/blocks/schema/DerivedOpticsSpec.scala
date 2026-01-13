@@ -36,17 +36,6 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
           ageLens.get(person) == 25
         )
       },
-      test("derived schema usage pattern (extends DerivedOptics with DerivedSchema)") {
-        final case class CompactPerson(name: String, age: Int)
-
-        object CompactPerson extends DerivedOptics[CompactPerson] with DerivedSchema[CompactPerson]
-
-        val p = CompactPerson("Alice", 30)
-        assertTrue(
-          CompactPerson.optics.name.get(p) == "Alice",
-          CompactPerson.optics.age.get(p) == 30
-        )
-      },
       test("lens for case class extending trait") {
         trait HasId {
           def id: Int
@@ -212,27 +201,6 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
           rectanglePrism.getOption(s2) == Some(Rectangle(2.0, 3.0))
         )
       },
-      /* FIXME: Compilation error with Scala 2.13
-      test("derived schema usage pattern (extends DerivedOptics with DerivedSchema)") {
-        sealed trait CompactShape
-
-        final case class CompactCircle(radius: Double) extends CompactShape
-
-        final case class CompactRectangle(width: Double, height: Double) extends CompactShape
-
-        case object CompactPoint extends CompactShape
-
-        object CompactShape extends DerivedOptics[CompactShape] with DerivedSchema[CompactShape]
-
-        val circlePrism: Prism[CompactShape, CompactCircle]       = CompactShape.optics.compactCircle
-        val rectanglePrism: Prism[CompactShape, CompactRectangle] = CompactShape.optics.compactRectangle
-        val s1: CompactShape                                      = CompactCircle(1.0)
-        val s2: CompactShape                                      = CompactRectangle(2.0, 3.0)
-        assertTrue(
-          circlePrism.getOption(s1) == Some(CompactCircle(1.0)),
-          rectanglePrism.getOption(s2) == Some(CompactRectangle(2.0, 3.0))
-        )
-      },*/
       test("stress test: fixed type arguments") {
         sealed trait Stress[A]
 

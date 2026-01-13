@@ -9,14 +9,15 @@ import zio.schema.codec.AvroCodec
 import zio.schema.{DeriveSchema, Schema => ZIOSchema}
 import java.io.ByteArrayOutputStream
 import com.sksamuel.avro4s.{AvroSchema, AvroInputStream, AvroOutputStream}
+import scala.compiletime.uninitialized
 
 class AvroListOfRecordsBenchmark extends BaseBenchmark {
   import AvroListOfRecordsDomain._
 
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
   var size: Int                         = 100
-  var listOfRecords: List[Person]       = _
-  var encodedListOfRecords: Array[Byte] = _
+  var listOfRecords: List[Person]       = uninitialized
+  var encodedListOfRecords: Array[Byte] = uninitialized
 
   @Setup
   def setup(): Unit = {

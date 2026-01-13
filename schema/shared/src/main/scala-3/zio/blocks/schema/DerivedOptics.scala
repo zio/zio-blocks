@@ -9,7 +9,7 @@ import scala.language.dynamics
  *
  * Usage:
  * {{{
- * case class Person(name: String, age: Int)
+ * case class Person(name: String, age: Int) derives Schema
  * object Person extends DerivedOptics[Person]
  *
  * // Access optics via the `optics` member:
@@ -17,22 +17,9 @@ import scala.language.dynamics
  * val ageLens: Lens[Person, Int] = Person.optics.age
  * }}}
  *
- * You can also use Scala 3's `export` to make optics top-level in the
- * companion:
- * {{{
- * case class Person(name: String, age: Int)
- * object Person extends DerivedOptics[Person] {
- *   export optics.*
- * }
- *
- * // Now access optics directly:
- * val nameLens: Lens[Person, String] = Person.name
- * val ageLens: Lens[Person, Int] = Person.age
- * }}}
- *
  * For sealed traits/enums:
  * {{{
- * sealed trait Shape
+ * sealed trait Shape derives Schema
  * case class Circle(radius: Double) extends Shape
  * case class Rectangle(width: Double, height: Double) extends Shape
  * object Shape extends DerivedOptics[Shape]

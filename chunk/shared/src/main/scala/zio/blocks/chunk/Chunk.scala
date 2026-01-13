@@ -678,17 +678,12 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   /**
    * Creates a base64 encoded string based on the chunk's data.
    */
-  def asBase64String(implicit ev: Chunk.IsText[A]): String = {
-    val encoder = java.util.Base64.getEncoder
-    ev match {
-      case Chunk.IsText.byteIsText =>
-        encoder.encodeToString(self.asInstanceOf[Chunk[Byte]].toArray)
-      case Chunk.IsText.charIsText =>
-        encoder.encodeToString(self.asInstanceOf[Chunk[Char]].toArray.map(_.toByte))
-      case Chunk.IsText.strIsText =>
-        encoder.encodeToString(ev.convert(self).getBytes)
-    }
-  }
+  def asBase64String(implicit ev: Chunk.IsText[A]): String =
+    java.util.Base64.getEncoder.encodeToString(
+      if (ev eq Chunk.IsText.byteIsText) self.asInstanceOf[Chunk[Byte]].toArray
+      else if (ev eq Chunk.IsText.charIsText) self.asInstanceOf[Chunk[Char]].toArray.map(_.toByte)
+      else ev.convert(self).getBytes
+    )
 
   /**
    * Converts a chunk of ints to a chunk of bits.
@@ -1673,7 +1668,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       case chunk: Chunk[A]              => chunk
       case iterable if iterable.isEmpty => Empty
       case vector: Vector[A]            => VectorChunk(vector)
-      case arrSeq: mutable.ArraySeq[A]  => fromArraySeq(arrSeq)
+      case arrSeq: mutable.ArraySeq[_]  => fromArraySeq(arrSeq.asInstanceOf[mutable.ArraySeq[A]])
       case iterable                     =>
         val builder = ChunkBuilder.make[A]()
         builder.sizeHint(iterable)

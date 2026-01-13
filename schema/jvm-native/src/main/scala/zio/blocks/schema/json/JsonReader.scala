@@ -10,7 +10,7 @@ import zio.blocks.schema.DynamicOptic
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.json.JsonReader._
-import scala.annotation.{switch, tailrec}
+import scala.annotation.{nowarn, switch, tailrec}
 
 /**
  * The reader to parse JSON input iteratively.
@@ -1413,7 +1413,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   an `Array[Byte]` instance containing the raw bytes of the JSON value.
-   * @throws JsonReaderException
+   * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or invalid type of JSON value
    */
   def readRawValAsBytes(): Array[Byte] = try {
@@ -2642,7 +2642,7 @@ final class JsonReader private[json] (
 
   private[this] def toDouble(pos: Int): Double = {
     val from = marks(markNum - 1)
-    java.lang.Double.parseDouble(new String(buf, 0, from, pos - from))
+    java.lang.Double.parseDouble(new String(buf, 0, from, pos - from)): @nowarn
   }
 
   private[this] def readFloat(isToken: Boolean): Float = {
@@ -2797,7 +2797,7 @@ final class JsonReader private[json] (
 
   private[this] def toFloat(pos: Int): Float = {
     val from = marks(markNum - 1)
-    java.lang.Float.parseFloat(new String(buf, 0, from, pos - from))
+    java.lang.Float.parseFloat(new String(buf, 0, from, pos - from)): @nowarn
   }
 
   private[this] def unsignedMultiplyHigh(x: Long, y: Long): Long =
@@ -4940,7 +4940,7 @@ private class Key {
     }
   }
 
-  override def toString: String = new String(bs, 0, from, to - from)
+  override def toString: String = new String(bs, 0, from, to - from): @nowarn
 
   private def bytes: Array[Byte] = bs
 
