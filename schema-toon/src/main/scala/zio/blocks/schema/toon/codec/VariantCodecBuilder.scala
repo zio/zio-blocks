@@ -6,7 +6,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, Discriminator}
 import zio.blocks.schema.derive.BindingInstance
 import zio.blocks.schema.toon._
-import zio.blocks.schema.toon.ToonCodecUtils._
+import zio.blocks.schema.toon.ToonCodecUtils.{createReaderForValue, unescapeQuoted}
 
 private[toon] final class VariantCodecBuilder(
   discriminatorKind: DiscriminatorKind,
@@ -19,15 +19,31 @@ private[toon] final class VariantCodecBuilder(
   private def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): ToonBinaryCodec[A] =
     codecDeriver.derive(reflect)
 
+  private def isEnumeration[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
+    enumValuesAsStrings && variant.isEnumeration
+
+  private def hasOnlyRecordAndVariantCases[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
+    variant.cases.forall { case_ =>
+      val caseReflect = case_.value
+      caseReflect.isRecord || caseReflect.isVariant && caseReflect.asVariant.forall(hasOnlyRecordAndVariantCases)
+    }
+
+  private def discriminator[F[_, _], A](caseReflect: Reflect[F, A]): Discriminator[A] =
+    caseReflect.asVariant.get.variantBinding
+      .asInstanceOf[BindingInstance[ToonBinaryCodec, _, A]]
+      .binding
+      .asInstanceOf[Binding.Variant[A]]
+      .discriminator
+
   def build[F[_, _], A](
     variant: Reflect.Variant[F, A],
     discr: Discriminator[A]
   ): ToonBinaryCodec[A] = {
-    option(variant) match {
+    variant.optionInnerType match {
       case Some(innerReflect) =>
         buildOptionCodec(innerReflect)
       case None =>
-        if (isEnumeration(variant, enumValuesAsStrings)) {
+        if (isEnumeration(variant)) {
           buildEnumCodec(variant, discr)
         } else {
           discriminatorKind match {

@@ -2,8 +2,9 @@ package zio.blocks.schema.toon.codec
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, Registers, RegisterOffset}
+import zio.blocks.schema.derive.BindingInstance
 import zio.blocks.schema.toon._
-import zio.blocks.schema.toon.ToonCodecUtils._
+import zio.blocks.schema.toon.ToonCodecUtils.unescapeQuoted
 
 import scala.util.control.NonFatal
 
@@ -23,6 +24,45 @@ private[toon] final class RecordCodecBuilder(
 
   private def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): ToonBinaryCodec[A] =
     codecDeriver.derive(reflect)
+
+  private def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean =
+    !requireOptionFields && reflect.isOption
+
+  private def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
+    !requireCollectionFields && reflect.isCollection
+
+  private def defaultValue[F[_, _], A](fieldReflect: Reflect[F, A]): Option[() => Any] =
+    if (requireDefaultValueFields) None
+    else
+      {
+        if (fieldReflect.isPrimitive) fieldReflect.asPrimitive.get.primitiveBinding
+        else if (fieldReflect.isRecord) fieldReflect.asRecord.get.recordBinding
+        else if (fieldReflect.isVariant) fieldReflect.asVariant.get.variantBinding
+        else if (fieldReflect.isSequence) fieldReflect.asSequenceUnknown.get.sequence.seqBinding
+        else if (fieldReflect.isMap) fieldReflect.asMapUnknown.get.map.mapBinding
+        else if (fieldReflect.isWrapper) fieldReflect.asWrapperUnknown.get.wrapper.wrapperBinding
+        else fieldReflect.asDynamic.get.dynamicBinding
+      }.asInstanceOf[BindingInstance[ToonBinaryCodec, _, A]].binding.defaultValue
+
+  private def stripArrayNotation(key: String): (String, Boolean) = {
+    val bracketIdx = if (key.startsWith("\"")) {
+      val closeQuoteIdx = key.indexOf('"', 1)
+      if (closeQuoteIdx > 0) key.indexOf('[', closeQuoteIdx + 1)
+      else key.indexOf('[')
+    } else {
+      key.indexOf('[')
+    }
+    if (bracketIdx > 0) {
+      (stripQuotes(key.substring(0, bracketIdx)), true)
+    } else {
+      (stripQuotes(key), false)
+    }
+  }
+
+  private def stripQuotes(s: String): String =
+    if (s.startsWith("\"") && s.endsWith("\"") && s.length >= 2)
+      s.substring(1, s.length - 1)
+    else s
 
   def build[F[_, _], A](
     record: Reflect.Record[F, A],
@@ -111,10 +151,10 @@ private[toon] final class RecordCodecBuilder(
         val fieldReflect = field.value
         infos(idx) = new ToonFieldInfo(
           DynamicOptic.Node.Field(field.name),
-          defaultValue[F, Any](fieldReflect.asInstanceOf[Reflect[F, Any]], requireDefaultValueFields).orNull,
+          defaultValue(fieldReflect).orNull,
           idx,
-          isOptional(fieldReflect, requireOptionFields),
-          isCollection(fieldReflect, requireCollectionFields)
+          isOptional(fieldReflect),
+          isCollection(fieldReflect)
         )
         idx += 1
       }
@@ -191,6 +231,10 @@ private[toon] final class RecordCodecBuilder(
             return setMissingAndConstruct(missing, regs, in)
           }
 
+          if (in.isListItem && currentDepth <= startDepth) {
+            return setMissingAndConstruct(missing, regs, in)
+          }
+
           if (!in.hasMoreContent || in.peekTrimmedContent.isEmpty) {
             in.advanceLine()
           } else {
@@ -252,16 +296,31 @@ private[toon] final class RecordCodecBuilder(
           out.newLine()
         }
 
+        val inListItem   = out.isInListItemContext
+        var firstWritten = false
+        var depthAdded   = false
+
         var idx = 0
         while (idx < fieldLen) {
           val fieldInfo = fieldInfos(idx)
           if (fieldInfo.nonTransient) {
+            if (inListItem && firstWritten && !depthAdded) {
+              out.incrementDepth()
+              depthAdded = true
+            }
+
             if (skipDefaultValue && fieldInfo.hasDefault) fieldInfo.writeDefaultValue(out, regs, 0)
             else if (skipNone && fieldInfo.isOptional) fieldInfo.writeOptional(out, regs, 0)
             else if (skipEmptyCollection && fieldInfo.isCollection) fieldInfo.writeCollection(out, regs, 0)
             else fieldInfo.writeRequired(out, regs, 0)
+
+            firstWritten = true
           }
           idx += 1
+        }
+
+        if (depthAdded) {
+          out.decrementDepth()
         }
       }
 
@@ -273,6 +332,15 @@ private[toon] final class RecordCodecBuilder(
       }
 
       override def isRecordCodec: Boolean = true
+
+      override def hasOnlyPrimitiveFields: Boolean = {
+        var idx = 0
+        while (idx < fieldInfos.length) {
+          if (!fieldInfos(idx).isPrimitiveCodec) return false
+          idx += 1
+        }
+        true
+      }
 
       override def getFieldNames: Array[String] = {
         val names = new Array[String](fieldInfos.length)

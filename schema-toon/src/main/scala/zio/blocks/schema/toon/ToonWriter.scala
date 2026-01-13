@@ -35,6 +35,7 @@ final class ToonWriter private (
   private[this] var lineStart: Boolean         = true
   private[this] var activeDelimiter: Delimiter = delimiter
   private[this] var inlineContext: Boolean     = false
+  private[this] var listItemContext: Boolean   = false
 
   def reset(): Unit = {
     count = 0
@@ -42,6 +43,7 @@ final class ToonWriter private (
     lineStart = true
     activeDelimiter = delimiter
     inlineContext = false
+    listItemContext = false
   }
 
   def getDepth: Int = depth
@@ -57,6 +59,10 @@ final class ToonWriter private (
   def enterInlineContext(): Unit = inlineContext = true
   def exitInlineContext(): Unit  = inlineContext = false
   def isInlineContext: Boolean   = inlineContext
+
+  def enterListItemContext(): Unit = listItemContext = true
+  def exitListItemContext(): Unit  = listItemContext = false
+  def isInListItemContext: Boolean = listItemContext
 
   def toByteArray: Array[Byte] = java.util.Arrays.copyOf(buf, count)
 
@@ -168,12 +174,33 @@ final class ToonWriter private (
     writeByte(' ')
   }
 
+  def writeTabularHeader(length: Int, fields: Vector[String]): Unit = {
+    ensureIndent()
+    writeByte('[')
+    writeRaw(length.toString.getBytes(UTF_8))
+    if (delimiter != Delimiter.Comma) writeByte(delimiter.char)
+    writeByte(']')
+    writeByte('{')
+    var i = 0
+    while (i < fields.length) {
+      if (i > 0) writeByte(delimiter.char)
+      val field = fields(i)
+      if (isValidUnquotedKey(field)) writeRaw(field.getBytes(UTF_8))
+      else writeQuotedString(field)
+      i += 1
+    }
+    writeByte('}')
+    writeRaw(colonBytes)
+  }
+
   def writeListItemMarker(): Unit = {
     ensureIndent()
     writeRaw(listItemBytes)
   }
 
   def writeDelimiter(d: Delimiter): Unit = writeByte(d.char)
+
+  def writeDelimiter(): Unit = writeByte(delimiter.char)
 
   def newLine(): Unit = {
     writeByte('\n')

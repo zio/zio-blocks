@@ -127,6 +127,26 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def isWrapper: Boolean = false
 
+  def isCollection: Boolean = isSequence || isMap
+
+  def isOption: Boolean = isVariant && {
+    val variant = asVariant.get
+    val tn      = typeName
+    val cases   = variant.cases
+    tn.namespace == Namespace.scala && tn.name == "Option" &&
+    cases.length == 2 && cases(1).name == "Some"
+  }
+
+  def isEnumeration: Boolean = isVariant && asVariant.get.cases.forall { case_ =>
+    val caseReflect = case_.value
+    caseReflect.asRecord.exists(_.fields.isEmpty) ||
+    caseReflect.isEnumeration
+  }
+
+  def optionInnerType: Option[Reflect[F, ?]] =
+    if (!isOption) None
+    else asVariant.get.cases(1).value.asRecord.map(_.fields(0).value)
+
   def modifiers: Seq[Modifier.Reflect]
 
   def modifier(modifier: Modifier.Reflect): Reflect[F, A]

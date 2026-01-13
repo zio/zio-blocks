@@ -139,6 +139,18 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
     throw new ToonBinaryCodecError(Nil, "decodeInlineArray not supported for this type")
 
   /**
+   * Decodes a list-format array where each item is prefixed with `- `. Used for
+   * non-uniform objects or complex nested structures.
+   *
+   * @param in
+   *   the ToonReader positioned at the first list item line
+   * @param expectedLength
+   *   the expected number of items from the array header
+   */
+  def decodeListArray(in: ToonReader, expectedLength: Int): A =
+    throw new ToonBinaryCodecError(Nil, "decodeListArray not supported for this type")
+
+  /**
    * Decodes a tabular array from field-value row data. Used for TOON's tabular
    * format: `items[2]{sku,qty,price}:` followed by rows.
    *
@@ -196,6 +208,19 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
    * tabular format can be applied.
    */
   def isRecordCodec: Boolean = false
+
+  /**
+   * Returns true if this codec represents a primitive type (Int, Long, String,
+   * etc.). Used to determine if inline array format can be applied.
+   */
+  def isPrimitive: Boolean = false
+
+  /**
+   * Returns true if this is a record codec where all fields are primitives.
+   * Used to determine if an array of these records can use tabular format in
+   * list item context.
+   */
+  def hasOnlyPrimitiveFields: Boolean = false
 
   /**
    * Decodes a value of type `A` from the specified `ByteBuffer` using default
@@ -377,6 +402,8 @@ object ToonBinaryCodec {
   }
 
   val booleanCodec: ToonBinaryCodec[Boolean] = new ToonBinaryCodec[Boolean](ToonBinaryCodec.booleanType) {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: Boolean): Boolean = {
       in.skipBlankLines()
       in.readBoolean()
@@ -390,6 +417,8 @@ object ToonBinaryCodec {
   }
 
   val byteCodec: ToonBinaryCodec[Byte] = new ToonBinaryCodec[Byte](ToonBinaryCodec.byteType) {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: Byte): Byte = {
       in.skipBlankLines()
       in.readInt().toByte
@@ -403,6 +432,8 @@ object ToonBinaryCodec {
   }
 
   val shortCodec: ToonBinaryCodec[Short] = new ToonBinaryCodec[Short](ToonBinaryCodec.shortType) {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: Short): Short = {
       in.skipBlankLines()
       in.readInt().toShort
@@ -416,6 +447,8 @@ object ToonBinaryCodec {
   }
 
   val intCodec: ToonBinaryCodec[Int] = new ToonBinaryCodec[Int](ToonBinaryCodec.intType) {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: Int): Int = {
       in.skipBlankLines()
       in.readInt()
@@ -429,6 +462,8 @@ object ToonBinaryCodec {
   }
 
   val longCodec: ToonBinaryCodec[Long] = new ToonBinaryCodec[Long](ToonBinaryCodec.longType) {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: Long): Long = {
       in.skipBlankLines()
       in.readLong()
@@ -442,6 +477,8 @@ object ToonBinaryCodec {
   }
 
   val floatCodec: ToonBinaryCodec[Float] = new ToonBinaryCodec[Float](ToonBinaryCodec.floatType) {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: Float): Float = {
       in.skipBlankLines()
       in.readFloat()
@@ -455,6 +492,8 @@ object ToonBinaryCodec {
   }
 
   val doubleCodec: ToonBinaryCodec[Double] = new ToonBinaryCodec[Double](ToonBinaryCodec.doubleType) {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: Double): Double = {
       in.skipBlankLines()
       in.readDouble()
@@ -468,6 +507,8 @@ object ToonBinaryCodec {
   }
 
   val charCodec: ToonBinaryCodec[Char] = new ToonBinaryCodec[Char](ToonBinaryCodec.charType) {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: Char): Char = {
       in.skipBlankLines()
       val s = in.readString()
@@ -487,6 +528,8 @@ object ToonBinaryCodec {
   }
 
   val stringCodec: ToonBinaryCodec[String] = new ToonBinaryCodec[String]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: String): String = {
       in.skipBlankLines()
       in.readString()
@@ -500,6 +543,8 @@ object ToonBinaryCodec {
   }
 
   val bigIntCodec: ToonBinaryCodec[BigInt] = new ToonBinaryCodec[BigInt]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: BigInt): BigInt = {
       in.skipBlankLines()
       in.readBigInt()
@@ -513,6 +558,8 @@ object ToonBinaryCodec {
   }
 
   val bigDecimalCodec: ToonBinaryCodec[BigDecimal] = new ToonBinaryCodec[BigDecimal]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: BigDecimal): BigDecimal = {
       in.skipBlankLines()
       in.readBigDecimal()
@@ -526,6 +573,8 @@ object ToonBinaryCodec {
   }
 
   val dayOfWeekCodec: ToonBinaryCodec[DayOfWeek] = new ToonBinaryCodec[java.time.DayOfWeek]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.DayOfWeek): java.time.DayOfWeek = {
       in.skipBlankLines()
       val s = in.readString()
@@ -537,6 +586,8 @@ object ToonBinaryCodec {
   }
 
   val durationCodec: ToonBinaryCodec[Duration] = new ToonBinaryCodec[java.time.Duration]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.Duration): java.time.Duration = {
       in.skipBlankLines()
       val s = in.readString()
@@ -548,6 +599,8 @@ object ToonBinaryCodec {
   }
 
   val instantCodec: ToonBinaryCodec[Instant] = new ToonBinaryCodec[java.time.Instant]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.Instant): java.time.Instant = {
       in.skipBlankLines()
       val s = in.readString()
@@ -559,6 +612,8 @@ object ToonBinaryCodec {
   }
 
   val localDateCodec: ToonBinaryCodec[LocalDate] = new ToonBinaryCodec[java.time.LocalDate]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.LocalDate): java.time.LocalDate = {
       in.skipBlankLines()
       val s = in.readString()
@@ -570,6 +625,8 @@ object ToonBinaryCodec {
   }
 
   val localDateTimeCodec: ToonBinaryCodec[LocalDateTime] = new ToonBinaryCodec[java.time.LocalDateTime]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.LocalDateTime): java.time.LocalDateTime = {
       in.skipBlankLines()
       val s = in.readString()
@@ -581,6 +638,8 @@ object ToonBinaryCodec {
   }
 
   val localTimeCodec: ToonBinaryCodec[LocalTime] = new ToonBinaryCodec[java.time.LocalTime]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.LocalTime): java.time.LocalTime = {
       in.skipBlankLines()
       val s = in.readString()
@@ -592,6 +651,8 @@ object ToonBinaryCodec {
   }
 
   val monthCodec: ToonBinaryCodec[Month] = new ToonBinaryCodec[java.time.Month]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.Month): java.time.Month = {
       in.skipBlankLines()
       val s = in.readString()
@@ -603,6 +664,8 @@ object ToonBinaryCodec {
   }
 
   val monthDayCodec: ToonBinaryCodec[MonthDay] = new ToonBinaryCodec[java.time.MonthDay]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.MonthDay): java.time.MonthDay = {
       in.skipBlankLines()
       val s = in.readString()
@@ -614,6 +677,8 @@ object ToonBinaryCodec {
   }
 
   val offsetDateTimeCodec: ToonBinaryCodec[OffsetDateTime] = new ToonBinaryCodec[java.time.OffsetDateTime]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.OffsetDateTime): java.time.OffsetDateTime = {
       in.skipBlankLines()
       val s = in.readString()
@@ -625,6 +690,8 @@ object ToonBinaryCodec {
   }
 
   val offsetTimeCodec: ToonBinaryCodec[OffsetTime] = new ToonBinaryCodec[java.time.OffsetTime]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.OffsetTime): java.time.OffsetTime = {
       in.skipBlankLines()
       val s = in.readString()
@@ -636,6 +703,8 @@ object ToonBinaryCodec {
   }
 
   val periodCodec: ToonBinaryCodec[Period] = new ToonBinaryCodec[java.time.Period]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.Period): java.time.Period = {
       in.skipBlankLines()
       val s = in.readString()
@@ -647,6 +716,8 @@ object ToonBinaryCodec {
   }
 
   val yearCodec: ToonBinaryCodec[Year] = new ToonBinaryCodec[java.time.Year]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.Year): java.time.Year = {
       in.skipBlankLines()
       val s = in.readString()
@@ -662,6 +733,8 @@ object ToonBinaryCodec {
   }
 
   val yearMonthCodec: ToonBinaryCodec[YearMonth] = new ToonBinaryCodec[java.time.YearMonth]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.YearMonth): java.time.YearMonth = {
       in.skipBlankLines()
       val s = in.readString()
@@ -673,6 +746,8 @@ object ToonBinaryCodec {
   }
 
   val zoneIdCodec: ToonBinaryCodec[ZoneId] = new ToonBinaryCodec[java.time.ZoneId]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.ZoneId): java.time.ZoneId = {
       in.skipBlankLines()
       val s = in.readString()
@@ -684,6 +759,8 @@ object ToonBinaryCodec {
   }
 
   val zoneOffsetCodec: ToonBinaryCodec[ZoneOffset] = new ToonBinaryCodec[java.time.ZoneOffset]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.ZoneOffset): java.time.ZoneOffset = {
       in.skipBlankLines()
       val s = in.readString()
@@ -695,6 +772,8 @@ object ToonBinaryCodec {
   }
 
   val zonedDateTimeCodec: ToonBinaryCodec[ZonedDateTime] = new ToonBinaryCodec[java.time.ZonedDateTime]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.time.ZonedDateTime): java.time.ZonedDateTime = {
       in.skipBlankLines()
       val s = in.readString()
@@ -706,6 +785,8 @@ object ToonBinaryCodec {
   }
 
   val currencyCodec: ToonBinaryCodec[Currency] = new ToonBinaryCodec[java.util.Currency]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.util.Currency): java.util.Currency = {
       in.skipBlankLines()
       val s = in.readString()
@@ -717,6 +798,8 @@ object ToonBinaryCodec {
   }
 
   val uuidCodec: ToonBinaryCodec[UUID] = new ToonBinaryCodec[java.util.UUID]() {
+    override def isPrimitive: Boolean = true
+
     def decodeValue(in: ToonReader, default: java.util.UUID): java.util.UUID = {
       in.skipBlankLines()
       val s = in.readString()
@@ -734,12 +817,21 @@ object ToonBinaryCodec {
 
     def decodeValue(in: ToonReader, default: DynamicValue): DynamicValue = {
       in.skipBlankLines()
-      if (!in.hasMoreLines) return unitValue
+      if (!in.hasMoreLines) return DynamicValue.Record(Vector.empty)
 
       val content = in.peekTrimmedContent
       if (content.isEmpty) {
+        val currentDepth = in.getDepth
         in.advanceLine()
-        return DynamicValue.Record(Vector.empty) // Empty content after key means empty record
+        in.skipBlankLines()
+        if (in.hasMoreLines && in.getDepth > currentDepth) {
+          return decodeValue(in, default)
+        }
+        return DynamicValue.Record(Vector.empty)
+      }
+
+      if (content.startsWith("[")) {
+        return decodeRootArray(in)
       }
 
       val inferred = in.inferType(content)
@@ -761,13 +853,19 @@ object ToonBinaryCodec {
           if (content.contains(":")) {
             val builder    = new VectorBuilder[((String, Boolean), DynamicValue)]
             val startDepth = in.getDepth
-            while (in.hasMoreLines && in.getDepth >= startDepth) {
-              in.skipBlankLines()
-              if (in.hasMoreLines && in.getDepth >= startDepth) {
-                val (key, wasQuoted) = in.readKeyWithQuoteInfo()
-                val value            = decodeValue(in, default)
-                builder += (((key, wasQuoted), value))
+            in.skipBlankLines()
+            while (in.hasMoreLines && in.getDepth >= startDepth && !in.isListItem) {
+              val (rawKey, wasQuoted) = in.readKeyWithQuoteInfo()
+              val (fieldName, value)  = if (isQuotedKeyWithArrayNotation(rawKey, wasQuoted)) {
+                val (name, arrayPart) = parseQuotedKeyWithArray(rawKey)
+                (name, decodeArrayFieldValue(in, arrayPart))
+              } else if (!wasQuoted && isArrayKey(rawKey)) {
+                (stripArrayNotation(rawKey), decodeArrayFieldValue(in, rawKey))
+              } else {
+                (rawKey, decodeValue(in, default))
               }
+              builder += (((fieldName, wasQuoted), value))
+              in.skipBlankLines()
             }
             val fieldsWithQuoteInfo = builder.result()
             in.expandPaths match {
@@ -855,6 +953,264 @@ object ToonBinaryCodec {
       DynamicValue.Record(result.result())
     }
 
+    private def decodeRootArray(in: ToonReader): DynamicValue.Sequence = {
+      val content      = in.peekTrimmedContent
+      val bracketStart = content.indexOf('[')
+      val bracketEnd   = content.indexOf(']', bracketStart)
+
+      if (bracketStart < 0 || bracketEnd < 0) {
+        in.decodeError("Expected array header with []")
+      }
+
+      val bracketContent  = content.substring(bracketStart + 1, bracketEnd)
+      val (length, delim) =
+        if (bracketContent.isEmpty) (0, Delimiter.Comma)
+        else if (bracketContent.endsWith("\t")) (bracketContent.dropRight(1).trim.toInt, Delimiter.Tab)
+        else if (bracketContent.endsWith("|")) (bracketContent.dropRight(1).trim.toInt, Delimiter.Pipe)
+        else (bracketContent.trim.toInt, Delimiter.Comma)
+
+      var afterBracket          = bracketEnd + 1
+      var fields: Array[String] = null
+
+      if (afterBracket < content.length && content.charAt(afterBracket) == '{') {
+        val braceEnd = content.indexOf('}', afterBracket)
+        if (braceEnd < 0) in.decodeError("Expected closing } in field list")
+        val fieldsContent  = content.substring(afterBracket + 1, braceEnd)
+        val fieldSeparator = delim match {
+          case Delimiter.Pipe => "\\|"
+          case Delimiter.Tab  => "\t"
+          case _              => ","
+        }
+        fields = fieldsContent.split(fieldSeparator).map(_.trim)
+        afterBracket = braceEnd + 1
+      }
+
+      if (afterBracket >= content.length || content.charAt(afterBracket) != ':') {
+        in.decodeError("Expected : after array header")
+      }
+
+      val inlineContent = content.substring(afterBracket + 1).trim
+      in.advanceLine()
+      in.setActiveDelimiter(delim)
+
+      val builder    = new VectorBuilder[DynamicValue]
+      val startDepth = in.getDepth
+
+      if (fields != null && fields.nonEmpty) {
+        in.skipBlankLinesInArray(true)
+        var count = 0
+        while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
+          in.skipBlankLinesInArray(count == 0)
+          if (in.hasMoreLines && in.getDepth >= startDepth) {
+            val values = in.readInlineArray()
+            val record = new VectorBuilder[(String, DynamicValue)]
+            var i      = 0
+            while (i < fields.length && i < values.length) {
+              val inferred = in.inferType(values(i))
+              val dv       = inferred match {
+                case null       => unitValue
+                case b: Boolean => if (b) trueValue else falseValue
+                case l: Long    =>
+                  val intVal = l.toInt
+                  if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
+                  else DynamicValue.Primitive(PrimitiveValue.Long(l))
+                case d: Double  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
+                case bi: BigInt => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
+                case s: String  => DynamicValue.Primitive(PrimitiveValue.String(s))
+                case _          => DynamicValue.Primitive(PrimitiveValue.String(values(i)))
+              }
+              record += ((fields(i), dv))
+              i += 1
+            }
+            builder += DynamicValue.Record(record.result())
+            count += 1
+          }
+        }
+      } else if (inlineContent.nonEmpty) {
+        val values = splitInlineValues(inlineContent, delim)
+        var i      = 0
+        while (i < values.length) {
+          val inferred = in.inferType(values(i))
+          val dv       = inferred match {
+            case null       => unitValue
+            case b: Boolean => if (b) trueValue else falseValue
+            case l: Long    =>
+              val intVal = l.toInt
+              if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
+              else DynamicValue.Primitive(PrimitiveValue.Long(l))
+            case d: Double  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
+            case bi: BigInt => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
+            case s: String  => DynamicValue.Primitive(PrimitiveValue.String(s))
+            case _          => DynamicValue.Primitive(PrimitiveValue.String(values(i)))
+          }
+          builder += dv
+          i += 1
+        }
+      } else {
+        in.skipBlankLinesInArray(true)
+        var count = 0
+        while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
+          in.skipBlankLinesInArray(count == 0)
+          if (in.hasMoreLines && in.getDepth >= startDepth && in.isListItem) {
+            in.consumeListItemMarker()
+            builder += decodeValue(in, unitValue)
+            count += 1
+          } else if (in.hasMoreLines && in.getDepth >= startDepth) {
+            count = length
+          }
+        }
+      }
+
+      DynamicValue.Sequence(builder.result())
+    }
+
+    private def splitInlineValues(s: String, delim: Delimiter): Array[String] = {
+      val result  = new scala.collection.mutable.ArrayBuffer[String]()
+      var start   = 0
+      var inQuote = false
+      var i       = 0
+      while (i < s.length) {
+        val c = s.charAt(i)
+        if (c == '"') inQuote = !inQuote
+        else if (!inQuote && c == delim.char) {
+          result += s.substring(start, i).trim
+          start = i + 1
+        }
+        i += 1
+      }
+      if (start <= s.length) result += s.substring(start).trim
+      result.toArray
+    }
+
+    private def isArrayKey(key: String): Boolean = {
+      val bracketStart = key.indexOf('[')
+      val bracketEnd   = key.indexOf(']', bracketStart)
+      bracketStart >= 0 && bracketEnd > bracketStart
+    }
+
+    private def stripArrayNotation(key: String): String = {
+      val bracketStart = key.indexOf('[')
+      if (bracketStart > 0) key.substring(0, bracketStart)
+      else if (bracketStart == 0) key
+      else key
+    }
+
+    private def isQuotedKeyWithArrayNotation(rawKey: String, wasQuoted: Boolean): Boolean =
+      wasQuoted && rawKey.contains("[") && rawKey.indexOf('[') > 0
+
+    private def parseQuotedKeyWithArray(rawKey: String): (String, String) = {
+      val bracketStart = rawKey.indexOf('[')
+      val quotedPart   = rawKey.substring(0, bracketStart)
+      val fieldName    =
+        if (quotedPart.startsWith("\"") && quotedPart.endsWith("\""))
+          quotedPart.substring(1, quotedPart.length - 1)
+        else quotedPart
+      val arrayPart = rawKey.substring(bracketStart)
+      (fieldName, arrayPart)
+    }
+
+    private def decodeArrayFieldValue(in: ToonReader, rawKey: String): DynamicValue.Sequence = {
+      val bracketStart   = rawKey.indexOf('[')
+      val bracketEnd     = rawKey.indexOf(']', bracketStart)
+      val bracketContent = rawKey.substring(bracketStart + 1, bracketEnd)
+
+      val (length, delim) =
+        if (bracketContent.isEmpty) (0, Delimiter.Comma)
+        else if (bracketContent.endsWith("\t")) (bracketContent.dropRight(1).trim.toInt, Delimiter.Tab)
+        else if (bracketContent.endsWith("|")) (bracketContent.dropRight(1).trim.toInt, Delimiter.Pipe)
+        else (bracketContent.trim.toInt, Delimiter.Comma)
+
+      var fields: Array[String] = null
+      val braceStart            = rawKey.indexOf('{', bracketEnd)
+      val braceEnd              = rawKey.indexOf('}', braceStart)
+      if (braceStart > 0 && braceEnd > braceStart) {
+        val fieldsContent  = rawKey.substring(braceStart + 1, braceEnd)
+        val fieldSeparator = delim match {
+          case Delimiter.Pipe => "\\|"
+          case Delimiter.Tab  => "\t"
+          case _              => ","
+        }
+        fields = fieldsContent.split(fieldSeparator).map(_.trim)
+      }
+
+      val builder    = new VectorBuilder[DynamicValue]
+      val startDepth = in.getDepth
+      in.setActiveDelimiter(delim)
+
+      if (fields != null && fields.nonEmpty) {
+        in.advanceLine()
+        in.skipBlankLinesInArray(true)
+        var count = 0
+        while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
+          in.skipBlankLinesInArray(count == 0)
+          if (in.hasMoreLines && in.getDepth >= startDepth) {
+            val values = in.readInlineArray()
+            val record = new VectorBuilder[(String, DynamicValue)]
+            var i      = 0
+            while (i < fields.length && i < values.length) {
+              val inferred = in.inferType(values(i))
+              val dv       = inferred match {
+                case null       => unitValue
+                case b: Boolean => if (b) trueValue else falseValue
+                case l: Long    =>
+                  val intVal = l.toInt
+                  if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
+                  else DynamicValue.Primitive(PrimitiveValue.Long(l))
+                case d: Double  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
+                case bi: BigInt => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
+                case s: String  => DynamicValue.Primitive(PrimitiveValue.String(s))
+                case _          => DynamicValue.Primitive(PrimitiveValue.String(values(i)))
+              }
+              record += ((fields(i), dv))
+              i += 1
+            }
+            builder += DynamicValue.Record(record.result())
+            count += 1
+          }
+        }
+      } else {
+        val remaining = in.peekTrimmedContent
+        if (remaining.nonEmpty) {
+          val values = splitInlineValues(remaining, delim)
+          in.advanceLine()
+          var i = 0
+          while (i < values.length) {
+            val inferred = in.inferType(values(i))
+            val dv       = inferred match {
+              case null       => unitValue
+              case b: Boolean => if (b) trueValue else falseValue
+              case l: Long    =>
+                val intVal = l.toInt
+                if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
+                else DynamicValue.Primitive(PrimitiveValue.Long(l))
+              case d: Double  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
+              case bi: BigInt => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
+              case s: String  => DynamicValue.Primitive(PrimitiveValue.String(s))
+              case _          => DynamicValue.Primitive(PrimitiveValue.String(values(i)))
+            }
+            builder += dv
+            i += 1
+          }
+        } else {
+          in.advanceLine()
+          in.skipBlankLinesInArray(true)
+          var count = 0
+          while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
+            in.skipBlankLinesInArray(count == 0)
+            if (in.hasMoreLines && in.getDepth >= startDepth && in.isListItem) {
+              in.consumeListItemMarker()
+              builder += decodeValue(in, unitValue)
+              count += 1
+            } else if (in.hasMoreLines && in.getDepth >= startDepth) {
+              count = length
+            }
+          }
+        }
+      }
+
+      DynamicValue.Sequence(builder.result())
+    }
+
     def encodeValue(x: DynamicValue, out: ToonWriter): Unit = x match {
       case primitive: DynamicValue.Primitive =>
         primitive.value match {
@@ -891,8 +1247,10 @@ object ToonBinaryCodec {
         }
       case record: DynamicValue.Record =>
         out.keyFolding match {
-          case KeyFolding.Safe => encodeRecordWithFolding(record, out, out.flattenDepth)
-          case KeyFolding.Off  => encodeRecordPlain(record, out)
+          case KeyFolding.Safe =>
+            val rootLiteralDottedKeys = record.fields.map(_._1).filter(_.contains('.')).toSet
+            encodeRecordWithFolding(record, out, out.flattenDepth, "", rootLiteralDottedKeys)
+          case KeyFolding.Off => encodeRecordPlain(record, out)
         }
       case variant: DynamicValue.Variant =>
         out.writeKey(variant.caseName)
@@ -900,16 +1258,43 @@ object ToonBinaryCodec {
         out.newLine()
       case sequence: DynamicValue.Sequence =>
         val elements = sequence.elements
-        out.writeArrayHeader(elements.size)
-        out.newLine()
-        out.incrementDepth()
-        val it = elements.iterator
-        while (it.hasNext) {
-          out.writeListItemMarker()
-          encodeValue(it.next(), out)
-          out.newLine()
+        if (elements.isEmpty) {
+          out.writeArrayHeader(0)
+        } else {
+          classifySequence(elements) match {
+            case ArrayClassification.Primitives =>
+              out.writeArrayHeaderInline(null, elements.size)
+              out.enterInlineContext()
+              var first = true
+              val it    = elements.iterator
+              while (it.hasNext) {
+                if (!first) out.writeDelimiter()
+                first = false
+                encodePrimitiveInline(it.next(), out)
+              }
+              out.exitInlineContext()
+            case ArrayClassification.UniformRecords(keys) =>
+              out.writeTabularHeader(elements.size, keys)
+              out.newLine()
+              out.incrementDepth()
+              val it = elements.iterator
+              while (it.hasNext) {
+                out.ensureIndent()
+                encodeTabularRow(it.next().asInstanceOf[DynamicValue.Record], keys, out)
+                out.newLine()
+              }
+              out.decrementDepth()
+            case ArrayClassification.Mixed =>
+              out.writeArrayHeader(elements.size)
+              out.newLine()
+              out.incrementDepth()
+              val it = elements.iterator
+              while (it.hasNext) {
+                encodeListItem(it.next(), out)
+              }
+              out.decrementDepth()
+          }
         }
-        out.decrementDepth()
       case map: DynamicValue.Map =>
         val entries = map.entries
         val it      = entries.iterator
@@ -934,8 +1319,11 @@ object ToonBinaryCodec {
             out.incrementDepth()
             encodeRecordPlain(nestedRecord, out)
             out.decrementDepth()
-          case emptyRecord: DynamicValue.Record if emptyRecord.fields.isEmpty =>
+          case _: DynamicValue.Record =>
             out.writeKeyOnly(key)
+          case seq: DynamicValue.Sequence =>
+            out.ensureIndent()
+            encodeSequenceField(key, seq, out)
           case _ =>
             out.writeKey(key)
             encodeValue(value, out)
@@ -947,7 +1335,9 @@ object ToonBinaryCodec {
     private def encodeRecordWithFolding(
       record: DynamicValue.Record,
       out: ToonWriter,
-      remainingDepth: Int
+      remainingDepth: Int,
+      ancestorPath: String,
+      rootLiteralDottedKeys: Set[String]
     ): Unit = {
       val fields       = record.fields
       val topLevelKeys = fields.map(_._1).toSet
@@ -958,21 +1348,38 @@ object ToonBinaryCodec {
         if (remainingDepth > 1 && ToonWriter.isIdentifierSegment(key)) {
           val (foldedKey, leafValue, depth) = collectFoldableChain(key, value, remainingDepth)
 
-          val firstSegment = foldedKey.takeWhile(_ != '.')
-          val wouldCollide = foldedKey.contains('.') && topLevelKeys.exists { otherKey =>
+          val firstSegment     = foldedKey.takeWhile(_ != '.')
+          val siblingCollision = foldedKey.contains('.') && topLevelKeys.exists { otherKey =>
             otherKey != key && otherKey.startsWith(firstSegment + ".")
           }
-          if (wouldCollide || depth == 1) {
-            writeFieldWithNesting(key, value, out, remainingDepth)
+
+          val fullFoldedPath    = if (ancestorPath.isEmpty) foldedKey else ancestorPath + "." + foldedKey
+          val ancestorCollision = rootLiteralDottedKeys.exists { literalKey =>
+            literalKey.startsWith(fullFoldedPath + ".") || literalKey == fullFoldedPath ||
+            fullFoldedPath.startsWith(literalKey + ".")
+          }
+
+          if (siblingCollision || ancestorCollision || depth == 1) {
+            writeFieldWithNesting(key, value, out, remainingDepth, ancestorPath, rootLiteralDottedKeys)
           } else {
+            val newAncestorPath = if (ancestorPath.isEmpty) foldedKey else ancestorPath + "." + foldedKey
             leafValue match {
               case nestedRecord: DynamicValue.Record if nestedRecord.fields.nonEmpty =>
                 out.writeKeyOnly(foldedKey)
                 out.incrementDepth()
-                encodeRecordWithFolding(nestedRecord, out, remainingDepth - depth)
+                encodeRecordWithFolding(
+                  nestedRecord,
+                  out,
+                  remainingDepth - depth,
+                  newAncestorPath,
+                  rootLiteralDottedKeys
+                )
                 out.decrementDepth()
-              case emptyRecord: DynamicValue.Record if emptyRecord.fields.isEmpty =>
+              case _: DynamicValue.Record =>
                 out.writeKeyOnly(foldedKey)
+              case seq: DynamicValue.Sequence =>
+                out.ensureIndent()
+                encodeSequenceField(foldedKey, seq, out)
               case _ =>
                 out.writeKey(foldedKey)
                 encodeValue(leafValue, out)
@@ -980,7 +1387,7 @@ object ToonBinaryCodec {
             }
           }
         } else {
-          writeFieldWithNesting(key, value, out, remainingDepth)
+          writeFieldWithNesting(key, value, out, remainingDepth, ancestorPath, rootLiteralDottedKeys)
         }
       }
     }
@@ -989,19 +1396,27 @@ object ToonBinaryCodec {
       key: String,
       value: DynamicValue,
       out: ToonWriter,
-      remainingDepth: Int
-    ): Unit = value match {
-      case nestedRecord: DynamicValue.Record if nestedRecord.fields.nonEmpty =>
-        out.writeKeyOnly(key)
-        out.incrementDepth()
-        encodeRecordWithFolding(nestedRecord, out, remainingDepth - 1)
-        out.decrementDepth()
-      case _: DynamicValue.Record =>
-        out.writeKeyOnly(key)
-      case _ =>
-        out.writeKey(key)
-        encodeValue(value, out)
-        out.newLine()
+      remainingDepth: Int,
+      ancestorPath: String,
+      rootLiteralDottedKeys: Set[String]
+    ): Unit = {
+      val newAncestorPath = if (ancestorPath.isEmpty) key else ancestorPath + "." + key
+      value match {
+        case nestedRecord: DynamicValue.Record if nestedRecord.fields.nonEmpty =>
+          out.writeKeyOnly(key)
+          out.incrementDepth()
+          encodeRecordWithFolding(nestedRecord, out, remainingDepth - 1, newAncestorPath, rootLiteralDottedKeys)
+          out.decrementDepth()
+        case _: DynamicValue.Record =>
+          out.writeKeyOnly(key)
+        case seq: DynamicValue.Sequence =>
+          out.ensureIndent()
+          encodeSequenceField(key, seq, out)
+        case _ =>
+          out.writeKey(key)
+          encodeValue(value, out)
+          out.newLine()
+      }
     }
 
     private def collectFoldableChain(
@@ -1025,6 +1440,164 @@ object ToonBinaryCodec {
             (key, value, 1)
         }
       }
+
+    private sealed trait ArrayClassification
+    private object ArrayClassification {
+      case object Primitives                          extends ArrayClassification
+      case class UniformRecords(keys: Vector[String]) extends ArrayClassification
+      case object Mixed                               extends ArrayClassification
+    }
+
+    private def classifySequence(elements: Vector[DynamicValue]): ArrayClassification = {
+      var allPrimitives                   = true
+      var allRecords                      = true
+      var firstRecordKeys: Vector[String] = null
+
+      val it = elements.iterator
+      while (it.hasNext && (allPrimitives || allRecords)) {
+        it.next() match {
+          case _: DynamicValue.Primitive =>
+            allRecords = false
+          case r: DynamicValue.Record =>
+            allPrimitives = false
+            val keys = r.fields.map(_._1)
+            if (firstRecordKeys == null) {
+              firstRecordKeys = keys
+            } else if (keys != firstRecordKeys) {
+              allRecords = false
+            }
+            if (allRecords && !r.fields.forall { case (_, v) => v.isInstanceOf[DynamicValue.Primitive] }) {
+              allRecords = false
+            }
+          case _ =>
+            allPrimitives = false
+            allRecords = false
+        }
+      }
+
+      if (allPrimitives) ArrayClassification.Primitives
+      else if (allRecords && firstRecordKeys != null) ArrayClassification.UniformRecords(firstRecordKeys)
+      else ArrayClassification.Mixed
+    }
+
+    private def encodePrimitiveInline(value: DynamicValue, out: ToonWriter): Unit = value match {
+      case primitive: DynamicValue.Primitive =>
+        primitive.value match {
+          case _: PrimitiveValue.Unit.type  => out.writeNull()
+          case v: PrimitiveValue.Boolean    => out.writeBoolean(v.value)
+          case v: PrimitiveValue.Byte       => out.writeInt(v.value.toInt)
+          case v: PrimitiveValue.Short      => out.writeInt(v.value.toInt)
+          case v: PrimitiveValue.Int        => out.writeInt(v.value)
+          case v: PrimitiveValue.Long       => out.writeLong(v.value)
+          case v: PrimitiveValue.Float      => out.writeFloat(v.value)
+          case v: PrimitiveValue.Double     => out.writeDouble(v.value)
+          case v: PrimitiveValue.Char       => out.writeString(v.value.toString)
+          case v: PrimitiveValue.String     => out.writeString(v.value)
+          case v: PrimitiveValue.BigInt     => out.writeBigInt(v.value)
+          case v: PrimitiveValue.BigDecimal => out.writeBigDecimal(v.value)
+          case _                            => out.writeString(primitive.value.toString)
+        }
+      case _ => out.writeString(value.toString)
+    }
+
+    private def encodeTabularRow(record: DynamicValue.Record, keys: Vector[String], out: ToonWriter): Unit = {
+      val fieldMap = record.fields.toMap
+      var first    = true
+      val it       = keys.iterator
+      while (it.hasNext) {
+        if (!first) out.writeDelimiter()
+        first = false
+        fieldMap.get(it.next()) match {
+          case Some(value) => encodePrimitiveInline(value, out)
+          case None        => out.writeNull()
+        }
+      }
+    }
+
+    private def encodeListItem(element: DynamicValue, out: ToonWriter): Unit = element match {
+      case record: DynamicValue.Record if record.fields.nonEmpty =>
+        out.writeListItemMarker()
+        out.enterListItemContext()
+        val fields = record.fields
+        val it     = fields.iterator
+        var first  = true
+        out.incrementDepth()
+        while (it.hasNext) {
+          val (key, value) = it.next()
+          if (first) {
+            first = false
+          } else {
+            out.ensureIndent()
+          }
+          value match {
+            case nestedRecord: DynamicValue.Record if nestedRecord.fields.nonEmpty =>
+              out.writeKeyOnly(key)
+              out.incrementDepth()
+              encodeRecordPlain(nestedRecord, out)
+              out.decrementDepth()
+            case emptyRecord: DynamicValue.Record if emptyRecord.fields.isEmpty =>
+              out.writeKeyOnly(key)
+            case seq: DynamicValue.Sequence =>
+              encodeSequenceField(key, seq, out)
+            case _ =>
+              out.writeKey(key)
+              encodeValue(value, out)
+              out.newLine()
+          }
+        }
+        out.decrementDepth()
+        out.exitListItemContext()
+      case _: DynamicValue.Record =>
+        out.writeListItemMarker()
+        out.newLine()
+      case _ =>
+        out.writeListItemMarker()
+        encodeValue(element, out)
+        out.newLine()
+    }
+
+    private def encodeSequenceField(key: String, seq: DynamicValue.Sequence, out: ToonWriter): Unit = {
+      val elements = seq.elements
+      if (elements.isEmpty) {
+        out.writeArrayHeader(key, 0)
+        out.newLine()
+      } else {
+        classifySequence(elements) match {
+          case ArrayClassification.Primitives =>
+            out.writeArrayHeaderInline(key, elements.size)
+            out.enterInlineContext()
+            var first = true
+            val it    = elements.iterator
+            while (it.hasNext) {
+              if (!first) out.writeDelimiter()
+              first = false
+              encodePrimitiveInline(it.next(), out)
+            }
+            out.exitInlineContext()
+            out.newLine()
+          case ArrayClassification.UniformRecords(keys) =>
+            out.writeArrayHeader(key, elements.size, keys.toArray)
+            out.newLine()
+            out.incrementDepth()
+            val it = elements.iterator
+            while (it.hasNext) {
+              out.ensureIndent()
+              encodeTabularRow(it.next().asInstanceOf[DynamicValue.Record], keys, out)
+              out.newLine()
+            }
+            out.decrementDepth()
+          case ArrayClassification.Mixed =>
+            out.writeArrayHeader(key, elements.size)
+            out.newLine()
+            out.incrementDepth()
+            val it = elements.iterator
+            while (it.hasNext) {
+              encodeListItem(it.next(), out)
+            }
+            out.decrementDepth()
+        }
+      }
+    }
 
     override def encodeKey(x: DynamicValue, out: ToonWriter): Unit = x match {
       case primitive: DynamicValue.Primitive =>

@@ -28,6 +28,11 @@ private[toon] final class ToonFieldInfo(
   @inline
   def hasDefault: Boolean = defaultValueConstructor ne null
 
+  /**
+   * Returns true if the codec for this field represents a primitive type.
+   */
+  def isPrimitiveCodec: Boolean = codec.isPrimitive
+
   def usedRegisters: RegisterOffset.RegisterOffset = codec.valueOffset + offset
 
   def readValue(in: ToonReader, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
@@ -63,9 +68,15 @@ private[toon] final class ToonFieldInfo(
 
   def readArrayFieldValue(in: ToonReader, regs: Registers, top: RegisterOffset.RegisterOffset, rawKey: String): Unit = {
     val off          = this.offset + top
-    val bracketStart = rawKey.indexOf('[')
-    val bracketEnd   = rawKey.indexOf(']', bracketStart)
-    val lengthStr    = if (bracketStart >= 0 && bracketEnd > bracketStart) {
+    val bracketStart = if (rawKey.startsWith("\"")) {
+      val closeQuoteIdx = rawKey.indexOf('"', 1)
+      if (closeQuoteIdx > 0) rawKey.indexOf('[', closeQuoteIdx + 1)
+      else rawKey.indexOf('[')
+    } else {
+      rawKey.indexOf('[')
+    }
+    val bracketEnd = rawKey.indexOf(']', bracketStart)
+    val lengthStr  = if (bracketStart >= 0 && bracketEnd > bracketStart) {
       rawKey.substring(bracketStart + 1, bracketEnd)
     } else "0"
 
@@ -88,13 +99,13 @@ private[toon] final class ToonFieldInfo(
     val braceEnd   = rawKey.indexOf('}', braceStart)
 
     if (braceStart > 0 && braceEnd > braceStart) {
-      val fieldNamesStr  = rawKey.substring(braceStart + 1, braceEnd)
-      val fieldSeparator = delimChar match {
-        case Delimiter.Pipe => "\\|"
-        case Delimiter.Tab  => "\t"
-        case _              => ","
+      val fieldNamesStr = rawKey.substring(braceStart + 1, braceEnd)
+      val fieldNames    = splitFieldNames(fieldNamesStr, delimChar).map { f =>
+        val trimmed = f.trim
+        if (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length >= 2)
+          trimmed.substring(1, trimmed.length - 1)
+        else trimmed
       }
-      val fieldNames = fieldNamesStr.split(fieldSeparator).map(_.trim)
 
       in.advanceLine()
       in.skipBlankLines()
@@ -104,13 +115,23 @@ private[toon] final class ToonFieldInfo(
         codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeTabularArray(in, fieldNames, length, delimChar)
       )
     } else {
-      in.setActiveDelimiter(delimChar)
-      val values = in.readInlineArray()
+      val remaining = in.peekTrimmedContent
+      if (remaining.isEmpty) {
+        in.advanceLine()
+        in.skipBlankLines()
+        regs.setObject(
+          off,
+          codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeListArray(in, length)
+        )
+      } else {
+        in.setActiveDelimiter(delimChar)
+        val values = in.readInlineArray()
 
-      regs.setObject(
-        off,
-        codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeInlineArray(values, length)
-      )
+        regs.setObject(
+          off,
+          codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeInlineArray(values, length)
+        )
+      }
     }
   }
 
@@ -313,5 +334,23 @@ private[toon] final class ToonFieldInfo(
   def setEmptyCollection(regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
     val off = this.offset + top
     regs.setObject(off, codec.nullValue.asInstanceOf[AnyRef])
+  }
+
+  private def splitFieldNames(s: String, delim: Delimiter): Array[String] = {
+    val result  = new scala.collection.mutable.ArrayBuffer[String]()
+    var start   = 0
+    var inQuote = false
+    var i       = 0
+    while (i < s.length) {
+      val c = s.charAt(i)
+      if (c == '"') inQuote = !inQuote
+      else if (!inQuote && c == delim.char) {
+        result += s.substring(start, i).trim
+        start = i + 1
+      }
+      i += 1
+    }
+    if (start <= s.length) result += s.substring(start).trim
+    result.toArray
   }
 }

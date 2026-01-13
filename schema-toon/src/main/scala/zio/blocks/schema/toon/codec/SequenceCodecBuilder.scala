@@ -4,7 +4,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.toon._
 import zio.blocks.schema.toon.ToonBinaryCodec.stringCodec
-import zio.blocks.schema.toon.ToonCodecUtils._
+import zio.blocks.schema.toon.ToonCodecUtils.{createReaderForValue, unescapeQuoted}
 
 import scala.util.control.NonFatal
 
@@ -22,7 +22,7 @@ private[toon] final class SequenceCodecBuilder(
     binding: Binding.Seq[Col, Elem]
   ): ToonBinaryCodec[Col[Elem]] = {
     val elemCodec   = deriveCodec(sequence.element).asInstanceOf[ToonBinaryCodec[Elem]]
-    val isPrimitive = isPrimitiveCodec(elemCodec)
+    val isPrimitive = elemCodec.isPrimitive
 
     val useInline = arrayFormat match {
       case ArrayFormat.Auto    => isPrimitive
@@ -32,7 +32,7 @@ private[toon] final class SequenceCodecBuilder(
     }
 
     val configuredDelimiter = delimiter
-    val isRecordElement     = isRecordCodec(elemCodec)
+    val isRecordElement     = elemCodec.isRecordCodec
 
     val useTabular = arrayFormat match {
       case ArrayFormat.Tabular => isRecordElement
@@ -149,7 +149,7 @@ private[toon] final class SequenceCodecBuilder(
             }
             out.decrementDepth()
           } else {
-            encodeAsList(x, size, out)
+            encodeAsListFormat(null, x, size, out)
           }
         } else if (useInlineFormat && size > 0) {
           out.writeArrayHeaderInline(null, size, inlineDelimiter)
@@ -165,19 +165,22 @@ private[toon] final class SequenceCodecBuilder(
           out.exitInlineContext()
           out.newLine()
         } else {
-          encodeAsList(x, size, out)
+          encodeAsListFormat(null, x, size, out)
         }
       }
 
-      private def encodeAsList(x: Col[Elem], size: Int, out: ToonWriter): Unit = {
-        out.writeArrayHeader(size)
+      private def encodeAsListFormat(fieldName: String, x: Col[Elem], size: Int, out: ToonWriter): Unit = {
+        out.writeArrayHeader(fieldName, size, null, inlineDelimiter)
         out.newLine()
         out.incrementDepth()
-        val iter = deconstructor.deconstruct(x)
+        val iter         = deconstructor.deconstruct(x)
+        val isRecordElem = elementCodec.isRecordCodec
         while (iter.hasNext) {
           out.writeListItemMarker()
+          out.enterListItemContext()
           elementCodec.encodeValue(iter.next(), out)
-          out.newLine()
+          out.exitListItemContext()
+          if (!isRecordElem) out.newLine()
         }
         out.decrementDepth()
       }
@@ -191,50 +194,44 @@ private[toon] final class SequenceCodecBuilder(
         if (size == 0) {
           out.writeArrayHeader(fieldName, 0, null, inlineDelimiter)
           out.newLine()
-        } else if (useTabularFormat) {
-          val fieldNames = elementCodec.getFieldNames
-          if (fieldNames != null && fieldNames.nonEmpty) {
-            out.writeArrayHeader(fieldName, size, fieldNames, inlineDelimiter)
-            out.newLine()
-            out.incrementDepth()
-            val iter = deconstructor.deconstruct(x)
-            while (iter.hasNext) {
-              elementCodec.encodeTabularRow(iter.next(), out, inlineDelimiter)
-              out.newLine()
-            }
-            out.decrementDepth()
-          } else {
-            encodeAsListField(fieldName, x, size, out)
-          }
-        } else if (useInlineFormat) {
-          out.writeArrayHeaderInline(fieldName, size, inlineDelimiter)
-          out.setActiveDelimiter(inlineDelimiter)
-          out.enterInlineContext()
-          val iter  = deconstructor.deconstruct(x)
-          var first = true
-          while (iter.hasNext) {
-            if (!first) out.writeDelimiter(inlineDelimiter)
-            first = false
-            elementCodec.encodeValue(iter.next(), out)
-          }
-          out.exitInlineContext()
-          out.newLine()
         } else {
-          encodeAsListField(fieldName, x, size, out)
-        }
-      }
+          val shouldUseTabular = useTabularFormat ||
+            (out.isInListItemContext && isRecordElement && elementCodec.hasOnlyPrimitiveFields)
 
-      private def encodeAsListField(fieldName: String, x: Col[Elem], size: Int, out: ToonWriter): Unit = {
-        out.writeArrayHeader(fieldName, size)
-        out.newLine()
-        out.incrementDepth()
-        val iter = deconstructor.deconstruct(x)
-        while (iter.hasNext) {
-          out.writeListItemMarker()
-          elementCodec.encodeValue(iter.next(), out)
-          out.newLine()
+          if (shouldUseTabular) {
+            val fieldNames = elementCodec.getFieldNames
+            if (fieldNames != null && fieldNames.nonEmpty) {
+              out.writeArrayHeader(fieldName, size, fieldNames, inlineDelimiter)
+              out.newLine()
+              out.incrementDepth()
+              if (out.isInListItemContext) out.incrementDepth()
+              val iter = deconstructor.deconstruct(x)
+              while (iter.hasNext) {
+                elementCodec.encodeTabularRow(iter.next(), out, inlineDelimiter)
+                out.newLine()
+              }
+              if (out.isInListItemContext) out.decrementDepth()
+              out.decrementDepth()
+            } else {
+              encodeAsListFormat(fieldName, x, size, out)
+            }
+          } else if (useInlineFormat) {
+            out.writeArrayHeaderInline(fieldName, size, inlineDelimiter)
+            out.setActiveDelimiter(inlineDelimiter)
+            out.enterInlineContext()
+            val iter  = deconstructor.deconstruct(x)
+            var first = true
+            while (iter.hasNext) {
+              if (!first) out.writeDelimiter(inlineDelimiter)
+              first = false
+              elementCodec.encodeValue(iter.next(), out)
+            }
+            out.exitInlineContext()
+            out.newLine()
+          } else {
+            encodeAsListFormat(fieldName, x, size, out)
+          }
         }
-        out.decrementDepth()
       }
 
       override def decodeInlineArray(values: Array[String], expectedLength: Int): Col[Elem] = {
@@ -266,6 +263,59 @@ private[toon] final class SequenceCodecBuilder(
           }
           idx += 1
         }
+        constructor.resultObject[Elem](builder)
+      }
+
+      override def decodeListArray(in: ToonReader, expectedLength: Int): Col[Elem] = {
+        val builder     = constructor.newObjectBuilder[Elem](expectedLength)
+        var actualCount = 0
+        var idx         = 0
+        while (idx < expectedLength && in.hasMoreLines) {
+          in.skipBlankLinesInArray(idx == 0)
+          if (in.isListItem) {
+            in.consumeListItemMarker()
+            try {
+              val elem = elementCodec.decodeValue(in, elementCodec.nullValue)
+              constructor.addObject(builder, elem)
+              actualCount += 1
+            } catch {
+              case error if NonFatal(error) =>
+                throw new ToonBinaryCodecError(
+                  new ::(DynamicOptic.Node.AtIndex(idx), Nil),
+                  error.getMessage
+                )
+            }
+          } else if (in.hasMoreContent) {
+            val values = in.readInlineArray()
+            values.foreach { v =>
+              val wasQuoted = v.startsWith("\"") && v.endsWith("\"")
+              val value     = if (wasQuoted) unescapeQuoted(v) else v
+              try {
+                val elem = if (wasQuoted && (elementCodec eq stringCodec)) {
+                  value.asInstanceOf[Elem]
+                } else {
+                  elementCodec.decodeValue(createReaderForValue(value), elementCodec.nullValue)
+                }
+                constructor.addObject(builder, elem)
+                actualCount += 1
+              } catch {
+                case error if NonFatal(error) =>
+                  throw new ToonBinaryCodecError(
+                    new ::(DynamicOptic.Node.AtIndex(idx), Nil),
+                    error.getMessage
+                  )
+              }
+              idx += 1
+            }
+            idx -= 1
+          }
+          idx += 1
+        }
+
+        if (actualCount != expectedLength) {
+          in.decodeError(s"Array count mismatch: expected $expectedLength items but got $actualCount")
+        }
+
         constructor.resultObject[Elem](builder)
       }
 

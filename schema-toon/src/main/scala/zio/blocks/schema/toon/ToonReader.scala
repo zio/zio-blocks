@@ -172,13 +172,16 @@ final class ToonReader private[toon] (
 
   def isListItem: Boolean = {
     val trimmed = peekTrimmedContent
-    trimmed.startsWith("- ")
+    trimmed.startsWith("- ") || trimmed == "-"
   }
 
   def consumeListItemMarker(): Boolean = {
     val trimmed = peekTrimmedContent
     if (trimmed.startsWith("- ")) {
       linePos = currentLine.indexOf("- ") + 2
+      true
+    } else if (trimmed == "-") {
+      linePos = currentLine.indexOf('-') + 1
       true
     } else false
   }
