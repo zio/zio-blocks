@@ -15,9 +15,11 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def atIndices(indices: Int*): DynamicOptic = new DynamicOptic(nodes :+ Node.AtIndices(indices))
 
-  def atKey[K](key: K): DynamicOptic = new DynamicOptic(nodes :+ Node.AtMapKey(key))
+  def atKey[K](key: K)(implicit schema: Schema[K]): DynamicOptic =
+    new DynamicOptic(nodes :+ Node.AtMapKey(schema.toDynamicValue(key)))
 
-  def atKeys[K](keys: K*): DynamicOptic = new DynamicOptic(nodes :+ Node.AtMapKeys(keys))
+  def atKeys[K](keys: K*)(implicit schema: Schema[K]): DynamicOptic =
+    new DynamicOptic(nodes :+ Node.AtMapKeys(keys.map(schema.toDynamicValue)))
 
   def elements: DynamicOptic = new DynamicOptic(nodes :+ Node.Elements)
 
@@ -71,11 +73,11 @@ object DynamicOptic {
 
     case class AtIndex(index: Int) extends Node
 
-    case class AtMapKey[K](key: K) extends Node
+    case class AtMapKey(key: DynamicValue) extends Node
 
     case class AtIndices(index: Seq[Int]) extends Node
 
-    case class AtMapKeys[K](keys: Seq[K]) extends Node
+    case class AtMapKeys(keys: Seq[DynamicValue]) extends Node
 
     case object Elements extends Node
 

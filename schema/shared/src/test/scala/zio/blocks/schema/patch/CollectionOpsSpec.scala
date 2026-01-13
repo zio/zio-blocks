@@ -46,14 +46,40 @@ object CollectionOpsSpec extends ZIOSpecDefault {
     val description: Lens[Metadata, String] = optic(_.description)
   }
 
+  case class TodoListList(name: String, items: List[String])
+  object TodoListList extends CompanionOptics[TodoListList] {
+    implicit val schema: Schema[TodoListList]   = Schema.derived
+    val name: Lens[TodoListList, String]        = optic(_.name)
+    val items: Lens[TodoListList, List[String]] = optic(_.items)
+  }
+
+  case class TodoListSeq(name: String, items: Seq[String])
+  object TodoListSeq extends CompanionOptics[TodoListSeq] {
+    implicit val schema: Schema[TodoListSeq]  = Schema.derived
+    val name: Lens[TodoListSeq, String]       = optic(_.name)
+    val items: Lens[TodoListSeq, Seq[String]] = optic(_.items)
+  }
+
+  case class TodoListIndexedSeq(name: String, items: IndexedSeq[String])
+  object TodoListIndexedSeq extends CompanionOptics[TodoListIndexedSeq] {
+    implicit val schema: Schema[TodoListIndexedSeq]         = Schema.derived
+    val name: Lens[TodoListIndexedSeq, String]              = optic(_.name)
+    val items: Lens[TodoListIndexedSeq, IndexedSeq[String]] = optic(_.items)
+  }
+
+//Note that there are no tests for LazyList, schema.derived on LazyList leads to malformed tree.
+
   def spec: Spec[TestEnvironment, Any] = suite("CollectionOpsSpec")(
-    sequenceOperationTests,
+    vectorOperationTests,
+    listOperationTests,
+    seqOperationTests,
+    indexedSeqOperationTests,
     mapOperationTests,
     nestedOperationTests,
     edgeCaseTests
   )
 
-  val sequenceOperationTests = suite("Sequence Operations")(
+  val vectorOperationTests = suite("Vector Operations")(
     suite("Patch.append")(
       test("appends elements to end of empty sequence") {
         val list   = TodoList("Tasks", Vector.empty)
@@ -188,6 +214,105 @@ object CollectionOpsSpec extends ZIOSpecDefault {
         // After insert: ["Task 0", "Task 1", "Task 2"]
         // After delete: ["Task 0", "Task 1"]
         assertTrue(result == Right(TodoList("Tasks", Vector("Task 0", "Task 1"))))
+      }
+    )
+  )
+
+  val listOperationTests = suite("List Operations")(
+    suite("Patch.append")(
+      test("appends elements to end of empty list") {
+        val list   = TodoListList("Tasks", List.empty)
+        val patch  = Patch.append(TodoListList.items, List("Buy milk", "Walk dog"))
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListList("Tasks", List("Buy milk", "Walk dog"))))
+      },
+      test("appends elements to end of non-empty list") {
+        val list   = TodoListList("Tasks", List("Existing task"))
+        val patch  = Patch.append(TodoListList.items, List("Buy milk", "Walk dog"))
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListList("Tasks", List("Existing task", "Buy milk", "Walk dog"))))
+      }
+    ),
+    suite("Patch.insertAt")(
+      test("inserts at beginning of list") {
+        val list   = TodoListList("Tasks", List("Task 2", "Task 3"))
+        val patch  = Patch.insertAt(TodoListList.items, 0, List("Task 1"))
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListList("Tasks", List("Task 1", "Task 2", "Task 3"))))
+      },
+      test("inserts in middle of list") {
+        val list   = TodoListList("Tasks", List("Task 1", "Task 3"))
+        val patch  = Patch.insertAt(TodoListList.items, 1, List("Task 2"))
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListList("Tasks", List("Task 1", "Task 2", "Task 3"))))
+      }
+    ),
+    suite("Patch.deleteAt")(
+      test("deletes single element") {
+        val list   = TodoListList("Tasks", List("Task 1", "Task 2", "Task 3"))
+        val patch  = Patch.deleteAt(TodoListList.items, 1, 1)
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListList("Tasks", List("Task 1", "Task 3"))))
+      }
+    )
+  )
+
+  val seqOperationTests = suite("Seq Operations")(
+    suite("Patch.append")(
+      test("appends elements to end of empty seq") {
+        val list   = TodoListSeq("Tasks", Seq.empty)
+        val patch  = Patch.append(TodoListSeq.items, Seq("Buy milk", "Walk dog"))
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListSeq("Tasks", Seq("Buy milk", "Walk dog"))))
+      },
+      test("appends elements to end of non-empty seq") {
+        val list   = TodoListSeq("Tasks", Seq("Existing task"))
+        val patch  = Patch.append(TodoListSeq.items, Seq("Buy milk", "Walk dog"))
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListSeq("Tasks", Seq("Existing task", "Buy milk", "Walk dog"))))
+      }
+    ),
+    suite("Patch.insertAt")(
+      test("inserts at beginning of seq") {
+        val list   = TodoListSeq("Tasks", Seq("Task 2", "Task 3"))
+        val patch  = Patch.insertAt(TodoListSeq.items, 0, Seq("Task 1"))
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListSeq("Tasks", Seq("Task 1", "Task 2", "Task 3"))))
+      }
+    ),
+    suite("Patch.deleteAt")(
+      test("deletes single element") {
+        val list   = TodoListSeq("Tasks", Seq("Task 1", "Task 2", "Task 3"))
+        val patch  = Patch.deleteAt(TodoListSeq.items, 1, 1)
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListSeq("Tasks", Seq("Task 1", "Task 3"))))
+      }
+    )
+  )
+
+  val indexedSeqOperationTests = suite("IndexedSeq Operations")(
+    suite("Patch.append")(
+      test("appends elements to end of empty indexedSeq") {
+        val list   = TodoListIndexedSeq("Tasks", IndexedSeq.empty)
+        val patch  = Patch.append(TodoListIndexedSeq.items, IndexedSeq("Buy milk", "Walk dog"))
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListIndexedSeq("Tasks", IndexedSeq("Buy milk", "Walk dog"))))
+      }
+    ),
+    suite("Patch.insertAt")(
+      test("inserts at beginning of indexedSeq") {
+        val list   = TodoListIndexedSeq("Tasks", IndexedSeq("Task 2", "Task 3"))
+        val patch  = Patch.insertAt(TodoListIndexedSeq.items, 0, IndexedSeq("Task 1"))
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListIndexedSeq("Tasks", IndexedSeq("Task 1", "Task 2", "Task 3"))))
+      }
+    ),
+    suite("Patch.deleteAt")(
+      test("deletes single element") {
+        val list   = TodoListIndexedSeq("Tasks", IndexedSeq("Task 1", "Task 2", "Task 3"))
+        val patch  = Patch.deleteAt(TodoListIndexedSeq.items, 1, 1)
+        val result = patch(list, PatchMode.Strict)
+        assertTrue(result == Right(TodoListIndexedSeq("Tasks", IndexedSeq("Task 1", "Task 3"))))
       }
     )
   )

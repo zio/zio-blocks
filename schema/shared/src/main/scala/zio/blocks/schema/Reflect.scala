@@ -847,7 +847,7 @@ object Reflect {
           elements.foreach { case (key, value) =>
             this.key.fromDynamicValue(key, keyTrace) match {
               case Right(keyValue) =>
-                this.value.fromDynamicValue(value, new DynamicOptic.Node.AtMapKey(keyValue) :: valueTrace) match {
+                this.value.fromDynamicValue(value, new DynamicOptic.Node.AtMapKey(key) :: valueTrace) match {
                   case Right(valueValue) => constructor.addObject(builder, keyValue, valueValue)
                   case Left(error)       => addError(error)
                 }

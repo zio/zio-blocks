@@ -2,7 +2,7 @@ package zio.blocks.schema.patch
 
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
-import zio.blocks.schema.patch.PatchSchemas._
+import zio.blocks.schema.PatchSchemas._
 import zio.test._
 
 object DynamicPatchSpec extends ZIOSpecDefault {
@@ -41,15 +41,15 @@ object DynamicPatchSpec extends ZIOSpecDefault {
     suite("Operation.Set")(
       test("applies Set to Primitive at root") {
         val original = intVal(42)
-        val patch    = DynamicPatch(Operation.Set(intVal(100)))
+        val patch    = DynamicPatch(Patch.Operation.Set(intVal(100)))
         val result   = patch(original)
         assertTrue(result == Right(intVal(100)))
       },
       test("applies Set to Record field") {
         val original = personRecord("Alice", 30)
         val patch    = DynamicPatch(
-          Vector(PatchPath.Field("age")),
-          Operation.Set(intVal(31))
+          Vector(DynamicOptic.Node.Field("age")),
+          Patch.Operation.Set(intVal(31))
         )
         val result = patch(original)
         assertTrue(result == Right(personRecord("Alice", 31)))
@@ -57,8 +57,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Set to nested Record field") {
         val original = personWithAddressRecord("Alice", 30, "NYC")
         val patch    = DynamicPatch(
-          Vector(PatchPath.Field("address"), PatchPath.Field("city")),
-          Operation.Set(stringVal("LA"))
+          Vector(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("city")),
+          Patch.Operation.Set(stringVal("LA"))
         )
         val result = patch(original)
         assertTrue(result == Right(personWithAddressRecord("Alice", 30, "LA")))
@@ -66,8 +66,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Set to sequence element") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2), intVal(3)))
         val patch    = DynamicPatch(
-          Vector(PatchPath.AtIndex(1)),
-          Operation.Set(intVal(99))
+          Vector(DynamicOptic.Node.AtIndex(1)),
+          Patch.Operation.Set(intVal(99))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Vector(intVal(1), intVal(99), intVal(3)))))
@@ -80,8 +80,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           )
         )
         val patch = DynamicPatch(
-          Vector(PatchPath.AtMapKey(stringVal("b"))),
-          Operation.Set(intVal(99))
+          Vector(DynamicOptic.Node.AtMapKey(stringVal("b"))),
+          Patch.Operation.Set(intVal(99))
         )
         val result = patch(original)
         assertTrue(
@@ -99,33 +99,33 @@ object DynamicPatchSpec extends ZIOSpecDefault {
     suite("PrimitiveDelta")(
       test("applies IntDelta to Int") {
         val original = intVal(42)
-        val patch    = DynamicPatch(Operation.PrimitiveDelta(PrimitiveOp.IntDelta(10)))
+        val patch    = DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(10)))
         val result   = patch(original)
         assertTrue(result == Right(intVal(52)))
       },
       test("applies negative IntDelta (decrement)") {
         val original = intVal(42)
-        val patch    = DynamicPatch(Operation.PrimitiveDelta(PrimitiveOp.IntDelta(-10)))
+        val patch    = DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(-10)))
         val result   = patch(original)
         assertTrue(result == Right(intVal(32)))
       },
       test("applies LongDelta to Long") {
         val original = longVal(1000L)
-        val patch    = DynamicPatch(Operation.PrimitiveDelta(PrimitiveOp.LongDelta(500L)))
+        val patch    = DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LongDelta(500L)))
         val result   = patch(original)
         assertTrue(result == Right(longVal(1500L)))
       },
       test("applies DoubleDelta to Double") {
         val original = doubleVal(3.0)
-        val patch    = DynamicPatch(Operation.PrimitiveDelta(PrimitiveOp.DoubleDelta(1.5)))
+        val patch    = DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DoubleDelta(1.5)))
         val result   = patch(original)
         assertTrue(result == Right(doubleVal(4.5)))
       },
       test("applies StringEdit Insert") {
         val original = stringVal("Hello World")
         val patch    = DynamicPatch(
-          Operation.PrimitiveDelta(
-            PrimitiveOp.StringEdit(Vector(StringOp.Insert(5, " Beautiful")))
+          Patch.Operation.PrimitiveDelta(
+            Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Insert(5, " Beautiful")))
           )
         )
         val result = patch(original)
@@ -134,8 +134,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies StringEdit Delete") {
         val original = stringVal("Hello Beautiful World")
         val patch    = DynamicPatch(
-          Operation.PrimitiveDelta(
-            PrimitiveOp.StringEdit(Vector(StringOp.Delete(5, 10)))
+          Patch.Operation.PrimitiveDelta(
+            Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Delete(5, 10)))
           )
         )
         val result = patch(original)
@@ -144,11 +144,11 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies multiple StringEdits in sequence") {
         val original = stringVal("abc")
         val patch    = DynamicPatch(
-          Operation.PrimitiveDelta(
-            PrimitiveOp.StringEdit(
+          Patch.Operation.PrimitiveDelta(
+            Patch.PrimitiveOp.StringEdit(
               Vector(
-                StringOp.Insert(1, "X"), // "aXbc"
-                StringOp.Delete(3, 1)    // "aXb"
+                Patch.StringOp.Insert(1, "X"), // "aXbc"
+                Patch.StringOp.Delete(3, 1)    // "aXb"
               )
             )
           )
@@ -159,15 +159,15 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies IntDelta to Record field") {
         val original = personRecord("Alice", 30)
         val patch    = DynamicPatch(
-          Vector(PatchPath.Field("age")),
-          Operation.PrimitiveDelta(PrimitiveOp.IntDelta(1))
+          Vector(DynamicOptic.Node.Field("age")),
+          Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(1))
         )
         val result = patch(original)
         assertTrue(result == Right(personRecord("Alice", 31)))
       },
       test("fails on type mismatch") {
         val original = intVal(42)
-        val patch    = DynamicPatch(Operation.PrimitiveDelta(PrimitiveOp.LongDelta(10L)))
+        val patch    = DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LongDelta(10L)))
         val result   = patch(original)
         assertTrue(result.isLeft)
       }
@@ -176,7 +176,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Append") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Append(Vector(intVal(3), intVal(4)))))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Append(Vector(intVal(3), intVal(4)))))
         )
         val result = patch(original)
         assertTrue(
@@ -186,7 +186,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Append to empty sequence") {
         val original = DynamicValue.Sequence(Vector.empty)
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Append(Vector(intVal(1)))))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Append(Vector(intVal(1)))))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Vector(intVal(1)))))
@@ -194,7 +194,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Insert at beginning") {
         val original = DynamicValue.Sequence(Vector(intVal(2), intVal(3)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Insert(0, Vector(intVal(1)))))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Insert(0, Vector(intVal(1)))))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Vector(intVal(1), intVal(2), intVal(3)))))
@@ -202,7 +202,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Insert in middle") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(3)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Insert(1, Vector(intVal(2)))))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Insert(1, Vector(intVal(2)))))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Vector(intVal(1), intVal(2), intVal(3)))))
@@ -210,7 +210,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Insert at end") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Insert(2, Vector(intVal(3)))))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Insert(2, Vector(intVal(3)))))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Vector(intVal(1), intVal(2), intVal(3)))))
@@ -218,7 +218,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Delete") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2), intVal(3), intVal(4)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Delete(1, 2)))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Delete(1, 2)))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Vector(intVal(1), intVal(4)))))
@@ -226,7 +226,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Delete at beginning") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2), intVal(3)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Delete(0, 1)))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Delete(0, 1)))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Vector(intVal(2), intVal(3)))))
@@ -234,8 +234,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Modify to sequence element") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2), intVal(3)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(
-            Vector(SeqOp.Modify(1, Operation.PrimitiveDelta(PrimitiveOp.IntDelta(10))))
+          Patch.Operation.SequenceEdit(
+            Vector(Patch.SeqOp.Modify(1, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(10))))
           )
         )
         val result = patch(original)
@@ -244,10 +244,10 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies multiple sequence operations") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(
+          Patch.Operation.SequenceEdit(
             Vector(
-              SeqOp.Append(Vector(intVal(3))),
-              SeqOp.Insert(0, Vector(intVal(0)))
+              Patch.SeqOp.Append(Vector(intVal(3))),
+              Patch.SeqOp.Insert(0, Vector(intVal(0)))
             )
           )
         )
@@ -261,7 +261,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Add to empty map") {
         val original = DynamicValue.Map(Vector.empty)
         val patch    = DynamicPatch(
-          Operation.MapEdit(Vector(MapOp.Add(stringVal("key"), intVal(42))))
+          Patch.Operation.MapEdit(Vector(Patch.MapOp.Add(stringVal("key"), intVal(42))))
         )
         val result = patch(original)
         assertTrue(
@@ -271,7 +271,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Add to existing map") {
         val original = DynamicValue.Map(Vector(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch(
-          Operation.MapEdit(Vector(MapOp.Add(stringVal("b"), intVal(2))))
+          Patch.Operation.MapEdit(Vector(Patch.MapOp.Add(stringVal("b"), intVal(2))))
         )
         val result = patch(original)
         assertTrue(
@@ -293,7 +293,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           )
         )
         val patch = DynamicPatch(
-          Operation.MapEdit(Vector(MapOp.Remove(stringVal("a"))))
+          Patch.Operation.MapEdit(Vector(Patch.MapOp.Remove(stringVal("a"))))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Map(Vector(stringVal("b") -> intVal(2)))))
@@ -301,8 +301,10 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies Modify to map value") {
         val original = DynamicValue.Map(Vector(stringVal("count") -> intVal(10)))
         val patch    = DynamicPatch(
-          Operation.MapEdit(
-            Vector(MapOp.Modify(stringVal("count"), Operation.PrimitiveDelta(PrimitiveOp.IntDelta(5))))
+          Patch.Operation.MapEdit(
+            Vector(
+              Patch.MapOp.Modify(stringVal("count"), DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))))
+            )
           )
         )
         val result = patch(original)
@@ -311,10 +313,10 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("applies multiple map operations") {
         val original = DynamicValue.Map(Vector(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch(
-          Operation.MapEdit(
+          Patch.Operation.MapEdit(
             Vector(
-              MapOp.Add(stringVal("b"), intVal(2)),
-              MapOp.Remove(stringVal("a"))
+              Patch.MapOp.Add(stringVal("b"), intVal(2)),
+              Patch.MapOp.Remove(stringVal("a"))
             )
           )
         )
@@ -325,12 +327,12 @@ object DynamicPatchSpec extends ZIOSpecDefault {
     suite("Patch Composition")(
       test("combines operations with ++") {
         val patch1 = DynamicPatch(
-          Vector(PatchPath.Field("age")),
-          Operation.PrimitiveDelta(PrimitiveOp.IntDelta(1))
+          Vector(DynamicOptic.Node.Field("age")),
+          Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(1))
         )
         val patch2 = DynamicPatch(
-          Vector(PatchPath.Field("name")),
-          Operation.Set(stringVal("Bob"))
+          Vector(DynamicOptic.Node.Field("name")),
+          Patch.Operation.Set(stringVal("Bob"))
         )
         val combined = patch1 ++ patch2
 
@@ -339,19 +341,19 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         assertTrue(result == Right(personRecord("Bob", 31)))
       },
       test("empty is identity (left)") {
-        val patch    = DynamicPatch(Operation.Set(intVal(42)))
+        val patch    = DynamicPatch(Patch.Operation.Set(intVal(42)))
         val combined = DynamicPatch.empty ++ patch
         assertTrue(combined.ops == patch.ops)
       },
       test("empty is identity (right)") {
-        val patch    = DynamicPatch(Operation.Set(intVal(42)))
+        val patch    = DynamicPatch(Patch.Operation.Set(intVal(42)))
         val combined = patch ++ DynamicPatch.empty
         assertTrue(combined.ops == patch.ops)
       },
       test("associativity: (p1 ++ p2) ++ p3 == p1 ++ (p2 ++ p3)") {
-        val p1 = DynamicPatch(Vector(PatchPath.Field("a")), Operation.Set(intVal(1)))
-        val p2 = DynamicPatch(Vector(PatchPath.Field("b")), Operation.Set(intVal(2)))
-        val p3 = DynamicPatch(Vector(PatchPath.Field("c")), Operation.Set(intVal(3)))
+        val p1 = DynamicPatch(Vector(DynamicOptic.Node.Field("a")), Patch.Operation.Set(intVal(1)))
+        val p2 = DynamicPatch(Vector(DynamicOptic.Node.Field("b")), Patch.Operation.Set(intVal(2)))
+        val p3 = DynamicPatch(Vector(DynamicOptic.Node.Field("c")), Patch.Operation.Set(intVal(3)))
 
         val left  = (p1 ++ p2) ++ p3
         val right = p1 ++ (p2 ++ p3)
@@ -363,8 +365,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("fails on missing field") {
         val original = personRecord("Alice", 30)
         val patch    = DynamicPatch(
-          Vector(PatchPath.Field("nonexistent")),
-          Operation.Set(intVal(99))
+          Vector(DynamicOptic.Node.Field("nonexistent")),
+          Patch.Operation.Set(intVal(99))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -372,7 +374,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("fails on non-existent map key for Remove") {
         val original = DynamicValue.Map(Vector(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch(
-          Operation.MapEdit(Vector(MapOp.Remove(stringVal("nonexistent"))))
+          Patch.Operation.MapEdit(Vector(Patch.MapOp.Remove(stringVal("nonexistent"))))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -380,7 +382,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("fails on duplicate key for Add") {
         val original = DynamicValue.Map(Vector(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch(
-          Operation.MapEdit(Vector(MapOp.Add(stringVal("a"), intVal(2))))
+          Patch.Operation.MapEdit(Vector(Patch.MapOp.Add(stringVal("a"), intVal(2))))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -388,8 +390,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("fails on out of bounds sequence index") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2)))
         val patch    = DynamicPatch(
-          Vector(PatchPath.AtIndex(10)),
-          Operation.Set(intVal(99))
+          Vector(DynamicOptic.Node.AtIndex(10)),
+          Patch.Operation.Set(intVal(99))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -397,7 +399,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("fails on invalid Insert index") {
         val original = DynamicValue.Sequence(Vector(intVal(1)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Insert(10, Vector(intVal(2)))))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Insert(10, Vector(intVal(2)))))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -405,7 +407,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("fails on invalid Delete range") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Delete(0, 10)))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Delete(0, 10)))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -416,8 +418,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val original = personRecord("Alice", 30)
         val patch    = DynamicPatch(
           Vector(
-            DynamicPatchOp(Vector(PatchPath.Field("nonexistent")), Operation.Set(intVal(99))),
-            DynamicPatchOp(Vector(PatchPath.Field("age")), Operation.Set(intVal(31)))
+            Patch.DynamicPatchOp(Vector(DynamicOptic.Node.Field("nonexistent")), Patch.Operation.Set(intVal(99))),
+            Patch.DynamicPatchOp(Vector(DynamicOptic.Node.Field("age")), Patch.Operation.Set(intVal(31)))
           )
         )
         val result = patch(original, PatchMode.Lenient)
@@ -426,10 +428,10 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("skips Remove on non-existent key") {
         val original = DynamicValue.Map(Vector(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch(
-          Operation.MapEdit(
+          Patch.Operation.MapEdit(
             Vector(
-              MapOp.Remove(stringVal("nonexistent")),
-              MapOp.Add(stringVal("b"), intVal(2))
+              Patch.MapOp.Remove(stringVal("nonexistent")),
+              Patch.MapOp.Add(stringVal("b"), intVal(2))
             )
           )
         )
@@ -448,10 +450,10 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("skips Add on duplicate key") {
         val original = DynamicValue.Map(Vector(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch(
-          Operation.MapEdit(
+          Patch.Operation.MapEdit(
             Vector(
-              MapOp.Add(stringVal("a"), intVal(99)),
-              MapOp.Add(stringVal("b"), intVal(2))
+              Patch.MapOp.Add(stringVal("a"), intVal(99)),
+              Patch.MapOp.Add(stringVal("b"), intVal(2))
             )
           )
         )
@@ -472,7 +474,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("overwrites on duplicate key for Add") {
         val original = DynamicValue.Map(Vector(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch(
-          Operation.MapEdit(Vector(MapOp.Add(stringVal("a"), intVal(99))))
+          Patch.Operation.MapEdit(Vector(Patch.MapOp.Add(stringVal("a"), intVal(99))))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(result == Right(DynamicValue.Map(Vector(stringVal("a") -> intVal(99)))))
@@ -480,7 +482,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("succeeds on Remove non-existent key (no-op)") {
         val original = DynamicValue.Map(Vector(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch(
-          Operation.MapEdit(Vector(MapOp.Remove(stringVal("nonexistent"))))
+          Patch.Operation.MapEdit(Vector(Patch.MapOp.Remove(stringVal("nonexistent"))))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(result == Right(original))
@@ -488,7 +490,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("clamps Insert index to valid range") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Insert(100, Vector(intVal(3)))))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Insert(100, Vector(intVal(3)))))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(
@@ -498,7 +500,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("clamps Delete range to valid range") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2), intVal(3)))
         val patch    = DynamicPatch(
-          Operation.SequenceEdit(Vector(SeqOp.Delete(1, 100)))
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Delete(1, 100)))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(result == Right(DynamicValue.Sequence(Vector(intVal(1)))))
@@ -514,7 +516,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         assertTrue(DynamicPatch.empty.isEmpty)
       },
       test("non-empty patch isEmpty returns false") {
-        val patch = DynamicPatch(Operation.Set(intVal(42)))
+        val patch = DynamicPatch(Patch.Operation.Set(intVal(42)))
         assertTrue(!patch.isEmpty)
       }
     ),
@@ -527,8 +529,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           )
         )
         val patch = DynamicPatch(
-          Vector(PatchPath.AtIndex(0), PatchPath.Field("age")),
-          Operation.PrimitiveDelta(PrimitiveOp.IntDelta(1))
+          Vector(DynamicOptic.Node.AtIndex(0), DynamicOptic.Node.Field("age")),
+          Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(1))
         )
         val result = patch(original)
         assertTrue(
@@ -549,8 +551,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           )
         )
         val patch = DynamicPatch(
-          Vector(PatchPath.AtMapKey(stringVal("person1")), PatchPath.Field("name")),
-          Operation.Set(stringVal("Alicia"))
+          Vector(DynamicOptic.Node.AtMapKey(stringVal("person1")), DynamicOptic.Node.Field("name")),
+          Patch.Operation.Set(stringVal("Alicia"))
         )
         val result = patch(original)
         assertTrue(
@@ -579,11 +581,11 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         )
         val patch = DynamicPatch(
           Vector(
-            PatchPath.Field("data"),
-            PatchPath.AtIndex(0),
-            PatchPath.AtMapKey(stringVal("value"))
+            DynamicOptic.Node.Field("data"),
+            DynamicOptic.Node.AtIndex(0),
+            DynamicOptic.Node.AtMapKey(stringVal("value"))
           ),
-          Operation.PrimitiveDelta(PrimitiveOp.IntDelta(50))
+          Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(50))
         )
         val result = patch(original)
         assertTrue(
@@ -606,38 +608,38 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       }
     ),
     suite("Serialization")(
-      test("PatchPath.Field roundtrips through JSON") {
+      test("DynamicOptic.Node.Field roundtrips through JSON") {
         roundTrip(
-          PatchPath.Field("name"): PatchPath,
+          DynamicOptic.Node.Field("name"): DynamicOptic.Node,
           """{"Field":{"name":"name"}}"""
         )
       },
-      test("PatchPath.AtIndex roundtrips through JSON") {
+      test("DynamicOptic.Node.AtIndex roundtrips through JSON") {
         roundTrip(
-          PatchPath.AtIndex(42): PatchPath,
+          DynamicOptic.Node.AtIndex(42): DynamicOptic.Node,
           """{"AtIndex":{"index":42}}"""
         )
       },
-      test("PatchPath.AtMapKey roundtrips through JSON") {
+      test("DynamicOptic.Node.AtMapKey roundtrips through JSON") {
         roundTrip(
-          PatchPath.AtMapKey(stringVal("myKey")): PatchPath,
+          DynamicOptic.Node.AtMapKey(stringVal("myKey")): DynamicOptic.Node,
           """{"AtMapKey":{"key":"myKey"}}"""
         )
       },
       test("DynamicPatchOp roundtrips through JSON") {
         roundTrip(
-          DynamicPatchOp(
-            Vector(PatchPath.Field("age")),
-            Operation.PrimitiveDelta(PrimitiveOp.IntDelta(5))
+          Patch.DynamicPatchOp(
+            Vector(DynamicOptic.Node.Field("age")),
+            Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))
           ),
           """{"path":[{"Field":{"name":"age"}}],"operation":{"PrimitiveDelta":{"op":{"IntDelta":{"delta":5}}}}}"""
         )
       },
       test("DynamicPatchOp with empty path roundtrips") {
         roundTrip(
-          DynamicPatchOp(
+          Patch.DynamicPatchOp(
             Vector.empty,
-            Operation.Set(intVal(42))
+            Patch.Operation.Set(intVal(42))
           ),
           """{"operation":{"Set":{"value":42}}}"""
         )
@@ -646,7 +648,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         roundTrip(
           DynamicPatch(
             Vector(
-              DynamicPatchOp(Vector(PatchPath.Field("name")), Operation.Set(stringVal("Bob")))
+              Patch.DynamicPatchOp(Vector(DynamicOptic.Node.Field("name")), Patch.Operation.Set(stringVal("Bob")))
             )
           ),
           """{"ops":[{"path":[{"Field":{"name":"name"}}],"operation":{"Set":{"value":"Bob"}}}]}"""
@@ -662,15 +664,15 @@ object DynamicPatchSpec extends ZIOSpecDefault {
     suite("Edge cases")(
       test("empty path applies to root") {
         val original = intVal(42)
-        val patch    = DynamicPatch(Vector.empty, Operation.Set(intVal(100)))
+        val patch    = DynamicPatch(Vector.empty, Patch.Operation.Set(intVal(100)))
         val result   = patch(original)
         assertTrue(result == Right(intVal(100)))
       },
       test("unicode strings in field names") {
         val original = DynamicValue.Record(Vector("名前" -> stringVal("Alice")))
         val patch    = DynamicPatch(
-          Vector(PatchPath.Field("名前")),
-          Operation.Set(stringVal("アリス"))
+          Vector(DynamicOptic.Node.Field("名前")),
+          Patch.Operation.Set(stringVal("アリス"))
         )
         val result = patch(original)
         assertTrue(
@@ -680,8 +682,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("unicode strings in values") {
         val original = stringVal("Hello")
         val patch    = DynamicPatch(
-          Operation.PrimitiveDelta(
-            PrimitiveOp.StringEdit(Vector(StringOp.Insert(5, " 世界")))
+          Patch.Operation.PrimitiveDelta(
+            Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Insert(5, " 世界")))
           )
         )
         val result = patch(original)
@@ -690,8 +692,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("empty string operations") {
         val original = stringVal("")
         val patch    = DynamicPatch(
-          Operation.PrimitiveDelta(
-            PrimitiveOp.StringEdit(Vector(StringOp.Insert(0, "Hello")))
+          Patch.Operation.PrimitiveDelta(
+            Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Insert(0, "Hello")))
           )
         )
         val result = patch(original)
@@ -700,21 +702,21 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("type mismatch: apply to wrong DynamicValue type") {
         val original = intVal(42)
         val patch    = DynamicPatch(
-          Vector(PatchPath.Field("name")),
-          Operation.Set(stringVal("Alice"))
+          Vector(DynamicOptic.Node.Field("name")),
+          Patch.Operation.Set(stringVal("Alice"))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
       },
       test("Sequence operation on non-sequence fails") {
         val original = intVal(42)
-        val patch    = DynamicPatch(Operation.SequenceEdit(Vector(SeqOp.Append(Vector(intVal(1))))))
+        val patch    = DynamicPatch(Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Append(Vector(intVal(1))))))
         val result   = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
       },
       test("Map operation on non-map fails") {
         val original = intVal(42)
-        val patch    = DynamicPatch(Operation.MapEdit(Vector(MapOp.Add(stringVal("a"), intVal(1)))))
+        val patch    = DynamicPatch(Patch.Operation.MapEdit(Vector(Patch.MapOp.Add(stringVal("a"), intVal(1)))))
         val result   = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
       }

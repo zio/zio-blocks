@@ -2,63 +2,63 @@ package zio.blocks.schema.patch
 
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
-import zio.blocks.schema.patch.PatchSchemas._
+import zio.blocks.schema.PatchSchemas._
 import zio.test._
 
 object SerializationSpec extends ZIOSpecDefault {
 
   def spec: Spec[TestEnvironment, Any] = suite("SerializationSpec")(
-    suite("PatchPath serialization")(
-      test("PatchPath.Field serializes") {
+    suite("DynamicOptic.Node serialization")(
+      test("DynamicOptic.Node.Field serializes") {
         roundTrip(
-          PatchPath.Field("name"): PatchPath,
+          DynamicOptic.Node.Field("name"): DynamicOptic.Node,
           """{"Field":{"name":"name"}}"""
         )
       },
-      test("PatchPath.AtIndex serializes") {
+      test("DynamicOptic.Node.AtIndex serializes") {
         roundTrip(
-          PatchPath.AtIndex(5): PatchPath,
+          DynamicOptic.Node.AtIndex(5): DynamicOptic.Node,
           """{"AtIndex":{"index":5}}"""
         )
       },
-      test("PatchPath.AtMapKey serializes") {
+      test("DynamicOptic.Node.AtMapKey serializes") {
         val key = DynamicValue.Primitive(PrimitiveValue.String("key1"))
         roundTrip(
-          PatchPath.AtMapKey(key): PatchPath,
+          DynamicOptic.Node.AtMapKey(key): DynamicOptic.Node,
           """{"AtMapKey":{"key":"key1"}}"""
         )
       },
-      test("PatchPath.AtMapKey with Int key") {
+      test("DynamicOptic.Node.AtMapKey with Int key") {
         val key = DynamicValue.Primitive(PrimitiveValue.Int(42))
         roundTrip(
-          PatchPath.AtMapKey(key): PatchPath,
+          DynamicOptic.Node.AtMapKey(key): DynamicOptic.Node,
           """{"AtMapKey":{"key":42}}"""
         )
       },
-      test("PatchPath.Case serializes") {
+      test("DynamicOptic.Node.Case serializes") {
         roundTrip(
-          PatchPath.Case("Active"): PatchPath,
+          DynamicOptic.Node.Case("Active"): DynamicOptic.Node,
           """{"Case":{"name":"Active"}}"""
         )
       },
-      test("PatchPath.Elements serializes") {
+      test("DynamicOptic.Node.Elements serializes") {
         roundTrip(
-          PatchPath.Elements: PatchPath,
+          DynamicOptic.Node.Elements: DynamicOptic.Node,
           """{"Elements":{}}"""
         )
       },
-      test("PatchPath.Wrapped serializes") {
+      test("DynamicOptic.Node.Wrapped serializes") {
         roundTrip(
-          PatchPath.Wrapped: PatchPath,
+          DynamicOptic.Node.Wrapped: DynamicOptic.Node,
           """{"Wrapped":{}}"""
         )
       }
     ),
     suite("DynamicPatchOp serialization")(
       test("DynamicPatchOp with empty path and Set operation") {
-        val op = DynamicPatchOp(
+        val op = Patch.DynamicPatchOp(
           Vector.empty,
-          Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+          Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(42)))
         )
         roundTrip(
           op,
@@ -66,9 +66,9 @@ object SerializationSpec extends ZIOSpecDefault {
         )
       },
       test("DynamicPatchOp with single field path") {
-        val op = DynamicPatchOp(
-          Vector(PatchPath.Field("age")),
-          Operation.PrimitiveDelta(PrimitiveOp.IntDelta(5))
+        val op = Patch.DynamicPatchOp(
+          Vector(DynamicOptic.Node.Field("age")),
+          Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))
         )
         roundTrip(
           op,
@@ -76,9 +76,9 @@ object SerializationSpec extends ZIOSpecDefault {
         )
       },
       test("DynamicPatchOp with nested path") {
-        val op = DynamicPatchOp(
-          Vector(PatchPath.Field("address"), PatchPath.Field("city")),
-          Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("NYC")))
+        val op = Patch.DynamicPatchOp(
+          Vector(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("city")),
+          Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("NYC")))
         )
         roundTrip(
           op,
@@ -86,9 +86,9 @@ object SerializationSpec extends ZIOSpecDefault {
         )
       },
       test("DynamicPatchOp with index path") {
-        val op = DynamicPatchOp(
-          Vector(PatchPath.Field("items"), PatchPath.AtIndex(2)),
-          Operation.PrimitiveDelta(PrimitiveOp.IntDelta(10))
+        val op = Patch.DynamicPatchOp(
+          Vector(DynamicOptic.Node.Field("items"), DynamicOptic.Node.AtIndex(2)),
+          Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(10))
         )
         roundTrip(
           op,
@@ -96,9 +96,9 @@ object SerializationSpec extends ZIOSpecDefault {
         )
       },
       test("DynamicPatchOp with SequenceEdit") {
-        val op = DynamicPatchOp(
-          Vector(PatchPath.Field("tags")),
-          Operation.SequenceEdit(Vector(SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.String("new"))))))
+        val op = Patch.DynamicPatchOp(
+          Vector(DynamicOptic.Node.Field("tags")),
+          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.String("new"))))))
         )
         roundTrip(
           op,
@@ -108,9 +108,9 @@ object SerializationSpec extends ZIOSpecDefault {
       test("DynamicPatchOp with MapEdit") {
         val key   = DynamicValue.Primitive(PrimitiveValue.String("key1"))
         val value = DynamicValue.Primitive(PrimitiveValue.Int(100))
-        val op    = DynamicPatchOp(
-          Vector(PatchPath.Field("metadata")),
-          Operation.MapEdit(Vector(MapOp.Add(key, value)))
+        val op    = Patch.DynamicPatchOp(
+          Vector(DynamicOptic.Node.Field("metadata")),
+          Patch.Operation.MapEdit(Vector(Patch.MapOp.Add(key, value)))
         )
         roundTrip(
           op,
@@ -128,9 +128,9 @@ object SerializationSpec extends ZIOSpecDefault {
       test("DynamicPatch with single operation") {
         val patch = DynamicPatch(
           Vector(
-            DynamicPatchOp(
-              Vector(PatchPath.Field("age")),
-              Operation.PrimitiveDelta(PrimitiveOp.IntDelta(1))
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("age")),
+              Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(1))
             )
           )
         )
@@ -142,13 +142,13 @@ object SerializationSpec extends ZIOSpecDefault {
       test("DynamicPatch with multiple operations") {
         val patch = DynamicPatch(
           Vector(
-            DynamicPatchOp(
-              Vector(PatchPath.Field("name")),
-              Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Alice")))
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("name")),
+              Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Alice")))
             ),
-            DynamicPatchOp(
-              Vector(PatchPath.Field("age")),
-              Operation.PrimitiveDelta(PrimitiveOp.IntDelta(5))
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("age")),
+              Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))
             )
           )
         )
@@ -160,13 +160,13 @@ object SerializationSpec extends ZIOSpecDefault {
       test("DynamicPatch with nested record operations") {
         val patch = DynamicPatch(
           Vector(
-            DynamicPatchOp(
-              Vector(PatchPath.Field("address"), PatchPath.Field("street")),
-              Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("123 Main St")))
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("street")),
+              Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("123 Main St")))
             ),
-            DynamicPatchOp(
-              Vector(PatchPath.Field("address"), PatchPath.Field("zipCode")),
-              Operation.PrimitiveDelta(PrimitiveOp.IntDelta(10000))
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("zipCode")),
+              Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(10000))
             )
           )
         )
@@ -178,12 +178,12 @@ object SerializationSpec extends ZIOSpecDefault {
       test("DynamicPatch with sequence operations") {
         val patch = DynamicPatch(
           Vector(
-            DynamicPatchOp(
-              Vector(PatchPath.Field("items")),
-              Operation.SequenceEdit(
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("items")),
+              Patch.Operation.SequenceEdit(
                 Vector(
-                  SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1)))),
-                  SeqOp.Insert(0, Vector(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+                  Patch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1)))),
+                  Patch.SeqOp.Insert(0, Vector(DynamicValue.Primitive(PrimitiveValue.Int(0))))
                 )
               )
             )
@@ -197,15 +197,15 @@ object SerializationSpec extends ZIOSpecDefault {
       test("DynamicPatch with map operations") {
         val patch = DynamicPatch(
           Vector(
-            DynamicPatchOp(
-              Vector(PatchPath.Field("metadata")),
-              Operation.MapEdit(
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("metadata")),
+              Patch.Operation.MapEdit(
                 Vector(
-                  MapOp.Add(
+                  Patch.MapOp.Add(
                     DynamicValue.Primitive(PrimitiveValue.String("key1")),
                     DynamicValue.Primitive(PrimitiveValue.Int(100))
                   ),
-                  MapOp.Remove(DynamicValue.Primitive(PrimitiveValue.String("key2")))
+                  Patch.MapOp.Remove(DynamicValue.Primitive(PrimitiveValue.String("key2")))
                 )
               )
             )
@@ -222,26 +222,26 @@ object SerializationSpec extends ZIOSpecDefault {
         val patch = DynamicPatch(
           Vector(
             // Set a nested field
-            DynamicPatchOp(
-              Vector(PatchPath.Field("company"), PatchPath.Field("name")),
-              Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Acme Corp")))
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("company"), DynamicOptic.Node.Field("name")),
+              Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Acme Corp")))
             ),
             // Modify an array element
-            DynamicPatchOp(
+            Patch.DynamicPatchOp(
               Vector(
-                PatchPath.Field("company"),
-                PatchPath.Field("employees"),
-                PatchPath.AtIndex(0),
-                PatchPath.Field("age")
+                DynamicOptic.Node.Field("company"),
+                DynamicOptic.Node.Field("employees"),
+                DynamicOptic.Node.AtIndex(0),
+                DynamicOptic.Node.Field("age")
               ),
-              Operation.PrimitiveDelta(PrimitiveOp.IntDelta(1))
+              Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(1))
             ),
             // Append to a sequence
-            DynamicPatchOp(
-              Vector(PatchPath.Field("tags")),
-              Operation.SequenceEdit(
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("tags")),
+              Patch.Operation.SequenceEdit(
                 Vector(
-                  SeqOp.Append(
+                  Patch.SeqOp.Append(
                     Vector(
                       DynamicValue.Primitive(PrimitiveValue.String("important"))
                     )
@@ -261,12 +261,12 @@ object SerializationSpec extends ZIOSpecDefault {
       test("Patch with all PrimitiveOp types") {
         val patch = DynamicPatch(
           Vector(
-            DynamicPatchOp(Vector.empty, Operation.PrimitiveDelta(PrimitiveOp.IntDelta(1))),
-            DynamicPatchOp(Vector.empty, Operation.PrimitiveDelta(PrimitiveOp.LongDelta(2L))),
-            DynamicPatchOp(Vector.empty, Operation.PrimitiveDelta(PrimitiveOp.DoubleDelta(3.14))),
-            DynamicPatchOp(Vector.empty, Operation.PrimitiveDelta(PrimitiveOp.FloatDelta(2.71f))),
-            DynamicPatchOp(Vector.empty, Operation.PrimitiveDelta(PrimitiveOp.BigIntDelta(BigInt(1000)))),
-            DynamicPatchOp(Vector.empty, Operation.PrimitiveDelta(PrimitiveOp.BigDecimalDelta(BigDecimal("123.456"))))
+            Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(1))),
+            Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LongDelta(2L))),
+            Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DoubleDelta(3.14))),
+            Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.FloatDelta(2.71f))),
+            Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigIntDelta(BigInt(1000)))),
+            Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigDecimalDelta(BigDecimal("123.456"))))
           )
         )
 
@@ -276,9 +276,9 @@ object SerializationSpec extends ZIOSpecDefault {
       },
       test("Large patch with many operations") {
         val ops = (0 until 20).map { i =>
-          DynamicPatchOp(
-            Vector(PatchPath.Field(s"field$i")),
-            Operation.PrimitiveDelta(PrimitiveOp.IntDelta(i))
+          Patch.DynamicPatchOp(
+            Vector(DynamicOptic.Node.Field(s"field$i")),
+            Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(i))
           )
         }.toVector
 
@@ -294,19 +294,19 @@ object SerializationSpec extends ZIOSpecDefault {
       }
     ),
     suite("Edge cases")(
-      test("PatchPath with unicode field names") {
-        val op = DynamicPatchOp(
-          Vector(PatchPath.Field("名前"), PatchPath.Field("年齢")),
-          Operation.PrimitiveDelta(PrimitiveOp.IntDelta(1))
+      test("DynamicOptic.Node with unicode field names") {
+        val op = Patch.DynamicPatchOp(
+          Vector(DynamicOptic.Node.Field("名前"), DynamicOptic.Node.Field("年齢")),
+          Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(1))
         )
         val json =
           """{"path":[{"Field":{"name":"名前"}},{"Field":{"name":"年齢"}}],"operation":{"PrimitiveDelta":{"op":{"IntDelta":{"delta":1}}}}}"""
         roundTrip(op, json)
       },
       test("DynamicPatch with empty string field names") {
-        val op = DynamicPatchOp(
-          Vector(PatchPath.Field("")),
-          Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        val op = Patch.DynamicPatchOp(
+          Vector(DynamicOptic.Node.Field("")),
+          Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(42)))
         )
         val json = """{"path":[{"Field":{"name":""}}],"operation":{"Set":{"value":42}}}"""
         roundTrip(op, json)
@@ -318,26 +318,26 @@ object SerializationSpec extends ZIOSpecDefault {
             "field2" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
           )
         )
-        val path = PatchPath.AtMapKey(complexKey)
+        val path = DynamicOptic.Node.AtMapKey(complexKey)
         val json = """{"AtMapKey":{"key":{"field1":"value1","field2":42}}}"""
-        roundTrip(path: PatchPath, json)
+        roundTrip(path: DynamicOptic.Node, json)
       },
       test("Very deep nesting") {
         val deepPath = Vector(
-          PatchPath.Field("level1"),
-          PatchPath.Field("level2"),
-          PatchPath.Field("level3"),
-          PatchPath.Field("level4"),
-          PatchPath.Field("level5"),
-          PatchPath.Field("level6"),
-          PatchPath.Field("level7"),
-          PatchPath.Field("level8"),
-          PatchPath.Field("level9"),
-          PatchPath.Field("level10")
+          DynamicOptic.Node.Field("level1"),
+          DynamicOptic.Node.Field("level2"),
+          DynamicOptic.Node.Field("level3"),
+          DynamicOptic.Node.Field("level4"),
+          DynamicOptic.Node.Field("level5"),
+          DynamicOptic.Node.Field("level6"),
+          DynamicOptic.Node.Field("level7"),
+          DynamicOptic.Node.Field("level8"),
+          DynamicOptic.Node.Field("level9"),
+          DynamicOptic.Node.Field("level10")
         )
-        val op = DynamicPatchOp(
+        val op = Patch.DynamicPatchOp(
           deepPath,
-          Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("deep value")))
+          Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("deep value")))
         )
         val json =
           """{"path":[{"Field":{"name":"level1"}},{"Field":{"name":"level2"}},{"Field":{"name":"level3"}},{"Field":{"name":"level4"}},{"Field":{"name":"level5"}},{"Field":{"name":"level6"}},{"Field":{"name":"level7"}},{"Field":{"name":"level8"}},{"Field":{"name":"level9"}},{"Field":{"name":"level10"}}],"operation":{"Set":{"value":"deep value"}}}"""
@@ -348,13 +348,13 @@ object SerializationSpec extends ZIOSpecDefault {
       test("Roundtrip preserves patch equality") {
         val patch = DynamicPatch(
           Vector(
-            DynamicPatchOp(
-              Vector(PatchPath.Field("name")),
-              Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Alice")))
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("name")),
+              Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Alice")))
             ),
-            DynamicPatchOp(
-              Vector(PatchPath.Field("age")),
-              Operation.PrimitiveDelta(PrimitiveOp.IntDelta(5))
+            Patch.DynamicPatchOp(
+              Vector(DynamicOptic.Node.Field("age")),
+              Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))
             )
           )
         )

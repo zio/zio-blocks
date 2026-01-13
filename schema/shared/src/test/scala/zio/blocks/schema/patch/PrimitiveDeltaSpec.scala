@@ -81,38 +81,38 @@ object PrimitiveDeltaSpec extends ZIOSpecDefault {
         assertTrue(result == Right(Counter(-5, 0L, 0.0, 0.0f)))
       }
     ),
-    suite("Patch.incrementLong")(
+    suite("Patch.increment (Long)")(
       test("increments long value") {
         val counter = Counter(0, 1000000000L, 0.0, 0.0f)
-        val patch   = Patch.incrementLong(Counter.longValue, 500L)
+        val patch   = Patch.increment(Counter.longValue, 500L)
         val result  = patch(counter, PatchMode.Strict)
         assertTrue(result == Right(Counter(0, 1000000500L, 0.0, 0.0f)))
       },
       test("decrements long value") {
         val counter = Counter(0, 1000L, 0.0, 0.0f)
-        val patch   = Patch.incrementLong(Counter.longValue, -200L)
+        val patch   = Patch.increment(Counter.longValue, -200L)
         val result  = patch(counter, PatchMode.Strict)
         assertTrue(result == Right(Counter(0, 800L, 0.0, 0.0f)))
       }
     ),
-    suite("Patch.incrementDouble")(
+    suite("Patch.increment (Double)")(
       test("increments double value") {
         val counter = Counter(0, 0L, 10.5, 0.0f)
-        val patch   = Patch.incrementDouble(Counter.doubleValue, 2.3)
+        val patch   = Patch.increment(Counter.doubleValue, 2.3)
         val result  = patch(counter, PatchMode.Strict)
         assertTrue(result.map(_.doubleValue).exists(v => math.abs(v - 12.8) < 0.0001))
       },
       test("decrements double value") {
         val counter = Counter(0, 0L, 10.0, 0.0f)
-        val patch   = Patch.incrementDouble(Counter.doubleValue, -3.5)
+        val patch   = Patch.increment(Counter.doubleValue, -3.5)
         val result  = patch(counter, PatchMode.Strict)
         assertTrue(result.map(_.doubleValue).exists(v => math.abs(v - 6.5) < 0.0001))
       }
     ),
-    suite("Patch.incrementFloat")(
+    suite("Patch.increment (Float)")(
       test("increments float value") {
         val counter = Counter(0, 0L, 0.0, 5.5f)
-        val patch   = Patch.incrementFloat(Counter.floatValue, 1.5f)
+        val patch   = Patch.increment(Counter.floatValue, 1.5f)
         val result  = patch(counter, PatchMode.Strict)
         assertTrue(result.map(_.floatValue).exists(v => math.abs(v - 7.0f) < 0.0001f))
       }
@@ -130,37 +130,37 @@ object PrimitiveDeltaSpec extends ZIOSpecDefault {
   )
 
   val bigNumberDeltaTests = suite("Big Number Delta Operations")(
-    suite("Patch.incrementBigInt")(
+    suite("Patch.increment (BigInt)")(
       test("increments BigInt") {
         val nums   = BigNumbers(BigInt(100), BigDecimal(0))
-        val patch  = Patch.incrementBigInt(BigNumbers.bigInt, BigInt(50))
+        val patch  = Patch.increment(BigNumbers.bigInt, BigInt(50))
         val result = patch(nums, PatchMode.Strict)
         assertTrue(result == Right(BigNumbers(BigInt(150), BigDecimal(0))))
       },
       test("decrements BigInt") {
         val nums   = BigNumbers(BigInt(100), BigDecimal(0))
-        val patch  = Patch.incrementBigInt(BigNumbers.bigInt, BigInt(-30))
+        val patch  = Patch.increment(BigNumbers.bigInt, BigInt(-30))
         val result = patch(nums, PatchMode.Strict)
         assertTrue(result == Right(BigNumbers(BigInt(70), BigDecimal(0))))
       },
       test("handles very large BigInt") {
         val large  = BigInt("99999999999999999999999999999999")
         val nums   = BigNumbers(large, BigDecimal(0))
-        val patch  = Patch.incrementBigInt(BigNumbers.bigInt, BigInt(1))
+        val patch  = Patch.increment(BigNumbers.bigInt, BigInt(1))
         val result = patch(nums, PatchMode.Strict)
         assertTrue(result.exists(_.bigInt == large + 1))
       }
     ),
-    suite("Patch.incrementBigDecimal")(
+    suite("Patch.increment (BigDecimal)")(
       test("increments BigDecimal") {
         val nums   = BigNumbers(BigInt(0), BigDecimal("123.456"))
-        val patch  = Patch.incrementBigDecimal(BigNumbers.bigDecimal, BigDecimal("10.5"))
+        val patch  = Patch.increment(BigNumbers.bigDecimal, BigDecimal("10.5"))
         val result = patch(nums, PatchMode.Strict)
         assertTrue(result == Right(BigNumbers(BigInt(0), BigDecimal("133.956"))))
       },
       test("decrements BigDecimal") {
         val nums   = BigNumbers(BigInt(0), BigDecimal("100.0"))
-        val patch  = Patch.incrementBigDecimal(BigNumbers.bigDecimal, BigDecimal("-25.5"))
+        val patch  = Patch.increment(BigNumbers.bigDecimal, BigDecimal("-25.5"))
         val result = patch(nums, PatchMode.Strict)
         assertTrue(result == Right(BigNumbers(BigInt(0), BigDecimal("74.5"))))
       }
@@ -184,11 +184,11 @@ object PrimitiveDeltaSpec extends ZIOSpecDefault {
         assertTrue(result.exists(_.instant == Instant.parse("2024-01-01T05:00:00Z")))
       }
     ),
-    suite("Patch.addDurationToDuration")(
+    suite("Patch.addDuration (Duration)")(
       test("adds duration to duration") {
         val duration = Duration.ofMinutes(30)
         val timeData = TimeData(Instant.MIN, duration, LocalDate.MIN, LocalDateTime.MIN, Period.ZERO)
-        val patch    = Patch.addDurationToDuration(TimeData.duration, Duration.ofMinutes(15))
+        val patch    = Patch.addDuration(TimeData.duration, Duration.ofMinutes(15))
         val result   = patch(timeData, PatchMode.Strict)
         assertTrue(result.exists(_.duration == Duration.ofMinutes(45)))
       }
@@ -229,11 +229,11 @@ object PrimitiveDeltaSpec extends ZIOSpecDefault {
         assertTrue(result.exists(_.localDateTime == LocalDateTime.of(2024, 1, 2, 12, 0)))
       }
     ),
-    suite("Patch.addPeriodToPeriod")(
+    suite("Patch.addPeriod (Period)")(
       test("adds period to period") {
         val period   = Period.ofDays(5)
         val timeData = TimeData(Instant.MIN, Duration.ZERO, LocalDate.MIN, LocalDateTime.MIN, period)
-        val patch    = Patch.addPeriodToPeriod(TimeData.period, Period.ofDays(3))
+        val patch    = Patch.addPeriod(TimeData.period, Period.ofDays(3))
         val result   = patch(timeData, PatchMode.Strict)
         assertTrue(result.exists(_.period == Period.ofDays(8)))
       }
@@ -244,13 +244,13 @@ object PrimitiveDeltaSpec extends ZIOSpecDefault {
     suite("Patch.editString")(
       test("inserts text at position") {
         val doc    = Document("Title", "Hello world")
-        val patch  = Patch.editString(Document.content, Vector(StringOp.Insert(6, "beautiful ")))
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Insert(6, "beautiful ")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello beautiful world")))
       },
       test("deletes text") {
         val doc    = Document("Title", "Hello beautiful world")
-        val patch  = Patch.editString(Document.content, Vector(StringOp.Delete(6, 10)))
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Delete(6, 10)))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello world")))
       },
@@ -259,8 +259,8 @@ object PrimitiveDeltaSpec extends ZIOSpecDefault {
         val patch = Patch.editString(
           Document.content,
           Vector(
-            StringOp.Insert(5, " there"),
-            StringOp.Delete(0, 5) // Delete "Hello"
+            Patch.StringOp.Insert(5, " there"),
+            Patch.StringOp.Delete(0, 5) // Delete "Hello"
           )
         )
         val result = patch(doc, PatchMode.Strict)
@@ -270,33 +270,85 @@ object PrimitiveDeltaSpec extends ZIOSpecDefault {
       },
       test("inserts at beginning") {
         val doc    = Document("Title", "world")
-        val patch  = Patch.editString(Document.content, Vector(StringOp.Insert(0, "Hello ")))
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Insert(0, "Hello ")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello world")))
       },
       test("inserts at end") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(StringOp.Insert(5, " world")))
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Insert(5, " world")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello world")))
       },
       test("handles unicode text") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(StringOp.Insert(5, " 世界 🌍")))
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Insert(5, " 世界 🌍")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello 世界 🌍")))
       },
       test("fails on out of bounds insert") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(StringOp.Insert(100, "!")))
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Insert(100, "!")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result.isLeft)
       },
       test("fails on out of bounds delete") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(StringOp.Delete(0, 100)))
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Delete(0, 100)))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result.isLeft)
+      },
+      test("appends text to end") {
+        val doc    = Document("Title", "Hello")
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Append(" world")))
+        val result = patch(doc, PatchMode.Strict)
+        assertTrue(result == Right(Document("Title", "Hello world")))
+      },
+      test("appends empty string") {
+        val doc    = Document("Title", "Hello")
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Append("")))
+        val result = patch(doc, PatchMode.Strict)
+        assertTrue(result == Right(Document("Title", "Hello")))
+      },
+      test("modifies (replaces) substring") {
+        val doc    = Document("Title", "Hello world")
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Modify(6, 5, "everyone")))
+        val result = patch(doc, PatchMode.Strict)
+        assertTrue(result == Right(Document("Title", "Hello everyone")))
+      },
+      test("modifies with empty replacement (equivalent to delete)") {
+        val doc    = Document("Title", "Hello beautiful world")
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Modify(6, 10, "")))
+        val result = patch(doc, PatchMode.Strict)
+        assertTrue(result == Right(Document("Title", "Hello world")))
+      },
+      test("modifies at beginning") {
+        val doc    = Document("Title", "Hello world")
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Modify(0, 5, "Goodbye")))
+        val result = patch(doc, PatchMode.Strict)
+        assertTrue(result == Right(Document("Title", "Goodbye world")))
+      },
+      test("fails on out of bounds modify") {
+        val doc    = Document("Title", "Hello")
+        val patch  = Patch.editString(Document.content, Vector(Patch.StringOp.Modify(0, 100, "test")))
+        val result = patch(doc, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("combines all operations") {
+        val doc   = Document("Title", "Hello")
+        val patch = Patch.editString(
+          Document.content,
+          Vector(
+            Patch.StringOp.Insert(0, "Say: "),
+            Patch.StringOp.Modify(5, 5, "Hi"),
+            Patch.StringOp.Append("!")
+          )
+        )
+        val result = patch(doc, PatchMode.Strict)
+        // After insert: "Say: Hello"
+        // After modify: "Say: Hi" (replaces "Hello" at index 5 with "Hi")
+        // After append: "Say: Hi!"
+        assertTrue(result == Right(Document("Title", "Say: Hi!")))
       }
     )
   )
@@ -309,9 +361,9 @@ object PrimitiveDeltaSpec extends ZIOSpecDefault {
       // Manually construct a patch with wrong operation type
       val wrongPatch = DynamicPatch(
         Vector(
-          DynamicPatchOp(
-            Vector(PatchPath.Field("content")),
-            Operation.PrimitiveDelta(PrimitiveOp.IntDelta(5))
+          Patch.DynamicPatchOp(
+            Vector(DynamicOptic.Node.Field("content")),
+            Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))
           )
         )
       )
@@ -322,8 +374,8 @@ object PrimitiveDeltaSpec extends ZIOSpecDefault {
     test("composition of different delta types") {
       val counter = Counter(10, 100L, 5.0, 2.0f)
       val patch   = Patch.increment(Counter.value, 5) ++
-        Patch.incrementLong(Counter.longValue, 50L) ++
-        Patch.incrementDouble(Counter.doubleValue, 2.5)
+        Patch.increment(Counter.longValue, 50L) ++
+        Patch.increment(Counter.doubleValue, 2.5)
       val result = patch(counter, PatchMode.Strict)
       assertTrue(
         result.exists { c =>

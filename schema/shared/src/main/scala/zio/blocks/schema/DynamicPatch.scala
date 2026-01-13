@@ -1,9 +1,7 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.patch._
-
 // An untyped patch that operates on DynamicValue. Patches are serializable and can be composed.
-final case class DynamicPatch(ops: Vector[DynamicPatchOp]) {
+final case class DynamicPatch(ops: Vector[Patch.DynamicPatchOp]) {
 
   // Apply this patch to a DynamicValue.`value` and `mode`
   // Returns - Either an error or the patched value
@@ -43,18 +41,18 @@ object DynamicPatch {
   val empty: DynamicPatch = DynamicPatch(Vector.empty)
 
   // Create a patch with a single operation at the root.
-  def apply(operation: Operation): DynamicPatch =
-    DynamicPatch(Vector(DynamicPatchOp(PatchPath.root, operation)))
+  def apply(operation: Patch.Operation): DynamicPatch =
+    DynamicPatch(Vector(Patch.DynamicPatchOp(Vector.empty, operation)))
 
   // Create a patch with a single operation at the given path.
-  def apply(path: Vector[PatchPath], operation: Operation): DynamicPatch =
-    DynamicPatch(Vector(DynamicPatchOp(path, operation)))
+  def apply(path: Vector[DynamicOptic.Node], operation: Patch.Operation): DynamicPatch =
+    DynamicPatch(Vector(Patch.DynamicPatchOp(path, operation)))
 
   // Apply a single operation at a path within a value.
   private[schema] def applyOp(
     value: DynamicValue,
-    path: Vector[PatchPath],
-    operation: Operation,
+    path: Vector[DynamicOptic.Node],
+    operation: Patch.Operation,
     mode: PatchMode
   ): Either[SchemaError, DynamicValue] =
     if (path.isEmpty) {
@@ -67,9 +65,9 @@ object DynamicPatch {
   // Uses a recursive approach that rebuilds the structure on the way back.
   private def navigateAndApply(
     value: DynamicValue,
-    path: Vector[PatchPath],
+    path: Vector[DynamicOptic.Node],
     pathIdx: Int,
-    operation: Operation,
+    operation: Patch.Operation,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] = {
@@ -77,7 +75,7 @@ object DynamicPatch {
     val isLast = pathIdx == path.length - 1
 
     node match {
-      case PatchPath.Field(name) =>
+      case DynamicOptic.Node.Field(name) =>
         value match {
           case DynamicValue.Record(fields) =>
             val fieldIdx = fields.indexWhere(_._1 == name)
@@ -113,7 +111,7 @@ object DynamicPatch {
             Left(SchemaError.expectationMismatch(trace, s"Expected Record but got ${value.getClass.getSimpleName}"))
         }
 
-      case PatchPath.AtIndex(index) =>
+      case DynamicOptic.Node.AtIndex(index) =>
         value match {
           case DynamicValue.Sequence(elements) =>
             if (index < 0 || index >= elements.length) {
@@ -142,7 +140,7 @@ object DynamicPatch {
             Left(SchemaError.expectationMismatch(trace, s"Expected Sequence but got ${value.getClass.getSimpleName}"))
         }
 
-      case PatchPath.AtMapKey(key) =>
+      case DynamicOptic.Node.AtMapKey(key) =>
         value match {
           case DynamicValue.Map(entries) =>
             val entryIdx = entries.indexWhere(_._1 == key)
@@ -167,7 +165,7 @@ object DynamicPatch {
             Left(SchemaError.expectationMismatch(trace, s"Expected Map but got ${value.getClass.getSimpleName}"))
         }
 
-      case PatchPath.Case(expectedCase) =>
+      case DynamicOptic.Node.Case(expectedCase) =>
         value match {
           case DynamicValue.Variant(caseName, innerValue) =>
             if (caseName != expectedCase) {
@@ -197,7 +195,7 @@ object DynamicPatch {
             Left(SchemaError.expectationMismatch(trace, s"Expected Variant but got ${value.getClass.getSimpleName}"))
         }
 
-      case PatchPath.Elements =>
+      case DynamicOptic.Node.Elements =>
         value match {
           case DynamicValue.Sequence(elements) =>
             val newTrace = DynamicOptic.Node.Elements :: trace
@@ -223,7 +221,7 @@ object DynamicPatch {
             Left(SchemaError.expectationMismatch(trace, s"Expected Sequence but got ${value.getClass.getSimpleName}"))
         }
 
-      case PatchPath.Wrapped =>
+      case DynamicOptic.Node.Wrapped =>
         // Wrappers in DynamicValue are typically represented as the unwrapped value directly
         // or as a Record with a single field. For now, we pass through.
         val newTrace = DynamicOptic.Node.Wrapped :: trace
@@ -232,13 +230,25 @@ object DynamicPatch {
         } else {
           navigateAndApply(value, path, pathIdx + 1, operation, mode, newTrace)
         }
+
+      case DynamicOptic.Node.AtIndices(_) =>
+        Left(SchemaError.expectationMismatch(trace, "AtIndices not supported in patches"))
+
+      case DynamicOptic.Node.AtMapKeys(_) =>
+        Left(SchemaError.expectationMismatch(trace, "AtMapKeys not supported in patches"))
+
+      case DynamicOptic.Node.MapKeys =>
+        Left(SchemaError.expectationMismatch(trace, "MapKeys not supported in patches"))
+
+      case DynamicOptic.Node.MapValues =>
+        Left(SchemaError.expectationMismatch(trace, "MapValues not supported in patches"))
     }
   }
 
   // Apply operation to all elements in a sequence.
   private def applyToAllElements(
     elements: Vector[DynamicValue],
-    operation: Operation,
+    operation: Patch.Operation,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Vector[DynamicValue]] = {
@@ -268,9 +278,9 @@ object DynamicPatch {
   // Navigate deeper into all elements of a sequence.
   private def navigateAllElements(
     elements: Vector[DynamicValue],
-    path: Vector[PatchPath],
+    path: Vector[DynamicOptic.Node],
     pathIdx: Int,
-    operation: Operation,
+    operation: Patch.Operation,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Vector[DynamicValue]] = {
@@ -280,7 +290,7 @@ object DynamicPatch {
 
     // Check if the next path node is a Case - if so, we should skip non-matching elements
     // rather than fail, even in Strict mode (this is Traversal semantics)
-    val nextIsCase = pathIdx < path.length && path(pathIdx).isInstanceOf[PatchPath.Case]
+    val nextIsCase = pathIdx < path.length && path(pathIdx).isInstanceOf[DynamicOptic.Node.Case]
 
     while (idx < elements.length && error.isEmpty) {
       val elementTrace = DynamicOptic.Node.AtIndex(idx) :: trace
@@ -310,27 +320,27 @@ object DynamicPatch {
   // Apply an operation to a value (at the current location).
   private def applyOperation(
     value: DynamicValue,
-    operation: Operation,
+    operation: Patch.Operation,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] =
     operation match {
-      case Operation.Set(newValue) =>
+      case Patch.Operation.Set(newValue) =>
         Right(newValue)
 
-      case Operation.PrimitiveDelta(op) =>
+      case Patch.Operation.PrimitiveDelta(op) =>
         applyPrimitiveDelta(value, op, trace)
 
-      case Operation.SequenceEdit(seqOps) =>
+      case Patch.Operation.SequenceEdit(seqOps) =>
         applySequenceEdit(value, seqOps, mode, trace)
 
-      case Operation.MapEdit(mapOps) =>
+      case Patch.Operation.MapEdit(mapOps) =>
         applyMapEdit(value, mapOps, mode, trace)
     }
 
   private def applyPrimitiveDelta(
     value: DynamicValue,
-    op: PrimitiveOp,
+    op: Patch.PrimitiveOp,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] =
     value match {
@@ -342,53 +352,53 @@ object DynamicPatch {
 
   private def applyPrimitiveOpToValue(
     pv: PrimitiveValue,
-    op: PrimitiveOp,
+    op: Patch.PrimitiveOp,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, PrimitiveValue] =
     (pv, op) match {
       // Numeric deltas
-      case (PrimitiveValue.Int(v), PrimitiveOp.IntDelta(delta)) =>
+      case (PrimitiveValue.Int(v), Patch.PrimitiveOp.IntDelta(delta)) =>
         Right(PrimitiveValue.Int(v + delta))
 
-      case (PrimitiveValue.Long(v), PrimitiveOp.LongDelta(delta)) =>
+      case (PrimitiveValue.Long(v), Patch.PrimitiveOp.LongDelta(delta)) =>
         Right(PrimitiveValue.Long(v + delta))
 
-      case (PrimitiveValue.Double(v), PrimitiveOp.DoubleDelta(delta)) =>
+      case (PrimitiveValue.Double(v), Patch.PrimitiveOp.DoubleDelta(delta)) =>
         Right(PrimitiveValue.Double(v + delta))
 
-      case (PrimitiveValue.Float(v), PrimitiveOp.FloatDelta(delta)) =>
+      case (PrimitiveValue.Float(v), Patch.PrimitiveOp.FloatDelta(delta)) =>
         Right(PrimitiveValue.Float(v + delta))
 
-      case (PrimitiveValue.Short(v), PrimitiveOp.ShortDelta(delta)) =>
+      case (PrimitiveValue.Short(v), Patch.PrimitiveOp.ShortDelta(delta)) =>
         Right(PrimitiveValue.Short((v + delta).toShort))
 
-      case (PrimitiveValue.Byte(v), PrimitiveOp.ByteDelta(delta)) =>
+      case (PrimitiveValue.Byte(v), Patch.PrimitiveOp.ByteDelta(delta)) =>
         Right(PrimitiveValue.Byte((v + delta).toByte))
 
-      case (PrimitiveValue.BigInt(v), PrimitiveOp.BigIntDelta(delta)) =>
+      case (PrimitiveValue.BigInt(v), Patch.PrimitiveOp.BigIntDelta(delta)) =>
         Right(PrimitiveValue.BigInt(v + delta))
 
-      case (PrimitiveValue.BigDecimal(v), PrimitiveOp.BigDecimalDelta(delta)) =>
+      case (PrimitiveValue.BigDecimal(v), Patch.PrimitiveOp.BigDecimalDelta(delta)) =>
         Right(PrimitiveValue.BigDecimal(v + delta))
 
       // String edits
-      case (PrimitiveValue.String(v), PrimitiveOp.StringEdit(ops)) =>
+      case (PrimitiveValue.String(v), Patch.PrimitiveOp.StringEdit(ops)) =>
         applyStringEdits(v, ops, trace).map(PrimitiveValue.String(_))
 
       // Temporal deltas
-      case (PrimitiveValue.Instant(v), PrimitiveOp.InstantDelta(delta)) =>
+      case (PrimitiveValue.Instant(v), Patch.PrimitiveOp.InstantDelta(delta)) =>
         Right(PrimitiveValue.Instant(v.plus(delta)))
 
-      case (PrimitiveValue.Duration(v), PrimitiveOp.DurationDelta(delta)) =>
+      case (PrimitiveValue.Duration(v), Patch.PrimitiveOp.DurationDelta(delta)) =>
         Right(PrimitiveValue.Duration(v.plus(delta)))
 
-      case (PrimitiveValue.LocalDate(v), PrimitiveOp.LocalDateDelta(delta)) =>
+      case (PrimitiveValue.LocalDate(v), Patch.PrimitiveOp.LocalDateDelta(delta)) =>
         Right(PrimitiveValue.LocalDate(v.plus(delta)))
 
-      case (PrimitiveValue.LocalDateTime(v), PrimitiveOp.LocalDateTimeDelta(periodDelta, durationDelta)) =>
+      case (PrimitiveValue.LocalDateTime(v), Patch.PrimitiveOp.LocalDateTimeDelta(periodDelta, durationDelta)) =>
         Right(PrimitiveValue.LocalDateTime(v.plus(periodDelta).plus(durationDelta)))
 
-      case (PrimitiveValue.Period(v), PrimitiveOp.PeriodDelta(delta)) =>
+      case (PrimitiveValue.Period(v), Patch.PrimitiveOp.PeriodDelta(delta)) =>
         Right(PrimitiveValue.Period(v.plus(delta)))
 
       case _ =>
@@ -402,7 +412,7 @@ object DynamicPatch {
 
   private def applyStringEdits(
     str: String,
-    ops: Vector[StringOp],
+    ops: Vector[Patch.StringOp],
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, String] = {
     var result                     = str
@@ -411,7 +421,7 @@ object DynamicPatch {
 
     while (idx < ops.length && error.isEmpty) {
       ops(idx) match {
-        case StringOp.Insert(index, text) =>
+        case Patch.StringOp.Insert(index, text) =>
           if (index < 0 || index > result.length) {
             error = Some(
               SchemaError.expectationMismatch(
@@ -423,7 +433,7 @@ object DynamicPatch {
             result = result.substring(0, index) + text + result.substring(index)
           }
 
-        case StringOp.Delete(index, length) =>
+        case Patch.StringOp.Delete(index, length) =>
           if (index < 0 || index + length > result.length) {
             error = Some(
               SchemaError.expectationMismatch(
@@ -434,6 +444,21 @@ object DynamicPatch {
           } else {
             result = result.substring(0, index) + result.substring(index + length)
           }
+
+        case Patch.StringOp.Append(text) =>
+          result = result + text
+
+        case Patch.StringOp.Modify(index, length, text) =>
+          if (index < 0 || index + length > result.length) {
+            error = Some(
+              SchemaError.expectationMismatch(
+                trace,
+                s"String modify range [$index, ${index + length}) out of bounds for string of length ${result.length}"
+              )
+            )
+          } else {
+            result = result.substring(0, index) + text + result.substring(index + length)
+          }
       }
       idx += 1
     }
@@ -443,7 +468,7 @@ object DynamicPatch {
 
   private def applySequenceEdit(
     value: DynamicValue,
-    ops: Vector[SeqOp],
+    ops: Vector[Patch.SeqOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] =
@@ -456,7 +481,7 @@ object DynamicPatch {
 
   private def applySeqOps(
     elements: Vector[DynamicValue],
-    ops: Vector[SeqOp],
+    ops: Vector[Patch.SeqOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Vector[DynamicValue]] = {
@@ -482,15 +507,15 @@ object DynamicPatch {
 
   private def applySeqOp(
     elements: Vector[DynamicValue],
-    op: SeqOp,
+    op: Patch.SeqOp,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Vector[DynamicValue]] =
     op match {
-      case SeqOp.Append(values) =>
+      case Patch.SeqOp.Append(values) =>
         Right(elements ++ values)
 
-      case SeqOp.Insert(index, values) =>
+      case Patch.SeqOp.Insert(index, values) =>
         if (index < 0 || index > elements.length) {
           mode match {
             case PatchMode.Strict =>
@@ -518,7 +543,7 @@ object DynamicPatch {
           Right(before ++ values ++ after)
         }
 
-      case SeqOp.Delete(index, count) =>
+      case Patch.SeqOp.Delete(index, count) =>
         if (index < 0 || index + count > elements.length) {
           mode match {
             case PatchMode.Strict =>
@@ -545,7 +570,7 @@ object DynamicPatch {
           Right(elements.take(index) ++ elements.drop(index + count))
         }
 
-      case SeqOp.Modify(index, nestedOp) =>
+      case Patch.SeqOp.Modify(index, nestedOp) =>
         if (index < 0 || index >= elements.length) {
           Left(
             SchemaError.expectationMismatch(
@@ -564,7 +589,7 @@ object DynamicPatch {
 
   private def applyMapEdit(
     value: DynamicValue,
-    ops: Vector[MapOp],
+    ops: Vector[Patch.MapOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] =
@@ -577,7 +602,7 @@ object DynamicPatch {
 
   private def applyMapOps(
     entries: Vector[(DynamicValue, DynamicValue)],
-    ops: Vector[MapOp],
+    ops: Vector[Patch.MapOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]] = {
@@ -603,12 +628,12 @@ object DynamicPatch {
 
   private def applyMapOp(
     entries: Vector[(DynamicValue, DynamicValue)],
-    op: MapOp,
+    op: Patch.MapOp,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]] =
     op match {
-      case MapOp.Add(key, value) =>
+      case Patch.MapOp.Add(key, value) =>
         val existingIdx = entries.indexWhere(_._1 == key)
         if (existingIdx >= 0) {
           mode match {
@@ -624,7 +649,7 @@ object DynamicPatch {
           Right(entries :+ (key, value))
         }
 
-      case MapOp.Remove(key) =>
+      case Patch.MapOp.Remove(key) =>
         val existingIdx = entries.indexWhere(_._1 == key)
         if (existingIdx < 0) {
           mode match {
@@ -640,14 +665,13 @@ object DynamicPatch {
           Right(entries.take(existingIdx) ++ entries.drop(existingIdx + 1))
         }
 
-      case MapOp.Modify(key, nestedOp) =>
+      case Patch.MapOp.Modify(key, nestedPatch) =>
         val existingIdx = entries.indexWhere(_._1 == key)
         if (existingIdx < 0) {
           Left(SchemaError.expectationMismatch(trace, s"Key not found in map"))
         } else {
-          val (k, v)   = entries(existingIdx)
-          val newTrace = DynamicOptic.Node.AtMapKey(key) :: trace
-          applyOperation(v, nestedOp, mode, newTrace).map { newValue =>
+          val (k, v) = entries(existingIdx)
+          nestedPatch.apply(v, mode).map { newValue =>
             entries.updated(existingIdx, (k, newValue))
           }
         }

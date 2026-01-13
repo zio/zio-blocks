@@ -1,8 +1,31 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.patch._
+import zio.blocks.schema.binding.Binding
 
-final case class Patch[S](dynamicPatch: DynamicPatch, schema: Schema[S]) {
+/**
+ * A type-safe patch that can be applied to values of type S.
+ *
+ * Patches represent a sequence of operations (set, increment, append, etc.)
+ * that transform values. Because patches use serializable operations and
+ * reflective optics for navigation, they can be serialized and applied remotely.
+ *
+ * Patches can be composed using `++` and applied using the `apply` method with
+ * a [[PatchMode]] (Strict, Lenient, or Clobber) to control error handling behavior.
+ * Empty patches act as identity (no-op).
+ *
+ * {{{
+ * val patch1 = Patch.set(Person.name, "John")
+ * val patch2 = Patch.increment(Person.age, 1)
+ *
+ * val patch3 = patch1 ++ patch2
+ *
+ * patch3(Person("Jane", 25)) // Person("John", 26)
+ * }}}
+ *
+ * @param dynamicPatch The untyped patch operations
+ * @param schema The schema for type S, enabling type-safe conversion
+ */
+final case class Patch[S] private[schema] (dynamicPatch: DynamicPatch, schema: Schema[S]) {
 
   // Compose two patches. The result applies this patch first, then that patch.
   def ++(that: Patch[S]): Patch[S] = Patch(this.dynamicPatch ++ that.dynamicPatch, this.schema)
@@ -41,220 +64,468 @@ final case class Patch[S](dynamicPatch: DynamicPatch, schema: Schema[S]) {
   def isEmpty: Boolean = dynamicPatch.isEmpty
 }
 
+/**
+ * Companion object providing smart constructors for type-safe patches.
+ *
+ * Use these methods to create patches instead of the private constructor.
+ */
 object Patch {
 
-  // Create an empty patch (identity element for composition).
+  /** Creates an empty patch (identity element for composition). */
   def empty[S](implicit schema: Schema[S]): Patch[S] =
     Patch(DynamicPatch.empty, schema)
 
-  // Set a field/element to a value using any optic type.
-  def set[S, A](optic: Optic[S, A], value: A)(implicit schemaS: Schema[S], schemaA: Schema[A]): Patch[S] = {
-    val path         = dynamicOpticToPatchPath(optic.toDynamic)
+  /** Sets a field/element to a specific value using an optic. */
+  def set[S, A](optic: Optic[S, A], value: A): Patch[S] = {
+    val schemaS      = new Schema(optic.source)
+    val schemaA      = new Schema(optic.focus)
+    val path         = optic.toDynamic.nodes.toVector
     val dynamicValue = schemaA.toDynamicValue(value)
-    val op           = DynamicPatchOp(path, Operation.Set(dynamicValue))
+    val op           = Patch.DynamicPatchOp(path, Patch.Operation.Set(dynamicValue))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Set a field value using a Lens.
-  def set[S, A](lens: Lens[S, A], value: A)(implicit schemaS: Schema[S], schemaA: Schema[A]): Patch[S] =
+  def set[S, A](lens: Lens[S, A], value: A): Patch[S] =
     set(lens: Optic[S, A], value)
 
   // Set a value using an Optional.
-  def set[S, A](optional: Optional[S, A], value: A)(implicit schemaS: Schema[S], schemaA: Schema[A]): Patch[S] =
+  def set[S, A](optional: Optional[S, A], value: A): Patch[S] =
     set(optional: Optic[S, A], value)
 
   // Set all elements using a Traversal.
-  def set[S, A](traversal: Traversal[S, A], value: A)(implicit schemaS: Schema[S], schemaA: Schema[A]): Patch[S] =
+  def set[S, A](traversal: Traversal[S, A], value: A): Patch[S] =
     set(traversal: Optic[S, A], value)
 
   // Set a variant case using a Prism.
-  def set[S, A <: S](prism: Prism[S, A], value: A)(implicit schemaS: Schema[S], schemaA: Schema[A]): Patch[S] =
+  def set[S, A <: S](prism: Prism[S, A], value: A): Patch[S] =
     set(prism: Optic[S, A], value)
 
-  // Append elements to the end of a sequence.
+  /** Appends elements to the end of a sequence. */
   def append[S, A](optic: Optic[S, Vector[A]], elements: Vector[A])(implicit
-    schemaS: Schema[S],
-    schemaA: Schema[A]
+    d: CollectionDummy.ForVector.type
   ): Patch[S] = {
-    val path            = dynamicOpticToPatchPath(optic.toDynamic)
+    val schemaS         = new Schema(optic.source)
+    val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, Vector]]
+    val schemaA         = new Schema(seqReflect.element)
+    val path            = optic.toDynamic.nodes.toVector
     val dynamicElements = elements.map(schemaA.toDynamicValue)
-    val seqOp           = SeqOp.Append(dynamicElements)
-    val op              = DynamicPatchOp(path, Operation.SequenceEdit(Vector(seqOp)))
+    val seqOp           = Patch.SeqOp.Append(dynamicElements)
+    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
-  // Insert elements at a specific index in a sequence.
+  // Append elements to the end of a List.
+  def append[S, A](optic: Optic[S, List[A]], elements: List[A])(implicit d: CollectionDummy.ForList.type): Patch[S] = {
+    val schemaS         = new Schema(optic.source)
+    val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, List]]
+    val schemaA         = new Schema(seqReflect.element)
+    val path            = optic.toDynamic.nodes.toVector
+    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val seqOp           = Patch.SeqOp.Append(dynamicElements)
+    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  // Append elements to the end of a Seq.
+  def append[S, A](optic: Optic[S, Seq[A]], elements: Seq[A])(implicit d: CollectionDummy.ForSeq.type): Patch[S] = {
+    val schemaS         = new Schema(optic.source)
+    val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, Seq]]
+    val schemaA         = new Schema(seqReflect.element)
+    val path            = optic.toDynamic.nodes.toVector
+    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val seqOp           = Patch.SeqOp.Append(dynamicElements)
+    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  // Append elements to the end of an IndexedSeq.
+  def append[S, A](optic: Optic[S, IndexedSeq[A]], elements: IndexedSeq[A])(implicit
+    d: CollectionDummy.ForIndexedSeq.type
+  ): Patch[S] = {
+    val schemaS         = new Schema(optic.source)
+    val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, IndexedSeq]]
+    val schemaA         = new Schema(seqReflect.element)
+    val path            = optic.toDynamic.nodes.toVector
+    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val seqOp           = Patch.SeqOp.Append(dynamicElements)
+    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  // Append elements to the end of a LazyList.
+  def append[S, A](optic: Optic[S, LazyList[A]], elements: LazyList[A])(implicit
+    d: CollectionDummy.ForLazyList.type
+  ): Patch[S] = {
+    val schemaS         = new Schema(optic.source)
+    val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, LazyList]]
+    val schemaA         = new Schema(seqReflect.element)
+    val path            = optic.toDynamic.nodes.toVector
+    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val seqOp           = Patch.SeqOp.Append(dynamicElements)
+    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  /** Inserts elements at a specific index in a sequence. */
   def insertAt[S, A](optic: Optic[S, Vector[A]], index: Int, elements: Vector[A])(implicit
-    schemaS: Schema[S],
-    schemaA: Schema[A]
+    d: CollectionDummy.ForVector.type
   ): Patch[S] = {
-    val path            = dynamicOpticToPatchPath(optic.toDynamic)
+    val schemaS         = new Schema(optic.source)
+    val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, Vector]]
+    val schemaA         = new Schema(seqReflect.element)
+    val path            = optic.toDynamic.nodes.toVector
     val dynamicElements = elements.map(schemaA.toDynamicValue)
-    val seqOp           = SeqOp.Insert(index, dynamicElements)
-    val op              = DynamicPatchOp(path, Operation.SequenceEdit(Vector(seqOp)))
+    val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
+    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
-  // Delete elements from a sequence starting at the given index.
+  // Insert elements at a specific index in a List.
+  def insertAt[S, A](optic: Optic[S, List[A]], index: Int, elements: List[A])(implicit
+    d: CollectionDummy.ForList.type
+  ): Patch[S] = {
+    val schemaS         = new Schema(optic.source)
+    val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, List]]
+    val schemaA         = new Schema(seqReflect.element)
+    val path            = optic.toDynamic.nodes.toVector
+    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
+    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  // Insert elements at a specific index in a Seq.
+  def insertAt[S, A](optic: Optic[S, Seq[A]], index: Int, elements: Seq[A])(implicit
+    d: CollectionDummy.ForSeq.type
+  ): Patch[S] = {
+    val schemaS         = new Schema(optic.source)
+    val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, Seq]]
+    val schemaA         = new Schema(seqReflect.element)
+    val path            = optic.toDynamic.nodes.toVector
+    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
+    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  // Insert elements at a specific index in an IndexedSeq.
+  def insertAt[S, A](optic: Optic[S, IndexedSeq[A]], index: Int, elements: IndexedSeq[A])(implicit
+    d: CollectionDummy.ForIndexedSeq.type
+  ): Patch[S] = {
+    val schemaS         = new Schema(optic.source)
+    val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, IndexedSeq]]
+    val schemaA         = new Schema(seqReflect.element)
+    val path            = optic.toDynamic.nodes.toVector
+    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
+    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  // Insert elements at a specific index in a LazyList.
+  def insertAt[S, A](optic: Optic[S, LazyList[A]], index: Int, elements: LazyList[A])(implicit
+    d: CollectionDummy.ForLazyList.type
+  ): Patch[S] = {
+    val schemaS         = new Schema(optic.source)
+    val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, LazyList]]
+    val schemaA         = new Schema(seqReflect.element)
+    val path            = optic.toDynamic.nodes.toVector
+    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
+    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  /** Deletes elements from a sequence starting at the given index. */
   def deleteAt[S, A](optic: Optic[S, Vector[A]], index: Int, count: Int)(implicit
-    schemaS: Schema[S]
+    d: CollectionDummy.ForVector.type
   ): Patch[S] = {
-    val path  = dynamicOpticToPatchPath(optic.toDynamic)
-    val seqOp = SeqOp.Delete(index, count)
-    val op    = DynamicPatchOp(path, Operation.SequenceEdit(Vector(seqOp)))
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val seqOp   = Patch.SeqOp.Delete(index, count)
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
-  // Modify an element at a specific index in a sequence.
-  def modifyAt[S, A](optic: Optic[S, Vector[A]], index: Int, elementPatch: Patch[A])(implicit
-    schemaS: Schema[S]
+  // Delete elements from a List starting at the given index.
+  def deleteAt[S, A](optic: Optic[S, List[A]], index: Int, count: Int)(implicit
+    d: CollectionDummy.ForList.type
   ): Patch[S] = {
-    val basePath  = dynamicOpticToPatchPath(optic.toDynamic)
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val seqOp   = Patch.SeqOp.Delete(index, count)
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  // Delete elements from a Seq starting at the given index.
+  def deleteAt[S, A](optic: Optic[S, Seq[A]], index: Int, count: Int)(implicit
+    d: CollectionDummy.ForSeq.type
+  ): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val seqOp   = Patch.SeqOp.Delete(index, count)
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  // Delete elements from an IndexedSeq starting at the given index.
+  def deleteAt[S, A](optic: Optic[S, IndexedSeq[A]], index: Int, count: Int)(implicit
+    d: CollectionDummy.ForIndexedSeq.type
+  ): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val seqOp   = Patch.SeqOp.Delete(index, count)
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  // Delete elements from a LazyList starting at the given index.
+  def deleteAt[S, A](optic: Optic[S, LazyList[A]], index: Int, count: Int)(implicit
+    d: CollectionDummy.ForLazyList.type
+  ): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val seqOp   = Patch.SeqOp.Delete(index, count)
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
+    Patch(DynamicPatch(Vector(op)), schemaS)
+  }
+
+  /** Modifies an element at a specific index in a sequence using a nested patch. */
+  def modifyAt[S, A](optic: Optic[S, Vector[A]], index: Int, elementPatch: Patch[A])(implicit
+    d: CollectionDummy.ForVector.type
+  ): Patch[S] = {
+    val schemaS   = new Schema(optic.source)
+    val basePath  = optic.toDynamic.nodes.toVector
     val nestedOps = elementPatch.dynamicPatch.ops
 
     if (nestedOps.isEmpty) {
       // Empty patch - return empty
-      Patch.empty[S]
+      Patch.empty[S](schemaS)
     } else {
       // Combine paths: basePath + AtIndex(index) + each nested operation's path
       val combinedOps = nestedOps.map { nestedOp =>
         // Build the full path: sequence field -> index -> nested path
-        val fullPath = (basePath :+ PatchPath.AtIndex(index)) ++ nestedOp.path
-        DynamicPatchOp(fullPath, nestedOp.operation)
+        val fullPath = (basePath :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path
+        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
       Patch(DynamicPatch(combinedOps), schemaS)
     }
   }
 
-  // Add a key-value pair to a map.
-  def addKey[S, K, V](optic: Optic[S, Map[K, V]], key: K, value: V)(implicit
-    schemaS: Schema[S],
-    schemaK: Schema[K],
-    schemaV: Schema[V]
+  // Modify an element at a specific index in a List.
+  def modifyAt[S, A](optic: Optic[S, List[A]], index: Int, elementPatch: Patch[A])(implicit
+    d: CollectionDummy.ForList.type
   ): Patch[S] = {
-    val path         = dynamicOpticToPatchPath(optic.toDynamic)
+    val schemaS   = new Schema(optic.source)
+    val basePath  = optic.toDynamic.nodes.toVector
+    val nestedOps = elementPatch.dynamicPatch.ops
+
+    if (nestedOps.isEmpty) {
+      Patch.empty[S](schemaS)
+    } else {
+      val combinedOps = nestedOps.map { nestedOp =>
+        val fullPath = (basePath :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path
+        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
+      }
+      Patch(DynamicPatch(combinedOps), schemaS)
+    }
+  }
+
+  // Modify an element at a specific index in a Seq.
+  def modifyAt[S, A](optic: Optic[S, Seq[A]], index: Int, elementPatch: Patch[A])(implicit
+    d: CollectionDummy.ForSeq.type
+  ): Patch[S] = {
+    val schemaS   = new Schema(optic.source)
+    val basePath  = optic.toDynamic.nodes.toVector
+    val nestedOps = elementPatch.dynamicPatch.ops
+
+    if (nestedOps.isEmpty) {
+      Patch.empty[S](schemaS)
+    } else {
+      val combinedOps = nestedOps.map { nestedOp =>
+        val fullPath = (basePath :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path
+        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
+      }
+      Patch(DynamicPatch(combinedOps), schemaS)
+    }
+  }
+
+  // Modify an element at a specific index in an IndexedSeq.
+  def modifyAt[S, A](optic: Optic[S, IndexedSeq[A]], index: Int, elementPatch: Patch[A])(implicit
+    d: CollectionDummy.ForIndexedSeq.type
+  ): Patch[S] = {
+    val schemaS   = new Schema(optic.source)
+    val basePath  = optic.toDynamic.nodes.toVector
+    val nestedOps = elementPatch.dynamicPatch.ops
+
+    if (nestedOps.isEmpty) {
+      Patch.empty[S](schemaS)
+    } else {
+      val combinedOps = nestedOps.map { nestedOp =>
+        val fullPath = (basePath :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path
+        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
+      }
+      Patch(DynamicPatch(combinedOps), schemaS)
+    }
+  }
+
+  // Modify an element at a specific index in a LazyList.
+  def modifyAt[S, A](optic: Optic[S, LazyList[A]], index: Int, elementPatch: Patch[A])(implicit
+    d: CollectionDummy.ForLazyList.type
+  ): Patch[S] = {
+    val schemaS   = new Schema(optic.source)
+    val basePath  = optic.toDynamic.nodes.toVector
+    val nestedOps = elementPatch.dynamicPatch.ops
+
+    if (nestedOps.isEmpty) {
+      Patch.empty[S](schemaS)
+    } else {
+      val combinedOps = nestedOps.map { nestedOp =>
+        val fullPath = (basePath :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path
+        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
+      }
+      Patch(DynamicPatch(combinedOps), schemaS)
+    }
+  }
+
+  /** Adds a key-value pair to a map. */
+  def addKey[S, K, V](optic: Optic[S, Map[K, V]], key: K, value: V): Patch[S] = {
+    val schemaS      = new Schema(optic.source)
+    val mapReflect   = optic.focus.asInstanceOf[Reflect.Map[Binding, K, V, Map]]
+    val schemaK      = new Schema(mapReflect.key)
+    val schemaV      = new Schema(mapReflect.value)
+    val path         = optic.toDynamic.nodes.toVector
     val dynamicKey   = schemaK.toDynamicValue(key)
     val dynamicValue = schemaV.toDynamicValue(value)
-    val mapOp        = MapOp.Add(dynamicKey, dynamicValue)
-    val op           = DynamicPatchOp(path, Operation.MapEdit(Vector(mapOp)))
+    val mapOp        = Patch.MapOp.Add(dynamicKey, dynamicValue)
+    val op           = Patch.DynamicPatchOp(path, Patch.Operation.MapEdit(Vector(mapOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
-  // Remove a key from a map.
-  def removeKey[S, K, V](optic: Optic[S, Map[K, V]], key: K)(implicit
-    schemaS: Schema[S],
-    schemaK: Schema[K]
-  ): Patch[S] = {
-    val path       = dynamicOpticToPatchPath(optic.toDynamic)
+  /** Removes a key from a map. */
+  def removeKey[S, K, V](optic: Optic[S, Map[K, V]], key: K): Patch[S] = {
+    val schemaS    = new Schema(optic.source)
+    val mapReflect = optic.focus.asInstanceOf[Reflect.Map[Binding, K, V, Map]]
+    val schemaK    = new Schema(mapReflect.key)
+    val path       = optic.toDynamic.nodes.toVector
     val dynamicKey = schemaK.toDynamicValue(key)
-    val mapOp      = MapOp.Remove(dynamicKey)
-    val op         = DynamicPatchOp(path, Operation.MapEdit(Vector(mapOp)))
+    val mapOp      = Patch.MapOp.Remove(dynamicKey)
+    val op         = Patch.DynamicPatchOp(path, Patch.Operation.MapEdit(Vector(mapOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
-  // Modify the value at a key in a map.
-  def modifyKey[S, K, V](optic: Optic[S, Map[K, V]], key: K, valuePatch: Patch[V])(implicit
-    schemaS: Schema[S],
-    schemaK: Schema[K]
-  ): Patch[S] = {
-    val basePath   = dynamicOpticToPatchPath(optic.toDynamic)
+  /** Modifies the value at a key in a map using a nested patch. */
+  def modifyKey[S, K, V](optic: Optic[S, Map[K, V]], key: K, valuePatch: Patch[V]): Patch[S] = {
+    val schemaS    = new Schema(optic.source)
+    val mapReflect = optic.focus.asInstanceOf[Reflect.Map[Binding, K, V, Map]]
+    val schemaK    = new Schema(mapReflect.key)
+    val basePath   = optic.toDynamic.nodes.toVector
     val dynamicKey = schemaK.toDynamicValue(key)
     val nestedOps  = valuePatch.dynamicPatch.ops
 
     if (nestedOps.isEmpty) {
       // Empty patch - return empty
-      Patch.empty[S]
+      Patch.empty[S](schemaS)
     } else {
       // Combine paths: basePath + AtMapKey(key) + each nested operation's path
       val combinedOps = nestedOps.map { nestedOp =>
         // Build the full path: map field -> key -> nested path
-        val fullPath = (basePath :+ PatchPath.AtMapKey(dynamicKey)) ++ nestedOp.path
-        DynamicPatchOp(fullPath, nestedOp.operation)
+        val fullPath = (basePath :+ DynamicOptic.Node.AtMapKey(dynamicKey)) ++ nestedOp.path
+        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
       Patch(DynamicPatch(combinedOps), schemaS)
     }
   }
 
-  // Increment an Int field by a delta value.
-  def increment[S](optic: Optic[S, Int], delta: Int)(implicit schemaS: Schema[S]): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.IntDelta(delta)))
+  /** Increments a numeric field by a delta value. */
+  def increment[S](optic: Optic[S, Int], delta: Int): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(delta)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Increment a Long field by a delta value.
-  def incrementLong[S](optic: Optic[S, Long], delta: Long)(implicit schemaS: Schema[S]): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.LongDelta(delta)))
+  def increment[S](optic: Optic[S, Long], delta: Long): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LongDelta(delta)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Increment a Double field by a delta value.
-  def incrementDouble[S](optic: Optic[S, Double], delta: Double)(implicit schemaS: Schema[S]): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.DoubleDelta(delta)))
+  def increment[S](optic: Optic[S, Double], delta: Double): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DoubleDelta(delta)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Increment a Float field by a delta value.
-  def incrementFloat[S](optic: Optic[S, Float], delta: Float)(implicit schemaS: Schema[S]): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.FloatDelta(delta)))
+  def increment[S](optic: Optic[S, Float], delta: Float): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.FloatDelta(delta)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Increment a Short field by a delta value.
-  def incrementShort[S](optic: Optic[S, Short], delta: Short)(implicit schemaS: Schema[S]): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.ShortDelta(delta)))
+  def increment[S](optic: Optic[S, Short], delta: Short): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ShortDelta(delta)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Increment a Byte field by a delta value.
-  def incrementByte[S](optic: Optic[S, Byte], delta: Byte)(implicit schemaS: Schema[S]): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.ByteDelta(delta)))
+  def increment[S](optic: Optic[S, Byte], delta: Byte): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ByteDelta(delta)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Increment a BigInt field by a delta value.
-  def incrementBigInt[S](optic: Optic[S, BigInt], delta: BigInt)(implicit schemaS: Schema[S]): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.BigIntDelta(delta)))
+  def increment[S](optic: Optic[S, BigInt], delta: BigInt): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigIntDelta(delta)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Increment a BigDecimal field by a delta value.
-  def incrementBigDecimal[S](optic: Optic[S, BigDecimal], delta: BigDecimal)(implicit schemaS: Schema[S]): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.BigDecimalDelta(delta)))
+  def increment[S](optic: Optic[S, BigDecimal], delta: BigDecimal): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigDecimalDelta(delta)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
-  // Add a duration to an Instant field.
-  def addDuration[S](optic: Optic[S, java.time.Instant], duration: java.time.Duration)(implicit
-    schemaS: Schema[S]
-  ): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.InstantDelta(duration)))
+  /** Adds a duration to a temporal field. */
+  def addDuration[S](optic: Optic[S, java.time.Instant], duration: java.time.Duration): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.InstantDelta(duration)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Add a duration to a Duration field.
-  def addDurationToDuration[S](optic: Optic[S, java.time.Duration], duration: java.time.Duration)(implicit
-    schemaS: Schema[S]
+  def addDuration[S](optic: Optic[S, java.time.Duration], duration: java.time.Duration)(implicit
+    d: DurationDummy.ForDuration.type
   ): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.DurationDelta(duration)))
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DurationDelta(duration)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
-  // Add a period to a LocalDate field.
-  def addPeriod[S](optic: Optic[S, java.time.LocalDate], period: java.time.Period)(implicit
-    schemaS: Schema[S]
-  ): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.LocalDateDelta(period)))
+  /** Adds a period to a date field. */
+  def addPeriod[S](optic: Optic[S, java.time.LocalDate], period: java.time.Period): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateDelta(period)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
@@ -263,86 +534,187 @@ object Patch {
     optic: Optic[S, java.time.LocalDateTime],
     period: java.time.Period,
     duration: java.time.Duration
-  )(implicit schemaS: Schema[S]): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.LocalDateTimeDelta(period, duration)))
+  ): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateTimeDelta(period, duration)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Add a period to a Period field.
-  def addPeriodToPeriod[S](optic: Optic[S, java.time.Period], period: java.time.Period)(implicit
-    schemaS: Schema[S]
+  def addPeriod[S](optic: Optic[S, java.time.Period], period: java.time.Period)(implicit
+    d: PeriodDummy.ForPeriod.type
   ): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.PeriodDelta(period)))
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.PeriodDelta(period)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
-  // Edit a string field using a sequence of insert/delete operations.
-  def editString[S](optic: Optic[S, String], edits: Vector[StringOp])(implicit schemaS: Schema[S]): Patch[S] = {
-    val path = dynamicOpticToPatchPath(optic.toDynamic)
-    val op   = DynamicPatchOp(path, Operation.PrimitiveDelta(PrimitiveOp.StringEdit(edits)))
+  /** Edits a string field using a sequence of insert/delete operations. */
+  def editString[S](optic: Optic[S, String], edits: Vector[Patch.StringOp]): Patch[S] = {
+    val schemaS = new Schema(optic.source)
+    val path    = optic.toDynamic.nodes.toVector
+    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.StringEdit(edits)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
   // Replace a field value using a Lens.
-  def replace[S, A](lens: Lens[S, A], a: A)(implicit source: Schema[S]): Patch[S] = {
-    // Get schema for A from the lens focus
-    implicit val schemaA: Schema[A] = new Schema(lens.focus)
+  def replace[S, A](lens: Lens[S, A], a: A): Patch[S] =
     set(lens, a)
-  }
 
   // Replace a value using an Optional.
-  def replace[S, A](optional: Optional[S, A], a: A)(implicit source: Schema[S]): Patch[S] = {
-    implicit val schemaA: Schema[A] = new Schema(optional.focus)
+  def replace[S, A](optional: Optional[S, A], a: A): Patch[S] =
     set(optional, a)
-  }
 
   // Replace all elements using a Traversal.
-  def replace[S, A](traversal: Traversal[S, A], a: A)(implicit source: Schema[S]): Patch[S] = {
-    implicit val schemaA: Schema[A] = new Schema(traversal.focus)
+  def replace[S, A](traversal: Traversal[S, A], a: A): Patch[S] =
     set(traversal, a)
-  }
 
   // Replace a variant case using a Prism.
-  def replace[S, A <: S](prism: Prism[S, A], a: A)(implicit source: Schema[S]): Patch[S] = {
-    implicit val schemaA: Schema[A] = new Schema(prism.focus)
+  def replace[S, A <: S](prism: Prism[S, A], a: A): Patch[S] =
     set(prism, a)
+
+  // Dummy implicit ladder for Duration-related operations.
+  // Disambiguates overloads: addDuration for Instant vs Duration.
+  sealed abstract class DurationDummy
+  object DurationDummy {
+    implicit object ForInstant  extends DurationDummy
+    implicit object ForDuration extends DurationDummy
   }
 
-  // Convert a DynamicOptic to a Vector[PatchPath].
-  private[schema] def dynamicOpticToPatchPath(optic: DynamicOptic): Vector[PatchPath] =
-    optic.nodes.map {
-      case DynamicOptic.Node.Field(name)    => PatchPath.Field(name)
-      case DynamicOptic.Node.Case(name)     => PatchPath.Case(name)
-      case DynamicOptic.Node.AtIndex(index) => PatchPath.AtIndex(index)
-      case DynamicOptic.Node.AtMapKey(key)  => PatchPath.AtMapKey(anyToDynamicValue(key))
-      case DynamicOptic.Node.Elements       => PatchPath.Elements
-      case DynamicOptic.Node.Wrapped        => PatchPath.Wrapped
-      case DynamicOptic.Node.AtIndices(_)   =>
-        throw new UnsupportedOperationException("AtIndices not supported in patches")
-      case DynamicOptic.Node.AtMapKeys(_) =>
-        throw new UnsupportedOperationException("AtMapKeys not supported in patches")
-      case DynamicOptic.Node.MapKeys   => throw new UnsupportedOperationException("MapKeys not supported in patches")
-      case DynamicOptic.Node.MapValues => throw new UnsupportedOperationException("MapValues not supported in patches")
-    }.toVector
+  // Dummy implicit ladder for Period-related operations.
+  // Disambiguates overloads: addPeriod for LocalDate vs Period.
+  sealed abstract class PeriodDummy
+  object PeriodDummy {
+    implicit object ForLocalDate extends PeriodDummy
+    implicit object ForPeriod    extends PeriodDummy
+  }
 
-  // Convert an arbitrary key to DynamicValue.
-  private def anyToDynamicValue(key: Any): DynamicValue = key match {
-    case s: String            => DynamicValue.Primitive(PrimitiveValue.String(s))
-    case i: Int               => DynamicValue.Primitive(PrimitiveValue.Int(i))
-    case l: Long              => DynamicValue.Primitive(PrimitiveValue.Long(l))
-    case b: Boolean           => DynamicValue.Primitive(PrimitiveValue.Boolean(b))
-    case d: Double            => DynamicValue.Primitive(PrimitiveValue.Double(d))
-    case f: Float             => DynamicValue.Primitive(PrimitiveValue.Float(f))
-    case s: Short             => DynamicValue.Primitive(PrimitiveValue.Short(s))
-    case b: Byte              => DynamicValue.Primitive(PrimitiveValue.Byte(b))
-    case c: Char              => DynamicValue.Primitive(PrimitiveValue.Char(c))
-    case bi: BigInt           => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
-    case bd: BigDecimal       => DynamicValue.Primitive(PrimitiveValue.BigDecimal(bd))
-    case uuid: java.util.UUID => DynamicValue.Primitive(PrimitiveValue.UUID(uuid))
-    case dv: DynamicValue     => dv
-    case other                =>
-      throw new UnsupportedOperationException(s"Cannot convert ${other.getClass.getName} to DynamicValue for map key")
+  // Dummy implicit ladder for Collection-related operations.
+  // Disambiguates overloads: append/insertAt/deleteAt/modifyAt for different collection types.
+  // Note that there are no tests for LazyList, schema.derived on LazyList leads to malformed tree.
+
+  sealed abstract class CollectionDummy
+  object CollectionDummy {
+    implicit object ForVector     extends CollectionDummy
+    implicit object ForList       extends CollectionDummy
+    implicit object ForSeq        extends CollectionDummy
+    implicit object ForIndexedSeq extends CollectionDummy
+    implicit object ForLazyList   extends CollectionDummy
+  }
+
+  // ========== Internal Patch Operation Types ==========
+  // These types are implementation details and should not be used directly by users.
+  // They are nested inside the Patch companion object to avoid namespace pollution.
+
+  /** A single patch operation paired with the path to apply it at. */
+  final case class DynamicPatchOp(path: Vector[DynamicOptic.Node], operation: Operation)
+
+  /** The top-level operation type for patches. Each operation describes a change to be applied to a DynamicValue. */
+  sealed trait Operation
+
+  object Operation {
+
+    /** Set a value directly (clobber semantics). Replaces the target value entirely. */
+    final case class Set(value: DynamicValue) extends Operation
+
+    /** Apply a primitive delta operation. Used for numeric increments, string edits, temporal adjustments, etc. */
+    final case class PrimitiveDelta(op: PrimitiveOp) extends Operation
+
+    /** Apply sequence edit operations. Used for inserting, appending, deleting, or modifying sequence elements. */
+    final case class SequenceEdit(ops: Vector[SeqOp]) extends Operation
+
+    /** Apply map edit operations. Used for adding, removing, or modifying map entries. */
+    final case class MapEdit(ops: Vector[MapOp]) extends Operation
+  }
+
+  /** Primitive delta operations for numeric types, strings, and temporal types. */
+  sealed trait PrimitiveOp
+
+  object PrimitiveOp {
+
+    // Delta for Primitive values. Applied by adding delta to the current value.
+
+    final case class IntDelta(delta: Int) extends PrimitiveOp
+
+    final case class LongDelta(delta: Long) extends PrimitiveOp
+
+    final case class DoubleDelta(delta: Double) extends PrimitiveOp
+
+    final case class FloatDelta(delta: Float) extends PrimitiveOp
+
+    final case class ShortDelta(delta: Short) extends PrimitiveOp
+
+    final case class ByteDelta(delta: Byte) extends PrimitiveOp
+
+    final case class BigIntDelta(delta: BigInt) extends PrimitiveOp
+
+    final case class BigDecimalDelta(delta: BigDecimal) extends PrimitiveOp
+
+    final case class StringEdit(ops: Vector[StringOp]) extends PrimitiveOp
+
+    final case class InstantDelta(delta: java.time.Duration) extends PrimitiveOp
+
+    final case class DurationDelta(delta: java.time.Duration) extends PrimitiveOp
+
+    final case class LocalDateDelta(delta: java.time.Period) extends PrimitiveOp
+
+    // Delta for LocalDateTime values. Applied by adding period and duration.
+    final case class LocalDateTimeDelta(periodDelta: java.time.Period, durationDelta: java.time.Duration)
+        extends PrimitiveOp
+
+    final case class PeriodDelta(delta: java.time.Period) extends PrimitiveOp
+  }
+
+  /** Sequence edit operations for lists, vectors, and other sequences. */
+  sealed trait SeqOp
+
+  object SeqOp {
+
+    /** Insert elements at the given index. */
+    final case class Insert(index: Int, values: Vector[DynamicValue]) extends SeqOp
+
+    /** Append elements to the end of the sequence. */
+    final case class Append(values: Vector[DynamicValue]) extends SeqOp
+
+    /** Delete elements starting at the given index. */
+    final case class Delete(index: Int, count: Int) extends SeqOp
+
+    /** Modify the element at the given index with a nested operation. */
+    final case class Modify(index: Int, op: Operation) extends SeqOp
+  }
+
+  /** String edit operations for insert, delete, append, and modify. */
+  sealed trait StringOp
+
+  object StringOp {
+
+    /** Insert text at the given index. */
+    final case class Insert(index: Int, text: String) extends StringOp
+
+    /** Delete characters starting at the given index. */
+    final case class Delete(index: Int, length: Int) extends StringOp
+
+    /** Append text to the end of the string. */
+    final case class Append(text: String) extends StringOp
+
+    /** Modify (replace) characters starting at the given index with new text. */
+    final case class Modify(index: Int, length: Int, text: String) extends StringOp
+  }
+
+  /** Map edit operations for adding, removing, and modifying map entries. */
+  sealed trait MapOp
+
+  object MapOp {
+
+    /** Add a key-value pair to the map. */
+    final case class Add(key: DynamicValue, value: DynamicValue) extends MapOp
+
+    /** Remove a key from the map. */
+    final case class Remove(key: DynamicValue) extends MapOp
+
+    /** Modify the value at a key with a nested patch. */
+    final case class Modify(key: DynamicValue, patch: DynamicPatch) extends MapOp
   }
 }
