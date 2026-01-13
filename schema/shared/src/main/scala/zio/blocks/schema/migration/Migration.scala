@@ -33,9 +33,7 @@ final class Migration[A, B] private (
 
       dynA = sourceSchema.toDynamicValue(aStruct)
 
-      // IMPORTANT: thread schemas into interpreter so DefaultValueExpr can be resolved.
-      dynB <- DynamicMigrationInterpreter(program, dynA)
-
+      dynB <- DynamicMigrationInterpreter(program, dynA, sourceSchema, targetSchema)
 
       bStruct <- targetSchema
         .fromDynamicValue(dynB)
@@ -48,14 +46,13 @@ final class Migration[A, B] private (
         .map(e => MigrationError.InvalidOp("FromStructural", e.toString))
     } yield outB
 
-    def reverse: Migration[B, A] =
-      Migration.fromProgram[B, A](program.reverse)(using
-        targetSchema.asInstanceOf[Schema[B]],
-        sourceSchema.asInstanceOf[Schema[A]],
-        tsb.asInstanceOf[ToStructural[B]],
-        tsa.asInstanceOf[ToStructural[A]]
-      )
-
+  def reverse: Migration[B, A] =
+    Migration.fromProgram[B, A](program.reverse)(using
+      targetSchema.asInstanceOf[Schema[B]],
+      sourceSchema.asInstanceOf[Schema[A]],
+      tsb.asInstanceOf[ToStructural[B]],
+      tsa.asInstanceOf[ToStructural[A]]
+    )
 }
 
 object Migration {

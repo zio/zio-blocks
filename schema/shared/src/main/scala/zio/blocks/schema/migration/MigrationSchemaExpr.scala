@@ -1,41 +1,35 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicValue, Schema, SchemaExpr}
+import zio.Chunk
+import zio.blocks.schema.{DynamicValue, OpticCheck, Schema, SchemaExpr}
 
-/** Migration-only additions around the existing zio.blocks.schema.SchemaExpr.
-  * Keeps migration code in the migration package and avoids changing core
-  * SchemaExpr too much.
-  */
+/**
+ * Migration-only additions around SchemaExpr.
+ *
+ * IMPORTANT: This file must NOT capture Schema inside DynamicMigration programs.
+ * DefaultValue is a *pure marker* that the interpreter resolves using the target schema.
+ */
 object MigrationSchemaExpr {
 
-  /** Marker meaning "use the schema default for the target field".
-    *
-    * We represent it as a SchemaExpr that *cannot be evaluated without a
-    * schema*. The migration interpreter will special-case it.
-    */
-   final case class DefaultValue[S, A](schema: Schema[A]) extends SchemaExpr[S, A] {
+  /**
+   * Marker meaning: "use the schema default for the target field".
+   *
+   * - Pure data (no Schema captured!)
+   * - Interpreter must special-case it.
+   */
+  final case class DefaultValue[S, A]() extends SchemaExpr[S, A] {
+    override def eval(input: S): Either[OpticCheck, Chunk[A]] =
+      Left(new OpticCheck("DefaultValue marker: must be resolved by migration interpreter"))
 
-    override def eval(input: S) =
-      schema.defaultValue match {
-        case Some(dv) => Right(Chunk(dv))
-        case None =>
-          Left(new zio.blocks.schema.OpticCheck("DefaultValue: schema has no defaultValue"))
-      }
-
-    override def evalDynamic(input: S) =
-      schema.defaultValue match {
-        case Some(dv) => Right(Chunk(dv))
-        case None =>
-          Left(new zio.blocks.schema.OpticCheck("DefaultValue: schema has no defaultValue"))
-      }
+    override def evalDynamic(input: S): Either[OpticCheck, Chunk[DynamicValue]] =
+      Left(new OpticCheck("DefaultValue marker: must be resolved by migration interpreter"))
   }
 
-
-  /** Convenience: a literal with schema (already exists, but ergonomic). */
+  /** Convenience: literal (you already use this style elsewhere). */
   def literal[S, A](value: A)(using sch: Schema[A]): SchemaExpr[S, A] =
     SchemaExpr.Literal[S, A](value, sch)
 
-  /** Convenience: get the default marker for a given A. */
-  def default[S, A](using sch: Schema[A]): SchemaExpr[S, A] =
-    DefaultValue[S, A](sch)
+  /** Convenience: default marker */
+  def default[S, A]: SchemaExpr[S, A] =
+    DefaultValue[S, A]()
 }

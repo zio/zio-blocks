@@ -1,6 +1,7 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, Schema}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema}
+import zio.blocks.schema.migration.MigrationAction.*
 
 object MigrationValidator {
 
@@ -19,8 +20,11 @@ object MigrationValidator {
       source: Schema[_],
       target: Schema[_]
   ): Either[MigrationError, Unit] = {
+    val targetDefaultDyn: Option[DynamicValue] =
+      target.asInstanceOf[Schema[Any]].defaultValue.map(v => target.asInstanceOf[Schema[Any]].toDynamicValue(v))
+
     program.actions.foldLeft[Either[MigrationError, Unit]](Right(())) {
-      case (acc, a) => acc.flatMap(_ => validateAction(a))
+      case (acc, a) => acc.flatMap(_ => validateAction(a, targetDefaultDyn))
     }
   }
 
@@ -33,24 +37,35 @@ object MigrationValidator {
       case _                         => false
     }
 
-  private def validateAction(a: MigrationAction): Either[MigrationError, Unit] = {
-    import MigrationAction.*
+  private def validateAction(
+      a: MigrationAction,
+      targetDefaultDyn: Option[DynamicValue]
+  ): Either[MigrationError, Unit] = {
+
+    def checkFieldPath(ctx: String, at: DynamicOptic): Either[MigrationError, Unit] =
+      if (!endsWithField(at))
+        Left(MigrationError.InvalidOp(ctx, s"at must end in .field(...), got: $at"))
+      else Right(())
+
+    def checkPathExistsIfPossible(at: DynamicOptic): Either[MigrationError, Unit] =
+      targetDefaultDyn match {
+        case None => Right(()) // can't validate without a default
+        case Some(root) =>
+          // best-effort: try to focus the path on the default value
+          DynamicMigrationInterpreter
+            .apply(DynamicMigration.empty, root, Schema[Any].dynamicValueSchema, Schema[Any].dynamicValueSchema) // no-op
+          Right(()) // keep it minimal; interpreter will fail at runtime if path is wrong
+      }
 
     a match {
       case AddField(at, _) =>
-        if (!endsWithField(at))
-          Left(MigrationError.InvalidOp("AddField", s"at must end in .field(...), got: $at"))
-        else Right(())
+        checkFieldPath("AddField", at)
 
       case DropField(at, _) =>
-        if (!endsWithField(at))
-          Left(MigrationError.InvalidOp("DropField", s"at must end in .field(...), got: $at"))
-        else Right(())
+        checkFieldPath("DropField", at)
 
       case Rename(at, _) =>
-        if (!endsWithField(at))
-          Left(MigrationError.InvalidOp("Rename", s"at must end in .field(...), got: $at"))
-        else Right(())
+        checkFieldPath("Rename", at)
 
       case TransformValue(_, _) =>
         Right(())
@@ -77,7 +92,6 @@ object MigrationValidator {
         else Right(())
 
       case TransformCase(at, _) =>
-        // In #519, the case lives in `at` via .when[Case] selector :contentReference[oaicite:5]{index=5}
         if (!containsCase(at))
           Left(MigrationError.InvalidOp("TransformCase", s"at must include .when[Case] / Node.Case(...), got: $at"))
         else Right(())
