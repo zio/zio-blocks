@@ -2,7 +2,9 @@ package golem
 
 import golem.runtime.rpc.host.AgentHostApi
 
+import scala.concurrent.Future
 import scala.scalajs.js
+import scala.scalajs.js.typedarray.Uint8Array
 
 /**
  * Public Scala.js SDK access to Golem's runtime host API.
@@ -92,6 +94,31 @@ object HostApi {
 
   def setIdempotenceMode(flag: Boolean): Unit =
     AgentHostApi.setIdempotenceMode(flag)
+
+  // ----- Promises --------------------------------------------------------------------------
+
+  type PromiseId = AgentHostApi.PromiseIdLiteral
+
+  def createPromise(): PromiseId =
+    AgentHostApi.createPromise()
+
+  def completePromise(promiseId: PromiseId, data: Uint8Array): Boolean =
+    AgentHostApi.completePromise(promiseId, data)
+
+  /**
+   * Blocks until a promise is completed, then returns the payload bytes.
+   *
+   * Under the hood, this uses the WIT `subscribe` / `pollable.block` mechanism.
+   */
+  def awaitPromise(promiseId: PromiseId): Future[Uint8Array] =
+    Future {
+      val handle   = AgentHostApi.getPromise(promiseId)
+      val pollable = handle.subscribe()
+      pollable.block()
+      val result = handle.get()
+      if (!result.isSome) throw new IllegalStateException("Promise completed but result is empty (unexpected)")
+      result.get()
+    }(scala.scalajs.concurrent.JSExecutionContext.Implicits.queue)
 
   // ----- Helpers ---------------------------------------------------------------------------
 

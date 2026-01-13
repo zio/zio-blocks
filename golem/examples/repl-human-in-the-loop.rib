@@ -1,0 +1,9 @@
+let w = approval-workflow("demo");
+let h = human("bob");
+
+let started = w.begin();
+let decided = h.decide("demo", "approved");
+let outcome = w.await-outcome();
+
+{ started: started, decided: decided, outcome: outcome }
+

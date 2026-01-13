@@ -271,14 +271,25 @@ private[golem] object AgentHostApi {
 
   @js.native
   trait GetPromiseResultHandle extends js.Object {
-    @JSName("is_some")
-    def isSome: Boolean = js.native
+    def subscribe(): Pollable = js.native
 
-    def get(): js.UndefOr[Uint8Array] = js.native
+    def get(): PromiseResult = js.native
   }
 
   @js.native
-  trait Pollable extends js.Object
+  trait PromiseResult extends js.Object {
+    @JSName("is_some")
+    def isSome: Boolean = js.native
+
+    def get(): Uint8Array = js.native
+  }
+
+  @js.native
+  trait Pollable extends js.Object {
+    def ready(): Boolean = js.native
+
+    def block(): Unit = js.native
+  }
 
   @js.native
   trait UuidLiteral extends js.Object {
