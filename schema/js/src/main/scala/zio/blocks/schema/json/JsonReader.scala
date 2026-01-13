@@ -1419,7 +1419,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   an `Array[Byte]` instance containing the raw bytes of the JSON value.
-   * @throws JsonReaderException
+   * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or invalid type of JSON value
    */
   def readRawValAsBytes(): Array[Byte] = try {
