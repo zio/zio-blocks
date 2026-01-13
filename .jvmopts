@@ -1,0 +1,7 @@
+-Xms1g
+-Xmx6g
+-Xss2m
+-XX:+UseG1GC
+-XX:InitialCodeCacheSize=512m
+-XX:ReservedCodeCacheSize=512m
+-Dfile.encoding=UTF8
