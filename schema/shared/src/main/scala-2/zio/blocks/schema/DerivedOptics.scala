@@ -11,7 +11,9 @@ import scala.reflect.macros.whitebox
  * Usage:
  * {{{
  * case class Person(name: String, age: Int)
- * object Person extends DerivedOptics[Person]
+ * object Person extends DerivedOptics[Person] {
+ *   implicit val schema: Schema[Person] = Schema.derived
+ * }
  *
  * // Access optics via the `optics` member:
  * val nameLens: Lens[Person, String] = Person.optics.name
@@ -23,7 +25,9 @@ import scala.reflect.macros.whitebox
  * sealed trait Shape
  * case class Circle(radius: Double) extends Shape
  * case class Rectangle(width: Double, height: Double) extends Shape
- * object Shape extends DerivedOptics[Shape]
+ * object Shape extends DerivedOptics[Shape] {
+ *   implicit val schema: Schema[Shape] = Schema.derived
+ * }
  *
  * // Access prisms via the `optics` member:
  * val circlePrism: Prism[Shape, Circle] = Shape.optics.circle
