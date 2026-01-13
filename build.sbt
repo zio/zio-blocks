@@ -39,11 +39,13 @@ addCommandAlias(
 )
 addCommandAlias(
   "testJVM",
-  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; benchmarks/test; examples/test"
+  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; " +
+    "+zioGolemModelJVM/test; +zioGolemCoreJVM/test; +zioGolemMacros/test; +zioGolemTools/test; " +
+    "benchmarks/test; examples/test"
 )
 addCommandAlias(
   "testJS",
-  "+schemaJS/test; +chunkJS/test; +streamsJS/test"
+  "+schemaJS/test; +chunkJS/test; +streamsJS/test; +zioGolemModelJS/test; +zioGolemCoreJS/test"
 )
 addCommandAlias(
   "testNative",

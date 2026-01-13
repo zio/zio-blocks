@@ -1,6 +1,6 @@
 package golem.runtime.rpc
 
-import golem.runtime.agenttype.{AgentMethod, AgentType}
+import golem.runtime.agenttype.AgentType
 import scala.language.experimental.macros
 
 // format: off

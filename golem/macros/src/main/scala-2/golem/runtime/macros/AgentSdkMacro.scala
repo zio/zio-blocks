@@ -1,8 +1,5 @@
 package golem.runtime.macros
 
-// Macro annotations live in a separate module; do not depend on them here.
-
-import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object AgentSdkMacro {

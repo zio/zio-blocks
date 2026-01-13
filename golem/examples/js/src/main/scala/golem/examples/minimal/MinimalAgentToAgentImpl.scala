@@ -2,6 +2,7 @@ package golem.examples.minimal
 
 import golem.runtime.annotations.agentImplementation
 
+import scala.annotation.unused
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 
@@ -22,7 +23,7 @@ final class WorkerImpl(private val shardName: String, private val shardIndex: In
 }
 
 @agentImplementation()
-final class CoordinatorImpl(id: String) extends Coordinator {
+final class CoordinatorImpl(@unused id: String) extends Coordinator {
   override def route(shardName: String, shardIndex: Int, input: String): Future[String] =
     Worker.get(shardName, shardIndex).flatMap(_.reverse(input))
 

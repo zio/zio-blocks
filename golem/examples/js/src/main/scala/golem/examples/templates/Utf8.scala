@@ -3,6 +3,7 @@ package golem.examples.templates
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
 import scala.scalajs.js.typedarray.Uint8Array
+import scala.annotation.unused
 
 private[golem] object Utf8 {
   @js.native
@@ -13,7 +14,7 @@ private[golem] object Utf8 {
 
   @js.native
   @JSGlobal("TextDecoder")
-  private class TextDecoder(label: String = "utf-8") extends js.Object {
+  private class TextDecoder(@unused label: String = "utf-8") extends js.Object {
     def decode(input: Uint8Array): String = js.native
   }
 

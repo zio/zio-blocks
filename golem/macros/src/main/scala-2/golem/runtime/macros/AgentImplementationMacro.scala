@@ -3,7 +3,6 @@ package golem.runtime.macros
 import golem.data.GolemSchema
 import golem.runtime.agenttype.AgentImplementationType
 
-import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 // format: off
@@ -176,7 +175,7 @@ object AgentImplementationMacroImpl {
       )
     }
 
-    val handlerExpr = buildHandler(c)(traitType, method, params, accessMode, inputType, outputType, isAsync)
+    val handlerExpr = buildHandler(c)(traitType, method, params, accessMode, inputType, isAsync)
 
     if (isAsync) {
       q"""
@@ -205,7 +204,6 @@ object AgentImplementationMacroImpl {
     params: List[(c.universe.TermName, c.universe.Type)],
     accessMode: ParamAccessMode,
     inputType: c.universe.Type,
-    outputType: c.universe.Type,
     isAsync: Boolean
   ): c.Tree = {
     import c.universe._
@@ -221,7 +219,7 @@ object AgentImplementationMacroImpl {
         q"$instanceName.$methodCallName($inputName)"
       case ParamAccessMode.MultiArgs =>
         val expectedCount = params.length
-        val argExprs      = params.zipWithIndex.map { case ((paramName, paramType), idx) =>
+        val argExprs      = params.zipWithIndex.map { case ((_, paramType), idx) =>
           q"$inputName($idx).asInstanceOf[$paramType]"
         }
         q"""

@@ -2,9 +2,7 @@ package golem.runtime.macros
 
 import golem.data.GolemSchema
 import golem.runtime.AgentMetadata
-import golem.data.StructuredSchema
 
-import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object AgentMacros {

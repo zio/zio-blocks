@@ -255,22 +255,6 @@ object AgentDefinitionMacro {
     }
   }
 
-  private def annotationMode(using
-    Quotes
-  )(symbol: quotes.reflect.Symbol, annType: quotes.reflect.TypeRepr): Option[Expr[String]] = {
-    import quotes.reflect.*
-    symbol.annotations.collectFirst {
-      case Apply(Select(New(tpt), _), List(arg)) if tpt.tpe =:= annType =>
-        arg match {
-          case Literal(StringConstant(value)) =>
-            // (Legacy) allow stringly-typed annotations if present.
-            Expr(value)
-          case term: Term =>
-            durabilityWireExpr(term)
-        }
-    }
-  }
-
   /**
    * Convert a `DurabilityMode` term from annotations into the wire-value string
    * without splicing the original term (which can carry invalid positions when

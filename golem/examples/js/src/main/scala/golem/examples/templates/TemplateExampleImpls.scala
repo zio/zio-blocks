@@ -4,13 +4,14 @@ import golem.HostApi
 import golem.runtime.annotations.agentImplementation
 import golem.runtime.snapshot.SnapshotExports
 
+import scala.annotation.unused
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.typedarray.{ArrayBuffer, DataView, Uint8Array}
 
 @agentImplementation()
-final class CounterImpl(private val name: String) extends Counter {
+final class CounterImpl(@unused private val name: String) extends Counter {
   private var value: Int = 0
 
   override def increment(): Future[Int] =
@@ -21,7 +22,7 @@ final class CounterImpl(private val name: String) extends Counter {
 }
 
 @agentImplementation()
-final class TasksImpl(private val name: String) extends Tasks {
+final class TasksImpl(@unused private val name: String) extends Tasks {
   private var nextId: Int       = 1
   private var tasks: List[Task] = Nil
 
@@ -52,7 +53,7 @@ final class TasksImpl(private val name: String) extends Tasks {
 }
 
 @agentImplementation()
-final class SnapshotCounterImpl(private val name: String) extends SnapshotCounter {
+final class SnapshotCounterImpl(@unused private val name: String) extends SnapshotCounter {
   private var value: Int = 0
 
   // Install component-level snapshot hooks, closing over this agent instance.

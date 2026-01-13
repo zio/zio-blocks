@@ -168,7 +168,7 @@ object GolemPlugin extends AutoPlugin {
                         |
                         |/** Generated. Do not edit. */
                         |private[golem] object __GolemAutoRegister_$objSuffix {
-                        |  val register: Unit = {
+                        |  def register(): Unit = {
                         |$body
                         |    ()
                         |  }
@@ -182,7 +182,7 @@ object GolemPlugin extends AutoPlugin {
               val touches =
                 byPkg.keys.toSeq.sorted.map { pkg =>
                   val objSuffix = pkg.replaceAll("[^a-zA-Z0-9_]", "_")
-                  s"    __GolemAutoRegister_$objSuffix.register"
+                  s"    __GolemAutoRegister_$objSuffix.register()"
                 }.mkString("\n")
               val baseContent =
                 s"""|package $genBasePkg

@@ -5,10 +5,8 @@ import org.scalatest.funsuite.AnyFunSuite
 import scala.scalajs.js
 import zio.blocks.schema.Schema
 
-final class JsPlainSchemaCodecSpec extends AnyFunSuite {
-
+private[autowire] object JsPlainSchemaCodecSpecTypes {
   final case class Nested(x: Double, tags: List[String])
-
   object Nested {
     implicit val schema: Schema[Nested] = Schema.derived
   }
@@ -20,10 +18,13 @@ final class JsPlainSchemaCodecSpec extends AnyFunSuite {
     flags: List[String],
     nested: Nested
   )
-
   object Payload {
     implicit val schema: Schema[Payload] = Schema.derived
   }
+}
+
+final class JsPlainSchemaCodecSpec extends AnyFunSuite {
+  import JsPlainSchemaCodecSpecTypes._
 
   test("roundtrip: Scala value -> JS plain -> Scala value") {
     val v = Payload("abc", 7, Some("n"), List("x", "y", "z"), Nested(1.5, List("a", "b")))

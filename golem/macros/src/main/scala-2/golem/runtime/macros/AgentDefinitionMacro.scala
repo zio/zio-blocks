@@ -3,7 +3,6 @@ package golem.runtime.macros
 import golem.data.GolemSchema
 import golem.runtime.AgentMetadata
 
-import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object AgentDefinitionMacro {
@@ -202,8 +201,14 @@ object AgentDefinitionMacroImpl {
         ann.tree.children.tail.drop(1).headOption.map {
           case Literal(Constant(value: String)) =>
             // (Legacy) allow stringly-typed values.
-            Literal(Constant(value))
+            val v = value.trim.toLowerCase
+            if (v == "durable") EmptyTree else Literal(Constant(v))
           case Literal(Constant(null)) =>
+            EmptyTree
+          case Select(_, TermName("Durable")) =>
+            // Treat default Durable as unset (omit defaults in metadata)
+            EmptyTree
+          case Ident(TermName("Durable")) =>
             EmptyTree
           case other =>
             q"$other.wireValue()"

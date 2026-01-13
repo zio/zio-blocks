@@ -6,8 +6,6 @@ import zio.blocks.schema.{DynamicValue => DV, Namespace, PrimitiveType, Primitiv
 import zio.blocks.schema.Reflect
 
 import scala.collection.immutable.ListMap
-import scala.annotation.nowarn
-
 object DataInterop {
   private val NsScalaCollectionImmutable = Namespace(Seq("scala", "collection", "immutable"))
 
@@ -110,7 +108,6 @@ object DataInterop {
   private def isSetTypeName(typeName: TypeName[?]): Boolean =
     typeName.namespace == NsScalaCollectionImmutable && typeName.name == "Set"
 
-  @nowarn("msg=.*deprecated for wildcard arguments.*")
   private def isTupleRecord(rec: Reflect.Record[_root_.zio.blocks.schema.binding.Binding, _]): Boolean = {
     val names = rec.fields.map(_.name).toSet
     (rec.fields.length == 2 && names == Set("_1", "_2")) ||

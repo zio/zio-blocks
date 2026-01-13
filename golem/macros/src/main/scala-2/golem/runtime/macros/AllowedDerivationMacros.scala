@@ -2,7 +2,6 @@ package golem.runtime.macros
 
 import golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes}
 
-import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object AllowedLanguagesDerivation {

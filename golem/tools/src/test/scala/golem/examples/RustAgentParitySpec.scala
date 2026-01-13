@@ -15,24 +15,27 @@ import zio.blocks.schema.Schema
 
 import scala.concurrent.Future
 
-final class RustAgentParitySpec extends AnyFunSuite {
+private[golem] object RustAgentParityTypes {
   type MediaPayload = Multimodal[MediaBundle]
-  private val echoMetadata            = AgentMacros.agentMetadata[EchoAgent]
-  private val ephemeralMetadata       = AgentMacros.agentMetadata[EphemeralAgent]
-  private val durableDefaultMetadata  = AgentMacros.agentMetadata[DurableDefaultAgent]
-  private val durableExplicitMetadata = AgentMacros.agentMetadata[DurableExplicitAgent]
-  private val durableDefaultImplType  =
-    AgentImplementationMacro.implementationType[DurableDefaultAgent](new DurableDefaultAgentImpl)
-  private val durableExplicitImplType =
-    AgentImplementationMacro.implementationType[DurableExplicitAgent](new DurableExplicitAgentImpl)
-  private val snapshotMetadata = AgentMacros.agentMetadata[SnapshotAgent]
-  private val rpcImplType      = AgentImplementationMacro.implementationType[RpcParityAgent](new RpcParityAgent {
-    override def rpcCall(payload: String): Future[String] = Future.successful(payload)
-    override def rpcCallTrigger(payload: String): Unit    = ()
-  })
 
   sealed trait EnglishOnly
   sealed trait VisionOnly
+
+  object EnglishOnly {
+    @golem.runtime.annotations.languageCode("en")
+    case object En extends EnglishOnly
+
+    implicit val englishOnlyAllowed: AllowedLanguages[EnglishOnly] =
+      golem.runtime.macros.AllowedLanguagesDerivation.derived
+  }
+
+  object VisionOnly {
+    @golem.runtime.annotations.mimeType("image/png")
+    case object ImagePng extends VisionOnly
+
+    implicit val visionOnlyAllowed: AllowedMimeTypes[VisionOnly] =
+      golem.runtime.macros.AllowedMimeTypesDerivation.derived
+  }
 
   /**
    * WIT-friendly result type for parity tests (avoids Scala 2 limitations
@@ -45,6 +48,71 @@ final class RustAgentParitySpec extends AnyFunSuite {
 
     implicit val schema: Schema[EchoResult] = Schema.derived
   }
+
+  final case class MediaBundle(transcript: TextSegment[EnglishOnly], snapshot: BinarySegment[VisionOnly])
+  object MediaBundle {
+    implicit val golemSchema: GolemSchema[MediaBundle] = new GolemSchema[MediaBundle] {
+      private val transcriptSchema = implicitly[GolemSchema[TextSegment[EnglishOnly]]]
+      private val snapshotSchema   = implicitly[GolemSchema[BinarySegment[VisionOnly]]]
+
+      override val schema: StructuredSchema = {
+        val t = singleElementSchema(transcriptSchema.schema).fold(err => throw new IllegalStateException(err), identity)
+        val s = singleElementSchema(snapshotSchema.schema).fold(err => throw new IllegalStateException(err), identity)
+        StructuredSchema.Tuple(
+          List(
+            NamedElementSchema("transcript", t),
+            NamedElementSchema("snapshot", s)
+          )
+        )
+      }
+
+      override def encode(value: MediaBundle): Either[String, StructuredValue] =
+        for {
+          t0 <- transcriptSchema.encode(value.transcript).flatMap(singleElementValue)
+          s0 <- snapshotSchema.encode(value.snapshot).flatMap(singleElementValue)
+        } yield StructuredValue.Tuple(
+          List(
+            NamedElementValue("transcript", t0),
+            NamedElementValue("snapshot", s0)
+          )
+        )
+
+      override def decode(value: StructuredValue): Either[String, MediaBundle] =
+        value match {
+          case StructuredValue.Tuple(elements) =>
+            val byName = elements.map(e => e.name -> e.value).toMap
+            for {
+              t0 <- byName
+                      .get("transcript")
+                      .toRight("Missing transcript")
+                      .flatMap(v => transcriptSchema.decode(StructuredValue.single(v)))
+              s0 <- byName
+                      .get("snapshot")
+                      .toRight("Missing snapshot")
+                      .flatMap(v => snapshotSchema.decode(StructuredValue.single(v)))
+            } yield MediaBundle(t0, s0)
+          case other =>
+            Left(s"Expected tuple payload for MediaBundle, found: $other")
+        }
+    }
+  }
+}
+
+final class RustAgentParitySpec extends AnyFunSuite {
+  import RustAgentParityTypes._
+
+  private val echoMetadata            = AgentMacros.agentMetadata[EchoAgent]
+  private val ephemeralMetadata       = AgentMacros.agentMetadata[EphemeralAgent]
+  private val durableDefaultMetadata  = AgentMacros.agentMetadata[DurableDefaultAgent]
+  private val durableExplicitMetadata = AgentMacros.agentMetadata[DurableExplicitAgent]
+  private val durableDefaultImplType  =
+    AgentImplementationMacro.implementationType[DurableDefaultAgent](new DurableDefaultAgentImpl)
+  private val durableExplicitImplType =
+    AgentImplementationMacro.implementationType[DurableExplicitAgent](new DurableExplicitAgentImpl)
+  private val rpcImplType = AgentImplementationMacro.implementationType[RpcParityAgent](new RpcParityAgent {
+    override def rpcCall(payload: String): Future[String] = Future.successful(payload)
+    override def rpcCallTrigger(payload: String): Unit    = ()
+  })
 
   @agentDefinition("echo-agent")
   @description("Rust-style Echo agent for metadata parity")
@@ -134,54 +202,6 @@ final class RustAgentParitySpec extends AnyFunSuite {
     def rpcCallTrigger(payload: String): Unit
   }
 
-  final case class MediaBundle(transcript: TextSegment[EnglishOnly], snapshot: BinarySegment[VisionOnly])
-  object MediaBundle {
-    implicit val golemSchema: GolemSchema[MediaBundle] = new GolemSchema[MediaBundle] {
-      private val transcriptSchema = implicitly[GolemSchema[TextSegment[EnglishOnly]]]
-      private val snapshotSchema   = implicitly[GolemSchema[BinarySegment[VisionOnly]]]
-
-      override val schema: StructuredSchema = {
-        val t = singleElementSchema(transcriptSchema.schema).fold(err => throw new IllegalStateException(err), identity)
-        val s = singleElementSchema(snapshotSchema.schema).fold(err => throw new IllegalStateException(err), identity)
-        StructuredSchema.Tuple(
-          List(
-            NamedElementSchema("transcript", t),
-            NamedElementSchema("snapshot", s)
-          )
-        )
-      }
-
-      override def encode(value: MediaBundle): Either[String, StructuredValue] =
-        for {
-          t0 <- transcriptSchema.encode(value.transcript).flatMap(singleElementValue)
-          s0 <- snapshotSchema.encode(value.snapshot).flatMap(singleElementValue)
-        } yield StructuredValue.Tuple(
-          List(
-            NamedElementValue("transcript", t0),
-            NamedElementValue("snapshot", s0)
-          )
-        )
-
-      override def decode(value: StructuredValue): Either[String, MediaBundle] =
-        value match {
-          case StructuredValue.Tuple(elements) =>
-            val byName = elements.map(e => e.name -> e.value).toMap
-            for {
-              t0 <- byName
-                      .get("transcript")
-                      .toRight("Missing transcript")
-                      .flatMap(v => transcriptSchema.decode(StructuredValue.single(v)))
-              s0 <- byName
-                      .get("snapshot")
-                      .toRight("Missing snapshot")
-                      .flatMap(v => snapshotSchema.decode(StructuredValue.single(v)))
-            } yield MediaBundle(t0, s0)
-          case other =>
-            Left(s"Expected tuple payload for MediaBundle, found: $other")
-        }
-    }
-  }
-
   private final class EphemeralAgentImpl extends EphemeralAgent { override def ping(): String = "pong" }
 
   private final class DurableDefaultAgentImpl extends DurableDefaultAgent {
@@ -190,22 +210,6 @@ final class RustAgentParitySpec extends AnyFunSuite {
 
   private final class DurableExplicitAgentImpl extends DurableExplicitAgent {
     override def ping(): String = "durable-explicit"
-  }
-
-  object EnglishOnly {
-    @golem.runtime.annotations.languageCode("en")
-    case object En extends EnglishOnly
-
-    implicit val englishOnlyAllowed: AllowedLanguages[EnglishOnly] =
-      golem.runtime.macros.AllowedLanguagesDerivation.derived
-  }
-
-  object VisionOnly {
-    @golem.runtime.annotations.mimeType("image/png")
-    case object ImagePng extends VisionOnly
-
-    implicit val visionOnlyAllowed: AllowedMimeTypes[VisionOnly] =
-      golem.runtime.macros.AllowedMimeTypesDerivation.derived
   }
 
   test("Multimodal schemas capture modality ordering and restrictions") {
@@ -277,7 +281,7 @@ final class RustAgentParitySpec extends AnyFunSuite {
   test("AgentImplementationMacro preserves method invocation kinds") {
     val awaitable =
       rpcImplType.methods.collectFirst {
-        case m: AsyncImplementationMethod[RpcParityAgent @unchecked, ?, String] if m.metadata.name == "rpcCall" =>
+        case m: AsyncImplementationMethod[RpcParityAgent @unchecked, _, _] if m.metadata.name == "rpcCall" =>
           m
       }
     assert(awaitable.isDefined)

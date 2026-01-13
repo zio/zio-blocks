@@ -6,9 +6,7 @@ import zio.blocks.schema.Schema
 
 import scala.util.Random
 
-final class ValueMappingFuzzSpec extends AnyFunSuite {
-  private val rng = new Random(0xc0ffee)
-
+private[rpc] object ValueMappingFuzzSpecTypes {
   final case class TinyProduct(a: Int, b: String, c: Option[Int], d: List[String])
   object TinyProduct { implicit val schema: Schema[TinyProduct] = Schema.derived }
 
@@ -19,6 +17,12 @@ final class ValueMappingFuzzSpec extends AnyFunSuite {
     final case class C(p: TinyProduct) extends TinySum
     implicit val schema: Schema[TinySum] = Schema.derived
   }
+}
+
+final class ValueMappingFuzzSpec extends AnyFunSuite {
+  import ValueMappingFuzzSpecTypes._
+
+  private val rng = new Random(0xc0ffee)
 
   private def genString(max: Int): String = {
     val n  = rng.nextInt(max + 1)

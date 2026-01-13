@@ -3,8 +3,6 @@ package golem.runtime.agenttype
 import golem.data.GolemSchema
 import golem.runtime.MethodMetadata
 
-import scala.annotation.nowarn
-
 /**
  * Reflected structure of an agent trait for client-side calling: schemas, WIT
  * function names, and invocation kind.
@@ -27,7 +25,6 @@ final case class AgentMethod[Trait, Input, Output](
 )
 
 object AgentType {
-  @nowarn("msg=.*deprecated for wildcard arguments.*")
   type AnyMethod[Trait] = AgentMethod[Trait, _, _]
 }
 

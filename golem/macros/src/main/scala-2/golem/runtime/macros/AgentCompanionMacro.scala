@@ -1,8 +1,5 @@
 package golem.runtime.macros
 
-import golem.runtime.agenttype.AgentType
-
-import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 /**
