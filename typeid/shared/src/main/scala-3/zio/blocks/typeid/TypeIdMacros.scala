@@ -13,8 +13,15 @@ private[typeid] object TypeIdMacros {
     val ownerExpr = extractOwner(typeSymbol.owner)
     val typeParamsExpr = extractTypeParams(tpe)
     
-    if (tpe.isOpaqueAlias) {
-      val underlying = tpe.translucentSuperType
+    // Check for opaque type alias (Scala 3 specific)
+    val isOpaque = tpe match {
+      case TypeRef(_, _) => typeSymbol.flags.is(Flags.Opaque)
+      case _ => false
+    }
+    
+    if (isOpaque) {
+      // For opaque types, try to get the underlying type
+      val underlying = tpe.dealias
       val underlyingExpr = extractTypeRepr(underlying)
       '{
         TypeId.opaque[A](
@@ -86,7 +93,6 @@ private[typeid] object TypeIdMacros {
   }
   
   private def extractTypeParams(using Quotes)(tpe: quotes.reflect.TypeRepr): Expr[List[TypeParam]] = {
-    import quotes.reflect.*
     
     val typeParams = tpe.typeSymbol.typeMembers.collect {
       case sym if sym.isTypeParam => sym
@@ -97,7 +103,7 @@ private[typeid] object TypeIdMacros {
     Expr.ofList(paramExprs)
   }
   
-  private def extractTypeRepr(using Quotes)(tpe: quotes.reflect.TypeRepr): Expr[TypeRepr] = {
+  private def extractTypeRepr(using Quotes)(tpe: quotes.reflect.TypeRepr): Expr[zio.blocks.typeid.TypeRepr] = {
     import quotes.reflect.*
     
     tpe match {
@@ -105,26 +111,26 @@ private[typeid] object TypeIdMacros {
         val tyconExpr = extractTypeRepr(tycon)
         val argsExprs = args.map(extractTypeRepr)
         Expr.ofList(argsExprs) match {
-          case '{ ${list}: List[TypeRepr] } =>
-            '{ TypeRepr.Applied(${tyconExpr}, ${list}) }
+          case '{ ${list}: List[zio.blocks.typeid.TypeRepr] } =>
+            '{ zio.blocks.typeid.TypeRepr.Applied(${tyconExpr}, ${list}) }
         }
       
       case ref if ref.typeSymbol != Symbol.noSymbol =>
         ref.asType match {
           case '[t] =>
             val typeIdExpr = deriveImpl[t]
-            '{ TypeRepr.Ref(${typeIdExpr}) }
+            '{ zio.blocks.typeid.TypeRepr.Ref(${typeIdExpr}) }
         }
       
       case AndType(left, right) =>
         val leftExpr = extractTypeRepr(left)
         val rightExpr = extractTypeRepr(right)
-        '{ TypeRepr.Intersection(${leftExpr}, ${rightExpr}) }
+        '{ zio.blocks.typeid.TypeRepr.Intersection(${leftExpr}, ${rightExpr}) }
       
       case OrType(left, right) =>
         val leftExpr = extractTypeRepr(left)
         val rightExpr = extractTypeRepr(right)
-        '{ TypeRepr.Union(${leftExpr}, ${rightExpr}) }
+        '{ zio.blocks.typeid.TypeRepr.Union(${leftExpr}, ${rightExpr}) }
       
       case ConstantType(const) =>
         val valueExpr = const.value match {
@@ -138,20 +144,20 @@ private[typeid] object TypeIdMacros {
           case other => Expr(other.toString)
         }
         valueExpr match {
-          case '{ ${v}: t } => '{ TypeRepr.Constant(${v}) }
+          case '{ ${v}: t } => '{ zio.blocks.typeid.TypeRepr.Constant(${v}) }
         }
       
       case _ if tpe =:= TypeRepr.of[Any] =>
-        '{ TypeRepr.AnyType }
+        '{ zio.blocks.typeid.TypeRepr.AnyType }
       
       case _ if tpe =:= TypeRepr.of[Nothing] =>
-        '{ TypeRepr.NothingType }
+        '{ zio.blocks.typeid.TypeRepr.NothingType }
       
       case _ =>
         tpe.asType match {
           case '[t] =>
             val typeIdExpr = deriveImpl[t]
-            '{ TypeRepr.Ref(${typeIdExpr}) }
+            '{ zio.blocks.typeid.TypeRepr.Ref(${typeIdExpr}) }
         }
     }
   }
