@@ -19,41 +19,42 @@ package zio.blocks.chunk
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
 import zio.blocks.chunk.Chunk
+import scala.compiletime.uninitialized
 
 class ChunkCreationBenchmark extends BaseBenchmark {
 
-  var a01: Int = _
-  var a02: Int = _
-  var a03: Int = _
-  var a04: Int = _
-  var a05: Int = _
-  var a06: Int = _
-  var a07: Int = _
-  var a08: Int = _
-  var a09: Int = _
-  var a10: Int = _
-  var a11: Int = _
-  var a12: Int = _
-  var a13: Int = _
-  var a14: Int = _
-  var a15: Int = _
-  var a16: Int = _
-  var a17: Int = _
-  var a18: Int = _
-  var a19: Int = _
-  var a20: Int = _
-  var a21: Int = _
-  var a22: Int = _
-  var a23: Int = _
-  var a24: Int = _
-  var a25: Int = _
-  var a26: Int = _
-  var a27: Int = _
-  var a28: Int = _
-  var a29: Int = _
-  var a30: Int = _
-  var a31: Int = _
-  var a32: Int = _
+  var a01: Int = uninitialized
+  var a02: Int = uninitialized
+  var a03: Int = uninitialized
+  var a04: Int = uninitialized
+  var a05: Int = uninitialized
+  var a06: Int = uninitialized
+  var a07: Int = uninitialized
+  var a08: Int = uninitialized
+  var a09: Int = uninitialized
+  var a10: Int = uninitialized
+  var a11: Int = uninitialized
+  var a12: Int = uninitialized
+  var a13: Int = uninitialized
+  var a14: Int = uninitialized
+  var a15: Int = uninitialized
+  var a16: Int = uninitialized
+  var a17: Int = uninitialized
+  var a18: Int = uninitialized
+  var a19: Int = uninitialized
+  var a20: Int = uninitialized
+  var a21: Int = uninitialized
+  var a22: Int = uninitialized
+  var a23: Int = uninitialized
+  var a24: Int = uninitialized
+  var a25: Int = uninitialized
+  var a26: Int = uninitialized
+  var a27: Int = uninitialized
+  var a28: Int = uninitialized
+  var a29: Int = uninitialized
+  var a30: Int = uninitialized
+  var a31: Int = uninitialized
+  var a32: Int = uninitialized
 
   @Setup
   def setup(): Unit = {
