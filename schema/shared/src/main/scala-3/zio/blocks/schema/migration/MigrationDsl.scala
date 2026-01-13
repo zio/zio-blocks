@@ -81,10 +81,50 @@ object MigrationDsl {
 
     /** Drop a field using a source selector (recommended). */
     inline def dropField[A](
-  inline sourceSel: A => Any,
-  inline defaultForReverse: SchemaExpr[Any, Any]
-)(using b: MigrationBuilder[A], sa: Schema[A]): Unit =
-  ${ dropFieldImpl[A]('sourceSel, 'defaultForReverse, 'b, 'sa) }
+    inline sourceSel: A => Any
+)(using b: MigrationBuilder[A]): Unit =
+  ${ dropFieldWithSchemaDefaultImpl[A]('sourceSel, 'b) }
+
+private def dropFieldWithSchemaDefaultImpl[A: Type](
+    sourceSel: Expr[A => Any],
+    b: Expr[MigrationBuilder[A]]
+)(using Quotes): Expr[Unit] = {
+  import quotes.reflect.*
+
+  // Extract optic from selector (reuse your existing extractor)
+  val sourceOptic: DynamicOptic = extractSelectorOptic(sourceSel, ctx = "dropField(source)")
+
+  // Get the return type of the selector: A => T
+  val tpe = sourceSel.asTerm.tpe.widen match {
+    case MethodType(_, _, res) => res
+    case other                 => other
+  }
+
+  tpe.asType match {
+    case '[t] =>
+      Expr.summon[zio.blocks.schema.Schema[t]] match {
+        case Some(schemaT) =>
+          '{
+            val defaultExpr: zio.blocks.schema.SchemaExpr[Any, Any] =
+              MigrationSchemaExpr.DefaultValue[Any, t]($schemaT).asInstanceOf[zio.blocks.schema.SchemaExpr[Any, Any]]
+
+            $b.add(
+              MigrationAction.DropField(
+                at = ${ Expr(sourceOptic) },
+                defaultForReverse = defaultExpr
+              )
+            )
+          }
+
+        case None =>
+          quotes.reflect.report.errorAndAbort(
+            s"dropField: could not summon Schema[${tpe.show}] for DefaultValue. " +
+              "Make sure an implicit Schema is in scope for the field type."
+          )
+      }
+  }
+}
+
 
   }
 
@@ -151,59 +191,72 @@ object MigrationDsl {
   }
 
   private def deleteFieldImpl[A: Type, B: Type](
-    at: Expr[A => B],
-    field: Expr[String],
-    b: Expr[MigrationBuilder[A]],
-    sa: Expr[Schema[A]]
-  )(using Quotes): Expr[Unit] = {
-    val dyn = extractDynamicOptic[A, B](at, sa)
-    // reverse default: DefaultValueExpr
-    '{ $b.add(DropField($dyn, $field, MigrationSchemaExpr.default[Any, Any](using zio.blocks.schema.Schema.dynamicValueSchema).asInstanceOf[SchemaExpr[Any, Any]])) }
+  at: Expr[A => B],
+  field: Expr[String],
+  b: Expr[MigrationBuilder[A]],
+  sa: Expr[Schema[A]]
+)(using Quotes): Expr[Unit] = {
+  val dyn = extractDynamicOptic[A, B](at, sa)
 
-  }
+  // DefaultValue for reverse (placeholder until you implement schema-captured default)
+  val defaultExpr: Expr[SchemaExpr[Any, Any]] =
+    '{ MigrationSchemaExpr.default[Any, Any](using zio.blocks.schema.Schema.dynamicValueSchema).asInstanceOf[SchemaExpr[Any, Any]] }
+
+  val atField: Expr[DynamicOptic] = '{ $dyn.field($field) }
+  '{ $b.add(DropField(at = $atField, defaultForReverse = $defaultExpr)) }
+}
+
 
   
 
     private def renameFieldSelectorsImpl[A: Type, B: Type](
-    fromSel: Expr[A => Any],
-    toSel: Expr[B => Any],
-    b: Expr[MigrationBuilder[A]],
-    sa: Expr[Schema[A]],
-    sb: Expr[Schema[B]]
-  )(using Quotes): Expr[Unit] = {
-    val fromDyn = extractDynamicOptic[A, Any](fromSel, sa)
-    val toDyn   = extractDynamicOptic[B, Any](toSel, sb)
+  fromSel: Expr[A => Any],
+  toSel: Expr[B => Any],
+  b: Expr[MigrationBuilder[A]],
+  sa: Expr[Schema[A]],
+  sb: Expr[Schema[B]]
+)(using Quotes): Expr[Unit] = {
+  val fromDyn = extractDynamicOptic[A, Any](fromSel, sa)
+  val toDyn   = extractDynamicOptic[B, Any](toSel, sb)
 
-    val fromNameE = lastFieldName(fromDyn, "renameField(fromSel)")
-    val toNameE   = lastFieldName(toDyn, "renameField(toSel)")
-    val parentDyn = parentOfField(fromDyn, "renameField(fromSel)")
+  val fromNameE = lastFieldName(fromDyn, "renameField(fromSel)")
+  val toNameE   = lastFieldName(toDyn, "renameField(toSel)")
+  val parentDyn = parentOfField(fromDyn, "renameField(fromSel)")
 
-    '{ $b.add(RenameField($parentDyn, $fromNameE, $toNameE)) }
-  }
+  val atField: Expr[DynamicOptic] = '{ $parentDyn.field($fromNameE) }
+  '{ $b.add(Rename(at = $atField, to = $toNameE)) }
+}
+
 
   private def addFieldExprImpl[A: Type, B: Type](
-    targetSel: Expr[B => Any],
-    defaultExpr: Expr[SchemaExpr[Any, Any]],
-    b: Expr[MigrationBuilder[A]],
-    sb: Expr[Schema[B]]
-  )(using Quotes): Expr[Unit] = {
-    val targetDyn = extractDynamicOptic[B, Any](targetSel, sb)
-    val nameE     = lastFieldName(targetDyn, "addFieldExpr(targetSel)")
-    val parentE   = parentOfField(targetDyn, "addFieldExpr(targetSel)")
-    '{ $b.add(AddField($parentE, $nameE, $defaultExpr)) }
-  }
+  targetSel: Expr[B => Any],
+  defaultExpr: Expr[SchemaExpr[Any, Any]],
+  b: Expr[MigrationBuilder[A]],
+  sb: Expr[Schema[B]]
+)(using Quotes): Expr[Unit] = {
+  val targetDyn = extractDynamicOptic[B, Any](targetSel, sb)
+  val nameE     = lastFieldName(targetDyn, "addFieldExpr(targetSel)")
+  val parentE   = parentOfField(targetDyn, "addFieldExpr(targetSel)")
+
+  val atField: Expr[DynamicOptic] = '{ $parentE.field($nameE) }
+  '{ $b.add(AddField(at = $atField, default = $defaultExpr)) }
+}
+
 
   private def dropFieldImpl[A: Type](
-    sourceSel: Expr[A => Any],
-    defaultForReverse: Expr[SchemaExpr[Any, Any]],
-    b: Expr[MigrationBuilder[A]],
-    sa: Expr[Schema[A]]
-  )(using Quotes): Expr[Unit] = {
-    val sourceDyn = extractDynamicOptic[A, Any](sourceSel, sa)
-    val nameE     = lastFieldName(sourceDyn, "dropField(sourceSel)")
-    val parentE   = parentOfField(sourceDyn, "dropField(sourceSel)")
-    '{ $b.add(DropField($parentE, $nameE, $defaultForReverse)) }
-  }
+  sourceSel: Expr[A => Any],
+  defaultForReverse: Expr[SchemaExpr[Any, Any]],
+  b: Expr[MigrationBuilder[A]],
+  sa: Expr[Schema[A]]
+)(using Quotes): Expr[Unit] = {
+  val sourceDyn = extractDynamicOptic[A, Any](sourceSel, sa)
+  val nameE     = lastFieldName(sourceDyn, "dropField(sourceSel)")
+  val parentE   = parentOfField(sourceDyn, "dropField(sourceSel)")
+
+  val atField: Expr[DynamicOptic] = '{ $parentE.field($nameE) }
+  '{ $b.add(DropField(at = $atField, defaultForReverse = $defaultForReverse)) }
+}
+
 
 
   /** Extract DynamicOptic from selector */

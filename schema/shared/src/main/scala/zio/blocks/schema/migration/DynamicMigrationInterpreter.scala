@@ -5,6 +5,7 @@ import scala.collection.immutable.Vector
 import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaExpr, OpticCheck}
 
 import zio.blocks.schema.migration.MigrationAction._
+import zio.blocks.schema.migration.MigrationAction.*
 
 object DynamicMigrationInterpreter {
 
@@ -51,22 +52,24 @@ object DynamicMigrationInterpreter {
         renameField(at, value, to)
 
 
-      case OptionalizeField(source, _) =>
-        modifyAt(source, value) { case dv =>
-          Right(DynamicValue.Variant("Some", dv))
-        }
+     case Optionalize(at) =>
+  modifyAt(at, value) { dv =>
+    Right(DynamicValue.Variant("Some", dv))
+  }
 
-      case MandateField(sourceOpt, target, defaultExpr) =>
-        modifyAt(sourceOpt, value) {
-          case DynamicValue.Variant("Some", dv) => Right(dv)
-          case DynamicValue.Variant("None", _) =>
-  evalExprToOneDynamic(expr = defaultExpr, input = DynamicValue.Unit)
 
-          case other =>
-            Left(
-              MigrationError.TypeMismatch(sourceOpt, "Option", other.toString)
-            )
-        }
+      case Mandate(at, defaultExpr) =>
+  modifyAt(at, value) {
+    case DynamicValue.Variant("Some", dv) =>
+      Right(dv)
+
+    case DynamicValue.Variant("None", _) =>
+      evalExprToOneDynamic(expr = defaultExpr, input = DynamicValue.Unit)
+
+    case other =>
+      Left(MigrationError.TypeMismatch(at, "Option", other.getClass.getSimpleName))
+  }
+
 
       case TransformValue(at, expr) =>
         modifyAt(at, value) { cur =>
@@ -86,37 +89,33 @@ object DynamicMigrationInterpreter {
             Left(MigrationError.TypeMismatch(at, "enum/variant", other.getClass.getSimpleName))
         }
 
-      case TransformCase(at, caseName, actions) =>
-        modifyAt(at, value) {
-          case DynamicValue.Variant(`caseName`, payload) =>
-            val nested = DynamicMigration(actions)
-            DynamicMigrationInterpreter(nested, payload).map { newPayload =>
-  DynamicValue.Variant(caseName, newPayload)
-}
+      case TransformCase(at, actions) =>
+  modifyAt(at, value) {
+    case DynamicValue.Variant(caseName, payload) =>
+      val nested = DynamicMigration(actions)
+      DynamicMigrationInterpreter(nested, payload)
+        .map(newPayload => DynamicValue.Variant(caseName, newPayload))
 
-          case DynamicValue.Variant(other, payload) =>
-            Right(DynamicValue.Variant(other, payload)) // no-op if different case
-          case other =>
-            Left(MigrationError.TypeMismatch(at, "enum/variant", other.getClass.getSimpleName))
-        }
+    case other =>
+      Left(MigrationError.TypeMismatch(at, "enum/variant", other.getClass.getSimpleName))
+  }
 
-      case TransformElements(at, actions) =>
-        modifyAt(at, value) {
-          case DynamicValue.Sequence(values) =>
-            val nested = DynamicMigration(actions)
-            // apply nested to each element
-            values.foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
-              case (acc, elem) =>
-                for {
-                  xs <- acc
-                  out <- DynamicMigrationInterpreter(nested, elem)
-)
-                } yield xs :+ out
-            }.map(DynamicValue.Sequence.apply)
 
-          case other =>
-            Left(MigrationError.TypeMismatch(at, "sequence", other.getClass.getSimpleName))
-        }
+      case TransformElements(at, expr) =>
+  modifyAt(at, value) {
+    case DynamicValue.Sequence(values) =>
+      values.foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
+        case (acc, elem) =>
+          for {
+            xs  <- acc
+            out <- evalExprToOneDynamic(expr = expr, input = elem)
+          } yield xs :+ out
+      }.map(DynamicValue.Sequence.apply)
+
+    case other =>
+      Left(MigrationError.TypeMismatch(at, "sequence", other.getClass.getSimpleName))
+  }
+
 
       case TransformKeys(at, expr) =>
         modifyAt(at, value) {
@@ -243,68 +242,77 @@ object DynamicMigrationInterpreter {
                 )
             }
 
-          // Everything else is not supported until we implement the matching actions.
-          case DynamicOptic.Node.Elements =>
-            Left(
-              MigrationError.InvalidOp(
-                "DynamicOptic",
-                "Elements not supported yet (use TransformElements action first)"
-              )
-            )
 
-          case DynamicOptic.Node.MapKeys =>
-            Left(
-              MigrationError.InvalidOp(
-                "DynamicOptic",
-                "MapKeys not supported yet (use TransformKeys action first)"
-              )
-            )
+            // .each / Elements: walk every element in a Sequence
+case DynamicOptic.Node.Elements =>
+  cur match {
+    case DynamicValue.Sequence(values) =>
+      values
+        .foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
+          case (acc2, elem) =>
+            for {
+              xs  <- acc2
+              out <- loop(i + 1, elem) // continue walking the rest of the optic on this element
+            } yield xs :+ out
+        }
+        .map(DynamicValue.Sequence.apply)
 
-          case DynamicOptic.Node.MapValues =>
-            Left(
-              MigrationError.InvalidOp(
-                "DynamicOptic",
-                "MapValues not supported yet (use TransformValues action first)"
-              )
-            )
+    case other =>
+      Left(MigrationError.TypeMismatch(at, "sequence", other.getClass.getSimpleName))
+  }
 
-          case DynamicOptic.Node.Case(_) =>
-            Left(
-              MigrationError.InvalidOp(
-                "DynamicOptic",
-                "Case not supported yet (use TransformCase action first)"
-              )
-            )
+// .mapKeys: focus each key (dictionary)
+case DynamicOptic.Node.MapKeys =>
+  cur match {
+    case DynamicValue.Dictionary(entries) =>
+      entries
+        .foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
+          case (acc2, (k, v)) =>
+            for {
+              xs  <- acc2
+              k2  <- loop(i + 1, k) // continue walking on the key
+            } yield xs :+ (k2 -> v)
+        }
+        .map(DynamicValue.Dictionary.apply)
 
-          case DynamicOptic.Node.Wrapped =>
-            Left(
-              MigrationError
-                .InvalidOp("DynamicOptic", "Wrapped not supported yet")
-            )
+    case other =>
+      Left(MigrationError.TypeMismatch(at, "dictionary/map", other.getClass.getSimpleName))
+  }
 
-          case DynamicOptic.Node.AtIndex(_) =>
-            Left(
-              MigrationError
-                .InvalidOp("DynamicOptic", "AtIndex not supported yet")
-            )
+// .mapValues: focus each value (dictionary)
+case DynamicOptic.Node.MapValues =>
+  cur match {
+    case DynamicValue.Dictionary(entries) =>
+      entries
+        .foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
+          case (acc2, (k, v)) =>
+            for {
+              xs  <- acc2
+              v2  <- loop(i + 1, v) // continue walking on the value
+            } yield xs :+ (k -> v2)
+        }
+        .map(DynamicValue.Dictionary.apply)
 
-          case DynamicOptic.Node.AtIndices(_) =>
-            Left(
-              MigrationError
-                .InvalidOp("DynamicOptic", "AtIndices not supported yet")
-            )
+    case other =>
+      Left(MigrationError.TypeMismatch(at, "dictionary/map", other.getClass.getSimpleName))
+  }
 
-          case DynamicOptic.Node.AtMapKey(_) =>
-            Left(
-              MigrationError
-                .InvalidOp("DynamicOptic", "AtMapKey not supported yet")
-            )
+// .when[Case] / Case("X"): only focus if current Variant matches the case
+case DynamicOptic.Node.Case(expected) =>
+  cur match {
+    case DynamicValue.Variant(actual, payload) if actual == expected =>
+      loop(i + 1, payload).map(p2 => DynamicValue.Variant(actual, p2))
 
-          case DynamicOptic.Node.AtMapKeys(_) =>
-            Left(
-              MigrationError
-                .InvalidOp("DynamicOptic", "AtMapKeys not supported yet")
-            )
+    case DynamicValue.Variant(_, _) =>
+      // different case: selector focus doesn't exist → no-op
+      Right(cur)
+
+    case other =>
+      Left(MigrationError.TypeMismatch(at, "enum/variant", other.getClass.getSimpleName))
+  }
+
+
+          
         }
 
     loop(0, root)
