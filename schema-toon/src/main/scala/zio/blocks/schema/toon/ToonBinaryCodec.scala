@@ -791,7 +791,7 @@ object ToonBinaryCodec {
       in.skipBlankLines()
       val s = in.readString()
       try java.util.Currency.getInstance(s)
-      catch { case _: IllegalArgumentException => in.decodeError(s"Invalid currency: $s") }
+      catch { case _: Exception => in.decodeError(s"Invalid currency: $s") }
     }
 
     def encodeValue(x: java.util.Currency, out: ToonWriter): Unit = out.writeString(x.getCurrencyCode)

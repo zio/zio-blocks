@@ -1,7 +1,6 @@
 package zio.blocks.schema.toon
 
 import java.io.OutputStream
-import java.math.{BigDecimal => JBigDecimal, MathContext}
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.annotation.switch
 
@@ -91,20 +90,21 @@ final class ToonWriter private (
     if (x.isNaN || x.isInfinite) writeNull()
     else if (x == 0.0f) writeRaw(zeroBytes)
     else {
-      val bd    = new java.math.BigDecimal(java.lang.Float.toString(x))
-      val plain = bd.stripTrailingZeros().toPlainString
-      writeRaw(plain.getBytes(UTF_8))
+      val str = java.lang.Float.toString(x)
+      writeDecimalString(str)
     }
 
   def writeDouble(x: Double): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
     else if (x == 0.0 || x == -0.0) writeRaw(zeroBytes)
-    else writeNumber(x)
+    else {
+      val str = java.lang.Double.toString(x)
+      writeDecimalString(str)
+    }
 
   def writeBigDecimal(x: BigDecimal): Unit = {
-    val plain    = x.underlying.toPlainString
-    val stripped = stripTrailingZeros(plain)
-    writeRaw(stripped.getBytes(UTF_8))
+    val str = x.underlying.toString
+    writeDecimalString(str)
   }
 
   def writeBigInt(x: BigInt): Unit = writeRaw(x.toString.getBytes(UTF_8))
@@ -220,11 +220,40 @@ final class ToonWriter private (
       lineStart = false
     }
 
-  private def writeNumber(x: Double): Unit = {
-    val bd       = new JBigDecimal(x, MathContext.DECIMAL64)
-    val plain    = bd.toPlainString
+  private def writeDecimalString(str: String): Unit = {
+    val eIdx   = str.indexOf('E')
+    val result = if (eIdx < 0) {
+      val e2Idx = str.indexOf('e')
+      if (e2Idx < 0) stripTrailingZeros(str)
+      else expandScientific(str, e2Idx)
+    } else expandScientific(str, eIdx)
+    writeRaw(result.getBytes(UTF_8))
+  }
+
+  private def expandScientific(str: String, eIdx: Int): String = {
+    val mantissa = str.substring(0, eIdx)
+    val exp      = str.substring(eIdx + 1).toInt
+
+    val negative            = mantissa.startsWith("-")
+    val mant                = if (negative) mantissa.substring(1) else mantissa
+    val dotIdx              = mant.indexOf('.')
+    val (intPart, fracPart) =
+      if (dotIdx < 0) (mant, "")
+      else (mant.substring(0, dotIdx), mant.substring(dotIdx + 1))
+    val digits   = intPart + fracPart
+    val pointPos = intPart.length + exp
+
+    val plain =
+      if (pointPos <= 0) {
+        "0." + ("0" * -pointPos) + digits
+      } else if (pointPos >= digits.length) {
+        digits + ("0" * (pointPos - digits.length))
+      } else {
+        digits.substring(0, pointPos) + "." + digits.substring(pointPos)
+      }
+
     val stripped = stripTrailingZeros(plain)
-    writeRaw(stripped.getBytes(UTF_8))
+    if (negative) "-" + stripped else stripped
   }
 
   private def writeQuotedString(s: String): Unit = {
