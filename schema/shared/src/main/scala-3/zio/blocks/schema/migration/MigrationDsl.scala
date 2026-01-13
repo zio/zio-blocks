@@ -9,7 +9,7 @@ import scala.quoted.*
 import zio.blocks.schema.migration.MigrationAction.*
 
 /** Typed DSL that compiles to PURE DynamicMigration data (Vector[MigrationAction]). */
-object MigrationDsl {
+object MigrationBuilder {
 
   /** Builder used only during macro-expanded program construction. */
   final class MigrationBuilder[A] private[migration] (
@@ -182,34 +182,78 @@ object MigrationDsl {
   }
 
   private def addFieldExprImpl[A: Type, B: Type](
-      targetSel: Expr[B => Any],
-      defaultExpr: Expr[SchemaExpr[Any, Any]],
-      b: Expr[MigrationBuilder[A]],
-      sb: Expr[Schema[B]]
-  )(using Quotes): Expr[Unit] = {
-    val targetDyn = extractDynamicOptic[B, Any](targetSel, sb)
-    val nameE     = lastFieldName(targetDyn, "addFieldExpr(targetSel)")
-    val parentE   = parentOfField(targetDyn, "addFieldExpr(targetSel)")
+    targetSel: Expr[B => Any],
+    defaultExpr: Expr[SchemaExpr[Any, Any]],
+    b: Expr[MigrationBuilder[A]],
+    sb: Expr[Schema[B]]
+)(using Quotes): Expr[Unit] = {
+  import quotes.reflect.*
 
-    val atField: Expr[DynamicOptic] = '{ $parentE.field($nameE) }
-    '{ $b.add(AddField(at = $atField, default = $defaultExpr)) }
+  val targetDyn = extractDynamicOptic[B, Any](targetSel, sb)
+  val nameE     = lastFieldName(targetDyn, "addFieldExpr(targetSel)")
+  val parentE   = parentOfField(targetDyn, "addFieldExpr(targetSel)")
+  val atField: Expr[DynamicOptic] = '{ $parentE.field($nameE) }
+
+  // Capture the target field type schema from the selector's body type:
+  val fieldTpe: TypeRepr =
+    targetSel.asTerm match {
+      case Inlined(_, _, Lambda(_, body)) => body.tpe.widen
+      case other => report.errorAndAbort(s"Expected a lambda selector, got: ${other.show}")
+    }
+
+  fieldTpe.asType match {
+    case '[t] =>
+      val fieldSchema: Expr[Schema[t]] =
+        Expr.summon[Schema[t]].getOrElse {
+          report.errorAndAbort(s"Could not summon Schema[${Type.show[t]}] for addField default capture.")
+        }
+
+      val capturedDefault: Expr[SchemaExpr[Any, Any]] =
+        '{ MigrationSchemaExpr.captureDefaultIfMarker[Any, t](
+             $defaultExpr.asInstanceOf[SchemaExpr[Any, t]],
+             $fieldSchema
+           ).asInstanceOf[SchemaExpr[Any, Any]]
+         }
+
+      '{ $b.add(AddField(at = $atField, default = $capturedDefault)) }
   }
+}
+
 
   private def dropFieldImpl[A: Type](
-      sourceSel: Expr[A => Any],
-      b: Expr[MigrationBuilder[A]],
-      sa: Expr[Schema[A]]
-  )(using Quotes): Expr[Unit] = {
-    val sourceDyn = extractDynamicOptic[A, Any](sourceSel, sa)
-    val nameE     = lastFieldName(sourceDyn, "dropField(sourceSel)")
-    val parentE   = parentOfField(sourceDyn, "dropField(sourceSel)")
+    sourceSel: Expr[A => Any],
+    b: Expr[MigrationBuilder[A]],
+    sa: Expr[Schema[A]]
+)(using Quotes): Expr[Unit] = {
+  import quotes.reflect.*
 
-    val atField: Expr[DynamicOptic] = '{ $parentE.field($nameE) }
-    val defaultExpr: Expr[SchemaExpr[Any, Any]] =
-      '{ MigrationSchemaExpr.default[Any, Any].asInstanceOf[SchemaExpr[Any, Any]] }
+  val sourceDyn = extractDynamicOptic[A, Any](sourceSel, sa)
+  val nameE     = lastFieldName(sourceDyn, "dropField(sourceSel)")
+  val parentE   = parentOfField(sourceDyn, "dropField(sourceSel)")
+  val atField: Expr[DynamicOptic] = '{ $parentE.field($nameE) }
 
-    '{ $b.add(DropField(at = $atField, defaultForReverse = $defaultExpr)) }
+  // Field type from selector body:
+  val fieldTpe: TypeRepr =
+    sourceSel.asTerm match {
+      case Inlined(_, _, Lambda(_, body)) => body.tpe.widen
+      case other => report.errorAndAbort(s"Expected a lambda selector, got: ${other.show}")
+    }
+
+  fieldTpe.asType match {
+    case '[t] =>
+      val fieldSchema: Expr[Schema[t]] =
+        Expr.summon[Schema[t]].getOrElse {
+          report.errorAndAbort(s"Could not summon Schema[${Type.show[t]}] for dropField default capture.")
+        }
+
+      // Reverse of DropField is AddField, which needs a default for the *dropped* field.
+      val capturedDefault: Expr[SchemaExpr[Any, Any]] =
+        '{ MigrationSchemaExpr.defaultFromSchema[Any, t]($fieldSchema).asInstanceOf[SchemaExpr[Any, Any]] }
+
+      '{ $b.add(DropField(at = $atField, defaultForReverse = $capturedDefault)) }
   }
+}
+
 
   private def transformFieldImpl[A: Type, B: Type](
       fromSel: Expr[A => Any],

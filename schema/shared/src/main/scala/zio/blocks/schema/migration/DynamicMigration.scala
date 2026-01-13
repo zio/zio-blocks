@@ -13,6 +13,10 @@ final case class DynamicMigration(actions: Vector[MigrationAction])
 
   def reverse: DynamicMigration =
     DynamicMigration(actions.reverse.map(_.reverse))
+
+  def apply(value: zio.blocks.schema.DynamicValue): Either[MigrationError, zio.blocks.schema.DynamicValue] =
+    DynamicMigrationInterpreter(this, value)
+  
 }
 
 object DynamicMigration {

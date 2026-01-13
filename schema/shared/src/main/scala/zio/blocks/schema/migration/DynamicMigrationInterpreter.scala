@@ -15,14 +15,13 @@ object DynamicMigrationInterpreter {
    *  - do better validation / error messages
    */
   def apply(
-      m: DynamicMigration,
-      value: DynamicValue,
-      sourceSchema: Schema[_],
-      targetSchema: Schema[_]
-  ): Either[MigrationError, DynamicValue] =
-    m.actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
-      (acc, action) => acc.flatMap(v => applyAction(action, v, sourceSchema, targetSchema))
-    }
+    m: DynamicMigration,
+    value: DynamicValue
+): Either[MigrationError, DynamicValue] =
+  m.actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
+    (acc, action) => acc.flatMap(v => applyAction(action, v))
+  }
+
 
   // ─────────────────────────────────────────────
   // Action dispatcher
