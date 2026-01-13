@@ -145,7 +145,7 @@ final case class DerivationBuilder[TC[_], A](
                   prependCombinedModifiers(modifiers, path, typeName)
                 )
             }
-            new Reflect.Record(fields, typeName, new BindingInstance(metadata, instance), doc, modifiers)
+            new Reflect.Record(fields, TypeIdCompat.fromTypeName(typeName), new BindingInstance(metadata, instance), doc, modifiers)
           }
 
           override def transformVariant[A0](
@@ -181,7 +181,7 @@ final case class DerivationBuilder[TC[_], A](
                   prependCombinedModifiers(modifiers, path, typeName)
                 )
             }
-            new Reflect.Variant(cases, typeName, new BindingInstance(metadata, instance), doc, modifiers)
+            new Reflect.Variant(cases, TypeIdCompat.fromTypeName(typeName), new BindingInstance(metadata, instance), doc, modifiers)
           }
 
           override def transformSequence[A0, C[_]](
@@ -196,7 +196,7 @@ final case class DerivationBuilder[TC[_], A](
               deriver
                 .deriveSequence(element, typeName, metadata, doc, prependCombinedModifiers(modifiers, path, typeName))
             )
-            new Reflect.Sequence(element, typeName, new BindingInstance(metadata, instance), doc, modifiers)
+            new Reflect.Sequence(element, TypeIdCompat.fromTypeName(typeName), new BindingInstance(metadata, instance), doc, modifiers)
           }
 
           override def transformMap[Key, Value, M[_, _]](
@@ -212,7 +212,7 @@ final case class DerivationBuilder[TC[_], A](
               deriver
                 .deriveMap(key, value, typeName, metadata, doc, prependCombinedModifiers(modifiers, path, typeName))
             )
-            new Reflect.Map(key, value, typeName, new BindingInstance(metadata, instance), doc, modifiers)
+            new Reflect.Map(key, value, TypeIdCompat.fromTypeName(typeName), new BindingInstance(metadata, instance), doc, modifiers)
           }
 
           override def transformDynamic(
@@ -224,7 +224,7 @@ final case class DerivationBuilder[TC[_], A](
           ): Lazy[Reflect.Dynamic[G]] = Lazy {
             val instance = getCustomInstance[DynamicValue](path, TypeName.dynamicValue)
               .getOrElse(deriver.deriveDynamic[G](metadata, doc, prependCombinedModifiers(modifiers, path, typeName)))
-            new Reflect.Dynamic(new BindingInstance(metadata, instance), typeName, doc, modifiers)
+            new Reflect.Dynamic(new BindingInstance(metadata, instance), TypeIdCompat.fromTypeName(typeName), doc, modifiers)
           }
 
           override def transformPrimitive[A0](
@@ -245,7 +245,7 @@ final case class DerivationBuilder[TC[_], A](
                   prependCombinedModifiers(modifiers, path, typeName)
                 )
             )
-            new Reflect.Primitive(primitiveType, typeName, new BindingInstance(metadata, instance), doc, modifiers)
+            new Reflect.Primitive(primitiveType, TypeIdCompat.fromTypeName(typeName), new BindingInstance(metadata, instance), doc, modifiers)
           }
 
           override def transformWrapper[A0, B](
@@ -269,8 +269,7 @@ final case class DerivationBuilder[TC[_], A](
                 )
               )
             new Reflect.Wrapper(
-              wrapped,
-              typeName,
+              wrapped, TypeIdCompat.fromTypeName(typeName),
               wrapperPrimitiveType,
               new BindingInstance(metadata, instance),
               doc,

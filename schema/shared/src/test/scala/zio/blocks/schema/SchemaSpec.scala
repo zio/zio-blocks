@@ -162,11 +162,11 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeName = TypeName(
+                typeId = TypeIdCompat.fromTypeName(TypeName(
                   namespace = Namespace(Seq("scala")),
                   name = "Tuple4",
                   params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
-                ),
+                )),
                 recordBinding = null
               )
             )
@@ -219,10 +219,10 @@ object SchemaSpec extends ZIOSpecDefault {
                     ),
                   Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
                 ),
-                typeName = TypeName(
+                typeId = TypeIdCompat.fromTypeName(TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record-1"
-                ),
+                )),
                 recordBinding = null,
                 modifiers = Seq(
                   Modifier.config("record-key", "record-value-1"),
@@ -268,11 +268,11 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Byte].reflect.asTerm("b"),
                   Schema[Int].reflect.asTerm("i")
                 ),
-                typeName = TypeName(
+                typeId = TypeIdCompat.fromTypeName(TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record-2",
                   params = Seq(TypeName.byte, TypeName.int)
-                ),
+                )),
                 recordBinding = null
               )
             )
@@ -308,10 +308,10 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Short].reflect.asTerm("s"),
                   Schema[Long].reflect.asTerm("l")
                 ),
-                typeName = TypeName(
+                typeId = TypeIdCompat.fromTypeName(TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record3"
-                ),
+                )),
                 recordBinding = null
               )
             )
@@ -357,10 +357,10 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema.derived[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
-                typeName = TypeName(
+                typeId = TypeIdCompat.fromTypeName(TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record4"
-                ),
+                )),
                 recordBinding = null
               )
             )
@@ -421,10 +421,10 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Unit].reflect.asTerm("u"),
                   Schema[Seq[Unit]].reflect.asTerm("su")
                 ),
-                typeName = TypeName(
+                typeId = TypeIdCompat.fromTypeName(TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record5"
-                ),
+                )),
                 recordBinding = null
               )
             )
@@ -560,10 +560,10 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Option[DynamicValue]].reflect.asTerm("od"),
                   Schema[IndexedSeq[DynamicValue]].reflect.asTerm("isd")
                 ),
-                typeName = TypeName(
+                typeId = TypeIdCompat.fromTypeName(TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record7"
-                ),
+                )),
                 recordBinding = null
               )
             )
@@ -692,7 +692,7 @@ object SchemaSpec extends ZIOSpecDefault {
           new Schema(
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
-              TypeName(Namespace(Seq("zio")), "Chunk"),
+              TypeIdCompat.fromTypeName(TypeName(Namespace(Seq("zio")), "Chunk")),
               None,
               new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
             )
@@ -1402,7 +1402,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
-          typeName = TypeName.map(TypeName.int, TypeName.long),
+          typeId = TypeIdCompat.fromTypeName(TypeName.map(TypeName.int, TypeName.long)),
           mapBinding = Binding.Map[Map, Int, Long](
             constructor = MapConstructor.map,
             deconstructor = MapDeconstructor.map,
@@ -1543,7 +1543,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred3 = Reflect.int[Binding]
-        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeName.int, Binding.Primitive.int)
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeIdCompat.fromTypeName(TypeName.int), Binding.Primitive.int)
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(Schema(deferred1))(equalTo(Schema(deferred1))) &&
         assert(Schema(deferred1).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
@@ -1567,8 +1567,7 @@ object SchemaSpec extends ZIOSpecDefault {
       test("gets and updates deferred examples") {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
-            PrimitiveType.Int(Validation.Numeric.Positive),
-            TypeName.int,
+            PrimitiveType.Int(Validation.Numeric.Positive), TypeIdCompat.fromTypeName(TypeName.int),
             Binding.Primitive(examples = Seq(1, 2, 3))
           )
         }

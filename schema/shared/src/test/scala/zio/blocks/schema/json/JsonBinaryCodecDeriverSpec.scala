@@ -3124,7 +3124,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Email] = new Schema(
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
-        TypeName(Namespace(Seq("zio", "blocks", "schema", "json"), Seq("JsonBinaryCodecDeriverSpec")), "Email"),
+        TypeIdCompat.fromTypeName(TypeName(Namespace(Seq("zio", "blocks", "schema", "json"), Seq("JsonBinaryCodecDeriverSpec")), "Email")),
         None,
         new Binding.Wrapper(
           {

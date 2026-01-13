@@ -270,7 +270,7 @@ class JsonBinaryCodecDeriver private[json] (
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   ): Lazy[JsonBinaryCodec[A]] =
-    Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)))
+    Lazy(deriveCodec(new Reflect.Primitive(primitiveType, TypeIdCompat.fromTypeName(typeName), binding, doc, modifiers)))
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
@@ -282,7 +282,7 @@ class JsonBinaryCodecDeriver private[json] (
     deriveCodec(
       new Reflect.Record(
         fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
-        typeName,
+        TypeIdCompat.fromTypeName(typeName),
         binding,
         doc,
         modifiers
@@ -300,7 +300,7 @@ class JsonBinaryCodecDeriver private[json] (
     deriveCodec(
       new Reflect.Variant(
         cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
-        typeName,
+        TypeIdCompat.fromTypeName(typeName),
         binding,
         doc,
         modifiers
@@ -316,7 +316,7 @@ class JsonBinaryCodecDeriver private[json] (
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[C[A]]] = Lazy {
     deriveCodec(
-      new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeName, binding, doc, modifiers)
+      new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], TypeIdCompat.fromTypeName(typeName), binding, doc, modifiers)
     )
   }
 
@@ -332,7 +332,7 @@ class JsonBinaryCodecDeriver private[json] (
       new Reflect.Map(
         key.asInstanceOf[Reflect[Binding, K]],
         value.asInstanceOf[Reflect[Binding, V]],
-        typeName,
+        TypeIdCompat.fromTypeName(typeName),
         binding,
         doc,
         modifiers
@@ -345,7 +345,7 @@ class JsonBinaryCodecDeriver private[json] (
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[DynamicValue]] =
-    Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeName.dynamicValue, doc, modifiers)))
+    Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeIdCompat.fromTypeName(TypeName.dynamicValue), doc, modifiers)))
 
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
@@ -358,7 +358,7 @@ class JsonBinaryCodecDeriver private[json] (
     deriveCodec(
       new Reflect.Wrapper(
         wrapped.asInstanceOf[Reflect[Binding, B]],
-        typeName,
+        TypeIdCompat.fromTypeName(typeName),
         wrapperPrimitiveType,
         binding,
         doc,

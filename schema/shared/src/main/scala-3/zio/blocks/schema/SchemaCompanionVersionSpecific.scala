@@ -292,6 +292,121 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     '{ new TypeName[T](new Namespace($packages, $values), $name, $params) }
   }
 
+  private val typeIdCache = new mutable.HashMap[quotes.reflect.TypeRepr, zio.blocks.typeid.TypeId[?]]
+
+  private def typeId[T: Type](tpe: quotes.reflect.TypeRepr): zio.blocks.typeid.TypeId[T] = {
+    import zio.blocks.typeid as tid
+
+    def calculateTypeId(tpe: quotes.reflect.TypeRepr): tid.TypeId[?] = {
+      val typeSymbol = tpe.typeSymbol
+      val name = typeSymbol.name
+
+      // Build owner from symbol hierarchy
+      def buildOwner(sym: Symbol): tid.Owner = {
+        def getOwnerSafe(s: Symbol): Option[Symbol] = {
+          try {
+            val o = s.owner
+            if (o.exists) Some(o) else None
+          } catch {
+            case _: AssertionError => None
+            case _: Exception => None
+          }
+        }
+
+        def loop(s: Symbol, acc: List[tid.Owner.Segment]): List[tid.Owner.Segment] = {
+          if (s == defn.RootClass || s == Symbol.noSymbol) acc
+          else if (!s.exists) acc
+          else {
+            getOwnerSafe(s) match {
+              case Some(owner) =>
+                if (s.flags.is(Flags.Package)) loop(owner, tid.Owner.Segment.Package(s.name) :: acc)
+                else if (s.flags.is(Flags.Module)) {
+                  val moduleName = s.name.stripSuffix("$")
+                  loop(owner, tid.Owner.Segment.Term(moduleName) :: acc)
+                }
+                else loop(owner, tid.Owner.Segment.Type(s.name) :: acc)
+              case None => acc
+            }
+          }
+        }
+        tid.Owner(loop(sym, Nil))
+      }
+
+      val owner = try {
+        val ownerSymbol = try {
+          typeSymbol.owner
+        } catch {
+          case _: AssertionError => Symbol.noSymbol
+          case _: Exception => Symbol.noSymbol
+        }
+        buildOwner(ownerSymbol)
+      } catch {
+        case _: Exception => tid.Owner.Root
+      }
+
+      // Extract type parameters
+      val tpeTypeArgs = typeArgs(tpe)
+      val typeParams = tpeTypeArgs.zipWithIndex.map { case (_, idx) =>
+        tid.TypeParam(s"_$idx", idx)
+      }
+
+      // Determine if it's opaque, alias, or nominal
+      if (isOpaque(tpe)) {
+        // For opaque types, create underlying type representation
+        val underlyingId = tid.TypeId.nominal(name, owner, Nil)
+        tid.TypeId.opaque(name, owner, typeParams, tid.TypeRepr.Ref(underlyingId))
+      } else if (typeSymbol.isAliasType) {
+        // For type aliases, create aliased type representation
+        val aliasedId = tid.TypeId.nominal(name, owner, Nil)
+        tid.TypeId.alias(name, owner, typeParams, tid.TypeRepr.Ref(aliasedId))
+      } else {
+        // Nominal type (class, trait, object)
+        tid.TypeId.nominal(name, owner, typeParams)
+      }
+    }
+
+    typeIdCache
+      .getOrElseUpdate(
+        tpe,
+        calculateTypeId(tpe match {
+          case TypeRef(compTpe, "Type") => compTpe
+          case _                        => tpe
+        })
+      )
+      .asInstanceOf[tid.TypeId[T]]
+  }
+
+  private def typeIdToExpr[T: Type](typeIdValue: zio.blocks.typeid.TypeId[T])(using Quotes): Expr[zio.blocks.typeid.TypeId[T]] = {
+    import zio.blocks.typeid as tid
+
+    val nameExpr = Expr(typeIdValue.name)
+
+    // Build owner expression
+    val ownerSegments = typeIdValue.owner.segments.map {
+      case tid.Owner.Segment.Package(n) => '{ tid.Owner.Segment.Package(${ Expr(n) }) }
+      case tid.Owner.Segment.Term(n) => '{ tid.Owner.Segment.Term(${ Expr(n) }) }
+      case tid.Owner.Segment.Type(n) => '{ tid.Owner.Segment.Type(${ Expr(n) }) }
+    }
+    val ownerExpr = '{ tid.Owner(List(${ Varargs(ownerSegments) }*)) }
+
+    // Build type params expression
+    val typeParamsExprs = typeIdValue.typeParams.map { tp =>
+      '{ tid.TypeParam(${ Expr(tp.name) }, ${ Expr(tp.index) }) }
+    }
+    val typeParamsExpr = '{ List(${ Varargs(typeParamsExprs) }*) }
+
+    // Pattern match on TypeId to determine variant
+    typeIdValue match {
+      case tid.TypeId.Nominal(_, _, _) =>
+        '{ tid.TypeId.nominal[T]($nameExpr, $ownerExpr, $typeParamsExpr) }
+      case tid.TypeId.Alias(_, _, _, _) =>
+        // For now, use nominal since we don't have full TypeRepr encoding in macros yet
+        '{ tid.TypeId.nominal[T]($nameExpr, $ownerExpr, $typeParamsExpr) }
+      case tid.TypeId.Opaque(_, _, _, _) =>
+        '{ tid.TypeId.nominal[T]($nameExpr, $ownerExpr, $typeParamsExpr) }
+    }
+  }
+
   private def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
     if (isEnumValue(tpe)) tpe.termSymbol
     else tpe.typeSymbol
@@ -675,7 +790,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                  typeId = TypeIdCompat.fromTypeName($tpeName),
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArrayConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -724,7 +839,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                  typeId = TypeIdCompat.fromTypeName($tpeName),
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.IArrayConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -773,7 +888,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                  typeId = TypeIdCompat.fromTypeName($tpeName),
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArraySeqConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -872,7 +987,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             new Schema(
               reflect = new Reflect.Record[Binding, tt](
                 fields = Vector($fields*),
-                typeName = $tpeName,
+                typeId = TypeIdCompat.fromTypeName($tpeName),
                 recordBinding = new Binding.Record(
                   constructor = new Constructor[tt] {
                     def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -942,7 +1057,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             new Schema(
               reflect = new Reflect.Record[Binding, T](
                 fields = Vector($fields*),
-                typeName = $tpeName,
+                typeId = TypeIdCompat.fromTypeName($tpeName),
                 recordBinding = new Binding.Record(
                   constructor = new Constructor {
                     def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -992,12 +1107,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   }.asInstanceOf[Expr[Schema[T]]]
 
   private def deriveSchemaForEnumOrModuleValue[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
-    val tpeName = toExpr(typeName(tpe))
+    val tpeName = toExpr(typeName[T](tpe))
     '{
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector.empty,
-          typeName = $tpeName,
+          typeId = TypeIdCompat.fromTypeName($tpeName),
           recordBinding = new Binding.Record(
             constructor = new ConstantConstructor(${
               Ref(
@@ -1017,12 +1132,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private def deriveSchemaForNonAbstractScalaClass[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
     val classInfo = new ClassInfo(tpe)
     val fields    = classInfo.fields(Array.empty[String])
-    val tpeName   = toExpr(typeName(tpe))
+    val tpeName = toExpr(typeName[T](tpe))
     '{
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector($fields*),
-          typeName = $tpeName,
+          typeId = TypeIdCompat.fromTypeName($tpeName),
           recordBinding = new Binding.Record(
             constructor = new Constructor {
               def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }
@@ -1093,12 +1208,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
           }.asInstanceOf[Expr[Matcher[? <: T]]]
       }
     })
-    val tpeName = toExpr(typeName(tpe))
+    val tpeName = toExpr(typeName[T](tpe))
     '{
       new Schema(
         reflect = new Reflect.Variant[Binding, T](
           cases = Vector($cases*),
-          typeName = $tpeName,
+          typeId = TypeIdCompat.fromTypeName($tpeName),
           variantBinding = new Binding.Variant(
             discriminator = new Discriminator {
               def discriminate(a: T): Int = ${

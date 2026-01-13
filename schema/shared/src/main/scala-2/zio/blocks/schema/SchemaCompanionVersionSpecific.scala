@@ -386,7 +386,7 @@ private object SchemaCompanionVersionSpecific {
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
-                typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                typeId = TypeIdCompat.fromTypeName($tpeName),
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArrayConstructor {
                     def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -426,7 +426,7 @@ private object SchemaCompanionVersionSpecific {
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
-                typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                typeId = TypeIdCompat.fromTypeName($tpeName),
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArraySeqConstructor {
                     def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -503,6 +503,8 @@ private object SchemaCompanionVersionSpecific {
       } else if (isZioPreludeNewtype(tpe)) {
         val schema  = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
         val tpeName = toTree(typeName(tpe))
+        // Change the TypeName (which updates TypeId) but keep the same reflect structure
+        // This is crucial for Newtype/Subtype which should maintain the underlying type's binding
         q"new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[$tpe]]"
       } else cannotDeriveSchema(tpe)
 
@@ -511,7 +513,7 @@ private object SchemaCompanionVersionSpecific {
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector.empty,
-              typeName = $tpeName,
+              typeId = TypeIdCompat.fromTypeName($tpeName),
               recordBinding = new Binding.Record(
                 constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
                 deconstructor = new ConstantDeconstructor[$tpe]
@@ -527,7 +529,7 @@ private object SchemaCompanionVersionSpecific {
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
-              typeName = $tpeName,
+              typeId = TypeIdCompat.fromTypeName($tpeName),
               recordBinding = new Binding.Record(
                 constructor = new Constructor[$tpe] {
                   def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
@@ -587,7 +589,7 @@ private object SchemaCompanionVersionSpecific {
       q"""new Schema(
             reflect = new Reflect.Variant[Binding, $tpe](
               cases = _root_.scala.Vector(..$cases),
-              typeName = $tpeName,
+              typeId = TypeIdCompat.fromTypeName($tpeName),
               variantBinding = new Binding.Variant(
                 discriminator = new Discriminator[$tpe] {
                   def discriminate(a: $tpe): Int = a match {
