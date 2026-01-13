@@ -19,20 +19,21 @@ package zio.blocks.chunk
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
 import zio.blocks.chunk.Chunk
+import scala.compiletime.uninitialized
 
 class ChunkMapBenchmark extends BaseBenchmark {
   @Param(Array("1000"))
-  var size: Int = _
+  var size: Int = uninitialized
 
-  var intArray: Array[Int]   = _
-  var intChunk: Chunk[Int]   = _
-  var intVector: Vector[Int] = _
-  var intList: List[Int]     = _
+  var intArray: Array[Int]   = uninitialized
+  var intChunk: Chunk[Int]   = uninitialized
+  var intVector: Vector[Int] = uninitialized
+  var intList: List[Int]     = uninitialized
 
-  var stringArray: Array[String]   = _
-  var stringChunk: Chunk[String]   = _
-  var stringVector: Vector[String] = _
-  var stringList: List[String]     = _
+  var stringArray: Array[String]   = uninitialized
+  var stringChunk: Chunk[String]   = uninitialized
+  var stringVector: Vector[String] = uninitialized
+  var stringList: List[String]     = uninitialized
 
   @Setup(Level.Trial)
   def setup(): Unit = {

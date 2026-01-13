@@ -2,13 +2,14 @@ package zio.blocks.chunk
 
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
+import scala.compiletime.uninitialized
 
 class MixedChunkBenchmark extends BaseBenchmark {
   @Param(Array("1000"))
-  var size: Int = _
+  var size: Int = uninitialized
 
-  var chunk: Chunk[Int]             = _
-  var chunkMaterialized: Chunk[Int] = _
+  var chunk: Chunk[Int]             = uninitialized
+  var chunkMaterialized: Chunk[Int] = uninitialized
 
   @Setup(Level.Trial)
   def setup(): Unit = {

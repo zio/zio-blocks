@@ -19,6 +19,7 @@ package zio.blocks.chunk
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
 import zio.blocks.chunk.Chunk
+import scala.compiletime.uninitialized
 
 class ChunkAppendBenchmark extends BaseBenchmark {
 
@@ -28,7 +29,7 @@ class ChunkAppendBenchmark extends BaseBenchmark {
   val list: List[Int]     = List(1)
 
   @Param(Array("10000"))
-  var size: Int = _
+  var size: Int = uninitialized
 
   @Benchmark
   def chunkAppend(): Chunk[Int] = {

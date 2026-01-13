@@ -19,16 +19,17 @@ package zio.blocks.chunk
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
 import zio.blocks.chunk.Chunk
+import scala.compiletime.uninitialized
 
 class ChunkConcatBenchmark extends BaseBenchmark {
 
   @Param(Array("10000"))
-  var size: Int = _
+  var size: Int = uninitialized
 
-  var chunk0: Chunk[Int]        = _
-  var chunk1: Chunk[Int]        = _
-  var chunk10: Chunk[Int]       = _
-  var chunkHalfSize: Chunk[Int] = _
+  var chunk0: Chunk[Int]        = uninitialized
+  var chunk1: Chunk[Int]        = uninitialized
+  var chunk10: Chunk[Int]       = uninitialized
+  var chunkHalfSize: Chunk[Int] = uninitialized
 
   @Setup
   def setUp(): Unit = {
