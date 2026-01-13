@@ -1,3 +1,5 @@
+package golem.sbt
+
 import sbt.*
 import sbt.Keys.*
 
@@ -6,8 +8,13 @@ import sbt.Keys.*
  *
  * Currently this provides Scala.js agent auto-registration generation, so
  * user-land code never needs to write/maintain a `RegisterAgents` list.
+ *
+ * The plugin scans Scala sources for `@agentImplementation` classes and
+ * generates an exported Scala.js entrypoint (`__golemRegisterAgents`) that
+ * registers them.
  */
 object GolemPlugin extends AutoPlugin {
+
   object autoImport {
     val golemBasePackage: SettingKey[Option[String]] =
       settingKey[Option[String]](
@@ -29,10 +36,8 @@ object GolemPlugin extends AutoPlugin {
           case None =>
             Nil
           case Some(basePackage) =>
-            val log         = streams.value.log
-            val managedRoot = (Compile / sourceManaged).value / "golem" / "generated" / "autoregister"
-            // IMPORTANT: avoid `(Compile / sources)` here, because it includes `managedSources`,
-            // which depend on `sourceGenerators`, which would create an sbt cycle.
+            val log          = streams.value.log
+            val managedRoot  = (Compile / sourceManaged).value / "golem" / "generated" / "autoregister"
             val scalaSources = (Compile / unmanagedSources).value.filter(f => f.getName.endsWith(".scala"))
 
             final case class AgentImpl(pkg: String, implClass: String, traitType: String, ctorTypes: List[String])

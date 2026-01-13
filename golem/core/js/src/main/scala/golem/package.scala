@@ -1,7 +1,6 @@
 package object golem extends GolemPackageBase {
-  // ---------------------------------------------------------------------------
-  // Scala.js runtime registration / autowire (agent host integration)
-  // ---------------------------------------------------------------------------
+
+  /** Register `@agentImplementation` implementations (Scala.js). */
   val AgentImplementation: runtime.autowire.AgentImplementation.type =
     runtime.autowire.AgentImplementation
 

@@ -80,6 +80,7 @@ lazy val root = project
     zioGolemExamples.js,
     zioGolemQuickstart.js,
     zioGolemQuickstart.jvm,
+    zioGolemSbt,
     examples
   )
 
@@ -346,9 +347,9 @@ lazy val zioGolemExamples = crossProject(JSPlatform, JVMPlatform)
 
 lazy val zioGolemExamplesJS = zioGolemExamples.js
   .settings(
-    name                               := "zio-golem-examples-js",
-    scalaJSUseMainModuleInitializer    := false,
-    golemAutoRegisterAgentsBasePackage := Some("golem.examples"),
+    name                            := "zio-golem-examples-js",
+    scalaJSUseMainModuleInitializer := false,
+    golemBasePackage := Some("golem.examples"),
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
     Test / test := {
@@ -384,9 +385,9 @@ lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(
     // For golem-cli wrapper generation, ensure agent registration runs when the JS module is loaded.
     // We do this via a tiny Scala.js `main` (see `golem/quickstart/js/.../Boot.scala`).
-    scalaJSUseMainModuleInitializer    := true,
-    golemAutoRegisterAgentsBasePackage := Some("golem.quickstart"),
-    Compile / mainClass                := Some("golem.quickstart.Boot"),
+    scalaJSUseMainModuleInitializer := true,
+    golemBasePackage := Some("golem.quickstart"),
+    Compile / mainClass             := Some("golem.quickstart.Boot"),
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / test           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
     Test / testOnly       := (Test / test).value,
@@ -399,6 +400,24 @@ lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
 
 lazy val zioGolemQuickstartJS  = zioGolemQuickstart.js
 lazy val zioGolemQuickstartJVM = zioGolemQuickstart.jvm
+
+// ---------------------------------------------------------------------------
+// Tooling plugins (publishable)
+// ---------------------------------------------------------------------------
+
+lazy val zioGolemSbt = project
+  .in(file("golem/sbt"))
+  .enablePlugins(SbtPlugin)
+  .settings(
+    name         := "zio-golem-sbt",
+    organization := "dev.zio",
+    sbtPlugin    := true,
+    // sbt plugins compile against sbt's Scala (2.12)
+    scalaVersion          := "2.12.20",
+    sbtVersion            := "1.12.0",
+    publish / skip        := false,
+    mimaPreviousArtifacts := Set()
+  )
 
 lazy val docs = project
   .in(file("zio-blocks-docs"))
@@ -417,6 +436,7 @@ lazy val docs = project
     Test / skip    := true,
     publish / skip := true
   )
+  .dependsOn(schema.jvm)
   .enablePlugins(WebsitePlugin)
   .settings(
     // The zio-sbt-website plugin adds a dependency on `dev.zio:zio-blocks-schema` using this

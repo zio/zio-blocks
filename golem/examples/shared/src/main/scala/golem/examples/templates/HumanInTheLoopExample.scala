@@ -17,7 +17,7 @@ trait ApprovalWorkflow extends BaseAgent {
   @description("Wait until the approval decision is provided, then return it")
   def awaitOutcome(): Future[String]
 
-  @description("Internal: complete the workflow decision")
+  @description("Complete the workflow decision")
   def complete(decision: String): Future[Boolean]
 }
 

@@ -17,6 +17,9 @@ This project targets a moving toolchain (Scala.js + golem-cli). The compatibilit
 
 ## Notes
 
+- Tooling modules:
+  - sbt plugin: `dev.zio:zio-golem-sbt` (provides `golem.sbt.GolemPlugin`)
+  - Mill plugin: `dev.zio::zio-golem-mill` (provides `golem.mill.GolemAutoRegister`)
 - If `golem-cli` changes invocation semantics again, update your invocation names accordingly (and then adjust any docs/scripts that call `golem`).
 - The examples/scripts default to `--local`; set `GOLEM_CLI_FLAGS="--cloud -p <profile>"` to target cloud.
 

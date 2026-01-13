@@ -4,16 +4,8 @@ import scala.language.experimental.macros
 
 import scala.reflect.macros.blackbox
 
-/**
- * @hidden
- *   Internal registration wiring used by generated code; not part of the user
- *   API.
- */
 // format: off
 private[golem] object AgentImplementation {
-  // ---------------------------------------------------------------------------
-  // Internal hooks used by macro expansions
-  // ---------------------------------------------------------------------------
 
   def registerType[Trait](
     typeName: String,
@@ -60,7 +52,8 @@ private[golem] object AgentImplementation {
    * Registers an agent implementation using constructor input, as defined by
    * `type AgentInput = ...` on the agent trait.
    *
-   * The agent mode is taken from `@agentDefinition(mode = ...)` on the trait, or defaults to Durable.
+   * The agent mode is taken from `@agentDefinition(mode = ...)` on the trait,
+   * or defaults to Durable.
    */
   def register[Trait <: AnyRef { type AgentInput }, Ctor](build: Ctor => Trait): AgentDefinition[Trait] =
     macro AgentImplementationMacroFacade.registerFromAnnotationCtorImpl[Trait, Ctor]
@@ -90,7 +83,6 @@ private[golem] object AgentImplementation {
     macro AgentImplementationMacroFacade.registerFromAnnotationWithModeImpl[Trait]
 }
 
-/** @hidden Internal macro facade; not part of the user API. */
 private[golem] object AgentImplementationMacroFacade {
   private def defaultTypeNameFromTrait(c: blackbox.Context)(sym: c.universe.Symbol): String = {
     val raw = sym.name.decodedName.toString

@@ -3,20 +3,8 @@ package golem.runtime.autowire
 import golem.runtime.macros.AgentImplementationMacro
 import golem.runtime.macros.AgentNameMacro
 
-/**
- * @hidden
- *   Internal registration wiring used by generated code; not part of the user
- *   API.
- */
 private[golem] object AgentImplementation {
 
-  /**
-   * Internal implementation hook used by inline expansions/macros.
-   *
-   * Keeping this indirection means call-site expansions only reference the
-   * public `AgentImplementation`, allowing the underlying runtime
-   * (`AgentImplementationRuntime`) to remain package-private.
-   */
   def registerType[Trait](
     typeName: String,
     mode: AgentMode,

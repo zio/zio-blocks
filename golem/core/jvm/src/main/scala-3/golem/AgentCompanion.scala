@@ -8,11 +8,10 @@ import scala.annotation.unused
 import scala.concurrent.Future
 
 /**
- * JVM version of `AgentCompanion`, used for **repo-local quickstart smoke
- * tests**.
+ * JVM version of `AgentCompanion`.
  *
- * This is not meant to be a long-term public client story; it shells out to
- * `golem-cli`.
+ * This companion provides a typed way to connect to agent instances from the
+ * JVM (primarily useful for local tooling and tests).
  */
 trait AgentCompanion[Trait <: AnyRef] extends AgentCompanionBase[Trait] {
 

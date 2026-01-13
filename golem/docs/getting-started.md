@@ -18,6 +18,13 @@ You’ll create:
 
 ## 1) Create the Scala.js project
 
+First, create a new project directory and enter it:
+
+```bash
+mkdir scala-demo
+cd scala-demo
+```
+
 Create these directories:
 
 ```bash
@@ -25,9 +32,12 @@ mkdir -p scala/project scala/src/main/scala/demo
 mkdir -p app/common-scala-js app/components-js/scala-demo/src app/wasm
 ```
 
+All commands below assume your working directory is the **project root** (the directory that contains `scala/` and `app/`).
+
 Create `scala/project/plugins.sbt`:
 
 ```scala
+addSbtPlugin("dev.zio" % "zio-golem-sbt" % "<SDK_VERSION>")
 addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.20.2")
 ```
 
@@ -35,14 +45,8 @@ addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.20.2")
 
 Scala.js agents must register their `@agentImplementation` classes so Golem can discover them at runtime.
 
-**You should not write any registration code by hand.** Instead, enable the `GolemPlugin` SBT plugin, which generates the
-required exported entrypoint automatically.
-
-Today, `GolemPlugin` is provided as build source in this repo (it is an SBT `AutoPlugin`), so for a brand-new project you
-copy it into your build definition:
-
-- From this repo: `project/GolemPlugin.scala`
-- To your project: `scala/project/GolemPlugin.scala`
+**You should not write any registration code by hand.** Instead, enable the `golem.sbt.GolemPlugin` SBT plugin, which
+generates the required exported entrypoint automatically.
 
 ## 2) Add dependencies + enable plugins
 
@@ -55,7 +59,7 @@ ThisBuild / scalaVersion := "3.3.7"
 
 lazy val root = project
   .in(file("."))
-  .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin, GolemPlugin)
+  .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin, golem.sbt.GolemPlugin)
   .settings(
     scalaJSUseMainModuleInitializer := false,
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
@@ -65,7 +69,7 @@ lazy val root = project
       "dev.zio" %%% "zio-golem-model" % "<SDK_VERSION>",
       "dev.zio" %% "zio-golem-macros" % "<SDK_VERSION>"
     ),
-    golemAutoRegisterAgentsBasePackage := Some("demo")
+    golemBasePackage := Some("demo")
   )
 ```
 
@@ -189,15 +193,23 @@ if [[ -z "$component" ]]; then
 fi
 
 app_dir="$(cd "$(dirname "$0")" && pwd)"
-repo_root="$(cd "$app_dir/../.." && pwd)"
+repo_root="$(cd "$app_dir/.." && pwd)"
 component_dir="$PWD"
 
-( cd "$repo_root/scala" && sbt -batch -no-colors -Dsbt.supershell=false \
+# Support both layouts:
+# - recommended: <root>/scala + <root>/app
+# - older/mistaken: <root>/ (Scala project) + <root>/app (nested)
+scala_dir="$repo_root/scala"
+if [[ ! -f "$scala_dir/build.sbt" ]]; then
+  scala_dir="$repo_root"
+fi
+
+( cd "$scala_dir" && sbt -batch -no-colors -Dsbt.supershell=false \
     "compile" \
     "fastLinkJS" )
 
 bundle="$(
-  find "$repo_root/scala/target" -type f -name 'main.js' -path '*fastopt*' -printf '%T@ %p\n' 2>/dev/null \
+  find "$scala_dir/target" -type f -name 'main.js' -path '*fastopt*' -printf '%T@ %p\n' 2>/dev/null \
     | sort -nr \
     | head -n 1 \
     | cut -d' ' -f2- \
@@ -205,7 +217,7 @@ bundle="$(
 )"
 if [[ -z "$bundle" ]]; then
   bundle="$(
-    find "$repo_root/scala/target" -type f -name 'main.js' -path '*fullopt*' -printf '%T@ %p\n' 2>/dev/null \
+    find "$scala_dir/target" -type f -name 'main.js' -path '*fullopt*' -printf '%T@ %p\n' 2>/dev/null \
       | sort -nr \
       | head -n 1 \
       | cut -d' ' -f2- \
@@ -213,7 +225,7 @@ if [[ -z "$bundle" ]]; then
   )"
 fi
 if [[ -z "$bundle" ]]; then
-  echo "[scala.js] Could not locate Scala.js bundle under $repo_root/scala/target" >&2
+  echo "[scala.js] Could not locate Scala.js bundle under $scala_dir/target" >&2
   exit 1
 fi
 
@@ -231,27 +243,42 @@ chmod +x app/build-scalajs.sh
 
 You need a QuickJS-based guest runtime WASM compatible with your Golem server/CLI WIT surface.
 
-- In this repo, you can copy a known-good one:
+- If you're working inside the **zio-blocks** repo and created `scala-demo/` at the repo root, you can copy a known-good one:
 
 ```bash
-cp -f golem/quickstart/app/wasm/agent_guest.wasm app/wasm/agent_guest.wasm
+cp -f ../golem/quickstart/app/wasm/agent_guest.wasm app/wasm/agent_guest.wasm
 ```
 
 ## 6) Deploy + invoke
 
-From `app/`:
+Build the Scala.js bundle once (optional, but useful to validate your build before running `golem-cli`):
 
 ```bash
+cd scala
+sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS"
+cd ..
+```
+
+Deploy from `app/`:
+
+```bash
+cd app
 env -u ARGV0 golem-cli --local --yes --app-manifest-path "$PWD/golem.yaml" deploy
 ```
 
-Create `repl-counter.rib` in `app/`:
+Create `repl-counter.rib` in `app/`.
 
-```rib
-let c = counter-agent("demo");
+Use a fresh agent id each time you run the script; the default durability mode is **Durable**, so reusing the same id will
+keep incrementing the existing counter.
+
+```bash
+agent_id="demo-$(date +%s)"
+cat > repl-counter.rib <<EOF
+let c = counter-agent("$agent_id");
 let a = c.increment();
 let b = c.increment();
 { a: a, b: b }
+EOF
 ```
 
 Then run it non-interactively (recommended for automation):
@@ -259,4 +286,10 @@ Then run it non-interactively (recommended for automation):
 ```bash
 env -u ARGV0 golem-cli --local --yes --app-manifest-path "$PWD/golem.yaml" \
   repl scala:demo --script-file repl-counter.rib --disable-stream < /dev/null
+```
+
+You can return to the project root with:
+
+```bash
+cd ..
 ```
