@@ -7,22 +7,22 @@ package zio.blocks.schema.json
  * configuration params already initialized by recommended default values, but
  * in some cases they should be altered for performance reasons: <ul>
  * <li>increase preferred size of an internal byte buffer for parsing from
- * [[java.io.InputStream]] or [[java.nio.DirectByteBuffer]] to reduce allocation
- * rate of grown and then reduced buffers during parsing of large (>32Kb)
- * numbers (including stringified), raw values, or ADT instances with the
- * discriminator field doesn't appear at the beginning of the JSON object</li>
- * <li>increase the preferred size of an internal char buffer to reduce the
- * allocation rate of grown and then reduced buffers when large (>4Kb) string
- * instances</li> </ul>
+ * [[java.io.InputStream]] or [[java.nio.ByteBuffer]] to reduce allocation rate
+ * of grown and then reduced buffers during parsing of large (>32Kb) numbers
+ * (including stringified), raw values, or ADT instances with the discriminator
+ * field doesn't appear at the beginning of the JSON object</li> <li>increase
+ * the preferred size of an internal char buffer to reduce the allocation rate
+ * of grown and then reduced buffers when large (>4Kb) string instances</li>
+ * </ul>
  * @param maxBufSize
  *   a max size (in bytes) of an internal byte buffer when parsing from
- *   [[java.io.InputStream]] or [[java.nio.DirectByteBuffer]]
+ *   [[java.io.InputStream]] or [[java.nio.ByteBuffer]]
  * @param maxCharBufSize
  *   a max size (in chars) of an internal char buffer for parsing of string
  *   values
  * @param preferredBufSize
  *   a preferred size (in bytes) of an internal byte buffer when parsing from
- *   [[java.io.InputStream]] or [[java.nio.DirectByteBuffer]]
+ *   [[java.io.InputStream]] or [[java.nio.ByteBuffer]]
  * @param preferredCharBufSize
  *   a preferred size (in chars) of an internal char buffer for parsing of
  *   string values
