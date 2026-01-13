@@ -63,7 +63,7 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(
           patch.dynamicPatch.ops(0).operation match {
             case Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5)) => true
-            case _                                                 => false
+            case _                                                             => false
           }
         )
       },
@@ -75,7 +75,7 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(
           patch.dynamicPatch.ops(0).operation match {
             case Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LongDelta(50L)) => true
-            case _                                                    => false
+            case _                                                                => false
           }
         )
       },
@@ -113,7 +113,7 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(
           patch.dynamicPatch.ops(0).operation match {
             case Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ShortDelta(5)) => true
-            case _                                                   => false
+            case _                                                               => false
           }
         )
       },
@@ -125,7 +125,7 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(
           patch.dynamicPatch.ops(0).operation match {
             case Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ByteDelta(5)) => true
-            case _                                                  => false
+            case _                                                              => false
           }
         )
       },
@@ -163,7 +163,7 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(
           patch.dynamicPatch.ops(0).operation match {
             case Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(-5)) => true
-            case _                                                  => false
+            case _                                                              => false
           }
         )
       }
@@ -220,7 +220,7 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(
           patch.dynamicPatch.ops.head.operation match {
             case Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("xyz"))) => true
-            case _                                                                   => false
+            case _                                                                         => false
           }
         ) &&
         assertTrue(applied == Right("xyz"))
@@ -233,7 +233,7 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(
           patch.dynamicPatch.ops.head.operation match {
             case Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("hello"))) => true
-            case _                                                                     => false
+            case _                                                                           => false
           }
         ) &&
         assertTrue(applied == Right("hello"))
@@ -246,7 +246,7 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(
           patch.dynamicPatch.ops.head.operation match {
             case Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String(""))) => true
-            case _                                                                => false
+            case _                                                                      => false
           }
         ) &&
         assertTrue(applied == Right(""))
@@ -371,7 +371,7 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(
           patch.dynamicPatch.ops(0).path match {
             case Vector(DynamicOptic.Node.Field("age")) => true
-            case _                              => false
+            case _                                      => false
           }
         )
       },
@@ -402,7 +402,7 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(
           patch.dynamicPatch.ops(0).path match {
             case Vector(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("street")) => true
-            case _                                                             => false
+            case _                                                                             => false
           }
         )
       },
@@ -507,7 +507,7 @@ object DiffSpec extends ZIOSpecDefault {
             case Some(op) =>
               op.operation match {
                 case Patch.Operation.SequenceEdit(ops) => ops == expectedOps
-                case _                           => false
+                case _                                 => false
               }
             case None => false
           }
@@ -641,7 +641,7 @@ object DiffSpec extends ZIOSpecDefault {
               op.path.isEmpty &&
               (op.operation match {
                 case Patch.Operation.Set(DynamicValue.Variant("Inactive", _)) => true
-                case _                                                  => false
+                case _                                                        => false
               })
             case None => false
           }
@@ -793,7 +793,7 @@ object DiffSpec extends ZIOSpecDefault {
           case Some(op) =>
             op.operation match {
               case Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Double(42.0))) => true
-              case _                                                                  => false
+              case _                                                                        => false
             }
           case None => false
         }

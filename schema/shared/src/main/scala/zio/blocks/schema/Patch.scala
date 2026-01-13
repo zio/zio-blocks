@@ -7,11 +7,12 @@ import zio.blocks.schema.binding.Binding
  *
  * Patches represent a sequence of operations (set, increment, append, etc.)
  * that transform values. Because patches use serializable operations and
- * reflective optics for navigation, they can be serialized and applied remotely.
+ * reflective optics for navigation, they can be serialized and applied
+ * remotely.
  *
  * Patches can be composed using `++` and applied using the `apply` method with
- * a [[PatchMode]] (Strict, Lenient, or Clobber) to control error handling behavior.
- * Empty patches act as identity (no-op).
+ * a [[PatchMode]] (Strict, Lenient, or Clobber) to control error handling
+ * behavior. Empty patches act as identity (no-op).
  *
  * {{{
  * val patch1 = Patch.set(Person.name, "John")
@@ -22,8 +23,10 @@ import zio.blocks.schema.binding.Binding
  * patch3(Person("Jane", 25)) // Person("John", 26)
  * }}}
  *
- * @param dynamicPatch The untyped patch operations
- * @param schema The schema for type S, enabling type-safe conversion
+ * @param dynamicPatch
+ *   The untyped patch operations
+ * @param schema
+ *   The schema for type S, enabling type-safe conversion
  */
 final case class Patch[S] private[schema] (dynamicPatch: DynamicPatch, schema: Schema[S]) {
 
@@ -292,7 +295,9 @@ object Patch {
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
-  /** Modifies an element at a specific index in a sequence using a nested patch. */
+  /**
+   * Modifies an element at a specific index in a sequence using a nested patch.
+   */
   def modifyAt[S, A](optic: Optic[S, Vector[A]], index: Int, elementPatch: Patch[A])(implicit
     d: CollectionDummy.ForVector.type
   ): Patch[S] = {
@@ -537,7 +542,8 @@ object Patch {
   ): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic.nodes.toVector
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateTimeDelta(period, duration)))
+    val op      =
+      Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateTimeDelta(period, duration)))
     Patch(DynamicPatch(Vector(op)), schemaS)
   }
 
@@ -594,7 +600,6 @@ object Patch {
   // Dummy implicit ladder for Collection-related operations.
   // Disambiguates overloads: append/insertAt/deleteAt/modifyAt for different collection types.
   // Note that there are no tests for LazyList, schema.derived on LazyList leads to malformed tree.
-
   sealed abstract class CollectionDummy
   object CollectionDummy {
     implicit object ForVector     extends CollectionDummy
@@ -604,32 +609,42 @@ object Patch {
     implicit object ForLazyList   extends CollectionDummy
   }
 
-  // ========== Internal Patch Operation Types ==========
-  // These types are implementation details and should not be used directly by users.
-  // They are nested inside the Patch companion object to avoid namespace pollution.
+  // Internal patch operation types
 
   /** A single patch operation paired with the path to apply it at. */
   final case class DynamicPatchOp(path: Vector[DynamicOptic.Node], operation: Operation)
 
-  /** The top-level operation type for patches. Each operation describes a change to be applied to a DynamicValue. */
+  // Top-level operation type for patches, each operation describes a change to be applied to a DynamicValue.
   sealed trait Operation
 
   object Operation {
 
-    /** Set a value directly (clobber semantics). Replaces the target value entirely. */
+    /**
+     * Set a value directly (clobber semantics). Replaces the target value
+     * entirely.
+     */
     final case class Set(value: DynamicValue) extends Operation
 
-    /** Apply a primitive delta operation. Used for numeric increments, string edits, temporal adjustments, etc. */
+    /**
+     * Apply a primitive delta operation. Used for numeric increments, string
+     * edits, temporal adjustments, etc.
+     */
     final case class PrimitiveDelta(op: PrimitiveOp) extends Operation
 
-    /** Apply sequence edit operations. Used for inserting, appending, deleting, or modifying sequence elements. */
+    /**
+     * Apply sequence edit operations. Used for inserting, appending, deleting,
+     * or modifying sequence elements.
+     */
     final case class SequenceEdit(ops: Vector[SeqOp]) extends Operation
 
-    /** Apply map edit operations. Used for adding, removing, or modifying map entries. */
+    /**
+     * Apply map edit operations. Used for adding, removing, or modifying map
+     * entries.
+     */
     final case class MapEdit(ops: Vector[MapOp]) extends Operation
   }
 
-  /** Primitive delta operations for numeric types, strings, and temporal types. */
+  // Primitive delta operations for numeric types, strings, and temporal types.
   sealed trait PrimitiveOp
 
   object PrimitiveOp {
@@ -699,7 +714,9 @@ object Patch {
     /** Append text to the end of the string. */
     final case class Append(text: String) extends StringOp
 
-    /** Modify (replace) characters starting at the given index with new text. */
+    /**
+     * Modify (replace) characters starting at the given index with new text.
+     */
     final case class Modify(index: Int, length: Int, text: String) extends StringOp
   }
 

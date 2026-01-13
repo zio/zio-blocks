@@ -1,9 +1,7 @@
-package zio.blocks.schema.patch
-
-import zio.blocks.schema.{DynamicPatch, DynamicValue, PrimitiveValue, DynamicOptic, Patch}
+package zio.blocks.schema
 
 //Differ computes minimal patches between two DynamicValues.
-object Differ {
+private[schema] object Differ {
 
   // Compute the diff between two DynamicValues. Returns a DynamicPatch that
   // transforms oldValue into newValue.

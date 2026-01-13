@@ -156,14 +156,21 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val result = patch(original)
         assertTrue(result == Right(stringVal("aXb")))
       },
-      test("applies IntDelta to Record field") {
-        val original = personRecord("Alice", 30)
+      test("applies StringEdit Append") {
+        val original = stringVal("Hello")
         val patch    = DynamicPatch(
-          Vector(DynamicOptic.Node.Field("age")),
-          Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(1))
+          Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Append(" Golem"))))
         )
         val result = patch(original)
-        assertTrue(result == Right(personRecord("Alice", 31)))
+        assertTrue(result == Right(stringVal("Hello Golem")))
+      },
+      test("applies StringEdit Modify") {
+        val original = stringVal("Hello World")
+        val patch    = DynamicPatch(
+          Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Modify(6, 5, "everyone"))))
+        )
+        val result = patch(original)
+        assertTrue(result == Right(stringVal("Hello everyone")))
       },
       test("fails on type mismatch") {
         val original = intVal(42)
@@ -303,7 +310,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val patch    = DynamicPatch(
           Patch.Operation.MapEdit(
             Vector(
-              Patch.MapOp.Modify(stringVal("count"), DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))))
+              Patch.MapOp
+                .Modify(stringVal("count"), DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))))
             )
           )
         )

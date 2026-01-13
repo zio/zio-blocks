@@ -79,7 +79,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def diff(oldValue: A, newValue: A): Patch[A] = {
     val oldDynamic   = toDynamicValue(oldValue)
     val newDynamic   = toDynamicValue(newValue)
-    val dynamicPatch = zio.blocks.schema.patch.Differ.diff(oldDynamic, newDynamic)
+    val dynamicPatch = oldDynamic.diff(newDynamic)
     Patch(dynamicPatch, this)
   }
 

@@ -1,8 +1,9 @@
 package zio.blocks.schema
 
 // Schema instances for patch types.
-// Note: In Scala 2, Schema.derived macro calls cannot be used in the same compilation run
-// as the type definitions, so these schemas are defined in a separate scala-2 source directory.
+// Note: Schema.derived macro calls cannot be used in the same compilation run
+// as the type definitions, so these schemas are defined in the test folder which
+// compiles after the main code.
 
 object PatchSchemas {
 

@@ -1461,7 +1461,8 @@ class JsonBinaryCodecDeriver private[json] (
                   val v =
                     try valueCodec.decodeValue(in, valueCodec.nullValue)
                     catch {
-                      case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), error)
+                      case error if NonFatal(error) =>
+                        in.decodeError(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), error)
                     }
                   constructor.addObject(builder, k, v)
                   in.isNextToken(',')

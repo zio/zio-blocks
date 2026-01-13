@@ -13,10 +13,6 @@ sealed trait DynamicValue {
 
   final def <=(that: DynamicValue): Boolean = compare(that) <= 0
 
-  /**
-   * Compute the difference between this value and another value.
-   * Returns a DynamicPatch that transforms this value into the target value.
-   */
   def diff(that: DynamicValue): DynamicPatch = DynamicValue.diff(this, that)
 }
 
@@ -181,9 +177,9 @@ object DynamicValue {
   }
 
   /**
-   * Compute the difference between two DynamicValues.
-   * Returns a DynamicPatch that transforms oldValue into newValue.
+   * Compute the difference between two DynamicValues. Returns a DynamicPatch
+   * that transforms oldValue into newValue.
    */
   def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
-    patch.Differ.diff(oldValue, newValue)
+    Differ.diff(oldValue, newValue)
 }

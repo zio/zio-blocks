@@ -5,15 +5,7 @@ import zio.blocks.schema.json.JsonTestUtils._
 import zio.blocks.schema.PatchSchemas._
 import zio.test._
 
-/**
- * Tests for the new DynamicOptic.Node types added in Phase 2:
- *   - DynamicOptic.Node.Case for variant/prism navigation
- *   - DynamicOptic.Node.Elements for traversal over sequences
- *   - DynamicOptic.Node.Wrapped for newtype wrappers
- *
- * These tests operate at the DynamicPatch level to verify the underlying
- * navigation logic works correctly.
- */
+// Tests for the new DynamicOptic.Node of elements, wrapped, and case types.
 object DynamicOpticNodeExtensionsSpec extends ZIOSpecDefault {
 
   // Helper to create DynamicValue representations
@@ -191,7 +183,8 @@ object DynamicOpticNodeExtensionsSpec extends ZIOSpecDefault {
         }
       },
       test("navigates through record to sequence elements") {
-        val path  = Vector(DynamicOptic.Node.Field("members"), DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
+        val path =
+          Vector(DynamicOptic.Node.Field("members"), DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
         val op    = Patch.DynamicPatchOp(path, Patch.Operation.Set(stringPrimitive("Anonymous")))
         val patch = DynamicPatch(Vector(op))
 
@@ -374,7 +367,7 @@ object DynamicOpticNodeExtensionsSpec extends ZIOSpecDefault {
         )
 
         val path = Vector(
-        DynamicOptic.Node.Field("animals"),
+          DynamicOptic.Node.Field("animals"),
           DynamicOptic.Node.Elements,
           DynamicOptic.Node.Case("Dog"),
           DynamicOptic.Node.Field("name")

@@ -1129,7 +1129,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Wrapper.r1.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped)))) &&
         assert(Wrapper.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped, Field("b"))))) &&
         assert(Case5.aas.toDynamic)(equalTo(DynamicOptic(Vector(Field("as"), AtIndex(1))))) &&
-        assert(Case6.akmil.toDynamic)(equalTo(DynamicOptic(Vector(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))))) &&
+        assert(Case6.akmil.toDynamic)(
+          equalTo(DynamicOptic(Vector(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))))
+        ) &&
         assert(Variant1.c1_d.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case1"), Field("d"))))) &&
         assert(Variant1.c2_r3.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"))))) &&
         assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1")))))

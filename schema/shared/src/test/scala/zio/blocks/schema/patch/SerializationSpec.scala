@@ -98,7 +98,9 @@ object SerializationSpec extends ZIOSpecDefault {
       test("DynamicPatchOp with SequenceEdit") {
         val op = Patch.DynamicPatchOp(
           Vector(DynamicOptic.Node.Field("tags")),
-          Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.String("new"))))))
+          Patch.Operation.SequenceEdit(
+            Vector(Patch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.String("new")))))
+          )
         )
         roundTrip(
           op,
@@ -265,8 +267,14 @@ object SerializationSpec extends ZIOSpecDefault {
             Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LongDelta(2L))),
             Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DoubleDelta(3.14))),
             Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.FloatDelta(2.71f))),
-            Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigIntDelta(BigInt(1000)))),
-            Patch.DynamicPatchOp(Vector.empty, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigDecimalDelta(BigDecimal("123.456"))))
+            Patch.DynamicPatchOp(
+              Vector.empty,
+              Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigIntDelta(BigInt(1000)))
+            ),
+            Patch.DynamicPatchOp(
+              Vector.empty,
+              Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigDecimalDelta(BigDecimal("123.456")))
+            )
           )
         )
 
