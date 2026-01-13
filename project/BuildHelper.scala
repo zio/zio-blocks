@@ -101,7 +101,8 @@ object BuildHelper {
           "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent", // workaround for `@deprecated("reasons") case class C() derives Schema`
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
-          "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s"
+          "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
+          "-Werror"
         )
       case _ =>
         Seq(
@@ -109,7 +110,8 @@ object BuildHelper {
           "11",
           "-language:existentials",
           "-opt:l:method",
-          "-Ywarn-unused"
+          "-Ywarn-unused",
+          "-Xfatal-warnings"
         )
     }),
     versionScheme := Some("early-semver"),

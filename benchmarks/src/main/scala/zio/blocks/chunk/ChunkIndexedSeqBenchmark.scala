@@ -3,15 +3,16 @@ package zio.blocks.chunk
 import org.openjdk.jmh.annotations._
 import org.openjdk.jmh.infra.Blackhole
 import zio.blocks.BaseBenchmark
+import scala.compiletime.uninitialized
 
 class ChunkIndexedSeqBenchmark extends BaseBenchmark {
   @Param(Array("1000"))
-  var size: Int = _
+  var size: Int = uninitialized
 
-  var chunk: Chunk[Int]                    = _
-  var zipped: Chunk[(Int, Int)]            = _
-  var tripleZipped: Chunk[(Int, Int, Int)] = _
-  var transposable: Chunk[Chunk[Int]]      = _
+  var chunk: Chunk[Int]                    = uninitialized
+  var zipped: Chunk[(Int, Int)]            = uninitialized
+  var tripleZipped: Chunk[(Int, Int, Int)] = uninitialized
+  var transposable: Chunk[Chunk[Int]]      = uninitialized
 
   @Setup(Level.Trial)
   def setup(): Unit = {

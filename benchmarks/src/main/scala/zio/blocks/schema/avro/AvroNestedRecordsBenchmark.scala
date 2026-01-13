@@ -4,15 +4,16 @@ import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
 import zio.blocks.schema.{Schema, SchemaError}
 import zio.blocks.schema.avro.{AvroBinaryCodec, AvroFormat}
+import scala.compiletime.uninitialized
 
 class AvroNestedRecordsBenchmark extends BaseBenchmark {
   import AvroNestedRecordsBenchmark._
 
   @Param(Array("1", "10", "100"))
   var size: Int                         = 100
-  var nestedRecords: Nested             = _
-  var encodedNestedRecords: Array[Byte] = _
-  var brokenNestedRecords: Array[Byte]  = _
+  var nestedRecords: Nested             = uninitialized
+  var encodedNestedRecords: Array[Byte] = uninitialized
+  var brokenNestedRecords: Array[Byte]  = uninitialized
 
   @Setup
   def setup(): Unit = {
