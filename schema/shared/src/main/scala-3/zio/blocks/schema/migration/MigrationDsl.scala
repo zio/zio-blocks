@@ -9,7 +9,7 @@ import scala.quoted.*
 import zio.blocks.schema.migration.MigrationAction.*
 
 /** Typed DSL that compiles to PURE DynamicMigration data (Vector[MigrationAction]). */
-object MigrationBuilder {
+object MigrationDsl {
 
   /** Builder used only during macro-expanded program construction. */
   final class MigrationBuilder[A] private[migration] (
