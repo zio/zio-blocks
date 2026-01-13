@@ -349,7 +349,7 @@ lazy val zioGolemExamplesJS = zioGolemExamples.js
   .settings(
     name                            := "zio-golem-examples-js",
     scalaJSUseMainModuleInitializer := false,
-    golemBasePackage := Some("golem.examples"),
+    golemBasePackage                := Some("golem.examples"),
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
     Test / test := {
@@ -386,7 +386,7 @@ lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
     // For golem-cli wrapper generation, ensure agent registration runs when the JS module is loaded.
     // We do this via a tiny Scala.js `main` (see `golem/quickstart/js/.../Boot.scala`).
     scalaJSUseMainModuleInitializer := true,
-    golemBasePackage := Some("golem.quickstart"),
+    golemBasePackage                := Some("golem.quickstart"),
     Compile / mainClass             := Some("golem.quickstart.Boot"),
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / test           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
