@@ -1,4 +1,4 @@
-package zio.blocks.schema
+package zio.blocks.schema.patch
 
 sealed trait PatchMode
 

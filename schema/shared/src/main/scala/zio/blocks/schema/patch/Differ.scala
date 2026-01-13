@@ -1,4 +1,6 @@
-package zio.blocks.schema
+package zio.blocks.schema.patch
+
+import zio.blocks.schema._
 
 //Differ computes minimal patches between two DynamicValues.
 private[schema] object Differ {

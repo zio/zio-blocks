@@ -1,5 +1,6 @@
-package zio.blocks.schema
+package zio.blocks.schema.patch
 
+import zio.blocks.schema._
 import zio.blocks.schema.binding.Binding
 
 /**

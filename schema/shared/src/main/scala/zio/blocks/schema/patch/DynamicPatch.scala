@@ -1,4 +1,6 @@
-package zio.blocks.schema
+package zio.blocks.schema.patch
+
+import zio.blocks.schema._
 
 // An untyped patch that operates on DynamicValue. Patches are serializable and can be composed.
 final case class DynamicPatch(ops: Vector[Patch.DynamicPatchOp]) {

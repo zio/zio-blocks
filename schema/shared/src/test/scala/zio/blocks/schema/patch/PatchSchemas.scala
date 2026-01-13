@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.patch.{Patch, DynamicPatch, PatchMode}
+
 // Schema instances for patch types.
 // Note: Schema.derived macro calls cannot be used in the same compilation run
 // as the type definitions, so these schemas are defined in the test folder which

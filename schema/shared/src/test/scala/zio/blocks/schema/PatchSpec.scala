@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.patch.{Patch, PatchMode}
 import zio.test._
 import zio.test.Assertion._
 import java.time.YearMonth

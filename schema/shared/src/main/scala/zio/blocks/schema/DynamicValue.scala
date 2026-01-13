@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.patch.{DynamicPatch, Differ}
+
 sealed trait DynamicValue {
   def typeIndex: Int
 
