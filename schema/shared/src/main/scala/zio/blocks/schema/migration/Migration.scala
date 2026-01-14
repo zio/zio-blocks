@@ -33,7 +33,7 @@ final class Migration[A, B] private (
 
       dynA = sourceSchema.toDynamicValue(aStruct)
 
-      dynB <- DynamicMigrationInterpreter(program, dynA, sourceSchema, targetSchema)
+      dynB <- DynamicMigrationInterpreter(program, dynA)
 
       bStruct <- targetSchema
         .fromDynamicValue(dynB)

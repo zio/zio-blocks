@@ -14,14 +14,16 @@ final case class DynamicMigration(actions: Vector[MigrationAction])
   def reverse: DynamicMigration =
     DynamicMigration(actions.reverse.map(_.reverse))
 
-  def apply(value: zio.blocks.schema.DynamicValue): Either[MigrationError, zio.blocks.schema.DynamicValue] =
+  def apply(
+      value: zio.blocks.schema.DynamicValue
+  ): Either[MigrationError, zio.blocks.schema.DynamicValue] =
     DynamicMigrationInterpreter(this, value)
-  
+
 }
 
 object DynamicMigration {
   val empty: DynamicMigration = DynamicMigration(Vector.empty)
-  val id: DynamicMigration    = empty
+  val id: DynamicMigration = empty
 
   def apply(actions: MigrationAction*): DynamicMigration =
     DynamicMigration(Vector.from(actions))
@@ -55,10 +57,9 @@ object MigrationAction {
       AddField(at = at, default = defaultForReverse)
   }
 
-  /**
-   * Rename the field at `at` to `to`.
-   * `at` must point to the field being renamed (ends in .field("old")).
-   */
+  /** Rename the field at `at` to `to`. `at` must point to the field being
+    * renamed (ends in .field("old")).
+    */
   final case class Rename(
       at: DynamicOptic,
       to: String
@@ -68,8 +69,8 @@ object MigrationAction {
       at.nodes.lastOption match {
         case Some(DynamicOptic.Node.Field(oldName)) =>
           val parentNodes = at.nodes.toVector.dropRight(1)
-          val parent      = MigrationDsl.RuntimeOptic.rebuildFromNodes(parentNodes)
-          val newAt        = parent.field(to)
+          val parent = DynamicOptic(parentNodes)
+          val newAt = parent.field(to)
           Rename(at = newAt, to = oldName)
 
         case _ =>

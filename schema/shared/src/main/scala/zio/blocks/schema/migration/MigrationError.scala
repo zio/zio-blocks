@@ -36,4 +36,10 @@ object MigrationError {
     override def message: String = s"SchemaExpr optic check failed: $check"
   }
 
+  final case class ExpectedRecord(path: DynamicOptic, got: Any)
+      extends MigrationError {
+    val message: String =
+      s"Expected record at $path, got: ${got.getClass.getSimpleName}"
+  }
+
 }
