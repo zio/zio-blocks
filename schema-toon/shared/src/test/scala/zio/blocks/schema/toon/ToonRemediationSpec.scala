@@ -87,7 +87,7 @@ object ToonRemediationSpec extends ZIOSpecDefault {
     suite("DynamicValue")(
       test("round-trips primitive values") {
         val codec               = Schema[DynamicValue].derive(ToonFormat.deriver)
-        val value: DynamicValue = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val value: DynamicValue = DynamicValue.Primitive(PrimitiveValue.Long(42L))
         val encoded             = encode(codec, value)
         val decoded             = decode(codec, encoded)
         assertTrue(decoded == Right(value))
@@ -96,8 +96,8 @@ object ToonRemediationSpec extends ZIOSpecDefault {
         val codec = Schema[DynamicValue].derive(ToonFormat.deriver)
         val value = DynamicValue.Sequence(
           Vector(
-            DynamicValue.Primitive(PrimitiveValue.Int(1)),
-            DynamicValue.Primitive(PrimitiveValue.Int(2))
+            DynamicValue.Primitive(PrimitiveValue.Long(1L)),
+            DynamicValue.Primitive(PrimitiveValue.Long(2L))
           )
         )
         val encoded = encode(codec, value)
@@ -127,8 +127,8 @@ object ToonRemediationSpec extends ZIOSpecDefault {
 
         val dyn = DynamicValue.Record(
           Vector(
-            "x" -> DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Int(1)),
-            "y" -> DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Int(2))
+            "x" -> DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Long(1L)),
+            "y" -> DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Long(2L))
           )
         )
         assertTrue(roundTrip(codec, dyn) == Right(dyn))

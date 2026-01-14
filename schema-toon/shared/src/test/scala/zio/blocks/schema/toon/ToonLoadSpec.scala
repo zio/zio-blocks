@@ -28,7 +28,7 @@ object ToonLoadSpec extends ZIOSpecDefault {
     test("handle deep nesting (100 levels)") {
       // Use DynamicValue to avoid recursive schema definition overhead in tests
       def createNested(levels: Int): DynamicValue =
-        if (levels <= 0) DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Int(1))
+        if (levels <= 0) DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Long(1L))
         else DynamicValue.Record(Vector("inner" -> createNested(levels - 1)))
       val nested = createNested(100)
       val result = roundTrip(Schema.dynamic, nested)
