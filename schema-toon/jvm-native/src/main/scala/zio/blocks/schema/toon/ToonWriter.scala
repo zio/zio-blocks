@@ -332,155 +332,136 @@ final class ToonWriter private[toon] (
   /**
    * Writes a string value with proper quoting if needed.
    */
-  def writeVal(x: String): Unit = {
+  def writeVal(x: String): Unit =
     if (x eq null) writeNull()
     else if (needsValueQuoting(x)) writeQuotedString(x)
     else writeRawString(x)
-  }
 
   /**
    * Writes a BigInt value.
    */
-  def writeVal(x: BigInt): Unit = {
+  def writeVal(x: BigInt): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes a BigDecimal value in canonical form (no exponent).
    */
-  def writeVal(x: BigDecimal): Unit = {
+  def writeVal(x: BigDecimal): Unit =
     if (x eq null) writeNull()
     else writeCanonicalDecimal(x)
-  }
 
   /**
    * Writes a Duration value.
    */
-  def writeVal(x: Duration): Unit = {
+  def writeVal(x: Duration): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes an Instant value.
    */
-  def writeVal(x: Instant): Unit = {
+  def writeVal(x: Instant): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes a LocalDate value.
    */
-  def writeVal(x: LocalDate): Unit = {
+  def writeVal(x: LocalDate): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes a LocalDateTime value.
    */
-  def writeVal(x: LocalDateTime): Unit = {
+  def writeVal(x: LocalDateTime): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes a LocalTime value.
    */
-  def writeVal(x: LocalTime): Unit = {
+  def writeVal(x: LocalTime): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes a MonthDay value.
    */
-  def writeVal(x: MonthDay): Unit = {
+  def writeVal(x: MonthDay): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes an OffsetDateTime value.
    */
-  def writeVal(x: OffsetDateTime): Unit = {
+  def writeVal(x: OffsetDateTime): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes an OffsetTime value.
    */
-  def writeVal(x: OffsetTime): Unit = {
+  def writeVal(x: OffsetTime): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes a Period value.
    */
-  def writeVal(x: Period): Unit = {
+  def writeVal(x: Period): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes a Year value.
    */
-  def writeVal(x: Year): Unit = {
+  def writeVal(x: Year): Unit =
     if (x eq null) writeNull()
     else writeInt(x.getValue)
-  }
 
   /**
    * Writes a YearMonth value.
    */
-  def writeVal(x: YearMonth): Unit = {
+  def writeVal(x: YearMonth): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes a ZoneId value.
    */
-  def writeVal(x: ZoneId): Unit = {
+  def writeVal(x: ZoneId): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.getId)
-  }
 
   /**
    * Writes a ZoneOffset value.
    */
-  def writeVal(x: ZoneOffset): Unit = {
+  def writeVal(x: ZoneOffset): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.getId)
-  }
 
   /**
    * Writes a ZonedDateTime value.
    */
-  def writeVal(x: ZonedDateTime): Unit = {
+  def writeVal(x: ZonedDateTime): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes a UUID value.
    */
-  def writeVal(x: UUID): Unit = {
+  def writeVal(x: UUID): Unit =
     if (x eq null) writeNull()
     else writeRawString(x.toString)
-  }
 
   /**
    * Writes a non-escaped ASCII value (for enum names, etc).
    */
-  def writeNonEscapedAsciiVal(x: String): Unit = {
+  def writeNonEscapedAsciiVal(x: String): Unit =
     if (needsValueQuoting(x)) writeQuotedString(x)
     else writeRawString(x)
-  }
 
   /**
    * Writes a non-escaped ASCII key.
@@ -504,9 +485,8 @@ final class ToonWriter private[toon] (
   /**
    * Ends writing an object.
    */
-  def writeObjectEnd(): Unit = {
+  def writeObjectEnd(): Unit =
     depth -= 1
-  }
 
   /**
    * Starts writing an array with the given size.
@@ -519,7 +499,7 @@ final class ToonWriter private[toon] (
     writeInt(size)
     if (delim.headerMarker.nonEmpty) {
       val marker = delim.headerMarker
-      var i = 0
+      var i      = 0
       while (i < marker.length) {
         buf(count) = marker.charAt(i).toByte
         count += 1
@@ -570,36 +550,36 @@ final class ToonWriter private[toon] (
   def writeDynamicValue(x: DynamicValue): Unit = x match {
     case DynamicValue.Primitive(value) =>
       value match {
-        case PrimitiveValue.Unit         => writeNull()
-        case v: PrimitiveValue.Boolean   => writeVal(v.value)
-        case v: PrimitiveValue.Byte      => writeVal(v.value)
-        case v: PrimitiveValue.Short     => writeVal(v.value)
-        case v: PrimitiveValue.Int       => writeVal(v.value)
-        case v: PrimitiveValue.Long      => writeVal(v.value)
-        case v: PrimitiveValue.Float     => writeVal(v.value)
-        case v: PrimitiveValue.Double    => writeVal(v.value)
-        case v: PrimitiveValue.Char      => writeVal(v.value)
-        case v: PrimitiveValue.String    => writeVal(v.value)
-        case v: PrimitiveValue.BigInt    => writeVal(v.value)
-        case v: PrimitiveValue.BigDecimal => writeVal(v.value)
-        case v: PrimitiveValue.Duration  => writeVal(v.value)
-        case v: PrimitiveValue.Instant   => writeVal(v.value)
-        case v: PrimitiveValue.LocalDate => writeVal(v.value)
-        case v: PrimitiveValue.LocalDateTime => writeVal(v.value)
-        case v: PrimitiveValue.LocalTime => writeVal(v.value)
-        case v: PrimitiveValue.MonthDay  => writeVal(v.value)
+        case PrimitiveValue.Unit              => writeNull()
+        case v: PrimitiveValue.Boolean        => writeVal(v.value)
+        case v: PrimitiveValue.Byte           => writeVal(v.value)
+        case v: PrimitiveValue.Short          => writeVal(v.value)
+        case v: PrimitiveValue.Int            => writeVal(v.value)
+        case v: PrimitiveValue.Long           => writeVal(v.value)
+        case v: PrimitiveValue.Float          => writeVal(v.value)
+        case v: PrimitiveValue.Double         => writeVal(v.value)
+        case v: PrimitiveValue.Char           => writeVal(v.value)
+        case v: PrimitiveValue.String         => writeVal(v.value)
+        case v: PrimitiveValue.BigInt         => writeVal(v.value)
+        case v: PrimitiveValue.BigDecimal     => writeVal(v.value)
+        case v: PrimitiveValue.Duration       => writeVal(v.value)
+        case v: PrimitiveValue.Instant        => writeVal(v.value)
+        case v: PrimitiveValue.LocalDate      => writeVal(v.value)
+        case v: PrimitiveValue.LocalDateTime  => writeVal(v.value)
+        case v: PrimitiveValue.LocalTime      => writeVal(v.value)
+        case v: PrimitiveValue.MonthDay       => writeVal(v.value)
         case v: PrimitiveValue.OffsetDateTime => writeVal(v.value)
-        case v: PrimitiveValue.OffsetTime => writeVal(v.value)
-        case v: PrimitiveValue.Period    => writeVal(v.value)
-        case v: PrimitiveValue.Year      => writeVal(v.value)
-        case v: PrimitiveValue.YearMonth => writeVal(v.value)
-        case v: PrimitiveValue.ZoneId    => writeVal(v.value)
-        case v: PrimitiveValue.ZoneOffset => writeVal(v.value)
-        case v: PrimitiveValue.ZonedDateTime => writeVal(v.value)
-        case v: PrimitiveValue.Currency  => writeNonEscapedAsciiVal(v.value.getCurrencyCode)
-        case v: PrimitiveValue.UUID      => writeVal(v.value)
-        case v: PrimitiveValue.DayOfWeek => writeNonEscapedAsciiVal(v.value.toString)
-        case v: PrimitiveValue.Month     => writeNonEscapedAsciiVal(v.value.toString)
+        case v: PrimitiveValue.OffsetTime     => writeVal(v.value)
+        case v: PrimitiveValue.Period         => writeVal(v.value)
+        case v: PrimitiveValue.Year           => writeVal(v.value)
+        case v: PrimitiveValue.YearMonth      => writeVal(v.value)
+        case v: PrimitiveValue.ZoneId         => writeVal(v.value)
+        case v: PrimitiveValue.ZoneOffset     => writeVal(v.value)
+        case v: PrimitiveValue.ZonedDateTime  => writeVal(v.value)
+        case v: PrimitiveValue.Currency       => writeNonEscapedAsciiVal(v.value.getCurrencyCode)
+        case v: PrimitiveValue.UUID           => writeVal(v.value)
+        case v: PrimitiveValue.DayOfWeek      => writeNonEscapedAsciiVal(v.value.toString)
+        case v: PrimitiveValue.Month          => writeNonEscapedAsciiVal(v.value.toString)
       }
     case DynamicValue.Record(fields) =>
       writeObjectStart()
@@ -643,7 +623,7 @@ final class ToonWriter private[toon] (
         case v: PrimitiveValue.String => writeKey(v.value)
         case v: PrimitiveValue.Int    => writeKey(v.value)
         case v: PrimitiveValue.Long   => writeKey(v.value)
-        case _ => encodeError("unsupported key type for TOON")
+        case _                        => encodeError("unsupported key type for TOON")
       }
     case _ => encodeError("unsupported key type for TOON")
   }
@@ -778,21 +758,19 @@ final class ToonWriter private[toon] (
     atLineStart = false
   }
 
-  private def writeFloat(x: Float): Unit = {
+  private def writeFloat(x: Float): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
     else {
       val s = java.lang.Float.toString(x)
       writeCanonicalNumber(s)
     }
-  }
 
-  private def writeDouble(x: Double): Unit = {
+  private def writeDouble(x: Double): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
     else {
       val s = java.lang.Double.toString(x)
       writeCanonicalNumber(s)
     }
-  }
 
   private def writeCanonicalNumber(s: String): Unit = {
     // TOON requires canonical number format: no exponent, no trailing zeros
@@ -803,7 +781,7 @@ final class ToonWriter private[toon] (
   private def writeCanonicalDecimal(x: BigDecimal): Unit = {
     // TOON requires: no exponent, no trailing zeros, -0 -> 0
     val normalized = x.underlying.stripTrailingZeros()
-    val str = if (normalized.scale() < 0) {
+    val str        = if (normalized.scale() < 0) {
       normalized.setScale(0).toPlainString
     } else {
       normalized.toPlainString
@@ -829,19 +807,19 @@ final class ToonWriter private[toon] (
     while (i < s.length) {
       val c = s.charAt(i)
       c match {
-        case '"'  => buf(count) = '\\'; buf(count + 1) = '"'; count += 2
-        case '\\' => buf(count) = '\\'; buf(count + 1) = '\\'; count += 2
-        case '\n' => buf(count) = '\\'; buf(count + 1) = 'n'; count += 2
-        case '\r' => buf(count) = '\\'; buf(count + 1) = 'r'; count += 2
-        case '\t' => buf(count) = '\\'; buf(count + 1) = 't'; count += 2
+        case '"'         => buf(count) = '\\'; buf(count + 1) = '"'; count += 2
+        case '\\'        => buf(count) = '\\'; buf(count + 1) = '\\'; count += 2
+        case '\n'        => buf(count) = '\\'; buf(count + 1) = 'n'; count += 2
+        case '\r'        => buf(count) = '\\'; buf(count + 1) = 'r'; count += 2
+        case '\t'        => buf(count) = '\\'; buf(count + 1) = 't'; count += 2
         case _ if c < 32 =>
           // Other control characters: use \uXXXX
           buf(count) = '\\'
           buf(count + 1) = 'u'
-          buf(count + 2) = hexDigit((c >> 12) & 0xF)
-          buf(count + 3) = hexDigit((c >> 8) & 0xF)
-          buf(count + 4) = hexDigit((c >> 4) & 0xF)
-          buf(count + 5) = hexDigit(c & 0xF)
+          buf(count + 2) = hexDigit((c >> 12) & 0xf)
+          buf(count + 3) = hexDigit((c >> 8) & 0xf)
+          buf(count + 4) = hexDigit((c >> 4) & 0xf)
+          buf(count + 5) = hexDigit(c & 0xf)
           count += 6
         case _ =>
           val bytes = c.toString.getBytes(UTF_8)
@@ -855,13 +833,11 @@ final class ToonWriter private[toon] (
     atLineStart = false
   }
 
-  private def writeQuotedChar(c: Char): Unit = {
+  private def writeQuotedChar(c: Char): Unit =
     writeQuotedString(c.toString)
-  }
 
-  private def hexDigit(n: Int): Byte = {
+  private def hexDigit(n: Int): Byte =
     if (n < 10) ('0' + n).toByte else ('a' + n - 10).toByte
-  }
 
   /**
    * Checks if a string needs quoting when used as a key in TOON. Keys matching
@@ -925,14 +901,13 @@ final class ToonWriter private[toon] (
     false
   }
 
-  private def ensureCapacity(needed: Int): Unit = {
+  private def ensureCapacity(needed: Int): Unit =
     if (count + needed > limit) {
       if (disableBufGrowing) {
         throw new BufferOverflowException()
       }
       growBuffer(needed)
     }
-  }
 
   private def growBuffer(needed: Int): Unit = {
     val newSize = Math.max(buf.length * 2, count + needed)
@@ -940,22 +915,21 @@ final class ToonWriter private[toon] (
     limit = newSize
   }
 
-  private def flushToOutputStream(): Unit = {
+  private def flushToOutputStream(): Unit =
     if (out != null && count > 0) {
       out.write(buf, 0, count)
       count = 0
     }
-  }
 
   private def writeIntToBuffer(x: Int, buf: Array[Byte], pos: Int): Int = {
     var value = x
-    var p = pos
+    var p     = pos
     if (value < 0) {
       buf(p) = '-'
       p += 1
       if (value == Int.MinValue) {
         // Special case for MinValue
-        val s = "-2147483648"
+        val s     = "-2147483648"
         val bytes = s.getBytes(UTF_8)
         System.arraycopy(bytes, 0, buf, pos, bytes.length)
         return pos + bytes.length
@@ -964,7 +938,7 @@ final class ToonWriter private[toon] (
     }
     // Count digits
     var digits = 1
-    var temp = value
+    var temp   = value
     while (temp >= 10) {
       digits += 1
       temp /= 10
@@ -983,12 +957,12 @@ final class ToonWriter private[toon] (
 
   private def writeLongToBuffer(x: Long, buf: Array[Byte], pos: Int): Int = {
     var value = x
-    var p = pos
+    var p     = pos
     if (value < 0) {
       buf(p) = '-'
       p += 1
       if (value == Long.MinValue) {
-        val s = "-9223372036854775808"
+        val s     = "-9223372036854775808"
         val bytes = s.getBytes(UTF_8)
         System.arraycopy(bytes, 0, buf, pos, bytes.length)
         return pos + bytes.length
@@ -996,7 +970,7 @@ final class ToonWriter private[toon] (
       value = -value
     }
     var digits = 1
-    var temp = value
+    var temp   = value
     while (temp >= 10) {
       digits += 1
       temp /= 10

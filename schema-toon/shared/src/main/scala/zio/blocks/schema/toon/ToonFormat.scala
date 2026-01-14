@@ -9,7 +9,7 @@ import zio.blocks.schema.codec.BinaryFormat
  * prompts. It achieves 30-60% token reduction compared to JSON while preserving
  * the same data model.
  *
- * == Usage ==
+ * ==Usage==
  *
  * {{{
  * import zio.blocks.schema._

@@ -3,6 +3,7 @@ package zio.blocks.schema.toon
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.time._
+import java.time.format.DateTimeParseException
 import java.util.{Currency, UUID}
 import java.nio.charset.StandardCharsets.UTF_8
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
@@ -55,52 +56,55 @@ final class ToonReader private[toon] (
   /**
    * Rolls back the last read token.
    */
-  def rollbackToken(): Unit = {
+  def rollbackToken(): Unit =
     if (tokenStart >= 0) head = tokenStart
-  }
 
   /**
    * Reads null or throws an error.
    */
-  def readNullOrError[A](default: A, msg: String): A = {
+  def readNullOrError[A](default: A, msg: String): A =
     if (readNull()) default
     else decodeError(msg)
-  }
 
   /**
    * Reads a null value.
    */
-  def readNull(): Boolean = {
-    if (head + 4 <= tail &&
-        buf(head) == 'n' &&
-        buf(head + 1) == 'u' &&
-        buf(head + 2) == 'l' &&
-        buf(head + 3) == 'l') {
+  def readNull(): Boolean =
+    if (
+      head + 4 <= tail &&
+      buf(head) == 'n' &&
+      buf(head + 1) == 'u' &&
+      buf(head + 2) == 'l' &&
+      buf(head + 3) == 'l'
+    ) {
       head += 4
       column += 4
       true
     } else false
-  }
 
   /**
    * Reads a boolean value.
    */
   def readBoolean(): Boolean = {
     skipWhitespace()
-    if (head + 4 <= tail &&
-        buf(head) == 't' &&
-        buf(head + 1) == 'r' &&
-        buf(head + 2) == 'u' &&
-        buf(head + 3) == 'e') {
+    if (
+      head + 4 <= tail &&
+      buf(head) == 't' &&
+      buf(head + 1) == 'r' &&
+      buf(head + 2) == 'u' &&
+      buf(head + 3) == 'e'
+    ) {
       head += 4
       column += 4
       true
-    } else if (head + 5 <= tail &&
-               buf(head) == 'f' &&
-               buf(head + 1) == 'a' &&
-               buf(head + 2) == 'l' &&
-               buf(head + 3) == 's' &&
-               buf(head + 4) == 'e') {
+    } else if (
+      head + 5 <= tail &&
+      buf(head) == 'f' &&
+      buf(head + 1) == 'a' &&
+      buf(head + 2) == 'l' &&
+      buf(head + 3) == 's' &&
+      buf(head + 4) == 'e'
+    ) {
       head += 5
       column += 5
       false
@@ -229,8 +233,9 @@ final class ToonReader private[toon] (
   def readBigInt(default: BigInt): BigInt = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try BigInt(s)
-    catch { case _: NumberFormatException => decodeError("invalid BigInt") }
+    else
+      try BigInt(s)
+      catch { case _: NumberFormatException => decodeError("invalid BigInt") }
   }
 
   /**
@@ -239,8 +244,9 @@ final class ToonReader private[toon] (
   def readBigDecimal(default: BigDecimal): BigDecimal = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try BigDecimal(s)
-    catch { case _: NumberFormatException => decodeError("invalid BigDecimal") }
+    else
+      try BigDecimal(s)
+      catch { case _: NumberFormatException => decodeError("invalid BigDecimal") }
   }
 
   /**
@@ -249,8 +255,9 @@ final class ToonReader private[toon] (
   def readDuration(default: Duration): Duration = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try Duration.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid Duration") }
+    else
+      try Duration.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid Duration") }
   }
 
   /**
@@ -259,8 +266,9 @@ final class ToonReader private[toon] (
   def readInstant(default: Instant): Instant = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try Instant.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid Instant") }
+    else
+      try Instant.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid Instant") }
   }
 
   /**
@@ -269,8 +277,9 @@ final class ToonReader private[toon] (
   def readLocalDate(default: LocalDate): LocalDate = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try LocalDate.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid LocalDate") }
+    else
+      try LocalDate.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid LocalDate") }
   }
 
   /**
@@ -279,8 +288,9 @@ final class ToonReader private[toon] (
   def readLocalDateTime(default: LocalDateTime): LocalDateTime = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try LocalDateTime.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid LocalDateTime") }
+    else
+      try LocalDateTime.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid LocalDateTime") }
   }
 
   /**
@@ -289,8 +299,9 @@ final class ToonReader private[toon] (
   def readLocalTime(default: LocalTime): LocalTime = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try LocalTime.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid LocalTime") }
+    else
+      try LocalTime.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid LocalTime") }
   }
 
   /**
@@ -299,8 +310,9 @@ final class ToonReader private[toon] (
   def readMonthDay(default: MonthDay): MonthDay = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try MonthDay.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid MonthDay") }
+    else
+      try MonthDay.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid MonthDay") }
   }
 
   /**
@@ -309,8 +321,9 @@ final class ToonReader private[toon] (
   def readOffsetDateTime(default: OffsetDateTime): OffsetDateTime = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try OffsetDateTime.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid OffsetDateTime") }
+    else
+      try OffsetDateTime.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid OffsetDateTime") }
   }
 
   /**
@@ -319,8 +332,9 @@ final class ToonReader private[toon] (
   def readOffsetTime(default: OffsetTime): OffsetTime = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try OffsetTime.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid OffsetTime") }
+    else
+      try OffsetTime.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid OffsetTime") }
   }
 
   /**
@@ -329,8 +343,9 @@ final class ToonReader private[toon] (
   def readPeriod(default: Period): Period = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try Period.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid Period") }
+    else
+      try Period.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid Period") }
   }
 
   /**
@@ -347,8 +362,9 @@ final class ToonReader private[toon] (
   def readYearMonth(default: YearMonth): YearMonth = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try YearMonth.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid YearMonth") }
+    else
+      try YearMonth.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid YearMonth") }
   }
 
   /**
@@ -357,8 +373,9 @@ final class ToonReader private[toon] (
   def readZoneId(default: ZoneId): ZoneId = {
     val s = readString(if (default == null) null else default.getId)
     if (s == null) default
-    else try ZoneId.of(s)
-    catch { case _: DateTimeException => decodeError("invalid ZoneId") }
+    else
+      try ZoneId.of(s)
+      catch { case _: DateTimeException => decodeError("invalid ZoneId") }
   }
 
   /**
@@ -367,8 +384,9 @@ final class ToonReader private[toon] (
   def readZoneOffset(default: ZoneOffset): ZoneOffset = {
     val s = readString(if (default == null) null else default.getId)
     if (s == null) default
-    else try ZoneOffset.of(s)
-    catch { case _: DateTimeException => decodeError("invalid ZoneOffset") }
+    else
+      try ZoneOffset.of(s)
+      catch { case _: DateTimeException => decodeError("invalid ZoneOffset") }
   }
 
   /**
@@ -377,8 +395,9 @@ final class ToonReader private[toon] (
   def readZonedDateTime(default: ZonedDateTime): ZonedDateTime = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try ZonedDateTime.parse(s)
-    catch { case _: DateTimeParseException => decodeError("invalid ZonedDateTime") }
+    else
+      try ZonedDateTime.parse(s)
+      catch { case _: DateTimeParseException => decodeError("invalid ZonedDateTime") }
   }
 
   /**
@@ -387,8 +406,9 @@ final class ToonReader private[toon] (
   def readUUID(default: UUID): UUID = {
     val s = readString(if (default == null) null else default.toString)
     if (s == null) default
-    else try UUID.fromString(s)
-    catch { case _: IllegalArgumentException => decodeError("invalid UUID") }
+    else
+      try UUID.fromString(s)
+      catch { case _: IllegalArgumentException => decodeError("invalid UUID") }
   }
 
   // Key reading methods
@@ -551,9 +571,8 @@ final class ToonReader private[toon] (
   /**
    * Reads the end of an object.
    */
-  def readObjectEnd(): Unit = {
+  def readObjectEnd(): Unit =
     depth -= 1
-  }
 
   /**
    * Checks if the current position is at the end of an object.
@@ -574,7 +593,7 @@ final class ToonReader private[toon] (
     if (head >= tail) return null
 
     // Check indentation
-    val currentIndent = countLeadingSpaces()
+    val currentIndent  = countLeadingSpaces()
     val expectedIndent = depth * config.indentSize
     if (currentIndent < expectedIndent) return null
 
@@ -675,8 +694,8 @@ final class ToonReader private[toon] (
    */
   def peekDiscriminatorField(fieldName: String): String = {
     // Save state
-    val savedHead = head
-    val savedLine = line
+    val savedHead   = head
+    val savedLine   = line
     val savedColumn = column
 
     try {
@@ -756,7 +775,7 @@ final class ToonReader private[toon] (
       // Object
       readObjectStart()
       val fields = scala.collection.mutable.ListMap[String, DynamicValue]()
-      var key = readKeyOrEnd()
+      var key    = readKeyOrEnd()
       while (key != null) {
         val value = readDynamicValue()
         fields += (key -> value)
@@ -770,9 +789,8 @@ final class ToonReader private[toon] (
   /**
    * Throws a decode error with line/column info.
    */
-  def decodeError(msg: String): Nothing = {
+  def decodeError(msg: String): Nothing =
     throw new ToonBinaryCodecError(Nil, s"$msg at line $line, column $column")
-  }
 
   // High-level read methods
 
@@ -847,14 +865,14 @@ final class ToonReader private[toon] (
     tokenStart = head
     if (head >= tail) -1
     else {
-      val c = buf(head) & 0xFF
+      val c = buf(head) & 0xff
       head += 1
       column += 1
       c
     }
   }
 
-  private def skipWhitespace(): Unit = {
+  private def skipWhitespace(): Unit =
     while (head < tail) {
       val c = buf(head)
       if (c == ' ') {
@@ -876,11 +894,10 @@ final class ToonReader private[toon] (
         return
       }
     }
-  }
 
   private def skipIndentation(): Unit = {
     val expectedSpaces = depth * config.indentSize
-    var spaces = 0
+    var spaces         = 0
     while (head < tail && spaces < expectedSpaces && buf(head) == ' ') {
       head += 1
       column += 1
@@ -890,7 +907,7 @@ final class ToonReader private[toon] (
 
   private def countLeadingSpaces(): Int = {
     var count = 0
-    var pos = head
+    var pos   = head
     while (pos < tail && buf(pos) == ' ') {
       count += 1
       pos += 1
@@ -919,7 +936,7 @@ final class ToonReader private[toon] (
           case 'n'  => sb.append('\n')
           case 'r'  => sb.append('\r')
           case 't'  => sb.append('\t')
-          case 'u' =>
+          case 'u'  =>
             if (head + 4 > tail) decodeError("incomplete unicode escape")
             val hex = new String(buf, head, 4, UTF_8)
             head += 4
@@ -979,10 +996,10 @@ final class ToonReader private[toon] (
     new String(buf, start, head - start, UTF_8)
   }
 
-  private def loadFromInputStream(): Unit = {
+  private def loadFromInputStream(): Unit =
     if (in != null) {
       val available = in.available()
-      val toRead = Math.max(available, config.preferredBufSize)
+      val toRead    = Math.max(available, config.preferredBufSize)
       if (buf.length < toRead) buf = new Array[Byte](toRead)
       val read = in.read(buf)
       if (read > 0) {
@@ -990,7 +1007,6 @@ final class ToonReader private[toon] (
         tail = read
       }
     }
-  }
 }
 
 object ToonReader {

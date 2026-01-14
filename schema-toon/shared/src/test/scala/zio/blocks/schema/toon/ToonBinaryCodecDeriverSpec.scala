@@ -49,9 +49,9 @@ object ToonBinaryCodecDeriverSpec extends ZIOSpecDefault {
       },
       test("String") {
         roundTrip("hello", "hello") &&
-        roundTrip("", "\"\"") && // Empty string needs quotes
+        roundTrip("", "\"\"") &&                     // Empty string needs quotes
         roundTrip("with space", "\"with space\"") && // Spaces in values need quotes
-        roundTrip("true", "\"true\"") && // Reserved words need quotes
+        roundTrip("true", "\"true\"") &&             // Reserved words need quotes
         roundTrip("false", "\"false\"") &&
         roundTrip("null", "\"null\"")
       },

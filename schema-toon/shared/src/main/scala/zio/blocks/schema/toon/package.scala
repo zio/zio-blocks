@@ -7,7 +7,7 @@ package zio.blocks.schema
  * minimizes tokens while preserving structure. It achieves 30-60% token
  * reduction compared to JSON, making it ideal for LLM prompts.
  *
- * == Quick Start ==
+ * ==Quick Start==
  *
  * {{{
  * import zio.blocks.schema._
@@ -29,7 +29,7 @@ package zio.blocks.schema
  * val user: User = codec.decode("id: 1\nname: Alice")
  * }}}
  *
- * == Array Formats ==
+ * ==Array Formats==
  *
  * TOON supports three array formats, selected automatically or configured:
  *
@@ -38,7 +38,7 @@ package zio.blocks.schema
  *     2,Bob`
  *   - '''List''': For mixed/nested arrays: `items[3]: / - item1 / - item2`
  *
- * == Configuration ==
+ * ==Configuration==
  *
  * Use [[WriterConfig]] to customize output format and [[ReaderConfig]] for
  * parsing behavior and security limits.
