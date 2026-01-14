@@ -4,14 +4,10 @@ import zio.blocks.schema.toon._
 import zio.blocks.schema.toon.ToonBinaryCodec._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema._
-import zio.blocks.schema.binding.{Constructor, Discriminator}
+import zio.blocks.schema.binding.Discriminator
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.SeqDeconstructor.SpecializedIndexed
-import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
-
-import scala.annotation.{switch, tailrec}
-import scala.util.control.NonFatal
 
 /**
  * Provides a default implementation of `ToonBinaryCodecDeriver` with
@@ -291,8 +287,8 @@ class ToonBinaryCodecDeriver private[toon] (
   type Map[_, _]
   type TC[_]
 
-  private[this] val recursiveRecordCache = new ThreadLocal[java.util.HashMap[TypeName[?], Array[FieldInfo]]] {
-    override def initialValue: java.util.HashMap[TypeName[?], Array[FieldInfo]] = new java.util.HashMap
+  private[this] val recursiveRecordCache = new ThreadLocal[java.util.HashMap[TypeName[?], FieldInfoArray]] {
+    override def initialValue: java.util.HashMap[TypeName[?], FieldInfoArray] = new java.util.HashMap
   }
   private[this] val discriminatorFields = new ThreadLocal[List[DiscriminatorFieldInfo]] {
     override def initialValue: List[DiscriminatorFieldInfo] = Nil
@@ -344,145 +340,186 @@ class ToonBinaryCodecDeriver private[toon] (
     } else if (reflect.isVariant) {
       deriveVariantCodec(reflect.asVariant.get.asInstanceOf[Reflect.Variant[Binding, A]])
     } else if (reflect.isSequence) {
-      val sequence = reflect.asSequenceUnknown.get.sequence
+      val sequence = reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Elem, Col]]
       deriveSequenceCodec(sequence).asInstanceOf[ToonBinaryCodec[A]]
     } else if (reflect.isMap) {
-      val map = reflect.asMapUnknown.get.map
+      val map = reflect.asMapUnknown.get.map.asInstanceOf[Reflect.Map[Binding, Key, Value, Map]]
       deriveMapCodec(map).asInstanceOf[ToonBinaryCodec[A]]
     } else if (reflect.isDynamic) {
       deriveDynamicCodec().asInstanceOf[ToonBinaryCodec[A]]
     } else if (reflect.isWrapper) {
-      val wrapper = reflect.asWrapperUnknown.get.wrapper
+      val wrapper = reflect.asWrapperUnknown.get.wrapper.asInstanceOf[Reflect.Wrapper[Binding, ?, ?]]
       deriveWrapperCodec(wrapper).asInstanceOf[ToonBinaryCodec[A]]
     } else {
       throw new UnsupportedOperationException(s"Cannot derive TOON codec for: $reflect")
     }
 
   private[this] def deriveRecordCodec[A](record: Reflect.Record[Binding, A]): ToonBinaryCodec[A] = {
-    val fields      = record.fields
-    val fieldCount  = fields.length
-    val fieldInfos  = new Array[FieldInfo](fieldCount)
-    val fieldNames  = new Array[String](fieldCount)
-    val fieldCodecs = new Array[ToonBinaryCodec[Any]](fieldCount)
-    val binding     = record.recordBinding.asInstanceOf[Binding.Record[A]]
-    val constructor = binding.constructor
-    val registers   = constructor.usedRegisters
+    val fields        = record.fields
+    val fieldCount    = fields.length
+    val binding       = record.recordBinding.asInstanceOf[Binding.Record[A]]
+    val constructor   = binding.constructor
+    val deconstructor = binding.deconstructor
+    val usedRegisters = constructor.usedRegisters
+    val fieldNames    = new Array[String](fieldCount)
+    val fieldCodecs   = new Array[ToonBinaryCodec[Any]](fieldCount)
+    val fieldOffsets  = new Array[RegisterOffset](fieldCount)
+    val fieldDefaults = new Array[Option[Any]](fieldCount)
+    val isOptionals   = new Array[Boolean](fieldCount)
+    val isSequences   = new Array[Boolean](fieldCount)
+    val hasDefaults   = new Array[Boolean](fieldCount)
 
     // Check for recursive reference
     val cache            = recursiveRecordCache.get
     val cachedFieldInfos = cache.get(record.typeName)
     if (cachedFieldInfos != null) {
-      // Return a lazy codec that references the cached field infos
       return new ToonBinaryCodec[A]() {
-        def decodeValue(in: ToonReader, default: A): A =
-          // Use cached field infos when available
-          decodeRecordWithInfos(in, cachedFieldInfos, constructor, registers)
-        def encodeValue(x: A, out: ToonWriter): Unit =
-          encodeRecordWithInfos(x, out, cachedFieldInfos)
+        def decodeValue(in: ToonReader, default: A): A = {
+          val top = in.push(usedRegisters)
+          try {
+            val regs = in.registers
+            decodeRecordIntoRegisters(in, cachedFieldInfos, regs, top)
+            constructor.construct(regs, top)
+          } finally in.pop(usedRegisters)
+        }
+        def encodeValue(x: A, out: ToonWriter): Unit = {
+          val top = out.push(usedRegisters)
+          try {
+            val regs = out.registers
+            deconstructor.deconstruct(regs, top, x)
+            encodeRecordFromRegisters(out, cachedFieldInfos, regs, top)
+          } finally out.pop(usedRegisters)
+        }
       }
     }
 
-    // Store field infos for recursive reference
-    cache.put(record.typeName, fieldInfos)
-
-    var idx = 0
+    // Build field info
+    var offset: RegisterOffset = 0L
+    var idx                    = 0
     while (idx < fieldCount) {
       val field        = fields(idx)
       val fieldName    = fieldNameMapper.map(field.name)
       val fieldReflect = field.value.asInstanceOf[Reflect[Binding, Any]]
       val fieldCodec   = deriveCodec(fieldReflect)
-      val fieldOffset  = field.binding.offset
+      val fieldDefault = getDefaultValue(fieldReflect)
 
       fieldNames(idx) = fieldName
       fieldCodecs(idx) = fieldCodec
-      fieldInfos(idx) = FieldInfo(
-        name = fieldName,
-        codec = fieldCodec,
-        offset = fieldOffset,
-        isOptional = fieldReflect.isWrapper && fieldReflect.asWrapperUnknown.exists(_.wrapper.wrapped.isSequence),
-        defaultValue = field.binding.defaultValue,
-        isTransientNone = transientNone && fieldReflect.isWrapper,
-        isTransientEmpty = transientEmptyCollection && fieldReflect.isSequence,
-        isTransientDefault = transientDefaultValue && field.binding.defaultValue.isDefined
-      )
+      fieldOffsets(idx) = offset
+      fieldDefaults(idx) = fieldDefault
+      isOptionals(idx) = transientNone && fieldReflect.isWrapper
+      isSequences(idx) = transientEmptyCollection && fieldReflect.isSequence
+      hasDefaults(idx) = transientDefaultValue && fieldDefault.isDefined
+
+      offset = RegisterOffset.add(fieldCodec.valueOffset, offset)
       idx += 1
     }
 
+    val fieldInfos = FieldInfoArray(
+      fieldNames,
+      fieldCodecs,
+      fieldOffsets,
+      fieldDefaults,
+      isOptionals,
+      isSequences,
+      hasDefaults,
+      fieldCount
+    )
+    cache.put(record.typeName, fieldInfos)
+
     new ToonBinaryCodec[A]() {
-      def decodeValue(in: ToonReader, default: A): A =
-        decodeRecordWithInfos(in, fieldInfos, constructor, registers)
+      def decodeValue(in: ToonReader, default: A): A = {
+        val top = in.push(usedRegisters)
+        try {
+          val regs = in.registers
+          decodeRecordIntoRegisters(in, fieldInfos, regs, top)
+          constructor.construct(regs, top)
+        } finally in.pop(usedRegisters)
+      }
 
-      def encodeValue(x: A, out: ToonWriter): Unit =
-        encodeRecordWithInfos(x, out, fieldInfos)
+      def encodeValue(x: A, out: ToonWriter): Unit = {
+        val top = out.push(usedRegisters)
+        try {
+          val regs = out.registers
+          deconstructor.deconstruct(regs, top, x)
+          encodeRecordFromRegisters(out, fieldInfos, regs, top)
+        } finally out.pop(usedRegisters)
+      }
     }
   }
 
-  private[this] def decodeRecordWithInfos[A](
+  private[this] def getDefaultValue[A](reflect: Reflect[?, A]): Option[Any] =
+    if (reflect.isPrimitive) reflect.asPrimitive.get.primitiveBinding match {
+      case b: Binding[?, ?] => b.asInstanceOf[Binding[?, A]].defaultValue.map(f => f())
+      case _                => None
+    }
+    else if (reflect.isRecord) reflect.asRecord.get.recordBinding match {
+      case b: Binding[?, ?] => b.asInstanceOf[Binding[?, A]].defaultValue.map(f => f())
+      case _                => None
+    }
+    else None
+
+  private[this] def decodeRecordIntoRegisters(
     in: ToonReader,
-    fieldInfos: Array[FieldInfo],
-    constructor: Constructor[A],
-    registers: RegisterOffset
-  ): A = {
-    val regs = Registers.pooled(registers)
-    try {
-      in.readObjectStart()
-      var continue = true
-      while (continue) {
-        val key = in.readKeyOrEnd()
-        if (key == null) {
-          continue = false
-        } else {
-          var found = false
-          var idx   = 0
-          while (idx < fieldInfos.length && !found) {
-            val info = fieldInfos(idx)
-            if (info.name == key) {
-              found = true
-              val value = info.codec.decodeValue(in, info.codec.nullValue)
-              info.offset.write(regs, value)
-            }
-            idx += 1
+    infos: FieldInfoArray,
+    regs: Registers,
+    top: RegisterOffset
+  ): Unit = {
+    val fieldSet = new Array[Boolean](infos.count)
+    in.readObjectStart()
+    var continue = true
+    while (continue) {
+      val key = in.readKeyOrEnd()
+      if (key == null) {
+        continue = false
+      } else {
+        var found = false
+        var idx   = 0
+        while (idx < infos.count && !found) {
+          if (infos.names(idx) == key) {
+            found = true
+            fieldSet(idx) = true
+            val value = infos.codecs(idx).decodeValue(in, infos.codecs(idx).nullValue)
+            regs.setObject(top + infos.offsets(idx), value.asInstanceOf[AnyRef])
           }
-          if (!found) {
-            if (rejectExtraFields) {
-              in.decodeError(s"unexpected field: $key")
-            } else {
-              in.skipValue()
-            }
-          }
+          idx += 1
+        }
+        if (!found) {
+          if (rejectExtraFields) in.decodeError(s"unexpected field: $key")
+          else in.skipValue()
         }
       }
-      // Apply defaults for missing fields
-      var idx = 0
-      while (idx < fieldInfos.length) {
-        val info = fieldInfos(idx)
-        if (info.defaultValue.isDefined && !info.offset.isSet(regs)) {
-          info.offset.write(regs, info.defaultValue.get)
-        }
-        idx += 1
+    }
+    // Apply defaults for missing fields
+    var idx = 0
+    while (idx < infos.count) {
+      if (!fieldSet(idx) && infos.defaults(idx).isDefined) {
+        regs.setObject(top + infos.offsets(idx), infos.defaults(idx).get.asInstanceOf[AnyRef])
       }
-      constructor.construct(regs)
-    } finally {
-      Registers.free(regs)
+      idx += 1
     }
   }
 
-  private[this] def encodeRecordWithInfos[A](x: A, out: ToonWriter, fieldInfos: Array[FieldInfo]): Unit = {
+  private[this] def encodeRecordFromRegisters(
+    out: ToonWriter,
+    infos: FieldInfoArray,
+    regs: Registers,
+    top: RegisterOffset
+  ): Unit = {
     out.writeObjectStart()
     var idx   = 0
     var first = true
-    while (idx < fieldInfos.length) {
-      val info       = fieldInfos(idx)
-      val value      = info.offset.read(x)
+    while (idx < infos.count) {
+      val value      = regs.getObject(top + infos.offsets(idx))
       val shouldSkip =
-        (info.isTransientNone && value == None) ||
-          (info.isTransientEmpty && isEmptyCollection(value)) ||
-          (info.isTransientDefault && info.defaultValue.contains(value))
+        (infos.isOptionals(idx) && value == None) ||
+          (infos.isSequences(idx) && isEmptyCollection(value)) ||
+          (infos.hasDefaults(idx) && infos.defaults(idx).contains(value))
 
       if (!shouldSkip) {
         if (!first) out.writeFieldSeparator()
-        out.writeKey(info.name)
-        info.codec.encodeValue(value.asInstanceOf[Any], out)
+        out.writeKey(infos.names(idx))
+        infos.codecs(idx).encodeValue(value.asInstanceOf[Any], out)
         first = false
       }
       idx += 1
@@ -499,22 +536,23 @@ class ToonBinaryCodecDeriver private[toon] (
   }
 
   private[this] def deriveVariantCodec[A](variant: Reflect.Variant[Binding, A]): ToonBinaryCodec[A] = {
-    val cases     = variant.cases
-    val caseCount = cases.length
-    val caseInfos = new Array[CaseInfo](caseCount)
+    val variantBinding = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
+    val discriminator  = variantBinding.discriminator
+    val cases          = variant.cases
+    val caseCount      = cases.length
+    val caseInfos      = new Array[CaseInfo](caseCount)
 
     var idx = 0
     while (idx < caseCount) {
-      val c             = cases(idx)
-      val caseName      = caseNameMapper.map(c.name)
-      val caseReflect   = c.value.asInstanceOf[Reflect[Binding, A]]
-      val caseCodec     = deriveCodec(caseReflect)
-      val discriminator = c.binding.discriminator.asInstanceOf[Discriminator[A, A]]
+      val c           = cases(idx)
+      val caseName    = caseNameMapper.map(c.name)
+      val caseReflect = c.value.asInstanceOf[Reflect[Binding, A]]
+      val caseCodec   = deriveCodec(caseReflect).asInstanceOf[ToonBinaryCodec[Any]]
 
       caseInfos(idx) = CaseInfo(
         name = caseName,
         codec = caseCodec,
-        discriminator = discriminator,
+        discriminator = discriminator.asInstanceOf[Discriminator[Any]],
         isEnum = caseReflect.isRecord && caseReflect.asRecord.get.fields.isEmpty
       )
       idx += 1
@@ -533,11 +571,7 @@ class ToonBinaryCodecDeriver private[toon] (
               val info = caseInfos(idx)
               if (info.name == key) {
                 found = true
-                if (info.isEnum && enumValuesAsStrings) {
-                  result = info.discriminator.inject(info.codec.nullValue)
-                } else {
-                  result = info.codec.decodeValue(in, info.codec.nullValue)
-                }
+                result = info.codec.decodeValue(in, info.codec.nullValue).asInstanceOf[A]
               }
               idx += 1
             }
@@ -555,7 +589,7 @@ class ToonBinaryCodecDeriver private[toon] (
               val info = caseInfos(idx)
               if (info.name == discValue) {
                 found = true
-                result = info.codec.decodeValue(in, info.codec.nullValue)
+                result = info.codec.decodeValue(in, info.codec.nullValue).asInstanceOf[A]
               }
               idx += 1
             }
@@ -564,34 +598,28 @@ class ToonBinaryCodecDeriver private[toon] (
         }
 
       def encodeValue(x: A, out: ToonWriter): Unit = {
-        var idx  = 0
-        var done = false
-        while (idx < caseInfos.length && !done) {
-          val info = caseInfos(idx)
-          if (info.discriminator.extract(x).isDefined) {
-            done = true
-            discriminatorKind match {
-              case DiscriminatorKind.Key =>
-                out.writeObjectStart()
-                out.writeKey(info.name)
-                if (info.isEnum && enumValuesAsStrings) {
-                  out.writeNull()
-                } else {
-                  info.codec.encodeValue(x, out)
-                }
-                out.writeObjectEnd()
-
-              case DiscriminatorKind.Field(fieldName) =>
-                // Encode with discriminator field embedded
-                out.writeObjectStart()
-                out.writeKey(fieldName)
-                out.writeVal(info.name)
-                out.writeFieldSeparator()
+        val caseIdx = discriminator.discriminate(x)
+        if (caseIdx >= 0 && caseIdx < caseInfos.length) {
+          val info = caseInfos(caseIdx)
+          discriminatorKind match {
+            case DiscriminatorKind.Key =>
+              out.writeObjectStart()
+              out.writeKey(info.name)
+              if (info.isEnum && enumValuesAsStrings) {
+                out.writeNull()
+              } else {
                 info.codec.encodeValue(x, out)
-                out.writeObjectEnd()
-            }
+              }
+              out.writeObjectEnd()
+
+            case DiscriminatorKind.Field(fieldName) =>
+              out.writeObjectStart()
+              out.writeKey(fieldName)
+              out.writeVal(info.name)
+              out.writeFieldSeparator()
+              info.codec.encodeValue(x, out)
+              out.writeObjectEnd()
           }
-          idx += 1
         }
       }
     }
@@ -605,14 +633,14 @@ class ToonBinaryCodecDeriver private[toon] (
 
     new ToonBinaryCodec[C[A]]() {
       def decodeValue(in: ToonReader, default: C[A]): C[A] = {
-        val builder = constructor.newBuilder
+        val builder = constructor.newObjectBuilder[A](8)
         in.readArrayStart()
         while (!in.isArrayEnd) {
           val elem = elementCodec.decodeValue(in, elementCodec.nullValue)
-          builder += elem
+          constructor.addObject(builder, elem)
         }
         in.readArrayEnd()
-        builder.result()
+        constructor.resultObject[A](builder)
       }
 
       def encodeValue(x: C[A], out: ToonWriter): Unit = {
@@ -644,15 +672,15 @@ class ToonBinaryCodecDeriver private[toon] (
 
     new ToonBinaryCodec[M[K, V]]() {
       def decodeValue(in: ToonReader, default: M[K, V]): M[K, V] = {
-        val builder = constructor.newBuilder
+        val builder = constructor.newObjectBuilder[K, V](8)
         in.readObjectStart()
         while (!in.isObjectEnd) {
           val key   = keyCodec.decodeKey(in)
           val value = valueCodec.decodeValue(in, valueCodec.nullValue)
-          builder += ((key, value))
+          constructor.addObject(builder, key, value)
         }
         in.readObjectEnd()
-        builder.result()
+        constructor.resultObject[K, V](builder)
       }
 
       def encodeValue(x: M[K, V], out: ToonWriter): Unit = {
@@ -660,10 +688,10 @@ class ToonBinaryCodecDeriver private[toon] (
         out.writeObjectStart()
         var first = true
         while (iter.hasNext) {
-          val (k, v) = iter.next()
+          val kv = iter.next()
           if (!first) out.writeFieldSeparator()
-          keyCodec.encodeKey(k, out)
-          valueCodec.encodeValue(v, out)
+          keyCodec.encodeKey(deconstructor.getKey(kv), out)
+          valueCodec.encodeValue(deconstructor.getValue(kv), out)
           first = false
         }
         out.writeObjectEnd()
@@ -715,21 +743,21 @@ class ToonBinaryCodecDeriver private[toon] (
     }
   }
 
-  private case class FieldInfo(
-    name: String,
-    codec: ToonBinaryCodec[Any],
-    offset: RegisterOffset,
-    isOptional: Boolean,
-    defaultValue: Option[Any],
-    isTransientNone: Boolean,
-    isTransientEmpty: Boolean,
-    isTransientDefault: Boolean
+  private case class FieldInfoArray(
+    names: Array[String],
+    codecs: Array[ToonBinaryCodec[Any]],
+    offsets: Array[RegisterOffset],
+    defaults: Array[Option[Any]],
+    isOptionals: Array[Boolean],
+    isSequences: Array[Boolean],
+    hasDefaults: Array[Boolean],
+    count: Int
   )
 
   private case class CaseInfo(
     name: String,
     codec: ToonBinaryCodec[Any],
-    discriminator: Discriminator[Any, Any],
+    discriminator: Discriminator[Any],
     isEnum: Boolean
   )
 

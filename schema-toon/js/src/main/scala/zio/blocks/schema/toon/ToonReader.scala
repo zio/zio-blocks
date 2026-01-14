@@ -7,6 +7,8 @@ import java.time.format.DateTimeParseException
 import java.util.{Currency, UUID}
 import java.nio.charset.StandardCharsets.UTF_8
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
+import zio.blocks.schema.binding.{Registers, RegisterOffset}
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import scala.annotation.tailrec
 
 /**
@@ -29,17 +31,39 @@ final class ToonReader private[toon] (
   private[this] var depth: Int = 0,
   private[this] var line: Int = 1,
   private[this] var column: Int = 1,
-  private[this] var inUse: Boolean = false,
   private[this] var in: InputStream = null,
   private[this] var mark: Int = -1,
   private[this] var tokenStart: Int = -1,
-  private[this] var currentDelimiter: Delimiter = Delimiter.Comma
+  private[this] var currentDelimiter: Delimiter = Delimiter.Comma,
+  private[this] val stack: Registers = Registers(0),
+  private[this] var top: RegisterOffset = -1L,
+  private[this] var maxTop: RegisterOffset = 0L
 ) {
 
   /**
    * Returns true if this reader is currently in use.
    */
-  private[toon] def isInUse: Boolean = inUse
+  private[toon] def isInUse: Boolean = top >= 0
+
+  /**
+   * Pushes register space onto the stack.
+   */
+  def push(offset: RegisterOffset): RegisterOffset = {
+    val t = this.top
+    this.top = t + offset
+    maxTop = Math.max(maxTop, this.top)
+    t
+  }
+
+  /**
+   * Pops register space from the stack.
+   */
+  def pop(offset: RegisterOffset): Unit = top -= offset
+
+  /**
+   * Returns the registers for this reader.
+   */
+  def registers: Registers = this.stack
 
   /**
    * Checks if the next token is the specified character.
@@ -810,11 +834,11 @@ final class ToonReader private[toon] (
     this.line = 1
     this.column = 1
     this.depth = 0
-    this.inUse = true
+    this.top = 0
     try {
       codec.decodeValue(this, codec.nullValue)
     } finally {
-      this.inUse = false
+      this.top = -1
     }
   }
 
@@ -832,11 +856,11 @@ final class ToonReader private[toon] (
     this.line = 1
     this.column = 1
     this.depth = 0
-    this.inUse = true
+    this.top = 0
     try {
       codec.decodeValue(this, codec.nullValue)
     } finally {
-      this.inUse = false
+      this.top = -1
     }
   }
 
@@ -848,13 +872,13 @@ final class ToonReader private[toon] (
     this.line = 1
     this.column = 1
     this.depth = 0
-    this.inUse = true
+    this.top = 0
     try {
       loadFromInputStream()
       codec.decodeValue(this, codec.nullValue)
     } finally {
       this.in = null
-      this.inUse = false
+      this.top = -1
     }
   }
 

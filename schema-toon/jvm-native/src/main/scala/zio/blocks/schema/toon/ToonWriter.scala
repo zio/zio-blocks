@@ -1,13 +1,13 @@
 package zio.blocks.schema.toon
 
 import java.io.OutputStream
-import java.math.BigInteger
 import java.nio.{BufferOverflowException, ByteBuffer}
 import java.time._
 import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
-import scala.annotation.tailrec
+import zio.blocks.schema.{DynamicValue, PrimitiveValue}
+import zio.blocks.schema.binding.Registers
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
 /**
  * A writer for iterative serialization of TOON keys and values.
@@ -26,17 +26,39 @@ final class ToonWriter private[toon] (
   private[this] var limit: Int = 32768,
   private[this] var config: WriterConfig = null,
   private[this] var depth: Int = 0,
-  private[this] var inUse: Boolean = false,
   private[this] var disableBufGrowing: Boolean = false,
   private[this] var bbuf: ByteBuffer = null,
   private[this] var out: OutputStream = null,
-  private[this] var atLineStart: Boolean = true
+  private[this] var atLineStart: Boolean = true,
+  private[this] val stack: Registers = Registers(0),
+  private[this] var top: RegisterOffset = -1L,
+  private[this] var maxTop: RegisterOffset = 0L
 ) {
 
   /**
    * Returns true if this writer is currently in use.
    */
-  private[toon] def isInUse: Boolean = inUse
+  private[toon] def isInUse: Boolean = top >= 0
+
+  /**
+   * Pushes register space onto the stack.
+   */
+  def push(offset: RegisterOffset): RegisterOffset = {
+    val t = this.top
+    this.top = t + offset
+    maxTop = Math.max(maxTop, this.top)
+    t
+  }
+
+  /**
+   * Pops register space from the stack.
+   */
+  def pop(offset: RegisterOffset): Unit = top -= offset
+
+  /**
+   * Returns the registers for this writer.
+   */
+  def registers: Registers = this.stack
 
   /**
    * Writes a boolean value as a key.
@@ -635,14 +657,14 @@ final class ToonWriter private[toon] (
     this.out = out
     this.count = 0
     this.depth = 0
-    this.inUse = true
+    this.top = 0
     this.atLineStart = true
     try {
       codec.encodeValue(x, this)
       flushToOutputStream()
     } finally {
       this.out = null
-      this.inUse = false
+      this.top = -1
     }
   }
 
@@ -650,13 +672,13 @@ final class ToonWriter private[toon] (
     this.config = config
     this.count = 0
     this.depth = 0
-    this.inUse = true
+    this.top = 0
     this.atLineStart = true
     try {
       codec.encodeValue(x, this)
       java.util.Arrays.copyOf(buf, count)
     } finally {
-      this.inUse = false
+      this.top = -1
     }
   }
 
@@ -665,7 +687,7 @@ final class ToonWriter private[toon] (
     this.bbuf = bbuf
     this.count = 0
     this.depth = 0
-    this.inUse = true
+    this.top = 0
     this.disableBufGrowing = true
     this.atLineStart = true
     try {
@@ -674,7 +696,7 @@ final class ToonWriter private[toon] (
     } finally {
       this.bbuf = null
       this.disableBufGrowing = false
-      this.inUse = false
+      this.top = -1
     }
   }
 
@@ -682,13 +704,13 @@ final class ToonWriter private[toon] (
     this.config = config
     this.count = 0
     this.depth = 0
-    this.inUse = true
+    this.top = 0
     this.atLineStart = true
     try {
       codec.encodeValue(x, this)
       new String(buf, 0, count, UTF_8)
     } finally {
-      this.inUse = false
+      this.top = -1
     }
   }
 
