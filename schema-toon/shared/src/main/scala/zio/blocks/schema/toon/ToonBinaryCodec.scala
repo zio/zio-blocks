@@ -228,7 +228,7 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
   }
 
   private[this] def toonReader(buf: Array[Byte], config: ReaderConfig): ToonReader =
-    new ToonReader(buf = buf, charBuf = new Array[Char](config.preferredCharBufSize), config = config)
+    new ToonReader(buf = buf, config = config)
 
   private[this] def toonWriter(config: WriterConfig): ToonWriter =
     new ToonWriter(buf = Array.emptyByteArray, limit = 0, config = config)
