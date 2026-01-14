@@ -17,6 +17,9 @@ object PatchMode {
   case object Clobber extends PatchMode
 
   // Schema instances for case objects - manually written for Scala 2 compatibility
+  // For easier testing in Scala 3, you can use schema.derive for all schemas.
+  // example - `implicit lazy val strictSchema: Schema[Strict.type] = Schema.derived`
+
   implicit lazy val strictSchema: Schema[Strict.type] = new Schema(
     reflect = new Reflect.Record[Binding, Strict.type](
       fields = Vector.empty,

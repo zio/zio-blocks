@@ -383,8 +383,7 @@ object SerializationSpec extends ZIOSpecDefault {
         val json =
           """{"ops":[{"path":{"nodes":[{"Field":{"name":"name"}}]},"operation":{"Set":{"value":"Alice"}}},{"path":{"nodes":[{"Field":{"name":"age"}}]},"operation":{"PrimitiveDelta":{"op":{"IntDelta":{"delta":5}}}}}]}"""
         roundTrip(patch, json)
-      }
-      /* FIX ME: This test fails with the manually derived schema.
+      },
       test("DynamicPatch with Operation.Patch (nested patch)") {
         val nestedPatch = DynamicPatch(
           Vector(
@@ -411,8 +410,7 @@ object SerializationSpec extends ZIOSpecDefault {
         val json =
           """{"ops":[{"path":{"nodes":[{"Field":{"name":"address"}}]},"operation":{"Patch":{"patch":{"ops":[{"path":{"nodes":[{"Field":{"name":"street"}}]},"operation":{"Set":{"value":"456 Elm"}}},{"path":{"nodes":[{"Field":{"name":"city"}}]},"operation":{"Set":{"value":"LA"}}}]}}}}]}"""
         roundTrip(patch, json)
-      },*/
-      /* FIX ME: This test fails with the manually derived schema.
+      },
       test("DynamicPatch with recursive Operation.Patch (3 levels)") {
         val level3 = DynamicPatch(
           Vector(
@@ -444,7 +442,7 @@ object SerializationSpec extends ZIOSpecDefault {
         val json =
           """{"ops":[{"path":{"nodes":[{"Field":{"name":"outer"}}]},"operation":{"Patch":{"patch":{"ops":[{"path":{"nodes":[{"Field":{"name":"inner"}}]},"operation":{"Patch":{"patch":{"ops":[{"path":{"nodes":[{"Field":{"name":"value"}}]},"operation":{"PrimitiveDelta":{"op":{"IntDelta":{"delta":10}}}}}]}}}}]}}}}]}"""
         roundTrip(level1, json)
-      }*/
+      }
     )
   )
 }

@@ -469,7 +469,6 @@ object OperationSpec extends ZIOSpecDefault {
           """{"MapEdit":{}}"""
         )
       },
-      /* FIX ME: This test fails with the manually derived schema.
       test("Patch with nested operations") {
         roundTrip(
           Patch.Operation.Patch(
@@ -492,7 +491,7 @@ object OperationSpec extends ZIOSpecDefault {
           ): Patch.Operation,
           """{"Patch":{"patch":{"ops":[{"path":{"nodes":[{"Field":{"name":"street"}}]},"operation":{"Set":{"value":"456 Elm"}}},{"path":{"nodes":[{"Field":{"name":"city"}}]},"operation":{"Set":{"value":"LA"}}},{"path":{"nodes":[{"Field":{"name":"zip"}}]},"operation":{"Set":{"value":"90002"}}}]}}}"""
         )
-      },*/
+      },
       test("Patch with empty nested patch") {
         roundTrip(
           Patch.Operation.Patch(DynamicPatch(Vector.empty)): Patch.Operation,

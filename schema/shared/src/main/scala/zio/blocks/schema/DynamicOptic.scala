@@ -91,6 +91,8 @@ object DynamicOptic {
     case object Wrapped extends Node
 
     // Schema instances - manually written for Scala 2 compatibility
+    // For easier testing in Scala 3, you can use schema.derive for all schemas.
+    // example - `implicit lazy val dynamicOpticSchema: Schema[DynamicOptic] = Schema.derived`
 
     // Schemas for case objects
     implicit lazy val elementsSchema: Schema[Elements.type] = new Schema(

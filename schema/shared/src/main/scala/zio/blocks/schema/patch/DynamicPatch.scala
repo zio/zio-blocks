@@ -844,7 +844,13 @@ object DynamicPatch {
     implicit object ForLazyList   extends CollectionDummy
   }
 
-  // StringOp schemas
+  // All of the StringOp, PrimitiveOp, SeqOp, MapOp, Operation, DynamicPatchOp, DynamicPatch schemas are manually derived.
+  // Scala 2 fails to compile if schema.derive is used in the same run as compile
+  // Since Patch is a recursively defined type, we use Reflect.Deferred to defer the evaluation of the certain schemas.
+  // The manual derivation code works, with all tests passing. 
+  // A cleaner way do this to use schema.derived (only in scala 3), implicit derivations for all the schemas.
+  // example -`implicit lazy val dynamicPatchOpSchema: Schema[DynamicPatchOp] = Schema.derived`
+  // As they are definitely to be right.
   implicit lazy val stringOpInsertSchema: Schema[StringOp.Insert] = {
     import zio.blocks.schema.binding.RegisterOffset
 
@@ -854,7 +860,7 @@ object DynamicPatch {
           Schema[Int].reflect.asTerm("index"),
           Schema[String].reflect.asTerm("text")
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "StringOp")), "\u0001"),
+        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "StringOp")), "Insert"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Insert] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 1, objects = 1)
@@ -883,7 +889,7 @@ object DynamicPatch {
           Schema[Int].reflect.asTerm("index"),
           Schema[Int].reflect.asTerm("length")
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "StringOp")), "\u0001"),
+        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "StringOp")), "Delete"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Delete] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 2)
@@ -914,7 +920,7 @@ object DynamicPatch {
         fields = Vector(
           Schema[String].reflect.asTerm("text")
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "StringOp")), "\u0001"),
+        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "StringOp")), "Append"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Append] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 1)
@@ -942,7 +948,7 @@ object DynamicPatch {
           Schema[Int].reflect.asTerm("length"),
           Schema[String].reflect.asTerm("text")
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "StringOp")), "\u0001"),
+        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "StringOp")), "Modify"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Modify] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 2, objects = 1)
@@ -1493,8 +1499,6 @@ object DynamicPatch {
       modifiers = Vector.empty
     )
   )
-  private def defer[A](schema: => Schema[A]): Schema[A] =
-    new Schema(Reflect.Deferred(() => schema.reflect))
 
   implicit lazy val seqOpInsertSchema: Schema[SeqOp.Insert] = {
     import zio.blocks.schema.binding.RegisterOffset
@@ -1581,7 +1585,7 @@ object DynamicPatch {
       reflect = new Reflect.Record[Binding, SeqOp.Modify](
         fields = Vector(
           Schema[Int].reflect.asTerm("index"),
-          operationSchema.reflect.asTerm("op")
+          Reflect.Deferred(() => operationSchema.reflect).asTerm("op")
         ),
         typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "SeqOp")), "Modify"),
         recordBinding = new Binding.Record(
@@ -1603,56 +1607,54 @@ object DynamicPatch {
     )
   }
 
-  implicit lazy val seqOpSchema: Schema[SeqOp] = defer {
-    new Schema(
-      reflect = new Reflect.Variant[Binding, SeqOp](
-        cases = Vector(
-          seqOpInsertSchema.reflect.asTerm("Insert"),
-          seqOpAppendSchema.reflect.asTerm("Append"),
-          seqOpDeleteSchema.reflect.asTerm("Delete"),
-          seqOpModifySchema.reflect.asTerm("Modify")
-        ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch")), "SeqOp"),
-        variantBinding = new Binding.Variant(
-          discriminator = new Discriminator[SeqOp] {
-            def discriminate(a: SeqOp): Int = a match {
-              case _: SeqOp.Insert => 0
-              case _: SeqOp.Append => 1
-              case _: SeqOp.Delete => 2
-              case _: SeqOp.Modify => 3
+  implicit lazy val seqOpSchema: Schema[SeqOp] = new Schema(
+    reflect = new Reflect.Variant[Binding, SeqOp](
+      cases = Vector(
+        seqOpInsertSchema.reflect.asTerm("Insert"),
+        seqOpAppendSchema.reflect.asTerm("Append"),
+        seqOpDeleteSchema.reflect.asTerm("Delete"),
+        Reflect.Deferred(() => seqOpModifySchema.reflect).asTerm("Modify")
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch")), "SeqOp"),
+      variantBinding = new Binding.Variant(
+        discriminator = new Discriminator[SeqOp] {
+          def discriminate(a: SeqOp): Int = a match {
+            case _: SeqOp.Insert => 0
+            case _: SeqOp.Append => 1
+            case _: SeqOp.Delete => 2
+            case _: SeqOp.Modify => 3
+          }
+        },
+        matchers = Matchers(
+          new Matcher[SeqOp.Insert] {
+            def downcastOrNull(a: Any): SeqOp.Insert = a match {
+              case x: SeqOp.Insert => x
+              case _               => null.asInstanceOf[SeqOp.Insert]
             }
           },
-          matchers = Matchers(
-            new Matcher[SeqOp.Insert] {
-              def downcastOrNull(a: Any): SeqOp.Insert = a match {
-                case x: SeqOp.Insert => x
-                case _               => null.asInstanceOf[SeqOp.Insert]
-              }
-            },
-            new Matcher[SeqOp.Append] {
-              def downcastOrNull(a: Any): SeqOp.Append = a match {
-                case x: SeqOp.Append => x
-                case _               => null.asInstanceOf[SeqOp.Append]
-              }
-            },
-            new Matcher[SeqOp.Delete] {
-              def downcastOrNull(a: Any): SeqOp.Delete = a match {
-                case x: SeqOp.Delete => x
-                case _               => null.asInstanceOf[SeqOp.Delete]
-              }
-            },
-            new Matcher[SeqOp.Modify] {
-              def downcastOrNull(a: Any): SeqOp.Modify = a match {
-                case x: SeqOp.Modify => x
-                case _               => null.asInstanceOf[SeqOp.Modify]
-              }
+          new Matcher[SeqOp.Append] {
+            def downcastOrNull(a: Any): SeqOp.Append = a match {
+              case x: SeqOp.Append => x
+              case _               => null.asInstanceOf[SeqOp.Append]
             }
-          )
-        ),
-        modifiers = Vector.empty
-      )
+          },
+          new Matcher[SeqOp.Delete] {
+            def downcastOrNull(a: Any): SeqOp.Delete = a match {
+              case x: SeqOp.Delete => x
+              case _               => null.asInstanceOf[SeqOp.Delete]
+            }
+          },
+          new Matcher[SeqOp.Modify] {
+            def downcastOrNull(a: Any): SeqOp.Modify = a match {
+              case x: SeqOp.Modify => x
+              case _               => null.asInstanceOf[SeqOp.Modify]
+            }
+          }
+        )
+      ),
+      modifiers = Vector.empty
     )
-  }
+  )
 
   implicit lazy val mapOpAddSchema: Schema[MapOp.Add] = {
     import zio.blocks.schema.binding.RegisterOffset
@@ -1714,7 +1716,7 @@ object DynamicPatch {
       reflect = new Reflect.Record[Binding, MapOp.Modify](
         fields = Vector(
           Schema[DynamicValue].reflect.asTerm("key"),
-          dynamicPatchSchema.reflect.asTerm("patch")
+          Reflect.Deferred(() => dynamicPatchSchema.reflect).asTerm("patch")
         ),
         typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "MapOp")), "Modify"),
         recordBinding = new Binding.Record(
@@ -1739,48 +1741,46 @@ object DynamicPatch {
     )
   }
 
-  implicit lazy val mapOpSchema: Schema[MapOp] = defer {
-    new Schema(
-      reflect = new Reflect.Variant[Binding, MapOp](
-        cases = Vector(
-          mapOpAddSchema.reflect.asTerm("Add"),
-          mapOpRemoveSchema.reflect.asTerm("Remove"),
-          mapOpModifySchema.reflect.asTerm("Modify")
-        ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch")), "MapOp"),
-        variantBinding = new Binding.Variant(
-          discriminator = new Discriminator[MapOp] {
-            def discriminate(a: MapOp): Int = a match {
-              case _: MapOp.Add    => 0
-              case _: MapOp.Remove => 1
-              case _: MapOp.Modify => 2
+  implicit lazy val mapOpSchema: Schema[MapOp] = new Schema(
+    reflect = new Reflect.Variant[Binding, MapOp](
+      cases = Vector(
+        mapOpAddSchema.reflect.asTerm("Add"),
+        mapOpRemoveSchema.reflect.asTerm("Remove"),
+        Reflect.Deferred(() => mapOpModifySchema.reflect).asTerm("Modify")
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch")), "MapOp"),
+      variantBinding = new Binding.Variant(
+        discriminator = new Discriminator[MapOp] {
+          def discriminate(a: MapOp): Int = a match {
+            case _: MapOp.Add    => 0
+            case _: MapOp.Remove => 1
+            case _: MapOp.Modify => 2
+          }
+        },
+        matchers = Matchers(
+          new Matcher[MapOp.Add] {
+            def downcastOrNull(a: Any): MapOp.Add = a match {
+              case x: MapOp.Add => x
+              case _            => null.asInstanceOf[MapOp.Add]
             }
           },
-          matchers = Matchers(
-            new Matcher[MapOp.Add] {
-              def downcastOrNull(a: Any): MapOp.Add = a match {
-                case x: MapOp.Add => x
-                case _            => null.asInstanceOf[MapOp.Add]
-              }
-            },
-            new Matcher[MapOp.Remove] {
-              def downcastOrNull(a: Any): MapOp.Remove = a match {
-                case x: MapOp.Remove => x
-                case _               => null.asInstanceOf[MapOp.Remove]
-              }
-            },
-            new Matcher[MapOp.Modify] {
-              def downcastOrNull(a: Any): MapOp.Modify = a match {
-                case x: MapOp.Modify => x
-                case _               => null.asInstanceOf[MapOp.Modify]
-              }
+          new Matcher[MapOp.Remove] {
+            def downcastOrNull(a: Any): MapOp.Remove = a match {
+              case x: MapOp.Remove => x
+              case _               => null.asInstanceOf[MapOp.Remove]
             }
-          )
-        ),
-        modifiers = Vector.empty
-      )
+          },
+          new Matcher[MapOp.Modify] {
+            def downcastOrNull(a: Any): MapOp.Modify = a match {
+              case x: MapOp.Modify => x
+              case _               => null.asInstanceOf[MapOp.Modify]
+            }
+          }
+        )
+      ),
+      modifiers = Vector.empty
     )
-  }
+  )
 
   implicit lazy val operationSetSchema: Schema[Operation.Set] = {
     import zio.blocks.schema.binding.RegisterOffset
@@ -1833,7 +1833,7 @@ object DynamicPatch {
     import zio.blocks.schema.binding.RegisterOffset
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.SequenceEdit](
-        fields = Vector(Schema[Vector[SeqOp]].reflect.asTerm("ops")),
+        fields = Vector(Reflect.Deferred(() => Schema[Vector[SeqOp]].reflect).asTerm("ops")),
         typeName =
           TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "Operation")), "SequenceEdit"),
         recordBinding = new Binding.Record(
@@ -1857,7 +1857,7 @@ object DynamicPatch {
     import zio.blocks.schema.binding.RegisterOffset
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.MapEdit](
-        fields = Vector(Schema[Vector[MapOp]].reflect.asTerm("ops")),
+        fields = Vector(Reflect.Deferred(() => Schema[Vector[MapOp]].reflect).asTerm("ops")),
         typeName =
           TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "Operation")), "MapEdit"),
         recordBinding = new Binding.Record(
@@ -1881,7 +1881,7 @@ object DynamicPatch {
     import zio.blocks.schema.binding.RegisterOffset
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.Patch](
-        fields = Vector(dynamicPatchSchema.reflect.asTerm("patch")),
+        fields = Vector(Reflect.Deferred(() => dynamicPatchSchema.reflect).asTerm("patch")),
         typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch", "Operation")), "Patch"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.Patch] {
@@ -1900,64 +1900,62 @@ object DynamicPatch {
     )
   }
 
-  implicit lazy val operationSchema: Schema[Operation] = defer {
-    new Schema(
-      reflect = new Reflect.Variant[Binding, Operation](
-        cases = Vector(
-          operationSetSchema.reflect.asTerm("Set"),
-          operationPrimitiveDeltaSchema.reflect.asTerm("PrimitiveDelta"),
-          operationSequenceEditSchema.reflect.asTerm("SequenceEdit"),
-          operationMapEditSchema.reflect.asTerm("MapEdit"),
-          operationPatchSchema.reflect.asTerm("Patch")
-        ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch")), "Operation"),
-        variantBinding = new Binding.Variant(
-          discriminator = new Discriminator[Operation] {
-            def discriminate(a: Operation): Int = a match {
-              case _: Operation.Set            => 0
-              case _: Operation.PrimitiveDelta => 1
-              case _: Operation.SequenceEdit   => 2
-              case _: Operation.MapEdit        => 3
-              case _: Operation.Patch          => 4
+  implicit lazy val operationSchema: Schema[Operation] = new Schema(
+    reflect = new Reflect.Variant[Binding, Operation](
+      cases = Vector(
+        operationSetSchema.reflect.asTerm("Set"),
+        operationPrimitiveDeltaSchema.reflect.asTerm("PrimitiveDelta"),
+        operationSequenceEditSchema.reflect.asTerm("SequenceEdit"),
+        operationMapEditSchema.reflect.asTerm("MapEdit"),
+        Reflect.Deferred(() => operationPatchSchema.reflect).asTerm("Patch")
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch")), "Operation"),
+      variantBinding = new Binding.Variant(
+        discriminator = new Discriminator[Operation] {
+          def discriminate(a: Operation): Int = a match {
+            case _: Operation.Set            => 0
+            case _: Operation.PrimitiveDelta => 1
+            case _: Operation.SequenceEdit   => 2
+            case _: Operation.MapEdit        => 3
+            case _: Operation.Patch          => 4
+          }
+        },
+        matchers = Matchers(
+          new Matcher[Operation.Set] {
+            def downcastOrNull(a: Any): Operation.Set = a match {
+              case x: Operation.Set => x
+              case _                => null.asInstanceOf[Operation.Set]
             }
           },
-          matchers = Matchers(
-            new Matcher[Operation.Set] {
-              def downcastOrNull(a: Any): Operation.Set = a match {
-                case x: Operation.Set => x
-                case _                => null.asInstanceOf[Operation.Set]
-              }
-            },
-            new Matcher[Operation.PrimitiveDelta] {
-              def downcastOrNull(a: Any): Operation.PrimitiveDelta = a match {
-                case x: Operation.PrimitiveDelta => x
-                case _                           => null.asInstanceOf[Operation.PrimitiveDelta]
-              }
-            },
-            new Matcher[Operation.SequenceEdit] {
-              def downcastOrNull(a: Any): Operation.SequenceEdit = a match {
-                case x: Operation.SequenceEdit => x
-                case _                         => null.asInstanceOf[Operation.SequenceEdit]
-              }
-            },
-            new Matcher[Operation.MapEdit] {
-              def downcastOrNull(a: Any): Operation.MapEdit = a match {
-                case x: Operation.MapEdit => x
-                case _                    => null.asInstanceOf[Operation.MapEdit]
-              }
-            },
-            new Matcher[Operation.Patch] {
-              def downcastOrNull(a: Any): Operation.Patch = a match {
-                case x: Operation.Patch => x
-                case _                  => null.asInstanceOf[Operation.Patch]
-              }
+          new Matcher[Operation.PrimitiveDelta] {
+            def downcastOrNull(a: Any): Operation.PrimitiveDelta = a match {
+              case x: Operation.PrimitiveDelta => x
+              case _                           => null.asInstanceOf[Operation.PrimitiveDelta]
             }
-          )
-        ),
-        modifiers = Vector.empty
-      )
+          },
+          new Matcher[Operation.SequenceEdit] {
+            def downcastOrNull(a: Any): Operation.SequenceEdit = a match {
+              case x: Operation.SequenceEdit => x
+              case _                         => null.asInstanceOf[Operation.SequenceEdit]
+            }
+          },
+          new Matcher[Operation.MapEdit] {
+            def downcastOrNull(a: Any): Operation.MapEdit = a match {
+              case x: Operation.MapEdit => x
+              case _                    => null.asInstanceOf[Operation.MapEdit]
+            }
+          },
+          new Matcher[Operation.Patch] {
+            def downcastOrNull(a: Any): Operation.Patch = a match {
+              case x: Operation.Patch => x
+              case _                  => null.asInstanceOf[Operation.Patch]
+            }
+          }
+        )
+      ),
+      modifiers = Vector.empty
     )
-  }
+  )
 
   implicit lazy val dynamicPatchOpSchema: Schema[DynamicPatchOp] = {
     import zio.blocks.schema.binding.RegisterOffset
@@ -1965,7 +1963,7 @@ object DynamicPatch {
       reflect = new Reflect.Record[Binding, DynamicPatchOp](
         fields = Vector(
           Schema[DynamicOptic].reflect.asTerm("path"),
-          operationSchema.reflect.asTerm("operation")
+          Reflect.Deferred(() => operationSchema.reflect).asTerm("operation")
         ),
         typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "DynamicPatch")), "DynamicPatchOp"),
         recordBinding = new Binding.Record(
@@ -1990,15 +1988,11 @@ object DynamicPatch {
     )
   }
 
-  implicit lazy val dynamicPatchSchema: Schema[DynamicPatch] = defer {
-    // Fix Me - there is a bug here, with the manually derived schema.
-    // If I change this to implicit lazy val dynamicPatchSchema: Schema[DynamicPatch]     = Schema.derived
-    // The tests dont fail, in serializationspec, so something is wrong with the manually derived schema.
-    // thought this was due to not being deferred, but it still fails.
+  implicit lazy val dynamicPatchSchema: Schema[DynamicPatch] = {
     import zio.blocks.schema.binding.RegisterOffset
     new Schema(
       reflect = new Reflect.Record[Binding, DynamicPatch](
-        fields = Vector(Schema[Vector[DynamicPatchOp]].reflect.asTerm("ops")),
+        fields = Vector(Reflect.Deferred(() => Schema[Vector[DynamicPatchOp]].reflect).asTerm("ops")),
         typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch")), "DynamicPatch"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[DynamicPatch] {
