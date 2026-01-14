@@ -717,8 +717,9 @@ final class ToonWriter private[toon] (
   // Private helper methods
 
   private def writeIndentIfNeeded(): Unit = {
-    if (atLineStart && depth > 0) {
-      val spaces = depth * config.indentSize
+    // Only indent for nested objects (depth > 1), not top-level
+    if (atLineStart && depth > 1) {
+      val spaces = (depth - 1) * config.indentSize
       ensureCapacity(spaces)
       var i = 0
       while (i < spaces) {
