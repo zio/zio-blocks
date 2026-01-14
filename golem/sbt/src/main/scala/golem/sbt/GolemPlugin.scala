@@ -3,6 +3,9 @@ package golem.sbt
 import sbt.*
 import sbt.Keys.*
 
+import java.io.ByteArrayOutputStream
+import java.io.FileOutputStream
+
 /**
  * sbt plugin for Golem-related build wiring.
  *
@@ -20,6 +23,14 @@ object GolemPlugin extends AutoPlugin {
       settingKey[Option[String]](
         "Base package whose @agentImplementation classes should be auto-registered (Scala.js)."
       )
+
+    val golemAgentGuestWasmFile: SettingKey[File] =
+      settingKey[File](
+        "Where to write the embedded base guest runtime WASM (agent_guest.wasm) for use by app manifests."
+      )
+
+    val golemWriteAgentGuestWasm: TaskKey[File] =
+      taskKey[File]("Writes the embedded base guest runtime WASM (agent_guest.wasm) to golemAgentGuestWasmFile.")
   }
 
   import autoImport.*
@@ -30,6 +41,49 @@ object GolemPlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[?]] =
     Seq(
       golemBasePackage := None,
+      golemAgentGuestWasmFile := {
+        // Default layout assumed by `golem/docs/getting-started.md`:
+        // <root>/scala (sbt build root) and <root>/app (golem app manifest).
+        val sbtRoot = (ThisBuild / baseDirectory).value
+        sbtRoot.getParentFile / "app" / "wasm" / "agent_guest.wasm"
+      },
+      golemWriteAgentGuestWasm := {
+        val out = golemAgentGuestWasmFile.value
+        val log = streams.value.log
+
+        val resourcePath = "golem/wasm/agent_guest.wasm"
+        val inOpt        = Option(getClass.getClassLoader.getResourceAsStream(resourcePath))
+        val bytes: Array[Byte] =
+          inOpt match {
+            case Some(in) =>
+              val bos = new ByteArrayOutputStream()
+              try IO.transfer(in, bos)
+              finally in.close()
+              bos.toByteArray
+            case None =>
+              // Fallback for monorepo builds, where this plugin can also be sourced from `project/GolemPlugin.scala`.
+              // External users will always use the published plugin jar, which includes the resource.
+              val repoRoot  = (LocalRootProject / baseDirectory).value
+              val candidate = repoRoot / "golem" / "sbt" / "src" / "main" / "resources" / "golem" / "wasm" / "agent_guest.wasm"
+              if (candidate.exists()) IO.readBytes(candidate)
+              else
+                sys.error(
+                  s"[golem] Missing embedded resource '$resourcePath' (and no repo fallback at ${candidate.getAbsolutePath})."
+                )
+          }
+
+        IO.createDirectory(out.getParentFile)
+
+        val fos = new FileOutputStream(out)
+        try {
+          fos.write(bytes)
+        } finally {
+          fos.close()
+        }
+
+        log.info(s"[golem] Wrote embedded agent_guest.wasm to ${out.getAbsolutePath}")
+        out
+      },
       Compile / sourceGenerators += Def.task {
         val basePackageOpt = golemBasePackage.value
         basePackageOpt match {

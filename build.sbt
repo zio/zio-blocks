@@ -363,7 +363,7 @@ lazy val zioGolemExamplesJS = zioGolemExamples.js
     Test / testQuick      := (Test / test).value,
     Test / testFrameworks := Nil
   )
-  .enablePlugins(GolemPlugin)
+  .enablePlugins(golem.sbt.GolemPlugin)
 
 lazy val zioGolemExamplesJVM = zioGolemExamples.jvm
   .settings(
@@ -396,7 +396,7 @@ lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
     Test / testQuick      := (Test / test).value,
     Test / testFrameworks := Nil
   )
-  .jsEnablePlugins(GolemPlugin)
+  .jsEnablePlugins(golem.sbt.GolemPlugin)
   .jsConfigure(_.dependsOn(zioGolemCoreJS, zioGolemMacros))
   .jvmConfigure(_.dependsOn(zioGolemCoreJVM, zioGolemMacros))
 

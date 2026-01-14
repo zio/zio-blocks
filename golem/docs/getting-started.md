@@ -241,13 +241,17 @@ chmod +x app/build-scalajs.sh
 
 ## 5) Provide the base guest runtime WASM (`agent_guest.wasm`)
 
-You need a QuickJS-based guest runtime WASM compatible with your Golem server/CLI WIT surface.
 
-- If you're working inside the **zio-blocks** repo and created `scala-demo/` at the repo root, you can copy a known-good one:
+The `zio-golem-sbt` plugin ships a compatible `agent_guest.wasm` embedded as a resource and can write it into your app’s
+`app/wasm/agent_guest.wasm` location:
 
 ```bash
-cp -f ../golem/quickstart/app/wasm/agent_guest.wasm app/wasm/agent_guest.wasm
+cd scala
+sbt -batch -no-colors -Dsbt.supershell=false "golemWriteAgentGuestWasm"
+cd ..
 ```
+
+If your project layout is different, set `golemAgentGuestWasmFile` in `scala/build.sbt` to point at the desired output file.
 
 ## 6) Deploy + invoke
 
