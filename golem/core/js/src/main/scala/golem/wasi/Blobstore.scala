@@ -19,8 +19,8 @@ object Blobstore {
   @JSImport("wasi:blobstore/types", JSImport.Namespace)
   private object TypesModule extends js.Object
 
-  def blobstoreRaw: js.Dynamic = BlobstoreModule.asInstanceOf[js.Dynamic]
-  def containerRaw: js.Dynamic = ContainerModule.asInstanceOf[js.Dynamic]
-  def typesRaw: js.Dynamic     = TypesModule.asInstanceOf[js.Dynamic]
+  def blobstoreRaw: Any = BlobstoreModule
+  def containerRaw: Any = ContainerModule
+  def typesRaw: Any     = TypesModule
 }
 

@@ -22,8 +22,8 @@ object Rdbms {
   @JSImport("golem:rdbms/types@0.0.1", JSImport.Namespace)
   private object TypesModule extends js.Object
 
-  def postgresRaw: js.Dynamic = PostgresModule.asInstanceOf[js.Dynamic]
-  def mysqlRaw: js.Dynamic    = MysqlModule.asInstanceOf[js.Dynamic]
-  def typesRaw: js.Dynamic    = TypesModule.asInstanceOf[js.Dynamic]
+  def postgresRaw: Any = PostgresModule
+  def mysqlRaw: Any    = MysqlModule
+  def typesRaw: Any    = TypesModule
 }
 

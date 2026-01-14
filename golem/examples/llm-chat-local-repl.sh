@@ -21,6 +21,13 @@ for f in "${flags[@]}"; do
   [[ "$f" == "--cloud" ]] && is_cloud=1
 done
 
+if [[ "$is_cloud" -eq 0 && "${FORCE_AI_ON_LOCAL:-}" != "1" ]]; then
+  echo "[llm-chat-local-repl] SKIP: golem:llm is not available on the builtin local server."
+  echo "[llm-chat-local-repl] Use GOLEM_CLI_FLAGS=--cloud (and configure credentials) to run this example," \
+    "or set FORCE_AI_ON_LOCAL=1 to attempt running on a non-builtin local server." >&2
+  exit 0
+fi
+
 if [[ "$is_cloud" -eq 0 ]]; then
   host="${GOLEM_ROUTER_HOST:-127.0.0.1}"
   port="${GOLEM_ROUTER_PORT:-9881}"

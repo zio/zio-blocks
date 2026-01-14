@@ -11,30 +11,28 @@ import scala.scalajs.js.annotation.JSImport
  */
 object ContextApi {
 
-  type Span              = js.Any
-  type InvocationContext = js.Any
-  type Attribute         = js.Any
-  type AttributeValue    = js.Any
+  final class Span private[golem] (private[golem] val underlying: js.Any) extends AnyVal
+  final class InvocationContext private[golem] (private[golem] val underlying: js.Any) extends AnyVal
 
   @js.native
   @JSImport("golem:api/context@1.3.0", JSImport.Namespace)
   private object ContextModule extends js.Object {
-    def startSpan(name: String): Span                                                = js.native
-    def currentContext(): InvocationContext                                          = js.native
+    def startSpan(name: String): js.Any                                              = js.native
+    def currentContext(): js.Any                                                     = js.native
     def allowForwardingTraceContextHeaders(allow: Boolean): Boolean                  = js.native
   }
 
   def startSpan(name: String): Span =
-    ContextModule.startSpan(name)
+    new Span(ContextModule.startSpan(name))
 
   def currentContext(): InvocationContext =
-    ContextModule.currentContext()
+    new InvocationContext(ContextModule.currentContext())
 
   def allowForwardingTraceContextHeaders(allow: Boolean): Boolean =
     ContextModule.allowForwardingTraceContextHeaders(allow)
 
   /** Low-level access to the imported host module (for forward compatibility). */
-  def raw: js.Dynamic =
-    ContextModule.asInstanceOf[js.Dynamic]
+  def raw: Any =
+    ContextModule
 }
 

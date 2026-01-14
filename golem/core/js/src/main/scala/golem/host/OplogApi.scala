@@ -15,8 +15,12 @@ object OplogApi {
   @JSImport("golem:api/oplog@1.3.0", JSImport.Namespace)
   private object OplogModule extends js.Object
 
-  /** Low-level access to the imported host module. */
-  def raw: js.Dynamic =
-    OplogModule.asInstanceOf[js.Dynamic]
+  /**
+   * Low-level access to the imported host module.
+   *
+   * Note: intentionally typed as `Any` so the public SDK surface does not expose `scala.scalajs.js.*` types.
+   */
+  def raw: Any =
+    OplogModule
 }
 

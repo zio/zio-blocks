@@ -112,7 +112,7 @@ final class ApprovalWorkflowImpl(private val workflowId: String) extends Approva
             Future.successful("no pending approval")
           case Some(p) =>
             HostApi.awaitPromise(p).map { bytes =>
-              val v = Utf8.decode(bytes)
+              val v = Utf8.decodeBytes(bytes)
               decided = Some(v)
               v
             }
@@ -126,7 +126,7 @@ final class ApprovalWorkflowImpl(private val workflowId: String) extends Approva
       case Some(p) =>
         Future.successful {
           decided = Some(decision)
-          val ok = HostApi.completePromise(p, Utf8.encode(decision))
+          val ok = HostApi.completePromise(p, Utf8.encodeBytes(decision))
           ok
         }
     }

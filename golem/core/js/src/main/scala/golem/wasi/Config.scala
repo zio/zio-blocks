@@ -11,7 +11,7 @@ object Config {
   @JSImport("wasi:config/store@0.2.0-draft", JSImport.Namespace)
   private object StoreModule extends js.Object
 
-  def raw: js.Dynamic =
-    StoreModule.asInstanceOf[js.Dynamic]
+  def raw: Any =
+    StoreModule
 }
 

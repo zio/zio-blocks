@@ -23,9 +23,9 @@ object KeyValue {
   @JSImport("wasi:keyvalue/wasi-keyvalue-error@0.1.0", JSImport.Namespace)
   private object ErrorModule extends js.Object
 
-  def eventualRaw: js.Dynamic      = EventualModule.asInstanceOf[js.Dynamic]
-  def eventualBatchRaw: js.Dynamic = EventualBatchModule.asInstanceOf[js.Dynamic]
-  def typesRaw: js.Dynamic         = TypesModule.asInstanceOf[js.Dynamic]
-  def errorRaw: js.Dynamic         = ErrorModule.asInstanceOf[js.Dynamic]
+  def eventualRaw: Any      = EventualModule
+  def eventualBatchRaw: Any = EventualBatchModule
+  def typesRaw: Any         = TypesModule
+  def errorRaw: Any         = ErrorModule
 }
 

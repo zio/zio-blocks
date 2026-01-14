@@ -100,6 +100,11 @@ fi
       print "  import wasi:keyvalue/wasi-keyvalue-error@0.1.0;"
       print ""
       print "  import wasi:config/store@0.2.0-draft;"
+      print ""
+      # AI capabilities (opt-in for users; imported so JS code can `import "golem:llm/llm@1.0.0"` etc):
+      print "  import golem:llm/llm@1.0.0;"
+      print "  import golem:web-search/web-search@1.0.0;"
+      print "  import golem:web-search/types@1.0.0;"
       next
     }
     $0 ~ /^[[:space:]]*export guest;[[:space:]]*$/ {
@@ -126,6 +131,10 @@ cp -r "$wit_dir/deps/sockets" "$agent_wit_root/deps/"
 cp -r "$wit_dir/deps/blobstore" "$agent_wit_root/deps/"
 cp -r "$wit_dir/deps/keyvalue" "$agent_wit_root/deps/"
 cp -r "$wit_dir/deps/config" "$agent_wit_root/deps/"
+
+# AI WIT packages are not part of the golem v1.4.1 WIT tarball; we vendor the stable definitions we need.
+cp -r "$repo_root/golem/tools/wit-ai/golem-llm" "$agent_wit_root/deps/"
+cp -r "$repo_root/golem/tools/wit-ai/golem-web-search" "$agent_wit_root/deps/"
 
 echo "[agent-guest] Generating wrapper crate with wasm-rquickjs..." >&2
 rm -rf "$wrapper_dir"
