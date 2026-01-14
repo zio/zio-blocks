@@ -3,7 +3,6 @@ package zio.blocks.schema.toon
 import zio.blocks.schema.toon.ToonTestUtils._
 import zio.blocks.schema._
 import zio.test._
-import zio.test.Assertion._
 
 object ToonBinaryCodecDeriverSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("ToonBinaryCodecDeriverSpec")(
@@ -66,19 +65,19 @@ object ToonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     suite("records")(
       test("simple case class") {
         case class Person(name: String, age: Int)
-        implicit val schema: Schema[Person] = DeriveSchema.gen[Person]
+        implicit val schema: Schema[Person] = Schema.derived[Person]
         // TOON object format with newlines and indentation
         roundTrip(Person("Alice", 30), "name: Alice\nage: 30")
       }
     ),
     suite("sequences")(
       test("inline array of ints") {
-        implicit val schema: Schema[List[Int]] = DeriveSchema.gen[List[Int]]
+        implicit val schema: Schema[List[Int]] = Schema.derived[List[Int]]
         // TOON inline array format: key[N]: v1,v2,v3
         roundTrip(List(1, 2, 3), "[3]: 1,2,3")
       },
       test("inline array of strings") {
-        implicit val schema: Schema[List[String]] = DeriveSchema.gen[List[String]]
+        implicit val schema: Schema[List[String]] = Schema.derived[List[String]]
         roundTrip(List("a", "b", "c"), "[3]: a,b,c")
       }
     )

@@ -1,15 +1,13 @@
 package zio.blocks.schema.toon
 
 import java.io.OutputStream
-import java.math.BigInteger
 import java.nio.{BufferOverflowException, ByteBuffer}
 import java.time._
 import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
-import zio.blocks.schema.binding.{Registers, RegisterOffset}
+import zio.blocks.schema.{DynamicValue, PrimitiveValue}
+import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import scala.annotation.tailrec
 
 /**
  * A writer for iterative serialization of TOON keys and values.

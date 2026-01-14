@@ -7,9 +7,8 @@ import java.time.format.DateTimeParseException
 import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
 import zio.blocks.schema.{DynamicValue, PrimitiveValue}
-import zio.blocks.schema.binding.{Registers, RegisterOffset}
+import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import scala.annotation.tailrec
 
 /**
  * A reader for iterative parsing of TOON documents.
