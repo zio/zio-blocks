@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema}
+import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 
 /**
  * A builder for constructing migrations from type `A` to type `B`.
@@ -26,34 +26,30 @@ final class MigrationBuilder[A, B](
 
   /**
    * Add a new field to the target with a default value.
+   *
+   * @param target Selector for the field to add
+   * @param default Expression providing the default value
    */
   inline def addField(
     inline target: B => Any,
-    default: DynamicValue
+    default: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = {
     val targetPath = SelectorMacros.toPath[B, Any](target)
-    val fieldName = targetPath.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(name)) => name
-      case _ => throw new IllegalArgumentException("Target selector must end with a field access")
-    }
-    val parentPath = DynamicOptic(targetPath.nodes.dropRight(1))
-    appendAction(MigrationAction.AddField(parentPath, fieldName, default))
+    appendAction(MigrationAction.AddField(targetPath, default))
   }
 
   /**
    * Drop a field from the source.
+   *
+   * @param source Selector for the field to drop
+   * @param defaultForReverse Default value to use when reversing the migration (for re-adding the field)
    */
   inline def dropField(
     inline source: A => Any,
-    defaultForReverse: Option[DynamicValue] = None
+    defaultForReverse: SchemaExpr[_, _] 
   ): MigrationBuilder[A, B] = {
     val sourcePath = SelectorMacros.toPath[A, Any](source)
-    val fieldName = sourcePath.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(name)) => name
-      case _ => throw new IllegalArgumentException("Source selector must end with a field access")
-    }
-    val parentPath = DynamicOptic(sourcePath.nodes.dropRight(1))
-    appendAction(MigrationAction.DropField(parentPath, fieldName, defaultForReverse))
+    appendAction(MigrationAction.DropField(sourcePath, defaultForReverse))
   }
 
   /**
@@ -74,24 +70,31 @@ final class MigrationBuilder[A, B](
 
   /**
    * Transform a field value.
+   *
+   * @param from Selector for the source field
+   * @param to Selector for the target field (used for validation)
+   * @param transform Expression that computes the new value
    */
   inline def transformField(
     inline from: A => Any,
-    inline to: B => Any,
-    transform: DynamicTransform
+    @scala.annotation.unused inline to: B => Any,
+    transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = {
     val fromPath = SelectorMacros.toPath[A, Any](from)
-    // to path used for validation only in full build
-    appendAction(MigrationAction.TransformValue(fromPath, transform, DynamicTransform.Identity))
+    appendAction(MigrationAction.TransformValue(fromPath, transform))
   }
 
   /**
    * Convert an optional field in source to a required field in target.
+   *
+   * @param source Selector for the optional source field
+   * @param target Selector for the required target field (used for validation)
+   * @param default Expression providing the default value when source is None
    */
   inline def mandateField(
     inline source: A => Option[?],
-    inline target: B => Any,
-    default: DynamicValue
+    @scala.annotation.unused inline target: B => Any,
+    default: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = {
     val sourcePath = SelectorMacros.toPath[A, Option[?]](source)
     appendAction(MigrationAction.Mandate(sourcePath, default))
@@ -102,7 +105,7 @@ final class MigrationBuilder[A, B](
    */
   inline def optionalizeField(
     inline source: A => Any,
-    inline target: B => Option[?]
+    @scala.annotation.unused inline target: B => Option[?]
   ): MigrationBuilder[A, B] = {
     val sourcePath = SelectorMacros.toPath[A, Any](source)
     appendAction(MigrationAction.Optionalize(sourcePath))
@@ -110,14 +113,18 @@ final class MigrationBuilder[A, B](
 
   /**
    * Change the type of a field (primitive-to-primitive only).
+   *
+   * @param source Selector for the source field
+   * @param target Selector for the target field (used for validation)
+   * @param converter Expression that converts between types
    */
   inline def changeFieldType(
     inline source: A => Any,
-    inline target: B => Any,
-    converter: DynamicTransform
+    @scala.annotation.unused inline target: B => Any,
+    converter: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = {
     val sourcePath = SelectorMacros.toPath[A, Any](source)
-    appendAction(MigrationAction.ChangeType(sourcePath, converter, DynamicTransform.Identity))
+    appendAction(MigrationAction.ChangeType(sourcePath, converter))
   }
 
   // ----- Enum operations -----
@@ -144,45 +151,55 @@ final class MigrationBuilder[A, B](
   ): MigrationBuilder[A, B] = {
     val innerBuilder = new MigrationBuilder[CaseA, CaseB](caseSourceSchema, caseTargetSchema, Vector.empty)
     val builtInner = caseMigration(innerBuilder)
-    appendAction(MigrationAction.TransformCase(DynamicOptic.root, caseName, builtInner.actions))
+    appendAction(MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), builtInner.actions))
   }
 
   // ----- Collections -----
 
   /**
    * Transform each element in a collection.
+   *
+   * @param at Selector for the collection field
+   * @param transform Expression that transforms each element
    */
   inline def transformElements(
     inline at: A => Iterable[?],
-    transform: DynamicTransform
+    transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = {
     val path = SelectorMacros.toPath[A, Iterable[?]](at)
-    appendAction(MigrationAction.TransformElements(path, transform, DynamicTransform.Identity))
+    appendAction(MigrationAction.TransformElements(path, transform))
   }
 
   // ----- Maps -----
 
   /**
    * Transform each key in a map.
+   *
+   * @param at Selector for the map field
+   * @param transform Expression that transforms each key
    */
   inline def transformKeys(
     inline at: A => Map[?, ?],
-    transform: DynamicTransform
+    transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = {
     val path = SelectorMacros.toPath[A, Map[?, ?]](at)
-    appendAction(MigrationAction.TransformKeys(path, transform, DynamicTransform.Identity))
+    appendAction(MigrationAction.TransformKeys(path, transform))
   }
 
   /**
    * Transform each value in a map.
+   *
+   * @param at Selector for the map field
+   * @param transform Expression that transforms each value
    */
   inline def transformValues(
     inline at: A => Map[?, ?],
-    transform: DynamicTransform
+    transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = {
     val path = SelectorMacros.toPath[A, Map[?, ?]](at)
-    appendAction(MigrationAction.TransformValues(path, transform, DynamicTransform.Identity))
+    appendAction(MigrationAction.TransformValues(path, transform))
   }
+
 
   // ----- Build -----
 

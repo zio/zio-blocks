@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import scala.annotation.unchecked.uncheckedVariance
+
 /**
  * A {{SchemaExpr}} is an expression on the value of a type fully described by a
  * {{Schema}}.
@@ -19,7 +21,7 @@ sealed trait SchemaExpr[A, +B] { self =>
    * @return
    *   the result of the expression
    */
-  def eval(input: A): Either[OpticCheck, Seq[B]]
+  def eval(input: A)(implicit schema: Schema[B @uncheckedVariance]): Either[OpticCheck, Seq[B]]
 
   /**
    * Evaluate the expression on the input value.
@@ -57,17 +59,310 @@ sealed trait SchemaExpr[A, +B] { self =>
 }
 
 object SchemaExpr {
-  final case class Literal[S, A](value: A, schema: Schema[A]) extends SchemaExpr[S, A] {
-    def eval(input: S): Either[OpticCheck, Seq[A]] = result
+
+  /**
+   * Create a Literal expression from the schema's default value.
+   * Gets the default value from the schema and wraps it in a Literal.
+   * Returns None if the schema has no default value.
+   */
+  def schemaDefault[A](implicit schema: Schema[A]): Option[SchemaExpr[Any, A]] =
+    schema.getDefaultValue.map { defaultValue =>
+      Literal[Any, A](schema.toDynamicValue(defaultValue))
+    }
+
+  /**
+   * Primitive type conversion expression.
+   * Converts a primitive value from one type to another based on the ConversionType.
+   */
+  final case class PrimitiveConversion[S](conversionType: ConversionType) extends SchemaExpr[S, Any] {
+    def eval(input: S)(implicit schema: Schema[Any]): Either[OpticCheck, Seq[Any]] = {
+      // Input is ignored - conversion is applied to a DynamicValue at the migration level
+      throw new UnsupportedOperationException("PrimitiveConversion.eval requires DynamicValue context")
+    }
+
+    def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = {
+      throw new UnsupportedOperationException("PrimitiveConversion.evalDynamic requires DynamicValue context")
+    }
+
+    /**
+     * Convert a DynamicValue using this conversion type.
+     */
+    def convert(value: DynamicValue): Either[String, DynamicValue] = conversionType.convert(value)
+  }
+
+  /**
+   * Sum type representing all supported primitive-to-primitive conversions.
+   */
+  sealed trait ConversionType {
+    def convert(value: DynamicValue): Either[String, DynamicValue]
+  }
+
+  object ConversionType {
+    // Numeric widening conversions (lossless)
+    case object ByteToShort extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Short(v.toShort)))
+        case _ => Left(s"Expected Byte, got $value")
+      }
+    }
+
+    case object ByteToInt extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
+        case _ => Left(s"Expected Byte, got $value")
+      }
+    }
+
+    case object ByteToLong extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Long(v.toLong)))
+        case _ => Left(s"Expected Byte, got $value")
+      }
+    }
+
+    case object ShortToInt extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
+        case _ => Left(s"Expected Short, got $value")
+      }
+    }
+
+    case object ShortToLong extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Long(v.toLong)))
+        case _ => Left(s"Expected Short, got $value")
+      }
+    }
+
+    case object IntToLong extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Long(v.toLong)))
+        case _ => Left(s"Expected Int, got $value")
+      }
+    }
+
+    case object FloatToDouble extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Double(v.toDouble)))
+        case _ => Left(s"Expected Float, got $value")
+      }
+    }
+
+    // Numeric narrowing conversions (potentially lossy)
+    case object ShortToByte extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Byte(v.toByte)))
+        case _ => Left(s"Expected Short, got $value")
+      }
+    }
+
+    case object IntToByte extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Byte(v.toByte)))
+        case _ => Left(s"Expected Int, got $value")
+      }
+    }
+
+    case object IntToShort extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Short(v.toShort)))
+        case _ => Left(s"Expected Int, got $value")
+      }
+    }
+
+    case object LongToByte extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Byte(v.toByte)))
+        case _ => Left(s"Expected Long, got $value")
+      }
+    }
+
+    case object LongToShort extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Short(v.toShort)))
+        case _ => Left(s"Expected Long, got $value")
+      }
+    }
+
+    case object LongToInt extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
+        case _ => Left(s"Expected Long, got $value")
+      }
+    }
+
+    case object DoubleToFloat extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Float(v.toFloat)))
+        case _ => Left(s"Expected Double, got $value")
+      }
+    }
+
+    // Integer to floating point
+    case object IntToFloat extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Float(v.toFloat)))
+        case _ => Left(s"Expected Int, got $value")
+      }
+    }
+
+    case object IntToDouble extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Double(v.toDouble)))
+        case _ => Left(s"Expected Int, got $value")
+      }
+    }
+
+    case object LongToFloat extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Float(v.toFloat)))
+        case _ => Left(s"Expected Long, got $value")
+      }
+    }
+
+    case object LongToDouble extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Double(v.toDouble)))
+        case _ => Left(s"Expected Long, got $value")
+      }
+    }
+
+    // String conversions
+    case object IntToString extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
+        case _ => Left(s"Expected Int, got $value")
+      }
+    }
+
+    case object LongToString extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
+        case _ => Left(s"Expected Long, got $value")
+      }
+    }
+
+    case object DoubleToString extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
+        case _ => Left(s"Expected Double, got $value")
+      }
+    }
+
+    case object BooleanToString extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Boolean(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
+        case _ => Left(s"Expected Boolean, got $value")
+      }
+    }
+
+    // String parsing (may fail)
+    case object StringToInt extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
+          try Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
+          catch { case _: NumberFormatException => Left(s"Cannot parse '$v' as Int") }
+        case _ => Left(s"Expected String, got $value")
+      }
+    }
+
+    case object StringToLong extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
+          try Right(DynamicValue.Primitive(PrimitiveValue.Long(v.toLong)))
+          catch { case _: NumberFormatException => Left(s"Cannot parse '$v' as Long") }
+        case _ => Left(s"Expected String, got $value")
+      }
+    }
+
+    case object StringToDouble extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
+          try Right(DynamicValue.Primitive(PrimitiveValue.Double(v.toDouble)))
+          catch { case _: NumberFormatException => Left(s"Cannot parse '$v' as Double") }
+        case _ => Left(s"Expected String, got $value")
+      }
+    }
+
+    case object StringToBoolean extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
+          v.toLowerCase match {
+            case "true"  => Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+            case "false" => Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+            case _       => Left(s"Cannot parse '$v' as Boolean")
+          }
+        case _ => Left(s"Expected String, got $value")
+      }
+    }
+
+    // Char conversions
+    case object CharToInt extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Char(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
+        case _ => Left(s"Expected Char, got $value")
+      }
+    }
+
+    case object IntToChar extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.Char(v.toChar)))
+        case _ => Left(s"Expected Int, got $value")
+      }
+    }
+
+    case object CharToString extends ConversionType {
+      def convert(value: DynamicValue): Either[String, DynamicValue] = value match {
+        case DynamicValue.Primitive(PrimitiveValue.Char(v)) =>
+          Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
+        case _ => Left(s"Expected Char, got $value")
+      }
+    }
+  }
+
+  final case class Literal[S, A](dynamicValue: DynamicValue) extends SchemaExpr[S, A] {
+    def eval(input: S)(implicit schema: Schema[A]): Either[OpticCheck, Seq[A]] =
+       schema.fromDynamicValue(dynamicValue) match {
+          case Right(value) => new Right(value :: Nil)
+          case Left(error)  => new Left(new OpticCheck(::(OpticCheck.DynamicConversionError(error.message), Nil)))
+        }
 
     def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = dynamicResult
 
-    private[this] val result        = new Right(value :: Nil)
-    private[this] val dynamicResult = new Right(schema.toDynamicValue(value) :: Nil)
+    private[this] val dynamicResult = new Right(dynamicValue :: Nil)
+  }
+
+  object Literal {
+    def apply[S, A](value: A)(implicit schema: Schema[A]): Literal[S, A] =
+      new Literal(schema.toDynamicValue(value))
   }
 
   final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {
-    def eval(input: A): Either[OpticCheck, Seq[B]] = optic match {
+    def eval(input: A)(implicit schema: Schema[B]): Either[OpticCheck, Seq[B]] = optic match {
       case l: Lens[?, ?] =>
         new Right(l.get(input) :: Nil)
       case p: Prism[?, ?] =>
@@ -124,11 +419,11 @@ object SchemaExpr {
 
   final case class Relational[A, B](left: SchemaExpr[A, B], right: SchemaExpr[A, B], operator: RelationalOperator)
       extends BinaryOp[A, B, Boolean] {
-    def eval(input: A): Either[OpticCheck, Seq[Boolean]] =
+    def eval(input: A)(implicit schema: Schema[Boolean]): Either[OpticCheck, Seq[Boolean]] =
       if (operator == RelationalOperator.Equal || operator == RelationalOperator.NotEqual) {
         for {
-          xs <- left.eval(input)
-          ys <- right.eval(input)
+          xs <- left.evalDynamic(input)
+          ys <- right.evalDynamic(input)
         } yield {
           if (operator == RelationalOperator.Equal) for { x <- xs; y <- ys } yield x == y
           else for { x <- xs; y <- ys } yield x != y
@@ -175,7 +470,7 @@ object SchemaExpr {
 
   final case class Logical[A](left: SchemaExpr[A, Boolean], right: SchemaExpr[A, Boolean], operator: LogicalOperator)
       extends BinaryOp[A, Boolean, Boolean] {
-    def eval(input: A): Either[OpticCheck, Seq[Boolean]] =
+    def eval(input: A)(implicit schema: Schema[Boolean]): Either[OpticCheck, Seq[Boolean]] =
       for {
         xs <- left.eval(input)
         ys <- right.eval(input)
@@ -205,7 +500,7 @@ object SchemaExpr {
   }
 
   final case class Not[A](expr: SchemaExpr[A, Boolean]) extends UnaryOp[A, Boolean] {
-    def eval(input: A): Either[OpticCheck, Seq[Boolean]] =
+    def eval(input: A)(implicit schema: Schema[Boolean]): Either[OpticCheck, Seq[Boolean]] =
       for {
         xs <- expr.eval(input)
       } yield xs.map(!_)
@@ -225,10 +520,10 @@ object SchemaExpr {
     operator: ArithmeticOperator,
     isNumeric: IsNumeric[A]
   ) extends BinaryOp[S, A, A] {
-    def eval(input: S): Either[OpticCheck, Seq[A]] =
+    def eval(input: S)(implicit schema: Schema[A]): Either[OpticCheck, Seq[A]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
+        xs <- left.eval(input)(isNumeric.schema)
+        ys <- right.eval(input)(isNumeric.schema)
       } yield {
         val n = isNumeric.numeric
         operator match {
@@ -240,8 +535,8 @@ object SchemaExpr {
 
     def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
+        xs <- left.eval(input)(isNumeric.schema)
+        ys <- right.eval(input)(isNumeric.schema)
       } yield {
         val n = isNumeric.numeric
         operator match {
@@ -264,7 +559,7 @@ object SchemaExpr {
 
   final case class StringConcat[A](left: SchemaExpr[A, String], right: SchemaExpr[A, String])
       extends BinaryOp[A, String, String] {
-    def eval(input: A): Either[OpticCheck, Seq[String]] =
+    def eval(input: A)(implicit schema: Schema[String]): Either[OpticCheck, Seq[String]] =
       for {
         xs <- left.eval(input)
         ys <- right.eval(input)
@@ -282,10 +577,10 @@ object SchemaExpr {
 
   final case class StringRegexMatch[A](regex: SchemaExpr[A, String], string: SchemaExpr[A, String])
       extends SchemaExpr[A, Boolean] {
-    def eval(input: A): Either[OpticCheck, Seq[Boolean]] =
+    def eval(input: A)(implicit schema: Schema[Boolean]): Either[OpticCheck, Seq[Boolean]] =
       for {
-        xs <- regex.eval(input)
-        ys <- string.eval(input)
+        xs <- regex.eval(input)(Schema[String])
+        ys <- string.eval(input)(Schema[String])
       } yield for { x <- xs; y <- ys } yield x.matches(y)
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
@@ -299,9 +594,9 @@ object SchemaExpr {
   }
 
   final case class StringLength[A](string: SchemaExpr[A, String]) extends SchemaExpr[A, Int] {
-    def eval(input: A): Either[OpticCheck, Seq[Int]] =
+    def eval(input: A)(implicit schema: Schema[Int]): Either[OpticCheck, Seq[Int]] =
       for {
-        xs <- string.eval(input)
+        xs <- string.eval(input)(Schema[String])
       } yield xs.map(_.length)
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =

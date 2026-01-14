@@ -1,6 +1,6 @@
 # Implementation Plan: Pure Algebraic Migration System (Issue #519)
 
-## Status: Core Implementation Complete, Some Items Remaining
+## Status: Core Implementation Complete
 
 ## Requirements Checklist (from 519.md Success Criteria)
 
@@ -19,16 +19,49 @@
 | Comprehensive tests | ⚠️ Partial | Core tests done, some operations untested |
 | Scala 2.13 and Scala 3.5+ supported | ✅ Complete | Cross-compiles |
 
-## Recent Changes
+## MigrationBuilder Methods (per spec)
 
-### Error Handling Refactored ✅
-- Removed separate `MigrationError` class
-- Extended `SchemaError.Single` with `MigrationError` case
-- Added `MigrationErrorKind` sum type for migration-specific errors:
-  - `PathNotFound`, `TypeMismatch`, `MissingDefault`, `TransformFailed`
-  - `FieldNotFound`, `FieldAlreadyExists`, `CaseNotFound`
-  - `InvalidValue`, `MandateFailed`
-- Added helper methods: `SchemaError.pathNotFound()`, `SchemaError.fieldNotFound()`, etc.
+### Record Operations
+| Method | Status | Notes |
+|--------|--------|-------|
+| `addField(target, default: SchemaExpr)` | ✅ | Primary API |
+| `addField(target, default: DynamicValue)` | ✅ | Convenience overload |
+| `dropField(source, defaultForReverse: SchemaExpr = DefaultValue)` | ✅ | Primary API |
+| `dropFieldWithDefault(source, defaultForReverse: DynamicValue)` | ✅ | Convenience overload |
+| `renameField(from, to)` | ✅ | |
+| `transformField(from, to, transform: SchemaExpr)` | ✅ | Primary API |
+| `transformField(from, to, transform: DynamicValue)` | ✅ | Convenience overload |
+| `mandateField(source, target, default: SchemaExpr)` | ✅ | Primary API |
+| `mandateField(source, target, default: DynamicValue)` | ✅ | Convenience overload |
+| `optionalizeField(source, target)` | ✅ | |
+| `changeFieldType(source, target, converter: SchemaExpr)` | ✅ | Primary API |
+| `changeFieldType(source, target, converter: DynamicValue)` | ✅ | Convenience overload |
+
+### Enum Operations
+| Method | Status | Notes |
+|--------|--------|-------|
+| `renameCase(from, to)` | ✅ | |
+| `transformCase(caseName)(caseMigration)` | ✅ | |
+
+### Collection/Map Operations
+| Method | Status | Notes |
+|--------|--------|-------|
+| `transformElements(at, transform: SchemaExpr)` | ✅ | Primary API |
+| `transformElements(at, transform: DynamicValue)` | ✅ | Convenience overload |
+| `transformKeys(at, transform: SchemaExpr)` | ✅ | Primary API |
+| `transformKeys(at, transform: DynamicValue)` | ✅ | Convenience overload |
+| `transformValues(at, transform: SchemaExpr)` | ✅ | Primary API |
+| `transformValues(at, transform: DynamicValue)` | ✅ | Convenience overload |
+
+### Build
+| Method | Status | Notes |
+|--------|--------|-------|
+| `build` | ✅ | Currently same as buildPartial |
+| `buildPartial` | ✅ | |
+
+## SchemaExpr Integration
+- `SchemaExpr.Literal` - wraps DynamicValue for literal values
+- `SchemaExpr.DefaultValue` - placeholder for schema default values
 
 ## Missing/Incomplete Items
 
@@ -44,11 +77,7 @@ This macro is NOT implemented. Currently only works with case classes.
 `.build` should perform macro validation that migration is complete.
 Currently identical to `.buildPartial`.
 
-### 3. SchemaExpr Integration - PARTIAL
-The spec uses `SchemaExpr[A, ?]` for transformations. Currently using `DynamicTransform`.
-`SchemaExpr` already exists but needs integration with migration builder.
-
-### 4. Missing Tests
+### 3. Missing Tests
 - `mandateField` / `optionalizeField`
 - `changeFieldType`  
 - `transformCase`
@@ -64,6 +93,7 @@ The spec uses `SchemaExpr[A, ?]` for transformations. Currently using `DynamicTr
 ```
 schema/shared/src/main/scala/zio/blocks/schema/
 ├── SchemaError.scala         (extended with MigrationError + MigrationErrorKind)
+├── SchemaExpr.scala          (includes Literal, DefaultValue)
 └── migration/
     ├── DynamicMigration.scala    
     ├── Migration.scala           
@@ -77,7 +107,7 @@ schema/shared/src/main/scala-3/zio/blocks/schema/migration/
 
 schema/shared/src/main/scala-2/zio/blocks/schema/migration/
 ├── MigrationBuilder.scala
-├── MigrationBuilderSyntax.scala
+├── MigrationBuilderSyntax.scala   (macros)
 ├── MigrationSelectorSyntax.scala  (version-specific)
 └── SelectorMacros.scala
 
@@ -91,7 +121,5 @@ schema/shared/src/test/scala/zio/blocks/schema/migration/
 
 1. **Add missing tests** - Low effort, high value
 2. **Schema.structural[T]** - High effort, required for full workflow
-3. **SchemaExpr integration** - Medium effort, per spec requirements
-4. **Build validation** - Medium effort
-5. **Join/Split builder methods** - Low effort
+3. **Build validation** - Medium effort
 

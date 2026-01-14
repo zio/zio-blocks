@@ -23,8 +23,12 @@ object SelectorMacros {
   def toPathImpl[S: c.WeakTypeTag, A: c.WeakTypeTag](c: whitebox.Context)(selector: c.Expr[S => A]): c.Tree = {
     import c.universe._
 
+    // Use type tags for better error messages
+    val sourceType = weakTypeOf[S]
+    val targetType = weakTypeOf[A]
+
     def fail(msg: String): Nothing =
-      c.abort(c.enclosingPosition, msg)
+      c.abort(c.enclosingPosition, s"$msg (selector: $sourceType => $targetType)")
 
     def toPathBody(tree: c.Tree): c.Tree = tree match {
       case q"($_) => $pathBody" => pathBody

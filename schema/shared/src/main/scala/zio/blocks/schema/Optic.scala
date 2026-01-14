@@ -75,7 +75,7 @@ sealed trait Optic[S, A] { self =>
   }
 
   final def ===(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
-    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Literal(that, schema), SchemaExpr.RelationalOperator.Equal)
+    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Literal(that), SchemaExpr.RelationalOperator.Equal)
 
   final def ===(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.Equal)
@@ -85,7 +85,7 @@ sealed trait Optic[S, A] { self =>
 
   final def >(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
     SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, schema),
+    SchemaExpr.Literal(that),
     SchemaExpr.RelationalOperator.GreaterThan
   )
 
@@ -97,7 +97,7 @@ sealed trait Optic[S, A] { self =>
 
   final def >=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
     SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, schema),
+    SchemaExpr.Literal(that),
     SchemaExpr.RelationalOperator.GreaterThanOrEqual
   )
 
@@ -106,7 +106,7 @@ sealed trait Optic[S, A] { self =>
 
   final def <(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
     SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, schema),
+    SchemaExpr.Literal(that),
     SchemaExpr.RelationalOperator.LessThan
   )
 
@@ -115,7 +115,7 @@ sealed trait Optic[S, A] { self =>
 
   final def <=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
     SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, schema),
+    SchemaExpr.Literal(that),
     SchemaExpr.RelationalOperator.LessThanOrEqual
   )
 
@@ -125,7 +125,7 @@ sealed trait Optic[S, A] { self =>
   final def !=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
     SchemaExpr.Relational(
       SchemaExpr.Optic(this),
-      SchemaExpr.Literal(that, schema),
+      SchemaExpr.Literal(that),
       SchemaExpr.RelationalOperator.NotEqual
     )
 
@@ -138,7 +138,7 @@ sealed trait Optic[S, A] { self =>
   final def &&(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.Logical(
       SchemaExpr.Optic(this.asEquivalent[Boolean]),
-      SchemaExpr.Literal(that, Schema[Boolean]),
+      SchemaExpr.Literal(that),
       SchemaExpr.LogicalOperator.And
     )
 
@@ -151,7 +151,7 @@ sealed trait Optic[S, A] { self =>
   final def ||(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.Logical(
       SchemaExpr.Optic(this.asEquivalent[Boolean]),
-      SchemaExpr.Literal(that, Schema[Boolean]),
+      SchemaExpr.Literal(that),
       SchemaExpr.LogicalOperator.Or
     )
 
@@ -159,28 +159,28 @@ sealed trait Optic[S, A] { self =>
     SchemaExpr.Not(SchemaExpr.Optic(this.asEquivalent[Boolean]))
 
   final def concat(that: String)(implicit ev: A =:= String): SchemaExpr[S, String] =
-    SchemaExpr.StringConcat(SchemaExpr.Optic(this.asEquivalent[String]), SchemaExpr.Literal(that, Schema[String]))
+    SchemaExpr.StringConcat(SchemaExpr.Optic(this.asEquivalent[String]), SchemaExpr.Literal(that))
 
   final def matches(that: String)(implicit ev: A =:= String): SchemaExpr[S, Boolean] =
-    SchemaExpr.StringRegexMatch(SchemaExpr.Literal(that, Schema[String]), SchemaExpr.Optic(this.asEquivalent[String]))
+    SchemaExpr.StringRegexMatch(SchemaExpr.Literal(that), SchemaExpr.Optic(this.asEquivalent[String]))
 
   final def +(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
     SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, isNumeric.schema),
+    SchemaExpr.Literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Add,
     isNumeric
   )
 
   final def -(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
     SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, isNumeric.schema),
+    SchemaExpr.Literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Subtract,
     isNumeric
   )
 
   final def *(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
     SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, isNumeric.schema),
+    SchemaExpr.Literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Multiply,
     isNumeric
   )

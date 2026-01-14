@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration
 
 import scala.language.experimental.macros
-import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema}
+import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 
 /**
  * A builder for constructing migrations from type `A` to type `B`.
@@ -27,19 +27,24 @@ final class MigrationBuilder[A, B](
 
   /**
    * Add a new field to the target with a default value.
-   * The default is specified as a `DynamicValue` for serializability.
+   *
+   * @param target Selector for the field to add
+   * @param default Expression providing the default value
    */
   def addField(
     target: B => Any,
-    default: DynamicValue
+    default: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.addFieldImpl[A, B]
 
   /**
    * Drop a field from the source.
+   *
+   * @param source Selector for the field to drop
+   * @param defaultForReverse Default value to use when reversing the migration (for re-adding the field)
    */
   def dropField(
     source: A => Any,
-    defaultForReverse: Option[DynamicValue] = None
+    defaultForReverse: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.dropFieldImpl[A, B]
 
   /**
@@ -52,20 +57,28 @@ final class MigrationBuilder[A, B](
 
   /**
    * Transform a field value.
+   *
+   * @param from Selector for the source field
+   * @param to Selector for the target field (used for validation)
+   * @param transform Expression that computes the new value
    */
   def transformField(
     from: A => Any,
     to: B => Any,
-    transform: DynamicTransform
+    transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.transformFieldImpl[A, B]
 
   /**
    * Convert an optional field in source to a required field in target.
+   *
+   * @param source Selector for the optional source field
+   * @param target Selector for the required target field (used for validation)
+   * @param default Expression providing the default value when source is None
    */
   def mandateField(
-    source: A => Option[?],
+    source: A => Option[_],
     target: B => Any,
-    default: DynamicValue
+    default: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.mandateFieldImpl[A, B]
 
   /**
@@ -73,16 +86,20 @@ final class MigrationBuilder[A, B](
    */
   def optionalizeField(
     source: A => Any,
-    target: B => Option[?]
+    target: B => Option[_]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.optionalizeFieldImpl[A, B]
 
   /**
    * Change the type of a field (primitive-to-primitive only).
+   *
+   * @param source Selector for the source field
+   * @param target Selector for the target field (used for validation)
+   * @param converter Expression that converts between types
    */
   def changeFieldType(
     source: A => Any,
     target: B => Any,
-    converter: DynamicTransform
+    converter: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.changeFieldTypeImpl[A, B]
 
   // ----- Enum operations -----
@@ -109,35 +126,44 @@ final class MigrationBuilder[A, B](
   ): MigrationBuilder[A, B] = {
     val innerBuilder = new MigrationBuilder[CaseA, CaseB](caseSourceSchema, caseTargetSchema, Vector.empty)
     val builtInner = caseMigration(innerBuilder)
-    appendAction(MigrationAction.TransformCase(DynamicOptic.root, caseName, builtInner.actions))
+    appendAction(MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), builtInner.actions))
   }
 
   // ----- Collections -----
 
   /**
    * Transform each element in a collection.
+   *
+   * @param at Selector for the collection field
+   * @param transform Expression that transforms each element
    */
   def transformElements(
-    at: A => Iterable[?],
-    transform: DynamicTransform
+    at: A => Iterable[_],
+    transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.transformElementsImpl[A, B]
 
   // ----- Maps -----
 
   /**
    * Transform each key in a map.
+   *
+   * @param at Selector for the map field
+   * @param transform Expression that transforms each key
    */
   def transformKeys(
-    at: A => Map[?, ?],
-    transform: DynamicTransform
+    at: A => Map[_, _],
+    transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.transformKeysImpl[A, B]
 
   /**
    * Transform each value in a map.
+   *
+   * @param at Selector for the map field
+   * @param transform Expression that transforms each value
    */
   def transformValues(
-    at: A => Map[?, ?],
-    transform: DynamicTransform
+    at: A => Map[_, _],
+    transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.transformValuesImpl[A, B]
 
   // ----- Build -----
