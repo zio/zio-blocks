@@ -40,7 +40,7 @@ object DynamicMigrationInterpreter {
       // ───────────────
 
       case AddField(at, defaultExpr) =>
-        evalExprToOneDynamic(expr = defaultExpr, input = DynamicValue.Unit, atForDefault = Some(at), targetSchema = targetSchema)
+        evalExprToOneDynamic(expr = defaultExpr, input = DynamicValue.Record(Vector.empty), atForDefault = Some(at), targetSchema = targetSchema)
           .flatMap(dv => upsertField(at, root, dv))
 
       case DropField(at, _) =>
@@ -60,7 +60,7 @@ object DynamicMigrationInterpreter {
             Right(dv)
 
           case DynamicValue.Variant("None", _) =>
-            evalExprToOneDynamic(expr = defaultExpr, input = DynamicValue.Unit, atForDefault = Some(at), targetSchema = targetSchema)
+            evalExprToOneDynamic(expr = defaultExpr, input = DynamicValue.Record(Vector.empty), atForDefault = Some(at), targetSchema = targetSchema)
 
           case other =>
             Left(MigrationError.TypeMismatch(at, "Option", other.getClass.getSimpleName))
@@ -157,7 +157,7 @@ object DynamicMigrationInterpreter {
         modifyAt(at, root) {
           case DynamicValue.Variant(caseName, payload) =>
             val nested = DynamicMigration(actions)
-            DynamicMigrationInterpreter(nested, payload, sourceSchema, targetSchema)
+            DynamicMigrationInterpreter(nested, payload)
               .map(newPayload => DynamicValue.Variant(caseName, newPayload))
           case other =>
             Left(MigrationError.TypeMismatch(at, "enum/variant", other.getClass.getSimpleName))
@@ -184,14 +184,15 @@ object DynamicMigrationInterpreter {
 
       case TransformKeys(at, expr) =>
         modifyAt(at, root) {
-          case DynamicValue.Dictionary(entries) =>
+          case DynamicValue.Map(entries) =>
+
             entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
               case (acc, (k, v)) =>
                 for {
                   xs <- acc
                   newK <- evalExprToOneDynamic(expr = expr, input = k, atForDefault = Some(at), targetSchema = targetSchema)
                 } yield xs :+ (newK -> v)
-            }.map(DynamicValue.Dictionary.apply)
+            }.map(DynamicValue.Map.apply)
 
           case other =>
             Left(MigrationError.TypeMismatch(at, "dictionary/map", other.getClass.getSimpleName))
@@ -199,14 +200,14 @@ object DynamicMigrationInterpreter {
 
       case TransformValues(at, expr) =>
         modifyAt(at, root) {
-          case DynamicValue.Dictionary(entries) =>
+          case DynamicValue.Map(entries) =>
             entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
               case (acc, (k, v)) =>
                 for {
                   xs <- acc
                   newV <- evalExprToOneDynamic(expr = expr, input = v, atForDefault = Some(at), targetSchema = targetSchema)
                 } yield xs :+ (k -> newV)
-            }.map(DynamicValue.Dictionary.apply)
+            }.map(DynamicValue.Map.apply)
 
           case other =>
             Left(MigrationError.TypeMismatch(at, "dictionary/map", other.getClass.getSimpleName))
@@ -269,7 +270,7 @@ object DynamicMigrationInterpreter {
       case DynamicValue.Record(_)      => false
       case DynamicValue.Variant(_, _)  => false
       case DynamicValue.Sequence(_)    => false
-      case DynamicValue.Dictionary(_)  => false
+      case DynamicValue.Map(_)  => false
       case _                           => true
     }
 
@@ -363,7 +364,7 @@ object DynamicMigrationInterpreter {
 
           case DynamicOptic.Node.MapKeys =>
             cur match {
-              case DynamicValue.Dictionary(entries) =>
+              case DynamicValue.Map(entries) =>
                 entries
                   .foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
                     case (acc2, (k, v)) =>
@@ -372,7 +373,7 @@ object DynamicMigrationInterpreter {
                         k2 <- loop(i + 1, k)
                       } yield xs :+ (k2 -> v)
                   }
-                  .map(DynamicValue.Dictionary.apply)
+                  .map(DynamicValue.Map.apply)
 
               case other =>
                 Left(MigrationError.TypeMismatch(at, "dictionary/map", other.getClass.getSimpleName))
@@ -380,7 +381,7 @@ object DynamicMigrationInterpreter {
 
           case DynamicOptic.Node.MapValues =>
             cur match {
-              case DynamicValue.Dictionary(entries) =>
+              case DynamicValue.Map(entries) =>
                 entries
                   .foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
                     case (acc2, (k, v)) =>
@@ -389,7 +390,7 @@ object DynamicMigrationInterpreter {
                         v2 <- loop(i + 1, v)
                       } yield xs :+ (k -> v2)
                   }
-                  .map(DynamicValue.Dictionary.apply)
+                  .map(DynamicValue.Map.apply)
 
               case other =>
                 Left(MigrationError.TypeMismatch(at, "dictionary/map", other.getClass.getSimpleName))

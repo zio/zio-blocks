@@ -309,4 +309,31 @@ object SchemaExpr {
     private[this] def toDynamicValue(value: Int): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Int(value))
   }
+
+  // --- ADD THIS INSIDE object SchemaExpr ---
+
+/**
+ * Marker the user can write in the DSL.
+ * MUST be replaced by macros with DefaultValueFromSchema(fieldSchema).
+ */
+case object DefaultValueMarker extends SchemaExpr[Any, Nothing] {
+  override def check: Either[OpticCheck, Unit] =
+    Left(new OpticCheck("DefaultValue marker must be captured by migration macros"))
+
+  override def apply(value: Any): Either[OpticCheck, Nothing] =
+    Left(new OpticCheck("DefaultValue marker must be captured by migration macros"))
+}
+
+/**
+ * The real default-value expression required by #519:
+ * it stores the macro-captured field schema, and when evaluated calls schema.defaultValue,
+ * then converts it to DynamicValue (done in the migration interpreter).
+ */
+final case class DefaultValueFromSchema[A](schema: Schema[A]) extends SchemaExpr[Any, A] {
+  override def check: Either[OpticCheck, Unit] = Right(())
+
+  override def apply(value: Any): Either[OpticCheck, A] =
+    schema.defaultValue.toRight(new OpticCheck("No default value available for field schema"))
+}
+
 }
