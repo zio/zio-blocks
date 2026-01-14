@@ -47,30 +47,95 @@ class ToonBinaryCodecDeriver private[toon] (
 ) extends Deriver[ToonBinaryCodec] {
 
   // Builder methods
+
+  /**
+   * Updates the field name mapper for transforming field names during
+   * encoding/decoding.
+   */
   def withFieldNameMapper(mapper: NameMapper): ToonBinaryCodecDeriver =
     copy(fieldNameMapper = mapper)
 
+  /**
+   * Updates the case name mapper for transforming variant case names during
+   * encoding/decoding.
+   */
   def withCaseNameMapper(mapper: NameMapper): ToonBinaryCodecDeriver =
     copy(caseNameMapper = mapper)
 
+  /**
+   * Updates the discriminator kind for encoding sealed trait/enum
+   * hierarchies.
+   */
   def withDiscriminatorKind(kind: DiscriminatorKind): ToonBinaryCodecDeriver =
     copy(discriminatorKind = kind)
 
+  /**
+   * Updates the array format preference (Auto, Tabular, Inline, or List).
+   */
   def withArrayFormat(format: ArrayFormat): ToonBinaryCodecDeriver =
     copy(arrayFormat = format)
 
+  /**
+   * Updates the delimiter character used in tabular and inline array formats.
+   */
   def withDelimiter(delim: Char): ToonBinaryCodecDeriver =
     copy(delimiter = delim)
 
+  /**
+   * Configures whether to reject extra fields during decoding.
+   */
   def withRejectExtraFields(reject: Boolean): ToonBinaryCodecDeriver =
     copy(rejectExtraFields = reject)
 
+  /**
+   * Configures whether to encode case object enums as strings.
+   */
   def withEnumValuesAsStrings(asStrings: Boolean): ToonBinaryCodecDeriver =
     copy(enumValuesAsStrings = asStrings)
 
+  /**
+   * Configures whether to omit Option fields with None values during
+   * encoding.
+   */
   def withTransientNone(transient: Boolean): ToonBinaryCodecDeriver =
     copy(transientNone = transient)
 
+  /**
+   * Configures whether Option fields are required to be present during
+   * decoding.
+   */
+  def withRequireOptionFields(require: Boolean): ToonBinaryCodecDeriver =
+    copy(requireOptionFields = require)
+
+  /**
+   * Configures whether to omit empty collection fields during encoding.
+   */
+  def withTransientEmptyCollection(transient: Boolean): ToonBinaryCodecDeriver =
+    copy(transientEmptyCollection = transient)
+
+  /**
+   * Configures whether collection fields are required to be present during
+   * decoding.
+   */
+  def withRequireCollectionFields(require: Boolean): ToonBinaryCodecDeriver =
+    copy(requireCollectionFields = require)
+
+  /**
+   * Configures whether to omit fields with default values during encoding.
+   */
+  def withTransientDefaultValue(transient: Boolean): ToonBinaryCodecDeriver =
+    copy(transientDefaultValue = transient)
+
+  /**
+   * Configures whether fields with defaults are required to be present during
+   * decoding.
+   */
+  def withRequireDefaultValueFields(require: Boolean): ToonBinaryCodecDeriver =
+    copy(requireDefaultValueFields = require)
+
+  /**
+   * Configures whether to enable key folding (dotted key expansion).
+   */
   def withKeyFolding(enabled: Boolean): ToonBinaryCodecDeriver =
     copy(enableKeyFolding = enabled)
 
