@@ -165,6 +165,12 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def typeName(value: TypeName[A]): Reflect[F, A]
 
+  /**
+   * Returns the TypeId for this type. TypeId provides a richer type representation
+   * than TypeName, supporting intersection types, union types, opaque types, etc.
+   */
+  def typeId: TypeId[A] = TypeId.fromTypeName(typeName)
+
   def updated[B](optic: Optic[A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
       def update[C](reflect: Reflect[F, C]): Reflect[F, C] =

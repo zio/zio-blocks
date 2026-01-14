@@ -60,7 +60,7 @@ sealed trait TypeId[A] {
   override def toString: String = fullName
 }
 
-object TypeId {
+object TypeId extends TypeIdCompanionVersionSpecific {
 
   // TypeId variants for different type forms
 

@@ -20,6 +20,12 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def getDefaultValue: Option[A] = reflect.getDefaultValue
 
+  /**
+   * Returns the TypeId for this schema's type. TypeId provides a richer type
+   * representation than TypeName, supporting intersection types, union types, etc.
+   */
+  def typeId: TypeId[A] = reflect.typeId
+
   def getDefaultValue[B](optic: Optic[A, B]): Option[B] = get(optic).flatMap(_.getDefaultValue)
 
   def defaultValue[B](optic: Optic[A, B], value: => B): Schema[A] =
