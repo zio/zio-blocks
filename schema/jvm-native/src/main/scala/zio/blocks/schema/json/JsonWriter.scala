@@ -5,6 +5,7 @@ import java.math.BigInteger
 import java.nio.{BufferOverflowException, ByteBuffer}
 import java.time._
 import java.util.UUID
+import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.json.JsonWriter._
@@ -44,7 +45,7 @@ final class JsonWriter private[json] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
   private[this] var count: Int = 0,
   private[this] var limit: Int = 32768,
-  private[this] val stack: Registers = Registers(0),
+  private[this] val stack: Registers = Registers(RegisterOffset(objects = 64, ints = 64)),
   private[this] var top: RegisterOffset = -1L,
   private[this] var maxTop: RegisterOffset = 0L,
   private[this] var config: WriterConfig = null,

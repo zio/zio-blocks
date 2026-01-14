@@ -32,13 +32,13 @@ class AvroListOfRecordsBenchmark extends BaseBenchmark {
   @Benchmark
   def readingZioBlocks: List[Person] = zioBlocksCodec.decode(encodedListOfRecords) match {
     case Right(value) => value
-    case Left(error)  => sys.error(error.getMessage)
+    case Left(error)  => throw error
   }
 
   @Benchmark
   def readingZioSchema: List[Person] = zioSchemaCodec.decode(Chunk.fromArray(encodedListOfRecords)) match {
     case Right(value) => value
-    case Left(error)  => sys.error(error.getMessage)
+    case Left(error)  => throw error
   }
 
   @Benchmark

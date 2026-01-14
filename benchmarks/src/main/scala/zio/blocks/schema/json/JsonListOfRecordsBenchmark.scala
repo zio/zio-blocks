@@ -29,7 +29,7 @@ class JsonListOfRecordsBenchmark extends BaseBenchmark {
   @Benchmark
   def readingZioBlocks: List[Person] = zioBlocksCodec.decode(encodedListOfRecords) match {
     case Right(value) => value
-    case Left(error)  => sys.error(error.getMessage)
+    case Left(error)  => throw error
   }
 
   @Benchmark
