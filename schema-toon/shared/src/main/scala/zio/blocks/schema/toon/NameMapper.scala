@@ -20,13 +20,13 @@ sealed trait NameMapper extends (String => String) {
  * transformations via the `Custom` case class.
  *
  * Available mappers:
- *   - `SnakeCase`: Transforms strings to snake_case (e.g., "exampleName" →
+ *   - `SnakeCase`: Transforms strings to snake_case (e.g., "exampleName" ->
  *     "example_name")
- *   - `CamelCase`: Transforms strings to camelCase (e.g., "example_name" →
+ *   - `CamelCase`: Transforms strings to camelCase (e.g., "example_name" ->
  *     "exampleName")
- *   - `PascalCase`: Transforms strings to PascalCase (e.g., "example_name" →
+ *   - `PascalCase`: Transforms strings to PascalCase (e.g., "example_name" ->
  *     "ExampleName")
- *   - `KebabCase`: Transforms strings to kebab-case (e.g., "exampleName" →
+ *   - `KebabCase`: Transforms strings to kebab-case (e.g., "exampleName" ->
  *     "example-name")
  *   - `Identity`: Returns the input string as-is
  *   - `Custom`: User-defined transformation

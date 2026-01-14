@@ -801,7 +801,7 @@ final class ToonWriter private[toon] (
   }
 
   private def writeCanonicalDecimal(x: BigDecimal): Unit = {
-    // TOON requires: no exponent, no trailing zeros, -0 → 0
+    // TOON requires: no exponent, no trailing zeros, -0 -> 0
     val normalized = x.underlying.stripTrailingZeros()
     val str = if (normalized.scale() < 0) {
       normalized.setScale(0).toPlainString
