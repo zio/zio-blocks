@@ -684,6 +684,48 @@ object ToonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         val encoded = new String(codec.encode(map), java.nio.charset.StandardCharsets.UTF_8).trim
         assertTrue(encoded.contains("key1: value1")) &&
         assertTrue(encoded.contains("42: true"))
+      },
+      test("DynamicValue - default config") {
+        check(ToonDynamicValueGen.genDynamicValue) { value =>
+          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val encoded    = codec.encodeToString(value, WriterConfig)
+          val decoded    = codec.decode(encoded, ReaderConfig)
+          val normalized = ToonDynamicValueGen.normalize(value)
+          assertTrue(decoded == Right(normalized))
+        }
+      },
+      test("DynamicValue - tab delimiter") {
+        check(ToonDynamicValueGen.genDynamicValue) { value =>
+          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val writerCfg  = WriterConfig.withDelimiter(Delimiter.Tab)
+          val readerCfg  = ReaderConfig.withDelimiter(Delimiter.Tab)
+          val encoded    = codec.encodeToString(value, writerCfg)
+          val decoded    = codec.decode(encoded, readerCfg)
+          val normalized = ToonDynamicValueGen.normalize(value)
+          assertTrue(decoded == Right(normalized))
+        }
+      },
+      test("DynamicValue - pipe delimiter") {
+        check(ToonDynamicValueGen.genDynamicValue) { value =>
+          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val writerCfg  = WriterConfig.withDelimiter(Delimiter.Pipe)
+          val readerCfg  = ReaderConfig.withDelimiter(Delimiter.Pipe)
+          val encoded    = codec.encodeToString(value, writerCfg)
+          val decoded    = codec.decode(encoded, readerCfg)
+          val normalized = ToonDynamicValueGen.normalize(value)
+          assertTrue(decoded == Right(normalized))
+        }
+      },
+      test("DynamicValue - key folding") {
+        check(ToonDynamicValueGen.genDynamicValue) { value =>
+          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val writerCfg  = WriterConfig.withKeyFolding(KeyFolding.Safe)
+          val readerCfg  = ReaderConfig.withExpandPaths(PathExpansion.Safe)
+          val encoded    = codec.encodeToString(value, writerCfg)
+          val decoded    = codec.decode(encoded, readerCfg)
+          val normalized = ToonDynamicValueGen.normalize(value)
+          assertTrue(decoded == Right(normalized))
+        }
       }
     )
   )

@@ -3,14 +3,11 @@ package zio.blocks.schema.toon
 import zio.blocks.schema.toon.ToonBinaryCodec._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding}
 import zio.blocks.schema._
-import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.schema.toon.codec._
 
 import java.util
 import scala.util.control.NonFatal
-
-object ToonFormat extends BinaryFormat("text/toon", ToonBinaryCodecDeriver)
 
 object ToonBinaryCodecDeriver
     extends ToonBinaryCodecDeriver(

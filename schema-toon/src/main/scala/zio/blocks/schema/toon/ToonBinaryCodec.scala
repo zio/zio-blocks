@@ -1250,12 +1250,16 @@ object ToonBinaryCodec {
           case KeyFolding.Safe =>
             val rootLiteralDottedKeys = record.fields.map(_._1).filter(_.contains('.')).toSet
             encodeRecordWithFolding(record, out, out.flattenDepth, "", rootLiteralDottedKeys)
-          case KeyFolding.Off => encodeRecordPlain(record, out)
+          case KeyFolding.Off =>
+            val fields = record.fields
+            val it     = fields.iterator
+            while (it.hasNext) {
+              val (key, value) = it.next()
+              encodeRecordPlain(key, value, out)
+            }
         }
       case variant: DynamicValue.Variant =>
-        out.writeKey(variant.caseName)
-        encodeValue(variant.value, out)
-        out.newLine()
+        encodeRecordPlain(variant.caseName, variant.value, out)
       case sequence: DynamicValue.Sequence =>
         val elements = sequence.elements
         if (elements.isEmpty) {
@@ -1299,38 +1303,68 @@ object ToonBinaryCodec {
         val entries = map.entries
         val it      = entries.iterator
         while (it.hasNext) {
-          val (key, value) = it.next()
-          out.ensureIndent()
-          encodeValue(key, out)
-          out.writeColonSpace()
-          encodeValue(value, out)
-          out.newLine()
+          val (k, v) = it.next()
+          k match {
+            case DynamicValue.Primitive(PrimitiveValue.String(keyStr)) =>
+              encodeRecordPlain(keyStr, v, out)
+            case _ =>
+              out.ensureIndent()
+              encodeValue(k, out)
+              out.writeColonSpace()
+              encodeValue(v, out)
+              out.newLine()
+          }
         }
     }
 
-    private def encodeRecordPlain(record: DynamicValue.Record, out: ToonWriter): Unit = {
-      val fields = record.fields
-      val it     = fields.iterator
-      while (it.hasNext) {
-        val (key, value) = it.next()
-        value match {
-          case nestedRecord: DynamicValue.Record if nestedRecord.fields.nonEmpty =>
-            out.writeKeyOnly(key)
-            out.incrementDepth()
-            encodeRecordPlain(nestedRecord, out)
-            out.decrementDepth()
-          case _: DynamicValue.Record =>
-            out.writeKeyOnly(key)
-          case seq: DynamicValue.Sequence =>
-            out.ensureIndent()
-            encodeSequenceField(key, seq, out)
-          case _ =>
-            out.writeKey(key)
-            encodeValue(value, out)
-            out.newLine()
-        }
+    private def encodeRecordPlain(key: String, value: DynamicValue, out: ToonWriter): Unit =
+      value match {
+        case nestedRecord: DynamicValue.Record if nestedRecord.fields.nonEmpty =>
+          out.writeKeyOnly(key)
+          out.incrementDepth()
+          val fields = nestedRecord.fields
+          val it     = fields.iterator
+          while (it.hasNext) {
+            val (k, v) = it.next()
+            encodeRecordPlain(k, v, out)
+          }
+          out.decrementDepth()
+        case _: DynamicValue.Record =>
+          out.writeKeyOnly(key)
+        case variant: DynamicValue.Variant =>
+          out.writeKeyOnly(key)
+          out.incrementDepth()
+          encodeRecordPlain(variant.caseName, variant.value, out)
+          out.decrementDepth()
+        case map: DynamicValue.Map if map.entries.nonEmpty =>
+          out.writeKeyOnly(key)
+          out.incrementDepth()
+          val entries = map.entries
+          val it      = entries.iterator
+          while (it.hasNext) {
+            val (k, v) = it.next()
+            k match {
+              case DynamicValue.Primitive(PrimitiveValue.String(keyStr)) =>
+                encodeRecordPlain(keyStr, v, out)
+              case _ =>
+                out.ensureIndent()
+                encodeValue(k, out)
+                out.writeColonSpace()
+                encodeValue(v, out)
+                out.newLine()
+            }
+          }
+          out.decrementDepth()
+        case _: DynamicValue.Map =>
+          out.writeKeyOnly(key)
+        case seq: DynamicValue.Sequence =>
+          out.ensureIndent()
+          encodeSequenceField(key, seq, out)
+        case _ =>
+          out.writeKey(key)
+          encodeValue(value, out)
+          out.newLine()
       }
-    }
 
     private def encodeRecordWithFolding(
       record: DynamicValue.Record,
@@ -1377,6 +1411,46 @@ object ToonBinaryCodec {
                 out.decrementDepth()
               case _: DynamicValue.Record =>
                 out.writeKeyOnly(foldedKey)
+              case variant: DynamicValue.Variant =>
+                out.writeKeyOnly(foldedKey)
+                out.incrementDepth()
+                writeFieldWithNesting(
+                  variant.caseName,
+                  variant.value,
+                  out,
+                  remainingDepth - depth,
+                  newAncestorPath,
+                  rootLiteralDottedKeys
+                )
+                out.decrementDepth()
+              case map: DynamicValue.Map if map.entries.nonEmpty =>
+                out.writeKeyOnly(foldedKey)
+                out.incrementDepth()
+                val entries = map.entries
+                val it      = entries.iterator
+                while (it.hasNext) {
+                  val (k, v) = it.next()
+                  k match {
+                    case DynamicValue.Primitive(PrimitiveValue.String(keyStr)) =>
+                      writeFieldWithNesting(
+                        keyStr,
+                        v,
+                        out,
+                        remainingDepth - depth,
+                        newAncestorPath,
+                        rootLiteralDottedKeys
+                      )
+                    case _ =>
+                      out.ensureIndent()
+                      encodeValue(k, out)
+                      out.writeColonSpace()
+                      encodeValue(v, out)
+                      out.newLine()
+                  }
+                }
+                out.decrementDepth()
+              case _: DynamicValue.Map =>
+                out.writeKeyOnly(foldedKey)
               case seq: DynamicValue.Sequence =>
                 out.ensureIndent()
                 encodeSequenceField(foldedKey, seq, out)
@@ -1408,6 +1482,39 @@ object ToonBinaryCodec {
           encodeRecordWithFolding(nestedRecord, out, remainingDepth - 1, newAncestorPath, rootLiteralDottedKeys)
           out.decrementDepth()
         case _: DynamicValue.Record =>
+          out.writeKeyOnly(key)
+        case variant: DynamicValue.Variant =>
+          out.writeKeyOnly(key)
+          out.incrementDepth()
+          writeFieldWithNesting(
+            variant.caseName,
+            variant.value,
+            out,
+            remainingDepth - 1,
+            newAncestorPath,
+            rootLiteralDottedKeys
+          )
+          out.decrementDepth()
+        case map: DynamicValue.Map if map.entries.nonEmpty =>
+          out.writeKeyOnly(key)
+          out.incrementDepth()
+          val entries = map.entries
+          val it      = entries.iterator
+          while (it.hasNext) {
+            val (k, v) = it.next()
+            k match {
+              case DynamicValue.Primitive(PrimitiveValue.String(keyStr)) =>
+                writeFieldWithNesting(keyStr, v, out, remainingDepth - 1, newAncestorPath, rootLiteralDottedKeys)
+              case _ =>
+                out.ensureIndent()
+                encodeValue(k, out)
+                out.writeColonSpace()
+                encodeValue(v, out)
+                out.newLine()
+            }
+          }
+          out.decrementDepth()
+        case _: DynamicValue.Map =>
           out.writeKeyOnly(key)
         case seq: DynamicValue.Sequence =>
           out.ensureIndent()
@@ -1529,21 +1636,7 @@ object ToonBinaryCodec {
           } else {
             out.ensureIndent()
           }
-          value match {
-            case nestedRecord: DynamicValue.Record if nestedRecord.fields.nonEmpty =>
-              out.writeKeyOnly(key)
-              out.incrementDepth()
-              encodeRecordPlain(nestedRecord, out)
-              out.decrementDepth()
-            case emptyRecord: DynamicValue.Record if emptyRecord.fields.isEmpty =>
-              out.writeKeyOnly(key)
-            case seq: DynamicValue.Sequence =>
-              encodeSequenceField(key, seq, out)
-            case _ =>
-              out.writeKey(key)
-              encodeValue(value, out)
-              out.newLine()
-          }
+          encodeRecordPlain(key, value, out)
         }
         out.decrementDepth()
         out.exitListItemContext()

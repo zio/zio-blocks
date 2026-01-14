@@ -234,4 +234,102 @@ object ToonTestUtils {
 
   private[this] val codecs     = new ConcurrentHashMap[Schema[?], ToonBinaryCodec[?]]()
   private[this] val maxBufSize = 4096
+
+  object ToonDynamicValueGen {
+    import zio.blocks.schema.{DynamicValue, PrimitiveValue}
+    import DynamicValue._
+
+    private val genSafeKey: Gen[Any, String] =
+      Gen.alphaNumericStringBounded(4, 8).map(s => "k_" + s)
+
+    val genPrimitiveValue: Gen[Any, PrimitiveValue] =
+      Gen.oneOf(
+        Gen.unit.map(_ => PrimitiveValue.Unit),
+        Gen.alphaNumericStringBounded(1, 10).map(PrimitiveValue.String.apply),
+        Gen.int.map(PrimitiveValue.Int.apply),
+        Gen.boolean.map(PrimitiveValue.Boolean.apply),
+        Gen.long.filter(l => l < Int.MinValue || l > Int.MaxValue).map(PrimitiveValue.Long.apply),
+        Gen
+          .bigInt(BigInt(Long.MaxValue) + 1, BigInt(Long.MaxValue) * 1000)
+          .flatMap(bi => Gen.boolean.map(neg => if (neg) -bi else bi))
+          .map(PrimitiveValue.BigInt.apply),
+        Gen.bigDecimal(BigDecimal("-1e20"), BigDecimal("1e20")).filter(!_.isWhole).map(PrimitiveValue.BigDecimal.apply)
+      )
+
+    val genDynamicValue: Gen[Any, DynamicValue] = genDynamicValueWithDepth(2)
+
+    private def genDynamicValueWithDepth(maxDepth: Int): Gen[Any, DynamicValue] =
+      if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_))
+      else
+        Gen.oneOf(
+          genPrimitiveValue.map(Primitive(_)),
+          genRecordWithDepth(maxDepth - 1),
+          genSequenceWithDepth(maxDepth - 1),
+          genVariantWithDepth(maxDepth - 1),
+          genMapWithDepth(maxDepth - 1)
+        )
+
+    private def genRecordWithDepth(maxDepth: Int): Gen[Any, Record] =
+      Gen
+        .listOfBounded(1, 4) {
+          for {
+            key   <- genSafeKey
+            value <- if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
+          } yield key -> value
+        }
+        .map(_.distinctBy(_._1))
+        .map(f => Record(f.toVector))
+
+    private def genSequenceWithDepth(maxDepth: Int): Gen[Any, Sequence] =
+      Gen
+        .listOfBounded(0, 4)(
+          if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
+        )
+        .map(f => Sequence(f.toVector))
+
+    private def genVariantWithDepth(maxDepth: Int): Gen[Any, Variant] =
+      for {
+        caseName <- genSafeKey
+        value    <- if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
+      } yield Variant(caseName, value)
+
+    private def genMapWithDepth(maxDepth: Int): Gen[Any, DynamicValue.Map] =
+      Gen
+        .listOfBounded(1, 3) {
+          for {
+            key   <- genSafeKey.map(s => Primitive(PrimitiveValue.String(s)))
+            value <- if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
+          } yield (key: DynamicValue, value)
+        }
+        .map(_.distinctBy { case (k, _) => k })
+        .map(f => DynamicValue.Map(f.toVector))
+
+    def normalize(value: DynamicValue): DynamicValue = value match {
+      case Primitive(v)              => Primitive(v)
+      case Record(fields)            => Record(fields.map { case (k, v) => (k, normalize(v)) })
+      case Sequence(elems)           => Sequence(elems.map(normalize))
+      case Variant(caseName, v)      => Record(Vector((caseName, normalize(v))))
+      case DynamicValue.Map(entries) =>
+        val fields = entries.map { case (k, v) =>
+          val keyStr = k match {
+            case Primitive(PrimitiveValue.String(s)) => s
+            case other                               => encodeKeyToString(other)
+          }
+          (keyStr, normalize(v))
+        }
+        Record(fields)
+    }
+
+    private def encodeKeyToString(value: DynamicValue): String = value match {
+      case Primitive(PrimitiveValue.String(s))     => s
+      case Primitive(PrimitiveValue.Int(i))        => i.toString
+      case Primitive(PrimitiveValue.Long(l))       => l.toString
+      case Primitive(PrimitiveValue.Boolean(b))    => b.toString
+      case Primitive(PrimitiveValue.Float(f))      => f.toString
+      case Primitive(PrimitiveValue.Double(d))     => d.toString
+      case Primitive(PrimitiveValue.BigInt(bi))    => bi.toString
+      case Primitive(PrimitiveValue.BigDecimal(d)) => d.toString
+      case _                                       => value.toString
+    }
+  }
 }
