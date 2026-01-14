@@ -165,9 +165,9 @@ Full production support for all Scala platforms:
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| **JVM** | ✅ Fully Supported | Java 11+ |
-| **Scala.js** | ✅ Fully Supported | 1.x |
-| **Scala Native** | ✅ Fully Supported | 0.5.x with BigDecimal workaround |
+| JVM | Supported | Java 11+ |
+| Scala.js | Supported | 1.x |
+| Scala Native | Supported | 0.5.x |
 
 ## Testing
 
@@ -208,10 +208,10 @@ sbt scalafmtCheck
 Contributions are welcome! See [ATTRIBUTION.md](ATTRIBUTION.md) for acknowledgments.
 
 When contributing:
-1. ✅ Maintain TOON v3.0 specification compliance
-2. ✅ Add tests with exact match assertions (`assertTrue(encoded == expected)`)
-3. ✅ Ensure cross-platform compatibility (JVM + JS + Native)
-4. ✅ Run `sbt scalafmtAll` before committing
+1. Maintain TOON v3.0 specification compliance
+2. Add tests with exact match assertions (`assertTrue(encoded == expected)`)
+3. Ensure cross-platform compatibility (JVM + JS + Native)
+4. Run `sbt scalafmtAll` before committing
 
 ## Attribution
 
