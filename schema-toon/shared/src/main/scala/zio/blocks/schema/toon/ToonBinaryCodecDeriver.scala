@@ -592,6 +592,14 @@ class ToonBinaryCodecDeriver private[toon] (
             }
             if (!found) in.decodeError(s"unknown variant case: $discValue")
             result
+
+          case DiscriminatorKind.None =>
+            // DiscriminatorKind.None requires mark/reset functionality in ToonReader
+            // which is not yet implemented. Use Key or Field discriminator modes instead.
+            throw new UnsupportedOperationException(
+              "DiscriminatorKind.None is not yet supported for TOON format. " +
+                "Please use DiscriminatorKind.Key (default) or DiscriminatorKind.Field."
+            )
         }
 
       def encodeValue(x: A, out: ToonWriter): Unit = {
@@ -616,6 +624,10 @@ class ToonBinaryCodecDeriver private[toon] (
               out.writeFieldSeparator()
               info.codec.encodeValue(x, out)
               out.writeObjectEnd()
+
+            case DiscriminatorKind.None =>
+              // Encode without discriminator - just the value directly
+              info.codec.encodeValue(x, out)
           }
         }
       }

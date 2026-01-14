@@ -4,9 +4,9 @@ import java.io.InputStream
 import java.nio.ByteBuffer
 import java.time._
 import java.time.format.DateTimeParseException
-import java.util.{Currency, UUID}
+import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
+import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 import zio.blocks.schema.binding.{Registers, RegisterOffset}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import scala.annotation.tailrec
