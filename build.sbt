@@ -188,6 +188,22 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    )
+  )
+  .jvmSettings(
+    libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %% "neotype" % "0.3.37" % Test
+        )
+    })
+  )
+  .jsSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq()
@@ -196,12 +212,6 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
           "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
         )
     })
-  )
-  .jsSettings(
-    libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
-      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
-    )
   )
   .nativeSettings(
     libraryDependencies ++= Seq(
