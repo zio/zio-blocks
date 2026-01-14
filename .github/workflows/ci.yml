@@ -103,6 +103,8 @@ jobs:
         java: [11]
         os: ['ubuntu-22.04']
         platform: ['Native']
+    env:
+      SCALANATIVE_THREAD_STACK_SIZE: 32m    
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.1
