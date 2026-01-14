@@ -786,9 +786,47 @@ final class ToonWriter private[toon] (
   private def writeFloat(x: Float): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
     else {
-      val s = java.lang.Float.toString(x)
+      // On JS, Float.toString returns full double precision, so we need
+      // to format with float precision (7 significant digits max)
+      val s = formatFloatForJs(x)
       writeCanonicalNumberString(s)
     }
+
+  // Format float with proper precision for JS (where floats are stored as doubles)
+  private def formatFloatForJs(x: Float): String = {
+    if (x == 0.0f) return "0"
+    val d      = x.toDouble
+    val absVal = Math.abs(d)
+
+    // Float has ~7 decimal digits of precision
+    // Find the appropriate number of decimal places
+    if (absVal >= 1e7 || absVal < 1e-6) {
+      // Use exponent notation, then let writeCanonicalNumberString expand it
+      val exp      = Math.floor(Math.log10(absVal)).toInt
+      val mantissa = d / Math.pow(10, exp)
+      // Round mantissa to 7 significant digits
+      val rounded = Math.round(mantissa * 1e6) / 1e6
+      if (rounded == rounded.toLong) {
+        s"${rounded.toLong}E$exp"
+      } else {
+        s"${rounded}E$exp"
+      }
+    } else {
+      // Determine decimal places needed for ~7 significant digits
+      val exp           = if (absVal >= 1) Math.floor(Math.log10(absVal)).toInt else 0
+      val decimalPlaces = Math.max(0, 6 - exp)
+      val factor        = Math.pow(10, decimalPlaces)
+      val rounded       = Math.round(d * factor) / factor
+
+      if (rounded == rounded.toLong) {
+        rounded.toLong.toString
+      } else {
+        // Format with appropriate decimal places, then strip trailing zeros
+        val formatted = rounded.toString
+        formatted
+      }
+    }
+  }
 
   private def writeDouble(x: Double): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
