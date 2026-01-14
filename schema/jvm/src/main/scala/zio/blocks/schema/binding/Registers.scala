@@ -6,7 +6,7 @@ import java.util
 /**
  * Temporary storage to be used during encoding and decoding for schema-based
  * data structures. These are mutable and should be cached with thread locals,
- * fiber locals, or pools, to ensure zero-allocation during encoding / decoding.
+ * fiber locals, or pools to ensure zero-allocation during encoding / decoding.
  */
 class Registers private (userRegister: RegisterOffset) {
   private[this] var bytes: Array[Byte] = {
