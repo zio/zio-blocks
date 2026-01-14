@@ -63,7 +63,6 @@ lazy val root = project
   .settings(
     scalaJSUseMainModuleInitializer := false,
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
-    scalacOptions += "-experimental",
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-golem-core"  % "<SDK_VERSION>",
       "dev.zio" %%% "zio-golem-model" % "<SDK_VERSION>",
