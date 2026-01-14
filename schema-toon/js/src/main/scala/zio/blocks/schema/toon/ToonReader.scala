@@ -32,7 +32,7 @@ final class ToonReader private[toon] (
   private[this] var in: InputStream = null,
   private[this] var tokenStart: Int = -1,
   private[this] var currentDelimiter: Delimiter = Delimiter.Comma,
-  private[this] val stack: Registers = Registers(0),
+  private[this] val stack: Registers = Registers(32), // Default capacity for record fields
   private[this] var top: RegisterOffset = -1L,
   private[this] var maxTop: RegisterOffset = 0L
 ) {

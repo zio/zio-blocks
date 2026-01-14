@@ -30,7 +30,7 @@ final class ToonWriter private[toon] (
   private[this] var bbuf: ByteBuffer = null,
   private[this] var out: OutputStream = null,
   private[this] var atLineStart: Boolean = true,
-  private[this] val stack: Registers = Registers(0),
+  private[this] val stack: Registers = Registers(32), // Default capacity for record fields
   private[this] var top: RegisterOffset = -1L,
   private[this] var maxTop: RegisterOffset = 0L
 ) {
