@@ -28,7 +28,7 @@ final class ToonWriter private[toon] (
   private[this] var config: WriterConfig = null,
   private[this] var depth: Int = 0,
   private[this] var disableBufGrowing: Boolean = false,
-  private[this] var bbuf: ByteBuffer = null,
+  @scala.annotation.unused private[this] var bbuf: ByteBuffer = null,
   private[this] var out: OutputStream = null,
   private[this] var atLineStart: Boolean = true,
   // Default capacity: 32 objects, 32 ints, 16 longs, 16 doubles for primitive fields
