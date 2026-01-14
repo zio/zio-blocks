@@ -895,7 +895,6 @@ final class ToonWriter private[toon] (
    */
   private def needsValueQuoting(s: String): Boolean = {
     if (s.isEmpty) return true
-    if (s.charAt(0) == ' ' || s.charAt(s.length - 1) == ' ') return true
     if (s == "true" || s == "false" || s == "null") return true
     if (s == "-" || s.charAt(0) == '-') return true
     if (looksLikeNumber(s)) return true
@@ -903,6 +902,8 @@ final class ToonWriter private[toon] (
     var i = 0
     while (i < s.length) {
       val c = s.charAt(i)
+      // Spaces anywhere need quoting
+      if (c == ' ') return true
       if (c == ':' || c == '"' || c == '\\' || c == '[' || c == ']' || c == '{' || c == '}')
         return true
       if (c < 32) return true // control characters

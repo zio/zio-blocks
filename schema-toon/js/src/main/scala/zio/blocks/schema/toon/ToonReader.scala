@@ -708,6 +708,12 @@ final class ToonReader private[toon] (
    */
   def isArrayEnd: Boolean = {
     skipWhitespace()
+    // Skip element delimiter if present
+    if (head < tail && buf(head) == currentDelimiter.char) {
+      head += 1
+      column += 1
+      skipWhitespace()
+    }
     head >= tail || buf(head) == '\n' || isObjectEnd
   }
 
