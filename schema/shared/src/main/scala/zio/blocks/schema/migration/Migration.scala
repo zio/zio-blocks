@@ -200,6 +200,145 @@ class MigrationBuilder[A, B](
       actions :+ MigrationAction.TransformElements(DynamicOptic(IndexedSeq(DynamicOptic.Node.Field(fieldName))), expr)
     )
 
+  // ============================================================
+  // Selector-based operations for nested paths
+  // ============================================================
+
+  /**
+   * Adds a field at a specific path location.
+   *
+   * Example:
+   * {{{
+   * migration.addFieldAt(Selector[Person](_.address), "zipCode", "00000")
+   * }}}
+   */
+  def addFieldAt[C](selector: Selector[_], fieldName: String, default: C)(implicit fieldSchema: Schema[C]): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.AddField(selector.path, fieldName, fieldSchema.toDynamicValue(default))
+    )
+
+  /**
+   * Drops a field at a specific path location.
+   *
+   * Example:
+   * {{{
+   * migration.dropFieldAt(Selector[Person](_.address), "obsoleteField")
+   * }}}
+   */
+  def dropFieldAt(selector: Selector[_], fieldName: String): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.DropField(selector.path, fieldName)
+    )
+
+  /**
+   * Renames a field at a specific path location.
+   *
+   * Example:
+   * {{{
+   * migration.renameFieldAt(Selector[Person](_.address), "street", "streetAddress")
+   * }}}
+   */
+  def renameFieldAt(selector: Selector[_], oldName: String, newName: String): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.RenameField(selector.path, oldName, newName)
+    )
+
+  /**
+   * Transforms a field at a specific path location.
+   *
+   * Example:
+   * {{{
+   * migration.transformFieldAt(Selector[Person](_.address), "zipCode", MigrationExpr.StringAppend("-0000"))
+   * }}}
+   */
+  def transformFieldAt(selector: Selector[_], fieldName: String, expr: MigrationExpr): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformField(selector.path, fieldName, expr)
+    )
+
+  /**
+   * Changes a field's type at a specific path location.
+   *
+   * Example:
+   * {{{
+   * migration.changeFieldTypeAt(Selector[Order](_.items.each), "price", MigrationExpr.IntToDouble)
+   * }}}
+   */
+  def changeFieldTypeAt(selector: Selector[_], fieldName: String, expr: MigrationExpr): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.ChangeFieldType(selector.path, fieldName, expr)
+    )
+
+  /**
+   * Makes an optional field mandatory at a specific path location.
+   *
+   * Example:
+   * {{{
+   * migration.mandateFieldAt(Selector[Person](_.address), "country", "USA")
+   * }}}
+   */
+  def mandateFieldAt[C](selector: Selector[_], fieldName: String, default: C)(implicit fieldSchema: Schema[C]): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.MandateField(selector.path, fieldName, fieldSchema.toDynamicValue(default))
+    )
+
+  /**
+   * Makes a mandatory field optional at a specific path location.
+   *
+   * Example:
+   * {{{
+   * migration.optionalizeFieldAt(Selector[Person](_.address), "apartment")
+   * }}}
+   */
+  def optionalizeFieldAt(selector: Selector[_], fieldName: String): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.OptionalizeField(selector.path, fieldName)
+    )
+
+  /**
+   * Renames a case at a specific path location.
+   *
+   * Example:
+   * {{{
+   * migration.renameCaseAt(Selector[Order](_.status), "Pending", "AwaitingProcessing")
+   * }}}
+   */
+  def renameCaseAt(selector: Selector[_], oldName: String, newName: String): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.RenameCase(selector.path, oldName, newName)
+    )
+
+  /**
+   * Transforms elements at a specific collection path.
+   *
+   * Example:
+   * {{{
+   * migration.transformElementsAt(Selector[Order](_.items), MigrationExpr.IntToDouble)
+   * }}}
+   */
+  def transformElementsAt(selector: Selector[_], expr: MigrationExpr): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformElements(selector.path, expr)
+    )
+
   /**
    * Builds the migration with validation. Returns an error if the migration is
    * incomplete or invalid.

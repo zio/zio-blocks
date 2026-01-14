@@ -318,6 +318,143 @@ object MigrationSpec extends ZIOSpecDefault {
         val reversed = MigrationAction.reverseAction(action)
         assertTrue(reversed.isEmpty)
       }
+    ),
+    suite("Selector")(
+      test("Selector for single field creates correct path") {
+        val selector = Selector[PersonV1](_.name)
+        assertTrue(selector.path == DynamicOptic.root.field("name"))
+      },
+      test("Selector for nested field creates correct path") {
+        val selector = Selector[PersonWithAddress](_.address)
+        assertTrue(selector.path == DynamicOptic.root.field("address"))
+      },
+      test("Selector for deeply nested field creates correct path") {
+        val selector = Selector[PersonWithAddress](_.address.city)
+        assertTrue(selector.path == DynamicOptic.root.field("address").field("city"))
+      },
+      test("Selector.each creates elements path") {
+        val selector = Selector[Order](_.items.each)
+        assertTrue(selector.path == DynamicOptic.root.field("items").elements)
+      },
+      test("Selector.keys creates mapKeys path") {
+        val selector = Selector[Config](_.data.keys)
+        assertTrue(selector.path == DynamicOptic.root.field("data").mapKeys)
+      },
+      test("Selector.values creates mapValues path") {
+        val selector = Selector[Config](_.data.values)
+        assertTrue(selector.path == DynamicOptic.root.field("data").mapValues)
+      },
+      test("Selector.root creates empty path") {
+        val selector = Selector.root[PersonV1]
+        assertTrue(selector.path == DynamicOptic.root)
+      },
+      test("Selector.field creates single field path") {
+        val selector = Selector.field[PersonV1]("name")
+        assertTrue(selector.path == DynamicOptic.root.field("name"))
+      },
+      test("Selector composition works correctly") {
+        val first  = Selector.field[PersonV1]("address")
+        val second = Selector.field[Address]("city")
+        val composed = first.andThen(second)
+        assertTrue(composed.path == DynamicOptic.root.field("address").field("city"))
+      },
+      test("Selector fromPath creates selector from DynamicOptic") {
+        val optic = DynamicOptic.root.field("foo").field("bar")
+        val selector = Selector.fromPath[PersonV1](optic)
+        assertTrue(selector.path == optic)
+      }
+    ),
+    suite("Selector with MigrationBuilder")(
+      test("addFieldAt with Selector adds field at nested path") {
+        val migration = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("address"),
+            "zipCode",
+            DynamicValue.Primitive(PrimitiveValue.String("00000"))
+          )
+        )
+        val input = DynamicValue.Record(Vector(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+          "address" -> DynamicValue.Record(Vector(
+            "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
+          ))
+        ))
+        val result = migration(input)
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            fields.find(_._1 == "address") match {
+              case Some((_, DynamicValue.Record(addrFields))) =>
+                assertTrue(addrFields.exists(_._1 == "zipCode")) &&
+                assertTrue(addrFields.exists(_._1 == "city"))
+              case _ => assertTrue(false)
+            }
+          case _ => assertTrue(false)
+        }
+      },
+      test("transformFieldAt with Selector transforms nested field") {
+        val selector = Selector[PersonWithAddress](_.address)
+        val migration = Migration
+          .from[PersonWithAddress, PersonWithAddress]
+          .transformFieldAt(selector, "city", MigrationExpr.StringAppend(", USA"))
+          .buildPartial()
+
+        val input  = PersonWithAddress("John", Address("NYC", "10001"))
+        val result = migration(input)
+        assertTrue(result == Right(PersonWithAddress("John", Address("NYC, USA", "10001"))))
+      },
+      test("renameFieldAt with Selector renames nested field") {
+        val migration = DynamicMigration.single(
+          MigrationAction.RenameField(
+            DynamicOptic.root.field("address"),
+            "city",
+            "cityName"
+          )
+        )
+        val input = DynamicValue.Record(Vector(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+          "address" -> DynamicValue.Record(Vector(
+            "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC")),
+            "zip" -> DynamicValue.Primitive(PrimitiveValue.String("10001"))
+          ))
+        ))
+        val result = migration(input)
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            fields.find(_._1 == "address") match {
+              case Some((_, DynamicValue.Record(addrFields))) =>
+                assertTrue(addrFields.exists(_._1 == "cityName")) &&
+                assertTrue(!addrFields.exists(_._1 == "city"))
+              case _ => assertTrue(false)
+            }
+          case _ => assertTrue(false)
+        }
+      }
     )
   )
+
+  // Additional test types for Selector tests
+  case class Address(city: String, zip: String)
+  object Address {
+    implicit val schema: Schema[Address] = Schema.derived
+  }
+
+  case class PersonWithAddress(name: String, address: Address)
+  object PersonWithAddress {
+    implicit val schema: Schema[PersonWithAddress] = Schema.derived
+  }
+
+  case class Order(id: String, items: List[OrderItem])
+  object Order {
+    implicit val schema: Schema[Order] = Schema.derived
+  }
+
+  case class OrderItem(name: String, price: Int)
+  object OrderItem {
+    implicit val schema: Schema[OrderItem] = Schema.derived
+  }
+
+  case class Config(name: String, data: Map[String, String])
+  object Config {
+    implicit val schema: Schema[Config] = Schema.derived
+  }
 }
