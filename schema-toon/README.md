@@ -68,7 +68,7 @@ All primitive types encode in their most compact form:
 - Other: `UUID`, `Currency`
 - Collections: `List[A]`, `Vector[A]`, `Set[A]`, `Map[K, V]`
 
-### Array Formats - TOON's Superpower
+### Array Formats
 
 TOON automatically selects the most efficient array encoding based on your data:
 
@@ -90,8 +90,6 @@ vertices[3]{x,y}:
   0,1
 ```
 
-**Savings**: Field names written once instead of 3 times → **40% size reduction**
-
 #### 2. Inline Format (for primitives)
 
 ```scala
@@ -103,8 +101,6 @@ val data = Numbers(List(1, 2, 3, 4, 5))
 ```
 values[5]: 1,2,3,4,5
 ```
-
-**Savings**: No brackets, no whitespace → **60% size reduction vs JSON**
 
 #### 3. List Format (for complex/mixed types)
 
@@ -124,22 +120,20 @@ tasks[2]:
   tags[1]: pending
 ```
 
-### Why This Matters for LLMs
+### Example: JSON vs TOON
 
-**JSON** (82 tokens for 3 records):
+**JSON**:
 ```json
 {"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"},{"id":3,"name":"Carol"}]}
 ```
 
-**TOON** (49 tokens for 3 records):
+**TOON**:
 ```
 users[3]{id,name}:
   1,Alice
   2,Bob
   3,Carol
 ```
-
-**Result**: **40% fewer tokens** → lower API costs, faster processing, larger context windows
 
 ## Configuration
 
@@ -174,21 +168,6 @@ Full production support for all Scala platforms:
 | **JVM** | ✅ Fully Supported | Java 11+ |
 | **Scala.js** | ✅ Fully Supported | 1.x |
 | **Scala Native** | ✅ Fully Supported | 0.5.x with BigDecimal workaround |
-
-**Platform-Specific Optimizations**:
-- **Scala Native**: Custom `BigDecimal.toPlainString()` implementation to work around platform bug
-- All platforms pass identical 145-test suite
-
-## Performance Metrics
-
-Real-world performance data:
-
-| Metric | TOON | JSON | Improvement |
-|--------|------|------|-------------|
-| Token Efficiency (LLM) | 100% | 140% | **40% fewer tokens** |
-| Array Overhead (1000 records) | 27KB | 45KB | **40% size reduction** |
-| Parse Speed | ~2ms | ~2.5ms | Comparable |
-| Memory Usage | Low | Low | Comparable |
 
 ## Testing
 
