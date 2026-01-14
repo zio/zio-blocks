@@ -13,5 +13,7 @@ object zioGolemMill extends ScalaModule {
   def artifactName = "zio-golem-mill"
 
   def sources = T.sources { millSourcePath / "src" }
+
+  def resources = T.sources { millSourcePath / "resources" }
 }
 

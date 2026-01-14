@@ -31,6 +31,11 @@ object GolemPlugin extends AutoPlugin {
 
     val golemWriteAgentGuestWasm: TaskKey[File] =
       taskKey[File]("Writes the embedded base guest runtime WASM (agent_guest.wasm) to golemAgentGuestWasmFile.")
+
+    val golemEnsureAgentGuestWasm: TaskKey[File] =
+      taskKey[File](
+        "Ensures the base guest runtime WASM (agent_guest.wasm) exists at golemAgentGuestWasmFile; writes it if missing."
+      )
   }
 
   import autoImport.*
@@ -44,8 +49,16 @@ object GolemPlugin extends AutoPlugin {
       golemAgentGuestWasmFile := {
         // Default layout assumed by `golem/docs/getting-started.md`:
         // <root>/scala (sbt build root) and <root>/app (golem app manifest).
-        val sbtRoot = (ThisBuild / baseDirectory).value
-        sbtRoot.getParentFile / "app" / "wasm" / "agent_guest.wasm"
+        //
+        // BUT: this repo is a monorepo where `(ThisBuild / baseDirectory)` is the repo root (not `.../scala`), so we must
+        // never default to writing outside the repo directory.
+        val sbtRoot  = (ThisBuild / baseDirectory).value
+        val direct   = sbtRoot / "app" / "wasm" / "agent_guest.wasm"
+        val parent   = sbtRoot.getParentFile / "app" / "wasm" / "agent_guest.wasm"
+        val useParent =
+          sbtRoot.getName == "scala" && (sbtRoot.getParentFile / "app").exists()
+
+        if (useParent) parent else direct
       },
       golemWriteAgentGuestWasm := {
         val out = golemAgentGuestWasmFile.value
@@ -84,6 +97,21 @@ object GolemPlugin extends AutoPlugin {
         log.info(s"[golem] Wrote embedded agent_guest.wasm to ${out.getAbsolutePath}")
         out
       },
+      golemEnsureAgentGuestWasm := {
+        // Use dynamic tasks so we don't depend on `golemWriteAgentGuestWasm` unless needed.
+        Def.taskDyn {
+          val out = golemAgentGuestWasmFile.value
+          if (out.exists() && out.length() > 0) Def.task(out)
+          else
+            Def.task {
+              streams.value.log.info(s"[golem] agent_guest.wasm not found at ${out.getAbsolutePath}; writing embedded copy.")
+              golemWriteAgentGuestWasm.value
+            }
+        }.value
+      },
+      // Make the embedded wasm fully automatic for typical usage: if the app manifest expects `app/wasm/agent_guest.wasm`
+      // and it isn't there, create it as part of normal compilation / linking flows.
+      Compile / compile := (Compile / compile).dependsOn(golemEnsureAgentGuestWasm).value,
       Compile / sourceGenerators += Def.task {
         val basePackageOpt = golemBasePackage.value
         basePackageOpt match {

@@ -3,7 +3,8 @@ package golem.mill
 import mill.*
 import mill.scalalib.*
 
-import java.nio.file.{Files, Path}
+import java.io.ByteArrayOutputStream
+import java.nio.file.Path
 import scala.util.matching.Regex
 
 /**
@@ -24,6 +25,48 @@ trait GolemAutoRegister extends ScalaModule {
 
   /** Base package whose `@agentImplementation` classes should be auto-registered. */
   def golemBasePackage: T[Option[String]] = T(None)
+
+  /**
+   * Where the base guest runtime wasm should be written.
+   *
+   * Default assumes a project structure like:
+   * - build.sc (mill root)
+   * - app/wasm/agent_guest.wasm (golem manifest expects this)
+   */
+  def golemAgentGuestWasmFile: T[os.Path] = T { millSourcePath / "app" / "wasm" / "agent_guest.wasm" }
+
+  /** Ensures the base guest runtime wasm exists; writes the embedded resource if missing. */
+  def golemEnsureAgentGuestWasm: T[PathRef] = T {
+    val out = golemAgentGuestWasmFile()
+    if (os.exists(out) && os.size(out) > 0) PathRef(out)
+    else {
+      val resourcePath = "golem/wasm/agent_guest.wasm"
+      val inOpt        = Option(getClass.getClassLoader.getResourceAsStream(resourcePath))
+
+      val bytes: Array[Byte] =
+        inOpt match {
+          case Some(in) =>
+            val bos = new ByteArrayOutputStream()
+            try {
+              val buf = new Array[Byte](64 * 1024)
+              var n   = in.read(buf)
+              while (n >= 0) {
+                if (n > 0) bos.write(buf, 0, n)
+                n = in.read(buf)
+              }
+            } finally in.close()
+            bos.toByteArray
+          case None =>
+            throw new RuntimeException(
+              s"[golem] Missing embedded resource '$resourcePath'. This should be packaged in the zio-golem-mill plugin."
+            )
+        }
+
+      os.makeDir.all(out / os.up)
+      os.write.over(out, bytes)
+      PathRef(out)
+    }
+  }
 
   /** Generates Scala sources under `T.dest` and returns them as generated sources. */
   def golemGeneratedAutoRegisterSources: T[Seq[PathRef]] = T {
@@ -147,7 +190,7 @@ trait GolemAutoRegister extends ScalaModule {
                     |
                     |/** Generated. Do not edit. */
                     |private[golem] object __GolemAutoRegister_$objSuffix {
-                    |  val register: Unit = {
+                    |  def register(): Unit = {
                     |$body
                     |    ()
                     |  }
@@ -162,7 +205,7 @@ trait GolemAutoRegister extends ScalaModule {
           val touches =
             byPkg.keys.toSeq.sorted.map { pkg =>
               val objSuffix = pkg.replaceAll("[^a-zA-Z0-9_]", "_")
-              s"    __GolemAutoRegister_$objSuffix.register"
+              s"    __GolemAutoRegister_$objSuffix.register()"
             }.mkString("\n")
           val baseContent =
             s"""|package $genBasePkg
@@ -183,6 +226,12 @@ trait GolemAutoRegister extends ScalaModule {
           (perPkgFiles :+ baseOut).map(PathRef(_))
         }
     }
+  }
+
+  override def compile: T[mill.scalalib.api.CompilationResult] = T {
+    // Make guest runtime wasm fully automatic: write it if missing during normal compilation / linking workflows.
+    golemEnsureAgentGuestWasm()
+    super.compile()
   }
 
   override def generatedSources: T[Seq[PathRef]] =

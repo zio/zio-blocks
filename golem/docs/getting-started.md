@@ -242,14 +242,8 @@ chmod +x app/build-scalajs.sh
 ## 5) Provide the base guest runtime WASM (`agent_guest.wasm`)
 
 
-The `zio-golem-sbt` plugin ships a compatible `agent_guest.wasm` embedded as a resource and can write it into your app’s
-`app/wasm/agent_guest.wasm` location:
-
-```bash
-cd scala
-sbt -batch -no-colors -Dsbt.supershell=false "golemWriteAgentGuestWasm"
-cd ..
-```
+The `zio-golem-sbt` plugin ships a compatible `agent_guest.wasm` embedded as a resource and will ensure it exists at
+`app/wasm/agent_guest.wasm` automatically during normal builds (compile/link), if the file is missing.
 
 If your project layout is different, set `golemAgentGuestWasmFile` in `scala/build.sbt` to point at the desired output file.
 
