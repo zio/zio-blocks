@@ -1442,6 +1442,7 @@ class JsonBinaryCodecDeriver private[json] (
           private[this] val constructor   = binding.constructor
           private[this] val keyCodec      = codec1
           private[this] val valueCodec    = codec2
+          private[this] val keyReflect    = map.key.asInstanceOf[Reflect.Bound[Key]]
 
           def decodeValue(in: JsonReader, default: Map[Key, Value]): Map[Key, Value] =
             if (in.isNextToken('{')) {
@@ -1460,7 +1461,8 @@ class JsonBinaryCodecDeriver private[json] (
                   val v =
                     try valueCodec.decodeValue(in, valueCodec.nullValue)
                     catch {
-                      case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtMapKey(k), error)
+                      case error if NonFatal(error) =>
+                        in.decodeError(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), error)
                     }
                   constructor.addObject(builder, k, v)
                   in.isNextToken(',')

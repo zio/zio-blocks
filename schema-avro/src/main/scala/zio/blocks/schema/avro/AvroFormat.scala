@@ -1148,6 +1148,7 @@ object AvroFormat
                 private[this] val constructor   = binding.constructor
                 private[this] val keyCodec      = codec1
                 private[this] val valueCodec    = codec2
+                private[this] val keyReflect    = map.key.asInstanceOf[Reflect.Bound[Key]]
 
                 val avroSchema: AvroSchema = map.key.asPrimitive match {
                   case Some(primitiveKey) if primitiveKey.primitiveType.isInstanceOf[PrimitiveType.String] =>
@@ -1182,7 +1183,8 @@ object AvroFormat
                       val v =
                         try valueCodec.decodeUnsafe(decoder)
                         catch {
-                          case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtMapKey(k), error)
+                          case error if NonFatal(error) =>
+                            decodeError(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), error)
                         }
                       constructor.addObject(builder, k, v)
                       count += 1
