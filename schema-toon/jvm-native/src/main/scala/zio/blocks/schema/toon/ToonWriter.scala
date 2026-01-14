@@ -7,6 +7,7 @@ import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
 import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 import zio.blocks.schema.binding.Registers
+import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
 /**
@@ -30,7 +31,8 @@ final class ToonWriter private[toon] (
   private[this] var bbuf: ByteBuffer = null,
   private[this] var out: OutputStream = null,
   private[this] var atLineStart: Boolean = true,
-  private[this] val stack: Registers = Registers(32), // Default capacity for record fields
+  // Default capacity: 32 objects, 32 ints, 16 longs, 16 doubles for primitive fields
+  private[this] val stack: Registers = Registers(RegisterOffset(objects = 32, ints = 32, longs = 16, doubles = 16)),
   private[this] var top: RegisterOffset = -1L,
   private[this] var maxTop: RegisterOffset = 0L
 ) {
