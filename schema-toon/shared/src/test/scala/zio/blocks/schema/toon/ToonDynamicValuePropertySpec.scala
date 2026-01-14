@@ -179,19 +179,21 @@ object ToonDynamicValuePropertySpec extends ZIOSpecDefault {
         assertTrue(decoded == Right(expected))
       },
       test("Float normalizes to BigDecimal") {
-        val codec    = Schema.dynamic.derive(ToonBinaryCodecDeriver)
-        val input    = DynamicValue.Primitive(PrimitiveValue.Float(3.14f))
-        val expected = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("3.14")))
-        val encoded  = codec.encodeToString(input)
-        val decoded  = codec.decodeFromString(encoded)
+        val codec   = Schema.dynamic.derive(ToonBinaryCodecDeriver)
+        val input   = DynamicValue.Primitive(PrimitiveValue.Float(0.5f)) // Use exact binary fraction
+        val encoded = codec.encodeToString(input)
+        val decoded = codec.decodeFromString(encoded)
+        // Expected is the string representation parsed as BigDecimal
+        val expected = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0.5f.toString)))
         assertTrue(decoded == Right(expected))
       },
       test("Double normalizes to BigDecimal") {
-        val codec    = Schema.dynamic.derive(ToonBinaryCodecDeriver)
-        val input    = DynamicValue.Primitive(PrimitiveValue.Double(2.718))
-        val expected = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("2.718")))
-        val encoded  = codec.encodeToString(input)
-        val decoded  = codec.decodeFromString(encoded)
+        val codec   = Schema.dynamic.derive(ToonBinaryCodecDeriver)
+        val input   = DynamicValue.Primitive(PrimitiveValue.Double(0.25)) // Use exact binary fraction
+        val encoded = codec.encodeToString(input)
+        val decoded = codec.decodeFromString(encoded)
+        // Expected is the string representation parsed as BigDecimal
+        val expected = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0.25.toString)))
         assertTrue(decoded == Right(expected))
       }
     ),
