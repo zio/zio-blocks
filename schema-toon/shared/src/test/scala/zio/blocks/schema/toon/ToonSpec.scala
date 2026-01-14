@@ -1,6 +1,7 @@
 package zio.blocks.schema.toon
 
 import zio.test._
+import zio.test.TestAspect.jvmOnly
 import zio.blocks.schema._
 import java.nio.charset.StandardCharsets
 
@@ -140,7 +141,7 @@ object ToonSpec extends ZIOSpecDefault {
         val instant = Instant.parse("2024-01-15T10:30:00Z")
         val result  = encode(ToonBinaryCodec.instantCodec, instant)
         assertTrue(result == "2024-01-15T10:30:00Z")
-      },
+      } @@ jvmOnly,
       test("encode LocalDate") {
         import java.time.LocalDate
         val date   = LocalDate.of(2024, 1, 15)
@@ -184,7 +185,7 @@ object ToonSpec extends ZIOSpecDefault {
         val currency = Currency.getInstance("USD")
         val result   = encode(ToonBinaryCodec.currencyCodec, currency)
         assertTrue(result == "USD")
-      }
+      } @@ jvmOnly
     ),
 
     // ==================== LIST SCHEMA TESTS ====================
