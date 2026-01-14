@@ -758,8 +758,4 @@ class ToonBinaryCodecDeriver private[toon] (
     isEnum: Boolean
   )
 
-  private case class DiscriminatorFieldInfo(
-    name: String,
-    value: String
-  )
 }

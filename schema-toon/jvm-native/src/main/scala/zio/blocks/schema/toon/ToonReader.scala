@@ -25,13 +25,11 @@ final class ToonReader private[toon] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
   private[this] var head: Int = 0,
   private[this] var tail: Int = 0,
-  private[this] var charBuf: Array[Char] = new Array[Char](4096),
   private[this] var config: ReaderConfig = null,
   private[this] var depth: Int = 0,
   private[this] var line: Int = 1,
   private[this] var column: Int = 1,
   private[this] var in: InputStream = null,
-  private[this] var mark: Int = -1,
   private[this] var tokenStart: Int = -1,
   private[this] var currentDelimiter: Delimiter = Delimiter.Comma,
   private[this] val stack: Registers = Registers(0),
@@ -375,6 +373,7 @@ final class ToonReader private[toon] (
    * Reads a Year value.
    */
   def readYear(default: Year): Year = {
+    val _ = default // silence unused warning - parameter kept for API consistency
     val n = readInt()
     Year.of(n)
   }
@@ -664,8 +663,8 @@ final class ToonReader private[toon] (
     head += 1
     column += 1
 
-    // Read array length
-    val length = readInt()
+    // Read and discard array length (reserved for future use)
+    val _ = readInt()
 
     // Check for delimiter marker
     if (head < tail && buf(head) == '\t') {
