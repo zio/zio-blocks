@@ -63,8 +63,7 @@ class ToonBinaryCodecDeriver private[toon] (
     copy(caseNameMapper = mapper)
 
   /**
-   * Updates the discriminator kind for encoding sealed trait/enum
-   * hierarchies.
+   * Updates the discriminator kind for encoding sealed trait/enum hierarchies.
    */
   def withDiscriminatorKind(kind: DiscriminatorKind): ToonBinaryCodecDeriver =
     copy(discriminatorKind = kind)
@@ -94,8 +93,7 @@ class ToonBinaryCodecDeriver private[toon] (
     copy(enumValuesAsStrings = asStrings)
 
   /**
-   * Configures whether to omit Option fields with None values during
-   * encoding.
+   * Configures whether to omit Option fields with None values during encoding.
    */
   def withTransientNone(transient: Boolean): ToonBinaryCodecDeriver =
     copy(transientNone = transient)

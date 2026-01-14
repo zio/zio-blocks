@@ -3,13 +3,14 @@ package zio.blocks.schema.toon
 import zio.test._
 import zio.test.Assertion._
 import zio.blocks.schema.{DynamicValue, DynamicValueGen, Schema}
-import java.nio.charset.StandardCharsets
+import zio.blocks.schema.json.DiscriminatorKind
 
 object ToonDynamicValueSpec extends ZIOSpecDefault {
 
   /**
-   * Helper function to test DynamicValue round-trip with a specific deriver configuration.
-   * This allows testing multiple configuration options as requested by the maintainer.
+   * Helper function to test DynamicValue round-trip with a specific deriver
+   * configuration. This allows testing multiple configuration options as
+   * requested by the maintainer.
    */
   def testDynamicValueRoundTrip(
     deriver: ToonBinaryCodecDeriver,
@@ -17,14 +18,14 @@ object ToonDynamicValueSpec extends ZIOSpecDefault {
   ): Spec[Any, Nothing] =
     test(s"DynamicValue round-trip with $testName") {
       check(DynamicValueGen.genDynamicValue) { dynamicValue =>
-        val codec = Schema.dynamicValue.derive(deriver)
-        
+        val codec = Schema.dynamic.derive(deriver)
+
         // Encode to string
         val encoded = codec.encodeToString(dynamicValue)
-        
+
         // Decode back to DynamicValue
         val decoded = codec.decodeFromString(encoded)
-        
+
         decoded match {
           case Right(result) =>
             // Assert equality - the core requirement
@@ -98,36 +99,36 @@ object ToonDynamicValueSpec extends ZIOSpecDefault {
     // Test 10: Test specific DynamicValue patterns
     suite("Specific DynamicValue patterns")(
       test("primitive values") {
-        check(DynamicValueGen.genPrimitiveValue.map(DynamicValue.Primitive(_))) { dv =>
-          val codec = Schema.dynamicValue.derive(ToonBinaryCodecDeriver)
+        check(DynamicValueGen.genPrimitiveValue.map(DynamicValue.Primitive(_))) { _ =>
+          val codec        = Schema.dynamic.derive(ToonBinaryCodecDeriver)
           val roundTripped = codec.decodeFromString(codec.encodeToString(dv))
           assert(roundTripped)(isRight(equalTo(dv)))
         }
       },
       test("record values") {
-        check(DynamicValueGen.genRecord) { dv =>
-          val codec = Schema.dynamicValue.derive(ToonBinaryCodecDeriver)
+        check(DynamicValueGen.genRecord) { _ =>
+          val codec        = Schema.dynamic.derive(ToonBinaryCodecDeriver)
           val roundTripped = codec.decodeFromString(codec.encodeToString(dv))
           assert(roundTripped)(isRight(equalTo(dv)))
         }
       },
       test("variant values") {
-        check(DynamicValueGen.genVariant) { dv =>
-          val codec = Schema.dynamicValue.derive(ToonBinaryCodecDeriver)
+        check(DynamicValueGen.genVariant) { _ =>
+          val codec        = Schema.dynamic.derive(ToonBinaryCodecDeriver)
           val roundTripped = codec.decodeFromString(codec.encodeToString(dv))
           assert(roundTripped)(isRight(equalTo(dv)))
         }
       },
       test("sequence values") {
-        check(DynamicValueGen.genSequence) { dv =>
-          val codec = Schema.dynamicValue.derive(ToonBinaryCodecDeriver)
+        check(DynamicValueGen.genSequence) { _ =>
+          val codec        = Schema.dynamic.derive(ToonBinaryCodecDeriver)
           val roundTripped = codec.decodeFromString(codec.encodeToString(dv))
           assert(roundTripped)(isRight(equalTo(dv)))
         }
       },
       test("map values") {
-        check(DynamicValueGen.genMap) { dv =>
-          val codec = Schema.dynamicValue.derive(ToonBinaryCodecDeriver)
+        check(DynamicValueGen.genMap) { _ =>
+          val codec        = Schema.dynamic.derive(ToonBinaryCodecDeriver)
           val roundTripped = codec.decodeFromString(codec.encodeToString(dv))
           assert(roundTripped)(isRight(equalTo(dv)))
         }
