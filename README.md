@@ -39,6 +39,7 @@ object Person {
 // Get everything for free:
 val jsonCodec = Schema[Person].derive(JsonFormat.deriver)      // JSON serialization
 val avroCodec = Schema[Person].derive(AvroFormat.deriver)      // Avro serialization
+val toonCodec = Schema[Person].derive(ToonFormat.deriver)      // TOON serialization
 val protobuf  = Schema[Person].derive(ProtobufFormat.deriver)  // Protobuf serialization (not implemented yet)
 val thrift    = Schema[Person].derive(ThriftFormat.deriver)    // Thrift serialization (not implemented yet)
 // ...
@@ -53,6 +54,7 @@ Here are the key features that make ZIO Blocks stand out:
 3. **Universal Data Formats**: Provides automatic serialization and deserialization across multiple formats:
    - **JSON** – Fast, type-safe JSON handling
    - **Avro** – Apache Avro binary format
+   - **TOON** – Compact, LLM-optimized format
    - **Protobuf** – Protocol Buffers
    - **Thrift** – Apache Thrift
    - **BSON** – MongoDB's binary JSON format
@@ -73,6 +75,7 @@ Now you have access to the core ZIO Blocks schema library. You can also add addi
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-json" % "0.0.1"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.1"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.1"
 ```
 
 ## Example
