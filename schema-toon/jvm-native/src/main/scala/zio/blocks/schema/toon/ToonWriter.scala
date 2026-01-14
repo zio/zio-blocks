@@ -787,33 +787,122 @@ final class ToonWriter private[toon] (
     if (x.isNaN || x.isInfinite) writeNull()
     else {
       val s = java.lang.Float.toString(x)
-      writeCanonicalNumber(s)
+      writeCanonicalNumberString(s)
     }
 
   private def writeDouble(x: Double): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
     else {
       val s = java.lang.Double.toString(x)
-      writeCanonicalNumber(s)
+      writeCanonicalNumberString(s)
     }
 
-  private def writeCanonicalNumber(s: String): Unit = {
-    // TOON requires canonical number format: no exponent, no trailing zeros
-    val bd = new java.math.BigDecimal(s)
-    writeCanonicalDecimal(BigDecimal(bd))
+  // Write a number string in canonical form
+  // Avoids BigDecimal.toPlainString() which has bugs on Scala Native
+  private def writeCanonicalNumberString(s: String): Unit = {
+    // Check for exponent notation (E or e)
+    val eIdx = {
+      var i     = 0
+      var found = -1
+      while (i < s.length && found < 0) {
+        val c = s.charAt(i)
+        if (c == 'E' || c == 'e') found = i
+        i += 1
+      }
+      found
+    }
+
+    if (eIdx < 0) {
+      // No exponent - just strip trailing zeros from fractional part
+      writeCanonicalSimpleNumber(s)
+    } else {
+      // Has exponent - need to expand to plain form
+      writeExpandedExponentNumber(s, eIdx)
+    }
+  }
+
+  // Write a simple number (no exponent) in canonical form
+  private def writeCanonicalSimpleNumber(s: String): Unit = {
+    // Handle -0 case
+    if (s == "-0.0" || s == "-0") {
+      writeRawString("0")
+      return
+    }
+
+    // Find the decimal point
+    val dotIdx = s.indexOf('.')
+    if (dotIdx < 0) {
+      // No decimal point, write as-is
+      writeRawString(s)
+    } else {
+      // Find the last non-zero digit after decimal point
+      var lastNonZero = s.length - 1
+      while (lastNonZero > dotIdx && s.charAt(lastNonZero) == '0') {
+        lastNonZero -= 1
+      }
+
+      if (lastNonZero == dotIdx) {
+        // All zeros after decimal, write without decimal part
+        writeRawString(s.substring(0, dotIdx))
+      } else {
+        // Write up to and including last non-zero
+        writeRawString(s.substring(0, lastNonZero + 1))
+      }
+    }
+  }
+
+  // Expand a number with exponent to plain form
+  private def writeExpandedExponentNumber(s: String, eIdx: Int): Unit = {
+    val mantissa = s.substring(0, eIdx)
+    val exp      = java.lang.Integer.parseInt(s.substring(eIdx + 1))
+
+    // Parse mantissa parts
+    val negative = mantissa.charAt(0) == '-'
+    val start    = if (negative) 1 else 0
+    val dotIdx   = mantissa.indexOf('.')
+    val intPart  = if (dotIdx < 0) mantissa.substring(start) else mantissa.substring(start, dotIdx)
+    val fracPart = if (dotIdx < 0) "" else mantissa.substring(dotIdx + 1)
+
+    // Combine all digits
+    val allDigits  = intPart + fracPart
+    val currentExp = intPart.length - 1 // Current position of decimal after first digit
+    val targetExp  = currentExp + exp   // Where decimal should be
+
+    val result = new StringBuilder
+    if (negative) result.append('-')
+
+    if (targetExp < 0) {
+      // Need leading zeros: 0.00...digits
+      result.append("0.")
+      var i = 0
+      while (i < -targetExp - 1) {
+        result.append('0')
+        i += 1
+      }
+      result.append(allDigits)
+    } else if (targetExp >= allDigits.length - 1) {
+      // No decimal needed or trailing zeros
+      result.append(allDigits)
+      var i = allDigits.length - 1
+      while (i < targetExp) {
+        result.append('0')
+        i += 1
+      }
+    } else {
+      // Decimal in the middle
+      result.append(allDigits.substring(0, targetExp + 1))
+      result.append('.')
+      result.append(allDigits.substring(targetExp + 1))
+    }
+
+    // Strip trailing zeros from result
+    writeCanonicalSimpleNumber(result.toString)
   }
 
   private def writeCanonicalDecimal(x: BigDecimal): Unit = {
-    // TOON requires: no exponent, no trailing zeros, -0 -> 0
-    val normalized = x.underlying.stripTrailingZeros()
-    val str        = if (normalized.scale() < 0) {
-      normalized.setScale(0).toPlainString
-    } else {
-      normalized.toPlainString
-    }
-    // Handle -0 case
-    val finalStr = if (str == "-0") "0" else str
-    writeRawString(finalStr)
+    // Use toString which is safer than toPlainString on Scala Native
+    val str = x.underlying.stripTrailingZeros().toString
+    writeCanonicalNumberString(str)
   }
 
   private def writeRawString(s: String): Unit = {
