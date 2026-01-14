@@ -29,7 +29,7 @@ private[schema] object Differ {
 
         case _ =>
           // Type mismatch - use Set to replace entirely
-          DynamicPatch(Patch.Operation.Set(newValue))
+          DynamicPatch.root(Patch.Operation.Set(newValue))
       }
     }
 
@@ -40,11 +40,11 @@ private[schema] object Differ {
       // Numeric types - use delta operations
       case (PrimitiveValue.Int(oldVal), PrimitiveValue.Int(newVal)) =>
         val delta = newVal - oldVal
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(delta)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(delta)))
 
       case (PrimitiveValue.Long(oldVal), PrimitiveValue.Long(newVal)) =>
         val delta = newVal - oldVal
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LongDelta(delta)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LongDelta(delta)))
 
       case (PrimitiveValue.Double(oldVal), PrimitiveValue.Double(newVal)) =>
         val oldIsNaN = java.lang.Double.isNaN(oldVal)
@@ -52,10 +52,10 @@ private[schema] object Differ {
         if (oldIsNaN && newIsNaN) {
           DynamicPatch.empty
         } else if (oldIsNaN || newIsNaN) {
-          DynamicPatch(Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Double(newVal))))
+          DynamicPatch.root(Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Double(newVal))))
         } else {
           val delta = newVal - oldVal
-          DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DoubleDelta(delta)))
+          DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DoubleDelta(delta)))
         }
 
       case (PrimitiveValue.Float(oldVal), PrimitiveValue.Float(newVal)) =>
@@ -64,27 +64,27 @@ private[schema] object Differ {
         if (oldIsNaN && newIsNaN) {
           DynamicPatch.empty
         } else if (oldIsNaN || newIsNaN) {
-          DynamicPatch(Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Float(newVal))))
+          DynamicPatch.root(Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Float(newVal))))
         } else {
           val delta = newVal - oldVal
-          DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.FloatDelta(delta)))
+          DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.FloatDelta(delta)))
         }
 
       case (PrimitiveValue.Short(oldVal), PrimitiveValue.Short(newVal)) =>
         val delta = (newVal - oldVal).toShort
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ShortDelta(delta)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ShortDelta(delta)))
 
       case (PrimitiveValue.Byte(oldVal), PrimitiveValue.Byte(newVal)) =>
         val delta = (newVal - oldVal).toByte
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ByteDelta(delta)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ByteDelta(delta)))
 
       case (PrimitiveValue.BigInt(oldVal), PrimitiveValue.BigInt(newVal)) =>
         val delta = newVal - oldVal
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigIntDelta(delta)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigIntDelta(delta)))
 
       case (PrimitiveValue.BigDecimal(oldVal), PrimitiveValue.BigDecimal(newVal)) =>
         val delta = newVal - oldVal
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigDecimalDelta(delta)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigDecimalDelta(delta)))
 
       // String - use LCS to determine if edit is more efficient
       case (PrimitiveValue.String(oldStr), PrimitiveValue.String(newStr)) =>
@@ -93,21 +93,21 @@ private[schema] object Differ {
       // Temporal types - use period/duration deltas
       case (PrimitiveValue.Instant(oldVal), PrimitiveValue.Instant(newVal)) =>
         val duration = java.time.Duration.between(oldVal, newVal)
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.InstantDelta(duration)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.InstantDelta(duration)))
 
       case (PrimitiveValue.Duration(oldVal), PrimitiveValue.Duration(newVal)) =>
         val delta = newVal.minus(oldVal)
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DurationDelta(delta)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DurationDelta(delta)))
 
       case (PrimitiveValue.LocalDate(oldVal), PrimitiveValue.LocalDate(newVal)) =>
         val period = java.time.Period.between(oldVal, newVal)
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateDelta(period)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateDelta(period)))
 
       case (PrimitiveValue.LocalDateTime(oldVal), PrimitiveValue.LocalDateTime(newVal)) =>
         val period      = java.time.Period.between(oldVal.toLocalDate, newVal.toLocalDate)
         val afterPeriod = oldVal.plus(period)
         val duration    = java.time.Duration.between(afterPeriod, newVal)
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateTimeDelta(period, duration)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateTimeDelta(period, duration)))
 
       case (PrimitiveValue.Period(oldVal), PrimitiveValue.Period(newVal)) =>
         // Period doesn't have minus, so we compute the delta manually
@@ -116,11 +116,11 @@ private[schema] object Differ {
           newVal.getMonths - oldVal.getMonths,
           newVal.getDays - oldVal.getDays
         )
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.PeriodDelta(delta)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.PeriodDelta(delta)))
 
       // All other types - use Set
       case _ =>
-        DynamicPatch(Patch.Operation.Set(DynamicValue.Primitive(newPrim)))
+        DynamicPatch.root(Patch.Operation.Set(DynamicValue.Primitive(newPrim)))
     }
 
   // Diff two strings using LCS algorithm. Uses StringEdit if the edit
@@ -141,9 +141,9 @@ private[schema] object Differ {
       }
 
       if (edits.nonEmpty && editSize < newStr.length) {
-        DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.StringEdit(edits)))
+        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.StringEdit(edits)))
       } else {
-        DynamicPatch(Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String(newStr))))
+        DynamicPatch.root(Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String(newStr))))
       }
     }
 
@@ -274,12 +274,18 @@ private[schema] object Differ {
           if (!fieldPatch.isEmpty) {
             // Prepend the field path to each operation
             for (op <- fieldPatch.ops) {
-              ops += Patch.DynamicPatchOp(DynamicOptic.Node.Field(fieldName) +: op.path, op.operation)
+              ops += Patch.DynamicPatchOp(
+                new DynamicOptic(DynamicOptic.Node.Field(fieldName) +: op.path.nodes),
+                op.operation
+              )
             }
           }
         case None =>
           // Field only exists in new record - set it
-          ops += Patch.DynamicPatchOp(Vector(DynamicOptic.Node.Field(fieldName)), Patch.Operation.Set(newValue))
+          ops += Patch.DynamicPatchOp(
+            new DynamicOptic(Vector(DynamicOptic.Node.Field(fieldName))),
+            Patch.Operation.Set(newValue)
+          )
         case _ =>
         // Field unchanged - skip
       }
@@ -300,7 +306,7 @@ private[schema] object Differ {
     newValue: DynamicValue
   ): DynamicPatch =
     if (oldCase != newCase) {
-      DynamicPatch(Patch.Operation.Set(DynamicValue.Variant(newCase, newValue)))
+      DynamicPatch.root(Patch.Operation.Set(DynamicValue.Variant(newCase, newValue)))
     } else if (oldValue == newValue) {
       DynamicPatch.empty
     } else {
@@ -309,7 +315,7 @@ private[schema] object Differ {
         DynamicPatch.empty
       } else {
         val ops = innerPatch.ops.map { op =>
-          Patch.DynamicPatchOp(DynamicOptic.Node.Case(oldCase) +: op.path, op.operation)
+          Patch.DynamicPatchOp(new DynamicOptic(DynamicOptic.Node.Case(oldCase) +: op.path.nodes), op.operation)
         }
         DynamicPatch(ops)
       }
@@ -325,13 +331,13 @@ private[schema] object Differ {
     if (oldElems == newElems) {
       DynamicPatch.empty
     } else if (oldElems.isEmpty) {
-      DynamicPatch(Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Append(newElems))))
+      DynamicPatch.root(Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Append(newElems))))
     } else if (newElems.isEmpty) {
-      DynamicPatch(Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Delete(0, oldElems.length))))
+      DynamicPatch.root(Patch.Operation.SequenceEdit(Vector(Patch.SeqOp.Delete(0, oldElems.length))))
     } else {
       val seqOps = computeSequenceOps(oldElems, newElems)
       if (seqOps.isEmpty) DynamicPatch.empty
-      else DynamicPatch(Patch.Operation.SequenceEdit(seqOps))
+      else DynamicPatch.root(Patch.Operation.SequenceEdit(seqOps))
     }
 
   // Convert the difference between two sequences into SeqOps using LCS
@@ -453,6 +459,6 @@ private[schema] object Differ {
       }
     }
 
-    DynamicPatch(Patch.Operation.MapEdit(ops.result()))
+    DynamicPatch.root(Patch.Operation.MapEdit(ops.result()))
   }
 }

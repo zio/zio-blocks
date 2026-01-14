@@ -307,6 +307,155 @@ object TypedPatchSpec extends ZIOSpecDefault {
         val result = patch(samplePerson)
         assertTrue(result.age == 0)
       }
+    ),
+    suite("Operation.Patch - High-Level API")(
+      test("manually created nested patch updates multiple fields") {
+        case class Address(street: String, city: String, zip: String)
+        case class Person(name: String, address: Address)
+        implicit val addressSchema: Schema[Address] = Schema.derived
+        implicit val personSchema: Schema[Person]   = Schema.derived
+
+        val person = Person("Alice", Address("123 Main", "NYC", "10001"))
+
+        // Create nested patch using low-level API
+        val addressPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("street"))),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("456 Elm")))
+            ),
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("city"))),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("LA")))
+            )
+          )
+        )
+
+        val mainPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("address"))),
+              DynamicPatch.Operation.Patch(addressPatch)
+            )
+          )
+        )
+
+        val patch  = Patch(mainPatch, personSchema)
+        val result = patch(person)
+
+        assertTrue(
+          result.name == "Alice" &&
+            result.address.street == "456 Elm" &&
+            result.address.city == "LA" &&
+            result.address.zip == "10001" // unchanged
+        )
+      },
+      test("nested patch composes with high-level Patch API") {
+        case class Stats(views: Int, downloads: Int)
+        object Stats {
+          implicit val schema: Schema[Stats] = Schema.derived
+        }
+
+        case class Project(name: String, stats: Stats)
+        object Project extends CompanionOptics[Project] {
+          implicit val schema: Schema[Project] = Schema.derived
+          val name: Lens[Project, String]      = optic(_.name)
+          val stats: Lens[Project, Stats]      = optic(_.stats)
+        }
+
+        val project = Project("My Project", Stats(100, 50))
+
+        // p1: Regular high-level patch to change name
+        val p1 = Patch.set(Project.name, "New Project")
+
+        // p2: Nested patch for stats
+        val statsPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("views"))),
+              DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(50))
+            ),
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("downloads"))),
+              DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(25))
+            )
+          )
+        )
+
+        val p2DynamicPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("stats"))),
+              DynamicPatch.Operation.Patch(statsPatch)
+            )
+          )
+        )
+
+        val p2 = Patch(p2DynamicPatch, Project.schema)
+
+        // Compose and apply
+        val composed = p1 ++ p2
+        val result   = composed(project)
+
+        assertTrue(
+          result.name == "New Project" &&
+            result.stats.views == 150 &&
+            result.stats.downloads == 75
+        )
+      },
+      test("recursive nested patch with 3 levels") {
+        case class Inner(value: Int)
+        case class Middle(inner: Inner, label: String)
+        case class Outer(middle: Middle, active: Boolean)
+        implicit val innerSchema: Schema[Inner]   = Schema.derived
+        implicit val middleSchema: Schema[Middle] = Schema.derived
+        implicit val outerSchema: Schema[Outer]   = Schema.derived
+
+        val data = Outer(Middle(Inner(10), "test"), active = true)
+
+        // Level 3: innermost patch
+        val innerPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("value"))),
+              DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(90))
+            )
+          )
+        )
+
+        // Level 2: middle patch
+        val middlePatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("inner"))),
+              DynamicPatch.Operation.Patch(innerPatch)
+            ),
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("label"))),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("updated")))
+            )
+          )
+        )
+
+        // Level 1: outer patch
+        val outerPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("middle"))),
+              DynamicPatch.Operation.Patch(middlePatch)
+            )
+          )
+        )
+
+        val patch  = Patch(outerPatch, outerSchema)
+        val result = patch(data)
+
+        assertTrue(
+          result.middle.inner.value == 100 &&
+            result.middle.label == "updated" &&
+            result.active == true // unchanged
+        )
+      }
     )
   )
 }

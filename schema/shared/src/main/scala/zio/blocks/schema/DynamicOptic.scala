@@ -86,5 +86,11 @@ object DynamicOptic {
     case object MapValues extends Node
 
     case object Wrapped extends Node
+
+    implicit lazy val schema: Schema[Node] = Schema.derived
+
   }
+
+  implicit lazy val schema: Schema[DynamicOptic] = Schema.derived
+
 }

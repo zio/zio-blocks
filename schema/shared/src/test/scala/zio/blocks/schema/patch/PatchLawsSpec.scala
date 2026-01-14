@@ -741,6 +741,220 @@ object PatchLawsSpec extends ZIOSpecDefault {
 
         assertTrue(r1 == r2 && r1 == Right(v3))
       }
+    ),
+    suite("Operation.Patch Laws")(
+      test("nested patch respects roundtrip law") {
+        case class Address(street: String, city: String, zip: String)
+        case class Person(name: String, address: Address)
+        implicit val addressSchema: Schema[Address] = Schema.derived
+        implicit val personSchema: Schema[Person]   = Schema.derived
+
+        val old  = Person("Alice", Address("123 Main", "NYC", "10001"))
+        val new_ = Person("Alice", Address("456 Elm", "LA", "90002"))
+
+        // Create a nested patch manually
+        val addressPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("street"))),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("456 Elm")))
+            ),
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("city"))),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("LA")))
+            ),
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("zip"))),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("90002")))
+            )
+          )
+        )
+
+        val dynamicPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("address"))),
+              DynamicPatch.Operation.Patch(addressPatch)
+            )
+          )
+        )
+
+        val patch = Patch(dynamicPatch, personSchema)
+
+        val result = patch(old, PatchMode.Strict)
+        assertTrue(result == Right(new_))
+      },
+      test("nested patch composes with regular patches") {
+        case class Stats(views: Int, likes: Int)
+        case class Article(title: String, stats: Stats)
+        implicit val statsSchema: Schema[Stats]     = Schema.derived
+        implicit val articleSchema: Schema[Article] = Schema.derived
+
+        val v0 = Article("Title 1", Stats(100, 10))
+        val v1 = Article("Title 2", Stats(150, 15))
+        val v2 = Article("Title 2", Stats(200, 20))
+
+        // p1: change title using regular patch
+        val p1 = articleSchema.diff(v0, v1)
+
+        // p2: change stats using nested patch
+        val statsPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("views"))),
+              DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(50))
+            ),
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("likes"))),
+              DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+            )
+          )
+        )
+
+        val p2DynamicPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("stats"))),
+              DynamicPatch.Operation.Patch(statsPatch)
+            )
+          )
+        )
+
+        val p2 = Patch(p2DynamicPatch, articleSchema)
+
+        // Compose and verify
+        val composed = p1 ++ p2
+        val result   = composed(v0, PatchMode.Strict)
+
+        assertTrue(result == Right(v2))
+      },
+      test("nested patch respects associativity") {
+        case class Inner(value: Int)
+        case class Middle(inner: Inner, x: String)
+        case class Outer(middle: Middle, y: Int)
+        implicit val innerSchema: Schema[Inner]   = Schema.derived
+        implicit val middleSchema: Schema[Middle] = Schema.derived
+        implicit val outerSchema: Schema[Outer]   = Schema.derived
+
+        val v0 = Outer(Middle(Inner(1), "a"), 10)
+        val v1 = Outer(Middle(Inner(2), "a"), 10)
+        val v2 = Outer(Middle(Inner(2), "b"), 10)
+        val v3 = Outer(Middle(Inner(2), "b"), 20)
+
+        val p1 = outerSchema.diff(v0, v1)
+        val p2 = outerSchema.diff(v1, v2)
+        val p3 = outerSchema.diff(v2, v3)
+
+        val left  = (p1 ++ p2) ++ p3
+        val right = p1 ++ (p2 ++ p3)
+
+        val r1 = left(v0, PatchMode.Strict)
+        val r2 = right(v0, PatchMode.Strict)
+
+        assertTrue(r1 == r2 && r1 == Right(v3))
+      },
+      test("recursive nested patch respects roundtrip law") {
+        case class Level3(value: Int)
+        case class Level2(level3: Level3)
+        case class Level1(level2: Level2)
+        implicit val level3Schema: Schema[Level3] = Schema.derived
+        implicit val level2Schema: Schema[Level2] = Schema.derived
+        implicit val level1Schema: Schema[Level1] = Schema.derived
+
+        val old  = Level1(Level2(Level3(1)))
+        val new_ = Level1(Level2(Level3(100)))
+
+        // Create 3-level nested patch
+        val level3Patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("value"))),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(100)))
+            )
+          )
+        )
+
+        val level2Patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("level3"))),
+              DynamicPatch.Operation.Patch(level3Patch)
+            )
+          )
+        )
+
+        val level1Patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("level2"))),
+              DynamicPatch.Operation.Patch(level2Patch)
+            )
+          )
+        )
+
+        val patch  = Patch(level1Patch, level1Schema)
+        val result = patch(old, PatchMode.Strict)
+
+        assertTrue(result == Right(new_))
+      },
+      test("empty nested patch acts as identity") {
+        case class Container(value: Int)
+        implicit val containerSchema: Schema[Container] = Schema.derived
+
+        val original = Container(42)
+
+        // Empty nested patch
+        val emptyNestedPatch = DynamicPatch(Vector.empty)
+        val dynamicPatch     = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("value"))),
+              DynamicPatch.Operation.Patch(emptyNestedPatch)
+            )
+          )
+        )
+
+        val patch  = Patch(dynamicPatch, containerSchema)
+        val result = patch(original, PatchMode.Strict)
+
+        // Empty nested patch should leave value unchanged (apply empty patch to the field)
+        assertTrue(result == Right(original))
+      },
+      test("nested patch with PatchMode.Lenient skips invalid operations") {
+        case class Record(x: Int, y: Int)
+        implicit val recordSchema: Schema[Record] = Schema.derived
+
+        val original = Record(10, 20)
+
+        // Nested patch with invalid field
+        val nestedPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("nonexistent"))),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(999)))
+            ),
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic(Vector(DynamicOptic.Node.Field("x"))),
+              DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+            )
+          )
+        )
+
+        val dynamicPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root,
+              DynamicPatch.Operation.Patch(nestedPatch)
+            )
+          )
+        )
+
+        val patch  = Patch(dynamicPatch, recordSchema)
+        val result = patch(original, PatchMode.Lenient)
+
+        // Should skip invalid operation and apply valid one
+        assertTrue(result == Right(Record(15, 20)))
+      }
     )
   )
 }

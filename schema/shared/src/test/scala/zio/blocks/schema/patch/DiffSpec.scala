@@ -369,7 +369,7 @@ object DiffSpec extends ZIOSpecDefault {
         // Should only have one operation (for the age field)
         assertTrue(patch.dynamicPatch.ops.length == 1) &&
         assertTrue(
-          patch.dynamicPatch.ops(0).path match {
+          patch.dynamicPatch.ops(0).path.nodes match {
             case Vector(DynamicOptic.Node.Field("age")) => true
             case _                                      => false
           }
@@ -400,7 +400,7 @@ object DiffSpec extends ZIOSpecDefault {
         // Should have one operation for address.street
         assertTrue(patch.dynamicPatch.ops.length == 1) &&
         assertTrue(
-          patch.dynamicPatch.ops(0).path match {
+          patch.dynamicPatch.ops(0).path.nodes match {
             case Vector(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("street")) => true
             case _                                                                             => false
           }
@@ -638,7 +638,7 @@ object DiffSpec extends ZIOSpecDefault {
         val opMatch =
           patch.dynamicPatch.ops.headOption match {
             case Some(op) =>
-              op.path.isEmpty &&
+              op.path.nodes.isEmpty &&
               (op.operation match {
                 case Patch.Operation.Set(DynamicValue.Variant("Inactive", _)) => true
                 case _                                                        => false
@@ -666,7 +666,7 @@ object DiffSpec extends ZIOSpecDefault {
           scenarios.map { case (old, updated, caseName, fieldName) =>
             val patch            = Schema[Status].diff(old, updated)
             val hasCaseFieldPath = patch.dynamicPatch.ops.exists(
-              _.path == Vector(
+              _.path.nodes == Vector(
                 DynamicOptic.Node.Case(caseName),
                 DynamicOptic.Node.Field(fieldName)
               )

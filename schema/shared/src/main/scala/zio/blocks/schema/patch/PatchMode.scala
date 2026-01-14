@@ -1,5 +1,7 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.schema._
+
 sealed trait PatchMode
 
 object PatchMode {
@@ -11,5 +13,9 @@ object PatchMode {
   case object Lenient extends PatchMode
 
   // Replace/overwrite on conflicts.
+
   case object Clobber extends PatchMode
+
+  implicit lazy val schema: Schema[PatchMode] = Schema.derived
+
 }

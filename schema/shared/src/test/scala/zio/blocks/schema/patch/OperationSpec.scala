@@ -2,7 +2,6 @@ package zio.blocks.schema.patch
 
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
-import zio.blocks.schema.PatchSchemas._
 import zio.test._
 
 object OperationSpec extends ZIOSpecDefault {
@@ -369,9 +368,9 @@ object OperationSpec extends ZIOSpecDefault {
         roundTrip(
           Patch.MapOp.Modify(
             DynamicValue.Primitive(PrimitiveValue.String("myKey")),
-            DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5)))
+            DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5)))
           ): Patch.MapOp,
-          """{"Modify":{"key":"myKey","patch":{"ops":[{"operation":{"PrimitiveDelta":{"op":{"IntDelta":{"delta":5}}}}}]}}}"""
+          """{"Modify":{"key":"myKey","patch":{"ops":[{"path":{},"operation":{"PrimitiveDelta":{"op":{"IntDelta":{"delta":5}}}}}]}}}"""
         )
       }
     ),
@@ -469,6 +468,35 @@ object OperationSpec extends ZIOSpecDefault {
           Patch.Operation.MapEdit(Vector.empty): Patch.Operation,
           """{"MapEdit":{}}"""
         )
+      },
+      test("Patch with nested operations") {
+        roundTrip(
+          Patch.Operation.Patch(
+            DynamicPatch(
+              Vector(
+                Patch.DynamicPatchOp(
+                  DynamicOptic.root.field("street"),
+                  Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("456 Elm")))
+                ),
+                Patch.DynamicPatchOp(
+                  DynamicOptic.root.field("city"),
+                  Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("LA")))
+                ),
+                Patch.DynamicPatchOp(
+                  DynamicOptic.root.field("zip"),
+                  Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("90002")))
+                )
+              )
+            )
+          ): Patch.Operation,
+          """{"Patch":{"patch":{"ops":[{"path":{"nodes":[{"Field":{"name":"street"}}]},"operation":{"Set":{"value":"456 Elm"}}},{"path":{"nodes":[{"Field":{"name":"city"}}]},"operation":{"Set":{"value":"LA"}}},{"path":{"nodes":[{"Field":{"name":"zip"}}]},"operation":{"Set":{"value":"90002"}}}]}}}"""
+        )
+      },
+      test("Patch with empty nested patch") {
+        roundTrip(
+          Patch.Operation.Patch(DynamicPatch(Vector.empty)): Patch.Operation,
+          """{"Patch":{"patch":{}}}"""
+        )
       }
     ),
     suite("PatchMode")(
@@ -516,18 +544,18 @@ object OperationSpec extends ZIOSpecDefault {
         roundTrip(
           Patch.MapOp.Modify(
             DynamicValue.Primitive(PrimitiveValue.String("outer")),
-            DynamicPatch(
+            DynamicPatch.root(
               Patch.Operation.MapEdit(
                 Vector(
                   Patch.MapOp.Modify(
                     DynamicValue.Primitive(PrimitiveValue.String("inner")),
-                    DynamicPatch(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(100)))
+                    DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(100)))
                   )
                 )
               )
             )
           ): Patch.MapOp,
-          """{"Modify":{"key":"outer","patch":{"ops":[{"operation":{"MapEdit":{"ops":[{"Modify":{"key":"inner","patch":{"ops":[{"operation":{"PrimitiveDelta":{"op":{"IntDelta":{"delta":100}}}}}]}}}]}}}]}}}"""
+          """{"Modify":{"key":"outer","patch":{"ops":[{"path":{},"operation":{"MapEdit":{"ops":[{"Modify":{"key":"inner","patch":{"ops":[{"path":{},"operation":{"PrimitiveDelta":{"op":{"IntDelta":{"delta":100}}}}}]}}}]}}}]}}}"""
         )
       },
       test("Mixed nesting: Seq containing Map operations") {
