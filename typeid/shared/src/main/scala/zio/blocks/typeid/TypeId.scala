@@ -30,6 +30,32 @@ sealed trait TypeId[A <: AnyKind] {
   final def fullName: String =
     if (owner.segments.isEmpty) name
     else owner.asString + "." + name
+
+  /**
+   * Custom equality based on type identity, not structural content.
+   * Two TypeIds are equal if they represent the same type identity,
+   * regardless of how they were constructed or what additional
+   * information they may contain.
+   */
+  override final def equals(obj: Any): Boolean = obj match {
+    case that: TypeId[?] =>
+      this.name == that.name &&
+      this.owner == that.owner &&
+      this.typeParams == that.typeParams &&
+      this.getClass == that.getClass
+    case _ => false
+  }
+
+  /**
+   * Custom hash code based on type identity components.
+   * Ensures consistent hashing for equivalent type identities.
+   */
+  override final def hashCode: Int = {
+    val state = Seq(name, owner, typeParams, getClass.getName)
+    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
+  }
+
+  override final def toString: String = s"TypeId($fullName, ${typeParams.mkString("[", ", ", "]")})"
 }
 
 object TypeId extends TypeIdCompanionVersionSpecific {

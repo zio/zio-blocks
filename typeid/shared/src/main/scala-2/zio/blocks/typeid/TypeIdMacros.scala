@@ -67,7 +67,7 @@ private[typeid] object TypeIdMacros {
       }
     }
     
-    val segments = loop(symbol, Nil).reverse
+    val segments = loop(symbol, Nil)
     q"_root_.zio.blocks.typeid.Owner(_root_.scala.collection.immutable.List(..$segments))"
   }
   
