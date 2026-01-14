@@ -7,13 +7,13 @@ High-performance [TOON Format](https://github.com/toon-format/spec) codec for [Z
 
 ## What is TOON?
 
-TOON (Token-Oriented Object Notation) is a modern serialization format designed for:
-- **LLM-Optimized**: 30-60% token reduction compared to JSON for language model contexts
+TOON (Token-Oriented Object Notation) is a serialization format designed for:
+- **LLM-Friendly**: Reduced token usage compared to JSON, optimized for language model contexts
 - **Human-Readable**: Clean, indented structure with minimal syntax noise
-- **Array-Efficient**: Tabular and inline formats for compact array encoding (up to 60% size reduction)
-- **Type-Safe**: Deep integration with ZIO Schema's compile-time type derivation
+- **Array-Efficient**: Tabular and inline formats for compact array encoding
+- **Type-Safe**: Integration with ZIO Schema's compile-time type derivation
 
-**Specification Compliance**: This implementation is **100% compliant** with [TOON Format Specification v3.0](https://github.com/toon-format/spec), validated with **145 passing tests** from the official test suite.
+This implementation follows [TOON Format Specification v3.0](https://github.com/toon-format/spec) and is validated with tests from the official test suite.
 
 ## Installation
 
@@ -170,8 +170,6 @@ Full production support for all Scala platforms:
 | **Scala Native** | ✅ Fully Supported | 0.5.x with BigDecimal workaround |
 
 ## Testing
-
-**Test Coverage**: 145 passing tests across 10 specialized suites
 
 Run tests:
 ```bash
