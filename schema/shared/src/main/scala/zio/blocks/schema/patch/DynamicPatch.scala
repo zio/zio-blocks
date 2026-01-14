@@ -847,7 +847,7 @@ object DynamicPatch {
   // All of the StringOp, PrimitiveOp, SeqOp, MapOp, Operation, DynamicPatchOp, DynamicPatch schemas are manually derived.
   // Scala 2 fails to compile if schema.derive is used in the same run as compile
   // Since Patch is a recursively defined type, we use Reflect.Deferred to defer the evaluation of the certain schemas.
-  // The manual derivation code works, with all tests passing. 
+  // The manual derivation code works, with all tests passing.
   // A cleaner way do this to use schema.derived (only in scala 3), implicit derivations for all the schemas.
   // example -`implicit lazy val dynamicPatchOpSchema: Schema[DynamicPatchOp] = Schema.derived`
   // As they are definitely to be right.
