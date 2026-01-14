@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.patch.{DynamicPatch, Differ}
+
 sealed trait DynamicValue {
   def typeIndex: Int
 
@@ -12,6 +14,8 @@ sealed trait DynamicValue {
   final def <(that: DynamicValue): Boolean = compare(that) < 0
 
   final def <=(that: DynamicValue): Boolean = compare(that) <= 0
+
+  def diff(that: DynamicValue): DynamicPatch = DynamicValue.diff(this, that)
 }
 
 object DynamicValue {
@@ -173,4 +177,11 @@ object DynamicValue {
   implicit val ordering: Ordering[DynamicValue] = new Ordering[DynamicValue] {
     def compare(x: DynamicValue, y: DynamicValue): Int = x.compare(y)
   }
+
+  /**
+   * Compute the difference between two DynamicValues. Returns a DynamicPatch
+   * that transforms oldValue into newValue.
+   */
+  def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
+    Differ.diff(oldValue, newValue)
 }
