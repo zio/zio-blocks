@@ -245,9 +245,9 @@ object JsonSpec extends ZIOSpecDefault {
         assertTrue(Json.str("a").compare(Json.str("b")) < 0)
       },
       test("ordering implicit") {
-        val jsons  = List(Json.num(3), Json.num(1), Json.num(2))
-        val sorted = jsons.sorted
-        assertTrue(sorted == List(Json.num(1), Json.num(2), Json.num(3)))
+        val jsons: List[Json] = List(Json.num(3), Json.num(1), Json.num(2))
+        val sorted            = jsons.sorted
+        assertTrue(sorted == List[Json](Json.num(1), Json.num(2), Json.num(3)))
       }
     ),
     suite("toKV and fromKV")(
