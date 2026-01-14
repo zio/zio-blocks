@@ -247,7 +247,7 @@ lazy val docs = project
 lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-schema-toon"))
-  .dependsOn(schema)
+  .dependsOn(schema, schema % "test->test")
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema.toon"))
   .enablePlugins(BuildInfoPlugin)
