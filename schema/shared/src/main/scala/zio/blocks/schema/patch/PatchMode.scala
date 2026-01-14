@@ -14,8 +14,44 @@ object PatchMode {
   case object Lenient extends PatchMode
 
   // Replace/overwrite on conflicts.
-
   case object Clobber extends PatchMode
+
+  // Schema instances for case objects - manually written for Scala 2 compatibility
+  implicit lazy val strictSchema: Schema[Strict.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Strict.type](
+      fields = Vector.empty,
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "PatchMode")), "Strict"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Strict.type](Strict),
+        deconstructor = new ConstantDeconstructor[Strict.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  implicit lazy val lenientSchema: Schema[Lenient.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Lenient.type](
+      fields = Vector.empty,
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "PatchMode")), "Lenient"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Lenient.type](Lenient),
+        deconstructor = new ConstantDeconstructor[Lenient.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  implicit lazy val clobberSchema: Schema[Clobber.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Clobber.type](
+      fields = Vector.empty,
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "PatchMode")), "Clobber"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Clobber.type](Clobber),
+        deconstructor = new ConstantDeconstructor[Clobber.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
 
   // Schema instance for PatchMode - manually written for Scala 2 compatibility
   implicit lazy val schema: Schema[PatchMode] = {
@@ -62,9 +98,4 @@ object PatchMode {
       )
     )
   }
-
-  private lazy val strictSchema: Schema[Strict.type]   = Schema.derived
-  private lazy val lenientSchema: Schema[Lenient.type] = Schema.derived
-  private lazy val clobberSchema: Schema[Clobber.type] = Schema.derived
-
 }
