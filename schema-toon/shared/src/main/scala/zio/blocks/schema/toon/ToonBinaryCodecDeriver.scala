@@ -1133,26 +1133,18 @@ class ToonBinaryCodecDeriver private[toon] (
             if (isLeadingZero) {
               DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.String(s))
             } else {
-              // Number detection with leading-zero rules
-              val isLeadingZero = (s.length > 1 && s.startsWith("0") && s(1) != '.') ||
-                (s.length > 2 && s.startsWith("-0") && s(2) != '.')
-
-              if (isLeadingZero) {
-                DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.String(s))
-              } else {
-                try {
-                  // For decimals, always use BigDecimal to preserve precision
-                  if (s.contains('.') || s.contains('e') || s.contains('E')) {
-                    DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.BigDecimal(BigDecimal(s)))
-                  } else {
-                    // For integers, use Long to preserve larger values
-                    // This way both Int and Long values round-trip correctly
-                    val longValue = s.toLong
-                    DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Long(longValue))
-                  }
-                } catch {
-                  case _: NumberFormatException => DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.String(s))
+              try {
+                // For decimals, always use BigDecimal to preserve precision
+                if (s.contains('.') || s.contains('e') || s.contains('E')) {
+                  DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.BigDecimal(BigDecimal(s)))
+                } else {
+                  // For integers, use Long to preserve larger values
+                  // This way both Int and Long values round-trip correctly
+                  val longValue = s.toLong
+                  DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Long(longValue))
                 }
+              } catch {
+                case _: NumberFormatException => DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.String(s))
               }
             }
           }

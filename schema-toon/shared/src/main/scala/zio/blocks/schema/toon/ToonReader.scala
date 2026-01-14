@@ -98,38 +98,33 @@ final class ToonReader(
       } else {
         // Handle UTF-8 multi-byte characters
         if ((b & 0x80) == 0) {
+          // Single-byte ASCII
           sb.append(b.toChar)
           ptr += 1
+        } else if ((b & 0xe0) == 0xc0) {
+          // 2-byte UTF-8
+          if (ptr + 1 >= limit) decodeError("Truncated UTF-8")
+          val b2 = buf(ptr + 1)
+          ptr += 2
+          sb.append((((b & 0x1f) << 6) | (b2 & 0x3f)).toChar)
+        } else if ((b & 0xf0) == 0xe0) {
+          // 3-byte UTF-8
+          if (ptr + 2 >= limit) decodeError("Truncated UTF-8")
+          val b2 = buf(ptr + 1)
+          val b3 = buf(ptr + 2)
+          ptr += 3
+          sb.append((((b & 0x0f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f)).toChar)
+        } else if ((b & 0xf8) == 0xf0) {
+          // 4-byte UTF-8 -> surrogate pair in Java Strings (UTF-16)
+          if (ptr + 3 >= limit) decodeError("Truncated UTF-8")
+          val b2 = buf(ptr + 1)
+          val b3 = buf(ptr + 2)
+          val b4 = buf(ptr + 3)
+          ptr += 4
+          val cp = ((b & 0x07) << 18) | ((b2 & 0x3f) << 12) | ((b3 & 0x3f) << 6) | (b4 & 0x3f)
+          sb.appendCodePoint(cp)
         } else {
-          val c = if ((b & 0x80) == 0) {
-            ptr += 1
-            b.toChar
-          } else if ((b & 0xe0) == 0xc0) {
-            if (ptr + 1 >= limit) decodeError("Truncated UTF-8")
-            val b2 = buf(ptr + 1)
-            ptr += 2
-            (((b & 0x1f) << 6) | (b2 & 0x3f)).toChar
-          } else if ((b & 0xf0) == 0xe0) {
-            if (ptr + 2 >= limit) decodeError("Truncated UTF-8")
-            val b2 = buf(ptr + 1)
-            val b3 = buf(ptr + 2)
-            ptr += 3
-            (((b & 0x0f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f)).toChar
-          } else if ((b & 0xf8) == 0xf0) {
-            // 4 bytes -> surrogate pair in Java Strings (UTF-16)
-            if (ptr + 3 >= limit) decodeError("Truncated UTF-8")
-            val b2 = buf(ptr + 1)
-            val b3 = buf(ptr + 2)
-            val b4 = buf(ptr + 3)
-            ptr += 4
-            val cp = ((b & 0x07) << 18) | ((b2 & 0x3f) << 12) | ((b3 & 0x3f) << 6) | (b4 & 0x3f)
-            sb.appendCodePoint(cp)
-            '\u0000' // Marker to skip append
-          } else {
-            decodeError("Invalid UTF-8 start byte")
-          }
-
-          if (c != '\u0000') sb.append(c)
+          decodeError("Invalid UTF-8 start byte")
         }
       }
     }
