@@ -477,7 +477,7 @@ class ToonBinaryCodecDeriver private[toon] (
             found = true
             fieldSet(idx) = true
             val codec       = infos.codecs(idx)
-            val fieldOffset = top + infos.offsets(idx)
+            val fieldOffset = RegisterOffset.add(top, infos.offsets(idx))
 
             // Set value based on codec's value type
             (codec.valueType: @scala.annotation.switch) match {
@@ -526,7 +526,7 @@ class ToonBinaryCodecDeriver private[toon] (
     while (idx < infos.count) {
       if (!fieldSet(idx) && infos.defaults(idx).isDefined) {
         val codec       = infos.codecs(idx)
-        val fieldOffset = top + infos.offsets(idx)
+        val fieldOffset = RegisterOffset.add(top, infos.offsets(idx))
         val defaultVal  = infos.defaults(idx).get
 
         // Set default value based on codec's value type
@@ -554,24 +554,24 @@ class ToonBinaryCodecDeriver private[toon] (
     top: RegisterOffset
   ): Unit = {
     out.writeObjectStart()
-    var idx    = 0
-    var first  = true
-    var offset = top
+    var idx   = 0
+    var first = true
     while (idx < infos.count) {
-      val codec = infos.codecs(idx)
+      val codec       = infos.codecs(idx)
+      val fieldOffset = RegisterOffset.add(top, infos.offsets(idx))
 
       // Get value based on codec's value type
       val value: Any = (codec.valueType: @scala.annotation.switch) match {
-        case 0 => regs.getObject(offset)  // object
-        case 1 => regs.getInt(offset)     // int
-        case 2 => regs.getLong(offset)    // long
-        case 3 => regs.getFloat(offset)   // float
-        case 4 => regs.getDouble(offset)  // double
-        case 5 => regs.getBoolean(offset) // boolean
-        case 6 => regs.getByte(offset)    // byte
-        case 7 => regs.getChar(offset)    // char
-        case 8 => regs.getShort(offset)   // short
-        case _ => ()                      // Unit
+        case 0 => regs.getObject(fieldOffset)  // object
+        case 1 => regs.getInt(fieldOffset)     // int
+        case 2 => regs.getLong(fieldOffset)    // long
+        case 3 => regs.getFloat(fieldOffset)   // float
+        case 4 => regs.getDouble(fieldOffset)  // double
+        case 5 => regs.getBoolean(fieldOffset) // boolean
+        case 6 => regs.getByte(fieldOffset)    // byte
+        case 7 => regs.getChar(fieldOffset)    // char
+        case 8 => regs.getShort(fieldOffset)   // short
+        case _ => ()                           // Unit
       }
 
       val shouldSkip =
@@ -585,7 +585,6 @@ class ToonBinaryCodecDeriver private[toon] (
         codec.encodeValue(value.asInstanceOf[Any], out)
         first = false
       }
-      offset += codec.valueOffset
       idx += 1
     }
     out.writeObjectEnd()
@@ -720,12 +719,12 @@ class ToonBinaryCodecDeriver private[toon] (
       }
 
       def encodeValue(x: C[A], out: ToonWriter): Unit = {
-        val iter = deconstructor.deconstruct(x)
         val size = deconstructor match {
           case indexed: SpecializedIndexed[C] @unchecked => indexed.size(x)
-          case _                                         => iter.size
+          case _                                         => deconstructor.deconstruct(x).size
         }
         out.writeArrayStart(size)
+        val iter  = deconstructor.deconstruct(x) // Fresh iterator for writing
         var first = true
         while (iter.hasNext) {
           if (!first) out.writeElementSeparator()
