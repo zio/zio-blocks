@@ -290,9 +290,6 @@ class ToonBinaryCodecDeriver private[toon] (
   private[this] val recursiveRecordCache = new ThreadLocal[java.util.HashMap[TypeName[?], FieldInfoArray]] {
     override def initialValue: java.util.HashMap[TypeName[?], FieldInfoArray] = new java.util.HashMap
   }
-  private[this] val discriminatorFields = new ThreadLocal[List[DiscriminatorFieldInfo]] {
-    override def initialValue: List[DiscriminatorFieldInfo] = Nil
-  }
 
   private[this] def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): ToonBinaryCodec[A] =
     if (reflect.isPrimitive) {
@@ -448,7 +445,7 @@ class ToonBinaryCodecDeriver private[toon] (
     }
   }
 
-  private[this] def getDefaultValue[A](reflect: Reflect[?, A]): Option[Any] =
+  private[this] def getDefaultValue[F[_, _], A](reflect: Reflect[F, A]): Option[Any] =
     if (reflect.isPrimitive) reflect.asPrimitive.get.primitiveBinding match {
       case b: Binding[?, ?] => b.asInstanceOf[Binding[?, A]].defaultValue.map(f => f())
       case _                => None
