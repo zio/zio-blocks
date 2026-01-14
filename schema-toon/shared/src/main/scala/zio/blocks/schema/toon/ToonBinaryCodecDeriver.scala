@@ -337,24 +337,23 @@ class ToonBinaryCodecDeriver private[toon] (
       }.asInstanceOf[ToonBinaryCodec[A]]
       else {
         // Custom primitive with binding instance
-        val overrideInstance = primitive.primitiveBinding.asInstanceOf[BindingInstance[A]]
-        overrideInstance.instance.asInstanceOf[ToonBinaryCodec[A]]
+        primitive.primitiveBinding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, A]].instance.force
       }
     } else if (reflect.isRecord) {
       deriveRecordCodec(reflect.asRecord.get.asInstanceOf[Reflect.Record[Binding, A]])
     } else if (reflect.isVariant) {
       deriveVariantCodec(reflect.asVariant.get.asInstanceOf[Reflect.Variant[Binding, A]])
     } else if (reflect.isSequence) {
-      deriveSequenceCodec(reflect.asSequence.get.asInstanceOf[Reflect.Sequence[Binding, Col, Elem]])
-        .asInstanceOf[ToonBinaryCodec[A]]
+      val sequence = reflect.asSequenceUnknown.get.sequence
+      deriveSequenceCodec(sequence).asInstanceOf[ToonBinaryCodec[A]]
     } else if (reflect.isMap) {
-      deriveMapCodec(reflect.asMap.get.asInstanceOf[Reflect.Map[Binding, Map, Key, Value]])
-        .asInstanceOf[ToonBinaryCodec[A]]
+      val map = reflect.asMapUnknown.get.map
+      deriveMapCodec(map).asInstanceOf[ToonBinaryCodec[A]]
     } else if (reflect.isDynamic) {
       deriveDynamicCodec().asInstanceOf[ToonBinaryCodec[A]]
     } else if (reflect.isWrapper) {
-      val wrapper = reflect.asWrapper.get.asInstanceOf[Reflect.Wrapper[Binding, A, Wrapped]]
-      deriveWrapperCodec(wrapper)
+      val wrapper = reflect.asWrapperUnknown.get.wrapper
+      deriveWrapperCodec(wrapper).asInstanceOf[ToonBinaryCodec[A]]
     } else {
       throw new UnsupportedOperationException(s"Cannot derive TOON codec for: $reflect")
     }
@@ -365,7 +364,8 @@ class ToonBinaryCodecDeriver private[toon] (
     val fieldInfos  = new Array[FieldInfo](fieldCount)
     val fieldNames  = new Array[String](fieldCount)
     val fieldCodecs = new Array[ToonBinaryCodec[Any]](fieldCount)
-    val constructor = record.recordBinding.constructor.asInstanceOf[Constructor[A]]
+    val binding     = record.recordBinding.asInstanceOf[Binding.Record[A]]
+    val constructor = binding.constructor
     val registers   = constructor.usedRegisters
 
     // Check for recursive reference
@@ -389,7 +389,7 @@ class ToonBinaryCodecDeriver private[toon] (
     while (idx < fieldCount) {
       val field        = fields(idx)
       val fieldName    = fieldNameMapper.map(field.name)
-      val fieldReflect = field.reflectField.asInstanceOf[Reflect[Binding, Any]]
+      val fieldReflect = field.value.asInstanceOf[Reflect[Binding, Any]]
       val fieldCodec   = deriveCodec(fieldReflect)
       val fieldOffset  = field.binding.offset
 
@@ -399,7 +399,7 @@ class ToonBinaryCodecDeriver private[toon] (
         name = fieldName,
         codec = fieldCodec,
         offset = fieldOffset,
-        isOptional = fieldReflect.isWrapper && fieldReflect.asWrapper.get.wrapped.isSequence,
+        isOptional = fieldReflect.isWrapper && fieldReflect.asWrapperUnknown.exists(_.wrapper.wrapped.isSequence),
         defaultValue = field.binding.defaultValue,
         isTransientNone = transientNone && fieldReflect.isWrapper,
         isTransientEmpty = transientEmptyCollection && fieldReflect.isSequence,
@@ -507,7 +507,7 @@ class ToonBinaryCodecDeriver private[toon] (
     while (idx < caseCount) {
       val c             = cases(idx)
       val caseName      = caseNameMapper.map(c.name)
-      val caseReflect   = c.reflectField.asInstanceOf[Reflect[Binding, A]]
+      val caseReflect   = c.value.asInstanceOf[Reflect[Binding, A]]
       val caseCodec     = deriveCodec(caseReflect)
       val discriminator = c.binding.discriminator.asInstanceOf[Discriminator[A, A]]
 
@@ -597,14 +597,14 @@ class ToonBinaryCodecDeriver private[toon] (
     }
   }
 
-  private[this] def deriveSequenceCodec[C[_], E](seq: Reflect.Sequence[Binding, C, E]): ToonBinaryCodec[C[E]] = {
+  private[this] def deriveSequenceCodec[A, C[_]](seq: Reflect.Sequence[Binding, A, C]): ToonBinaryCodec[C[A]] = {
     val elementCodec  = deriveCodec(seq.element)
-    val seqBinding    = seq.seqBinding
+    val seqBinding    = seq.seqBinding.asInstanceOf[Binding.Seq[C, A]]
     val constructor   = seqBinding.constructor
     val deconstructor = seqBinding.deconstructor
 
-    new ToonBinaryCodec[C[E]]() {
-      def decodeValue(in: ToonReader, default: C[E]): C[E] = {
+    new ToonBinaryCodec[C[A]]() {
+      def decodeValue(in: ToonReader, default: C[A]): C[A] = {
         val builder = constructor.newBuilder
         in.readArrayStart()
         while (!in.isArrayEnd) {
@@ -615,11 +615,11 @@ class ToonBinaryCodecDeriver private[toon] (
         builder.result()
       }
 
-      def encodeValue(x: C[E], out: ToonWriter): Unit = {
+      def encodeValue(x: C[A], out: ToonWriter): Unit = {
         val iter = deconstructor.deconstruct(x)
         val size = deconstructor match {
-          case indexed: SpecializedIndexed[C, E] @unchecked => indexed.length(x)
-          case _                                            => iter.size
+          case indexed: SpecializedIndexed[C] @unchecked => indexed.size(x)
+          case _                                         => iter.size
         }
         out.writeArrayStart(size)
         var first = true
@@ -633,12 +633,12 @@ class ToonBinaryCodecDeriver private[toon] (
     }
   }
 
-  private[this] def deriveMapCodec[M[_, _], K, V](
-    mapReflect: Reflect.Map[Binding, M, K, V]
+  private[this] def deriveMapCodec[K, V, M[_, _]](
+    mapReflect: Reflect.Map[Binding, K, V, M]
   ): ToonBinaryCodec[M[K, V]] = {
     val keyCodec      = deriveCodec(mapReflect.key)
     val valueCodec    = deriveCodec(mapReflect.value)
-    val mapBinding    = mapReflect.mapBinding
+    val mapBinding    = mapReflect.mapBinding.asInstanceOf[Binding.Map[M, K, V]]
     val constructor   = mapBinding.constructor
     val deconstructor = mapBinding.deconstructor
 
@@ -680,28 +680,36 @@ class ToonBinaryCodecDeriver private[toon] (
         out.writeDynamicValue(x)
     }
 
-  private[this] def deriveWrapperCodec[A, W](wrapper: Reflect.Wrapper[Binding, A, W]): ToonBinaryCodec[A] = {
-    val wrappedCodec   = deriveCodec(wrapper.wrapped)
-    val wrapperBinding = wrapper.wrapperBinding
+  private[this] def deriveWrapperCodec[A](wrapper: Reflect.Wrapper[Binding, ?, ?]): ToonBinaryCodec[A] = {
+    val binding      = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
+    val wrappedCodec = deriveCodec(wrapper.wrapped).asInstanceOf[ToonBinaryCodec[Wrapped]]
+    val wrap         = binding.wrap
+    val unwrap       = binding.unwrap
 
     new ToonBinaryCodec[A]() {
       def decodeValue(in: ToonReader, default: A): A = {
         val wrapped = wrappedCodec.decodeValue(in, wrappedCodec.nullValue)
-        wrapperBinding.wrap(wrapped)
+        wrap(wrapped) match {
+          case Right(x)    => x
+          case Left(error) => in.decodeError(error)
+        }
       }
 
       def encodeValue(x: A, out: ToonWriter): Unit = {
-        val wrapped = wrapperBinding.unwrap(x)
+        val wrapped = unwrap(x)
         wrappedCodec.encodeValue(wrapped, out)
       }
 
       override def decodeKey(in: ToonReader): A = {
         val wrapped = wrappedCodec.decodeKey(in)
-        wrapperBinding.wrap(wrapped)
+        wrap(wrapped) match {
+          case Right(x)    => x
+          case Left(error) => in.decodeError(error)
+        }
       }
 
       override def encodeKey(x: A, out: ToonWriter): Unit = {
-        val wrapped = wrapperBinding.unwrap(x)
+        val wrapped = unwrap(x)
         wrappedCodec.encodeKey(wrapped, out)
       }
     }

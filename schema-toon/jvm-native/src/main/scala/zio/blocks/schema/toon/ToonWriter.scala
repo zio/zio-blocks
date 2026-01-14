@@ -605,7 +605,7 @@ final class ToonWriter private[toon] (
         first = false
       }
       writeArrayEnd()
-    case DynamicValue.Dictionary(entries) =>
+    case DynamicValue.Map(entries) =>
       writeObjectStart()
       var first = true
       entries.foreach { case (key, value) =>

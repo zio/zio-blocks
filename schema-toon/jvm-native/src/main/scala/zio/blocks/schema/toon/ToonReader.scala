@@ -774,15 +774,15 @@ final class ToonReader private[toon] (
     } else {
       // Object
       readObjectStart()
-      val fields = scala.collection.mutable.ListMap[String, DynamicValue]()
+      val fields = Vector.newBuilder[(String, DynamicValue)]
       var key    = readKeyOrEnd()
       while (key != null) {
         val value = readDynamicValue()
-        fields += (key -> value)
+        fields += ((key, value))
         key = readKeyOrEnd()
       }
       readObjectEnd()
-      DynamicValue.Record(fields.toMap)
+      DynamicValue.Record(fields.result())
     }
   }
 
