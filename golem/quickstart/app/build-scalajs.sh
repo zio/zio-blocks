@@ -16,6 +16,7 @@ repo_root="$(cd "$app_dir/../../.." && pwd)"
 tool="${GOLEM_SCALA_BUILD_TOOL:-sbt}"
 
 component_dir="$PWD"
+agent_wasm="$app_dir/wasm/agent_guest.wasm"
 
 case "$component" in
   scala:quickstart-counter)
@@ -66,8 +67,11 @@ if [[ "$tool" == "mill" ]]; then
   fi
 else
   ( cd "$repo_root" && sbt -batch -no-colors -Dsbt.supershell=false \
-      "$sbt_project/compile" \
-      "$sbt_project/fastLinkJS" )
+      "project $sbt_project" \
+      "set golemAgentGuestWasmFile := file(\"$agent_wasm\")" \
+      "golemEnsureAgentGuestWasm" \
+      "compile" \
+      "fastLinkJS" )
 
   bundle="$(ls -t $bundle_glob 2>/dev/null | head -n1 || true)"
   if [[ -z "$bundle" ]]; then

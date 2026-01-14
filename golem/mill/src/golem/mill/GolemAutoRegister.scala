@@ -5,6 +5,7 @@ import mill.scalalib.*
 
 import java.io.ByteArrayOutputStream
 import java.nio.file.Path
+import java.security.MessageDigest
 import scala.util.matching.Regex
 
 /**
@@ -23,6 +24,33 @@ import scala.util.matching.Regex
  */
 trait GolemAutoRegister extends ScalaModule {
 
+  private def sha256(bytes: Array[Byte]): Array[Byte] = {
+    val md = MessageDigest.getInstance("SHA-256")
+    md.update(bytes)
+    md.digest()
+  }
+
+  private def embeddedAgentGuestWasmBytes(): Array[Byte] = {
+    val resourcePath = "golem/wasm/agent_guest.wasm"
+    Option(getClass.getClassLoader.getResourceAsStream(resourcePath)) match {
+      case Some(in) =>
+        val bos = new ByteArrayOutputStream()
+        try {
+          val buf = new Array[Byte](64 * 1024)
+          var n   = in.read(buf)
+          while (n >= 0) {
+            if (n > 0) bos.write(buf, 0, n)
+            n = in.read(buf)
+          }
+        } finally in.close()
+        bos.toByteArray
+      case None =>
+        throw new RuntimeException(
+          s"[golem] Missing embedded resource '$resourcePath'. This should be packaged in the zio-golem-mill plugin."
+        )
+    }
+  }
+
   /** Base package whose `@agentImplementation` classes should be auto-registered. */
   def golemBasePackage: T[Option[String]] = T(None)
 
@@ -38,34 +66,22 @@ trait GolemAutoRegister extends ScalaModule {
   /** Ensures the base guest runtime wasm exists; writes the embedded resource if missing. */
   def golemEnsureAgentGuestWasm: T[PathRef] = T {
     val out = golemAgentGuestWasmFile()
-    if (os.exists(out) && os.size(out) > 0) PathRef(out)
+    val bytes       = embeddedAgentGuestWasmBytes()
+    val expectedSha = sha256(bytes)
+    val currentSha  = if (os.exists(out) && os.size(out) > 0) Some(sha256(os.read.bytes(out))) else None
+
+    if (currentSha.exists(java.util.Arrays.equals(_, expectedSha))) PathRef(out)
     else {
-      val resourcePath = "golem/wasm/agent_guest.wasm"
-      val inOpt        = Option(getClass.getClassLoader.getResourceAsStream(resourcePath))
-
-      val bytes: Array[Byte] =
-        inOpt match {
-          case Some(in) =>
-            val bos = new ByteArrayOutputStream()
-            try {
-              val buf = new Array[Byte](64 * 1024)
-              var n   = in.read(buf)
-              while (n >= 0) {
-                if (n > 0) bos.write(buf, 0, n)
-                n = in.read(buf)
-              }
-            } finally in.close()
-            bos.toByteArray
-          case None =>
-            throw new RuntimeException(
-              s"[golem] Missing embedded resource '$resourcePath'. This should be packaged in the zio-golem-mill plugin."
-            )
-        }
-
       os.makeDir.all(out / os.up)
       os.write.over(out, bytes)
       PathRef(out)
     }
+  }
+
+  /** Prepares the app directory for golem-cli by ensuring required artifacts exist and are up-to-date. */
+  def golemPrepare: T[Unit] = T {
+    golemEnsureAgentGuestWasm()
+    ()
   }
 
   /** Generates Scala sources under `T.dest` and returns them as generated sources. */
@@ -230,7 +246,7 @@ trait GolemAutoRegister extends ScalaModule {
 
   override def compile: T[mill.scalalib.api.CompilationResult] = T {
     // Make guest runtime wasm fully automatic: write it if missing during normal compilation / linking workflows.
-    golemEnsureAgentGuestWasm()
+    golemPrepare()
     super.compile()
   }
 

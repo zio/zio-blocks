@@ -30,6 +30,8 @@ fi
 app_dir="$PWD/golem/examples/app"
 script_file="$PWD/golem/examples/repl-minimal-agent-to-agent.rib"
 
+( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" >/dev/null )
+
 # Use fresh agent ids on each run to avoid "Previous Invocation Failed" poisoning.
 coord_id="demo-$(date +%s)-$RANDOM"
 shard_name="demo-$(date +%s)-$RANDOM"

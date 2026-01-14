@@ -13,6 +13,7 @@ fi
 app_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$app_dir/../../.." && pwd)"
 component_dir="$PWD"
+agent_wasm="$app_dir/wasm/agent_guest.wasm"
 
 tool="${GOLEM_SCALA_BUILD_TOOL:-sbt}"
 
@@ -41,6 +42,8 @@ if [[ "$tool" == "mill" ]]; then
     exit 2
   fi
 
+  # Ensure base guest runtime wasm exists (and is up-to-date) before golem-cli inject step runs.
+  # This must happen during the build step, because golem-cli may not read/write app/wasm itself.
   ( cd "$repo_root" && mill -i "$GOLEM_MILL_TASK" )
 
   bundle="$(
@@ -65,8 +68,11 @@ if [[ "$tool" == "mill" ]]; then
   fi
 else
   ( cd "$repo_root" && sbt -batch -no-colors -Dsbt.supershell=false \
-      "$sbt_project/compile" \
-      "$sbt_project/fastLinkJS" )
+      "project $sbt_project" \
+      "set golemAgentGuestWasmFile := file(\"$agent_wasm\")" \
+      "golemEnsureAgentGuestWasm" \
+      "compile" \
+      "fastLinkJS" )
 
   bundle="$(ls -t $sbt_bundle_glob 2>/dev/null | head -n1 || true)"
   if [[ -z "$bundle" ]]; then

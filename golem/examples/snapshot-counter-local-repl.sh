@@ -30,6 +30,10 @@ fi
 app_dir="$PWD/golem/examples/app"
 script_file="$PWD/golem/examples/repl-snapshot-counter.rib"
 
+# Build Scala.js up-front (no golem-cli needed). This also runs `golemPrepare` automatically,
+# ensuring the base guest runtime wasm is present next to the app manifest.
+( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" >/dev/null )
+
 agent_id="demo-$(date +%s)-$RANDOM"
 tmp_script="$(mktemp)"
 trap 'rm -f "$tmp_script"' EXIT

@@ -54,6 +54,12 @@ echo "[agent-guest] Building minimal golem:agent WIT root..." >&2
 rm -rf "$agent_wit_root"
 mkdir -p "$agent_wit_root/deps"
 
+# Optional package versions vary across Golem releases; derive from the WIT we are building against.
+rdbms_version=""
+if [[ -f "$wit_dir/deps/golem-rdbms/world.wit" ]]; then
+  rdbms_version="$(sed -n 's/^package golem:rdbms@\\([^;]*\\);$/\\1/p' "$wit_dir/deps/golem-rdbms/world.wit" | head -n 1)"
+fi
+
 {
   echo 'package golem:agent;'
   echo
@@ -63,12 +69,37 @@ mkdir -p "$agent_wit_root/deps"
   sed '1,2d' "$wit_dir/deps/golem-agent/host.wit"
   echo
   # Insert snapshot exports into `world agent-guest`.
-  sed '1,2d' "$wit_dir/deps/golem-agent/guest.wit" | awk '
+  sed '1,2d' "$wit_dir/deps/golem-agent/guest.wit" | awk -v rdbms_ver="$rdbms_version" '
     # Also import `host` into the agent-guest world so JS code can `import "golem:agent/host"`.
     # This matches the module surface used by the TS SDK and is required for agent-to-agent examples.
     $0 ~ /^[[:space:]]*import golem:rpc\/types@0\.2\.2;[[:space:]]*$/ {
       print $0
       print "  import host;"
+      # Built-in host capabilities (feature parity with other SDKs):
+      print ""
+      if (rdbms_ver != "") {
+        print "  import golem:rdbms/postgres@" rdbms_ver ";"
+        print "  import golem:rdbms/mysql@" rdbms_ver ";"
+        print "  import golem:rdbms/types@" rdbms_ver ";"
+        print ""
+      }
+      print ""
+      print "  import golem:api/context@1.3.0;"
+      print "  import golem:api/oplog@1.3.0;"
+      print "  import golem:durability/durability@1.3.0;"
+      print ""
+      print "  import wasi:cli/environment@0.2.3;"
+      print ""
+      print "  import wasi:blobstore/blobstore;"
+      print "  import wasi:blobstore/container;"
+      print "  import wasi:blobstore/types;"
+      print ""
+      print "  import wasi:keyvalue/eventual@0.1.0;"
+      print "  import wasi:keyvalue/eventual-batch@0.1.0;"
+      print "  import wasi:keyvalue/types@0.1.0;"
+      print "  import wasi:keyvalue/wasi-keyvalue-error@0.1.0;"
+      print ""
+      print "  import wasi:config/store@0.2.0-draft;"
       next
     }
     $0 ~ /^[[:space:]]*export guest;[[:space:]]*$/ {
@@ -83,9 +114,18 @@ mkdir -p "$agent_wit_root/deps"
 
 cp -r "$wit_dir/deps/golem-rpc" "$agent_wit_root/deps/"
 cp -r "$wit_dir/deps/golem-1.x" "$agent_wit_root/deps/"
+cp -r "$wit_dir/deps/golem-rdbms" "$agent_wit_root/deps/"
+cp -r "$wit_dir/deps/golem-durability" "$agent_wit_root/deps/"
 cp -r "$wit_dir/deps/clocks" "$agent_wit_root/deps/"
 cp -r "$wit_dir/deps/io" "$agent_wit_root/deps/"
 cp -r "$wit_dir/deps/logging" "$agent_wit_root/deps/"
+cp -r "$wit_dir/deps/cli" "$agent_wit_root/deps/"
+cp -r "$wit_dir/deps/filesystem" "$agent_wit_root/deps/"
+cp -r "$wit_dir/deps/random" "$agent_wit_root/deps/"
+cp -r "$wit_dir/deps/sockets" "$agent_wit_root/deps/"
+cp -r "$wit_dir/deps/blobstore" "$agent_wit_root/deps/"
+cp -r "$wit_dir/deps/keyvalue" "$agent_wit_root/deps/"
+cp -r "$wit_dir/deps/config" "$agent_wit_root/deps/"
 
 echo "[agent-guest] Generating wrapper crate with wasm-rquickjs..." >&2
 rm -rf "$wrapper_dir"
@@ -156,6 +196,10 @@ install -m 0644 "$out_wasm" "$repo_root/golem/quickstart/app/wasm/agent_guest.wa
 install -m 0644 "$out_wasm" "$repo_root/golem/examples/app/wasm/agent_guest.wasm"
 install -m 0644 "$out_wasm" "$repo_root/golem/quickstart/js/wasm/agent_guest.wasm"
 install -m 0644 "$out_wasm" "$repo_root/golem/examples/js/wasm/agent_guest.wasm"
+
+echo "[agent-guest] Installing into plugin embedded resources..." >&2
+install -m 0644 "$out_wasm" "$repo_root/golem/sbt/src/main/resources/golem/wasm/agent_guest.wasm"
+install -m 0644 "$out_wasm" "$repo_root/golem/mill/resources/golem/wasm/agent_guest.wasm"
 
 echo "[agent-guest] Done." >&2
 

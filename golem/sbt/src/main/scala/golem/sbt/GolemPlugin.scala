@@ -5,6 +5,9 @@ import sbt.Keys.*
 
 import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
+import java.security.MessageDigest
+
+import org.scalajs.sbtplugin.ScalaJSPlugin
 
 /**
  * sbt plugin for Golem-related build wiring.
@@ -17,6 +20,31 @@ import java.io.FileOutputStream
  * registers them.
  */
 object GolemPlugin extends AutoPlugin {
+
+  private def sha256(bytes: Array[Byte]): Array[Byte] = {
+    val md = MessageDigest.getInstance("SHA-256")
+    md.update(bytes)
+    md.digest()
+  }
+
+  private def sameSha256(file: File, expectedSha: Array[Byte]): Boolean =
+    file.exists() && file.length() > 0 && java.util.Arrays.equals(sha256(IO.readBytes(file)), expectedSha)
+
+  private def embeddedAgentGuestWasmBytes(cl: ClassLoader, repoRootFallback: File): Array[Byte] = {
+    val resourcePath = "golem/wasm/agent_guest.wasm"
+    Option(cl.getResourceAsStream(resourcePath)) match {
+      case Some(in) =>
+        val bos = new ByteArrayOutputStream()
+        try IO.transfer(in, bos)
+        finally in.close()
+        bos.toByteArray
+      case None =>
+        // Fallback for monorepo builds, where the plugin source is compiled into the meta-build.
+        val candidate = repoRootFallback / "golem" / "sbt" / "src" / "main" / "resources" / "golem" / "wasm" / "agent_guest.wasm"
+        if (candidate.exists()) IO.readBytes(candidate)
+        else sys.error(s"[golem] Missing embedded resource '$resourcePath' (and no repo fallback at ${candidate.getAbsolutePath}).")
+    }
+  }
 
   object autoImport {
     val golemBasePackage: SettingKey[Option[String]] =
@@ -36,54 +64,52 @@ object GolemPlugin extends AutoPlugin {
       taskKey[File](
         "Ensures the base guest runtime WASM (agent_guest.wasm) exists at golemAgentGuestWasmFile; writes it if missing."
       )
+
+    val golemPrepare: TaskKey[Unit] =
+      taskKey[Unit](
+        "Prepares the app directory for golem-cli by ensuring required artifacts (e.g. agent_guest.wasm) exist and are up-to-date."
+      )
   }
 
   import autoImport.*
 
-  override def requires: Plugins      = plugins.JvmPlugin
+  override def requires: Plugins      = plugins.JvmPlugin && ScalaJSPlugin
   override def trigger: PluginTrigger = noTrigger
 
   override def projectSettings: Seq[Def.Setting[?]] =
     Seq(
       golemBasePackage := None,
       golemAgentGuestWasmFile := {
-        // Default layout assumed by `golem/docs/getting-started.md`:
-        // <root>/scala (sbt build root) and <root>/app (golem app manifest).
+        // Prefer an `app/wasm/agent_guest.wasm` adjacent to the *project* being compiled.
         //
-        // BUT: this repo is a monorepo where `(ThisBuild / baseDirectory)` is the repo root (not `.../scala`), so we must
-        // never default to writing outside the repo directory.
-        val sbtRoot  = (ThisBuild / baseDirectory).value
-        val direct   = sbtRoot / "app" / "wasm" / "agent_guest.wasm"
-        val parent   = sbtRoot.getParentFile / "app" / "wasm" / "agent_guest.wasm"
-        val useParent =
-          sbtRoot.getName == "scala" && (sbtRoot.getParentFile / "app").exists()
+        // This supports common layouts:
+        // - standalone getting-started: <root>/scala (build) + <root>/app (manifest)
+        // - monorepo/crossProject: <root>/golem/examples/js (build) + <root>/golem/examples/app (manifest)
+        val projectRoot = (ThisProject / baseDirectory).value
+        val buildRoot   = (ThisBuild / baseDirectory).value
 
-        if (useParent) parent else direct
+        val candidates: List[File] =
+          List(
+            // Project-local app/
+            projectRoot / "app" / "wasm" / "agent_guest.wasm",
+            // If project is a nested build dir (e.g. .../examples/js), prefer sibling ../app
+            projectRoot.getParentFile / "app" / "wasm" / "agent_guest.wasm",
+            // getting-started layout: build root is `scala/`, app is sibling in parent
+            if (projectRoot.getName == "scala") projectRoot.getParentFile / "app" / "wasm" / "agent_guest.wasm"
+            else null,
+            // build-local fallback (keeps writes inside the build root)
+            buildRoot / "app" / "wasm" / "agent_guest.wasm"
+          ).filter(_ != null)
+
+        // Pick the first candidate whose parent `app/` directory exists; otherwise default to project-local path.
+        candidates.find(f => f.getParentFile.getParentFile.exists()).getOrElse(candidates.head)
       },
       golemWriteAgentGuestWasm := {
         val out = golemAgentGuestWasmFile.value
         val log = streams.value.log
 
-        val resourcePath = "golem/wasm/agent_guest.wasm"
-        val inOpt        = Option(getClass.getClassLoader.getResourceAsStream(resourcePath))
-        val bytes: Array[Byte] =
-          inOpt match {
-            case Some(in) =>
-              val bos = new ByteArrayOutputStream()
-              try IO.transfer(in, bos)
-              finally in.close()
-              bos.toByteArray
-            case None =>
-              // Fallback for monorepo builds, where this plugin can also be sourced from `project/GolemPlugin.scala`.
-              // External users will always use the published plugin jar, which includes the resource.
-              val repoRoot  = (LocalRootProject / baseDirectory).value
-              val candidate = repoRoot / "golem" / "sbt" / "src" / "main" / "resources" / "golem" / "wasm" / "agent_guest.wasm"
-              if (candidate.exists()) IO.readBytes(candidate)
-              else
-                sys.error(
-                  s"[golem] Missing embedded resource '$resourcePath' (and no repo fallback at ${candidate.getAbsolutePath})."
-                )
-          }
+        val repoRootFallback = (LocalRootProject / baseDirectory).value
+        val bytes            = embeddedAgentGuestWasmBytes(getClass.getClassLoader, repoRootFallback)
 
         IO.createDirectory(out.getParentFile)
 
@@ -101,17 +127,34 @@ object GolemPlugin extends AutoPlugin {
         // Use dynamic tasks so we don't depend on `golemWriteAgentGuestWasm` unless needed.
         Def.taskDyn {
           val out = golemAgentGuestWasmFile.value
-          if (out.exists() && out.length() > 0) Def.task(out)
+          val repoRootFallback = (LocalRootProject / baseDirectory).value
+          val bytes            = embeddedAgentGuestWasmBytes(getClass.getClassLoader, repoRootFallback)
+          val expectedSha      = sha256(bytes)
+
+          if (sameSha256(out, expectedSha)) Def.task(out)
           else
             Def.task {
-              streams.value.log.info(s"[golem] agent_guest.wasm not found at ${out.getAbsolutePath}; writing embedded copy.")
+              val reason = if (!out.exists() || out.length() == 0) "missing" else "out-of-date"
+              streams.value.log.info(
+                s"[golem] agent_guest.wasm is $reason at ${out.getAbsolutePath}; writing embedded copy."
+              )
               golemWriteAgentGuestWasm.value
             }
         }.value
       },
+      golemPrepare := {
+        // Today this primarily ensures the base guest runtime wasm is present/up-to-date.
+        // (We intentionally keep this lightweight; build/link remains user-controlled.)
+        golemEnsureAgentGuestWasm.value
+        ()
+      },
       // Make the embedded wasm fully automatic for typical usage: if the app manifest expects `app/wasm/agent_guest.wasm`
       // and it isn't there, create it as part of normal compilation / linking flows.
-      Compile / compile := (Compile / compile).dependsOn(golemEnsureAgentGuestWasm).value,
+      Compile / compile := (Compile / compile).dependsOn(golemPrepare).value,
+      Compile / ScalaJSPlugin.autoImport.fastLinkJS :=
+        (Compile / ScalaJSPlugin.autoImport.fastLinkJS).dependsOn(golemPrepare).value,
+      Compile / ScalaJSPlugin.autoImport.fullLinkJS :=
+        (Compile / ScalaJSPlugin.autoImport.fullLinkJS).dependsOn(golemPrepare).value,
       Compile / sourceGenerators += Def.task {
         val basePackageOpt = golemBasePackage.value
         basePackageOpt match {

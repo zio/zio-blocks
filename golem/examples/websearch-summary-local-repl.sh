@@ -35,6 +35,10 @@ fi
 app_dir="$PWD/golem/examples/app"
 script_file="$PWD/golem/examples/repl-websearch-summary.rib"
 
+# Build Scala.js up-front (no golem-cli needed). This also runs `golemPrepare` automatically,
+# ensuring the base guest runtime wasm is present next to the app manifest.
+( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" >/dev/null )
+
 out="$(
   cd "$app_dir"
   env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
