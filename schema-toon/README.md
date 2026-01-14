@@ -12,7 +12,7 @@ Add to your `build.sbt`:
 
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "<version>"
-```'
+```
 
 ## Usage
 
@@ -123,6 +123,20 @@ val codec = Schema[Person].derive(customDeriver)
 | `withTransientDefaultValue` | Omit fields with default values from output | `true` |
 | `withRequireDefaultValueFields` | Require fields with defaults during decoding | `false` |
 
+#### Writer/Reader Options
+
+These options apply to `WriterConfig` and `ReaderConfig` for fine-tuning encoding and decoding:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `withIndent` | Number of spaces per indentation level | `2` |
+| `withKeyFolding` | Strategy for folding nested keys (Off, Safe) | `Off` |
+| `withFlattenDepth` | Maximum depth for key folding | `Int.MaxValue` |
+| `withExpandPaths` | Strategy for expanding dot-separated paths (Off, Safe) | `Off` |
+| `withDelimiter` | Delimiter for inline arrays | `Comma` |
+| `withStrict` | Enforce strict TOON parsing | `true` |
+| `withDiscriminatorField` | Field name for DynamicValue variant discriminator | `None` |
+
 ### Reader and Writer Configuration
 
 Fine-tune encoding and decoding behavior:
@@ -130,14 +144,16 @@ Fine-tune encoding and decoding behavior:
 ```scala
 // Writer configuration (defaults: indent=2, keyFolding=Off, flattenDepth=MaxValue)
 val writerConfig = WriterConfig
-  .withIndent(4)                       // 4 spaces per indent level
-  .withKeyFolding(KeyFolding.Safe)     // Use dot-separated keys for shallow nesting
-  .withFlattenDepth(2)                 // Limit flattening depth
+  .withIndent(4)                              // 4 spaces per indent level
+  .withKeyFolding(KeyFolding.Safe)            // Use dot-separated keys for shallow nesting
+  .withFlattenDepth(2)                        // Limit flattening depth
+  .withDiscriminatorField(Some("type"))       // Discriminator field for DynamicValue variants
 
 // Reader configuration (defaults: indent=2, strict=true, expandPaths=Off)
 val readerConfig = ReaderConfig
-  .withExpandPaths(PathExpansion.Safe) // Parse dot-separated keys as nested records
-  .withDelimiter(Delimiter.Tab)        // Expect tab-delimited inline arrays
+  .withExpandPaths(PathExpansion.Safe)        // Parse dot-separated keys as nested records
+  .withDelimiter(Delimiter.Tab)               // Expect tab-delimited inline arrays
+  .withDiscriminatorField(Some("type"))       // Discriminator field for DynamicValue variants
 
 // Use with codec
 val encoded: Array[Byte] = codec.encode(person, writerConfig)

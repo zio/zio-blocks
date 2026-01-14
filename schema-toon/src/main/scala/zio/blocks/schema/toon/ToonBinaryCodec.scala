@@ -815,6 +815,123 @@ object ToonBinaryCodec {
     private[this] val trueValue  = DynamicValue.Primitive(PrimitiveValue.Boolean(true))
     private[this] val unitValue  = DynamicValue.Primitive(PrimitiveValue.Unit)
 
+    private def encodePrimitive(p: PrimitiveValue, out: ToonWriter): Unit = p match {
+      case _: PrimitiveValue.Unit.type      => out.writeNull()
+      case v: PrimitiveValue.Boolean        => out.writeBoolean(v.value)
+      case v: PrimitiveValue.Byte           => out.writeInt(v.value.toInt)
+      case v: PrimitiveValue.Short          => out.writeInt(v.value.toInt)
+      case v: PrimitiveValue.Int            => out.writeInt(v.value)
+      case v: PrimitiveValue.Long           => out.writeLong(v.value)
+      case v: PrimitiveValue.Float          => out.writeFloat(v.value)
+      case v: PrimitiveValue.Double         => out.writeDouble(v.value)
+      case v: PrimitiveValue.Char           => out.writeString(v.value.toString)
+      case v: PrimitiveValue.String         => out.writeString(v.value)
+      case v: PrimitiveValue.BigInt         => out.writeBigInt(v.value)
+      case v: PrimitiveValue.BigDecimal     => out.writeBigDecimal(v.value)
+      case v: PrimitiveValue.DayOfWeek      => out.writeString(v.value.name)
+      case v: PrimitiveValue.Duration       => out.writeString(v.value.toString)
+      case v: PrimitiveValue.Instant        => out.writeString(v.value.toString)
+      case v: PrimitiveValue.LocalDate      => out.writeString(v.value.toString)
+      case v: PrimitiveValue.LocalDateTime  => out.writeString(v.value.toString)
+      case v: PrimitiveValue.LocalTime      => out.writeString(v.value.toString)
+      case v: PrimitiveValue.Month          => out.writeString(v.value.name)
+      case v: PrimitiveValue.MonthDay       => out.writeString(v.value.toString)
+      case v: PrimitiveValue.OffsetDateTime => out.writeString(v.value.toString)
+      case v: PrimitiveValue.OffsetTime     => out.writeString(v.value.toString)
+      case v: PrimitiveValue.Period         => out.writeString(v.value.toString)
+      case v: PrimitiveValue.Year           => out.writeString(v.value.toString)
+      case v: PrimitiveValue.YearMonth      => out.writeString(v.value.toString)
+      case v: PrimitiveValue.ZoneId         => out.writeString(v.value.getId)
+      case v: PrimitiveValue.ZoneOffset     => out.writeString(v.value.getId)
+      case v: PrimitiveValue.ZonedDateTime  => out.writeString(v.value.toString)
+      case v: PrimitiveValue.Currency       => out.writeString(v.value.getCurrencyCode)
+      case v: PrimitiveValue.UUID           => out.writeString(v.value.toString)
+    }
+
+    private def inferredToDynamicValue(inferred: Any, rawString: String): DynamicValue =
+      inferred match {
+        case null       => unitValue
+        case b: Boolean => if (b) trueValue else falseValue
+        case l: Long    =>
+          val intVal = l.toInt
+          if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
+          else DynamicValue.Primitive(PrimitiveValue.Long(l))
+        case d: Double  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
+        case bi: BigInt => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
+        case s: String  => DynamicValue.Primitive(PrimitiveValue.String(s))
+        case _          => DynamicValue.Primitive(PrimitiveValue.String(rawString))
+      }
+
+    private def parseLengthAndDelimiter(bracketContent: String): (Int, Delimiter) =
+      if (bracketContent.isEmpty) (0, Delimiter.Comma)
+      else if (bracketContent.endsWith("\t")) (bracketContent.dropRight(1).trim.toInt, Delimiter.Tab)
+      else if (bracketContent.endsWith("|")) (bracketContent.dropRight(1).trim.toInt, Delimiter.Pipe)
+      else (bracketContent.trim.toInt, Delimiter.Comma)
+
+    private def parseFieldNames(content: String, delim: Delimiter): Array[String] = {
+      val fieldSeparator = delim match {
+        case Delimiter.Pipe => "\\|"
+        case Delimiter.Tab  => "\t"
+        case _              => ","
+      }
+      content.split(fieldSeparator).map(_.trim)
+    }
+
+    private def decodeTabularRows(
+      in: ToonReader,
+      fields: Array[String],
+      length: Int,
+      startDepth: Int,
+      builder: VectorBuilder[DynamicValue]
+    ): Unit = {
+      var count = 0
+      while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
+        in.skipBlankLinesInArray(count == 0)
+        if (in.hasMoreLines && in.getDepth >= startDepth) {
+          val values = in.readInlineArray()
+          val record = new VectorBuilder[(String, DynamicValue)]
+          var i      = 0
+          while (i < fields.length && i < values.length) {
+            record += ((fields(i), inferredToDynamicValue(in.inferType(values(i)), values(i))))
+            i += 1
+          }
+          builder += DynamicValue.Record(record.result())
+          count += 1
+        }
+      }
+    }
+
+    private def decodeInlinePrimitives(
+      values: Array[String],
+      in: ToonReader,
+      builder: VectorBuilder[DynamicValue]
+    ): Unit = {
+      var i = 0
+      while (i < values.length) {
+        builder += inferredToDynamicValue(in.inferType(values(i)), values(i))
+        i += 1
+      }
+    }
+
+    private def decodeListItems(
+      in: ToonReader,
+      length: Int,
+      startDepth: Int,
+      builder: VectorBuilder[DynamicValue]
+    ): Unit = {
+      var count = 0
+      while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
+        in.skipBlankLinesInArray(count == 0)
+        if (in.hasMoreLines && in.getDepth >= startDepth && in.isListItem) {
+          in.consumeListItemMarker()
+          builder += decodeValue(in, unitValue)
+          count += 1
+        } else if (in.hasMoreLines && in.getDepth >= startDepth) {
+          count = length
+        }
+      }
+    }
+
     def decodeValue(in: ToonReader, default: DynamicValue): DynamicValue = {
       in.skipBlankLines()
       if (!in.hasMoreLines) return DynamicValue.Record(Vector.empty)
@@ -850,43 +967,52 @@ object ToonBinaryCodec {
           in.advanceLine()
           DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
         case s: String =>
-          if (content.contains(":")) {
-            val builder    = new VectorBuilder[((String, Boolean), DynamicValue)]
-            val startDepth = in.getDepth
-            in.skipBlankLines()
-            while (in.hasMoreLines && in.getDepth >= startDepth && !in.isListItem) {
-              val (rawKey, wasQuoted) = in.readKeyWithQuoteInfo()
-              val (fieldName, value)  = if (isQuotedKeyWithArrayNotation(rawKey, wasQuoted)) {
-                val (name, arrayPart) = parseQuotedKeyWithArray(rawKey)
-                (name, decodeArrayFieldValue(in, arrayPart))
-              } else if (!wasQuoted && isArrayKey(rawKey)) {
-                (stripArrayNotation(rawKey), decodeArrayFieldValue(in, rawKey))
-              } else {
-                (rawKey, decodeValue(in, default))
-              }
-              builder += (((fieldName, wasQuoted), value))
-              in.skipBlankLines()
-            }
-            val fieldsWithQuoteInfo = builder.result()
-            in.expandPaths match {
-              case PathExpansion.Safe => expandAndMergeFieldsWithQuoteInfo(fieldsWithQuoteInfo, in)
-              case PathExpansion.Off  =>
-                DynamicValue.Record(fieldsWithQuoteInfo.map { case ((k, _), v) => (k, v) })
-            }
-          } else {
-            in.advanceLine()
-            DynamicValue.Primitive(PrimitiveValue.String(s))
-          }
+          if (content.contains(":")) decodeRecordFields(in)
+          else { in.advanceLine(); DynamicValue.Primitive(PrimitiveValue.String(s)) }
         case _ =>
           in.advanceLine()
           DynamicValue.Primitive(PrimitiveValue.String(content))
       }
     }
 
+    private def decodeRecordFields(in: ToonReader): DynamicValue = {
+      val builder    = new VectorBuilder[((String, Boolean), DynamicValue)]
+      val startDepth = in.getDepth
+      in.skipBlankLines()
+      while (in.hasMoreLines && in.getDepth >= startDepth && !in.isListItem) {
+        val (rawKey, wasQuoted) = in.readKeyWithQuoteInfo()
+        val bracketStart        = rawKey.indexOf('[')
+        val hasArrayNotation    = bracketStart >= 0 && rawKey.indexOf(']', bracketStart) > bracketStart
+
+        val (fieldName, value) = if (wasQuoted && bracketStart > 0) {
+          val quotedPart = rawKey.substring(0, bracketStart)
+          val name       =
+            if (quotedPart.startsWith("\"") && quotedPart.endsWith("\""))
+              quotedPart.substring(1, quotedPart.length - 1)
+            else quotedPart
+          (name, decodeArrayFieldValue(in, rawKey.substring(bracketStart)))
+        } else if (!wasQuoted && hasArrayNotation) {
+          val name = if (bracketStart > 0) rawKey.substring(0, bracketStart) else rawKey
+          (name, decodeArrayFieldValue(in, rawKey))
+        } else {
+          (rawKey, decodeValue(in, unitValue))
+        }
+        builder += (((fieldName, wasQuoted), value))
+        in.skipBlankLines()
+      }
+      val fieldsWithQuoteInfo = builder.result()
+      in.expandPaths match {
+        case PathExpansion.Safe => expandAndMergeFieldsWithQuoteInfo(fieldsWithQuoteInfo, in)
+        case PathExpansion.Off  =>
+          val record = DynamicValue.Record(fieldsWithQuoteInfo.map { case ((k, _), v) => (k, v) })
+          maybeExtractVariant(record, in)
+      }
+    }
+
     private def expandAndMergeFieldsWithQuoteInfo(
       fields: Vector[((String, Boolean), DynamicValue)],
       in: ToonReader
-    ): DynamicValue.Record = {
+    ): DynamicValue = {
       val keyMap = scala.collection.mutable.LinkedHashMap.empty[String, DynamicValue]
 
       fields.foreach { case ((key, wasQuoted), value) =>
@@ -898,8 +1024,25 @@ object ToonBinaryCodec {
 
       val result = new VectorBuilder[(String, DynamicValue)]
       keyMap.foreach { case (k, v) => result += ((k, v)) }
-      DynamicValue.Record(result.result())
+      maybeExtractVariant(DynamicValue.Record(result.result()), in)
     }
+
+    private def maybeExtractVariant(record: DynamicValue.Record, in: ToonReader): DynamicValue =
+      in.discriminatorField match {
+        case Some(fieldName) =>
+          record.fields.find(_._1 == fieldName) match {
+            case Some((_, DynamicValue.Primitive(PrimitiveValue.String(caseName)))) =>
+              val otherFields = record.fields.filterNot(_._1 == fieldName)
+              otherFields match {
+                case Vector(("value", innerValue)) =>
+                  DynamicValue.Variant(caseName, innerValue)
+                case _ =>
+                  DynamicValue.Variant(caseName, DynamicValue.Record(otherFields))
+              }
+            case _ => record
+          }
+        case None => record
+      }
 
     private def expandDottedKey(key: String, value: DynamicValue): (String, DynamicValue) =
       if (!key.contains('.')) {
@@ -963,11 +1106,7 @@ object ToonBinaryCodec {
       }
 
       val bracketContent  = content.substring(bracketStart + 1, bracketEnd)
-      val (length, delim) =
-        if (bracketContent.isEmpty) (0, Delimiter.Comma)
-        else if (bracketContent.endsWith("\t")) (bracketContent.dropRight(1).trim.toInt, Delimiter.Tab)
-        else if (bracketContent.endsWith("|")) (bracketContent.dropRight(1).trim.toInt, Delimiter.Pipe)
-        else (bracketContent.trim.toInt, Delimiter.Comma)
+      val (length, delim) = parseLengthAndDelimiter(bracketContent)
 
       var afterBracket          = bracketEnd + 1
       var fields: Array[String] = null
@@ -975,13 +1114,7 @@ object ToonBinaryCodec {
       if (afterBracket < content.length && content.charAt(afterBracket) == '{') {
         val braceEnd = content.indexOf('}', afterBracket)
         if (braceEnd < 0) in.decodeError("Expected closing } in field list")
-        val fieldsContent  = content.substring(afterBracket + 1, braceEnd)
-        val fieldSeparator = delim match {
-          case Delimiter.Pipe => "\\|"
-          case Delimiter.Tab  => "\t"
-          case _              => ","
-        }
-        fields = fieldsContent.split(fieldSeparator).map(_.trim)
+        fields = parseFieldNames(content.substring(afterBracket + 1, braceEnd), delim)
         afterBracket = braceEnd + 1
       }
 
@@ -998,67 +1131,12 @@ object ToonBinaryCodec {
 
       if (fields != null && fields.nonEmpty) {
         in.skipBlankLinesInArray(true)
-        var count = 0
-        while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
-          in.skipBlankLinesInArray(count == 0)
-          if (in.hasMoreLines && in.getDepth >= startDepth) {
-            val values = in.readInlineArray()
-            val record = new VectorBuilder[(String, DynamicValue)]
-            var i      = 0
-            while (i < fields.length && i < values.length) {
-              val inferred = in.inferType(values(i))
-              val dv       = inferred match {
-                case null       => unitValue
-                case b: Boolean => if (b) trueValue else falseValue
-                case l: Long    =>
-                  val intVal = l.toInt
-                  if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
-                  else DynamicValue.Primitive(PrimitiveValue.Long(l))
-                case d: Double  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
-                case bi: BigInt => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
-                case s: String  => DynamicValue.Primitive(PrimitiveValue.String(s))
-                case _          => DynamicValue.Primitive(PrimitiveValue.String(values(i)))
-              }
-              record += ((fields(i), dv))
-              i += 1
-            }
-            builder += DynamicValue.Record(record.result())
-            count += 1
-          }
-        }
+        decodeTabularRows(in, fields, length, startDepth, builder)
       } else if (inlineContent.nonEmpty) {
-        val values = splitInlineValues(inlineContent, delim)
-        var i      = 0
-        while (i < values.length) {
-          val inferred = in.inferType(values(i))
-          val dv       = inferred match {
-            case null       => unitValue
-            case b: Boolean => if (b) trueValue else falseValue
-            case l: Long    =>
-              val intVal = l.toInt
-              if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
-              else DynamicValue.Primitive(PrimitiveValue.Long(l))
-            case d: Double  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
-            case bi: BigInt => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
-            case s: String  => DynamicValue.Primitive(PrimitiveValue.String(s))
-            case _          => DynamicValue.Primitive(PrimitiveValue.String(values(i)))
-          }
-          builder += dv
-          i += 1
-        }
+        decodeInlinePrimitives(splitInlineValues(inlineContent, delim), in, builder)
       } else {
         in.skipBlankLinesInArray(true)
-        var count = 0
-        while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
-          in.skipBlankLinesInArray(count == 0)
-          if (in.hasMoreLines && in.getDepth >= startDepth && in.isListItem) {
-            in.consumeListItemMarker()
-            builder += decodeValue(in, unitValue)
-            count += 1
-          } else if (in.hasMoreLines && in.getDepth >= startDepth) {
-            count = length
-          }
-        }
+        decodeListItems(in, length, startDepth, builder)
       }
 
       DynamicValue.Sequence(builder.result())
@@ -1082,55 +1160,18 @@ object ToonBinaryCodec {
       result.toArray
     }
 
-    private def isArrayKey(key: String): Boolean = {
-      val bracketStart = key.indexOf('[')
-      val bracketEnd   = key.indexOf(']', bracketStart)
-      bracketStart >= 0 && bracketEnd > bracketStart
-    }
-
-    private def stripArrayNotation(key: String): String = {
-      val bracketStart = key.indexOf('[')
-      if (bracketStart > 0) key.substring(0, bracketStart)
-      else if (bracketStart == 0) key
-      else key
-    }
-
-    private def isQuotedKeyWithArrayNotation(rawKey: String, wasQuoted: Boolean): Boolean =
-      wasQuoted && rawKey.contains("[") && rawKey.indexOf('[') > 0
-
-    private def parseQuotedKeyWithArray(rawKey: String): (String, String) = {
-      val bracketStart = rawKey.indexOf('[')
-      val quotedPart   = rawKey.substring(0, bracketStart)
-      val fieldName    =
-        if (quotedPart.startsWith("\"") && quotedPart.endsWith("\""))
-          quotedPart.substring(1, quotedPart.length - 1)
-        else quotedPart
-      val arrayPart = rawKey.substring(bracketStart)
-      (fieldName, arrayPart)
-    }
-
     private def decodeArrayFieldValue(in: ToonReader, rawKey: String): DynamicValue.Sequence = {
       val bracketStart   = rawKey.indexOf('[')
       val bracketEnd     = rawKey.indexOf(']', bracketStart)
       val bracketContent = rawKey.substring(bracketStart + 1, bracketEnd)
 
-      val (length, delim) =
-        if (bracketContent.isEmpty) (0, Delimiter.Comma)
-        else if (bracketContent.endsWith("\t")) (bracketContent.dropRight(1).trim.toInt, Delimiter.Tab)
-        else if (bracketContent.endsWith("|")) (bracketContent.dropRight(1).trim.toInt, Delimiter.Pipe)
-        else (bracketContent.trim.toInt, Delimiter.Comma)
+      val (length, delim) = parseLengthAndDelimiter(bracketContent)
 
       var fields: Array[String] = null
       val braceStart            = rawKey.indexOf('{', bracketEnd)
       val braceEnd              = rawKey.indexOf('}', braceStart)
       if (braceStart > 0 && braceEnd > braceStart) {
-        val fieldsContent  = rawKey.substring(braceStart + 1, braceEnd)
-        val fieldSeparator = delim match {
-          case Delimiter.Pipe => "\\|"
-          case Delimiter.Tab  => "\t"
-          case _              => ","
-        }
-        fields = fieldsContent.split(fieldSeparator).map(_.trim)
+        fields = parseFieldNames(rawKey.substring(braceStart + 1, braceEnd), delim)
       }
 
       val builder    = new VectorBuilder[DynamicValue]
@@ -1140,71 +1181,17 @@ object ToonBinaryCodec {
       if (fields != null && fields.nonEmpty) {
         in.advanceLine()
         in.skipBlankLinesInArray(true)
-        var count = 0
-        while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
-          in.skipBlankLinesInArray(count == 0)
-          if (in.hasMoreLines && in.getDepth >= startDepth) {
-            val values = in.readInlineArray()
-            val record = new VectorBuilder[(String, DynamicValue)]
-            var i      = 0
-            while (i < fields.length && i < values.length) {
-              val inferred = in.inferType(values(i))
-              val dv       = inferred match {
-                case null       => unitValue
-                case b: Boolean => if (b) trueValue else falseValue
-                case l: Long    =>
-                  val intVal = l.toInt
-                  if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
-                  else DynamicValue.Primitive(PrimitiveValue.Long(l))
-                case d: Double  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
-                case bi: BigInt => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
-                case s: String  => DynamicValue.Primitive(PrimitiveValue.String(s))
-                case _          => DynamicValue.Primitive(PrimitiveValue.String(values(i)))
-              }
-              record += ((fields(i), dv))
-              i += 1
-            }
-            builder += DynamicValue.Record(record.result())
-            count += 1
-          }
-        }
+        decodeTabularRows(in, fields, length, startDepth, builder)
       } else {
         val remaining = in.peekTrimmedContent
         if (remaining.nonEmpty) {
           val values = splitInlineValues(remaining, delim)
           in.advanceLine()
-          var i = 0
-          while (i < values.length) {
-            val inferred = in.inferType(values(i))
-            val dv       = inferred match {
-              case null       => unitValue
-              case b: Boolean => if (b) trueValue else falseValue
-              case l: Long    =>
-                val intVal = l.toInt
-                if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
-                else DynamicValue.Primitive(PrimitiveValue.Long(l))
-              case d: Double  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
-              case bi: BigInt => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
-              case s: String  => DynamicValue.Primitive(PrimitiveValue.String(s))
-              case _          => DynamicValue.Primitive(PrimitiveValue.String(values(i)))
-            }
-            builder += dv
-            i += 1
-          }
+          decodeInlinePrimitives(values, in, builder)
         } else {
           in.advanceLine()
           in.skipBlankLinesInArray(true)
-          var count = 0
-          while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
-            in.skipBlankLinesInArray(count == 0)
-            if (in.hasMoreLines && in.getDepth >= startDepth && in.isListItem) {
-              in.consumeListItemMarker()
-              builder += decodeValue(in, unitValue)
-              count += 1
-            } else if (in.hasMoreLines && in.getDepth >= startDepth) {
-              count = length
-            }
-          }
+          decodeListItems(in, length, startDepth, builder)
         }
       }
 
@@ -1212,40 +1199,8 @@ object ToonBinaryCodec {
     }
 
     def encodeValue(x: DynamicValue, out: ToonWriter): Unit = x match {
-      case primitive: DynamicValue.Primitive =>
-        primitive.value match {
-          case _: PrimitiveValue.Unit.type      => out.writeNull()
-          case v: PrimitiveValue.Boolean        => out.writeBoolean(v.value)
-          case v: PrimitiveValue.Byte           => out.writeInt(v.value.toInt)
-          case v: PrimitiveValue.Short          => out.writeInt(v.value.toInt)
-          case v: PrimitiveValue.Int            => out.writeInt(v.value)
-          case v: PrimitiveValue.Long           => out.writeLong(v.value)
-          case v: PrimitiveValue.Float          => out.writeFloat(v.value)
-          case v: PrimitiveValue.Double         => out.writeDouble(v.value)
-          case v: PrimitiveValue.Char           => out.writeString(v.value.toString)
-          case v: PrimitiveValue.String         => out.writeString(v.value)
-          case v: PrimitiveValue.BigInt         => out.writeBigInt(v.value)
-          case v: PrimitiveValue.BigDecimal     => out.writeBigDecimal(v.value)
-          case v: PrimitiveValue.DayOfWeek      => out.writeString(v.value.name)
-          case v: PrimitiveValue.Duration       => out.writeString(v.value.toString)
-          case v: PrimitiveValue.Instant        => out.writeString(v.value.toString)
-          case v: PrimitiveValue.LocalDate      => out.writeString(v.value.toString)
-          case v: PrimitiveValue.LocalDateTime  => out.writeString(v.value.toString)
-          case v: PrimitiveValue.LocalTime      => out.writeString(v.value.toString)
-          case v: PrimitiveValue.Month          => out.writeString(v.value.name)
-          case v: PrimitiveValue.MonthDay       => out.writeString(v.value.toString)
-          case v: PrimitiveValue.OffsetDateTime => out.writeString(v.value.toString)
-          case v: PrimitiveValue.OffsetTime     => out.writeString(v.value.toString)
-          case v: PrimitiveValue.Period         => out.writeString(v.value.toString)
-          case v: PrimitiveValue.Year           => out.writeString(v.value.toString)
-          case v: PrimitiveValue.YearMonth      => out.writeString(v.value.toString)
-          case v: PrimitiveValue.ZoneId         => out.writeString(v.value.getId)
-          case v: PrimitiveValue.ZoneOffset     => out.writeString(v.value.getId)
-          case v: PrimitiveValue.ZonedDateTime  => out.writeString(v.value.toString)
-          case v: PrimitiveValue.Currency       => out.writeString(v.value.getCurrencyCode)
-          case v: PrimitiveValue.UUID           => out.writeString(v.value.toString)
-        }
-      case record: DynamicValue.Record =>
+      case primitive: DynamicValue.Primitive => encodePrimitive(primitive.value, out)
+      case record: DynamicValue.Record       =>
         out.keyFolding match {
           case KeyFolding.Safe =>
             val rootLiteralDottedKeys = record.fields.map(_._1).filter(_.contains('.')).toSet
@@ -1259,7 +1214,10 @@ object ToonBinaryCodec {
             }
         }
       case variant: DynamicValue.Variant =>
-        encodeRecordPlain(variant.caseName, variant.value, out)
+        out.discriminatorField match {
+          case Some(fieldName) => encodeVariantWithDiscriminator(variant, fieldName, out)
+          case None            => encodeRecordPlain(variant.caseName, variant.value, out)
+        }
       case sequence: DynamicValue.Sequence =>
         val elements = sequence.elements
         if (elements.isEmpty) {
@@ -1317,6 +1275,30 @@ object ToonBinaryCodec {
         }
     }
 
+    private def encodeVariantWithDiscriminator(
+      variant: DynamicValue.Variant,
+      fieldName: String,
+      out: ToonWriter
+    ): Unit =
+      variant.value match {
+        case record: DynamicValue.Record =>
+          out.writeKey(fieldName)
+          out.writeString(variant.caseName)
+          out.newLine()
+          val it = record.fields.iterator
+          while (it.hasNext) {
+            val (k, v) = it.next()
+            encodeRecordPlain(k, v, out)
+          }
+        case other =>
+          out.writeKey(fieldName)
+          out.writeString(variant.caseName)
+          out.newLine()
+          out.writeKey("value")
+          encodeValue(other, out)
+          out.newLine()
+      }
+
     private def encodeRecordPlain(key: String, value: DynamicValue, out: ToonWriter): Unit =
       value match {
         case nestedRecord: DynamicValue.Record if nestedRecord.fields.nonEmpty =>
@@ -1334,7 +1316,10 @@ object ToonBinaryCodec {
         case variant: DynamicValue.Variant =>
           out.writeKeyOnly(key)
           out.incrementDepth()
-          encodeRecordPlain(variant.caseName, variant.value, out)
+          out.discriminatorField match {
+            case Some(fieldName) => encodeVariantWithDiscriminator(variant, fieldName, out)
+            case None            => encodeRecordPlain(variant.caseName, variant.value, out)
+          }
           out.decrementDepth()
         case map: DynamicValue.Map if map.entries.nonEmpty =>
           out.writeKeyOnly(key)
@@ -1588,23 +1573,8 @@ object ToonBinaryCodec {
     }
 
     private def encodePrimitiveInline(value: DynamicValue, out: ToonWriter): Unit = value match {
-      case primitive: DynamicValue.Primitive =>
-        primitive.value match {
-          case _: PrimitiveValue.Unit.type  => out.writeNull()
-          case v: PrimitiveValue.Boolean    => out.writeBoolean(v.value)
-          case v: PrimitiveValue.Byte       => out.writeInt(v.value.toInt)
-          case v: PrimitiveValue.Short      => out.writeInt(v.value.toInt)
-          case v: PrimitiveValue.Int        => out.writeInt(v.value)
-          case v: PrimitiveValue.Long       => out.writeLong(v.value)
-          case v: PrimitiveValue.Float      => out.writeFloat(v.value)
-          case v: PrimitiveValue.Double     => out.writeDouble(v.value)
-          case v: PrimitiveValue.Char       => out.writeString(v.value.toString)
-          case v: PrimitiveValue.String     => out.writeString(v.value)
-          case v: PrimitiveValue.BigInt     => out.writeBigInt(v.value)
-          case v: PrimitiveValue.BigDecimal => out.writeBigDecimal(v.value)
-          case _                            => out.writeString(primitive.value.toString)
-        }
-      case _ => out.writeString(value.toString)
+      case primitive: DynamicValue.Primitive => encodePrimitive(primitive.value, out)
+      case _                                 => out.writeString(value.toString)
     }
 
     private def encodeTabularRow(record: DynamicValue.Record, keys: Vector[String], out: ToonWriter): Unit = {
@@ -1706,8 +1676,7 @@ object ToonBinaryCodec {
           case v: PrimitiveValue.String     => out.writeString(v.value)
           case v: PrimitiveValue.BigInt     => out.writeBigInt(v.value)
           case v: PrimitiveValue.BigDecimal => out.writeBigDecimal(v.value)
-          case _                            =>
-            throw new ToonBinaryCodecError(Nil, "encoding as TOON key is not supported for this type")
+          case _                            => throw new ToonBinaryCodecError(Nil, "encoding as TOON key is not supported for this type")
         }
       case _ => throw new ToonBinaryCodecError(Nil, "encoding as TOON key is not supported")
     }

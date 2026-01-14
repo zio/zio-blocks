@@ -726,6 +726,47 @@ object ToonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           val normalized = ToonDynamicValueGen.normalize(value)
           assertTrue(decoded == Right(normalized))
         }
+      },
+      test("DynamicValue - discriminatorField with type") {
+        check(ToonDynamicValueGen.genDynamicValue) { value =>
+          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val discField  = Some("type")
+          val writerCfg  = WriterConfig.withDiscriminatorField(discField)
+          val readerCfg  = ReaderConfig.withDiscriminatorField(discField)
+          val encoded    = codec.encodeToString(value, writerCfg)
+          val decoded    = codec.decode(encoded, readerCfg)
+          val normalized = ToonDynamicValueGen.normalize(value, discField)
+          assertTrue(decoded == Right(normalized))
+        }
+      },
+      test("DynamicValue - discriminatorField with $type") {
+        check(ToonDynamicValueGen.genDynamicValue) { value =>
+          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val discField  = Some("$type")
+          val writerCfg  = WriterConfig.withDiscriminatorField(discField)
+          val readerCfg  = ReaderConfig.withDiscriminatorField(discField)
+          val encoded    = codec.encodeToString(value, writerCfg)
+          val decoded    = codec.decode(encoded, readerCfg)
+          val normalized = ToonDynamicValueGen.normalize(value, discField)
+          assertTrue(decoded == Right(normalized))
+        }
+      },
+      test("DynamicValue - Variant roundtrips with discriminatorField") {
+        val variant = DynamicValue.Variant(
+          "Dog",
+          DynamicValue.Record(Vector(("name", DynamicValue.Primitive(PrimitiveValue.String("Buddy")))))
+        )
+        val codec     = ToonBinaryCodec.dynamicValueCodec
+        val discField = Some("type")
+        val writerCfg = WriterConfig.withDiscriminatorField(discField)
+        val readerCfg = ReaderConfig.withDiscriminatorField(discField)
+        val encoded   = codec.encodeToString(variant, writerCfg)
+        val decoded   = codec.decode(encoded, readerCfg)
+        assertTrue(
+          encoded.contains("type: Dog"),
+          encoded.contains("name: Buddy"),
+          decoded == Right(variant)
+        )
       }
     )
   )

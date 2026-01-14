@@ -15,12 +15,15 @@ import scala.annotation.switch
  *   whether to enforce strict TOON parsing
  * @param expandPaths
  *   strategy for expanding dot-separated paths
+ * @param discriminatorField
+ *   optional field name to use as discriminator for DynamicValue variants
  */
 final class ToonReader private[toon] (
   private[this] var indentSize: Int,
   private[this] var delimiter: Delimiter,
   private[this] var strict: Boolean,
-  private[toon] var expandPaths: PathExpansion
+  private[toon] var expandPaths: PathExpansion,
+  private[toon] var discriminatorField: Option[String]
 ) {
 
   private[this] var lines: Array[String]       = _
@@ -65,6 +68,7 @@ final class ToonReader private[toon] (
     delimiter = config.delimiter
     strict = config.strict
     expandPaths = config.expandPaths
+    discriminatorField = config.discriminatorField
     activeDelimiter = config.delimiter
     inlineContext = false
   }
@@ -567,7 +571,7 @@ final class ToonReader private[toon] (
 object ToonReader {
   private val pool: ThreadLocal[ToonReader] = new ThreadLocal[ToonReader] {
     override def initialValue(): ToonReader =
-      new ToonReader(2, Delimiter.Comma, strict = false, PathExpansion.Off)
+      new ToonReader(2, Delimiter.Comma, strict = false, PathExpansion.Off, None)
   }
 
   /**
@@ -577,7 +581,7 @@ object ToonReader {
   def apply(config: ReaderConfig): ToonReader = {
     val reader = pool.get()
     if (reader.isInUse) {
-      new ToonReader(config.indent, config.delimiter, config.strict, config.expandPaths)
+      new ToonReader(config.indent, config.delimiter, config.strict, config.expandPaths, config.discriminatorField)
     } else {
       reader.startUse(config)
       reader
@@ -588,7 +592,7 @@ object ToonReader {
    * Creates a fresh ToonReader that is NOT from the pool.
    */
   def fresh(config: ReaderConfig): ToonReader =
-    new ToonReader(config.indent, config.delimiter, config.strict, config.expandPaths)
+    new ToonReader(config.indent, config.delimiter, config.strict, config.expandPaths, config.discriminatorField)
 
   def read[A](codec: ToonBinaryCodec[A], input: ByteBuffer, config: ReaderConfig): A = {
     val reader             = apply(config)

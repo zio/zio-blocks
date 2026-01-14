@@ -304,21 +304,27 @@ object ToonTestUtils {
         .map(_.distinctBy { case (k, _) => k })
         .map(f => DynamicValue.Map(f.toVector))
 
-    def normalize(value: DynamicValue): DynamicValue = value match {
-      case Primitive(v)              => Primitive(v)
-      case Record(fields)            => Record(fields.map { case (k, v) => (k, normalize(v)) })
-      case Sequence(elems)           => Sequence(elems.map(normalize))
-      case Variant(caseName, v)      => Record(Vector((caseName, normalize(v))))
-      case DynamicValue.Map(entries) =>
-        val fields = entries.map { case (k, v) =>
-          val keyStr = k match {
-            case Primitive(PrimitiveValue.String(s)) => s
-            case other                               => encodeKeyToString(other)
+    def normalize(value: DynamicValue, discriminatorField: Option[String] = None): DynamicValue =
+      value match {
+        case Primitive(v)   => Primitive(v)
+        case Record(fields) =>
+          Record(fields.map { case (k, v) => (k, normalize(v, discriminatorField)) })
+        case Sequence(elems)      => Sequence(elems.map(normalize(_, discriminatorField)))
+        case Variant(caseName, v) =>
+          discriminatorField match {
+            case Some(_) => Variant(caseName, normalize(v, discriminatorField))
+            case None    => Record(Vector((caseName, normalize(v, discriminatorField))))
           }
-          (keyStr, normalize(v))
-        }
-        Record(fields)
-    }
+        case DynamicValue.Map(entries) =>
+          val fields = entries.map { case (k, v) =>
+            val keyStr = k match {
+              case Primitive(PrimitiveValue.String(s)) => s
+              case other                               => encodeKeyToString(other)
+            }
+            (keyStr, normalize(v, discriminatorField))
+          }
+          Record(fields)
+      }
 
     private def encodeKeyToString(value: DynamicValue): String = value match {
       case Primitive(PrimitiveValue.String(s))     => s

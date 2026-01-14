@@ -19,6 +19,8 @@ import scala.annotation.switch
  *   strategy for folding nested keys
  * @param flattenDepth
  *   maximum depth for key folding
+ * @param discriminatorField
+ *   optional field name to use as discriminator for DynamicValue variants
  */
 final class ToonWriter private (
   private[this] var buf: Array[Byte],
@@ -26,7 +28,8 @@ final class ToonWriter private (
   private[toon] val indentSize: Int,
   private[toon] val delimiter: Delimiter,
   private[toon] val keyFolding: KeyFolding,
-  private[toon] val flattenDepth: Int
+  private[toon] val flattenDepth: Int,
+  private[toon] val discriminatorField: Option[String]
 ) {
   import ToonWriter._
 
@@ -322,7 +325,7 @@ object ToonWriter {
 
   private val pool: ThreadLocal[ToonWriter] = new ThreadLocal[ToonWriter] {
     override def initialValue(): ToonWriter =
-      new ToonWriter(new Array[Byte](1024), 0, 2, Delimiter.Comma, KeyFolding.Off, Int.MaxValue)
+      new ToonWriter(new Array[Byte](1024), 0, 2, Delimiter.Comma, KeyFolding.Off, Int.MaxValue, None)
   }
 
   def apply(config: WriterConfig): ToonWriter = {
@@ -331,7 +334,8 @@ object ToonWriter {
       writer.indentSize == config.indent &&
       writer.delimiter == config.delimiter &&
       writer.keyFolding == config.keyFolding &&
-      writer.flattenDepth == config.flattenDepth
+      writer.flattenDepth == config.flattenDepth &&
+      writer.discriminatorField == config.discriminatorField
     ) {
       writer.reset()
       writer
@@ -342,7 +346,8 @@ object ToonWriter {
         config.indent,
         config.delimiter,
         config.keyFolding,
-        config.flattenDepth
+        config.flattenDepth,
+        config.discriminatorField
       )
     }
   }
@@ -353,7 +358,15 @@ object ToonWriter {
    * strings).
    */
   def fresh(config: WriterConfig): ToonWriter =
-    new ToonWriter(new Array[Byte](64), 0, config.indent, config.delimiter, config.keyFolding, config.flattenDepth)
+    new ToonWriter(
+      new Array[Byte](64),
+      0,
+      config.indent,
+      config.delimiter,
+      config.keyFolding,
+      config.flattenDepth,
+      config.discriminatorField
+    )
 
   private def isValidUnquotedKey(key: String): Boolean =
     key.nonEmpty && validKeyPattern.matcher(key).matches()

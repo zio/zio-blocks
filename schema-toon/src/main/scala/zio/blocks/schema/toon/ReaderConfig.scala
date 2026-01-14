@@ -26,6 +26,7 @@ object PathExpansion {
  *   - change the expected delimiter for inline arrays (comma, tab, or pipe)
  *   - disable strict mode to allow lenient parsing of malformed input
  *   - enable path expansion to parse dot-separated keys as nested records
+ *   - set discriminator field for DynamicValue variant decoding
  *
  * @param indent
  *   the expected number of spaces per indentation level (default: 2)
@@ -35,12 +36,16 @@ object PathExpansion {
  *   whether to enforce strict TOON parsing (default: true)
  * @param expandPaths
  *   strategy for expanding dot-separated paths (default: Off)
+ * @param discriminatorField
+ *   optional field name to use as discriminator for DynamicValue variants
+ *   (default: None, which decodes as Record)
  */
 class ReaderConfig private (
   val indent: Int,
   val delimiter: Delimiter,
   val strict: Boolean,
-  val expandPaths: PathExpansion
+  val expandPaths: PathExpansion,
+  val discriminatorField: Option[String]
 ) extends Serializable {
 
   def withIndent(indent: Int): ReaderConfig = {
@@ -57,17 +62,22 @@ class ReaderConfig private (
   def withExpandPaths(expandPaths: PathExpansion): ReaderConfig =
     copy(expandPaths = expandPaths)
 
+  def withDiscriminatorField(discriminatorField: Option[String]): ReaderConfig =
+    copy(discriminatorField = discriminatorField)
+
   private[this] def copy(
     indent: Int = indent,
     delimiter: Delimiter = delimiter,
     strict: Boolean = strict,
-    expandPaths: PathExpansion = expandPaths
+    expandPaths: PathExpansion = expandPaths,
+    discriminatorField: Option[String] = discriminatorField
   ): ReaderConfig =
     new ReaderConfig(
       indent = indent,
       delimiter = delimiter,
       strict = strict,
-      expandPaths = expandPaths
+      expandPaths = expandPaths,
+      discriminatorField = discriminatorField
     )
 }
 
@@ -76,5 +86,6 @@ object ReaderConfig
       indent = 2,
       delimiter = Delimiter.Comma,
       strict = true,
-      expandPaths = PathExpansion.Off
+      expandPaths = PathExpansion.Off,
+      discriminatorField = None
     )
