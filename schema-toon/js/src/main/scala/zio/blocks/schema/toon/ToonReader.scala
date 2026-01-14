@@ -605,8 +605,14 @@ final class ToonReader private[toon] (
     skipWhitespace()
     // In TOON, object ends when indentation decreases or EOF
     if (head >= tail) return true
-    val currentIndent = countLeadingSpaces()
-    currentIndent < depth * config.indentSize
+    // Only check indentation for nested objects (depth > 1)
+    // Top-level records (depth = 1) don't require indentation
+    if (depth > 1) {
+      val currentIndent = countLeadingSpaces()
+      currentIndent < (depth - 1) * config.indentSize
+    } else {
+      false
+    }
   }
 
   /**
@@ -616,10 +622,13 @@ final class ToonReader private[toon] (
     skipWhitespace()
     if (head >= tail) return null
 
-    // Check indentation
-    val currentIndent  = countLeadingSpaces()
-    val expectedIndent = depth * config.indentSize
-    if (currentIndent < expectedIndent) return null
+    // Check indentation only for nested objects (depth > 1)
+    // Top-level records (depth = 1) don't require indentation
+    if (depth > 1) {
+      val currentIndent  = countLeadingSpaces()
+      val expectedIndent = (depth - 1) * config.indentSize
+      if (currentIndent < expectedIndent) return null
+    }
 
     readKey()
   }
@@ -926,7 +935,9 @@ final class ToonReader private[toon] (
     }
 
   private def skipIndentation(): Unit = {
-    val expectedSpaces = depth * config.indentSize
+    // Top-level records (depth = 1) have no indentation
+    // Nested records use (depth - 1) * indentSize
+    val expectedSpaces = if (depth > 1) (depth - 1) * config.indentSize else 0
     var spaces         = 0
     while (head < tail && spaces < expectedSpaces && buf(head) == ' ') {
       head += 1
