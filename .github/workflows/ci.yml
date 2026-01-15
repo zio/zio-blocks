@@ -37,14 +37,14 @@ jobs:
         run: sbt "++2.13; check; ++3.3; check; ++3.7; check"
 
   testJVM:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         java: [11, 25]
-        os: ['ubuntu-22.04']
         platform: ['JVM']
+        scala: ['2.13.x', '3.x']
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.1
@@ -62,20 +62,21 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run Scala Next tests for macros
-        run: sbt ++3.7.4! scalaNextTests${{ matrix.platform }}/test
       - name: Run tests
-        run: sbt test${{ matrix.platform }}
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+      - name: Run Scala Next tests
+        if: ${{ startsWith(matrix.scala, '3.') }}
+        run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test
 
   testJS:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         java: [11]
-        os: ['ubuntu-22.04']
         platform: ['JS']
+        scala: ['2.13.x', '3.x']
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.1
@@ -89,20 +90,21 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run Scala Next tests for macros
-        run: sbt ++3.7.4! scalaNextTests${{ matrix.platform }}/test
       - name: Run tests
-        run: sbt test${{ matrix.platform }}
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+      - name: Run Scala Next tests
+        if: ${{ startsWith(matrix.scala, '3.') }}
+        run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test
 
   testNative:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         java: [11]
-        os: ['ubuntu-22.04']
         platform: ['Native']
+        scala: ['2.13.x', '3.x']
     env:
       SCALANATIVE_THREAD_STACK_SIZE: 32m    
     steps:
@@ -118,10 +120,11 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run Scala Next tests for macros
-        run: sbt ++3.7.4! scalaNextTests${{ matrix.platform }}/test
       - name: Run tests
-        run: sbt test${{ matrix.platform }}
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+      - name: Run Scala Next tests
+        if: ${{ startsWith(matrix.scala, '3.') }}
+        run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test
 
   ci:
     runs-on: ubuntu-latest
