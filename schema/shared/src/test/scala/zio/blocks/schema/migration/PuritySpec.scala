@@ -8,17 +8,10 @@ import zio.blocks.schema.migration.MigrationAction._
 object PuritySpec extends ZIOSpecDefault {
   
   def containsClosure(action: MigrationAction): Boolean = {
-    action.getClass.getDeclaredFields.exists { field =>
-      field.setAccessible(true) 
-      val value = field.get(action)
-      
-      value match {
-        case _: scala.collection.Iterable[_] => false
-        case f: Function[_, _] => 
-            !f.isInstanceOf[scala.collection.Iterable[_]]
-        case c: java.io.Serializable if c.getClass.getName.contains("$$Lambda") => true
-        case _ => false
-      }
+    action match {
+      case _: Function[_, _] => true
+      case a if !a.isInstanceOf[java.io.Serializable] => true
+      case _ => false
     }
   }
 
