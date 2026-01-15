@@ -50,6 +50,9 @@ lazy val root = project
     schema.js,
     schema.native,
     `schema-avro`,
+    `schema-json-schema`.jvm,
+    `schema-json-schema`.js,
+    `schema-json-schema`.native,
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-toon`.native,
@@ -216,6 +219,23 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
+  )
+
+lazy val `schema-json-schema` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-schema-json-schema"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.schema.jsonschema"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .dependsOn(schema)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     )
   )
 
