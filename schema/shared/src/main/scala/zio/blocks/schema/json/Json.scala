@@ -151,10 +151,10 @@ sealed trait Json { self =>
       DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(v)))
     case Json.String(v) =>
       DynamicValue.Primitive(PrimitiveValue.String(v))
-    case Json.Array(elems) =>
-      DynamicValue.Sequence(elems.map(_.toDynamicValue))
-    case Json.Object(flds) =>
-      DynamicValue.Record(flds.map { case (k, v) => (k, v.toDynamicValue) })
+    case arr: Json.Array =>
+      DynamicValue.Sequence(arr.value.map(_.toDynamicValue))
+    case obj: Json.Object =>
+      DynamicValue.Record(obj.value.map { case (k, v) => (k, v.toDynamicValue) })
   }
 
   // ===========================================================================
@@ -179,10 +179,10 @@ sealed trait Json { self =>
     case (Json.String(a), Json.String(b)) => a.compare(b)
     case (Json.String(_), _)              => -1
     case (_, Json.String(_))              => 1
-    case (Json.Array(a), Json.Array(b))   => compareArrays(a, b)
-    case (Json.Array(_), _)               => -1
-    case (_, Json.Array(_))               => 1
-    case (Json.Object(a), Json.Object(b)) => compareObjects(a, b)
+    case (a: Json.Array, b: Json.Array)   => compareArrays(a.value, b.value)
+    case (_: Json.Array, _)               => -1
+    case (_, _: Json.Array)               => 1
+    case (a: Json.Object, b: Json.Object) => compareObjects(a.value, b.value)
   }
 
   private def compareArrays(a: Vector[Json], b: Vector[Json]): Int = {
@@ -222,8 +222,8 @@ sealed trait Json { self =>
     case Json.Boolean(v)   => v.hashCode()
     case Json.Number(v)    => BigDecimal(v).hashCode()
     case Json.String(v)    => v.hashCode()
-    case Json.Array(elems) => elems.hashCode()
-    case Json.Object(flds) => flds.sortBy(_._1).hashCode()
+    case arr: Json.Array   => arr.value.hashCode()
+    case obj: Json.Object  => obj.value.sortBy(_._1).hashCode()
   }
 
   override def equals(that: Any): Boolean = that match {
@@ -241,12 +241,12 @@ object Json {
   /**
    * A JSON object: an unordered collection of key-value pairs.
    *
-   * @param fields The key-value pairs. Keys should be unique; if duplicates
+   * @param value The key-value pairs. Keys should be unique; if duplicates
    *               are present, behavior of accessors is undefined.
    */
-  final case class Object(fields: Vector[(String, Json)]) extends Json {
+  final case class Object(value: Vector[(String, Json)]) extends Json {
     override def isObject: scala.Boolean     = true
-    override def fields: Seq[(String, Json)] = this.fields
+    override def fields: Seq[(String, Json)] = value
   }
 
   object Object {
@@ -254,17 +254,17 @@ object Json {
     val empty: Object = Object(Vector.empty)
 
     /** Creates a JSON object from key-value pairs. */
-    def apply(fields: (String, Json)*): Object = Object(fields.toVector)
+    def apply(kvs: (String, Json)*): Object = Object(kvs.toVector)
   }
 
   /**
    * A JSON array: an ordered sequence of values.
    *
-   * @param elements The array elements
+   * @param value The array elements
    */
-  final case class Array(elements: Vector[Json]) extends Json {
+  final case class Array(value: Vector[Json]) extends Json {
     override def isArray: scala.Boolean = true
-    override def elements: Seq[Json]    = this.elements
+    override def elements: Seq[Json]    = value
   }
 
   object Array {
@@ -272,7 +272,7 @@ object Json {
     val empty: Array = Array(Vector.empty)
 
     /** Creates a JSON array from elements. */
-    def apply(elements: Json*): Array = Array(elements.toVector)
+    def apply(elems: Json*): Array = Array(elems.toVector)
   }
 
   /**
@@ -378,7 +378,7 @@ object Json {
    * @param value The dynamic value to convert
    * @return The JSON representation
    */
-  def fromDynamicValue(value: DynamicValue): Json = value match {
+  def fromDynamicValue(dv: DynamicValue): Json = dv match {
     case DynamicValue.Primitive(pv) => fromPrimitiveValue(pv)
     case DynamicValue.Record(flds) =>
       Object(flds.map { case (k, v) => (k, fromDynamicValue(v)) })
