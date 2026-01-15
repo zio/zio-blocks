@@ -104,6 +104,38 @@ final class MigrationBuilder[A, B](
   def renameCase[SumA, SumB](from: String, to: String): MigrationBuilder[A, B] =
     copyAppended(RenameCase(at = DynamicOptic.root, from = from, to = to))
 
+  inline def renameCaseAt[SumA, SumB](
+      inline at: A => Any,
+      inline from: String,
+      inline to: String
+  ): MigrationBuilder[A, B] =
+    ${
+      MigrationBuilderMacros.renameCaseAtImpl[A, B](
+        'self,
+        'at,
+        'from,
+        'to
+      )
+    }
+
+  inline def transformCaseAt[CaseA, CaseB](
+      inline at: A => CaseA
+  )(
+      inline caseMigration: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[
+        CaseA,
+        CaseB
+      ]
+  )(using sa: Schema[CaseA], sb: Schema[CaseB]): MigrationBuilder[A, B] =
+    ${
+      MigrationBuilderMacros.transformCaseAtImpl[A, B, CaseA, CaseB](
+        'self,
+        'at,
+        'caseMigration,
+        'sa,
+        'sb
+      )
+    }
+
   inline def transformCase[SumA, CaseA, SumB, CaseB](
       inline caseMigration: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[
         CaseA,
@@ -197,20 +229,49 @@ private object MigrationBuilderMacros {
   )(using Quotes): Expr[DynamicOptic] = {
     import quotes.reflect.*
 
+    // We support selectors like:
+    //   _.a.b.c
+    //   _.addresses.each.streetNumber
+    //   _.country.when[UK].postcode
+    //
+    // Internally we translate these into DynamicOptic nodes:
+    //   Field("a"), Field("b"), Field("c")
+    //   Field("addresses"), Elements, Field("streetNumber")
+    //   Field("country"), Case("UK"), Field("postcode")
+    //
+    // Notes:
+    // - `.each` is treated as a collection traversal (DynamicOptic.Node.Elements)
+    // - `.when[Case]` is treated as an enum/variant focus (DynamicOptic.Node.Case("Case"))
     def fail(term: Term): Nothing =
       report.errorAndAbort(
-        s"migration selector must be a simple field path like `_.a.b.c`, got: ${term.show}"
+        s"migration selector must be a simple path like `_.a.b.c`, `_.xs.each.y`, or `_.e.when[Case].x`, got: ${term.show}"
       )
 
-    def collectFields(term0: Term, paramSym: Symbol): List[String] = {
-      def loop(term: Term, acc: List[String]): List[String] =
+    sealed trait Step
+    object Step {
+      final case class Field(name: String) extends Step
+      case object Each extends Step
+      final case class Case(name: String) extends Step
+    }
+
+    def collectSteps(term0: Term, paramSym: Symbol): List[Step] = {
+      def loop(term: Term, acc: List[Step]): List[Step] =
         term match {
           case Inlined(_, _, t) =>
             loop(t, acc)
 
-          // _.a  or  _.a.b.c  becomes Select(Select(Ident(_), "a"), "b")...
+          // Support `.when[Case]` (type application, no term args)
+          case TypeApply(Select(qual, "when"), List(caseTpt)) =>
+            val caseName = caseTpt.tpe.typeSymbol.name
+            loop(qual, Step.Case(caseName) :: acc)
+
+          // Support `.each`
+          case Select(qual, "each") =>
+            loop(qual, Step.Each :: acc)
+
+          // Plain field selection: _.a or _.a.b.c
           case Select(qual, name) =>
-            loop(qual, name :: acc)
+            loop(qual, Step.Field(name) :: acc)
 
           // stop when we reach the lambda param
           case id: Ident if id.symbol == paramSym =>
@@ -229,11 +290,22 @@ private object MigrationBuilderMacros {
 
     selector.asTerm match {
       case Inlined(_, _, Lambda(List(param), body)) =>
-        val fields = collectFields(body, param.symbol)
+        val steps = collectSteps(body, param.symbol)
 
-        // Build DynamicOptic.root.field("a").field("b")...
-        fields.foldLeft('{ DynamicOptic.root }) { (acc, name) =>
-          '{ $acc.field(${ Expr(name) }) }
+        // Build DynamicOptic(Vector(Node...)) directly so we don't depend on
+        // any particular fluent API surface on DynamicOptic.
+        val nodeExprs: List[Expr[DynamicOptic.Node]] =
+          steps.map {
+            case Step.Field(n) =>
+              '{ DynamicOptic.Node.Field(${ Expr(n) }) }
+            case Step.Each =>
+              '{ DynamicOptic.Node.Elements }
+            case Step.Case(n) =>
+              '{ DynamicOptic.Node.Case(${ Expr(n) }) }
+          }
+
+        '{
+          DynamicOptic(${ Expr.ofList(nodeExprs) }.toVector)
         }
 
       case other =>
@@ -241,7 +313,37 @@ private object MigrationBuilderMacros {
     }
   }
 
-  private def lastFieldName(at: Expr[DynamicOptic], ctx: Expr[String])(using Quotes): Expr[String] = {
+  def transformCaseAtImpl[A: Type, B: Type, CaseA: Type, CaseB: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      atSel: Expr[A => CaseA],
+      caseMigration: Expr[
+        MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]
+      ],
+      sa: Expr[Schema[CaseA]],
+      sb: Expr[Schema[CaseB]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val sourceSchemaExpr = '{ $builder.sourceSchema }
+    val atDyn = extractDynamicOptic[A, CaseA](atSel, sourceSchemaExpr)
+
+    '{
+      val nested =
+        $caseMigration(
+          new MigrationBuilder[CaseA, CaseB](
+            $sa,
+            $sb,
+            Vector.empty
+          )
+        )
+
+      $builder.copyAppended(
+        TransformCase(at = $atDyn, actions = nested.actions)
+      )
+    }
+  }
+
+  private def lastFieldName(at: Expr[DynamicOptic], ctx: Expr[String])(using
+      Quotes
+  ): Expr[String] = {
     '{
       $at.nodes.lastOption match {
         case Some(DynamicOptic.Node.Field(name)) => name
@@ -253,7 +355,9 @@ private object MigrationBuilderMacros {
     }
   }
 
-  private def parentOfField(at: Expr[DynamicOptic], ctx: Expr[String])(using Quotes): Expr[DynamicOptic] =
+  private def parentOfField(at: Expr[DynamicOptic], ctx: Expr[String])(using
+      Quotes
+  ): Expr[DynamicOptic] =
     '{
       val ns = $at.nodes
       ns.lastOption match {
@@ -265,6 +369,33 @@ private object MigrationBuilderMacros {
           )
       }
     }
+
+  // ----------------------------
+// Optic extraction helpers (for enum/case APIs)
+// ----------------------------
+
+  def sourceOpticImpl[A: Type, B: Type, T: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      sel: Expr[A => T]
+  )(using Quotes): Expr[DynamicOptic] = {
+    val sa = '{ $builder.sourceSchema }
+    extractDynamicOptic[A, T](sel, sa)
+  }
+
+  def renameCaseAtImpl[A: Type, B: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      atSel: Expr[A => Any],
+      from: Expr[String],
+      to: Expr[String]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val sa = '{ $builder.sourceSchema }
+    val atDyn = extractDynamicOptic[A, Any](atSel, sa)
+    '{
+      $builder.copyAppended(
+        RenameCase(at = $atDyn, from = $from, to = $to)
+      )
+    }
+  }
 
   private def ensureFieldSelectorEnd(at: Expr[DynamicOptic], ctx: String)(using
       Quotes
@@ -291,7 +422,7 @@ private object MigrationBuilderMacros {
 
     val sb = '{ $builder.targetSchema }
     val targetDyn = extractDynamicOptic[B, Any](targetSel, sb)
-    val nameE   = lastFieldName(targetDyn, Expr("addField(target)"))
+    val nameE = lastFieldName(targetDyn, Expr("addField(target)"))
     val parentE = parentOfField(targetDyn, Expr("addField(target)"))
     val atField = '{ $parentE.field($nameE) }
 
@@ -438,15 +569,18 @@ private object MigrationBuilderMacros {
     // `transformField` in the suggested design can also rename; we always emit a Rename (no-op if same name),
     // then apply the value transform at the (original) field location.
     '{
+      // After a rename we must continue at the *new* field path.
+      val renamedAt = $parentDyn.field($toNameE)
       $builder
         .copyAppended(Rename(at = $atField, to = $toNameE))
         .copyAppended(
           TransformValue(
-            at = $atField,
+            at = renamedAt,
             transform = $transform.asInstanceOf[SchemaExpr[Any, Any]]
           )
         )
     }
+
   }
 
   // ----------------------------
@@ -501,16 +635,18 @@ private object MigrationBuilderMacros {
 
         // Rename (if needed) happens first, then Mandate at the (renamed) location.
         '{
+          // After a rename we must continue at the *new* field path.
+          val renamedAt = $sourceParen.field($targetNameE)
           $builder
             .copyAppended(Rename(at = $atField, to = $targetNameE))
             .copyAppended(
               Mandate(
-                at = $atField,
+                at = renamedAt,
                 default = $capturedDefault.asInstanceOf[SchemaExpr[Any, Any]]
               )
             )
-
         }
+
     }
   }
 
@@ -535,10 +671,13 @@ private object MigrationBuilderMacros {
     val atField = '{ $parentDyn.field($sourceNameE) }
 
     '{
+      // After a rename we must continue at the *new* field path.
+      val renamedAt = $parentDyn.field($targetNameE)
       $builder
         .copyAppended(Rename(at = $atField, to = $targetNameE))
-        .copyAppended(Optionalize(at = $atField))
+        .copyAppended(Optionalize(at = renamedAt))
     }
+
   }
 
   // ----------------------------
@@ -562,15 +701,18 @@ private object MigrationBuilderMacros {
     val atField = '{ $parentDyn.field($sourceNameE) }
 
     '{
+      // After a rename we must continue at the *new* field path.
+      val renamedAt = $parentDyn.field($targetNameE)
       $builder
         .copyAppended(Rename(at = $atField, to = $targetNameE))
         .copyAppended(
           ChangeType(
-            at = $atField,
+            at = renamedAt,
             converter = $converter.asInstanceOf[SchemaExpr[Any, Any]]
           )
         )
     }
+
   }
 
   // ----------------------------
