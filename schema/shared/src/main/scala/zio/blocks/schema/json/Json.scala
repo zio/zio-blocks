@@ -240,7 +240,8 @@ sealed trait Json extends Product with Serializable { self =>
    * @return
    *   Either an error if the patch cannot be applied, or the patched JSON
    */
-  def patch(patch: JsonPatch): Either[JsonError, Json] = ???
+  def patch(patch: JsonPatch): Either[JsonError, Json] =
+    patch(this, JsonPatchMode.Strict)
 
   /**
    * Applies a [[JsonPatch]], throwing on failure.
@@ -264,7 +265,8 @@ sealed trait Json extends Product with Serializable { self =>
    * @return
    *   A patch that transforms this into target
    */
-  def diff(target: Json): JsonPatch = ???
+  def diff(target: Json): JsonPatch =
+    JsonPatch.diff(this, target)
 
   // ============ Validation ============
 
