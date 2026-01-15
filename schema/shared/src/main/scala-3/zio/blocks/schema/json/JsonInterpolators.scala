@@ -58,12 +58,10 @@ object PathInterpolatorMacro {
       report.errorAndAbort("Path interpolator requires exactly one string part")
     }
 
-    val _pathString = parts.head
-    val _           = _pathString
+    val pathString = parts.head
 
     // Parse the path string and build a DynamicOptic
-    // For now, just return root as a placeholder since DynamicOptic doesn't have a parse method
-    '{ DynamicOptic.root }
+    '{ DynamicOptic.parse(${ Expr(pathString) }) }
   }
 }
 

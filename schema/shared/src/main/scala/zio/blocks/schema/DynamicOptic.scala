@@ -67,6 +67,119 @@ object DynamicOptic {
 
   val wrapped: DynamicOptic = new DynamicOptic(Vector(Node.Wrapped))
 
+  /**
+   * Parse a JSONPath-like string into a DynamicOptic.
+   *
+   * Supports:
+   *  - `foo.bar` - field access
+   *  - `users[0]` - array index
+   *  - `users[*]` - all array elements
+   *  - `config{*}` - all object values
+   *  - `config{*:}` - all object keys
+   *  - `[0,2,5]` - multiple indices
+   *  - Backtick escaping for field names with special chars
+   */
+  def parse(path: String): DynamicOptic = {
+    if (path.isEmpty || path == "$" || path == ".") return root
+
+    val pathStr = if (path.startsWith("$.")) path.substring(2) else if (path.startsWith("$")) path.substring(1) else path
+    var nodes = Vector.empty[Node]
+    var i = 0
+    val len = pathStr.length
+
+    while (i < len) {
+      val ch = pathStr.charAt(i)
+      
+      ch match {
+        case '.' =>
+          // Field access: .field or .`field.with.dots`
+          i += 1
+          if (i < len && pathStr.charAt(i) == '`') {
+            // Backtick-escaped field name
+            i += 1
+            val start = i
+            while (i < len && pathStr.charAt(i) != '`') i += 1
+            if (i >= len) throw new IllegalArgumentException(s"Unclosed backtick in path: $path")
+            val fieldName = pathStr.substring(start, i)
+            nodes :+= Node.Field(fieldName)
+            i += 1
+          } else {
+            // Regular field name
+            val start = i
+            while (i < len && pathStr.charAt(i) != '.' && pathStr.charAt(i) != '[' && pathStr.charAt(i) != '{') i += 1
+            val fieldName = pathStr.substring(start, i)
+            if (fieldName.nonEmpty) nodes :+= Node.Field(fieldName)
+          }
+
+        case '`' =>
+          // Backtick-escaped field name at start of path
+          i += 1
+          val start = i
+          while (i < len && pathStr.charAt(i) != '`') i += 1
+          if (i >= len) throw new IllegalArgumentException(s"Unclosed backtick in path: $path")
+          val fieldName = pathStr.substring(start, i)
+          nodes :+= Node.Field(fieldName)
+          i += 1
+
+        case '[' =>
+          // Array access: [0], [*], [0,2,5], [0:5]
+          i += 1
+          val start = i
+          while (i < len && pathStr.charAt(i) != ']') i += 1
+          if (i >= len) throw new IllegalArgumentException(s"Unclosed bracket in path: $path")
+          val content = pathStr.substring(start, i).trim
+          i += 1
+
+          if (content == "*") {
+            // All elements
+            nodes :+= Node.Elements
+          } else if (content.contains(",")) {
+            // Multiple indices: [0,2,5]
+            val indices = content.split(",").map(_.trim.toInt).toSeq
+            nodes :+= Node.AtIndices(indices)
+          } else if (content.contains(":")) {
+            // Slice notation not fully supported, treat as all elements for now
+            nodes :+= Node.Elements
+          } else if (content.startsWith("\"") && content.endsWith("\"")) {
+            // Bracket field notation: ["fieldName"]
+            val fieldName = content.substring(1, content.length - 1)
+            nodes :+= Node.Field(fieldName)
+          } else {
+            // Single index
+            nodes :+= Node.AtIndex(content.toInt)
+          }
+
+        case '{' =>
+          // Object access: {*} or {*:}
+          i += 1
+          val start = i
+          while (i < len && pathStr.charAt(i) != '}') i += 1
+          if (i >= len) throw new IllegalArgumentException(s"Unclosed brace in path: $path")
+          val content = pathStr.substring(start, i).trim
+          i += 1
+
+          if (content == "*") {
+            // All object values
+            nodes :+= Node.MapValues
+          } else if (content == "*:") {
+            // All object keys
+            nodes :+= Node.MapKeys
+          } else {
+            throw new IllegalArgumentException(s"Invalid object selector: {$content}")
+          }
+
+        case _ =>
+          // Field without leading dot (first field)
+          val start = i
+          while (i < len && pathStr.charAt(i) != '.' && pathStr.charAt(i) != '[' && pathStr.charAt(i) != '{') i += 1
+          val fieldName = pathStr.substring(start, i)
+          if (fieldName.nonEmpty) nodes :+= Node.Field(fieldName)
+      }
+    }
+
+    new DynamicOptic(nodes)
+  }
+
   sealed trait Node
 
   object Node {
