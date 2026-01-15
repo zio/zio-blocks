@@ -26,7 +26,7 @@ final class ToonReader private[toon] (
   private[toon] var discriminatorField: Option[String]
 ) {
 
-  private[this] var lines: Array[String]       = _
+  private[this] var lines: Array[String]       = null
   private[this] var lineIndex: Int             = 0
   private[this] var currentLine: String        = ""
   private[this] var currentDepth: Int          = 0

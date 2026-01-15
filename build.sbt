@@ -29,15 +29,15 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; benchmarks/test; examples/test"
+  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; +schema-toonJVM/test; benchmarks/test; examples/test"
 )
 addCommandAlias(
   "testJS",
-  "+schemaJS/test; +chunkJS/test; +streamsJS/test"
+  "+schemaJS/test; +chunkJS/test; +schema-toonJS/test; +streamsJS/test"
 )
 addCommandAlias(
   "testNative",
-  "+schemaNative/test; +chunkNative/test; +streamsNative/test"
+  "+schemaNative/test; +chunkNative/test; +schema-toonNative/test; +streamsNative/test"
 )
 
 lazy val root = project
