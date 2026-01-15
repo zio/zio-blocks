@@ -406,6 +406,103 @@ object JsonSpec extends ZIOSpecDefault {
       test("toBigDecimal") {
         assertTrue(Json.number(42).asInstanceOf[Json.Number].toBigDecimal == BigDecimal(42))
       }
+    ),
+    suite("interpolators")(
+      suite("path interpolator")(
+        test("parse simple field") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"name"
+          val json = Json.Object("name" -> Json.String("Alice"))
+          assertTrue(json.get(path).one == Right(Json.String("Alice")))
+        },
+        test("parse nested fields") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"user.name"
+          val json = Json.Object("user" -> Json.Object("name" -> Json.String("Alice")))
+          assertTrue(json.get(path).one == Right(Json.String("Alice")))
+        },
+        test("parse array index") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"users[0]"
+          val json = Json.Object("users" -> Json.Array(Json.String("Alice"), Json.String("Bob")))
+          assertTrue(json.get(path).one == Right(Json.String("Alice")))
+        },
+        test("parse nested field with array index") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"users[0].name"
+          val json = Json.Object(
+            "users" -> Json.Array(
+              Json.Object("name" -> Json.String("Alice")),
+              Json.Object("name" -> Json.String("Bob"))
+            )
+          )
+          assertTrue(json.get(path).one == Right(Json.String("Alice")))
+        },
+        test("parse all elements wildcard") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"users[*]"
+          val json = Json.Object("users" -> Json.Array(Json.String("Alice"), Json.String("Bob")))
+          assertTrue(json.get(path).toEither == Right(Vector(Json.String("Alice"), Json.String("Bob"))))
+        },
+        test("parse field with backticks") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"`field.with.dots`"
+          val json = Json.Object("field.with.dots" -> Json.String("value"))
+          assertTrue(json.get(path).one == Right(Json.String("value")))
+        },
+        test("parse root path with double dollar") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"$$"
+          val json = Json.String("root")
+          assertTrue(json.get(path).one == Right(Json.String("root")))
+        },
+        test("parse empty path") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p""
+          val json = Json.String("root")
+          assertTrue(json.get(path).one == Right(Json.String("root")))
+        },
+        test("parse path with dollar prefix") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"$$.user.name"
+          val json = Json.Object("user" -> Json.Object("name" -> Json.String("Alice")))
+          assertTrue(json.get(path).one == Right(Json.String("Alice")))
+        }
+      ),
+      suite("json interpolator")(
+        test("parse null") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val json = j"null"
+          assertTrue(json == Json.Null)
+        },
+        test("parse boolean") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val json = j"true"
+          assertTrue(json == Json.Boolean.True)
+        },
+        test("parse number") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val json = j"42"
+          assertTrue(json == Json.Number("42"))
+        },
+        test("parse string") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val json = j""""hello""""
+          assertTrue(json == Json.String("hello"))
+        },
+        test("parse object") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val json = j"""{"name": "Alice", "age": 30}"""
+          val expected = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number("30"))
+          assertTrue(json == expected)
+        },
+        test("parse array") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val json = j"""[1, 2, 3]"""
+          val expected = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3"))
+          assertTrue(json == expected)
+        }
+      )
     )
   )
 }
