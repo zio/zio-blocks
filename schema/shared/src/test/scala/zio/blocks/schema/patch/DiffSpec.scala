@@ -5,7 +5,7 @@ import zio.test._
 import zio.Random
 import java.time._
 
-object DiffSpec extends ZIOSpecDefault {
+object DiffSpec extends SchemaBaseSpec {
 
   def spec = suite("Diff")(
     suite("Empty patch")(

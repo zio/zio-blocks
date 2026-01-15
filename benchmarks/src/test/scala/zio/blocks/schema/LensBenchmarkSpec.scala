@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.test.Assertion._
 import zio.test._
 
-object LensBenchmarkSpec extends ZIOSpecDefault {
+object LensBenchmarkSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("LensBenchmarkSpec")(
     suite("LensGetBenchmark")(
       test("has consistent output") {

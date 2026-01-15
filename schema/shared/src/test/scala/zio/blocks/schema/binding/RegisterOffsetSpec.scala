@@ -1,9 +1,10 @@
 package zio.blocks.schema.binding
 
+import zio.blocks.schema.SchemaBaseSpec
 import zio.test.Assertion._
 import zio.test._
 
-object RegisterOffsetSpec extends ZIOSpecDefault {
+object RegisterOffsetSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("RegisterOffsetSpec")(
     suite("RegisterOffset.apply")(
       test("calculates correct RegisterOffset") {

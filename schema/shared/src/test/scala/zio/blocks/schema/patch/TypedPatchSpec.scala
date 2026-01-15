@@ -10,7 +10,7 @@ import zio.test._
  * new PRD methods (set, empty) and backward compatibility with existing replace
  * methods.
  */
-object TypedPatchSpec extends ZIOSpecDefault {
+object TypedPatchSpec extends SchemaBaseSpec {
 
   // Test data types
   case class Person(name: String, age: Int, address: Address)

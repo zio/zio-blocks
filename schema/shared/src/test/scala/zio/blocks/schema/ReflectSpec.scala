@@ -7,7 +7,7 @@ import zio.test._
 import java.time._
 import java.util.{Currency, UUID}
 
-object ReflectSpec extends ZIOSpecDefault {
+object ReflectSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("ReflectSpec")(
     suite("Reflect")(
       test("has consistent asDynamic and isDynamic") {
