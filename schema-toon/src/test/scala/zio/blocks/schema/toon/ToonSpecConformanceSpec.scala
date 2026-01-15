@@ -986,7 +986,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("tabs in indentation error in strict mode") {
         val input = "items[2]:\n\t- 1\n  - 2"
         val codec = ToonTestUtils.deriveCodec(Nums.schema, ToonBinaryCodecDeriver)
-        decodeError(input, "Tabs are not allowed in indentation", codec, ReaderConfig.withStrict(true))
+        decodeError(input, "Line 2: Tabs are not allowed in indentation at: .", codec, ReaderConfig.withStrict(true))
       },
       test("tabs in indentation accepted in non-strict mode") {
         val input  = "name: test"
@@ -997,7 +997,12 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         val input   = "items[3]{id,note}:\n  1,a\n\n  2,b\n  3,c"
         val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
         val codec   = ToonTestUtils.deriveCodec(ItemsWithNote.schema, deriver)
-        decodeError(input, "Blank lines are not allowed inside arrays", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Line 3: Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .items",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("blank lines inside tabular arrays parsed correctly") {
         val input   = "items[2]{id,note}:\n  1,first\n  2,second"
@@ -1009,17 +1014,30 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("indentation not multiple of indent size errors in strict mode") {
         val input = "user:\n   name: Ada" // 3 spaces instead of 2
         val codec = ToonTestUtils.deriveCodec(UserWrapper.schema, ToonBinaryCodecDeriver)
-        decodeError(input, "Indentation must be multiple of", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Line 2: Indentation must be multiple of 2 spaces at: .user",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("path expansion conflict errors in strict mode") {
         val input  = "a.b: 1\na: 2"
         val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
-        decodeDynamicError(input, "Path expansion conflict", config)
+        decodeDynamicError(
+          input,
+          "Line 3: Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
+          config
+        )
       },
       test("path expansion conflict object vs array errors in strict mode") {
         val input  = "a.b: 1\na[2]: 2,3"
         val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
-        decodeDynamicError(input, "Path expansion conflict", config)
+        decodeDynamicError(
+          input,
+          "Line 3: Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
+          config
+        )
       },
       test("path expansion conflict uses LWW in non-strict mode") {
         // In non-strict mode, LWW applies: a: 2 wins over a.b: 1
@@ -1036,12 +1054,12 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("array count mismatch errors for inline arrays") {
         // Declared [3] but only 2 values provided
         val input = "nums[3]: 1,2"
-        decodeError[Nums](input, "Array count mismatch: expected 3 items but got 2")
+        decodeError[Nums](input, "Array count mismatch: expected 3 items but got 2 at: .nums")
       },
       test("array count mismatch errors for too many items") {
         // Declared [2] but 3 values provided
         val input = "nums[2]: 1,2,3"
-        decodeError[Nums](input, "Array count mismatch: expected 2 items but got 3")
+        decodeError[Nums](input, "Array count mismatch: expected 2 items but got 3 at: .nums")
       },
       test("array count match succeeds") {
         // Declared [3] with exactly 3 values
@@ -2127,12 +2145,22 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("throws on expansion conflict (object vs primitive) when strict=true") {
         val codec  = ToonBinaryCodec.dynamicValueCodec
         val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
-        decodeError("a.b: 1\na: 2", "conflict", codec, config)
+        decodeError(
+          "a.b: 1\na: 2",
+          "Line 3: Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
+          codec,
+          config
+        )
       },
       test("throws on expansion conflict (object vs array) when strict=true") {
         val codec  = ToonBinaryCodec.dynamicValueCodec
         val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
-        decodeError("a.b: 1\na[2]: 2,3", "conflict", codec, config)
+        decodeError(
+          "a.b: 1\na[2]: 2,3",
+          "Line 3: Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
+          codec,
+          config
+        )
       },
       test("applies LWW when strict=false (primitive overwrites expanded object)") {
         val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
@@ -2554,32 +2582,45 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
     ),
     suite("decode validation errors")(
       test("throws on array length mismatch (inline primitives - too many)") {
-        decodeError[Tags]("tags[2]: a,b,c", "Array count mismatch: expected 2 items but got 3")
+        decodeError[Tags]("tags[2]: a,b,c", "Array count mismatch: expected 2 items but got 3 at: .tags")
       },
       test("throws on tabular row value count mismatch with header field count") {
         val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
         val codec   = deriveCodec(PersonListWrapper.schema, deriver)
         // The decoder reports "Missing required field" when a tabular row has fewer values than headers
-        decodeError("people[2]{name,age}:\n  Ada,25\n  Bob", "Missing required field in tabular row: age", codec)
+        decodeError(
+          "people[2]{name,age}:\n  Ada,25\n  Bob",
+          "Missing required field in tabular row: age at: .people",
+          codec
+        )
       },
       test("throws on tabular row count mismatch with header length") {
         val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
         val codec   = deriveCodec(PersonListWrapper.schema, deriver)
         // With [1], decoder reads 1 row then tries to parse next as key:value
-        decodeError("people[1]{name,age}:\n  Ada,25\n  Bob,30", "Expected key:value, no colon found", codec)
+        decodeError(
+          "people[1]{name,age}:\n  Ada,25\n  Bob,30",
+          "Line 3: Expected key:value, no colon found at: .",
+          codec
+        )
       },
       test("throws on unterminated string") {
-        decodeError[NameWrapper]("name: \"unterminated", "Unterminated string")
+        decodeError[NameWrapper]("name: \"unterminated", "Line 1: Unterminated string at: .name")
       },
       test("throws on invalid escape sequence") {
-        decodeError[NameWrapper]("name: \"a\\x\"", "Invalid escape")
+        decodeError[NameWrapper]("name: \"a\\x\"", "Line 1: Invalid escape: \\x at: .name")
       }
     ),
     suite("decode indentation errors")(
       test("throws on object field with non-multiple indentation (3 spaces with indent=2)") {
         val input = "a:\n   b: 1"
         val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Indentation must be multiple of", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Line 2: Indentation must be multiple of 2 spaces at: .",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("accepts correct indentation with custom indent size (4 spaces with indent=4)") {
         val input    = "a:\n    b: 1"
@@ -2590,12 +2631,12 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("throws on tab character used in indentation") {
         val input = "a:\n\tb: 1"
         val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Tabs are not allowed in indentation", codec, ReaderConfig.withStrict(true))
+        decodeError(input, "Line 2: Tabs are not allowed in indentation at: .", codec, ReaderConfig.withStrict(true))
       },
       test("throws on mixed tabs and spaces in indentation") {
         val input = "a:\n \tb: 1"
         val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Tabs are not allowed in indentation", codec, ReaderConfig.withStrict(true))
+        decodeError(input, "Line 2: Tabs are not allowed in indentation at: .", codec, ReaderConfig.withStrict(true))
       },
       test("accepts tabs in quoted string values") {
         val input  = "text: \"hello\\tworld\""
@@ -2637,18 +2678,33 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("throws on blank line inside list array") {
         val input = "items[3]:\n  - a\n\n  - b\n  - c"
         val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Blank lines are not allowed inside arrays", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Line 3: Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("throws on blank line inside tabular array") {
         val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
         val codec   = deriveCodec(PersonListWrapper.schema, deriver)
         val input   = "people[2]{name,age}:\n  Ada,25\n\n  Bob,30"
-        decodeError(input, "Blank lines are not allowed inside arrays", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Line 3: Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .people",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("throws on multiple blank lines inside array") {
         val input = "items[2]:\n  - a\n\n\n  - b"
         val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Blank lines are not allowed inside arrays", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Line 3: Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("accepts blank line between root-level fields") {
         val input    = "a: 1\n\nb: 2"
