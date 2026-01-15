@@ -110,12 +110,43 @@ trait GolemAutoRegister extends ScalaModule {
           (Ann.regex + """\s*(?:final\s+)?class\s+([A-Za-z_]\w*)\s*extends\s+([^\s\{]+)""").r
 
         def ctorTypes(params: String): List[String] = {
-          val trimmed = params.trim
-          if (trimmed.isEmpty) Nil
+          def stripComments(s: String): String = {
+            val noBlock = s.replaceAll("(?s)/\\*.*?\\*/", "")
+            noBlock.replaceAll("(?m)//.*$", "")
+          }
+
+          def splitTopLevelCommas(s: String): List[String] = {
+            val out = scala.collection.mutable.ListBuffer.empty[String]
+            val buf = new java.lang.StringBuilder
+            var paren = 0
+            var bracket = 0
+            var brace = 0
+            var i = 0
+            while (i < s.length) {
+              val ch = s.charAt(i)
+              ch match {
+                case '(' => paren += 1; buf.append(ch)
+                case ')' => if (paren > 0) paren -= 1; buf.append(ch)
+                case '[' => bracket += 1; buf.append(ch)
+                case ']' => if (bracket > 0) bracket -= 1; buf.append(ch)
+                case '{' => brace += 1; buf.append(ch)
+                case '}' => if (brace > 0) brace -= 1; buf.append(ch)
+                case ',' if paren == 0 && bracket == 0 && brace == 0 =>
+                  out += buf.toString
+                  buf.setLength(0)
+                case _ =>
+                  buf.append(ch)
+              }
+              i += 1
+            }
+            out += buf.toString
+            out.toList
+          }
+
+          val cleaned = stripComments(params).trim
+          if (cleaned.isEmpty) Nil
           else {
-            trimmed
-              .split(",")
-              .toList
+            splitTopLevelCommas(cleaned)
               .map(_.trim)
               .filter(_.nonEmpty)
               .flatMap { p =>
