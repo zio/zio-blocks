@@ -147,6 +147,12 @@ private object RemoteAgentRpcMacro {
           case _ =>
             val full = tpe.typeSymbol.fullName
             if full.startsWith("scala.scalajs.") then "sjs_" + full.stripPrefix("scala.scalajs.").replace('.', '_')
+            else if full.startsWith("scala.collection.immutable.") then
+              "sci_" + full.stripPrefix("scala.collection.immutable.").replace('.', '_')
+            else if full.startsWith("scala.collection.mutable.") then
+              "scm_" + full.stripPrefix("scala.collection.mutable.").replace('.', '_')
+            else if full.startsWith("scala.collection.") then
+              "sc_" + full.stripPrefix("scala.collection.").replace('.', '_')
             else if full.startsWith("scala.") then "s_" + full.stripPrefix("scala.").replace('.', '_')
             else if full.startsWith("java.lang.") then "jl_" + full.stripPrefix("java.lang.").replace('.', '_')
             else if full.startsWith("java.util.") then "ju_" + full.stripPrefix("java.util.").replace('.', '_')

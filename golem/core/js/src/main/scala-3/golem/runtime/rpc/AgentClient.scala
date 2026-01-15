@@ -277,6 +277,12 @@ private object AgentClientInlineMacros {
           case _ =>
             val full = tpe.typeSymbol.fullName
             if full.startsWith("scala.scalajs.") then "sjs_" + full.stripPrefix("scala.scalajs.").replace('.', '_')
+            else if full.startsWith("scala.collection.immutable.") then
+              "sci_" + full.stripPrefix("scala.collection.immutable.").replace('.', '_')
+            else if full.startsWith("scala.collection.mutable.") then
+              "scm_" + full.stripPrefix("scala.collection.mutable.").replace('.', '_')
+            else if full.startsWith("scala.collection.") then
+              "sc_" + full.stripPrefix("scala.collection.").replace('.', '_')
             else if full.startsWith("scala.") then "s_" + full.stripPrefix("scala.").replace('.', '_')
             else if full.startsWith("java.lang.") then "jl_" + full.stripPrefix("java.lang.").replace('.', '_')
             else if full.startsWith("java.util.") then "ju_" + full.stripPrefix("java.util.").replace('.', '_')
@@ -292,6 +298,40 @@ private object AgentClientInlineMacros {
       else s"${methodData.method.name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
     }
 
+    // Conservative fallback for non-overloaded methods: some Scala.js encodings use only erased param shapes.
+    // To avoid "TypeError: not a function" for certain generic/collection types, also publish an erased signature name.
+    def encodeErasedParamTypeName(tpe0: TypeRepr): String = {
+      val tpe = tpe0.dealias.widen
+      if tpe =:= TypeRepr.of[Unit] then "V"
+      else if tpe =:= TypeRepr.of[Boolean] then "Z"
+      else if tpe =:= TypeRepr.of[Byte] then "B"
+      else if tpe =:= TypeRepr.of[Short] then "S"
+      else if tpe =:= TypeRepr.of[Char] then "C"
+      else if tpe =:= TypeRepr.of[Int] then "I"
+      else if tpe =:= TypeRepr.of[Long] then "J"
+      else if tpe =:= TypeRepr.of[Float] then "F"
+      else if tpe =:= TypeRepr.of[Double] then "D"
+      else if tpe =:= TypeRepr.of[String] then "T"
+      else
+        tpe match {
+          case AppliedType(arr, List(elem)) if arr.typeSymbol.fullName == "scala.Array" =>
+            "A" + encodeErasedParamTypeName(elem)
+          case _ =>
+            // Erased reference type
+            "O"
+        }
+    }
+
+    def scalaJsMethodNameErased(methodData: MethodData): String = {
+      val paramTypeNames = methodData.params.map(_._2).map(encodeErasedParamTypeName)
+      val resultTypeName = encodeTypeName(methodData.returnType)
+      if paramTypeNames.isEmpty then s"${methodData.method.name}__${resultTypeName}"
+      else s"${methodData.method.name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
+    }
+
+    val overloadCounts: Map[String, Int] =
+      pendingMethods.groupBy(_.method.name).view.mapValues(_.size).toMap
+
     val objSym =
       Symbol.newVal(Symbol.spliceOwner, "$agentClient", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
     val objVal = ValDef(objSym, Some('{ js.Dynamic.literal() }.asTerm))
@@ -300,6 +340,7 @@ private object AgentClientInlineMacros {
     val updates: List[Statement] =
       pendingMethods.map { data =>
         val jsName     = scalaJsMethodName(data)
+        val jsNameAlt  = scalaJsMethodNameErased(data)
         val methodTpe  = traitRepr.memberType(data.method)
         val lambdaTerm = methodTpe match {
           case mt: MethodType =>
@@ -327,7 +368,15 @@ private object AgentClientInlineMacros {
               report.errorAndAbort(s"Unsupported agent method arity for ${data.method.name}: $n (supported: 0-3)")
           }
 
-        '{ $objRef.updateDynamic(${ Expr(jsName) })($jsFnExpr) }.asTerm
+        // Always publish the precise name. Publish erased fallback only when the method name is not overloaded.
+        val primary = '{ $objRef.updateDynamic(${ Expr(jsName) })($jsFnExpr) }.asTerm
+        if (jsNameAlt == jsName || overloadCounts.getOrElse(data.method.name, 0) > 1)
+          primary
+        else
+          Block(
+            List(primary),
+            '{ $objRef.updateDynamic(${ Expr(jsNameAlt) })($jsFnExpr) }.asTerm
+          )
       }
 
     // Minimal Scala.js runtime type info: provide `$classData.ancestors[...]` entries so `$as_...` succeeds.
