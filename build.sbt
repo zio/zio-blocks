@@ -29,7 +29,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; benchmarks/test; examples/test"
+  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; +schema-thrift/test; benchmarks/test; examples/test"
 )
 addCommandAlias(
   "testJS",
@@ -50,6 +50,7 @@ lazy val root = project
     schema.js,
     schema.native,
     `schema-avro`,
+    `schema-thrift`,
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-toon`.native,
@@ -163,6 +164,27 @@ lazy val `schema-avro` = project
       "org.apache.avro" % "avro"         % "1.12.1",
       "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
+        )
+    })
+  )
+
+
+lazy val `schema-thrift` = project
+  .settings(stdSettings("zio-blocks-schema-thrift"))
+  .dependsOn(schema.jvm)
+  .settings(buildInfoSettings("zio.blocks.schema.thrift"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.apache.thrift" % "libthrift"    % "0.19.0",
+      "dev.zio"          %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio"          %% "zio-test-sbt" % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq()
