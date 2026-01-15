@@ -22,7 +22,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   /**
    * Returns the TypeId for this schema's type. TypeId provides a richer type
-   * representation than TypeName, supporting intersection types, union types, etc.
+   * representation than TypeName, supporting intersection types, union types,
+   * etc.
    */
   def typeId: TypeId[A] = reflect.typeId
 

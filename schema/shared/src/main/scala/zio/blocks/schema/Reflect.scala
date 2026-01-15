@@ -166,8 +166,9 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   def typeName(value: TypeName[A]): Reflect[F, A]
 
   /**
-   * Returns the TypeId for this type. TypeId provides a richer type representation
-   * than TypeName, supporting intersection types, union types, opaque types, etc.
+   * Returns the TypeId for this type. TypeId provides a richer type
+   * representation than TypeName, supporting intersection types, union types,
+   * opaque types, etc.
    */
   def typeId: TypeId[A] = TypeId.fromTypeName(typeName)
 
