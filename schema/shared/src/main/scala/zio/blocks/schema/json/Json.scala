@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 
 import java.io.{Reader, Writer}
@@ -155,22 +156,50 @@ sealed trait Json extends Product with Serializable { self =>
 
   // ============ Modification ============
 
-  /** Modifies values at the given path using the provided function. */
-  def modify(path: DynamicOptic)(f: Json => Json): Json = modifyOrFail(path)(j => Right(f(j))).getOrElse(this)
+  /**
+   * Modifies values at the given path using the provided function.
+   *
+   * If the path does not exist, returns this JSON unchanged.
+   *
+   * @param path
+   *   The path to values to modify
+   * @param f
+   *   The modification function
+   * @return
+   *   The modified JSON
+   */
+  def modify(path: DynamicOptic, f: Json => Json): Json =
+    modifyOrFail(path, { case j => f(j) }).getOrElse(this)
 
-  /** Modifies values at the given path using a function that may fail. */
-  def modifyOrFail(path: DynamicOptic)(f: Json => Either[JsonError, Json]): Either[JsonError, Json] =
+  /**
+   * Modifies values at the given path using a partial function.
+   *
+   * Values for which the partial function is not defined are left unchanged.
+   *
+   * @param path
+   *   The path to values to modify
+   * @param pf
+   *   The partial modification function
+   * @return
+   *   Either an error if the path is invalid, or the modified JSON
+   */
+  def modifyOrFail(path: DynamicOptic, pf: PartialFunction[Json, Json]): Either[JsonError, Json] = {
+    val f: Json => Either[JsonError, Json] = { j =>
+      if (pf.isDefinedAt(j)) Right(pf(j))
+      else Right(j) // Leave unchanged if partial function not defined
+    }
     if (path.nodes.isEmpty) f(this)
     else modifyAtPath(path.nodes, 0, f)
+  }
 
   /** Sets the value at the given path. */
-  def set(path: DynamicOptic, value: Json): Json = modify(path)(_ => value)
+  def set(path: DynamicOptic, value: Json): Json = modify(path, _ => value)
 
   /**
    * Sets the value at the given path, returning an error if the path doesn't
    * exist.
    */
-  def setOrFail(path: DynamicOptic, value: Json): Either[JsonError, Json] = modifyOrFail(path)(_ => Right(value))
+  def setOrFail(path: DynamicOptic, value: Json): Either[JsonError, Json] = modifyOrFail(path, { case _ => value })
 
   /** Deletes the value at the given path. */
   def delete(path: DynamicOptic): Json = deleteOrFail(path).getOrElse(this)
@@ -716,6 +745,20 @@ sealed trait Json extends Product with Serializable { self =>
    */
   def encodeToBytes(config: WriterConfig): Array[Byte] =
     encode(config).getBytes(StandardCharsets.UTF_8)
+
+  /**
+   * Encodes this JSON to a [[Chunk]] of bytes (UTF-8).
+   */
+  def encodeToChunk: Chunk[Byte] = encodeToChunk(WriterConfig)
+
+  /**
+   * Encodes this JSON to a [[Chunk]] of bytes (UTF-8) with configuration.
+   *
+   * @param config
+   *   Writer configuration
+   */
+  def encodeToChunk(config: WriterConfig): Chunk[Byte] =
+    Chunk.fromArray(encodeToBytes(config))
 
   /** Encodes this JSON value to a ByteBuffer. */
   def encodeTo(buffer: ByteBuffer): Unit = encodeTo(buffer, WriterConfig)
@@ -1289,6 +1332,16 @@ object Json {
   def parse(buffer: ByteBuffer): Either[JsonError, Json] = decode(buffer)
 
   /**
+   * Parses a JSON value from a [[Chunk]] of bytes (UTF-8).
+   *
+   * @param chunk
+   *   The JSON bytes
+   * @return
+   *   Either a [[JsonError]] or the parsed JSON
+   */
+  def parse(chunk: Chunk[Byte]): Either[JsonError, Json] = decode(chunk)
+
+  /**
    * Parses a JSON value from a [[Reader]].
    */
   def parse(reader: Reader): Either[JsonError, Json] = decode(reader)
@@ -1320,6 +1373,12 @@ object Json {
     buffer.get(bytes)
     decode(bytes)
   }
+
+  /**
+   * Decodes a JSON value from a [[Chunk]] of bytes (UTF-8).
+   */
+  def decode(chunk: Chunk[Byte]): Either[JsonError, Json] =
+    decode(chunk.toArray)
 
   /**
    * Decodes a JSON value from a [[Reader]].
