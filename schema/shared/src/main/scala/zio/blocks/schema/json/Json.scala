@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 import java.io.{Reader, Writer}
 import java.nio.ByteBuffer
@@ -1194,6 +1195,20 @@ sealed trait Json { self =>
     buffer.put(bytes)
   }
 
+  /**
+   * Encodes this JSON to a [[Chunk]] of bytes (UTF-8).
+   */
+  def encodeToChunk: Chunk[Byte] = encodeToChunk(WriterConfig)
+
+  /**
+   * Encodes this JSON to a [[Chunk]] of bytes (UTF-8) with configuration.
+   *
+   * @param config
+   *   Writer configuration
+   */
+  def encodeToChunk(config: WriterConfig): Chunk[Byte] =
+    Chunk.fromArray(encodeToBytes(config))
+
   // ===========================================================================
   // Standard Methods
   // ===========================================================================
@@ -1442,6 +1457,17 @@ object Json {
     decode(buffer)
 
   /**
+   * Parses a JSON value from a [[Chunk]] of bytes (UTF-8).
+   *
+   * @param chunk
+   *   The JSON bytes
+   * @return
+   *   Either a [[JsonError]] or the parsed JSON
+   */
+  def parse(chunk: Chunk[Byte]): Either[JsonError, Json] =
+    decode(chunk)
+
+  /**
    * Parses a JSON value from a [[Reader]].
    *
    * @param reader
@@ -1494,6 +1520,16 @@ object Json {
     jsonCodec.decode(buffer, config).left.map(JsonError.fromSchemaError)
 
   /**
+   * Decodes a JSON value from the given [[Chunk]] of bytes using the default
+   * [[ReaderConfig]].
+   */
+  def decode(chunk: Chunk[Byte]): Either[JsonError, Json] =
+    decode(chunk, ReaderConfig)
+
+  def decode(chunk: Chunk[Byte], config: ReaderConfig): Either[JsonError, Json] =
+    decode(chunk.toArray, config)
+
+  /**
    * Decodes a JSON value from the given [[java.io.Reader]] using the provided
    * [[ReaderConfig]].
    *
@@ -1522,6 +1558,10 @@ object Json {
   /** Alias for [[decode(Array[Byte], ReaderConfig)]]. */
   def parse(bytes: scala.Array[Byte], config: ReaderConfig): Either[JsonError, Json] =
     decode(bytes, config)
+
+  /** Alias for [[decode(Chunk[Byte], ReaderConfig)]]. */
+  def parse(chunk: Chunk[Byte], config: ReaderConfig): Either[JsonError, Json] =
+    decode(chunk, config)
 
   // Typed Encoding (A => Json)
   // ===========================================================================
