@@ -3,7 +3,15 @@ package zio.blocks.schema.json
 import scala.collection.immutable.{Map => ScalaMap, Vector}
 
 /**
- * Simple JSON ADT for representing JSON values
+ * A simple JSON Abstract Data Type (ADT) for representing JSON values.
+ *
+ * This ADT provides a basic representation of JSON structures and is used as an
+ * intermediate format in Schema-based JSON codec derivation. It does not
+ * include advanced features like navigation, patching, merging, or parsing from
+ * string format—these are considered part of a larger Json system.
+ *
+ * The primary purpose of this ADT is to serve as a bridge between Scala values
+ * (via Schema and DynamicValue) and JSON representations.
  */
 sealed trait Json
 

@@ -4,6 +4,23 @@ import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 
 /**
  * Extension methods for deriving JsonEncoder and JsonDecoder from Schema[A].
+ *
+ * This object provides Schema-based derivation of JSON codecs. Values are
+ * converted to and from JSON using DynamicValue as an intermediate
+ * representation, allowing Schema validation and transformation during the
+ * process.
+ *
+ * The encoding process is straightforward:
+ *   - Schema[A] → DynamicValue → Json
+ *
+ * The decoding process combines structural heuristics with schema validation:
+ *   - Json → DynamicValue (using structure heuristics) → Schema[A] (with
+ *     validation)
+ *
+ * Note on variant detection: During JSON-to-DynamicValue conversion,
+ * single-field objects with uppercase key names are heuristically treated as
+ * variants. This works for standard patterns (e.g., Some/None in Option[T]) but
+ * Schema validation ensures correctness for all cases.
  */
 object JsonCodecOps {
 
@@ -11,10 +28,17 @@ object JsonCodecOps {
    * Derives a JsonEncoder[A] from Schema[A] using DynamicValue as an
    * intermediate representation.
    *
+   * The encoding process converts a value of type A through DynamicValue to
+   * Json, preserving type information and structure defined by the schema.
+   *
    * Example:
    * {{{
-   *   val personSchema: Schema[Person] = Schema.derived
-   *   val personEncoder: JsonEncoder[Person] = personSchema.deriveJsonEncoder
+   *   case class Person(name: String, age: Int)
+   *   object Person {
+   *     implicit val schema: Schema[Person] = Schema.derived
+   *   }
+   *   val encoder = Person.schema.deriveJsonEncoder
+   *   val json = encoder.encode(Person("Alice", 30))
    * }}}
    */
   def deriveJsonEncoder[A](schema: Schema[A]): JsonEncoder[A] =
@@ -29,10 +53,18 @@ object JsonCodecOps {
    * Derives a JsonDecoder[A] from Schema[A] using DynamicValue as an
    * intermediate representation.
    *
+   * The decoding process converts Json to DynamicValue using structural
+   * heuristics, then validates and transforms the result using the schema. This
+   * ensures type safety and correctness according to the schema definition.
+   *
    * Example:
    * {{{
-   *   val personSchema: Schema[Person] = Schema.derived
-   *   val personDecoder: JsonDecoder[Person] = personSchema.deriveJsonDecoder
+   *   case class Person(name: String, age: Int)
+   *   object Person {
+   *     implicit val schema: Schema[Person] = Schema.derived
+   *   }
+   *   val decoder = Person.schema.deriveJsonDecoder
+   *   val result = decoder.decode(Json.Object(...))
    * }}}
    */
   def deriveJsonDecoder[A](schema: Schema[A]): JsonDecoder[A] =
@@ -110,6 +142,16 @@ object JsonCodecOps {
 
   /**
    * Converts a Json representation to a DynamicValue.
+   *
+   * This function uses structure-based heuristics to reconstruct DynamicValue
+   * from Json, since Json is less typed than DynamicValue. The schema
+   * validation that follows ensures the result matches the intended type
+   * structure.
+   *
+   * Specifically, single-field objects with uppercase first letter are
+   * heuristically treated as variants (DynamicValue.Variant), while others are
+   * treated as records (DynamicValue.Record). This heuristic works well for
+   * common patterns but relies on schema validation for correctness.
    */
   private def jsonToDynamicValue(json: Json): Either[JsonDecoderError, DynamicValue] = json match {
     case Json.Null =>
@@ -139,12 +181,16 @@ object JsonCodecOps {
         Right(DynamicValue.Sequence(values))
       }
     case Json.Object(fields) =>
-      // Heuristic: Single-key objects with uppercase first letter are likely variants
-      // (e.g., Some, None, or sealed trait cases)
+      // Heuristic: Single-key objects with uppercase first letter in the key are likely
+      // variants (DynamicValue.Variant), as is common with sealed traits and Option.
+      // Multi-key objects are always records (DynamicValue.Record).
+      // Single-key objects with lowercase first letter are treated as single-field records.
+      // Schema validation (via fromDynamicValue) ensures correctness even if this heuristic
+      // misclassifies a structure.
       if (fields.size == 1) {
         val (key, value) = fields.head
         if (key.nonEmpty && key.head.isUpper) {
-          // Likely a variant - decode as such
+          // Likely a variant case
           jsonToDynamicValue(value).map { dv =>
             DynamicValue.Variant(key, dv)
           }
