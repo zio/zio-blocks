@@ -71,25 +71,26 @@ object DynamicOptic {
    * Parse a JSONPath-like string into a DynamicOptic.
    *
    * Supports:
-   *  - `foo.bar` - field access
-   *  - `users[0]` - array index
-   *  - `users[*]` - all array elements
-   *  - `config{*}` - all object values
-   *  - `config{*:}` - all object keys
-   *  - `[0,2,5]` - multiple indices
-   *  - Backtick escaping for field names with special chars
+   *   - `foo.bar` - field access
+   *   - `users[0]` - array index
+   *   - `users[*]` - all array elements
+   *   - `config{*}` - all object values
+   *   - `config{*:}` - all object keys
+   *   - `[0,2,5]` - multiple indices
+   *   - Backtick escaping for field names with special chars
    */
   def parse(path: String): DynamicOptic = {
     if (path.isEmpty || path == "$" || path == ".") return root
 
-    val pathStr = if (path.startsWith("$.")) path.substring(2) else if (path.startsWith("$")) path.substring(1) else path
+    val pathStr =
+      if (path.startsWith("$.")) path.substring(2) else if (path.startsWith("$")) path.substring(1) else path
     var nodes = Vector.empty[Node]
-    var i = 0
-    val len = pathStr.length
+    var i     = 0
+    val len   = pathStr.length
 
     while (i < len) {
       val ch = pathStr.charAt(i)
-      
+
       ch match {
         case '.' =>
           // Field access: .field or .`field.with.dots`

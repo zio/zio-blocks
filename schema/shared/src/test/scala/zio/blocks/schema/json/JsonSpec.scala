@@ -492,13 +492,13 @@ object JsonSpec extends ZIOSpecDefault {
         },
         test("parse object") {
           import zio.blocks.schema.json.JsonInterpolators._
-          val json = j"""{"name": "Alice", "age": 30}"""
+          val json     = j"""{"name": "Alice", "age": 30}"""
           val expected = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number("30"))
           assertTrue(json == expected)
         },
         test("parse array") {
           import zio.blocks.schema.json.JsonInterpolators._
-          val json = j"""[1, 2, 3]"""
+          val json     = j"""[1, 2, 3]"""
           val expected = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3"))
           assertTrue(json == expected)
         }
