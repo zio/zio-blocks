@@ -13,8 +13,10 @@ sealed trait JsonDecoder[A] {
   /**
    * Decodes a [[Json]] value into type `A`.
    *
-   * @param json The JSON value to decode
-   * @return Either a [[JsonError]] on failure, or the decoded value
+   * @param json
+   *   The JSON value to decode
+   * @return
+   *   Either a [[JsonError]] on failure, or the decoded value
    */
   def decode(json: Json): Either[JsonError, A]
 }
@@ -28,7 +30,7 @@ object JsonDecoder extends JsonDecoderLowPriority {
    */
   implicit def fromCodec[A](implicit codec: JsonBinaryCodec[A]): JsonDecoder[A] =
     new JsonDecoder[A] {
-      def decode(json: Json): Either[JsonError, A] = json.decodeWith(codec)
+      def decode(json: Json): Either[JsonError, A] = JsonBridge.decodeJsonWith(json, codec)
     }
 }
 
@@ -42,7 +44,7 @@ trait JsonDecoderLowPriority {
    */
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonDecoder[A] =
     new JsonDecoder[A] {
-      private lazy val codec: JsonBinaryCodec[A] = schema.derive(JsonBinaryCodecDeriver)
-      def decode(json: Json): Either[JsonError, A] = json.decodeWith(codec)
+      private lazy val codec: JsonBinaryCodec[A]   = schema.derive(JsonBinaryCodecDeriver)
+      def decode(json: Json): Either[JsonError, A] = JsonBridge.decodeJsonWith(json, codec)
     }
 }

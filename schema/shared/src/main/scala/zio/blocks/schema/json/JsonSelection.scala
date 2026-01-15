@@ -17,7 +17,8 @@ import zio.blocks.schema.{DynamicOptic, SchemaError}
 final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { self =>
 
   /**
-   * Returns true if this selection contains no values (either empty or errored).
+   * Returns true if this selection contains no values (either empty or
+   * errored).
    */
   def isEmpty: Boolean = toEither.fold(_ => true, _.isEmpty)
 
@@ -38,8 +39,10 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   /**
    * Applies a function to each JSON value in this selection.
    *
-   * @param f The transformation function
-   * @return A new selection with transformed values
+   * @param f
+   *   The transformation function
+   * @return
+   *   A new selection with transformed values
    */
   def map(f: Json => Json): JsonSelection =
     JsonSelection(toEither.map(_.map(f)))
@@ -47,8 +50,10 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   /**
    * Applies a function returning a selection to each value, flattening results.
    *
-   * @param f The function producing selections
-   * @return A new selection with all results combined
+   * @param f
+   *   The function producing selections
+   * @return
+   *   A new selection with all results combined
    */
   def flatMap(f: Json => JsonSelection): JsonSelection =
     JsonSelection(toEither.flatMap { jsons =>
@@ -63,8 +68,10 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   /**
    * Filters values in this selection by a predicate.
    *
-   * @param p The predicate to test values
-   * @return A new selection containing only values satisfying the predicate
+   * @param p
+   *   The predicate to test values
+   * @return
+   *   A new selection containing only values satisfying the predicate
    */
   def filter(p: Json => Boolean): JsonSelection =
     JsonSelection(toEither.map(_.filter(p)))
@@ -72,8 +79,10 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   /**
    * Collects values for which the partial function is defined.
    *
-   * @param pf A partial function to apply
-   * @return A new selection with collected results
+   * @param pf
+   *   A partial function to apply
+   * @return
+   *   A new selection with collected results
    */
   def collect(pf: PartialFunction[Json, Json]): JsonSelection =
     JsonSelection(toEither.map(_.collect(pf)))
@@ -85,8 +94,10 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   /**
    * Navigates to values at the given path within each selected value.
    *
-   * @param path The path to navigate
-   * @return A new selection with values at the path
+   * @param path
+   *   The path to navigate
+   * @return
+   *   A new selection with values at the path
    */
   def get(path: DynamicOptic): JsonSelection =
     flatMap(json => json.get(path))
@@ -99,8 +110,10 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   /**
    * Navigates to array element at given index within each selected value.
    *
-   * @param index The array index
-   * @return A new selection with elements at the index
+   * @param index
+   *   The array index
+   * @return
+   *   A new selection with elements at the index
    */
   def apply(index: Int): JsonSelection =
     flatMap(json => json.apply(index))
@@ -108,8 +121,10 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   /**
    * Navigates to object field with given key within each selected value.
    *
-   * @param key The object key
-   * @return A new selection with values at the key
+   * @param key
+   *   The object key
+   * @return
+   *   A new selection with values at the key
    */
   def apply(key: String): JsonSelection =
     flatMap(json => json.apply(key))
@@ -155,8 +170,10 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   /**
    * Combines this selection with another, concatenating values or errors.
    *
-   * @param other The other selection
-   * @return A combined selection
+   * @param other
+   *   The other selection
+   * @return
+   *   A combined selection
    */
   def ++(other: JsonSelection): JsonSelection =
     (toEither, other.toEither) match {

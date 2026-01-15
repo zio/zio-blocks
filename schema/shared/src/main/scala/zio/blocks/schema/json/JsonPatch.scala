@@ -5,10 +5,11 @@ import zio.blocks.schema.patch.DynamicPatch
 /**
  * Represents a patch that can be applied to JSON values.
  *
- * Supports RFC 6902 operations (add, remove, replace, move, copy, test)
- * plus extensions for LCS-based sequence diffs and string diffs.
+ * Supports RFC 6902 operations (add, remove, replace, move, copy, test) plus
+ * extensions for LCS-based sequence diffs and string diffs.
  *
- * This is a placeholder implementation - actual implementation TBD.
+ * This is a placeholder - actual implementation -> #685
+ * (https://github.com/zio/zio-blocks/issues/685).
  */
 sealed trait JsonPatch {
 
