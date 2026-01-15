@@ -1985,11 +1985,7 @@ final class JsonReader private[json] (
         head = pos + 1
         b
       }
-    } else {
-      // If no more data is available, return 0 to signal EOF
-      if (in == null && (bbuf == null || !bbuf.hasRemaining)) 0
-      else nextToken(loadMoreOrError(pos))
-    }
+    } else nextToken(loadMoreOrError(pos))
 
   @tailrec
   private[this] def nextTokenOrError(t: Byte, pos: Int): Unit =
