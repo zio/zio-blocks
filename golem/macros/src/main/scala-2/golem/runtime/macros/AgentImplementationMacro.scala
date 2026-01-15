@@ -17,6 +17,11 @@ object AgentImplementationMacro {
 }
 
 object AgentImplementationMacroImpl {
+  private val schemaHint: String =
+    "\nHint: GolemSchema is derived from zio.blocks.schema.Schema.\n" +
+      "Define or import an implicit Schema[T] for your type.\n" +
+      "Scala 3: `final case class T(...) derives zio.blocks.schema.Schema` (or `given Schema[T] = Schema.derived`).\n" +
+      "Scala 2: `implicit val schema: zio.blocks.schema.Schema[T] = zio.blocks.schema.Schema.derived`.\n"
   def implementationTypeImpl[Trait: c.WeakTypeTag](c: blackbox.Context)(
     build: c.Expr[Trait]
   ): c.Expr[AgentImplementationType[Trait, Unit]] = {
@@ -86,7 +91,7 @@ object AgentImplementationMacroImpl {
     if (ctorSchemaExpr.isEmpty) {
       c.abort(
         c.enclosingPosition,
-        s"Unable to summon GolemSchema for constructor type $ctorType on ${traitSymbol.fullName}"
+        s"Unable to summon GolemSchema for constructor type $ctorType on ${traitSymbol.fullName}.$schemaHint"
       )
     }
 
@@ -160,7 +165,7 @@ object AgentImplementationMacroImpl {
         if (schemaInstance.isEmpty) {
           c.abort(
             c.enclosingPosition,
-            s"Unable to summon GolemSchema for input of method $methodName with type $inputType"
+            s"Unable to summon GolemSchema for input of method $methodName with type $inputType.$schemaHint"
           )
         }
         schemaInstance
@@ -171,7 +176,7 @@ object AgentImplementationMacroImpl {
     if (outputSchemaInstance.isEmpty) {
       c.abort(
         c.enclosingPosition,
-        s"Unable to summon GolemSchema for output of method $methodName with type $outputType"
+        s"Unable to summon GolemSchema for output of method $methodName with type $outputType.$schemaHint"
       )
     }
 
@@ -253,7 +258,7 @@ object AgentImplementationMacroImpl {
       if (schemaInstance.isEmpty) {
         c.abort(
           c.enclosingPosition,
-          s"Unable to summon GolemSchema for parameter '$nameStr' of method $methodName with type $tpe"
+          s"Unable to summon GolemSchema for parameter '$nameStr' of method $methodName with type $tpe.$schemaHint"
         )
       }
       q"($nameStr, $schemaInstance.asInstanceOf[_root_.golem.data.GolemSchema[Any]])"

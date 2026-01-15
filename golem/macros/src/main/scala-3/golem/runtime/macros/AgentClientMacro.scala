@@ -8,6 +8,11 @@ import golem.runtime.agenttype.{AgentMethod, AgentType, ConstructorType, MethodI
 import scala.quoted.*
 
 object AgentClientMacro {
+  private val schemaHint: String =
+    "\nHint: GolemSchema is derived from zio.blocks.schema.Schema.\n" +
+      "Define or import an implicit Schema[T] for your type.\n" +
+      "Scala 3: `final case class T(...) derives zio.blocks.schema.Schema` (or `given Schema[T] = Schema.derived`).\n" +
+      "Scala 2: `implicit val schema: zio.blocks.schema.Schema[T] = zio.blocks.schema.Schema.derived`.\n"
   transparent inline def agentType[Trait]: AgentType[Trait, ?] =
     ${ agentTypeImpl[Trait] }
 
@@ -235,7 +240,7 @@ object AgentClientMacro {
               }
             }
           case None =>
-            report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}")
+            report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}.$schemaHint")
         }
     }
   }
@@ -259,7 +264,7 @@ object AgentClientMacro {
           case Some(schemaExpr) =>
             '{ $schemaExpr.schema }
           case None =>
-            report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}")
+            report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}.$schemaHint")
         }
     }
   }
@@ -356,7 +361,7 @@ object AgentClientMacro {
     Expr.summon[GolemSchema[A]].getOrElse {
       import quotes.reflect.*
       report.errorAndAbort(
-        s"Unable to summon GolemSchema for $position of method $methodName with type ${Type.show[A]}"
+        s"Unable to summon GolemSchema for $position of method $methodName with type ${Type.show[A]}.$schemaHint"
       )
     }
 

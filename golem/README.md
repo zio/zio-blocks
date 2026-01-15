@@ -46,6 +46,13 @@ object Name {
   implicit val schema: Schema[Name] = Schema.derived
 }
 
+// Note on custom types:
+// - The SDK requires a `golem.data.GolemSchema[T]` for any input/output types used in agent methods.
+// - You typically do NOT define `GolemSchema` yourself; it is derived automatically from `zio.blocks.schema.Schema`.
+// - If you see a compile error like "Unable to summon GolemSchema ...", add/derive an implicit `Schema[T]` instead.
+//   Scala 3: `final case class MyType(...) derives Schema`
+//   Scala 2: `implicit val schema: Schema[MyType] = Schema.derived`
+
 // Define your agent trait (typeName is optional; when omitted, it is derived from the trait name)
 @agentDefinition(mode = DurabilityMode.Durable)
 @description("A simple name-processing agent")

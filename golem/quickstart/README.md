@@ -39,6 +39,24 @@ trait ShardAgent extends BaseAgent {
 }
 ```
 
+### Custom data types (Schemas)
+
+If you use custom Scala types as **constructor inputs** or **method parameter/return types**, the SDK needs a
+`golem.data.GolemSchema[T]` for them.
+
+You generally **do not** implement `GolemSchema` yourself — it’s derived automatically from `zio.blocks.schema.Schema[T]`.
+So if you see an error like:
+
+- `Unable to summon GolemSchema for output of method get with type ...`
+
+…add/derive a `Schema[T]` for that type (Scala 3 example):
+
+```scala
+import zio.blocks.schema.Schema
+
+final case class State(value: Int) derives Schema
+```
+
 ### Run locally
 
 Use `golem-cli` as the driver from the checked-in app directory:

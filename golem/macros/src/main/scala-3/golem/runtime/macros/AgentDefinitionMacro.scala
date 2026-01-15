@@ -7,6 +7,11 @@ import golem.runtime.{AgentMetadata, MethodMetadata}
 import scala.quoted.*
 
 object AgentDefinitionMacro {
+  private val schemaHint: String =
+    "\nHint: GolemSchema is derived from zio.blocks.schema.Schema.\n" +
+      "Define or import an implicit Schema[T] for your type.\n" +
+      "Scala 3: `final case class T(...) derives zio.blocks.schema.Schema` (or `given Schema[T] = Schema.derived`).\n" +
+      "Scala 2: `implicit val schema: zio.blocks.schema.Schema[T] = zio.blocks.schema.Schema.derived`.\n"
   inline def generate[T]: AgentMetadata = ${ impl[T] }
 
   private def impl[T: Type](using Quotes): Expr[AgentMetadata] = {
@@ -214,7 +219,7 @@ object AgentDefinitionMacro {
       case '[t] =>
         Expr.summon[GolemSchema[t]] match {
           case Some(codecExpr) => '{ $codecExpr.schema }
-          case None            => report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}")
+          case None            => report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}.$schemaHint")
         }
     }
   }
@@ -242,7 +247,7 @@ object AgentDefinitionMacro {
               }
             }
           case None =>
-            report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}")
+            report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}.$schemaHint")
         }
     }
   }

@@ -10,6 +10,11 @@ object AgentMacros {
 }
 
 object AgentMacrosImpl {
+  private val schemaHint: String =
+    "\nHint: GolemSchema is derived from zio.blocks.schema.Schema.\n" +
+      "Define or import an implicit Schema[T] for your type.\n" +
+      "Scala 3: `final case class T(...) derives zio.blocks.schema.Schema` (or `given Schema[T] = Schema.derived`).\n" +
+      "Scala 2: `implicit val schema: zio.blocks.schema.Schema[T] = zio.blocks.schema.Schema.derived`.\n"
   def agentMetadataImpl[T: c.WeakTypeTag](c: blackbox.Context): c.Expr[AgentMetadata] = {
     import c.universe._
 
@@ -107,7 +112,7 @@ object AgentMacrosImpl {
     val schemaInstance  = c.inferImplicitValue(golemSchemaType)
 
     if (schemaInstance.isEmpty) {
-      c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe")
+      c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe.$schemaHint")
     }
 
     q"$schemaInstance.schema"
@@ -120,7 +125,7 @@ object AgentMacrosImpl {
     val schemaInstance  = c.inferImplicitValue(golemSchemaType)
 
     if (schemaInstance.isEmpty) {
-      c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe")
+      c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe.$schemaHint")
     }
 
     q"""

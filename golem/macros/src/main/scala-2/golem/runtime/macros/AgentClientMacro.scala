@@ -9,6 +9,11 @@ object AgentClientMacro {
 }
 
 object AgentClientMacroImpl {
+  private val schemaHint: String =
+    "\nHint: GolemSchema is derived from zio.blocks.schema.Schema.\n" +
+      "Define or import an implicit Schema[T] for your type.\n" +
+      "Scala 3: `final case class T(...) derives zio.blocks.schema.Schema` (or `given Schema[T] = Schema.derived`).\n" +
+      "Scala 2: `implicit val schema: zio.blocks.schema.Schema[T] = zio.blocks.schema.Schema.derived`.\n"
   def agentTypeImpl[Trait: c.WeakTypeTag](c: blackbox.Context): c.Expr[AgentType[Trait, _]] = {
     import c.universe._
 
@@ -47,7 +52,7 @@ object AgentClientMacroImpl {
         val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, inputType)
         val schemaInstance  = c.inferImplicitValue(golemSchemaType)
         if (schemaInstance.isEmpty) {
-          c.abort(c.enclosingPosition, s"Unable to summon GolemSchema for constructor input with type $inputType")
+          c.abort(c.enclosingPosition, s"Unable to summon GolemSchema for constructor input with type $inputType.$schemaHint")
         }
         schemaInstance
     }
@@ -137,7 +142,7 @@ object AgentClientMacroImpl {
         if (schemaInstance.isEmpty) {
           c.abort(
             c.enclosingPosition,
-            s"Unable to summon GolemSchema for input of method $methodName with type $inputType"
+            s"Unable to summon GolemSchema for input of method $methodName with type $inputType.$schemaHint"
           )
         }
         schemaInstance
@@ -148,7 +153,7 @@ object AgentClientMacroImpl {
     if (outputSchemaInstance.isEmpty) {
       c.abort(
         c.enclosingPosition,
-        s"Unable to summon GolemSchema for output of method $methodName with type $outputType"
+        s"Unable to summon GolemSchema for output of method $methodName with type $outputType.$schemaHint"
       )
     }
 
@@ -208,7 +213,7 @@ object AgentClientMacroImpl {
     val schemaInstance  = c.inferImplicitValue(golemSchemaType)
 
     if (schemaInstance.isEmpty) {
-      c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe")
+      c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe.$schemaHint")
     }
 
     q"""
@@ -235,7 +240,7 @@ object AgentClientMacroImpl {
     val schemaInstance  = c.inferImplicitValue(golemSchemaType)
 
     if (schemaInstance.isEmpty) {
-      c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe")
+      c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe.$schemaHint")
     }
 
     q"$schemaInstance.schema"
@@ -313,7 +318,7 @@ object AgentClientMacroImpl {
       if (schemaInstance.isEmpty) {
         c.abort(
           c.enclosingPosition,
-          s"Unable to summon GolemSchema for parameter '$nameStr' of method $methodName with type $tpe"
+          s"Unable to summon GolemSchema for parameter '$nameStr' of method $methodName with type $tpe.$schemaHint"
         )
       }
       q"($nameStr, $schemaInstance.asInstanceOf[_root_.golem.data.GolemSchema[Any]])"

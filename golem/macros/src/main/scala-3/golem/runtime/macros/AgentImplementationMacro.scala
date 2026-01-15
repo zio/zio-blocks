@@ -11,6 +11,11 @@ import golem.runtime.{AgentMetadata, MethodMetadata}
 import scala.quoted.*
 
 object AgentImplementationMacro {
+  private val schemaHint: String =
+    "\nHint: GolemSchema is derived from zio.blocks.schema.Schema.\n" +
+      "Define or import an implicit Schema[T] for your type.\n" +
+      "Scala 3: `final case class T(...) derives zio.blocks.schema.Schema` (or `given Schema[T] = Schema.derived`).\n" +
+      "Scala 2: `implicit val schema: zio.blocks.schema.Schema[T] = zio.blocks.schema.Schema.derived`.\n"
   inline def implementationType[Trait](inline build: => Trait): AgentImplementationType[Trait, Unit] =
     ${ implementationTypeImpl[Trait]('build) }
 
@@ -40,7 +45,7 @@ object AgentImplementationMacro {
 
     val ctorSchemaExpr =
       Expr.summon[GolemSchema[Unit]].getOrElse {
-        report.errorAndAbort(s"Unable to summon GolemSchema for Unit constructor type on ${traitSymbol.fullName}")
+        report.errorAndAbort(s"Unable to summon GolemSchema for Unit constructor type on ${traitSymbol.fullName}.$schemaHint")
       }
 
     '{
@@ -83,7 +88,7 @@ object AgentImplementationMacro {
     val ctorSchemaExpr =
       Expr.summon[GolemSchema[Ctor]].getOrElse {
         report.errorAndAbort(
-          s"Unable to summon GolemSchema for constructor type ${Type.show[Ctor]} on ${traitSymbol.fullName}"
+          s"Unable to summon GolemSchema for constructor type ${Type.show[Ctor]} on ${traitSymbol.fullName}.$schemaHint"
         )
       }
 
@@ -275,7 +280,7 @@ object AgentImplementationMacro {
     Expr.summon[GolemSchema[A]].getOrElse {
       import quotes.reflect.*
       report.errorAndAbort(
-        s"Unable to summon GolemSchema for $position of method $methodName with type ${Type.show[A]}"
+        s"Unable to summon GolemSchema for $position of method $methodName with type ${Type.show[A]}.$schemaHint"
       )
     }
 

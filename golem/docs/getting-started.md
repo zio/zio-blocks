@@ -105,6 +105,22 @@ trait CounterAgent extends BaseAgent {
 object CounterAgent extends AgentCompanion[CounterAgent]
 ```
 
+### Custom data types (Schemas)
+
+If you use custom Scala types as **constructor inputs** (`type AgentInput = ...`) or **method parameters/return values**,
+the SDK must be able to derive a `golem.data.GolemSchema[T]` for them.
+
+You normally **do not** define `GolemSchema` directly — instead, derive/provide a `zio.blocks.schema.Schema[T]`,
+and `GolemSchema` will be derived automatically from it.
+
+For example (Scala 3):
+
+```scala
+import zio.blocks.schema.Schema
+
+final case class State(value: Int) derives Schema
+```
+
 Create `scala/src/main/scala/demo/CounterAgentImpl.scala`:
 
 ```scala
