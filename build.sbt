@@ -174,7 +174,6 @@ lazy val `schema-avro` = project
     })
   )
 
-
 lazy val `schema-thrift` = project
   .settings(stdSettings("zio-blocks-schema-thrift"))
   .dependsOn(schema.jvm)
