@@ -3,6 +3,7 @@ package zio.blocks.schema.toon
 import zio.blocks.schema.toon.ToonTestUtils._
 import zio.blocks.schema._
 import zio.test._
+import zio.test.TestAspect.jvmOnly
 import java.time._
 import java.util.{Currency, UUID}
 
@@ -10,55 +11,218 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("ToonBinaryCodecDeriverSpec")(
     suite("primitives")(
       test("Unit") {
-        roundTrip((), "null")
+        roundTrip((), "null") &&
+        decodeError[Unit]("", "Line 3: Expected null, got:  at: .") &&
+        decodeError[Unit]("null ,", "Line 2: Expected null, got: null , at: .") &&
+        decodeError[Unit]("true", "Line 2: Expected null, got: true at: .")
       },
       test("Boolean") {
         roundTrip(true, "true") &&
         roundTrip(false, "false") &&
-        decodeError[Boolean]("yes", "Expected boolean")
+        decodeError[Boolean]("yes", "Line 2: Expected boolean, got: yes at: .")
       },
       test("Byte") {
+        check(Gen.byte)(x => roundTrip(x, x.toString)) &&
         roundTrip(1: Byte, "1") &&
         roundTrip(Byte.MinValue, "-128") &&
-        roundTrip(Byte.MaxValue, "127")
+        roundTrip(Byte.MaxValue, "127") &&
+        decode("-0", 0: Byte) &&
+        decodeError[Byte]("-129", "Line 2: Expected byte, got: -129 at: .") &&
+        decodeError[Byte]("128", "Line 2: Expected byte, got: 128 at: .") &&
+        decodeError[Byte]("01", "Line 2: Expected byte without leading zero, got: 01 at: .") &&
+        decodeError[Byte]("-01", "Line 2: Expected byte without leading zero, got: -01 at: .") &&
+        decodeError[Byte]("1.0", "Line 2: Expected byte, got: 1.0 at: .") &&
+        decodeError[Byte]("1e1", "Line 2: Expected byte, got: 1e1 at: .") &&
+        decodeError[Byte]("null", "Line 2: Expected byte, got: null at: .") &&
+        decodeError[Byte]("", "Line 3: Expected byte, got:  at: .") &&
+        decodeError[Byte]("1,", "Line 2: Expected byte, got: 1, at: .")
       },
       test("Short") {
+        check(Gen.short)(x => roundTrip(x, x.toString)) &&
         roundTrip(1: Short, "1") &&
         roundTrip(Short.MinValue, "-32768") &&
-        roundTrip(Short.MaxValue, "32767")
+        roundTrip(Short.MaxValue, "32767") &&
+        decode("-0", 0: Short) &&
+        decodeError[Short]("-32769", "Line 2: Expected short, got: -32769 at: .") &&
+        decodeError[Short]("32768", "Line 2: Expected short, got: 32768 at: .") &&
+        decodeError[Short]("01", "Line 2: Expected short without leading zero, got: 01 at: .") &&
+        decodeError[Short]("-01", "Line 2: Expected short without leading zero, got: -01 at: .") &&
+        decodeError[Short]("1.0", "Line 2: Expected short, got: 1.0 at: .") &&
+        decodeError[Short]("1e1", "Line 2: Expected short, got: 1e1 at: .") &&
+        decodeError[Short]("null", "Line 2: Expected short, got: null at: .") &&
+        decodeError[Short]("", "Line 3: Expected short, got:  at: .") &&
+        decodeError[Short]("1,", "Line 2: Expected short, got: 1, at: .")
       },
       test("Int") {
+        check(Gen.int)(x => roundTrip(x, x.toString)) &&
         roundTrip(42, "42") &&
         roundTrip(Int.MinValue, "-2147483648") &&
-        roundTrip(Int.MaxValue, "2147483647")
+        roundTrip(Int.MaxValue, "2147483647") &&
+        decode("-0", 0) &&
+        decodeError[Int]("-2147483649", "Line 2: Expected int, got: -2147483649 at: .") &&
+        decodeError[Int]("2147483648", "Line 2: Expected int, got: 2147483648 at: .") &&
+        decodeError[Int]("01", "Line 2: Expected int without leading zero, got: 01 at: .") &&
+        decodeError[Int]("-01", "Line 2: Expected int without leading zero, got: -01 at: .") &&
+        decodeError[Int]("1.0", "Line 2: Expected int, got: 1.0 at: .") &&
+        decodeError[Int]("1e1", "Line 2: Expected int, got: 1e1 at: .") &&
+        decodeError[Int]("null", "Line 2: Expected int, got: null at: .") &&
+        decodeError[Int]("", "Line 3: Expected int, got:  at: .") &&
+        decodeError[Int]("1,", "Line 2: Expected int, got: 1, at: .")
       },
       test("Long") {
         roundTrip(42L, "42") &&
         roundTrip(Long.MinValue, "-9223372036854775808") &&
-        roundTrip(Long.MaxValue, "9223372036854775807")
+        roundTrip(Long.MaxValue, "9223372036854775807") &&
+        decode("-0", 0) &&
+        decodeError[Long]("-9223372036854775809", "Line 2: Expected long, got: -9223372036854775809 at: .") &&
+        decodeError[Long]("9223372036854775808", "Line 2: Expected long, got: 9223372036854775808 at: .") &&
+        decodeError[Long]("01", "Line 2: Expected long without leading zero, got: 01 at: .") &&
+        decodeError[Long]("-01", "Line 2: Expected long without leading zero, got: -01 at: .") &&
+        decodeError[Long]("1.0", "Line 2: Expected long, got: 1.0 at: .") &&
+        decodeError[Long]("1e1", "Line 2: Expected long, got: 1e1 at: .") &&
+        decodeError[Long]("null", "Line 2: Expected long, got: null at: .") &&
+        decodeError[Long]("", "Line 3: Expected long, got:  at: .") &&
+        decodeError[Long]("1,", "Line 2: Expected long, got: 1, at: .")
       },
       test("Float") {
+        check(Gen.float)(x => decode(x.toString, x)) &&
         roundTrip(0.0f, "0") &&
-        roundTrip(5.0f, "5") &&
-        decode("-3.14", -3.14f) &&
-        roundTrip(1.5f, "1.5") &&
-        encode(Float.NaN, "null") &&
+        roundTrip(Float.MinValue, "-340282350000000000000000000000000000000") &&
+        roundTrip(Float.MaxValue, "340282350000000000000000000000000000000") &&
+        // FIXME: Differs for different JVMs
+        // roundTrip(1.0e17f, "100000000000000000") &&
+        // roundTrip(1.2621775e-29f, "0.000000000000000000000000000012621775") &&
+        roundTrip(0.33007812f, "0.33007812") &&
+        roundTrip(102067.11f, "102067.11") &&
+        roundTrip(1.6777216e7f, "16777216") &&
+        roundTrip(1.0e-45f, "0.0000000000000000000000000000000000000000000014") &&
+        roundTrip(1.0e-44f, "0.0000000000000000000000000000000000000000000098") &&
+        roundTrip(6.895867e-31f, "0.0000000000000000000000000000006895867") &&
+        roundTrip(1.595711e-5f, "0.00001595711") &&
+        roundTrip(-1.5887592e7f, "-15887592") &&
+        decode("42.00000", 42.0f) &&
+        decode("42.000001", 42.0f) &&
+        decode("37930954282500097", 3.7930956e16f) && // Fast path
+        decode("48696272630054913", 4.8696275e16f) &&
+        decode("69564.0e6", 6.9564e10f) &&
+        decode("16777217.0", 1.6777216e7f) && // Round-down, halfway
+        decode("33554434.0", 3.3554432e7f) &&
+        decode("17179870208.0", 1.717987e10f) &&
+        decode("16777219.0", 1.677722e7f) && // Round-up, halfway
+        decode("33554438.0", 3.355444e7f) &&
+        decode("17179872256.0", 1.7179873e10f) &&
+        decode("33554435.0", 3.3554436e7f) && // Round-up, above halfway
+        decode("17179870209.0", 1.7179871e10f) &&
+        decode("1.00000017881393432617187499", 1.0000001f) && // Check exactly halfway, round-up at halfway
+        decode("1.000000178813934326171875", 1.0000002f) &&
+        decode("1.00000017881393432617187501", 1.0000002f) &&
+        decode("36028797018963967.0", 3.6028797e16f) && // 2^n - 1 integer regression
+        decode("1.17549435E-38", 1.1754944e-38f) &&
+        decode("12345e6789", Float.PositiveInfinity) && // Parse infinities on float overflow
+        decode("-12345e6789", Float.NegativeInfinity) &&
+        decode("123456789012345678901234567890e9223372036854775799", Float.PositiveInfinity) &&
+        decode("-123456789012345678901234567890e9223372036854775799", Float.NegativeInfinity) &&
+        decode("12345678901234567890e12345678901234567890", Float.PositiveInfinity) &&
+        decode("-12345678901234567890e12345678901234567890", Float.NegativeInfinity) &&
+        decode("37879.0e37", Float.PositiveInfinity) &&
+        decode("-37879.0e37", Float.NegativeInfinity) &&
+        decode("12345e-6789", 0.0f) && // Parse zeroes on float underflow
+        decode("-12345e-6789", 0.0f) &&
+        decode("0.12345678901234567890e-9223372036854775799", 0.0f) &&
+        decode("-0.12345678901234567890e-9223372036854775799", 0.0f) &&
+        decode("12345678901234567890e-12345678901234567890", 0.0f) &&
+        decode("-12345678901234567890e-12345678901234567890", 0.0f) &&
+        decode("0e1", 0.0f) &&
+        decode("1.", 1.0f) &&
+        decode("-0.0", 0.0f) &&
+        encode(-0.0f, "0") &&
+        encode(Float.NaN, "null") && // should be roundTrip(Float.NaN, "null")
         encode(Float.PositiveInfinity, "null") &&
-        encode(Float.NegativeInfinity, "null")
-        // Note: Float.MinValue/MaxValue cannot round-trip because TOON forbids
-        // scientific notation, and the plain decimal form exceeds representable precision
-      },
+        encode(Float.NegativeInfinity, "null") &&
+        decodeError[Float]("1e+e", "Line 2: Expected float, got: 1e+e at: .") &&
+        decodeError[Float]("01", "Line 2: Expected float without leading zero, got: 01 at: .") &&
+        decodeError[Float]("-01", "Line 2: Expected float without leading zero, got: -01 at: .") &&
+        decodeError[Float]("", "Line 3: Expected float, got:  at: .") &&
+        decodeError[Float]("1,", "Line 2: Expected float, got: 1, at: .")
+      } @@ jvmOnly,
       test("Double") {
+        check(Gen.double)(x => decode(x.toString, x)) &&
+        roundTrip(
+          Double.MinValue,
+          "-179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        ) &&
+        roundTrip(
+          Double.MaxValue,
+          "179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        ) &&
         roundTrip(0.0, "0") &&
-        roundTrip(6.0, "6") &&
-        roundTrip(-2.71828, "-2.71828") &&
-        roundTrip(1.5, "1.5") &&
-        encode(Double.NaN, "null") &&
+        roundTrip(0.001, "0.001") &&
+        roundTrip(1.0e7, "10000000") &&
+        roundTrip(8572.431613041595, "8572.431613041595") &&
+        /* FIXME: Result differs between JVM and JS
+        roundTrip(
+          5.0e-324,
+          "0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000049"
+        ) &&
+         */
+        roundTrip(8.707795712926552e15, "8707795712926552") &&
+        // FIXME: Differs for different JVMs
+        // roundTrip(5.960464477539063e-8, "0.00000005960464477539063") &&
+        roundTrip(-1.3821488797638562e14, "-138214887976385.62") &&
+        roundTrip(9.223372036854776e18, "9223372036854776000") &&
+        roundTrip(
+          2.2250738585072014e-308,
+          "0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022250738585072014"
+        ) &&
+        decode("42.00000000000000", 42.0) &&
+        decode("42.000000000000001", 42.0) &&
+        decode("6377181959482780", 6.37718195948278e15) && // Fast path
+        decode("797671681584247.0e19", 7.97671681584247e33) &&
+        decode("35785831.0e24", 3.5785831e31) &&
+        decode("1624908.0e17", 1.624908e23) &&
+        decode("358875.0e-315", 3.58875e-310) &&              // Middle path
+        decode("9007199254740993.0", 9.007199254740992e15) && // Round-down, halfway
+        decode("18014398509481986.0", 1.8014398509481984e16) &&
+        decode("9223372036854776832.0", 9.223372036854776e18) &&
+        decode("11417981541647680316116887983825362587765178368.0", 1.141798154164768e46) &&
+        decode("9007199254740995.0", 9.007199254740996e15) && // Round-up, halfway
+        decode("18014398509481990.0", 1.801439850948199e16) &&
+        decode("9223372036854778880.0", 9.22337203685478e18) &&
+        decode("11417981541647682851418088440284165581171589120.0", 1.1417981541647684e46) &&
+        decode("9223372036854776833.0", 9.223372036854778e18) && // Round-up, above halfway
+        decode("11417981541647680316116887983825362587765178369.0", 1.1417981541647682e46) &&
+        decode("36028797018963967.0", 3.602879701896397e16) && // 2^n - 1 integer regression
+        decode(
+          "11224326888185522059941158352151320185835795563643008",
+          1.1224326888185523e52
+        ) &&                                             // Regression after reducing an error range
+        decode("12345e6789", Double.PositiveInfinity) && // Parse infinities on double overflow
+        decode("-12345e6789", Double.NegativeInfinity) &&
+        decode("123456789012345678901234567890e9223372036854775799", Double.PositiveInfinity) &&
+        decode("-123456789012345678901234567890e9223372036854775799", Double.NegativeInfinity) &&
+        decode("12345678901234567890e12345678901234567890", Double.PositiveInfinity) &&
+        decode("-12345678901234567890e12345678901234567890", Double.NegativeInfinity) &&
+        decode("3190749093868358880.0e291", Double.PositiveInfinity) &&
+        decode("-3190749093868358880.0e291", Double.NegativeInfinity) &&
+        decode("12345e-6789", 0.0) && // Parse zeroes on double underflow
+        decode("-12345e-6789", -0.0) &&
+        decode("0.12345678901234567890e-9223372036854775799", 0.0) &&
+        decode("-0.12345678901234567890e-9223372036854775799", -0.0) &&
+        decode("12345678901234567890e-12345678901234567890", 0.0) &&
+        decode("-1234567890123456789e-12345678901234567890", -0.0) &&
+        decode("15.0e-334", 0.0) &&
+        decode("0e1", 0.0) &&
+        decode("1.", 1.0) &&
+        decode("-0.0", 0.0) &&
+        encode(-0.0, "0") &&
+        encode(Double.NaN, "null") && // should be roundTrip(Float.NaN, "null")
         encode(Double.PositiveInfinity, "null") &&
         encode(Double.NegativeInfinity, "null") &&
-        encode(-0.0, "0")
-        // Note: Double.MinValue/MaxValue cannot round-trip because TOON forbids
-        // scientific notation, and the plain decimal form exceeds representable precision
+        decodeError[Double]("1e+e", "Line 2: Expected double, got: 1e+e at: .") &&
+        decodeError[Double]("01", "Line 2: Expected double without leading zero, got: 01 at: .") &&
+        decodeError[Double]("-01", "Line 2: Expected double without leading zero, got: -01 at: .") &&
+        decodeError[Double]("", "Line 3: Expected double, got:  at: .") &&
+        decodeError[Double]("1,", "Line 2: Expected double, got: 1, at: .")
       },
       test("Char") {
         roundTrip('A', "A") &&
@@ -70,44 +234,72 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip("", "\"\"")
       },
       test("BigInt") {
+        check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x => roundTrip(x, x.toString)) &&
         roundTrip(BigInt(0), "0") &&
-        roundTrip(BigInt(12345), "12345") &&
-        roundTrip(BigInt("-" + "9" * 20), "-" + "9" * 20)
+        roundTrip(BigInt("-" + "9" * 3), "-" + "9" * 3) &&
+        roundTrip(BigInt("9" * 30), "9" * 30) &&
+        roundTrip(BigInt("9" * 300), "9" * 300) &&
+        decode("-0", BigInt(0)) &&
+        encode(BigInt("9" * 1000), "9" * 1000) &&
+        decodeError[BigInt]("", "Line 3: Expected BigInt, got:  at: .") &&
+        decodeError[BigInt]("01", "Line 2: Expected BigInt without leading zero, got: 01 at: .") &&
+        decodeError[BigInt]("-01", "Line 2: Expected BigInt without leading zero, got: -01 at: .") &&
+        decodeError[BigInt]("-a", "Line 2: Expected BigInt, got: -a at: .") &&
+        decodeError[BigInt]("1.0", "Line 2: Expected BigInt, got: 1.0 at: .") &&
+        decodeError[BigInt]("1e1", "Line 2: Expected BigInt, got: 1e1 at: .") &&
+        decodeError[BigInt]("1E1", "Line 2: Expected BigInt, got: 1E1 at: .") &&
+        decodeError[BigInt]("null", "Line 2: Expected BigInt, got: null at: .")
       },
       test("BigDecimal") {
+        check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x => roundTrip(x, x.toString)) &&
         roundTrip(BigDecimal("0.0"), "0") &&
-        roundTrip(BigDecimal("123.45"), "123.45") &&
-        roundTrip(BigDecimal("1.0"), "1") &&
-        roundTrip(BigDecimal("100.00"), "100")
+        roundTrip(BigDecimal("126.09999999999999001"), "126.09999999999999001") &&
+        roundTrip(BigDecimal("0.0287500000000000000000"), "0.02875") &&
+        roundTrip(BigDecimal("-1." + "1" * 3 + "E+1234"), "-1111" + "0" * 1231) &&
+        // FIXME: throws java.nio.BufferOverflowException
+        // encode(BigDecimal("1." + "1" * 30 + "E+123456789"), "1." + "1" * 30 + "E+123456789") &&
+        decode("1." + "1" * 300 + "E+1234", BigDecimal("1." + "1" * 300 + "E+1234")) &&
+        decode("0e1", BigDecimal(0.0)) &&
+        decode("1.", BigDecimal(1.0)) &&
+        decode("-0.0", BigDecimal(0)) &&
+        encode(BigDecimal("1." + "1" * 1000 + "E+1234"), "1" * 1001 + "0" * 234) &&
+        decodeError[BigDecimal]("", "Line 3: Expected BigDecimal, got:  at: .") &&
+        decodeError[BigDecimal]("1,", "Line 2: Expected BigDecimal, got: 1, at: .") &&
+        decodeError[BigDecimal]("1e+e", "Line 2: Expected BigDecimal, got: 1e+e at: .") &&
+        decodeError[BigDecimal]("--8", "Line 2: Expected BigDecimal, got: --8 at: .") &&
+        decodeError[BigDecimal]("null", "Line 2: Expected BigDecimal, got: null at: .") &&
+        decodeError[BigDecimal]("1e11111111111", "Line 2: Expected BigDecimal, got: 1e11111111111 at: .") &&
+        decodeError[BigDecimal]("01", "Line 2: Expected BigDecimal without leading zero, got: 01 at: .") &&
+        decodeError[BigDecimal]("-01", "Line 2: Expected BigDecimal without leading zero, got: -01 at: .")
       },
       test("DayOfWeek") {
         roundTrip(DayOfWeek.MONDAY, "MONDAY") &&
         roundTrip(DayOfWeek.FRIDAY, "FRIDAY") &&
-        decodeError[DayOfWeek]("FUNDAY", "Invalid day of week")
+        decodeError[DayOfWeek]("FUNDAY", "Line 2: Invalid day of week: FUNDAY at: .")
       },
       test("Duration") {
         roundTrip(Duration.ofSeconds(0), "PT0S") &&
         roundTrip(Duration.ofHours(2), "PT2H") &&
-        decodeError[Duration]("5 hours", "Invalid duration")
+        decodeError[Duration]("5 hours", "Line 2: Invalid duration: 5 hours at: .")
       },
       test("Instant") {
         roundTrip(Instant.EPOCH, "\"1970-01-01T00:00:00Z\"") &&
-        decodeError[Instant]("yesterday", "Invalid instant")
+        decodeError[Instant]("yesterday", "Line 2: Invalid instant: yesterday at: .")
       },
       test("LocalDate") {
         roundTrip(LocalDate.of(2025, 1, 11), "2025-01-11") &&
-        decodeError[LocalDate]("2025/01/11", "Invalid local date")
+        decodeError[LocalDate]("2025/01/11", "Line 2: Invalid local date: 2025/01/11 at: .")
       },
       test("LocalDateTime") {
         roundTrip(LocalDateTime.of(2025, 1, 11, 10, 30), "\"2025-01-11T10:30\"")
       },
       test("LocalTime") {
         roundTrip(LocalTime.of(10, 30), "\"10:30\"") &&
-        decodeError[LocalTime]("25:99", "Invalid local time")
+        decodeError[LocalTime]("25:99", "Line 2: Invalid local time: 25:99 at: .")
       },
       test("Month") {
         roundTrip(Month.JANUARY, "JANUARY") &&
-        decodeError[Month]("SMARCH", "Invalid month")
+        decodeError[Month]("SMARCH", "Line 2: Invalid month: SMARCH at: .")
       },
       test("MonthDay") {
         roundTrip(MonthDay.of(1, 11), "\"--01-11\"")
@@ -133,7 +325,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("ZoneId") {
         roundTrip(ZoneId.of("UTC"), "UTC") &&
-        decodeError[ZoneId]("Fake/Timezone", "Invalid zone id")
+        decodeError[ZoneId]("Fake/Timezone", "Line 2: Invalid zone id: Fake/Timezone at: .")
       },
       test("ZoneOffset") {
         roundTrip(ZoneOffset.ofHours(0), "Z") &&
@@ -147,14 +339,14 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("Currency") {
         roundTrip(Currency.getInstance("USD"), "USD") &&
-        decodeError[Currency]("FAKE", "Invalid currency")
+        decodeError[Currency]("FAKE", "Line 2: Invalid currency: FAKE at: .")
       },
       test("UUID") {
         roundTrip(
           UUID.fromString("00000000-0000-0001-0000-000000000001"),
           "00000000-0000-0001-0000-000000000001"
         ) &&
-        decodeError[UUID]("not-a-uuid", "Invalid UUID")
+        decodeError[UUID]("not-a-uuid", "Line 2: Invalid UUID: not-a-uuid at: .")
       }
     ),
     suite("string quoting")(
@@ -428,17 +620,6 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         val longStr = "a" * 1000
         roundTrip(longStr, longStr)
       },
-      test("integer boundary values") {
-        roundTrip(Int.MinValue, "-2147483648") &&
-        roundTrip(Int.MaxValue, "2147483647") &&
-        roundTrip(0, "0") &&
-        roundTrip(-1, "-1") &&
-        roundTrip(1, "1")
-      },
-      test("long boundary values") {
-        roundTrip(Long.MinValue, "-9223372036854775808") &&
-        roundTrip(Long.MaxValue, "9223372036854775807")
-      },
       test("special unicode characters") {
         roundTrip("αβγδ", "αβγδ") &&   // Greek
         roundTrip("中文字符", "中文字符") &&   // Chinese
@@ -516,7 +697,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         val toon    = """name: Alice
                         |age: 25
                         |unknownField: ignored""".stripMargin
-        decodeError(toon, "Unexpected field: unknownField", codec)
+        decodeError(toon, "Line 3: Unexpected field: unknownField at: .", codec)
       },
       test("known fields work with rejectExtraFields true") {
         val deriver = ToonBinaryCodecDeriver.withRejectExtraFields(true)

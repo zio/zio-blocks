@@ -421,7 +421,7 @@ object ToonBinaryCodec {
 
     def decodeValue(in: ToonReader, default: Byte): Byte = {
       in.skipBlankLines()
-      in.readInt().toByte
+      in.readByte()
     }
 
     def encodeValue(x: Byte, out: ToonWriter): Unit = out.writeInt(x.toInt)
@@ -436,7 +436,7 @@ object ToonBinaryCodec {
 
     def decodeValue(in: ToonReader, default: Short): Short = {
       in.skipBlankLines()
-      in.readInt().toShort
+      in.readShort()
     }
 
     def encodeValue(x: Short, out: ToonWriter): Unit = out.writeInt(x.toInt)
