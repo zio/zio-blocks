@@ -31,7 +31,7 @@ final class ChatAgentImpl(private val chatName: String) extends ChatAgent {
 final class ResearchAgentImpl() extends ResearchAgent {
   override def research(topic: String): Future[String] =
     Future.successful {
-      val results = searchWebForTopic(topic)
+      val results     = searchWebForTopic(topic)
       val resultsText =
         results
           .map(r => s"- ${r.title} (${r.url})\n  ${r.snippet}")
@@ -58,7 +58,7 @@ final class ResearchAgentImpl() extends ResearchAgent {
 
   private def searchWebForTopic(topic: String): List[WebSearch.SearchResult] = {
     val pagesToRetrieve = 3
-    val session =
+    val session         =
       WebSearch.startSearch(
         WebSearch.SearchParams(
           query = topic,

@@ -52,7 +52,10 @@ object AgentClientMacroImpl {
         val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, inputType)
         val schemaInstance  = c.inferImplicitValue(golemSchemaType)
         if (schemaInstance.isEmpty) {
-          c.abort(c.enclosingPosition, s"Unable to summon GolemSchema for constructor input with type $inputType.$schemaHint")
+          c.abort(
+            c.enclosingPosition,
+            s"Unable to summon GolemSchema for constructor input with type $inputType.$schemaHint"
+          )
         }
         schemaInstance
     }

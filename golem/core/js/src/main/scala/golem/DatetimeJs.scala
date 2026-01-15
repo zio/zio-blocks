@@ -9,8 +9,10 @@ import scala.scalajs.js
  * scheduling APIs accept [[Datetime]] instead of `js.*`.
  */
 object DatetimeJs {
+
   /**
-   * Construct a Datetime from a JS value understood by the host (router/runtime).
+   * Construct a Datetime from a JS value understood by the host
+   * (router/runtime).
    *
    * This is intentionally "unsafe": it trusts the shape expected by the host.
    */
@@ -27,4 +29,3 @@ object DatetimeJs {
   def fromTs(ts: Double): Datetime =
     Datetime.fromEpochMillis(ts)
 }
-

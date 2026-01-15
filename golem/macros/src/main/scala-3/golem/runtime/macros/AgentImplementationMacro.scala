@@ -45,7 +45,9 @@ object AgentImplementationMacro {
 
     val ctorSchemaExpr =
       Expr.summon[GolemSchema[Unit]].getOrElse {
-        report.errorAndAbort(s"Unable to summon GolemSchema for Unit constructor type on ${traitSymbol.fullName}.$schemaHint")
+        report.errorAndAbort(
+          s"Unable to summon GolemSchema for Unit constructor type on ${traitSymbol.fullName}.$schemaHint"
+        )
       }
 
     '{

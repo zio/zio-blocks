@@ -11,4 +11,3 @@ trait BindListDoubleWorkflow {
   type AgentInput = Unit
   def finished(results: List[Double]): Unit
 }
-

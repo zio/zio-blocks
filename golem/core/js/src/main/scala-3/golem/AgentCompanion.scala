@@ -32,7 +32,10 @@ trait AgentCompanion[Trait] extends AgentCompanionBase[Trait] {
   transparent inline def get[In](input: In): Future[Trait] =
     ${ AgentCompanionMacro.getImpl[Trait, In]('input) }
 
-  /** Connect to an agent instance, returning a handle that supports await/trigger/schedule for any method. */
+  /**
+   * Connect to an agent instance, returning a handle that supports
+   * await/trigger/schedule for any method.
+   */
   transparent inline def getRemote[In](input: In): Future[RemoteAgent[Trait]] =
     ${ AgentCompanionMacro.getRemoteImpl[Trait, In]('input) }
 

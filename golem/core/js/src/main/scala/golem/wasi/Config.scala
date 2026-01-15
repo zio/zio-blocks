@@ -14,4 +14,3 @@ object Config {
   def raw: Any =
     StoreModule
 }
-

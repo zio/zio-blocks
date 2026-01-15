@@ -112,15 +112,17 @@ object HostApi {
   def completePromise(promiseId: PromiseId, data: Array[Byte]): Boolean =
     AgentHostApi.completePromise(promiseId, toUint8Array(data))
 
-  /** Low-level completion using `Uint8Array` (internal; prefer `Array[Byte]`). */
+  /**
+   * Low-level completion using `Uint8Array` (internal; prefer `Array[Byte]`).
+   */
   private[golem] def completePromiseRaw(promiseId: PromiseId, data: Uint8Array): Boolean =
     AgentHostApi.completePromise(promiseId, data)
 
   /**
    * Awaits a promise completion and returns the payload bytes.
    *
-   * This is implemented in a non-blocking way (polling `pollable.ready()`), so it can be safely
-   * composed with other async work using `Future`.
+   * This is implemented in a non-blocking way (polling `pollable.ready()`), so
+   * it can be safely composed with other async work using `Future`.
    *
    * If you want the explicit blocking behavior, use `awaitPromiseBlocking`.
    */
@@ -139,7 +141,10 @@ object HostApi {
   private[golem] def awaitPromiseRaw(promiseId: PromiseId): Future[Uint8Array] =
     awaitPromiseImpl(promiseId, initialDelayMs = 0)
 
-  /** Low-level blocking await using `Uint8Array` (internal; prefer `Array[Byte]`). */
+  /**
+   * Low-level blocking await using `Uint8Array` (internal; prefer
+   * `Array[Byte]`).
+   */
   private[golem] def awaitPromiseBlockingRaw(promiseId: PromiseId): Uint8Array = {
     val handle   = AgentHostApi.getPromise(promiseId)
     val pollable = handle.subscribe()
@@ -150,12 +155,15 @@ object HostApi {
   }
 
   /**
-   * Await a promise and decode the payload as JSON using `zio.blocks.schema.json`.
+   * Await a promise and decode the payload as JSON using
+   * `zio.blocks.schema.json`.
    *
-   * By default, decoding is lenient (extra JSON fields are ignored). If you want strict decoding,
-   * set `rejectExtraFields = true`.
+   * By default, decoding is lenient (extra JSON fields are ignored). If you
+   * want strict decoding, set `rejectExtraFields = true`.
    */
-  def awaitPromiseJson[A](promiseId: PromiseId, rejectExtraFields: Boolean = false)(implicit schema: Schema[A]): Future[A] =
+  def awaitPromiseJson[A](promiseId: PromiseId, rejectExtraFields: Boolean = false)(implicit
+    schema: Schema[A]
+  ): Future[A] =
     awaitPromise(promiseId).map { bytes =>
       val codec = jsonCodec[A](rejectExtraFields)
       codec.decode(bytes) match {
@@ -167,7 +175,8 @@ object HostApi {
   /**
    * Encode a value as JSON and complete the promise with the encoded bytes.
    *
-   * Encoding uses `zio.blocks.schema.json` and is deterministic w.r.t. the derived schema.
+   * Encoding uses `zio.blocks.schema.json` and is deterministic w.r.t. the
+   * derived schema.
    */
   def completePromiseJson[A](
     promiseId: PromiseId,

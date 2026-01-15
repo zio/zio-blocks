@@ -20,8 +20,8 @@ object Llm {
 
   final case class Message(role: String, name: Option[String], content: List[ContentPart])
   object Message {
-    def system(text: String): Message = Message("system", None, List(ContentPart.Text(text)))
-    def user(text: String): Message   = Message("user", None, List(ContentPart.Text(text)))
+    def system(text: String): Message                                 = Message("system", None, List(ContentPart.Text(text)))
+    def user(text: String): Message                                   = Message("user", None, List(ContentPart.Text(text)))
     def assistant(text: String, name: Option[String] = None): Message =
       Message("assistant", name, List(ContentPart.Text(text)))
   }
@@ -30,7 +30,7 @@ object Llm {
     def tag: String
   }
   object Event {
-    final case class MessageEvent(message: Message) extends Event { override val tag: String = "message" }
+    final case class MessageEvent(message: Message)    extends Event { override val tag: String = "message"  }
     final case class ResponseEvent(response: Response) extends Event { override val tag: String = "response" }
     def message(m: Message): Event   = MessageEvent(m)
     def response(r: Response): Event = ResponseEvent(r)
@@ -43,8 +43,9 @@ object Llm {
   /**
    * Send a single LLM request.
    *
-   * Note: if the underlying host library reports an error, this throws an `IllegalStateException`.
-   * (We can switch this to `Either` if you prefer, but this keeps user code very small.)
+   * Note: if the underlying host library reports an error, this throws an
+   * `IllegalStateException`. (We can switch this to `Either` if you prefer, but
+   * this keeps user code very small.)
    */
   def send(events: Vector[Event], config: Config): Response = {
     val jsEvents = js.Array(events.map(toJsEvent): _*)
@@ -108,4 +109,3 @@ object Llm {
     ): js.Dictionary[js.Any] = js.native
   }
 }
-

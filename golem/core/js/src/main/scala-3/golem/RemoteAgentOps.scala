@@ -9,10 +9,11 @@ import scala.scalajs.js
 /**
  * Scala-3-only ergonomic RPC surface that resembles Rust/TS SDKs:
  *
- * - `remote.api.foo(...)` -> await (normal trait call)
- * - `remote.rpc.trigger_foo(...)` -> trigger
- * - `remote.rpc.schedule_foo(ts, ...)` -> schedule
- * - `remote.rpc.call_foo(...)` -> await (always invoke-and-await, even if the trait method is `Unit`)
+ *   - `remote.api.foo(...)` -> await (normal trait call)
+ *   - `remote.rpc.trigger_foo(...)` -> trigger
+ *   - `remote.rpc.schedule_foo(ts, ...)` -> schedule
+ *   - `remote.rpc.call_foo(...)` -> await (always invoke-and-await, even if the
+ *     trait method is `Unit`)
  *
  * Usage:
  * {{{
@@ -51,9 +52,9 @@ private object RemoteAgentRpcMacro {
     val pendingMethods: List[MethodData] =
       traitSymbol.methodMembers.collect {
         case m if m.flags.is(Flags.Deferred) && m.isDefDef && m.name != "new" =>
-          val params                                   = extractParameters(m)
-          val accessMode                               = methodAccess(params)
-          val inputType                                = inputTypeFor(accessMode, params)
+          val params                                              = extractParameters(m)
+          val accessMode                                          = methodAccess(params)
+          val inputType                                           = inputTypeFor(accessMode, params)
           val (outputType, returnType /* Future[Out] or Unit */ ) = returnAndOutputTypeFor(m)
           MethodData(m, params, accessMode, inputType, outputType, returnType)
       }
@@ -181,24 +182,26 @@ private object RemoteAgentRpcMacro {
               val fnTerm: Term =
                 op match {
                   case "call" =>
-                    val mt = MethodType(method.params.map(_._1))(_ => method.params.map(_._2), _ => TypeRepr.of[Future[out]])
+                    val mt =
+                      MethodType(method.params.map(_._1))(_ => method.params.map(_._2), _ => TypeRepr.of[Future[out]])
                     Lambda(
                       Symbol.spliceOwner,
                       mt,
                       (owner, params) => {
-                        val args = params.collect { case t: Term => t.asExprOf[Any] }.toList
+                        val args    = params.collect { case t: Term => t.asExprOf[Any] }.toList
                         val inValue =
                           buildInputValueExpr(method.accessMode, method.inputType, args).asExprOf[in]
                         '{ $remoteRef.resolved.await[in, out]($methodExpr, $inValue) }.asTerm.changeOwner(owner)
                       }
                     )
                   case "trigger" =>
-                    val mt = MethodType(method.params.map(_._1))(_ => method.params.map(_._2), _ => TypeRepr.of[Future[Unit]])
+                    val mt =
+                      MethodType(method.params.map(_._1))(_ => method.params.map(_._2), _ => TypeRepr.of[Future[Unit]])
                     Lambda(
                       Symbol.spliceOwner,
                       mt,
                       (owner, params) => {
-                        val args = params.collect { case t: Term => t.asExprOf[Any] }.toList
+                        val args    = params.collect { case t: Term => t.asExprOf[Any] }.toList
                         val inValue =
                           buildInputValueExpr(method.accessMode, method.inputType, args).asExprOf[in]
                         '{ $remoteRef.resolved.trigger[in]($methodExpr, $inValue) }.asTerm.changeOwner(owner)
@@ -215,10 +218,12 @@ private object RemoteAgentRpcMacro {
                       mt,
                       (owner, params) => {
                         val all = params.collect { case t: Term => t }.toList
-                        val dt =
-                          all.headOption.getOrElse(report.errorAndAbort(s"schedule_${methodName} missing datetime argument"))
-                        val rest = all.drop(1)
-                        val args = rest.map(_.asExprOf[Any])
+                        val dt  =
+                          all.headOption.getOrElse(
+                            report.errorAndAbort(s"schedule_${methodName} missing datetime argument")
+                          )
+                        val rest    = all.drop(1)
+                        val args    = rest.map(_.asExprOf[Any])
                         val inValue =
                           buildInputValueExpr(method.accessMode, method.inputType, args).asExprOf[in]
                         val dtExpr = dt.asExprOf[Datetime]
@@ -268,8 +273,8 @@ private object RemoteAgentRpcMacro {
         val triggerName  = s"trigger_${methodName}"
         val scheduleName = s"schedule_${methodName}"
 
-        val callJsName = scalaJsMethodName(callName, m.params.map(_._2), TypeRepr.of[Future].appliedTo(m.outputType))
-        val trigJsName = scalaJsMethodName(triggerName, m.params.map(_._2), TypeRepr.of[Future[Unit]])
+        val callJsName  = scalaJsMethodName(callName, m.params.map(_._2), TypeRepr.of[Future].appliedTo(m.outputType))
+        val trigJsName  = scalaJsMethodName(triggerName, m.params.map(_._2), TypeRepr.of[Future[Unit]])
         val schedJsName =
           scalaJsMethodName(
             scheduleName,
@@ -295,15 +300,18 @@ private object RemoteAgentRpcMacro {
 
   private enum MethodParamAccess { case NoArgs, SingleArg, MultiArgs }
 
-  private def extractParameters(using Quotes)(method: quotes.reflect.Symbol): List[(String, quotes.reflect.TypeRepr)] = {
+  private def extractParameters(using
+    Quotes
+  )(method: quotes.reflect.Symbol): List[(String, quotes.reflect.TypeRepr)] = {
     import quotes.reflect.*
     method.paramSymss.collectFirst {
       case params if params.forall(_.isTerm) =>
-        params.collect { case sym if sym.isTerm =>
-          sym.tree match {
-            case v: ValDef => (sym.name, v.tpt.tpe)
-            case other     => report.errorAndAbort(s"Unsupported parameter declaration in ${method.name}: $other")
-          }
+        params.collect {
+          case sym if sym.isTerm =>
+            sym.tree match {
+              case v: ValDef => (sym.name, v.tpt.tpe)
+              case other     => report.errorAndAbort(s"Unsupported parameter declaration in ${method.name}: $other")
+            }
         }
     }.getOrElse(Nil)
   }
@@ -315,7 +323,9 @@ private object RemoteAgentRpcMacro {
       case _        => MethodParamAccess.MultiArgs
     }
 
-  private def inputTypeFor(using Quotes)(
+  private def inputTypeFor(using
+    Quotes
+  )(
     access: MethodParamAccess,
     params: List[(String, quotes.reflect.TypeRepr)]
   ): quotes.reflect.TypeRepr = {
@@ -335,7 +345,8 @@ private object RemoteAgentRpcMacro {
       case d: DefDef =>
         val tpe = d.returnTpt.tpe
         tpe match {
-          case AppliedType(constructor, args) if constructor.typeSymbol.fullName == "scala.concurrent.Future" && args.nonEmpty =>
+          case AppliedType(constructor, args)
+              if constructor.typeSymbol.fullName == "scala.concurrent.Future" && args.nonEmpty =>
             (args.head, tpe)
           case other if other =:= TypeRepr.of[Unit] =>
             (TypeRepr.of[Unit], other)
@@ -349,4 +360,3 @@ private object RemoteAgentRpcMacro {
     }
   }
 }
-

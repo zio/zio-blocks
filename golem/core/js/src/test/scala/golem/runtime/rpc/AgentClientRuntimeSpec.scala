@@ -62,9 +62,9 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
   }
 
   test("Trigger works for awaitable methods (invocation kind does not restrict trigger)") {
-    val agentType  = rpcAgentType
-    val invoker    = new RecordingRpcInvoker
-    val resolved   = resolvedAgent(invoker, agentType)
+    val agentType                                             = rpcAgentType
+    val invoker                                               = new RecordingRpcInvoker
+    val resolved                                              = resolvedAgent(invoker, agentType)
     val methodBase: AgentMethod[RpcParityAgent, String, Unit] =
       findMethod[RpcParityAgent, String, Unit](agentType, "fireAndForget")
     val method: AgentMethod[RpcParityAgent, String, Unit] =
@@ -77,9 +77,9 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
   }
 
   test("Schedule works for awaitable methods (invocation kind does not restrict schedule)") {
-    val agentType  = rpcAgentType
-    val invoker    = new RecordingRpcInvoker
-    val resolved   = resolvedAgent(invoker, agentType)
+    val agentType                                             = rpcAgentType
+    val invoker                                               = new RecordingRpcInvoker
+    val resolved                                              = resolvedAgent(invoker, agentType)
     val methodBase: AgentMethod[RpcParityAgent, String, Unit] =
       findMethod[RpcParityAgent, String, Unit](agentType, "fireAndForget")
     val method: AgentMethod[RpcParityAgent, String, Unit] =

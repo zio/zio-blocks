@@ -40,9 +40,13 @@ object GolemPlugin extends AutoPlugin {
         bos.toByteArray
       case None =>
         // Fallback for monorepo builds, where the plugin source is compiled into the meta-build.
-        val candidate = repoRootFallback / "golem" / "sbt" / "src" / "main" / "resources" / "golem" / "wasm" / "agent_guest.wasm"
+        val candidate =
+          repoRootFallback / "golem" / "sbt" / "src" / "main" / "resources" / "golem" / "wasm" / "agent_guest.wasm"
         if (candidate.exists()) IO.readBytes(candidate)
-        else sys.error(s"[golem] Missing embedded resource '$resourcePath' (and no repo fallback at ${candidate.getAbsolutePath}).")
+        else
+          sys.error(
+            s"[golem] Missing embedded resource '$resourcePath' (and no repo fallback at ${candidate.getAbsolutePath})."
+          )
     }
   }
 
@@ -78,7 +82,7 @@ object GolemPlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Def.Setting[?]] =
     Seq(
-      golemBasePackage := None,
+      golemBasePackage        := None,
       golemAgentGuestWasmFile := {
         // Prefer a `wasm/agent_guest.wasm` at the golem *app root* (directory containing `golem.yaml`).
         // This supports "app-root" layouts where the Scala build lives inside a component directory.
@@ -95,7 +99,7 @@ object GolemPlugin extends AutoPlugin {
         def findAppRoot(dir: File): Option[File] =
           if (dir == null) None
           else {
-            val manifest = dir / "golem.yaml"
+            val manifest      = dir / "golem.yaml"
             val isAppManifest =
               manifest.exists() && IO.read(manifest).linesIterator.exists(line => line.trim.startsWith("app:"))
             if (isAppManifest) Some(dir) else findAppRoot(dir.getParentFile)
@@ -144,7 +148,7 @@ object GolemPlugin extends AutoPlugin {
       golemEnsureAgentGuestWasm := {
         // Use dynamic tasks so we don't depend on `golemWriteAgentGuestWasm` unless needed.
         Def.taskDyn {
-          val out = golemAgentGuestWasmFile.value
+          val out              = golemAgentGuestWasmFile.value
           val repoRootFallback = (LocalRootProject / baseDirectory).value
           val bytes            = embeddedAgentGuestWasmBytes(getClass.getClassLoader, repoRootFallback)
           val expectedSha      = sha256(bytes)
@@ -168,7 +172,7 @@ object GolemPlugin extends AutoPlugin {
       },
       // Make the embedded wasm fully automatic for typical usage: if the app manifest expects `app/wasm/agent_guest.wasm`
       // and it isn't there, create it as part of normal compilation / linking flows.
-      Compile / compile := (Compile / compile).dependsOn(golemPrepare).value,
+      Compile / compile                             := (Compile / compile).dependsOn(golemPrepare).value,
       Compile / ScalaJSPlugin.autoImport.fastLinkJS :=
         (Compile / ScalaJSPlugin.autoImport.fastLinkJS).dependsOn(golemPrepare).value,
       Compile / ScalaJSPlugin.autoImport.fullLinkJS :=
@@ -204,21 +208,21 @@ object GolemPlugin extends AutoPlugin {
               }
 
               def splitTopLevelCommas(s: String): List[String] = {
-                val out = scala.collection.mutable.ListBuffer.empty[String]
-                val buf = new java.lang.StringBuilder
-                var paren = 0
+                val out     = scala.collection.mutable.ListBuffer.empty[String]
+                val buf     = new java.lang.StringBuilder
+                var paren   = 0
                 var bracket = 0
-                var brace = 0
-                var i = 0
+                var brace   = 0
+                var i       = 0
                 while (i < s.length) {
                   val ch = s.charAt(i)
                   ch match {
-                    case '(' => paren += 1; buf.append(ch)
-                    case ')' => if (paren > 0) paren -= 1; buf.append(ch)
-                    case '[' => bracket += 1; buf.append(ch)
-                    case ']' => if (bracket > 0) bracket -= 1; buf.append(ch)
-                    case '{' => brace += 1; buf.append(ch)
-                    case '}' => if (brace > 0) brace -= 1; buf.append(ch)
+                    case '('                                             => paren += 1; buf.append(ch)
+                    case ')'                                             => if (paren > 0) paren -= 1; buf.append(ch)
+                    case '['                                             => bracket += 1; buf.append(ch)
+                    case ']'                                             => if (bracket > 0) bracket -= 1; buf.append(ch)
+                    case '{'                                             => brace += 1; buf.append(ch)
+                    case '}'                                             => if (brace > 0) brace -= 1; buf.append(ch)
                     case ',' if paren == 0 && bracket == 0 && brace == 0 =>
                       out += buf.toString
                       buf.setLength(0)
@@ -325,7 +329,7 @@ object GolemPlugin extends AutoPlugin {
                   case tpe :: Nil =>
                     s"AgentImplementation.register[$traitFqn, $ctorTpe]((in: $ctorTpe) => new $implFqn(in))"
                   case many =>
-                    val args     = many.indices.map(i => s"in._${i + 1}").mkString(", ")
+                    val args = many.indices.map(i => s"in._${i + 1}").mkString(", ")
                     s"AgentImplementation.register[$traitFqn, $ctorTpe]((in: $ctorTpe) => new $implFqn($args))"
                 }
               }

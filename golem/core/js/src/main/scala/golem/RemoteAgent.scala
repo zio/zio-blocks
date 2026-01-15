@@ -9,9 +9,9 @@ import scala.concurrent.Future
  * A remote agent handle that exposes all three invocation styles regardless of
  * a method's declared return type.
  *
- * - **await**: `call(...)` (same as calling the method on `api`)
- * - **trigger**: `trigger(...)`
- * - **schedule**: `schedule(...)`
+ *   - **await**: `call(...)` (same as calling the method on `api`)
+ *   - **trigger**: `trigger(...)`
+ *   - **schedule**: `schedule(...)`
  */
 final case class RemoteAgent[Trait](
   api: Trait,
@@ -30,4 +30,3 @@ final case class RemoteAgent[Trait](
   def schedule[In, Out](method: AgentMethod[Trait, In, Out], datetime: Datetime, input: In): Future[Unit] =
     resolved.schedule(method, datetime, input)
 }
-

@@ -8,7 +8,7 @@ import scala.scalajs.js.annotation.JSImport
  */
 object DurabilityApi {
 
-  type OplogIndex = BigInt
+  type OplogIndex            = BigInt
   type DurableExecutionState = Any
   type PersistedInvocation   = Any
 
@@ -24,7 +24,7 @@ object DurabilityApi {
       request: js.Any,
       response: js.Any,
       functionType: js.Any
-    ): Unit = js.native
+    ): Unit                                              = js.native
     def readPersistedDurableFunctionInvocation(): js.Any = js.native
   }
 
@@ -60,4 +60,3 @@ object DurabilityApi {
   def raw: Any =
     DurabilityModule
 }
-

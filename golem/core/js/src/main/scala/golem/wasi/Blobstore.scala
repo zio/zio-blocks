@@ -23,4 +23,3 @@ object Blobstore {
   def containerRaw: Any = ContainerModule
   def typesRaw: Any     = TypesModule
 }
-

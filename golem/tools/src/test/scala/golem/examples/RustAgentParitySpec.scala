@@ -202,7 +202,9 @@ final class RustAgentParitySpec extends AnyFunSuite {
     def rpcCallTrigger(payload: String): Unit
   }
 
-  private final class EphemeralAgentImpl extends EphemeralAgent { override def ping(): Future[String] = Future.successful("pong") }
+  private final class EphemeralAgentImpl extends EphemeralAgent {
+    override def ping(): Future[String] = Future.successful("pong")
+  }
 
   private final class DurableDefaultAgentImpl extends DurableDefaultAgent {
     override def ping(): Future[String] = Future.successful("durable-default")

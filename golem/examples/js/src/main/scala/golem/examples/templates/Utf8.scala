@@ -25,9 +25,9 @@ private[golem] object Utf8 {
     new TextDecoder("utf-8").decode(bytes)
 
   def encodeBytes(input: String): Array[Byte] = {
-    val u8   = encode(input)
-    val out  = new Array[Byte](u8.length)
-    var i    = 0
+    val u8  = encode(input)
+    val out = new Array[Byte](u8.length)
+    var i   = 0
     while (i < u8.length) {
       out(i) = u8(i).toByte
       i += 1

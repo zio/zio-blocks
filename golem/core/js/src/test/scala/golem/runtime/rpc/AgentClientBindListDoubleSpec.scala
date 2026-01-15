@@ -51,4 +51,3 @@ final class AgentClientBindListDoubleSpec extends AsyncFunSuite {
     Future.successful(assert(invoker.triggered))
   }
 }
-

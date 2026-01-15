@@ -62,4 +62,3 @@ object WebSearch {
     def startSearch(params: js.Dictionary[js.Any]): SearchSession = js.native
   }
 }
-

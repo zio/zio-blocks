@@ -6,7 +6,8 @@ import scala.scalajs.js.annotation.JSImport
 /**
  * Scala.js facades for the built-in Golem RDBMS host packages.
  *
- * This is exposed as raw host modules to keep the Scala SDK surface small while providing parity with Rust/TS.
+ * This is exposed as raw host modules to keep the Scala SDK surface small while
+ * providing parity with Rust/TS.
  */
 object Rdbms {
 
@@ -26,4 +27,3 @@ object Rdbms {
   def mysqlRaw: Any    = MysqlModule
   def typesRaw: Any    = TypesModule
 }
-

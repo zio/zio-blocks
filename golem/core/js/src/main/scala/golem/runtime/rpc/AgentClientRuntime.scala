@@ -69,7 +69,8 @@ object AgentClientRuntime {
     /**
      * Always invoke via "invoke-and-await" regardless of `method.invocation`.
      *
-     * This enables "await/trigger/schedule for any method" APIs (TS/Rust parity).
+     * This enables "await/trigger/schedule for any method" APIs (TS/Rust
+     * parity).
      */
     def await[In, Out](method: AgentMethod[Trait, In, Out], input: In): Future[Out] =
       runAwaitable(method, input)

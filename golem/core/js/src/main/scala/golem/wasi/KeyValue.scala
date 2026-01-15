@@ -28,4 +28,3 @@ object KeyValue {
   def typesRaw: Any         = TypesModule
   def errorRaw: Any         = ErrorModule
 }
-

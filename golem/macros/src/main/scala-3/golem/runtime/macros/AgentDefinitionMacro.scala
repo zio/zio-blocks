@@ -124,7 +124,7 @@ object AgentDefinitionMacro {
   private def methodMetadata(using Quotes)(method: quotes.reflect.Symbol): Expr[MethodMetadata] = {
     import quotes.reflect.*
 
-    val methodName   = method.name
+    val methodName = method.name
     ensureRpcCompatibleReturnType(method)
     val descExpr     = optionalString(annotationString(method, TypeRepr.of[description]))
     val promptExpr   = optionalString(annotationString(method, TypeRepr.of[prompt]))
@@ -198,7 +198,8 @@ object AgentDefinitionMacro {
       case d: DefDef =>
         val returnType = d.returnTpt.tpe
         returnType match {
-          case AppliedType(constructor, args) if constructor.typeSymbol.fullName == "scala.concurrent.Future" && args.nonEmpty =>
+          case AppliedType(constructor, args)
+              if constructor.typeSymbol.fullName == "scala.concurrent.Future" && args.nonEmpty =>
             () // ok
           case t if t =:= TypeRepr.of[Unit] =>
             () // ok

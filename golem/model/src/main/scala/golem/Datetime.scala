@@ -9,6 +9,7 @@ package golem
 final class Datetime private (val epochMillis: Double) extends AnyVal
 
 object Datetime {
+
   /** Current time (epoch millis). */
   def now: Datetime =
     fromEpochMillis(System.currentTimeMillis().toDouble)
@@ -29,4 +30,3 @@ object Datetime {
   def afterSeconds(deltaSeconds: Double): Datetime =
     afterMillis(deltaSeconds * 1000.0)
 }
-

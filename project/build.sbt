@@ -17,4 +17,3 @@ lazy val root = (project in file("."))
       repoRoot / "golem" / "sbt" / "src" / "main" / "resources"
     }
   )
-

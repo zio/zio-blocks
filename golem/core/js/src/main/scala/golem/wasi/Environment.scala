@@ -14,4 +14,3 @@ object Environment {
   def raw: Any =
     EnvModule
 }
-
