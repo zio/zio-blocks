@@ -50,6 +50,7 @@ lazy val root = project
     schema.js,
     schema.native,
     `schema-avro`,
+    `schema-thrift`,
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-toon`.native,
@@ -171,6 +172,20 @@ lazy val `schema-avro` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     })
+  )
+
+lazy val `schema-thrift` = project
+  .settings(stdSettings("zio-blocks-schema-thrift"))
+  .dependsOn(schema.jvm)
+  .settings(buildInfoSettings("zio.blocks.schema.thrift"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.apache.thrift"  % "libthrift"              % "0.20.0",
+      "jakarta.annotation" % "jakarta.annotation-api" % "3.0.0",
+      "dev.zio"           %% "zio-test"               % "2.1.24" % Test,
+      "dev.zio"           %% "zio-test-sbt"           % "2.1.24" % Test
+    )
   )
 
 lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
