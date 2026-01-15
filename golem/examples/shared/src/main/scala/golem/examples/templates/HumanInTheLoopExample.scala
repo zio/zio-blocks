@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "approval-workflow")
+@agentDefinition(typeName = "approval_workflow")
 @description("Human-in-the-loop workflow using Golem promises (Scala equivalent of the Rust/TS HITL template).")
 trait ApprovalWorkflow extends BaseAgent {
   type AgentInput = String
