@@ -2,7 +2,8 @@ package zio.blocks.schema.json
 
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
 import zio.blocks.schema.patch.{DynamicPatch, PatchMode}
-import zio.blocks.schema.patch.DynamicPatch.{DynamicPatchOp, MapOp, Operation, PrimitiveOp, SeqOp, StringOp}
+import zio.blocks.schema.patch.DynamicPatch.{DynamicPatchOp, MapOp, Operation, SeqOp}
+import zio.blocks.schema.patch.DynamicPatch.{PrimitiveOp => DynPrimitiveOp, StringOp => DynStringOp}
 
 // =============================================================================
 // JSON PATCH MODE
@@ -161,16 +162,16 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
 
     case Op.PrimitiveDelta(primOp) =>
       primOp match {
-        case PrimitiveOp.NumberDelta(delta) =>
-          Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigDecimalDelta(delta))
-        case PrimitiveOp.StringEdit(stringOps) =>
+        case JsonPatch.PrimitiveOp.NumberDelta(delta) =>
+          Operation.PrimitiveDelta(DynPrimitiveOp.BigDecimalDelta(delta))
+        case JsonPatch.PrimitiveOp.StringEdit(stringOps) =>
           val dynOps = stringOps.map {
-            case JsonPatch.StringOp.Insert(index, text)        => DynamicPatch.StringOp.Insert(index, text)
-            case JsonPatch.StringOp.Delete(index, length)      => DynamicPatch.StringOp.Delete(index, length)
-            case JsonPatch.StringOp.Append(text)               => DynamicPatch.StringOp.Append(text)
-            case JsonPatch.StringOp.Modify(index, length, text) => DynamicPatch.StringOp.Modify(index, length, text)
+            case JsonPatch.StringOp.Insert(index, text)        => DynStringOp.Insert(index, text)
+            case JsonPatch.StringOp.Delete(index, length)      => DynStringOp.Delete(index, length)
+            case JsonPatch.StringOp.Append(text)               => DynStringOp.Append(text)
+            case JsonPatch.StringOp.Modify(index, length, text) => DynStringOp.Modify(index, length, text)
           }
-          Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.StringEdit(dynOps))
+          Operation.PrimitiveDelta(DynPrimitiveOp.StringEdit(dynOps))
       }
 
     case Op.ArrayEdit(arrayOps) =>
@@ -276,30 +277,30 @@ object JsonPatch {
 
     case Operation.PrimitiveDelta(primOp) =>
       primOp match {
-        case DynamicPatch.PrimitiveOp.BigDecimalDelta(delta) =>
-          Right(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(delta)))
-        case DynamicPatch.PrimitiveOp.IntDelta(delta) =>
-          Right(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(delta))))
-        case DynamicPatch.PrimitiveOp.LongDelta(delta) =>
-          Right(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(delta))))
-        case DynamicPatch.PrimitiveOp.DoubleDelta(delta) =>
-          Right(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(delta))))
-        case DynamicPatch.PrimitiveOp.FloatDelta(delta) =>
-          Right(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(delta.toDouble))))
-        case DynamicPatch.PrimitiveOp.ShortDelta(delta) =>
-          Right(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(delta.toInt))))
-        case DynamicPatch.PrimitiveOp.ByteDelta(delta) =>
-          Right(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(delta.toInt))))
-        case DynamicPatch.PrimitiveOp.BigIntDelta(delta) =>
-          Right(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(delta))))
-        case DynamicPatch.PrimitiveOp.StringEdit(ops) =>
+        case DynPrimitiveOp.BigDecimalDelta(delta) =>
+          Right(Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(delta)))
+        case DynPrimitiveOp.IntDelta(delta) =>
+          Right(Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(delta))))
+        case DynPrimitiveOp.LongDelta(delta) =>
+          Right(Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(delta))))
+        case DynPrimitiveOp.DoubleDelta(delta) =>
+          Right(Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(delta))))
+        case DynPrimitiveOp.FloatDelta(delta) =>
+          Right(Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(delta.toDouble))))
+        case DynPrimitiveOp.ShortDelta(delta) =>
+          Right(Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(delta.toInt))))
+        case DynPrimitiveOp.ByteDelta(delta) =>
+          Right(Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(delta.toInt))))
+        case DynPrimitiveOp.BigIntDelta(delta) =>
+          Right(Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(delta))))
+        case DynPrimitiveOp.StringEdit(ops) =>
           val jsonOps = ops.map {
-            case DynamicPatch.StringOp.Insert(index, text)        => StringOp.Insert(index, text)
-            case DynamicPatch.StringOp.Delete(index, length)      => StringOp.Delete(index, length)
-            case DynamicPatch.StringOp.Append(text)               => StringOp.Append(text)
-            case DynamicPatch.StringOp.Modify(index, length, text) => StringOp.Modify(index, length, text)
+            case DynStringOp.Insert(index, text)        => JsonPatch.StringOp.Insert(index, text)
+            case DynStringOp.Delete(index, length)      => JsonPatch.StringOp.Delete(index, length)
+            case DynStringOp.Append(text)               => JsonPatch.StringOp.Append(text)
+            case DynStringOp.Modify(index, length, text) => JsonPatch.StringOp.Modify(index, length, text)
           }
-          Right(Op.PrimitiveDelta(PrimitiveOp.StringEdit(jsonOps)))
+          Right(Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(jsonOps)))
         case _ =>
           Left(JsonError("Temporal delta operations are not representable in JSON"))
       }
