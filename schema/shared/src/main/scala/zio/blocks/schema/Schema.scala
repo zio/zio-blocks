@@ -171,6 +171,9 @@ object Schema extends SchemaCompanionVersionSpecific {
 
   implicit val uuid: Schema[java.util.UUID] = new Schema(Reflect.uuid[Binding])
 
+  implicit def either[A, B](implicit left: Schema[A], right: Schema[B]): Schema[Either[A, B]] =
+    new Schema(Reflect.either(left.reflect, right.reflect))
+
   implicit def option[A <: AnyRef](implicit element: Schema[A]): Schema[Option[A]] =
     new Schema(Reflect.option(element.reflect))
 

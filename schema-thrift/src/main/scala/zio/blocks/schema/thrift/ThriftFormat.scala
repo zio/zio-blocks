@@ -561,7 +561,7 @@ object ThriftDeriver extends Deriver[ThriftBinaryCodec] {
         }
       } else variant.variantBinding.asInstanceOf[BindingInstance[ThriftBinaryCodec, ?, A]].instance.force
 
-    } else if (reflect.isInstanceOf[Reflect.Dynamic[?]]) {
+    } else if (reflect.isDynamic) {
       deriveCodec(dynamicValueSchema.reflect).asInstanceOf[ThriftBinaryCodec[A]]
     } else {
       throw new UnsupportedOperationException(s"Unsupported reflect type: $reflect")
@@ -725,7 +725,7 @@ object ThriftDeriver extends Deriver[ThriftBinaryCodec] {
       case _ => throw new UnsupportedOperationException(s"Unsupported primitive: $primitiveType")
     }
 
-  private def getTType(reflect: Reflect[_, _]): Byte =
+  private def getTType[F[_, _]](reflect: Reflect[F, ?]): Byte =
     if (reflect.isPrimitive) {
       val primitive = reflect.asPrimitive.get
       primitive.primitiveType match {
@@ -760,7 +760,7 @@ object ThriftDeriver extends Deriver[ThriftBinaryCodec] {
       TType.MAP
     } else if (reflect.isVariant) {
       TType.STRUCT
-    } else if (reflect.isInstanceOf[Reflect.Dynamic[?]]) {
+    } else if (reflect.isDynamic) {
       TType.STRUCT
     } else {
       throw new UnsupportedOperationException(s"Unsupported reflect type: $reflect")

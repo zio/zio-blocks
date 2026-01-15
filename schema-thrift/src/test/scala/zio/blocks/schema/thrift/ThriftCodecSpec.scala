@@ -7,6 +7,20 @@ import zio.Scope
 
 object ThriftCodecSpec extends ZIOSpecDefault {
 
+  case class Person(name: String, age: Int)
+  case class Address(street: String, city: String)
+  case class User(name: String, address: Address)
+  case class Node(value: Int, next: Option[Node])
+
+  sealed trait Color
+  case object Red   extends Color
+  case object Green extends Color
+  case object Blue  extends Color
+
+  sealed trait Shape
+  case class Circle(radius: Double)                   extends Shape
+  case class Rectangle(width: Double, height: Double) extends Shape
+
   def spec: Spec[TestEnvironment with Scope, Any] = suite("ThriftCodecSpec")(
     suite("primitives")(
       test("Unit") {
@@ -121,19 +135,14 @@ object ThriftCodecSpec extends ZIOSpecDefault {
     ),
     suite("records")(
       test("Case Class") {
-        case class Person(name: String, age: Int)
         val schema = Schema.derived[Person]
         encodeAndDecode(schema, Person("Alice", 30))
       },
       test("Nested Record") {
-        case class Address(street: String, city: String)
-        case class User(name: String, address: Address)
-        implicit val addressSchema: Schema[Address] = Schema.derived[Address]
-        val schema                                  = Schema.derived[User]
+        val schema = Schema.derived[User]
         encodeAndDecode(schema, User("Bob", Address("123 Main St", "New York")))
       },
       test("Recursive Record") {
-        case class Node(value: Int, next: Option[Node])
         implicit lazy val schema: Schema[Node] = Schema.derived[Node]
         val list                               = Node(1, Some(Node(2, None)))
         encodeAndDecode(schema, list)
@@ -141,20 +150,12 @@ object ThriftCodecSpec extends ZIOSpecDefault {
     ),
     suite("variants")(
       test("Sealed Trait (Enum)") {
-        sealed trait Color
-        case object Red   extends Color
-        case object Green extends Color
-        case object Blue  extends Color
         implicit val schema: Schema[Color] = Schema.derived[Color]
         encodeAndDecode(schema, Red) && encodeAndDecode(schema, Green)
+        // Blue is unused in original test, but I left it defined. It shouldn't trigger local unused warning now.
       },
       test("Sealed Trait (ADT)") {
-        sealed trait Shape
-        case class Circle(radius: Double)                   extends Shape
-        case class Rectangle(width: Double, height: Double) extends Shape
-        implicit val circleSchema: Schema[Circle]  = Schema.derived[Circle]
-        implicit val rectSchema: Schema[Rectangle] = Schema.derived[Rectangle]
-        val schema                                 = Schema.derived[Shape]
+        val schema = Schema.derived[Shape]
 
         encodeAndDecode(schema, Circle(5.0)) && encodeAndDecode(schema, Rectangle(3.0, 4.0))
       },
@@ -163,7 +164,7 @@ object ThriftCodecSpec extends ZIOSpecDefault {
         encodeAndDecode(Schema.optionInt, None)
       },
       test("Either[String, Int]") {
-        val schema = Schema.derived[Either[String, Int]]
+        val schema = Schema[Either[String, Int]]
         encodeAndDecode(schema, Right(42)) &&
         encodeAndDecode(schema, Left("Error"))
       }

@@ -1562,6 +1562,42 @@ object Reflect {
   private[this] def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
     new Record(Vector(), TypeName.none, F.fromBinding(Binding.Record.none))
 
+  private[this] def left[F[_, _], A, B](leftSchema: Reflect[F, A], rightSchema: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Record[F, Left[A, B]] =
+    new Record(
+      Vector(new Term("value", leftSchema)),
+      TypeName.left(leftSchema.typeName, rightSchema.typeName),
+      F.fromBinding(Binding.Record.left.asInstanceOf[Binding.Record[Left[A, B]]])
+    )
+
+  private[this] def right[F[_, _], A, B](leftSchema: Reflect[F, A], rightSchema: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Record[F, Right[A, B]] =
+    unwrapToPrimitiveTypeOption(rightSchema) match {
+      case Some(PrimitiveType.Int(_)) =>
+        new Record(
+          Vector(new Term("value", rightSchema)),
+          TypeName.right(leftSchema.typeName, rightSchema.typeName),
+          F.fromBinding(Binding.Record.rightInt.asInstanceOf[Binding.Record[Right[A, B]]])
+        )
+      case _ =>
+        new Record(
+          Vector(new Term("value", rightSchema)),
+          TypeName.right(leftSchema.typeName, rightSchema.typeName),
+          F.fromBinding(Binding.Record.right.asInstanceOf[Binding.Record[Right[A, B]]])
+        )
+    }
+
+  def either[F[_, _], A, B](leftSchema: Reflect[F, A], rightSchema: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[A, B]] =
+    new Variant(
+      Vector(new Term("Left", left(leftSchema, rightSchema)), new Term("Right", right(leftSchema, rightSchema))),
+      TypeName.either(leftSchema.typeName, rightSchema.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
   def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", some(element))),

@@ -72,6 +72,15 @@ object TypeName {
   def some[A](element: TypeName[A]): TypeName[Some[A]] =
     _some.copy(params = Seq(element)).asInstanceOf[TypeName[Some[A]]]
 
+  def left[A, B](left: TypeName[A], right: TypeName[B]): TypeName[Left[A, B]] =
+    _left.copy(params = Seq(left, right)).asInstanceOf[TypeName[Left[A, B]]]
+
+  def right[A, B](left: TypeName[A], right: TypeName[B]): TypeName[Right[A, B]] =
+    _right.copy(params = Seq(left, right)).asInstanceOf[TypeName[Right[A, B]]]
+
+  def either[A, B](left: TypeName[A], right: TypeName[B]): TypeName[Either[A, B]] =
+    _either.copy(params = Seq(left, right)).asInstanceOf[TypeName[Either[A, B]]]
+
   def option[A](element: TypeName[A]): TypeName[Option[A]] =
     _option.copy(params = Seq(element)).asInstanceOf[TypeName[Option[A]]]
 
@@ -96,6 +105,9 @@ object TypeName {
     _seq.copy(params = Seq(element)).asInstanceOf[TypeName[Seq[A]]]
 
   private[this] val _some       = new TypeName(Namespace.scala, "Some")
+  private[this] val _left       = new TypeName(Namespace.scala, "Left") // Assuming scala.package type alias/usage
+  private[this] val _right      = new TypeName(Namespace.scala, "Right")
+  private[this] val _either     = new TypeName(Namespace.scala, "Either")
   private[this] val _option     = new TypeName(Namespace.scala, "Option")
   private[this] val _list       = new TypeName(Namespace.scalaCollectionImmutable, "List")
   private[this] val _map        = new TypeName(Namespace.scalaCollectionImmutable, "Map")
