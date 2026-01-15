@@ -10,10 +10,14 @@ sealed trait MergeStrategy {
   /**
    * Merges two JSON values at the given path.
    *
-   * @param path The current path in the JSON structure
-   * @param left The left (base) JSON value
-   * @param right The right (overlay) JSON value
-   * @return The merged JSON value
+   * @param path
+   *   The current path in the JSON structure
+   * @param left
+   *   The left (base) JSON value
+   * @param right
+   *   The right (overlay) JSON value
+   * @return
+   *   The merged JSON value
    */
   def merge(path: DynamicOptic, left: Json, right: Json): Json
 }
@@ -27,11 +31,11 @@ object MergeStrategy {
     recursive: Boolean,
     mergeFn: (DynamicOptic, Json, Json) => Json
   ): Json.Object = {
-    val leftMap: Map[String, Json] = leftFields.toMap
-    val rightMap: Map[String, Json] = rightFields.toMap
-    val allKeys: Vector[String] = (leftFields.map(_._1) ++ rightFields.map(_._1)).distinct
+    val leftMap: Map[String, Json]           = leftFields.toMap
+    val rightMap: Map[String, Json]          = rightFields.toMap
+    val allKeys: Vector[String]              = (leftFields.map(_._1) ++ rightFields.map(_._1)).distinct
     val mergedFields: Vector[(String, Json)] = allKeys.map { key =>
-      val leftOpt = leftMap.get(key)
+      val leftOpt  = leftMap.get(key)
       val rightOpt = rightMap.get(key)
       (leftOpt, rightOpt) match {
         case (Some(lv), Some(rv)) =>
@@ -39,14 +43,15 @@ object MergeStrategy {
           else (key, rv)
         case (Some(lv), None) => (key, lv)
         case (None, Some(rv)) => (key, rv)
-        case (None, None) => throw new IllegalStateException("Key not found in either map")
+        case (None, None)     => throw new IllegalStateException("Key not found in either map")
       }
     }
     Json.Object(mergedFields)
   }
 
   /**
-   * Auto merge strategy that recursively merges objects and replaces other values.
+   * Auto merge strategy that recursively merges objects and replaces other
+   * values.
    *
    *   - Objects are merged recursively (fields from both are combined)
    *   - Arrays from right replace arrays from left
@@ -114,8 +119,9 @@ object MergeStrategy {
   /**
    * Custom merge strategy using a user-provided function.
    *
-   * @param f A function that takes the path, left value, and right value, and returns
-   *          the merged value
+   * @param f
+   *   A function that takes the path, left value, and right value, and returns
+   *   the merged value
    */
   final case class Custom(f: (DynamicOptic, Json, Json) => Json) extends MergeStrategy {
     def merge(path: DynamicOptic, left: Json, right: Json): Json = f(path, left, right)

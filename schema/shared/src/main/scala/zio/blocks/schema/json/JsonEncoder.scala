@@ -13,8 +13,10 @@ sealed trait JsonEncoder[A] {
   /**
    * Encodes a value of type `A` into [[Json]].
    *
-   * @param value The value to encode
-   * @return The encoded JSON value
+   * @param value
+   *   The value to encode
+   * @return
+   *   The encoded JSON value
    */
   def encode(value: A): Json
 }
@@ -51,7 +53,7 @@ trait JsonEncoderLowPriority {
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonEncoder[A] =
     new JsonEncoder[A] {
       private lazy val codec: JsonBinaryCodec[A] = schema.derive(JsonBinaryCodecDeriver)
-      
+
       def encode(value: A): Json = JsonBridge.encodeJsonWith(value, codec)
     }
 }

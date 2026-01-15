@@ -12,17 +12,22 @@ sealed trait JsonSchema {
   /**
    * Validates a JSON value against this schema.
    *
-   * @param json The JSON value to validate
-   * @return None if valid, Some(error) if validation fails
+   * @param json
+   *   The JSON value to validate
+   * @return
+   *   None if valid, Some(error) if validation fails
    */
   def validate(json: Json): Option[SchemaError] = ???
 
   /**
    * Validates a JSON value at a specific path.
    *
-   * @param json The JSON value to validate
-   * @param path The current path in the validation
-   * @return None if valid, Some(error) if validation fails
+   * @param json
+   *   The JSON value to validate
+   * @param path
+   *   The current path in the validation
+   * @return
+   *   None if valid, Some(error) if validation fails
    */
   def validate(json: Json, path: DynamicOptic): Option[SchemaError] = ???
 }
