@@ -9,14 +9,15 @@ import zio.schema.codec.AvroCodec
 import zio.schema.{DeriveSchema, Schema => ZIOSchema}
 import java.io.ByteArrayOutputStream
 import com.sksamuel.avro4s.{AvroSchema, AvroInputStream, AvroOutputStream}
+import scala.compiletime.uninitialized
 
 class AvroListOfRecordsBenchmark extends BaseBenchmark {
   import AvroListOfRecordsDomain._
 
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
   var size: Int                         = 100
-  var listOfRecords: List[Person]       = _
-  var encodedListOfRecords: Array[Byte] = _
+  var listOfRecords: List[Person]       = uninitialized
+  var encodedListOfRecords: Array[Byte] = uninitialized
 
   @Setup
   def setup(): Unit = {
@@ -31,13 +32,13 @@ class AvroListOfRecordsBenchmark extends BaseBenchmark {
   @Benchmark
   def readingZioBlocks: List[Person] = zioBlocksCodec.decode(encodedListOfRecords) match {
     case Right(value) => value
-    case Left(error)  => sys.error(error.getMessage)
+    case Left(error)  => throw error
   }
 
   @Benchmark
   def readingZioSchema: List[Person] = zioSchemaCodec.decode(Chunk.fromArray(encodedListOfRecords)) match {
     case Right(value) => value
-    case Left(error)  => sys.error(error.getMessage)
+    case Left(error)  => throw error
   }
 
   @Benchmark

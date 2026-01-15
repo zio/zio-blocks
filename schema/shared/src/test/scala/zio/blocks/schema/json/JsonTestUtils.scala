@@ -46,14 +46,17 @@ object JsonTestUtils {
     output.close()
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
+    val encodedBySchema5 = codec.encodeToString(value, writerConfig).getBytes(UTF_8)
     assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4))) &&
+    assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema5))) &&
     assert(codec.decode(encodedBySchema1, readerConfig))(isRight(equalTo(value))) &&
     assert(codec.decode(toInputStream(encodedBySchema1), readerConfig))(isRight(equalTo(value))) &&
     assert(codec.decode(toHeapByteBuffer(encodedBySchema1), readerConfig))(isRight(equalTo(value))) &&
-    assert(codec.decode(toDirectByteBuffer(encodedBySchema1), readerConfig))(isRight(equalTo(value)))
+    assert(codec.decode(toDirectByteBuffer(encodedBySchema1), readerConfig))(isRight(equalTo(value))) &&
+    assert(codec.decode(new String(encodedBySchema1, UTF_8), readerConfig))(isRight(equalTo(value)))
   }
 
   def decode[A](json: String, expectedValue: A)(implicit schema: Schema[A]): TestResult =
@@ -72,7 +75,8 @@ object JsonTestUtils {
     assert(codec.decode(jsonBytes, readerConfig))(isRight(equalTo(expectedValue))) &&
     assert(codec.decode(toInputStream(jsonBytes), readerConfig))(isRight(equalTo(expectedValue))) &&
     assert(codec.decode(toHeapByteBuffer(jsonBytes), readerConfig))(isRight(equalTo(expectedValue))) &&
-    assert(codec.decode(toDirectByteBuffer(jsonBytes), readerConfig))(isRight(equalTo(expectedValue)))
+    assert(codec.decode(toDirectByteBuffer(jsonBytes), readerConfig))(isRight(equalTo(expectedValue))) &&
+    assert(codec.decode(json, readerConfig))(isRight(equalTo(expectedValue)))
   }
 
   def decodeError[A](invalidJson: String, error: String)(implicit schema: Schema[A]): TestResult =
@@ -104,7 +108,11 @@ object JsonTestUtils {
     assert(codec.decode(invalidJson, readerConfig))(isLeft(hasError(error))) &&
       assert(codec.decode(toInputStream(invalidJson), readerConfig))(isLeft(hasError(error))) &&
       assert(codec.decode(toHeapByteBuffer(invalidJson), readerConfig))(isLeft(hasError(error))) &&
-      assert(codec.decode(toDirectByteBuffer(invalidJson), readerConfig))(isLeft(hasError(error)))
+      assert(codec.decode(toDirectByteBuffer(invalidJson), readerConfig))(isLeft(hasError(error))) &&
+      {
+        if (error.startsWith("malformed byte(s)") || error.startsWith("illegal surrogate")) assertTrue(true)
+        else assert(codec.decode(new String(invalidJson, UTF_8), readerConfig))(isLeft(hasError(error)))
+      }
 
   def encode[A](value: A, expectedJson: String)(implicit schema: Schema[A]): TestResult =
     encode(value, expectedJson, getOrDeriveCodec(schema))
@@ -138,10 +146,12 @@ object JsonTestUtils {
     output.close()
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
+    val encodedBySchema5 = codec.encodeToString(value, writerConfig).getBytes(UTF_8)
     assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
-    assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4)))
+    assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4))) &&
+    assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema5)))
   }
 
   def encodeError[A](value: A, error: String)(implicit schema: Schema[A]): TestResult = {
@@ -149,7 +159,8 @@ object JsonTestUtils {
     assert(Try(codec.encode(value)).toEither)(isLeft(hasError(error))) &&
     assert(Try(codec.encode(value, ByteBuffer.allocate(maxBufSize))).toEither)(isLeft(hasError(error))) &&
     assert(Try(codec.encode(value, ByteBuffer.allocateDirect(maxBufSize))).toEither)(isLeft(hasError(error))) &&
-    assert(Try(codec.encode(value, new java.io.ByteArrayOutputStream(maxBufSize))).toEither)(isLeft(hasError(error)))
+    assert(Try(codec.encode(value, new java.io.ByteArrayOutputStream(maxBufSize))).toEither)(isLeft(hasError(error))) &&
+    assert(Try(codec.encodeToString(value)).toEither)(isLeft(hasError(error)))
   }
 
   def encodeError[A](value: A, error: String, writerConfig: WriterConfig)(implicit schema: Schema[A]): TestResult = {
@@ -161,7 +172,8 @@ object JsonTestUtils {
     ) &&
     assert(Try(codec.encode(value, new java.io.ByteArrayOutputStream(maxBufSize), writerConfig)).toEither)(
       isLeft(hasError(error))
-    )
+    ) &&
+    assert(Try(codec.encodeToString(value, writerConfig)).toEither)(isLeft(hasError(error)))
   }
 
   def hasError(message: String): Assertion[Throwable] =
@@ -189,5 +201,5 @@ object JsonTestUtils {
 
   private[this] val codecs     = new ConcurrentHashMap[Schema[?], JsonBinaryCodec[?]]()
   private[this] val random     = new Random()
-  private[this] val maxBufSize = 1024
+  private[this] val maxBufSize = 16384
 }

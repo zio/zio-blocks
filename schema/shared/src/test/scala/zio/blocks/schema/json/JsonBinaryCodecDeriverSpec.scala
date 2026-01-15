@@ -7,7 +7,6 @@ import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.NameMapper._
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect._
 import java.math.MathContext
 import java.nio.charset.StandardCharsets
 import java.time._
@@ -2056,44 +2055,6 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         )
       },
       test("decode and encode record fields as raw untouched bytes using a custom codec") {
-        object RawVal {
-          def apply(s: String) = new RawVal(s)
-
-          val codec: JsonBinaryCodec[RawVal] = new JsonBinaryCodec[RawVal] {
-            override def decodeValue(in: JsonReader, default: RawVal): RawVal = new RawVal(in.readRawValAsBytes())
-
-            override def encodeValue(x: RawVal, out: JsonWriter): Unit = out.writeRawVal(x.bs)
-
-            override val nullValue: RawVal = new RawVal(Array.emptyByteArray)
-          }
-
-          private case class Nested(xx: Boolean, yy: Boolean)
-
-          private case class TopLevel(y: Nested)
-
-          private case object TopLevel {
-            val codec: JsonBinaryCodec[TopLevel] = Schema.derived.derive(JsonBinaryCodecDeriver)
-          }
-
-          implicit val schema: Schema[RawVal] = Schema.derived
-        }
-
-        case class RawVal private (bs: Array[Byte]) {
-          def this(s: String) = this(s.getBytes(StandardCharsets.UTF_8))
-
-          override lazy val hashCode: Int = java.util.Arrays.hashCode(bs)
-
-          override def equals(obj: Any): Boolean = obj match {
-            case that: RawVal => java.util.Arrays.equals(bs, that.bs)
-            case _            => false
-          }
-
-          lazy val isValid: Boolean = RawVal.TopLevel.codec.decode(bs) match {
-            case Right(topLevel) => topLevel.y.xx & !topLevel.y.yy
-            case _               => false
-          }
-        }
-
         case class Message(param1: String, param2: String, payload: RawVal, param3: String)
 
         object Message extends CompanionOptics[Message] {
@@ -3026,7 +2987,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip[Dynamic](value, """{"primitive":1,"record":{"VVV":1,"WWW":2}}""")
       }
     )
-  ) @@ exceptNative
+  )
 
   private[this] def toISO8601(year: Year): String = {
     val x = year.getValue
@@ -3435,5 +3396,43 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
   object Counter {
     implicit val schema: Schema[Counter] = Schema.derived[Counter]
+  }
+
+  object RawVal {
+    def apply(s: String) = new RawVal(s)
+
+    val codec: JsonBinaryCodec[RawVal] = new JsonBinaryCodec[RawVal] {
+      override def decodeValue(in: JsonReader, default: RawVal): RawVal = new RawVal(in.readRawValAsBytes())
+
+      override def encodeValue(x: RawVal, out: JsonWriter): Unit = out.writeRawVal(x.bs)
+
+      override val nullValue: RawVal = new RawVal(Array.emptyByteArray)
+    }
+
+    private case class Nested(xx: Boolean, yy: Boolean)
+
+    private case class TopLevel(y: Nested)
+
+    private case object TopLevel {
+      val codec: JsonBinaryCodec[TopLevel] = Schema.derived.derive(JsonBinaryCodecDeriver)
+    }
+
+    implicit val schema: Schema[RawVal] = Schema.derived
+  }
+
+  case class RawVal private (bs: Array[Byte]) {
+    def this(s: String) = this(s.getBytes(StandardCharsets.UTF_8))
+
+    override lazy val hashCode: Int = java.util.Arrays.hashCode(bs)
+
+    override def equals(obj: Any): Boolean = obj match {
+      case that: RawVal => java.util.Arrays.equals(bs, that.bs)
+      case _            => false
+    }
+
+    lazy val isValid: Boolean = RawVal.TopLevel.codec.decode(bs) match {
+      case Right(topLevel) => topLevel.y.xx & !topLevel.y.yy
+      case _               => false
+    }
   }
 }

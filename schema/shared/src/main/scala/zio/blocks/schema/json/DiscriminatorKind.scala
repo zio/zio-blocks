@@ -27,7 +27,7 @@ object DiscriminatorKind {
   /**
    * Represents a discriminator strategy where a specific field in the JSON
    * object is used to identify the subtype of a sealed hierarchy, e.g.
-   * `{"$type": "SubtypeIdentifier", ...}`
+   * `{"type": "SubtypeIdentifier", ...}`
    *
    * Can be used only for serializing sealed hierarchy subtypes of non-abstract
    * classes only (not union types).

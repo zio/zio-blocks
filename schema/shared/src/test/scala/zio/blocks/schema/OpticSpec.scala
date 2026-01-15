@@ -5,7 +5,6 @@ import zio.blocks.schema.OpticCheck._
 import zio.ZIO
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
-import zio.test.TestAspect.jvmOnly
 import zio.test._
 
 import scala.collection.immutable.ArraySeq
@@ -109,7 +108,7 @@ object OpticSpec extends ZIOSpecDefault {
         ZIO.attempt(Lens(Case1.d, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO.attempt(Lens(Case4.reflect, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO.attempt(Lens(null, Case4.reflect.fields(0))).flip.map(e => assertTrue(e.isInstanceOf[Throwable]))
-      } @@ jvmOnly,
+      },
       test("optic macro requires record for creation") {
         ZIO.attempt {
           sealed trait Variant {
@@ -294,7 +293,7 @@ object OpticSpec extends ZIOSpecDefault {
           .attempt(Prism(null, Variant1.reflect.cases(0)))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
-      } @@ jvmOnly,
+      },
       test("optic macro requires variant for creation") {
         ZIO.attempt {
           case class Test(a: Double)
@@ -1129,7 +1128,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Wrapper.r1.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped)))) &&
         assert(Wrapper.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped, Field("b"))))) &&
         assert(Case5.aas.toDynamic)(equalTo(DynamicOptic(Vector(Field("as"), AtIndex(1))))) &&
-        assert(Case6.akmil.toDynamic)(equalTo(DynamicOptic(Vector(Field("mil"), AtMapKey(1))))) &&
+        assert(Case6.akmil.toDynamic)(
+          equalTo(DynamicOptic(Vector(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))))
+        ) &&
         assert(Variant1.c1_d.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case1"), Field("d"))))) &&
         assert(Variant1.c2_r3.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"))))) &&
         assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1")))))
@@ -1175,7 +1176,7 @@ object OpticSpec extends ZIOSpecDefault {
           .attempt(Optional(null: Optional[Variant1, Variant1], Variant1.c1_d))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
-      } @@ jvmOnly,
+      },
       test("optic macro requires wrapper for creation") {
         ZIO.attempt {
           case class Test(a: String)
@@ -1693,8 +1694,8 @@ object OpticSpec extends ZIOSpecDefault {
               OpticCheck(
                 errors = ::(
                   MissingKey(
-                    full = DynamicOptic(Vector(Field("mil"), AtMapKey(1))),
-                    prefix = DynamicOptic(Vector(Field("mil"), AtMapKey(1))),
+                    full = DynamicOptic(Vector(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))),
+                    prefix = DynamicOptic(Vector(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))),
                     key = 1
                   ),
                   Nil
@@ -2504,7 +2505,7 @@ object OpticSpec extends ZIOSpecDefault {
           .attempt(Traversal.mapValues(null))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
-      } @@ jvmOnly,
+      },
       test("optic macro requires sequence or map for creation") {
         ZIO.attempt {
           case class Test(a: Array[Map[Int, String]])
