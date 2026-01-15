@@ -2,7 +2,6 @@ package zio.blocks.schema.toon
 
 import zio.blocks.schema.toon.ToonTestUtils._
 import zio.blocks.schema._
-import zio.blocks.schema.binding.Binding
 import zio.test._
 import java.time._
 import java.util.{Currency, UUID}
