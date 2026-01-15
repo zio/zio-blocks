@@ -1,5 +1,7 @@
 package zio.blocks.schema.json
 
+import scala.language.experimental.macros
+
 import zio.blocks.schema.DynamicOptic
 
 /**
@@ -12,8 +14,8 @@ import zio.blocks.schema.DynamicOptic
  *
  * ==Path Syntax==
  *
- * The `p` interpolator creates [[DynamicOptic]] paths using a JSONPath-compatible
- * dialect:
+ * The `p` interpolator creates [[DynamicOptic]] paths using a
+ * JSONPath-compatible dialect:
  *
  * {{{
  * p"foo.bar"           // fields "foo" then "bar"

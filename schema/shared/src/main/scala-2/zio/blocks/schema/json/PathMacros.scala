@@ -61,8 +61,8 @@ object PathMacros {
     } else {
       // With interpolation - build at runtime
       // For now, we'll substitute placeholders and parse
-      val argsSeq     = args.toList
-      val placeholders = argsSeq.zipWithIndex.map { case (_, i) => s"__PLACEHOLDER_${i}__" }
+      val argsSeq       = args.toList
+      val placeholders  = argsSeq.zipWithIndex.map { case (_, i) => s"__PLACEHOLDER_${i}__" }
       val templateParts =
         parts.zipAll(placeholders, "", "").flatMap { case (p, h) => List(p, h) }.dropRight(1)
       val template = templateParts.mkString
