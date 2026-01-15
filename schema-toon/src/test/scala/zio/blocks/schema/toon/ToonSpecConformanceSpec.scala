@@ -11,7 +11,7 @@ import zio.test._
  * These tests verify that our implementation produces output matching the
  * official TOON specification fixtures and examples.
  */
-object ToonSpecConformanceSpec extends ZIOSpecDefault {
+object ToonSpecConformanceSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("TOON Spec Conformance")(
     suite("numbers")(

@@ -13,7 +13,7 @@ import java.time._
 import java.util.{Currency, UUID}
 import scala.collection.immutable.ArraySeq
 
-object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
+object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverSpec")(
     suite("primitives")(
       test("Unit") {

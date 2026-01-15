@@ -2,7 +2,7 @@ package zio.blocks.chunk
 
 import zio.test._
 
-object ChunkBuilderVersionSpecific extends ZIOSpecDefault {
+object ChunkBuilderVersionSpecific extends ChunkBaseSpec {
 
   def spec = suite("ChunkBuilderVersionSpecific")(
     suite("Boolean")(

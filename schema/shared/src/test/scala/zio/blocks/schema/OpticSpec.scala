@@ -9,7 +9,7 @@ import zio.test._
 
 import scala.collection.immutable.ArraySeq
 
-object OpticSpec extends ZIOSpecDefault {
+object OpticSpec extends SchemaBaseSpec {
   import OpticSpecTypes._
 
   def spec: Spec[TestEnvironment, Any] = suite("OpticSpec")(

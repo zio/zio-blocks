@@ -4,7 +4,7 @@ import zio.blocks.schema._
 import zio.test._
 import java.time._
 
-object PrimitiveDeltaSpec extends ZIOSpecDefault {
+object PrimitiveDeltaSpec extends SchemaBaseSpec {
 
   // Test data types
   case class Counter(value: Int, longValue: Long, doubleValue: Double, floatValue: Float)

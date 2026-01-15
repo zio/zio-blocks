@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.test.Assertion._
 import zio.test._
 
-object OptionalBenchmarkSpec extends ZIOSpecDefault {
+object OptionalBenchmarkSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("OptionalBenchmarkSpec")(
     suite("OptionalGetOptionBenchmark")(
       test("has consistent output") {
