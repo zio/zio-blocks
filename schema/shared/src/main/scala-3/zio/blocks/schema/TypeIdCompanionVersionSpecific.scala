@@ -18,36 +18,41 @@ private object TypeIdCompanionVersionSpecificImpl {
 
     def isZioPreludeNewtype(tpe: TypeRepr): Boolean = tpe match {
       case TypeRef(compTpe, "Type") => compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
-      case _ => false
+      case _                        => false
     }
 
-    def buildTypeReprTree(tpe: TypeRepr): Expr[zio.blocks.schema.TypeRepr] = {
+    def buildTypeReprTree(tpe: TypeRepr): Expr[zio.blocks.schema.TypeRepr] =
       if (isEnumOrModuleValue(tpe)) {
         val (packages, values, name) = extractTypeInfo(tpe)
-        '{ zio.blocks.schema.TypeRepr.Singleton(new zio.blocks.schema.Owner(${Expr(packages)}, ${Expr(values)}), ${Expr(name)}) }
+        '{
+          zio.blocks.schema.TypeRepr
+            .Singleton(new zio.blocks.schema.Owner(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) })
+        }
       } else {
         val tArgs = typeArgs(tpe)
         if (tArgs.nonEmpty) {
-          val baseType = buildNominalTree(tpe)
+          val baseType    = buildNominalTree(tpe)
           val argsAsExprs = tArgs.map(arg => buildTypeReprTree(arg))
-          val argsSeq = Expr.ofSeq(argsAsExprs)
+          val argsSeq     = Expr.ofSeq(argsAsExprs)
           '{ zio.blocks.schema.TypeRepr.Applied($baseType, $argsSeq) }
         } else {
           buildNominalTree(tpe)
         }
       }
-    }
 
     def buildNominalTree(tpe: TypeRepr): Expr[zio.blocks.schema.TypeRepr] = {
       val (packages, values, name) = extractTypeInfo(tpe)
-      '{ zio.blocks.schema.TypeRepr.Nominal(new zio.blocks.schema.Owner(${Expr(packages)}, ${Expr(values)}), ${Expr(name)}) }
+      '{
+        zio.blocks.schema.TypeRepr
+          .Nominal(new zio.blocks.schema.Owner(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) })
+      }
     }
 
     def extractTypeInfo(tpe: TypeRepr): (Seq[String], Seq[String], String) = {
-      var packages = List.empty[String]
-      var values = List.empty[String]
+      var packages      = List.empty[String]
+      var values        = List.empty[String]
       val tpeTypeSymbol = tpe.typeSymbol
-      var name = tpeTypeSymbol.name
+      var name          = tpeTypeSymbol.name
       if (isEnumValue(tpe)) {
         values = name :: values
         name = tpe.termSymbol.name
@@ -68,8 +73,8 @@ private object TypeIdCompanionVersionSpecificImpl {
     val tpe = TypeRepr.of[A].dealias
     if (isZioPreludeNewtype(tpe)) {
       val (packages, values, name) = extractTypeInfo(tpe)
-      val ownerExpr = '{ new zio.blocks.schema.Owner(${Expr(packages)}, ${Expr(values)}) }
-      val reprExpr = '{ zio.blocks.schema.TypeRepr.Opaque($ownerExpr, ${Expr(name)}) }
+      val ownerExpr                = '{ new zio.blocks.schema.Owner(${ Expr(packages) }, ${ Expr(values) }) }
+      val reprExpr                 = '{ zio.blocks.schema.TypeRepr.Opaque($ownerExpr, ${ Expr(name) }) }
       '{ zio.blocks.schema.TypeId.fromRepr[A]($reprExpr) }
     } else {
       val reprExpr = buildTypeReprTree(tpe)
