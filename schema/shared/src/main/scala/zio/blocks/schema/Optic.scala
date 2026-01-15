@@ -685,6 +685,7 @@ object Optional {
             bindings(idx) = new AtKeyBinding(
               mapDeconstructor = map.mapDeconstructor,
               mapConstructor = map.mapConstructor,
+              keySchema = map.key,
               key = params(idx).asInstanceOf[Key]
             )
         }
@@ -1178,7 +1179,8 @@ object Optional {
             case at: AtBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndex(at.index)
             case binding =>
-              new DynamicOptic.Node.AtMapKey[Key](binding.asInstanceOf[AtKeyBinding[Key, Map]].key)
+              val atKeyBinding = binding.asInstanceOf[AtKeyBinding[Key, Map]]
+              new DynamicOptic.Node.AtMapKey(atKeyBinding.keySchema.toDynamicValue(atKeyBinding.key))
           }
         }
         idx += 1
@@ -1417,12 +1419,14 @@ object Traversal {
               bindings(idx) = new AtKeyBinding[Key, Map](
                 mapDeconstructor = map.mapDeconstructor,
                 mapConstructor = map.mapConstructor,
+                keySchema = map.key,
                 key = params(idx).asInstanceOf[Key]
               )
             } else if (focusTermName == "atKeys") {
               bindings(idx) = new AtKeysBinding[Key, Map](
                 mapDeconstructor = map.mapDeconstructor,
                 mapConstructor = map.mapConstructor,
+                keySchema = map.key,
                 keys = params(idx).asInstanceOf[Seq[Key]]
               )
             } else if (focusTermName == "key") {
@@ -2840,11 +2844,11 @@ object Traversal {
             case at: AtBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndex(at.index)
             case atKey: AtKeyBinding[Key, Map] @scala.unchecked =>
-              new DynamicOptic.Node.AtMapKey[Key](atKey.key)
+              new DynamicOptic.Node.AtMapKey(atKey.keySchema.toDynamicValue(atKey.key))
             case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndices(ArraySeq.unsafeWrapArray(atIndices.indices))
             case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
-              new DynamicOptic.Node.AtMapKeys[Key](atKeys.keys)
+              new DynamicOptic.Node.AtMapKeys(atKeys.keys.map(atKeys.keySchema.toDynamicValue))
             case _: SeqBinding[Col] @scala.unchecked =>
               DynamicOptic.Node.Elements
             case _: MapKeyBinding[Map] @scala.unchecked =>
@@ -2910,6 +2914,7 @@ private[schema] case class AtBinding[C[_]](
 private[schema] case class AtKeyBinding[K, M[_, _]](
   mapDeconstructor: MapDeconstructor[M],
   mapConstructor: MapConstructor[M],
+  keySchema: Reflect.Bound[K],
   key: K
 ) extends OpticBinding
 
@@ -2922,6 +2927,7 @@ private[schema] case class AtIndicesBinding[C[_]](
 private[schema] case class AtKeysBinding[K, M[_, _]](
   mapDeconstructor: MapDeconstructor[M],
   mapConstructor: MapConstructor[M],
+  keySchema: Reflect.Bound[K],
   keys: Seq[K]
 ) extends OpticBinding
 

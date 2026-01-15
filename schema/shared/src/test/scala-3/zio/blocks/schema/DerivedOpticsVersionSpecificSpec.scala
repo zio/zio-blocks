@@ -3,11 +3,11 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.Binding
 import zio.test._
 
-object DerivedOpticsVersionSpecificSpec extends ZIOSpecDefault {
+object DerivedOpticsVersionSpecificSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("DerivedOpticsVersionSpecificSpec")(
     suite("Lens generation for case classes with derives keyword")(
       test("lens has correct types (compile-time check)") {
-        final case class Person(name: String, age: Int) derives Schema
+        case class Person(name: String, age: Int) derives Schema
 
         object Person extends DerivedOptics[Person]
 
@@ -40,7 +40,7 @@ object DerivedOpticsVersionSpecificSpec extends ZIOSpecDefault {
           Color.optics.custom.getOption(custom) == Some(custom)
         )
       },
-      test("prism works when companion uses type alias of its own type (Scala 3 enum)") {
+      test("prism works when companion uses type alias of its own type") {
         enum AliasedColor derives Schema {
           case Red, Green, Blue
 

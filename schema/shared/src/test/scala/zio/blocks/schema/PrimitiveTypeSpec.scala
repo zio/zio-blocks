@@ -2,10 +2,10 @@ package zio.blocks.schema
 
 import zio.blocks.schema.Validation.None
 import zio.test.Assertion.{equalTo, isLeft, isRight}
-import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert, assertTrue}
+import zio.test.{Spec, TestEnvironment, assert, assertTrue}
 import java.time.DayOfWeek
 
-object PrimitiveTypeSpec extends ZIOSpecDefault {
+object PrimitiveTypeSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("PrimitiveTypeSpec")(
     suite("PrimitiveType.Unit")(
       test("has consistent toDynamicValue and fromDynamicValue") {

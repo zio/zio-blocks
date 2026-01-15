@@ -140,7 +140,6 @@ object BuildHelper {
     nativeConfig ~= {
       _.withMode(Mode.debug)
         .withOptimize(false)
-        .withLTO(LTO.none)
         .withCompileOptions(
           _ ++ Seq(
             "-DGC_INITIAL_HEAP_SIZE=1g",
@@ -148,12 +147,14 @@ object BuildHelper {
           )
         )
     },
-    coverageEnabled := false,
-    Test / fork     := false
+    coverageEnabled          := false,
+    Test / parallelExecution := false,
+    Test / fork              := false
   )
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
-    coverageEnabled := false,
-    Test / fork     := false
+    coverageEnabled          := false,
+    Test / parallelExecution := false,
+    Test / fork              := false
   )
 }

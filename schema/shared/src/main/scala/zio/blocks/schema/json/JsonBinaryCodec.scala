@@ -3,6 +3,7 @@ package zio.blocks.schema.json
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset
+import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.codec.BinaryCodec
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
@@ -355,10 +356,15 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
   }
 
   private[this] def jsonReader(buf: Array[Byte], config: ReaderConfig): JsonReader =
-    new JsonReader(buf = buf, charBuf = new Array[Char](config.preferredCharBufSize), config = config)
+    new JsonReader(
+      buf = buf,
+      charBuf = new Array[Char](config.preferredCharBufSize),
+      config = config,
+      stack = Registers(0)
+    )
 
   private[this] def jsonWriter(config: WriterConfig): JsonWriter =
-    new JsonWriter(buf = Array.emptyByteArray, limit = 0, config = config)
+    new JsonWriter(buf = Array.emptyByteArray, limit = 0, config = config, stack = Registers(0))
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(

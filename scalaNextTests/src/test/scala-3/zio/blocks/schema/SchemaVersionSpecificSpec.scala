@@ -4,7 +4,7 @@ import zio.blocks.schema.binding._
 import zio.test.Assertion._
 import zio.test._
 
-object SchemaVersionSpecificSpec extends ZIOSpecDefault {
+object SchemaVersionSpecificSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
     suite("Reflect.Record")(
       test("derives schema for named tuples") {

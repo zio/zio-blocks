@@ -4,8 +4,8 @@ import zio.test._
 import zio.blocks.schema.binding.Binding
 import scala.language.reflectiveCalls
 
-object DerivedOpticsSpec extends ZIOSpecDefault {
-  final case class Person(name: String, age: Int)
+object DerivedOpticsSpec extends SchemaBaseSpec {
+  case class Person(name: String, age: Int)
 
   object Person extends DerivedOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
@@ -13,9 +13,9 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
 
   sealed trait Shape
 
-  final case class Circle(radius: Double) extends Shape
+  case class Circle(radius: Double) extends Shape
 
-  final case class Rectangle(width: Double, height: Double) extends Shape
+  case class Rectangle(width: Double, height: Double) extends Shape
 
   case object Point extends Shape
 
@@ -41,7 +41,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
           def id: Int
         }
 
-        final case class Entity(id: Int, name: String) extends HasId
+        case class Entity(id: Int, name: String) extends HasId
 
         object Entity extends DerivedOptics[Entity] {
           implicit val schema: Schema[Entity] = Schema.derived
@@ -54,7 +54,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
         )
       },
       test("lens for fields with keyword names") {
-        final case class Keywords(`type`: String, `class`: Int, `val`: Boolean)
+        case class Keywords(`type`: String, `class`: Int, `val`: Boolean)
 
         object Keywords extends DerivedOptics[Keywords] {
           implicit val schema: Schema[Keywords] = Schema.derived
@@ -66,7 +66,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
         assertTrue(Keywords.optics.`val`.get(kw) == true)
       },
       test("lens for generic case class") {
-        final case class Box[A](value: A)
+        case class Box[A](value: A)
 
         object BoxInt extends DerivedOptics[Box[Int]] {
           implicit val boxIntSchema: Schema[Box[Int]] = Schema.derived
@@ -79,17 +79,13 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
         import BoxInt.boxIntSchema
         import BoxString.boxStringSchema
 
-        val intOptics    = BoxInt.optics
-        val stringOptics = BoxString.optics
-        val boxInt       = Box(42)
-        val boxString    = Box("hello")
-        val i            = intOptics.value.get(boxInt).asInstanceOf[Int]
-        val s            = stringOptics.value.get(boxString).asInstanceOf[String]
+        val boxInt    = Box(42)
+        val boxString = Box("hello")
         assertTrue(
-          i == 42,
-          s == "hello",
-          !(intOptics eq stringOptics),
-          intOptics.value eq intOptics.value
+          BoxInt.optics.value.get(boxInt).asInstanceOf[Int] == 42,
+          BoxString.optics.value.get(boxString).asInstanceOf[String] == "hello",
+          !(BoxInt.optics eq BoxString.optics),
+          BoxInt.optics.value eq BoxInt.optics.value
         )
       },
       test("lens works when companion uses type alias of its own type (case class)") {
@@ -119,7 +115,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
         assertTrue(TripleAliasedPerson.optics.name.get(person) == "Alice")
       },
       test("empty case class produces empty optics") {
-        final case class Empty()
+        case class Empty()
 
         object Empty extends DerivedOptics[Empty] {
           implicit val schema: Schema[Empty] = Schema.derived
@@ -128,7 +124,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
         assertTrue(Empty.optics ne null)
       },
       test("case class with private constructor") {
-        final case class Private private (value: Int)
+        case class Private private (value: Int)
 
         object Private extends DerivedOptics[Private] {
           implicit val schema: Schema[Private] = Schema.derived
@@ -143,7 +139,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
         )
       },
       test("recursive type (Tree) derives optics") {
-        final case class Tree(value: Int, children: List[Tree])
+        case class Tree(value: Int, children: List[Tree])
 
         object Tree extends DerivedOptics[Tree] {
           implicit val schema: Schema[Tree] = Schema.derived
@@ -156,18 +152,16 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
         )
       },
       test("mutually recursive types derive optics") {
-        final case class NodeA(value: String, next: Option[NodeB])
+        case class NodeA(value: String, next: Option[NodeB])
 
-        final case class NodeB(value: Int, next: Option[NodeA])
+        case class NodeB(value: Int, next: Option[NodeA])
 
         object NodeA extends DerivedOptics[NodeA] {
-          implicit val schemaB: Schema[NodeB] = Schema.derived
-          implicit val schema: Schema[NodeA]  = Schema.derived
+          implicit val schema: Schema[NodeA] = Schema.derived
         }
 
         object NodeB extends DerivedOptics[NodeB] {
-          implicit val schemaA: Schema[NodeA] = Schema.derived
-          implicit val schema: Schema[NodeB]  = Schema.derived
+          implicit val schema: Schema[NodeB] = Schema.derived
         }
 
         val a = NodeA("start", Some(NodeB(42, None)))
@@ -177,7 +171,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
         )
       },
       test("macro derivation succeeds for case class with backtick-escaped field names") {
-        final case class SpecialFields(`my funny name`: String, `field-with-dashes`: Int)
+        case class SpecialFields(`my funny name`: String, `field-with-dashes`: Int)
 
         object SpecialFields extends DerivedOptics[SpecialFields] {
           implicit val schema: Schema[SpecialFields] = Schema.derived
@@ -204,14 +198,12 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       test("stress test: fixed type arguments") {
         sealed trait Stress[A]
 
-        final case class FixedStress(value: Int) extends Stress[Int]
+        case class FixedStress(value: Int) extends Stress[Int]
 
-        final case class VarStress[B](value: B) extends Stress[B]
+        case class VarStress[B](value: B) extends Stress[B]
 
         object StressInt extends DerivedOptics[Stress[Int]] {
-          implicit val fixedSchema: Schema[FixedStress]  = Schema.derived
-          implicit val varSchema: Schema[VarStress[Int]] = Schema.derived
-          implicit val schema: Schema[Stress[Int]]       = Schema.derived
+          implicit val schema: Schema[Stress[Int]] = Schema.derived
         }
 
         import StressInt.schema
@@ -226,13 +218,13 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       },
       test("stress test: multiple type parameters") {
         sealed trait MultiParam[A, B]
-        final case class MultiChild[X, Y](x: X, y: Y) extends MultiParam[X, Y]
-        final case class PartialChild[Z](z: Z)        extends MultiParam[Z, String] // Partial fix
+
+        case class MultiChild[X, Y](x: X, y: Y) extends MultiParam[X, Y]
+
+        case class PartialChild[Z](z: Z) extends MultiParam[Z, String] // Partial fix
 
         object MultiParamIntString extends DerivedOptics[MultiParam[Int, String]] {
-          implicit val multiChildSchema: Schema[MultiChild[Int, String]] = Schema.derived
-          implicit val partialChildSchema: Schema[PartialChild[Int]]     = Schema.derived
-          implicit val schema: Schema[MultiParam[Int, String]]           = Schema.derived
+          implicit val schema: Schema[MultiParam[Int, String]] = Schema.derived
         }
 
         import MultiParamIntString.schema
@@ -248,11 +240,10 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       test("stress test: shadowed type parameter names") {
         sealed trait Parent[A]
 
-        final case class ChildWithDifferentName[X](value: X) extends Parent[X]
+        case class ChildWithDifferentName[X](value: X) extends Parent[X]
 
         object ParentString extends DerivedOptics[Parent[String]] {
-          implicit val childSchema: Schema[ChildWithDifferentName[String]] = Schema.derived
-          implicit val schema: Schema[Parent[String]]                      = Schema.derived
+          implicit val schema: Schema[Parent[String]] = Schema.derived
         }
 
         import ParentString.schema
@@ -265,12 +256,10 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       /* FIXME: Compilation error with Scala 3
       test("stress test: triple type parameters with partial application") {
         sealed trait Triple[A, B, C]
-        final case class TripleChild[P, Q, R](p: P, q: Q, r: R) extends Triple[P, Q, R]
-        final case class DoubleFixed[T](t: T) extends Triple[Int, T, Boolean]
+        case class TripleChild[P, Q, R](p: P, q: Q, r: R) extends Triple[P, Q, R]
+        case class DoubleFixed[T](t: T) extends Triple[Int, T, Boolean]
 
         object TripleTest extends DerivedOptics[Triple[Int, String, Boolean]] {
-          implicit val tripleChildSchema: Schema[TripleChild[Int, String, Boolean]] = Schema.derived
-          implicit val doubleFixedSchema: Schema[DoubleFixed[String]] = Schema.derived
           implicit val schema: Schema[Triple[Int, String, Boolean]] = Schema.derived
         }
 
@@ -288,47 +277,41 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       test("prism for generic sealed trait") {
         sealed trait GenericResult[T]
 
-        final case class Success[T](value: T) extends GenericResult[T]
+        case class Success[T](value: T) extends GenericResult[T]
 
-        final case class Failure[T](msg: String) extends GenericResult[T]
+        case class Failure[T](msg: String) extends GenericResult[T]
 
         object ResultInt extends DerivedOptics[GenericResult[Int]] {
-          implicit val successSchema: Schema[Success[Int]] = Schema.derived
-          implicit val failureSchema: Schema[Failure[Int]] = Schema.derived
-          implicit val schema: Schema[GenericResult[Int]]  = Schema.derived
+          implicit val schema: Schema[GenericResult[Int]] = Schema.derived
         }
 
         object ResultString extends DerivedOptics[GenericResult[String]] {
-          implicit val successSchema: Schema[Success[String]] = Schema.derived
-          implicit val failureSchema: Schema[Failure[String]] = Schema.derived
-          implicit val schema: Schema[GenericResult[String]]  = Schema.derived
+          implicit val schema: Schema[GenericResult[String]] = Schema.derived
         }
 
         implicit val intSchema: Schema[GenericResult[Int]]    = ResultInt.schema
         implicit val strSchema: Schema[GenericResult[String]] = ResultString.schema
 
-        val intOptics = ResultInt.optics
-        val strOptics = ResultString.optics
-
         val s1: GenericResult[Int]    = Success(42)
         val s2: GenericResult[String] = Success("hello")
         val f1: GenericResult[String] = Failure[String]("ops")
-
         assertTrue(
-          intOptics.success.getOption(s1) == Some(Success(42)),
-          strOptics.success.getOption(s2) == Some(Success("hello")),
-          strOptics.failure.getOption(f1) == Some(Failure[String]("ops")),
-          !(intOptics eq strOptics),
-          intOptics.success eq intOptics.success
+          ResultInt.optics.success.getOption(s1) == Some(Success(42)),
+          ResultString.optics.success.getOption(s2) == Some(Success("hello")),
+          ResultString.optics.failure.getOption(f1) == Some(Failure[String]("ops")),
+          !(ResultInt.optics eq ResultString.optics),
+          ResultInt.optics.success eq ResultInt.optics.success
         )
       },
       test("prism works when companion uses type alias of its own type (sealed trait)") {
         type AS = Shape
-        val circle: AS = Circle(5.0)
-        val rect: AS   = Rectangle(3.0, 4.0)
+
         object AliasedShape extends DerivedOptics[AS] {
           implicit val schema: Schema[Shape] = Schema.derived
         }
+
+        val circle: AS = Circle(5.0)
+        val rect: AS   = Rectangle(3.0, 4.0)
         assertTrue(
           AliasedShape.optics.circle.getOption(circle) == Some(Circle(5.0)),
           AliasedShape.optics.rectangle.getOption(rect) == Some(Rectangle(3.0, 4.0)),
@@ -338,9 +321,9 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       test("macro derivation succeeds for sealed trait with backtick-escaped case names") {
         sealed trait SpecialCases
 
-        final case class `my-special-case`(value: Int) extends SpecialCases
+        case class `my-special-case`(value: Int) extends SpecialCases
 
-        final case class `another special case`(msg: String) extends SpecialCases
+        case class `another special case`(msg: String) extends SpecialCases
 
         case object `weird case name` extends SpecialCases
 
@@ -358,14 +341,14 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     ),
     suite("Lens generation for wrappers")(
       test("robustness: wrapperAsRecord strategy works for custom wrapper types") {
-        final case class CustomWrapper(value: String)
+        case class CustomWrapper(value: String)
 
         object CustomWrapper extends DerivedOptics[CustomWrapper] {
           implicit val schema: Schema[CustomWrapper] = new Schema(
             new Reflect.Wrapper[Binding, CustomWrapper, String](
               Schema[String].reflect,
               new TypeName(
-                new Namespace(List("zio", "blocks", "schema", "DerivedOpticsSpec"), List("CustomWrapper")),
+                new Namespace(List("zio", "blocks", "schema"), List("DerivedOpticsSpec", "CustomWrapper")),
                 "CustomWrapper",
                 Nil
               ),

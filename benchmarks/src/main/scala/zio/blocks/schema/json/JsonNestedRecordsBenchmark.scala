@@ -25,7 +25,7 @@ class JsonNestedRecordsBenchmark extends BaseBenchmark {
   @Benchmark
   def readingZioBlocks: Nested = zioBlocksCodec.decode(encodedNestedRecords) match {
     case Right(value) => value
-    case Left(error)  => sys.error(error.getMessage)
+    case Left(error)  => throw error
   }
 
   @Benchmark
