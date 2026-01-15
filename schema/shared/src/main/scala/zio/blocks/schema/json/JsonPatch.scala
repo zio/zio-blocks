@@ -6,8 +6,9 @@ import zio.blocks.schema.patch.{Differ, DynamicPatch}
 /**
  * A patch that operates on [[Json]] values.
  *
- * JsonPatch is composable (`++` with `empty`) and can be derived via [[JsonPatch.diff]].
- * Application supports [[JsonPatchMode]] (Strict / Lenient / Clobber).
+ * JsonPatch is composable (`++` with `empty`) and can be derived via
+ * [[JsonPatch.diff]]. Application supports [[JsonPatchMode]] (Strict / Lenient
+ * / Clobber).
  */
 final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) { self =>
   def isEmpty: Boolean = ops.isEmpty
@@ -18,13 +19,13 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) { self =>
   /**
    * Apply this patch to a Json value.
    *
-   * @return Either an error or the patched JSON
+   * @return
+   *   Either an error or the patched JSON
    */
   def apply(json: Json, mode: JsonPatchMode = JsonPatchMode.Strict): Either[JsonError, Json] =
     toDynamicPatch.flatMap { dp =>
       val dv0 = JsonPatch.jsonToDynamicForPatch(json)
-      dp(dv0, JsonPatchMode.toPatchMode(mode))
-        .left
+      dp(dv0, JsonPatchMode.toPatchMode(mode)).left
         .map(JsonError.fromSchemaError)
         .flatMap(JsonPatch.dynamicToJsonFromPatch)
     }
@@ -32,12 +33,12 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) { self =>
   /**
    * Converts this JsonPatch into a [[zio.blocks.schema.patch.DynamicPatch]].
    *
-   * The produced DynamicPatch expects JSON objects to be represented as `DynamicValue.Map`
-   * with string keys (see internal `jsonToDynamicForPatch`).
+   * The produced DynamicPatch expects JSON objects to be represented as
+   * `DynamicValue.Map` with string keys (see internal `jsonToDynamicForPatch`).
    */
   def toDynamicPatch: Either[JsonError, DynamicPatch] = {
-    val out = Vector.newBuilder[DynamicPatch.DynamicPatchOp]
-    var idx = 0
+    val out                    = Vector.newBuilder[DynamicPatch.DynamicPatchOp]
+    var idx                    = 0
     var err: Option[JsonError] = None
     while (idx < ops.length && err.isEmpty) {
       JsonPatch.opToDynamic(ops(idx)) match {
@@ -69,8 +70,8 @@ object JsonPatch {
   /**
    * Compute a patch that transforms `source` into `target`.
    *
-   * This uses the existing DynamicValue diffing logic on a JSON-shaped DynamicValue
-   * (objects as maps, arrays as sequences).
+   * This uses the existing DynamicValue diffing logic on a JSON-shaped
+   * DynamicValue (objects as maps, arrays as sequences).
    */
   def diff(source: Json, target: Json): JsonPatch = {
     if (source == target) return JsonPatch.empty
@@ -84,11 +85,12 @@ object JsonPatch {
   /**
    * Convert a DynamicPatch into a JsonPatch.
    *
-   * May fail if the DynamicPatch contains operations not representable for JSON.
+   * May fail if the DynamicPatch contains operations not representable for
+   * JSON.
    */
   def fromDynamicPatch(patch: DynamicPatch): Either[JsonError, JsonPatch] = {
-    val out = Vector.newBuilder[JsonPatchOp]
-    var idx = 0
+    val out                    = Vector.newBuilder[JsonPatchOp]
+    var idx                    = 0
     var err: Option[JsonError] = None
     while (idx < patch.ops.length && err.isEmpty) {
       dynamicOpToJson(patch.ops(idx)) match {
@@ -111,39 +113,39 @@ object JsonPatch {
 
   sealed trait Op extends Product with Serializable
   object Op {
-    final case class Set(value: Json) extends Op
-    final case class PrimitiveDelta(op: PrimitiveOp) extends Op
-    final case class ArrayEdit(ops: Vector[ArrayOp]) extends Op
+    final case class Set(value: Json)                  extends Op
+    final case class PrimitiveDelta(op: PrimitiveOp)   extends Op
+    final case class ArrayEdit(ops: Vector[ArrayOp])   extends Op
     final case class ObjectEdit(ops: Vector[ObjectOp]) extends Op
-    final case class Nested(patch: JsonPatch) extends Op
+    final case class Nested(patch: JsonPatch)          extends Op
   }
 
   sealed trait PrimitiveOp extends Product with Serializable
   object PrimitiveOp {
-    final case class NumberDelta(delta: BigDecimal) extends PrimitiveOp
+    final case class NumberDelta(delta: BigDecimal)    extends PrimitiveOp
     final case class StringEdit(ops: Vector[StringOp]) extends PrimitiveOp
   }
 
   sealed trait StringOp extends Product with Serializable
   object StringOp {
-    final case class Insert(index: Int, text: String) extends StringOp
-    final case class Delete(index: Int, length: Int) extends StringOp
-    final case class Append(text: String) extends StringOp
+    final case class Insert(index: Int, text: String)              extends StringOp
+    final case class Delete(index: Int, length: Int)               extends StringOp
+    final case class Append(text: String)                          extends StringOp
     final case class Modify(index: Int, length: Int, text: String) extends StringOp
   }
 
   sealed trait ArrayOp extends Product with Serializable
   object ArrayOp {
     final case class Insert(index: Int, values: Vector[Json]) extends ArrayOp
-    final case class Append(values: Vector[Json]) extends ArrayOp
-    final case class Delete(index: Int, count: Int) extends ArrayOp
-    final case class Modify(index: Int, op: Op) extends ArrayOp
+    final case class Append(values: Vector[Json])             extends ArrayOp
+    final case class Delete(index: Int, count: Int)           extends ArrayOp
+    final case class Modify(index: Int, op: Op)               extends ArrayOp
   }
 
   sealed trait ObjectOp extends Product with Serializable
   object ObjectOp {
-    final case class Add(key: String, value: Json) extends ObjectOp
-    final case class Remove(key: String) extends ObjectOp
+    final case class Add(key: String, value: Json)         extends ObjectOp
+    final case class Remove(key: String)                   extends ObjectOp
     final case class Modify(key: String, patch: JsonPatch) extends ObjectOp
   }
 
@@ -180,13 +182,13 @@ object JsonPatch {
       case DynamicValue.Sequence(elems) =>
         dynamicVectorToJson(elems).map(v => Json.Array(v))
       case DynamicValue.Map(entries) =>
-        val out = Vector.newBuilder[(String, Json)]
-        var idx = 0
+        val out                    = Vector.newBuilder[(String, Json)]
+        var idx                    = 0
         var err: Option[JsonError] = None
         while (idx < entries.length && err.isEmpty) {
           val (k, v) = entries(idx)
           keyToString(k) match {
-            case Left(e) => err = Some(e)
+            case Left(e)   => err = Some(e)
             case Right(ks) =>
               dynamicToJsonFromPatch(v) match {
                 case Left(e)  => err = Some(e)
@@ -202,8 +204,8 @@ object JsonPatch {
       case DynamicValue.Record(fields) =>
         // Records are not part of the "json-shaped" representation used here.
         // Still, we can translate it into a JSON object losslessly.
-        val out = Vector.newBuilder[(String, Json)]
-        var idx = 0
+        val out                    = Vector.newBuilder[(String, Json)]
+        var idx                    = 0
         var err: Option[JsonError] = None
         while (idx < fields.length && err.isEmpty) {
           val (k, v) = fields(idx)
@@ -226,7 +228,7 @@ object JsonPatch {
   private def keyToString(key: DynamicValue): Either[JsonError, String] =
     key match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) => Right(s)
-      case other =>
+      case other                                            =>
         Left(JsonError(s"JsonPatch only supports string keys, got: ${other.getClass.getSimpleName}"))
     }
 
@@ -261,16 +263,16 @@ object JsonPatch {
     op match {
       case PrimitiveOp.NumberDelta(delta) =>
         Right(DynamicPatch.PrimitiveOp.BigDecimalDelta(delta))
-      case PrimitiveOp.StringEdit(ops)   =>
+      case PrimitiveOp.StringEdit(ops) =>
         Right(DynamicPatch.PrimitiveOp.StringEdit(ops.map(stringOpToDynamic)))
     }
 
   private def stringOpToDynamic(op: StringOp): DynamicPatch.StringOp =
     op match {
-      case StringOp.Insert(index, text)       => DynamicPatch.StringOp.Insert(index, text)
-      case StringOp.Delete(index, length)     => DynamicPatch.StringOp.Delete(index, length)
-      case StringOp.Append(text)              => DynamicPatch.StringOp.Append(text)
-      case StringOp.Modify(index, length, t)  => DynamicPatch.StringOp.Modify(index, length, t)
+      case StringOp.Insert(index, text)      => DynamicPatch.StringOp.Insert(index, text)
+      case StringOp.Delete(index, length)    => DynamicPatch.StringOp.Delete(index, length)
+      case StringOp.Append(text)             => DynamicPatch.StringOp.Append(text)
+      case StringOp.Modify(index, length, t) => DynamicPatch.StringOp.Modify(index, length, t)
     }
 
   private def dynamicStringOpToJson(op: DynamicPatch.StringOp): StringOp =
@@ -282,8 +284,8 @@ object JsonPatch {
     }
 
   private def arrayOpsToDynamic(ops: Vector[ArrayOp]): Either[JsonError, Vector[DynamicPatch.SeqOp]] = {
-    val out = Vector.newBuilder[DynamicPatch.SeqOp]
-    var idx = 0
+    val out                    = Vector.newBuilder[DynamicPatch.SeqOp]
+    var idx                    = 0
     var err: Option[JsonError] = None
     while (idx < ops.length && err.isEmpty) {
       ops(idx) match {
@@ -295,8 +297,8 @@ object JsonPatch {
           out += DynamicPatch.SeqOp.Delete(index, count)
         case ArrayOp.Modify(index, op) =>
           operationToDynamic(op) match {
-            case Left(e)   => err = Some(e)
-            case Right(d)  => out += DynamicPatch.SeqOp.Modify(index, d)
+            case Left(e)  => err = Some(e)
+            case Right(d) => out += DynamicPatch.SeqOp.Modify(index, d)
           }
       }
       idx += 1
@@ -308,18 +310,21 @@ object JsonPatch {
   }
 
   private def objectOpsToDynamic(ops: Vector[ObjectOp]): Either[JsonError, Vector[DynamicPatch.MapOp]] = {
-    val out = Vector.newBuilder[DynamicPatch.MapOp]
-    var idx = 0
+    val out                    = Vector.newBuilder[DynamicPatch.MapOp]
+    var idx                    = 0
     var err: Option[JsonError] = None
     while (idx < ops.length && err.isEmpty) {
       ops(idx) match {
         case ObjectOp.Add(key, value) =>
-          out += DynamicPatch.MapOp.Add(DynamicValue.Primitive(PrimitiveValue.String(key)), jsonToDynamicForPatch(value))
+          out += DynamicPatch.MapOp.Add(
+            DynamicValue.Primitive(PrimitiveValue.String(key)),
+            jsonToDynamicForPatch(value)
+          )
         case ObjectOp.Remove(key) =>
           out += DynamicPatch.MapOp.Remove(DynamicValue.Primitive(PrimitiveValue.String(key)))
         case ObjectOp.Modify(key, patch) =>
           patch.toDynamicPatch match {
-            case Left(e) => err = Some(e)
+            case Left(e)  => err = Some(e)
             case Right(p) =>
               out += DynamicPatch.MapOp.Modify(DynamicValue.Primitive(PrimitiveValue.String(key)), p)
           }
@@ -374,8 +379,8 @@ object JsonPatch {
     }
 
   private def dynamicSeqOpsToJson(ops: Vector[DynamicPatch.SeqOp]): Either[JsonError, Vector[ArrayOp]] = {
-    val out = Vector.newBuilder[ArrayOp]
-    var idx = 0
+    val out                    = Vector.newBuilder[ArrayOp]
+    var idx                    = 0
     var err: Option[JsonError] = None
     while (idx < ops.length && err.isEmpty) {
       ops(idx) match {
@@ -393,7 +398,7 @@ object JsonPatch {
           out += ArrayOp.Delete(index, count)
         case DynamicPatch.SeqOp.Modify(index, op) =>
           dynamicOperationToJson(op) match {
-            case Left(e)   => err = Some(e)
+            case Left(e)    => err = Some(e)
             case Right(jop) => out += ArrayOp.Modify(index, jop)
           }
       }
@@ -406,14 +411,14 @@ object JsonPatch {
   }
 
   private def dynamicMapOpsToJson(ops: Vector[DynamicPatch.MapOp]): Either[JsonError, Vector[ObjectOp]] = {
-    val out = Vector.newBuilder[ObjectOp]
-    var idx = 0
+    val out                    = Vector.newBuilder[ObjectOp]
+    var idx                    = 0
     var err: Option[JsonError] = None
     while (idx < ops.length && err.isEmpty) {
       ops(idx) match {
         case DynamicPatch.MapOp.Add(key, value) =>
           keyToString(key) match {
-            case Left(e) => err = Some(e)
+            case Left(e)  => err = Some(e)
             case Right(k) =>
               dynamicToJsonFromPatch(value) match {
                 case Left(e)  => err = Some(e)
@@ -422,12 +427,12 @@ object JsonPatch {
           }
         case DynamicPatch.MapOp.Remove(key) =>
           keyToString(key) match {
-            case Left(e) => err = Some(e)
+            case Left(e)  => err = Some(e)
             case Right(k) => out += ObjectOp.Remove(k)
           }
         case DynamicPatch.MapOp.Modify(key, patch) =>
           keyToString(key) match {
-            case Left(e) => err = Some(e)
+            case Left(e)  => err = Some(e)
             case Right(k) =>
               fromDynamicPatch(patch) match {
                 case Left(e)  => err = Some(e)
@@ -444,8 +449,8 @@ object JsonPatch {
   }
 
   private def dynamicVectorToJson(values: Vector[DynamicValue]): Either[JsonError, Vector[Json]] = {
-    val out = Vector.newBuilder[Json]
-    var idx = 0
+    val out                    = Vector.newBuilder[Json]
+    var idx                    = 0
     var err: Option[JsonError] = None
     while (idx < values.length && err.isEmpty) {
       dynamicToJsonFromPatch(values(idx)) match {
@@ -460,4 +465,3 @@ object JsonPatch {
     }
   }
 }
-

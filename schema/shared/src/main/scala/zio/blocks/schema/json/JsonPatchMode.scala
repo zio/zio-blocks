@@ -10,6 +10,7 @@ import zio.blocks.schema.patch.PatchMode
 sealed trait JsonPatchMode extends Product with Serializable
 
 object JsonPatchMode {
+
   /** Fail on precondition violations. */
   case object Strict extends JsonPatchMode
 
@@ -26,4 +27,3 @@ object JsonPatchMode {
       case Clobber => PatchMode.Clobber
     }
 }
-

@@ -12,7 +12,7 @@ object JsonPatchLawsSpec extends ZIOSpecDefault {
       Gen.long(-1000000L, 1000000L).map(n => Json.Number(n.toString))
     )
 
-  private def genJson(depth: Int): Gen[Any, Json] = {
+  private def genJson(depth: Int): Gen[Any, Json] =
     if (depth <= 0) genLeaf
     else {
       val genArray =
@@ -29,7 +29,6 @@ object JsonPatchLawsSpec extends ZIOSpecDefault {
 
       Gen.oneOf(genLeaf, genArray, genObject)
     }
-  }
 
   private val genJsonValue: Gen[Any, Json] = genJson(depth = 3)
 
@@ -38,17 +37,17 @@ object JsonPatchLawsSpec extends ZIOSpecDefault {
       suite("Monoid laws")(
         test("left identity: empty ++ p == p") {
           check(genJsonValue, genJsonValue) { (a, b) =>
-            val p      = JsonPatch.diff(a, b)
-            val left   = (JsonPatch.empty ++ p)(a, JsonPatchMode.Strict)
-            val right  = p(a, JsonPatchMode.Strict)
+            val p     = JsonPatch.diff(a, b)
+            val left  = (JsonPatch.empty ++ p)(a, JsonPatchMode.Strict)
+            val right = p(a, JsonPatchMode.Strict)
             assertTrue(left == right)
           }
         },
         test("right identity: p ++ empty == p") {
           check(genJsonValue, genJsonValue) { (a, b) =>
-            val p      = JsonPatch.diff(a, b)
-            val left   = (p ++ JsonPatch.empty)(a, JsonPatchMode.Strict)
-            val right  = p(a, JsonPatchMode.Strict)
+            val p     = JsonPatch.diff(a, b)
+            val left  = (p ++ JsonPatch.empty)(a, JsonPatchMode.Strict)
+            val right = p(a, JsonPatchMode.Strict)
             assertTrue(left == right)
           }
         },
@@ -90,7 +89,7 @@ object JsonPatchLawsSpec extends ZIOSpecDefault {
             strict match {
               case Right(r) =>
                 assertTrue(p(a, JsonPatchMode.Lenient) == Right(r))
-              case Left(_)  =>
+              case Left(_) =>
                 // no constraint if strict fails
                 assertTrue(true)
             }
@@ -99,4 +98,3 @@ object JsonPatchLawsSpec extends ZIOSpecDefault {
       )
     )
 }
-
