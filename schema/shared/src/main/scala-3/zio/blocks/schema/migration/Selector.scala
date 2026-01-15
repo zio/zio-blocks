@@ -26,7 +26,8 @@ import zio.blocks.schema.*
  * Selector[Config](_.data.values)    // -> DynamicOptic.root.field("data").mapValues
  * }}}
  *
- * @tparam A The type being navigated
+ * @tparam A
+ *   The type being navigated
  */
 sealed trait Selector[A] {
   def path: DynamicOptic
@@ -42,8 +43,8 @@ object Selector {
   /**
    * Creates a selector from a lambda path expression.
    *
-   * The lambda must use only field access, `.each`, `.keys`, or `.values` operations.
-   * Invalid paths will cause a compile-time error.
+   * The lambda must use only field access, `.each`, `.keys`, or `.values`
+   * operations. Invalid paths will cause a compile-time error.
    */
   inline def apply[A]: SelectorBuilder[A] = new SelectorBuilder[A]
 
@@ -109,19 +110,22 @@ object Selector {
    * Builder class that provides the macro-based apply method.
    */
   final class SelectorBuilder[A] {
+
     /**
      * Creates a selector from a lambda path expression.
      *
-     * @param f A lambda of the form `_.field`, `_.field.nested`, `_.items.each`, etc.
-     * @return A Selector with the corresponding DynamicOptic path
+     * @param f
+     *   A lambda of the form `_.field`, `_.field.nested`, `_.items.each`, etc.
+     * @return
+     *   A Selector with the corresponding DynamicOptic path
      */
     inline def apply[B](inline f: PathBuilder[A] => PathBuilder[B]): Selector[A] =
       ${ SelectorMacros.selectorImpl[A, B]('f) }
   }
 
   /**
-   * Phantom type used in path expressions. Not instantiated at runtime.
-   * Uses Dynamic to allow arbitrary field access that gets parsed by the macro.
+   * Phantom type used in path expressions. Not instantiated at runtime. Uses
+   * Dynamic to allow arbitrary field access that gets parsed by the macro.
    */
   sealed trait PathBuilder[A] extends Dynamic {
     def selectDynamic(name: String): PathBuilder[A]
@@ -133,10 +137,12 @@ object Selector {
 
 private[migration] object SelectorMacros {
 
-  def selectorImpl[A: Type, B: Type](f: Expr[Selector.PathBuilder[A] => Selector.PathBuilder[B]])(using Quotes): Expr[Selector[A]] = {
+  def selectorImpl[A: Type, B: Type](
+    f: Expr[Selector.PathBuilder[A] => Selector.PathBuilder[B]]
+  )(using Quotes): Expr[Selector[A]] = {
     import quotes.reflect.*
 
-    val segments = extractPath(f.asTerm)
+    val segments  = extractPath(f.asTerm)
     val opticExpr = buildOpticPath(segments)
 
     '{ zio.blocks.schema.migration.Selector.FromPath[A]($opticExpr) }
@@ -189,7 +195,9 @@ private[migration] object SelectorMacros {
           extract(inner)
 
         case other =>
-          report.errorAndAbort(s"Unsupported path expression. Expected field access like `_.field` but got: ${other.show}")
+          report.errorAndAbort(
+            s"Unsupported path expression. Expected field access like `_.field` but got: ${other.show}"
+          )
       }
 
       extract(body)
@@ -213,7 +221,7 @@ private[migration] object SelectorMacros {
     }
   }
 
-  private def buildOpticPath(using Quotes)(segments: List[PathSegment]): Expr[DynamicOptic] = {
+  private def buildOpticPath(using Quotes)(segments: List[PathSegment]): Expr[DynamicOptic] =
     segments.foldLeft[Expr[DynamicOptic]]('{ DynamicOptic.root }) { (acc, segment) =>
       segment match {
         case PathSegment.Field(name) =>
@@ -224,5 +232,4 @@ private[migration] object SelectorMacros {
         case PathSegment.Values => '{ $acc.mapValues }
       }
     }
-  }
 }

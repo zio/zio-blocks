@@ -353,13 +353,13 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(selector.path == DynamicOptic.root.field("name"))
       },
       test("Selector composition works correctly") {
-        val first  = Selector.field[PersonV1]("address")
-        val second = Selector.field[Address]("city")
+        val first    = Selector.field[PersonV1]("address")
+        val second   = Selector.field[Address]("city")
         val composed = first.andThen(second)
         assertTrue(composed.path == DynamicOptic.root.field("address").field("city"))
       },
       test("Selector fromPath creates selector from DynamicOptic") {
-        val optic = DynamicOptic.root.field("foo").field("bar")
+        val optic    = DynamicOptic.root.field("foo").field("bar")
         val selector = Selector.fromPath[PersonV1](optic)
         assertTrue(selector.path == optic)
       }
@@ -373,12 +373,16 @@ object MigrationSpec extends ZIOSpecDefault {
             DynamicValue.Primitive(PrimitiveValue.String("00000"))
           )
         )
-        val input = DynamicValue.Record(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
-          "address" -> DynamicValue.Record(Vector(
-            "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
-          ))
-        ))
+        val input = DynamicValue.Record(
+          Vector(
+            "name"    -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "address" -> DynamicValue.Record(
+              Vector(
+                "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
+              )
+            )
+          )
+        )
         val result = migration(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
@@ -392,7 +396,7 @@ object MigrationSpec extends ZIOSpecDefault {
         }
       },
       test("transformFieldAt with Selector transforms nested field") {
-        val selector = Selector[PersonWithAddress](_.address)
+        val selector  = Selector[PersonWithAddress](_.address)
         val migration = Migration
           .from[PersonWithAddress, PersonWithAddress]
           .transformFieldAt(selector, "city", MigrationExpr.StringAppend(", USA"))
@@ -410,13 +414,17 @@ object MigrationSpec extends ZIOSpecDefault {
             "cityName"
           )
         )
-        val input = DynamicValue.Record(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
-          "address" -> DynamicValue.Record(Vector(
-            "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC")),
-            "zip" -> DynamicValue.Primitive(PrimitiveValue.String("10001"))
-          ))
-        ))
+        val input = DynamicValue.Record(
+          Vector(
+            "name"    -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "address" -> DynamicValue.Record(
+              Vector(
+                "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC")),
+                "zip"  -> DynamicValue.Primitive(PrimitiveValue.String("10001"))
+              )
+            )
+          )
+        )
         val result = migration(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>

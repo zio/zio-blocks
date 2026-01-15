@@ -212,7 +212,9 @@ class MigrationBuilder[A, B](
    * migration.addFieldAt(Selector[Person](_.address), "zipCode", "00000")
    * }}}
    */
-  def addFieldAt[C](selector: Selector[_], fieldName: String, default: C)(implicit fieldSchema: Schema[C]): MigrationBuilder[A, B] =
+  def addFieldAt[C](selector: Selector[_], fieldName: String, default: C)(implicit
+    fieldSchema: Schema[C]
+  ): MigrationBuilder[A, B] =
     new MigrationBuilder(
       sourceSchema,
       targetSchema,
@@ -287,7 +289,9 @@ class MigrationBuilder[A, B](
    * migration.mandateFieldAt(Selector[Person](_.address), "country", "USA")
    * }}}
    */
-  def mandateFieldAt[C](selector: Selector[_], fieldName: String, default: C)(implicit fieldSchema: Schema[C]): MigrationBuilder[A, B] =
+  def mandateFieldAt[C](selector: Selector[_], fieldName: String, default: C)(implicit
+    fieldSchema: Schema[C]
+  ): MigrationBuilder[A, B] =
     new MigrationBuilder(
       sourceSchema,
       targetSchema,
