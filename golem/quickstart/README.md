@@ -45,7 +45,7 @@ Use `golem-cli` as the driver from the checked-in app directory:
 
 ```bash
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
-cd golem/quickstart/app
+cd golem/quickstart
 env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes app deploy scala:quickstart-counter
 ```
 

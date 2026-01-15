@@ -27,13 +27,13 @@ if [[ "$is_cloud" -eq 0 ]]; then
   fi
 fi
 
-app_dir="$PWD/golem/quickstart/app"
+app_dir="$PWD/golem/quickstart"
 script_file="$PWD/golem/quickstart/script-test.rib"
 
 agent_id="agent-$(date +%s)"
 
 # Build Scala.js up-front (no golem-cli needed). This runs `golemPrepare` automatically and ensures
-# `golem/quickstart/app/wasm/agent_guest.wasm` exists before golem-cli parses the app manifest.
+# `golem/quickstart/wasm/agent_guest.wasm` exists before golem-cli parses the app manifest.
 ( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemQuickstartJS/fastLinkJS" >/dev/null )
 
 (

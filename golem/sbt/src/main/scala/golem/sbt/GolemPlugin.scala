@@ -80,7 +80,10 @@ object GolemPlugin extends AutoPlugin {
     Seq(
       golemBasePackage := None,
       golemAgentGuestWasmFile := {
-        // Prefer an `app/wasm/agent_guest.wasm` adjacent to the *project* being compiled.
+        // Prefer a `wasm/agent_guest.wasm` at the golem *app root* (directory containing `golem.yaml`).
+        // This supports "app-root" layouts where the Scala build lives inside a component directory.
+        //
+        // Fallback: `app/wasm/agent_guest.wasm` adjacent to the *project* being compiled (older layout).
         //
         // This supports common layouts:
         // - standalone getting-started: <root>/scala (build) + <root>/app (manifest)
@@ -88,21 +91,36 @@ object GolemPlugin extends AutoPlugin {
         val projectRoot = (ThisProject / baseDirectory).value
         val buildRoot   = (ThisBuild / baseDirectory).value
 
-        val candidates: List[File] =
-          List(
-            // Project-local app/
-            projectRoot / "app" / "wasm" / "agent_guest.wasm",
-            // If project is a nested build dir (e.g. .../examples/js), prefer sibling ../app
-            projectRoot.getParentFile / "app" / "wasm" / "agent_guest.wasm",
-            // getting-started layout: build root is `scala/`, app is sibling in parent
-            if (projectRoot.getName == "scala") projectRoot.getParentFile / "app" / "wasm" / "agent_guest.wasm"
-            else null,
-            // build-local fallback (keeps writes inside the build root)
-            buildRoot / "app" / "wasm" / "agent_guest.wasm"
-          ).filter(_ != null)
+        @annotation.tailrec
+        def findAppRoot(dir: File): Option[File] =
+          if (dir == null) None
+          else {
+            val manifest = dir / "golem.yaml"
+            val isAppManifest =
+              manifest.exists() && IO.read(manifest).linesIterator.exists(line => line.trim.startsWith("app:"))
+            if (isAppManifest) Some(dir) else findAppRoot(dir.getParentFile)
+          }
 
-        // Pick the first candidate whose parent `app/` directory exists; otherwise default to project-local path.
-        candidates.find(f => f.getParentFile.getParentFile.exists()).getOrElse(candidates.head)
+        findAppRoot(projectRoot)
+          .map(appRoot => appRoot / "wasm" / "agent_guest.wasm")
+          .getOrElse {
+
+            val candidates: List[File] =
+              List(
+                // Project-local app/
+                projectRoot / "app" / "wasm" / "agent_guest.wasm",
+                // If project is a nested build dir (e.g. .../examples/js), prefer sibling ../app
+                projectRoot.getParentFile / "app" / "wasm" / "agent_guest.wasm",
+                // getting-started layout: build root is `scala/`, app is sibling in parent
+                if (projectRoot.getName == "scala") projectRoot.getParentFile / "app" / "wasm" / "agent_guest.wasm"
+                else null,
+                // build-local fallback (keeps writes inside the build root)
+                buildRoot / "app" / "wasm" / "agent_guest.wasm"
+              ).filter(_ != null)
+
+            // Pick the first candidate whose parent `app/` directory exists; otherwise default to project-local path.
+            candidates.find(f => f.getParentFile.getParentFile.exists()).getOrElse(candidates.head)
+          }
       },
       golemWriteAgentGuestWasm := {
         val out = golemAgentGuestWasmFile.value

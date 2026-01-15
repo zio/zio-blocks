@@ -7,21 +7,17 @@ if [[ -z "$component" ]]; then
   exit 2
 fi
 
-app_dir="$(cd "$(dirname "$0")" && pwd)"
-repo_root="$(cd "$app_dir/.." && pwd)"
+# golem-cli runs this script from the component directory.
 component_dir="$PWD"
+scala_dir="$component_dir/scala"
 
-# Support both layouts:
-# - recommended: <root>/scala + <root>/app
-# - older/mistaken: <root>/ (Scala project) + <root>/app (nested)
-scala_dir="$repo_root/scala"
 if [[ ! -f "$scala_dir/build.sbt" ]]; then
-  scala_dir="$repo_root"
+  echo "[scala.js] expected Scala project at $scala_dir (missing build.sbt)" >&2
+  exit 1
 fi
 
-( cd "$scala_dir" && sbt -batch -no-colors -Dsbt.supershell=false \
-    "compile" \
-    "fastLinkJS" )
+echo "[scala.js] Building Scala.js bundle for $component (tool=sbt)..." >&2
+( cd "$scala_dir" && sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS" >/dev/null )
 
 bundle="$(
   find "$scala_dir/target" -type f -name 'main.js' -path '*fastopt*' -printf '%T@ %p\n' 2>/dev/null \
@@ -39,6 +35,7 @@ if [[ -z "$bundle" ]]; then
       || true
   )"
 fi
+
 if [[ -z "$bundle" ]]; then
   echo "[scala.js] Could not locate Scala.js bundle under $scala_dir/target" >&2
   exit 1

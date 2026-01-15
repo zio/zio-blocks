@@ -7,21 +7,20 @@ if [[ -z "$component" ]]; then
   exit 2
 fi
 
-# This script is invoked by `golem-cli` as a build step (via `template: scala.js`).
+# Invoked by `golem-cli` as a build step (via `template: scala.js`).
 # Working directory is the component folder (e.g. components-js/<component>/).
 
 app_dir="$(cd "$(dirname "$0")" && pwd)"
-repo_root="$(cd "$app_dir/../../.." && pwd)"
-
-tool="${GOLEM_SCALA_BUILD_TOOL:-sbt}"
-
+repo_root="$(cd "$app_dir/../.." && pwd)"
 component_dir="$PWD"
 agent_wasm="$app_dir/wasm/agent_guest.wasm"
 
+tool="${GOLEM_SCALA_BUILD_TOOL:-sbt}"
+
 case "$component" in
-  scala:quickstart-counter)
-    sbt_project="zioGolemQuickstartJS"
-    bundle_glob="$repo_root/golem/quickstart/js/target/scala-*/zio-golem-quickstart-fastopt/main.js"
+  scala:examples)
+    sbt_project="zioGolemExamplesJS"
+    sbt_bundle_glob="$repo_root/golem/examples/js/target/scala-*/zio-golem-examples-js-fastopt/main.js"
     out_file="$component_dir/src/scala.js"
     ;;
   *)
@@ -43,6 +42,8 @@ if [[ "$tool" == "mill" ]]; then
     exit 2
   fi
 
+  # Ensure base guest runtime wasm exists (and is up-to-date) before golem-cli inject step runs.
+  # This must happen during the build step, because golem-cli may not read/write app/wasm itself.
   ( cd "$repo_root" && mill -i "$GOLEM_MILL_TASK" )
 
   bundle="$(
@@ -73,9 +74,9 @@ else
       "compile" \
       "fastLinkJS" )
 
-  bundle="$(ls -t $bundle_glob 2>/dev/null | head -n1 || true)"
+  bundle="$(ls -t $sbt_bundle_glob 2>/dev/null | head -n1 || true)"
   if [[ -z "$bundle" ]]; then
-    echo "[scala.js] Could not find Scala.js bundle at: $bundle_glob" >&2
+    echo "[scala.js] Could not find Scala.js bundle at: $sbt_bundle_glob" >&2
     exit 1
   fi
 fi

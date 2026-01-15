@@ -12,7 +12,7 @@ import scala.concurrent.Await
  *
  * Expected flow:
  *   - Deploy via golem-cli from the checked-in app dir
- *     (`./golem/quickstart/jvm-test.sh` runs from `golem/quickstart/app`)
+ *     (`./golem/quickstart/jvm-test.sh` runs from `golem/quickstart/`)
  *   - Run this main (uses golem-cli to invoke the deployed agents)
  */
 object QuickstartClient {

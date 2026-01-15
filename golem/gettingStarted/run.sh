@@ -12,14 +12,13 @@ GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 read -r -a flags <<<"$GOLEM_CLI_FLAGS"
 
 echo "[gettingStarted/run.sh] Building Scala.js (compile + fastLinkJS)..." >&2
-( cd scala && sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS" >/dev/null )
+( cd components-js/scala-demo/scala && sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS" >/dev/null )
 
 echo "[gettingStarted/run.sh] Deploying app..." >&2
-( cd app && env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$PWD/golem.yaml" deploy >/dev/null )
+( env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$PWD/golem.yaml" deploy >/dev/null )
 
 echo "[gettingStarted/run.sh] Running repl script..." >&2
 (
-  cd app
   agent_id="demo-$(date +%s)"
   cat > repl-counter.rib <<EOF
 let c = counter-agent("$agent_id");

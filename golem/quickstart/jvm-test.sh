@@ -27,7 +27,7 @@ if [[ "$is_cloud" -eq 0 ]]; then
   fi
 fi
 
-app_dir="$PWD/golem/quickstart/app"
+app_dir="$PWD/golem/quickstart"
 
 (
   cd "$app_dir"
