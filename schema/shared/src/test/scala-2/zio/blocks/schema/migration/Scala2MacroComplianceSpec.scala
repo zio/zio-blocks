@@ -4,11 +4,11 @@ import zio.test._
 
 object Scala2MacroComplianceSpec extends ZIOSpecDefault {
 
-  trait CreditCard { 
+  trait CreditCard {
     type Tag = "CreditCard"
-    def number: String 
+    def number: String
   }
-  
+
   trait CreditCardWrapper {
     def when[T]: T
   }
@@ -18,14 +18,12 @@ object Scala2MacroComplianceSpec extends ZIOSpecDefault {
   }
 
   def spec = suite("Scala 2.13 Specific Macro Compliance")(
-    
     test("Successful Extraction: Structural Enum Pattern via Traits") {
       val opticProvider = ToDynamicOptic.derive((p: PaymentMethod) => p.method.when[CreditCard])
-      val resultPath = opticProvider.apply().toString
+      val resultPath    = opticProvider.apply().toString
 
       assertTrue(resultPath == ".method.when[CreditCard]")
     },
-
     test("Chaos/Negative Check: Macro Compilation Safety") {
       assertTrue(true)
     }

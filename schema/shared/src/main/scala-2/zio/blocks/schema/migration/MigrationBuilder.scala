@@ -10,14 +10,13 @@ class MigrationBuilder[A, B](
   private val actions: Vector[MigrationAction] = Vector.empty
 ) {
 
-  private def toOptic(nodes: IndexedSeq[DynamicOptic.Node]): DynamicOptic = {
+  private def toOptic(nodes: IndexedSeq[DynamicOptic.Node]): DynamicOptic =
     DynamicOptic(nodes.toVector)
-  }
 
   private def extractFieldName(path: DynamicOptic): String =
     path.nodes.lastOption match {
       case Some(DynamicOptic.Node.Field(name)) => name
-      case _ => "unknown"
+      case _                                   => "unknown"
     }
 
   def addField[T](target: ToDynamicOptic[B, T], default: SchemaExpr[_]): MigrationBuilder[A, B] = {
@@ -35,52 +34,89 @@ class MigrationBuilder[A, B](
     this.addField(target, SchemaExpr.Constant(dv))
   }
 
-  def dropField[T](source: ToDynamicOptic[A, T], defaultExpr: Option[SchemaExpr[_]] = None)(implicit schema: Schema[T]): MigrationBuilder[A, B] = {
-    val path = source.apply()
+  def dropField[T](source: ToDynamicOptic[A, T], defaultExpr: Option[SchemaExpr[_]] = None)(implicit
+    schema: Schema[T]
+  ): MigrationBuilder[A, B] = {
+    val path          = source.apply()
     val actualDefault = defaultExpr.getOrElse(SchemaExpr.DefaultValue(schema))
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ DropField(toOptic(path.nodes), actualDefault))
   }
 
   def renameField[T1, T2](from: ToDynamicOptic[A, T1], to: ToDynamicOptic[B, T2]): MigrationBuilder[A, B] = {
     val fromPath = from.apply()
-    val toPath = to.apply()
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ Rename(toOptic(fromPath.nodes), extractFieldName(toPath)))
+    val toPath   = to.apply()
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ Rename(toOptic(fromPath.nodes), extractFieldName(toPath))
+    )
   }
 
-  def transformField[T1, T2](from: ToDynamicOptic[A, T1], @unused target: ToDynamicOptic[B, T2], transform: SchemaExpr[_]): MigrationBuilder[A, B] = {
+  def transformField[T1, T2](
+    from: ToDynamicOptic[A, T1],
+    @unused target: ToDynamicOptic[B, T2],
+    transform: SchemaExpr[_]
+  ): MigrationBuilder[A, B] = {
     val fromPath = from.apply()
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ TransformValue(toOptic(fromPath.nodes), transform))
   }
 
-  def mandateField[T](from: ToDynamicOptic[A, Option[T]], @unused target: ToDynamicOptic[B, T], default: SchemaExpr[_]): MigrationBuilder[A, B] = {
+  def mandateField[T](
+    from: ToDynamicOptic[A, Option[T]],
+    @unused target: ToDynamicOptic[B, T],
+    default: SchemaExpr[_]
+  ): MigrationBuilder[A, B] = {
     val path = from.apply()
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ Mandate(toOptic(path.nodes), default))
   }
 
-  def optionalizeField[T](source: ToDynamicOptic[A, T], @unused target: ToDynamicOptic[B, Option[T]]): MigrationBuilder[A, B] = {
+  def optionalizeField[T](
+    source: ToDynamicOptic[A, T],
+    @unused target: ToDynamicOptic[B, Option[T]]
+  ): MigrationBuilder[A, B] = {
     val path = source.apply()
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ Optionalize(toOptic(path.nodes)))
   }
 
-  def changeFieldType[T1, T2](from: ToDynamicOptic[A, T1], @unused target: ToDynamicOptic[B, T2], converter: SchemaExpr[_]): MigrationBuilder[A, B] = {
+  def changeFieldType[T1, T2](
+    from: ToDynamicOptic[A, T1],
+    @unused target: ToDynamicOptic[B, T2],
+    converter: SchemaExpr[_]
+  ): MigrationBuilder[A, B] = {
     val path = from.apply()
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ ChangeType(toOptic(path.nodes), converter))
   }
 
-  def joinFields[T](sources: Vector[ToDynamicOptic[A, Any]], target: ToDynamicOptic[B, T], combiner: SchemaExpr[_]): MigrationBuilder[A, B] = {
-    val targetPath = target.apply()
+  def joinFields[T](
+    sources: Vector[ToDynamicOptic[A, Any]],
+    target: ToDynamicOptic[B, T],
+    combiner: SchemaExpr[_]
+  ): MigrationBuilder[A, B] = {
+    val targetPath  = target.apply()
     val sourcePaths = sources.map(_.apply())
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ Join(toOptic(targetPath.nodes), sourcePaths.map(p => toOptic(p.nodes)), combiner))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ Join(toOptic(targetPath.nodes), sourcePaths.map(p => toOptic(p.nodes)), combiner)
+    )
   }
 
-  def splitField[T](source: ToDynamicOptic[A, T], targets: Vector[ToDynamicOptic[B, Any]], splitter: SchemaExpr[_]): MigrationBuilder[A, B] = {
-    val sourcePath = source.apply()
+  def splitField[T](
+    source: ToDynamicOptic[A, T],
+    targets: Vector[ToDynamicOptic[B, Any]],
+    splitter: SchemaExpr[_]
+  ): MigrationBuilder[A, B] = {
+    val sourcePath  = source.apply()
     val targetPaths = targets.map(_.apply())
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ Split(toOptic(sourcePath.nodes), targetPaths.map(p => toOptic(p.nodes)), splitter))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ Split(toOptic(sourcePath.nodes), targetPaths.map(p => toOptic(p.nodes)), splitter)
+    )
   }
 
   def transformElements[T](at: ToDynamicOptic[A, Vector[T]], transform: SchemaExpr[_]): MigrationBuilder[A, B] = {
-    val path = at.apply()
+    val path  = at.apply()
     val optic = toOptic(path.nodes :+ DynamicOptic.Node.Elements)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ TransformElements(optic, transform))
   }
@@ -95,28 +131,27 @@ class MigrationBuilder[A, B](
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ TransformValues(toOptic(path.nodes), transform))
   }
 
-  def renameCase(from: String, to: String): MigrationBuilder[A, B] = {
+  def renameCase(from: String, to: String): MigrationBuilder[A, B] =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ RenameCase(DynamicOptic.root, from, to))
-  }
 
-  def transformCase[CaseA, CaseB](@unused at: String, @unused caseMigration: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]): MigrationBuilder[A, B] = {
+  def transformCase[CaseA, CaseB](
+    @unused at: String,
+    @unused caseMigration: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]
+  ): MigrationBuilder[A, B] =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ TransformCase(DynamicOptic.root, Vector.empty))
-  }
 
-  private def validateFullMigration(): Unit = {
+  private def validateFullMigration(): Unit =
     if (actions.isEmpty && sourceSchema != targetSchema) {
       throw new RuntimeException("Incomplete Migration: Actions are required when schemas differ.")
     }
-  }
 
   def build: Migration[A, B] = {
     validateFullMigration()
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
   }
 
-  def buildPartial: Migration[A, B] = {
+  def buildPartial: Migration[A, B] =
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
-  }
 }
 
 object MigrationBuilder {
