@@ -104,6 +104,28 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
+
+  /**
+   * Converts this schema to its structural type equivalent.
+   *
+   * For example, `Schema[Person].structural` where
+   * `case class Person(name: String, age: Int)` returns a `Schema` of the
+   * structural type `{ def name: String; def age: Int }`.
+   *
+   * The structural type uses:
+   *   - `Selectable` backing in Scala 3
+   *   - `Dynamic` backing in Scala 2
+   *
+   * Will fail at compile-time for:
+   *   - Recursive types
+   *   - Mutually recursive types
+   *   - Sum types in Scala 2 (no union types available)
+   *
+   * @return
+   *   Schema for the structural type equivalent
+   */
+  def structural(implicit toStructural: ToStructural[A]): Schema[toStructural.StructuralType] =
+    toStructural(this)
 }
 
 object Schema extends SchemaCompanionVersionSpecific {
