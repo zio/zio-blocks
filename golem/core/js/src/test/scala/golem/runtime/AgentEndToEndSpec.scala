@@ -15,8 +15,8 @@ final class AgentEndToEndSpec extends AsyncFunSuite {
 
   @agentDefinition(mode = DurabilityMode.Durable)
   trait EchoAgent {
-    def echo(in: String): String
-    def add(in: Sum): Int
+    def echo(in: String): Future[String]
+    def add(in: Sum): Future[Int]
   }
 
   private def liftEither[A](e: Either[String, A]): Future[A] =
@@ -30,8 +30,8 @@ final class AgentEndToEndSpec extends AsyncFunSuite {
 
   test("echo roundtrips through binding encode/decode") {
     val impl = new EchoAgent {
-      override def echo(in: String): String = s"hello $in"
-      override def add(in: Sum): Int        = in.a + in.b
+      override def echo(in: String): Future[String] = Future.successful(s"hello $in")
+      override def add(in: Sum): Future[Int]        = Future.successful(in.a + in.b)
     }
     val defn     = AgentImplementation.register[EchoAgent]("e2e-echo")(impl)
     val instance = impl
@@ -47,8 +47,8 @@ final class AgentEndToEndSpec extends AsyncFunSuite {
 
   test("case class payload roundtrips through binding encode/decode") {
     val impl = new EchoAgent {
-      override def echo(in: String): String = in
-      override def add(in: Sum): Int        = in.a + in.b
+      override def echo(in: String): Future[String] = Future.successful(in)
+      override def add(in: Sum): Future[Int]        = Future.successful(in.a + in.b)
     }
     val defn     = AgentImplementation.register[EchoAgent]("e2e-echo-2")(impl)
     val instance = impl

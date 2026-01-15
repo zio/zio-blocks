@@ -118,16 +118,16 @@ final class RustAgentParitySpec extends AnyFunSuite {
   @description("Rust-style Echo agent for metadata parity")
   trait EchoAgent {
     @prompt("Echo the provided message")
-    def echo(message: String): String
+    def echo(message: String): Future[String]
 
-    def combine(left: String, right: Int): String
-    def echoOption(value: Option[String]): Option[String]
-    def echoResult(value: EchoResult): EchoResult
+    def combine(left: String, right: Int): Future[String]
+    def echoOption(value: Option[String]): Future[Option[String]]
+    def echoResult(value: EchoResult): Future[EchoResult]
   }
 
   @agentDefinition(typeName = "ephemeral-agent", mode = DurabilityMode.Ephemeral)
   trait EphemeralAgent {
-    def ping(): String
+    def ping(): Future[String]
   }
 
   test("EchoAgent metadata exposes all method names") {
@@ -185,14 +185,14 @@ final class RustAgentParitySpec extends AnyFunSuite {
   }
 
   @agentDefinition("durable-default-agent")
-  trait DurableDefaultAgent { def ping(): String }
+  trait DurableDefaultAgent { def ping(): Future[String] }
 
   @agentDefinition(typeName = "durable-explicit-agent", mode = DurabilityMode.Durable)
-  trait DurableExplicitAgent { def ping(): String }
+  trait DurableExplicitAgent { def ping(): Future[String] }
 
   @agentDefinition("snapshot-agent")
   trait SnapshotAgent {
-    def saveSnapshot(): BinarySegment[VisionOnly]
+    def saveSnapshot(): Future[BinarySegment[VisionOnly]]
     def loadSnapshot(snapshot: BinarySegment[VisionOnly]): Unit
   }
 
@@ -202,14 +202,14 @@ final class RustAgentParitySpec extends AnyFunSuite {
     def rpcCallTrigger(payload: String): Unit
   }
 
-  private final class EphemeralAgentImpl extends EphemeralAgent { override def ping(): String = "pong" }
+  private final class EphemeralAgentImpl extends EphemeralAgent { override def ping(): Future[String] = Future.successful("pong") }
 
   private final class DurableDefaultAgentImpl extends DurableDefaultAgent {
-    override def ping(): String = "durable-default"
+    override def ping(): Future[String] = Future.successful("durable-default")
   }
 
   private final class DurableExplicitAgentImpl extends DurableExplicitAgent {
-    override def ping(): String = "durable-explicit"
+    override def ping(): Future[String] = Future.successful("durable-explicit")
   }
 
   test("Multimodal schemas capture modality ordering and restrictions") {
