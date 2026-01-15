@@ -9,7 +9,10 @@ fi
 
 # golem-cli runs this script from the component directory.
 component_dir="$PWD"
-scala_dir="$component_dir/scala"
+
+# Preferred layout: app root at `gettingStarted/`, Scala build at `gettingStarted/scala/`.
+app_root="$(cd "$(dirname "$0")" && pwd)"
+scala_dir="$app_root/scala"
 
 if [[ ! -f "$scala_dir/build.sbt" ]]; then
   echo "[scala.js] expected Scala project at $scala_dir (missing build.sbt)" >&2
