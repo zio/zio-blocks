@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.Binding
 import zio.test._
 
-object DerivedOpticsVersionSpecificSpec extends ZIOSpecDefault {
+object DerivedOpticsVersionSpecificSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("DerivedOpticsVersionSpecificSpec")(
     suite("Lens generation for case classes with derives keyword")(
       test("lens has correct types (compile-time check)") {

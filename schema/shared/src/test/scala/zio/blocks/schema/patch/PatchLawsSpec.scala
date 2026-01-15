@@ -4,7 +4,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.DynamicValueGen._
 import zio.test._
 
-object PatchLawsSpec extends ZIOSpecDefault {
+object PatchLawsSpec extends SchemaBaseSpec {
 
   // Simple case classes for testing
   case class Person(name: String, age: Int)

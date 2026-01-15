@@ -5,7 +5,7 @@ import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._
 
-object ZIOPreludeSupportSpec extends ZIOSpecDefault {
+object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("ZIOPreludeSupportSpec")(
     test("derive schemas for cases classes with subtype and newtype fields") {
       val value = new Planet(Name("Earth"), Kilogram(5.97e24), Meter(6378000.0), Some(Meter(1.5e15)))

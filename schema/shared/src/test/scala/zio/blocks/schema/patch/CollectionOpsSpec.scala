@@ -3,7 +3,7 @@ package zio.blocks.schema.patch
 import zio.blocks.schema._
 import zio.test._
 
-object CollectionOpsSpec extends ZIOSpecDefault {
+object CollectionOpsSpec extends SchemaBaseSpec {
 
   case class TodoList(name: String, items: Vector[String])
   object TodoList extends CompanionOptics[TodoList] {

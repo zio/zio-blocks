@@ -12,7 +12,7 @@ import zio.test.Assertion._
 import java.nio.CharBuffer
 import scala.collection.immutable.ArraySeq
 
-object SchemaSpec extends ZIOSpecDefault {
+object SchemaSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("SchemaSpec")(
     suite("Reflect.Primitive")(
       test("has consistent equals and hashCode") {
