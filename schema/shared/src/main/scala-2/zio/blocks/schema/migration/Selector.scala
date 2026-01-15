@@ -27,7 +27,8 @@ import zio.blocks.schema._
  * Selector[Config](_.data.values)    // -> DynamicOptic.root.field("data").mapValues
  * }}}
  *
- * @tparam A The type being navigated
+ * @tparam A
+ *   The type being navigated
  */
 sealed trait Selector[A] {
   def path: DynamicOptic
@@ -43,8 +44,8 @@ object Selector {
   /**
    * Creates a selector from a lambda path expression.
    *
-   * The lambda must use only field access, `.each`, `.keys`, or `.values` operations.
-   * Invalid paths will cause a compile-time error.
+   * The lambda must use only field access, `.each`, `.keys`, or `.values`
+   * operations. Invalid paths will cause a compile-time error.
    */
   def apply[A]: SelectorBuilder[A] = new SelectorBuilder[A]
 
@@ -110,18 +111,21 @@ object Selector {
    * Builder class that provides the macro-based apply method.
    */
   final class SelectorBuilder[A] {
+
     /**
      * Creates a selector from a lambda path expression.
      *
-     * @param f A lambda of the form `_.field`, `_.field.nested`, `_.items.each`, etc.
-     * @return A Selector with the corresponding DynamicOptic path
+     * @param f
+     *   A lambda of the form `_.field`, `_.field.nested`, `_.items.each`, etc.
+     * @return
+     *   A Selector with the corresponding DynamicOptic path
      */
     def apply[B](f: PathBuilder[A] => PathBuilder[B]): Selector[A] = macro SelectorMacros.selectorImpl[A, B]
   }
 
   /**
-   * Phantom type used in path expressions. Not instantiated at runtime.
-   * Uses Dynamic to allow arbitrary field access that gets parsed by the macro.
+   * Phantom type used in path expressions. Not instantiated at runtime. Uses
+   * Dynamic to allow arbitrary field access that gets parsed by the macro.
    */
   sealed trait PathBuilder[A] extends Dynamic {
     def selectDynamic(name: String): PathBuilder[A]
@@ -138,7 +142,7 @@ private[migration] object SelectorMacros {
   ): c.Expr[Selector[A]] = {
     import c.universe._
 
-    val path = extractPath(c)(f.tree)
+    val path      = extractPath(c)(f.tree)
     val opticTree = buildOpticPath(c)(path)
 
     c.Expr[Selector[A]](
@@ -149,9 +153,9 @@ private[migration] object SelectorMacros {
   private sealed trait PathSegment
   private object PathSegment {
     case class Field(name: String) extends PathSegment
-    case object Each extends PathSegment
-    case object Keys extends PathSegment
-    case object Values extends PathSegment
+    case object Each               extends PathSegment
+    case object Keys               extends PathSegment
+    case object Values             extends PathSegment
   }
 
   private def extractPath(c: whitebox.Context)(tree: c.Tree): List[PathSegment] = {
@@ -177,7 +181,9 @@ private[migration] object SelectorMacros {
     }
   }
 
-  private def extractPathFromBody(c: whitebox.Context)(paramName: c.universe.TermName, body: c.Tree): List[PathSegment] = {
+  private def extractPathFromBody(
+    c: whitebox.Context
+  )(paramName: c.universe.TermName, body: c.Tree): List[PathSegment] = {
     import c.universe._
 
     def extract(tree: Tree): List[PathSegment] = tree match {
@@ -215,8 +221,10 @@ private[migration] object SelectorMacros {
         extract(inner)
 
       case _ =>
-        c.abort(c.enclosingPosition,
-          s"Unsupported path expression. Expected field access like `_.field` but got: ${showCode(tree)}")
+        c.abort(
+          c.enclosingPosition,
+          s"Unsupported path expression. Expected field access like `_.field` but got: ${showCode(tree)}"
+        )
     }
 
     extract(body)
