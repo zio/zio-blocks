@@ -1,5 +1,6 @@
 package golem.runtime.rpc
 
+import golem.Datetime
 import scala.scalajs.js
 
 private[rpc] trait RpcInvoker {
@@ -7,5 +8,5 @@ private[rpc] trait RpcInvoker {
 
   def trigger(functionName: String, params: js.Array[js.Dynamic]): Either[String, Unit]
 
-  def scheduleInvocation(datetime: js.Dynamic, functionName: String, params: js.Array[js.Dynamic]): Either[String, Unit]
+  def scheduleInvocation(datetime: Datetime, functionName: String, params: js.Array[js.Dynamic]): Either[String, Unit]
 }

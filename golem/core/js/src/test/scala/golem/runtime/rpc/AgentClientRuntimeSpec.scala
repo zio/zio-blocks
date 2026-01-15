@@ -40,7 +40,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
     val method    = findMethod[RpcParityAgent, String, Unit](agentType, "fireAndForget")
 
     val triggerF  = resolved.trigger(method, "event")
-    val scheduleF = resolved.schedule(method, js.Dynamic.literal("ts" -> 42), "event")
+    val scheduleF = resolved.schedule(method, golem.Datetime.fromEpochMillis(42), "event")
 
     triggerF.flatMap(_ => scheduleF).map { _ =>
       assert(invoker.triggerCalls.headOption.exists(_._1 == method.functionName))
@@ -61,31 +61,33 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
     }
   }
 
-  test("Trigger rejects awaitable methods") {
-    val resolved                                          = resolvedAgent()
+  test("Trigger works for awaitable methods (invocation kind does not restrict trigger)") {
+    val agentType  = rpcAgentType
+    val invoker    = new RecordingRpcInvoker
+    val resolved   = resolvedAgent(invoker, agentType)
+    val methodBase: AgentMethod[RpcParityAgent, String, Unit] =
+      findMethod[RpcParityAgent, String, Unit](agentType, "fireAndForget")
     val method: AgentMethod[RpcParityAgent, String, Unit] =
-      findMethod[RpcParityAgent, String, Unit](rpcAgentType, "fireAndForget")
-    val awaitableMethod: AgentMethod[RpcParityAgent, String, Unit] =
-      method.copy(invocation = MethodInvocation.Awaitable)
+      methodBase.copy(invocation = MethodInvocation.Awaitable)
 
-    recoverToExceptionIf[js.JavaScriptException] {
-      resolved.trigger(awaitableMethod, "noop")
-    }.map { ex =>
-      assert(ex.getMessage.contains("Method is awaitable"))
+    resolved.trigger(method, "noop").map { _ =>
+      assert(invoker.triggerCalls.nonEmpty)
+      assert(invoker.triggerCalls.head._1 == method.functionName)
     }
   }
 
-  test("Schedule rejects awaitable methods") {
-    val resolved                                          = resolvedAgent()
+  test("Schedule works for awaitable methods (invocation kind does not restrict schedule)") {
+    val agentType  = rpcAgentType
+    val invoker    = new RecordingRpcInvoker
+    val resolved   = resolvedAgent(invoker, agentType)
+    val methodBase: AgentMethod[RpcParityAgent, String, Unit] =
+      findMethod[RpcParityAgent, String, Unit](agentType, "fireAndForget")
     val method: AgentMethod[RpcParityAgent, String, Unit] =
-      findMethod[RpcParityAgent, String, Unit](rpcAgentType, "fireAndForget")
-    val awaitableMethod: AgentMethod[RpcParityAgent, String, Unit] =
-      method.copy(invocation = MethodInvocation.Awaitable)
+      methodBase.copy(invocation = MethodInvocation.Awaitable)
 
-    recoverToExceptionIf[js.JavaScriptException] {
-      resolved.schedule(awaitableMethod, js.Dynamic.literal("ts" -> 1.0), "noop")
-    }.map { ex =>
-      assert(ex.getMessage.contains("scheduling is only supported"))
+    resolved.schedule(method, golem.Datetime.fromEpochMillis(1.0), "noop").map { _ =>
+      assert(invoker.scheduleCalls.nonEmpty)
+      assert(invoker.scheduleCalls.head._2 == method.functionName)
     }
   }
 
@@ -128,7 +130,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
     AgentClient.agentType[RpcParityAgent].asInstanceOf[AgentType[RpcParityAgent, RpcCtor]]
 
   private def resolvedAgent(
-    invoker: RecordingRpcInvoker = new RecordingRpcInvoker,
+    invoker: RecordingRpcInvoker,
     agentType: AgentType[RpcParityAgent, RpcCtor] = rpcAgentType
   ) =
     AgentClientRuntime.ResolvedAgent(
@@ -193,7 +195,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
   private final class RecordingRpcInvoker extends RpcInvoker {
     val invokeCalls   = mutable.ListBuffer.empty[(String, js.Array[js.Dynamic])]
     val triggerCalls  = mutable.ListBuffer.empty[(String, js.Array[js.Dynamic])]
-    val scheduleCalls = mutable.ListBuffer.empty[(js.Dynamic, String, js.Array[js.Dynamic])]
+    val scheduleCalls = mutable.ListBuffer.empty[(golem.Datetime, String, js.Array[js.Dynamic])]
 
     private val invokeResults = mutable.Queue.empty[Either[String, js.Dynamic]]
 
@@ -212,7 +214,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
     }
 
     override def scheduleInvocation(
-      datetime: js.Dynamic,
+      datetime: golem.Datetime,
       functionName: String,
       params: js.Array[js.Dynamic]
     ): Either[String, Unit] = {

@@ -1,5 +1,6 @@
 package golem.runtime.rpc
 
+import golem.Datetime
 import golem.Uuid
 import golem.runtime.rpc.host.AgentHostApi.RegisteredAgentType
 import golem.runtime.rpc.host.WasmRpcApi.WasmRpcClient
@@ -41,7 +42,7 @@ object RemoteAgentClient {
       client.trigger(functionName, params).left.map(_.toString)
 
     override def scheduleInvocation(
-      datetime: js.Dynamic,
+      datetime: Datetime,
       functionName: String,
       params: js.Array[js.Dynamic]
     ): Either[String, Unit] =

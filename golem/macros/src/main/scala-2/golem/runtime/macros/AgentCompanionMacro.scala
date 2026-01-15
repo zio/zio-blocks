@@ -87,6 +87,29 @@ object AgentCompanionMacro {
      """
   }
 
+  def getRemoteImpl(c: blackbox.Context)(input: c.Tree): c.Tree = {
+    import c.universe._
+    val (traitTpe, inTpe) = prefixTraitAndInput(c)
+    val agentTypeExpr     = agentTypeImpl(c)
+    q"""
+       _root_.golem.runtime.rpc.AgentClientRuntime
+         .resolve[$traitTpe, $inTpe](
+           $agentTypeExpr.asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitTpe, $inTpe]],
+           $input.asInstanceOf[$inTpe]
+         ) match {
+           case _root_.scala.util.Left(err) =>
+             _root_.scala.concurrent.Future.failed(_root_.scala.scalajs.js.JavaScriptException(err))
+           case _root_.scala.util.Right(resolved) =>
+             _root_.scala.concurrent.Future.successful(
+               _root_.golem.RemoteAgent(
+                 _root_.golem.runtime.rpc.AgentClient.bind[$traitTpe](resolved),
+                 resolved
+               )
+             )
+         }
+     """
+  }
+
   def getPhantomImpl(c: blackbox.Context)(input: c.Tree, phantom: c.Tree): c.Tree = {
     import c.universe._
     val (traitTpe, inTpe) = prefixTraitAndInput(c)
@@ -107,6 +130,29 @@ object AgentCompanionMacro {
      """
   }
 
+  def getRemotePhantomImpl(c: blackbox.Context)(input: c.Tree, phantom: c.Tree): c.Tree = {
+    import c.universe._
+    val (traitTpe, inTpe) = prefixTraitAndInput(c)
+    val agentTypeExpr     = agentTypeImpl(c)
+    q"""
+       _root_.golem.runtime.rpc.AgentClientRuntime.resolveWithPhantom[$traitTpe, $inTpe](
+         $agentTypeExpr.asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitTpe, $inTpe]],
+         $input.asInstanceOf[$inTpe],
+         phantom = _root_.scala.Some($phantom.asInstanceOf[_root_.golem.Uuid])
+       ) match {
+         case _root_.scala.util.Left(err) =>
+           _root_.scala.concurrent.Future.failed(_root_.scala.scalajs.js.JavaScriptException(err))
+         case _root_.scala.util.Right(resolved) =>
+           _root_.scala.concurrent.Future.successful(
+             _root_.golem.RemoteAgent(
+               _root_.golem.runtime.rpc.AgentClient.bind[$traitTpe](resolved),
+               resolved
+             )
+           )
+       }
+     """
+  }
+
   def getUnitImpl(c: blackbox.Context)(): c.Tree = {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
@@ -115,12 +161,28 @@ object AgentCompanionMacro {
     getImpl(c)(q"()")
   }
 
+  def getRemoteUnitImpl(c: blackbox.Context)(): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    if (!(inTpe =:= typeOf[Unit]))
+      c.abort(c.enclosingPosition, s"getRemote() requires: type AgentInput = Unit (found: $inTpe)")
+    getRemoteImpl(c)(q"()")
+  }
+
   def getPhantomUnitImpl(c: blackbox.Context)(phantom: c.Tree): c.Tree = {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
     if (!(inTpe =:= typeOf[Unit]))
       c.abort(c.enclosingPosition, s"getPhantom(phantom) requires: type AgentInput = Unit (found: $inTpe)")
     getPhantomImpl(c)(q"()", phantom)
+  }
+
+  def getRemotePhantomUnitImpl(c: blackbox.Context)(phantom: c.Tree): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    if (!(inTpe =:= typeOf[Unit]))
+      c.abort(c.enclosingPosition, s"getRemotePhantom(phantom) requires: type AgentInput = Unit (found: $inTpe)")
+    getRemotePhantomImpl(c)(q"()", phantom)
   }
 
   def getTuple2Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag](c: blackbox.Context)(
@@ -133,6 +195,18 @@ object AgentCompanionMacro {
     if (!(inTpe =:= expected))
       c.abort(c.enclosingPosition, s"get(a1,a2) requires: type AgentInput = ($expected) (found: $inTpe)")
     getImpl(c)(q"_root_.scala.Tuple2($a1, $a2)")
+  }
+
+  def getRemoteTuple2Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag](c: blackbox.Context)(
+    a1: c.Expr[A1],
+    a2: c.Expr[A2]
+  ): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    val expected   = appliedType(typeOf[Tuple2[_, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2]))
+    if (!(inTpe =:= expected))
+      c.abort(c.enclosingPosition, s"getRemote(a1,a2) requires: type AgentInput = ($expected) (found: $inTpe)")
+    getRemoteImpl(c)(q"_root_.scala.Tuple2($a1, $a2)")
   }
 
   def getPhantomTuple2Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag](c: blackbox.Context)(
@@ -148,6 +222,22 @@ object AgentCompanionMacro {
     getPhantomImpl(c)(q"_root_.scala.Tuple2($a1, $a2)", phantom.tree)
   }
 
+  def getRemotePhantomTuple2Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag](c: blackbox.Context)(
+    a1: c.Expr[A1],
+    a2: c.Expr[A2],
+    phantom: c.Expr[_root_.golem.Uuid]
+  ): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    val expected   = appliedType(typeOf[Tuple2[_, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2]))
+    if (!(inTpe =:= expected))
+      c.abort(
+        c.enclosingPosition,
+        s"getRemotePhantom(a1,a2,phantom) requires: type AgentInput = ($expected) (found: $inTpe)"
+      )
+    getRemotePhantomImpl(c)(q"_root_.scala.Tuple2($a1, $a2)", phantom.tree)
+  }
+
   def getTuple3Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag, A3: c.WeakTypeTag](c: blackbox.Context)(
     a1: c.Expr[A1],
     a2: c.Expr[A2],
@@ -160,6 +250,20 @@ object AgentCompanionMacro {
     if (!(inTpe =:= expected))
       c.abort(c.enclosingPosition, s"get(a1,a2,a3) requires: type AgentInput = ($expected) (found: $inTpe)")
     getImpl(c)(q"_root_.scala.Tuple3($a1, $a2, $a3)")
+  }
+
+  def getRemoteTuple3Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag, A3: c.WeakTypeTag](c: blackbox.Context)(
+    a1: c.Expr[A1],
+    a2: c.Expr[A2],
+    a3: c.Expr[A3]
+  ): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    val expected   =
+      appliedType(typeOf[Tuple3[_, _, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3]))
+    if (!(inTpe =:= expected))
+      c.abort(c.enclosingPosition, s"getRemote(a1,a2,a3) requires: type AgentInput = ($expected) (found: $inTpe)")
+    getRemoteImpl(c)(q"_root_.scala.Tuple3($a1, $a2, $a3)")
   }
 
   def getPhantomTuple3Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag, A3: c.WeakTypeTag](c: blackbox.Context)(
@@ -178,6 +282,24 @@ object AgentCompanionMacro {
         s"getPhantom(a1,a2,a3,phantom) requires: type AgentInput = ($expected) (found: $inTpe)"
       )
     getPhantomImpl(c)(q"_root_.scala.Tuple3($a1, $a2, $a3)", phantom.tree)
+  }
+
+  def getRemotePhantomTuple3Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag, A3: c.WeakTypeTag](c: blackbox.Context)(
+    a1: c.Expr[A1],
+    a2: c.Expr[A2],
+    a3: c.Expr[A3],
+    phantom: c.Expr[_root_.golem.Uuid]
+  ): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    val expected   =
+      appliedType(typeOf[Tuple3[_, _, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3]))
+    if (!(inTpe =:= expected))
+      c.abort(
+        c.enclosingPosition,
+        s"getRemotePhantom(a1,a2,a3,phantom) requires: type AgentInput = ($expected) (found: $inTpe)"
+      )
+    getRemotePhantomImpl(c)(q"_root_.scala.Tuple3($a1, $a2, $a3)", phantom.tree)
   }
 
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {

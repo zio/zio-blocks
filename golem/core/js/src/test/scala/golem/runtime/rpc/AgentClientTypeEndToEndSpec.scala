@@ -6,6 +6,7 @@ import golem.runtime.annotations.{DurabilityMode, agentDefinition}
 import golem.runtime.autowire.{AgentImplementation, WitValueBuilder}
 import org.scalatest.funsuite.AsyncFunSuite
 
+import scala.annotation.unused
 import scala.concurrent.{ExecutionContext, Future}
 import scala.scalajs.js
 
@@ -43,9 +44,9 @@ final class AgentClientTypeEndToEndSpec extends AsyncFunSuite {
         Left("not used")
 
       override def scheduleInvocation(
-        datetime: js.Dynamic,
-        functionName: String,
-        params: js.Array[js.Dynamic]
+        @unused datetime: golem.Datetime,
+        @unused functionName: String,
+        @unused params: js.Array[js.Dynamic]
       ): Either[String, Unit] =
         Left("not used")
     }

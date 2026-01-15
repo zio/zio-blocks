@@ -4,6 +4,7 @@ import golem.data.GolemSchema
 import golem.runtime.agenttype.{AgentMethod, AgentType, MethodInvocation}
 import golem.runtime.util.FutureInterop
 import golem.Uuid
+import golem.Datetime
 
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
@@ -65,6 +66,14 @@ object AgentClientRuntime {
   final case class ResolvedAgent[Trait](agentType: AgentType[Trait, Any], client: RemoteAgentClient) {
     def agentId: String = client.agentId
 
+    /**
+     * Always invoke via "invoke-and-await" regardless of `method.invocation`.
+     *
+     * This enables "await/trigger/schedule for any method" APIs (TS/Rust parity).
+     */
+    def await[In, Out](method: AgentMethod[Trait, In, Out], input: In): Future[Out] =
+      runAwaitable(method, input)
+
     def call[In, Out](method: AgentMethod[Trait, In, Out], input: In): Future[Out] =
       method.invocation match {
         case MethodInvocation.Awaitable =>
@@ -86,18 +95,11 @@ object AgentClientRuntime {
       call(method, input)
     }
 
-    def trigger[In](method: AgentMethod[Trait, In, Unit], input: In): Future[Unit] =
-      method.invocation match {
-        case MethodInvocation.FireAndForget => runFireAndForget(method, input)
-        case MethodInvocation.Awaitable     => FutureInterop.failed("Method is awaitable; use call(...) instead")
-      }
+    def trigger[In](method: AgentMethod[Trait, In, _], input: In): Future[Unit] =
+      runFireAndForget(method, input)
 
-    def schedule[In](method: AgentMethod[Trait, In, Unit], datetime: js.Dynamic, input: In): Future[Unit] =
-      method.invocation match {
-        case MethodInvocation.FireAndForget => runScheduled(method, datetime, input)
-        case MethodInvocation.Awaitable     =>
-          FutureInterop.failed("Method is awaitable; scheduling is only supported for fire-and-forget methods")
-      }
+    def schedule[In](method: AgentMethod[Trait, In, _], datetime: Datetime, input: In): Future[Unit] =
+      runScheduled(method, datetime, input)
 
     private def runAwaitable[In, Out](method: AgentMethod[Trait, In, Out], input: In): Future[Out] = {
       implicit val inSchema: GolemSchema[In] = method.inputSchema
@@ -128,7 +130,7 @@ object AgentClientRuntime {
 
     private def runScheduled[In, Out0](
       method: AgentMethod[Trait, In, Out0],
-      datetime: js.Dynamic,
+      datetime: Datetime,
       input: In
     ): Future[Unit] = {
       implicit val inSchema: GolemSchema[In] = method.inputSchema

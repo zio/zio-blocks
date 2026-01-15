@@ -1,5 +1,6 @@
 package golem.runtime.rpc.host
 
+import golem.Datetime
 import scala.annotation.unused
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
@@ -45,12 +46,13 @@ private[golem] object WasmRpcApi {
       underlying.asInstanceOf[RawWasmRpc]
 
     def scheduleInvocation(
-      datetime: js.Dynamic,
+      datetime: Datetime,
       functionName: String,
       params: js.Array[js.Dynamic]
     ): Either[RpcError, Unit] =
       try {
-        raw.scheduleInvocation(datetime, functionName, params)
+        // Host expects a Datetime value; currently represented as `{ ts: <epochMillis> }`.
+        raw.scheduleInvocation(js.Dynamic.literal("ts" -> datetime.epochMillis), functionName, params)
         Right(())
       } catch {
         case js.JavaScriptException(e) =>

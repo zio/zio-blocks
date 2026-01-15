@@ -32,29 +32,64 @@ trait AgentCompanion[Trait] extends AgentCompanionBase[Trait] {
   transparent inline def get[In](input: In): Future[Trait] =
     ${ AgentCompanionMacro.getImpl[Trait, In]('input) }
 
+  /** Connect to an agent instance, returning a handle that supports await/trigger/schedule for any method. */
+  transparent inline def getRemote[In](input: In): Future[RemoteAgent[Trait]] =
+    ${ AgentCompanionMacro.getRemoteImpl[Trait, In]('input) }
+
   /** Connect to a phantom (pre-provisioned) agent instance. */
   transparent inline def getPhantom[In](input: In, phantom: Uuid): Future[Trait] =
     ${ AgentCompanionMacro.getPhantomImpl[Trait, In]('input, 'phantom) }
+
+  /** Phantom variant returning the remote handle. */
+  transparent inline def getRemotePhantom[In](input: In, phantom: Uuid): Future[RemoteAgent[Trait]] =
+    ${ AgentCompanionMacro.getRemotePhantomImpl[Trait, In]('input, 'phantom) }
 
   /** Unit-constructor convenience. */
   transparent inline def get(): Future[Trait] =
     ${ AgentCompanionMacro.getUnitImpl[Trait] }
 
+  /** Unit-constructor convenience returning the remote handle. */
+  transparent inline def getRemote(): Future[RemoteAgent[Trait]] =
+    ${ AgentCompanionMacro.getRemoteUnitImpl[Trait] }
+
   /** Unit-constructor + phantom convenience. */
   transparent inline def getPhantom(phantom: Uuid): Future[Trait] =
     ${ AgentCompanionMacro.getPhantomUnitImpl[Trait]('phantom) }
+
+  /** Unit-constructor + phantom convenience returning the remote handle. */
+  transparent inline def getRemotePhantom(phantom: Uuid): Future[RemoteAgent[Trait]] =
+    ${ AgentCompanionMacro.getRemotePhantomUnitImpl[Trait]('phantom) }
 
   /** Tuple2 constructor convenience. */
   transparent inline def get[A1, A2](a1: A1, a2: A2): Future[Trait] =
     ${ AgentCompanionMacro.getTuple2Impl[Trait, A1, A2]('a1, 'a2) }
 
+  /** Tuple2 constructor convenience returning the remote handle. */
+  transparent inline def getRemote[A1, A2](a1: A1, a2: A2): Future[RemoteAgent[Trait]] =
+    ${ AgentCompanionMacro.getRemoteTuple2Impl[Trait, A1, A2]('a1, 'a2) }
+
   transparent inline def getPhantom[A1, A2](a1: A1, a2: A2, phantom: Uuid): Future[Trait] =
     ${ AgentCompanionMacro.getPhantomTuple2Impl[Trait, A1, A2]('a1, 'a2, 'phantom) }
+
+  transparent inline def getRemotePhantom[A1, A2](a1: A1, a2: A2, phantom: Uuid): Future[RemoteAgent[Trait]] =
+    ${ AgentCompanionMacro.getRemotePhantomTuple2Impl[Trait, A1, A2]('a1, 'a2, 'phantom) }
 
   /** Tuple3 constructor convenience. */
   transparent inline def get[A1, A2, A3](a1: A1, a2: A2, a3: A3): Future[Trait] =
     ${ AgentCompanionMacro.getTuple3Impl[Trait, A1, A2, A3]('a1, 'a2, 'a3) }
 
+  /** Tuple3 constructor convenience returning the remote handle. */
+  transparent inline def getRemote[A1, A2, A3](a1: A1, a2: A2, a3: A3): Future[RemoteAgent[Trait]] =
+    ${ AgentCompanionMacro.getRemoteTuple3Impl[Trait, A1, A2, A3]('a1, 'a2, 'a3) }
+
   transparent inline def getPhantom[A1, A2, A3](a1: A1, a2: A2, a3: A3, phantom: Uuid): Future[Trait] =
     ${ AgentCompanionMacro.getPhantomTuple3Impl[Trait, A1, A2, A3]('a1, 'a2, 'a3, 'phantom) }
+
+  transparent inline def getRemotePhantom[A1, A2, A3](
+    a1: A1,
+    a2: A2,
+    a3: A3,
+    phantom: Uuid
+  ): Future[RemoteAgent[Trait]] =
+    ${ AgentCompanionMacro.getRemotePhantomTuple3Impl[Trait, A1, A2, A3]('a1, 'a2, 'a3, 'phantom) }
 }
