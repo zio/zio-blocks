@@ -77,7 +77,7 @@ object JsonSchemaFormatSpec extends ZIOSpecDefault {
     suite("records")(
       test("simple record") {
         val schema = Person.schema.derive(JsonSchemaFormat.deriver)
-        val json = schema.schema.toJson
+        val json   = schema.schema.toJson
         assert(json)(containsString(""""type":"object"""")) &&
         assert(json)(containsString(""""properties":""")) &&
         assert(json)(containsString(""""name":{"type":"string"}""")) &&
@@ -86,13 +86,13 @@ object JsonSchemaFormatSpec extends ZIOSpecDefault {
       },
       test("nested record") {
         val schema = Company.schema.derive(JsonSchemaFormat.deriver)
-        val json = schema.schema.toJson
+        val json   = schema.schema.toJson
         assert(json)(containsString(""""name":{"type":"string"}""")) &&
         assert(json)(containsString(""""ceo":"""))
       },
       test("record with optional field") {
         val schema = PersonWithOptionalEmail.schema.derive(JsonSchemaFormat.deriver)
-        val json = schema.schema.toJson
+        val json   = schema.schema.toJson
         // email should not be in required since it's optional
         assert(json)(containsString(""""required":["name","age"]"""))
       }
@@ -100,7 +100,7 @@ object JsonSchemaFormatSpec extends ZIOSpecDefault {
     suite("variants")(
       test("simple enum") {
         val schema = Color.schema.derive(JsonSchemaFormat.deriver)
-        val json = schema.schema.toJson
+        val json   = schema.schema.toJson
         assert(json)(containsString(""""enum":""")) &&
         assert(json)(containsString(""""Red"""")) &&
         assert(json)(containsString(""""Green"""")) &&
@@ -108,7 +108,7 @@ object JsonSchemaFormatSpec extends ZIOSpecDefault {
       },
       test("sealed trait with data") {
         val schema = Shape.schema.derive(JsonSchemaFormat.deriver)
-        val json = schema.schema.toJson
+        val json   = schema.schema.toJson
         assert(json)(containsString(""""oneOf":""")) &&
         assert(json)(containsString(""""Circle":""")) &&
         assert(json)(containsString(""""Rectangle":"""))
@@ -117,7 +117,7 @@ object JsonSchemaFormatSpec extends ZIOSpecDefault {
     suite("documentation")(
       test("record with doc") {
         val schema = DocumentedPerson.schema.derive(JsonSchemaFormat.deriver)
-        val json = schema.schema.toJson
+        val json   = schema.schema.toJson
         assert(json)(containsString(""""description":"A person with a name and age""""))
       }
     ),
@@ -128,7 +128,7 @@ object JsonSchemaFormatSpec extends ZIOSpecDefault {
       },
       test("toJson handles nested objects") {
         val obj = JsonSchemaValue.Obj(
-          "name" -> JsonSchemaValue.Str("test"),
+          "name"   -> JsonSchemaValue.Str("test"),
           "nested" -> JsonSchemaValue.Obj(
             "value" -> JsonSchemaValue.Num(42)
           )
@@ -171,16 +171,16 @@ object JsonSchemaFormatSpec extends ZIOSpecDefault {
 
   sealed trait Color
   object Color {
-    case object Red extends Color
+    case object Red   extends Color
     case object Green extends Color
-    case object Blue extends Color
+    case object Blue  extends Color
 
     implicit val schema: Schema[Color] = Schema.derived
   }
 
   sealed trait Shape
   object Shape {
-    case class Circle(radius: Double) extends Shape
+    case class Circle(radius: Double)                   extends Shape
     case class Rectangle(width: Double, height: Double) extends Shape
 
     implicit val schema: Schema[Shape] = Schema.derived

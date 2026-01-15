@@ -6,10 +6,11 @@ import zio.blocks.schema.jsonschema.JsonSchemaValue._
 /**
  * Represents a JSON Schema for a Scala type A.
  *
- * JSON Schema is a vocabulary that allows you to annotate and validate JSON documents.
- * This implementation supports JSON Schema Draft 2020-12.
+ * JSON Schema is a vocabulary that allows you to annotate and validate JSON
+ * documents. This implementation supports JSON Schema Draft 2020-12.
  *
- * @see https://json-schema.org/
+ * @see
+ *   https://json-schema.org/
  */
 final case class JsonSchema[A](schema: JsonSchemaValue.Obj) {
 
@@ -107,9 +108,10 @@ object JsonSchema {
     required: IndexedSeq[String],
     additionalProperties: Option[JsonSchemaValue] = None
   ): JsonSchemaValue.Obj = {
-    val base = Obj(
+    val propsMap: IndexedSeq[(String, JsonSchemaValue)] = properties.map { case (k, v) => (k, v) }
+    val base                                            = Obj(
       "type"       -> Str("object"),
-      "properties" -> Obj(properties.map { case (k, v) => k -> (v: JsonSchemaValue) }: _*)
+      "properties" -> Obj(propsMap: _*)
     )
     val withRequired =
       if (required.isEmpty) base
@@ -132,19 +134,23 @@ object JsonSchema {
   /**
    * Creates a JSON Schema oneOf for variants/unions.
    */
-  def oneOf(schemas: IndexedSeq[JsonSchemaValue.Obj]): JsonSchemaValue.Obj =
-    Obj("oneOf" -> Arr(schemas.map(s => s: JsonSchemaValue)))
+  def oneOf(schemas: IndexedSeq[JsonSchemaValue.Obj]): JsonSchemaValue.Obj = {
+    val schemaValues: IndexedSeq[JsonSchemaValue] = schemas.map(identity)
+    Obj("oneOf" -> Arr(schemaValues))
+  }
 
   /**
    * Creates a JSON Schema anyOf.
    */
-  def anyOf(schemas: IndexedSeq[JsonSchemaValue.Obj]): JsonSchemaValue.Obj =
-    Obj("anyOf" -> Arr(schemas.map(s => s: JsonSchemaValue)))
+  def anyOf(schemas: IndexedSeq[JsonSchemaValue.Obj]): JsonSchemaValue.Obj = {
+    val schemaValues: IndexedSeq[JsonSchemaValue] = schemas.map(identity)
+    Obj("anyOf" -> Arr(schemaValues))
+  }
 
   /**
    * Creates a JSON Schema for an enum.
    */
-  def enum(values: IndexedSeq[JsonSchemaValue]): JsonSchemaValue.Obj =
+  def `enum`(values: IndexedSeq[JsonSchemaValue]): JsonSchemaValue.Obj =
     Obj("enum" -> Arr(values))
 
   /**
