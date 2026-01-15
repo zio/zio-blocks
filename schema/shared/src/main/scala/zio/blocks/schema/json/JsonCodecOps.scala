@@ -8,7 +8,8 @@ import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 object JsonCodecOps {
 
   /**
-   * Derives a JsonEncoder[A] from Schema[A] using DynamicValue as an intermediate representation.
+   * Derives a JsonEncoder[A] from Schema[A] using DynamicValue as an
+   * intermediate representation.
    *
    * Example:
    * {{{
@@ -25,7 +26,8 @@ object JsonCodecOps {
     }
 
   /**
-   * Derives a JsonDecoder[A] from Schema[A] using DynamicValue as an intermediate representation.
+   * Derives a JsonDecoder[A] from Schema[A] using DynamicValue as an
+   * intermediate representation.
    *
    * Example:
    * {{{
@@ -35,24 +37,23 @@ object JsonCodecOps {
    */
   def deriveJsonDecoder[A](schema: Schema[A]): JsonDecoder[A] =
     new JsonDecoder[A] {
-      def decode(json: Json): Either[JsonDecoderError, A] = {
+      def decode(json: Json): Either[JsonDecoderError, A] =
         jsonToDynamicValue(json) match {
           case Right(dynamicValue) =>
             schema.fromDynamicValue(dynamicValue).left.map(err => JsonDecoderError(err.message))
           case Left(error) =>
             Left(error)
         }
-      }
     }
 
   /**
    * Converts a DynamicValue to a Json representation.
    */
   private def dynamicValueToJson(dv: DynamicValue): Json = dv match {
-    case DynamicValue.Primitive(pv) => primitiveValueToJson(pv)
+    case DynamicValue.Primitive(pv)  => primitiveValueToJson(pv)
     case DynamicValue.Record(fields) =>
-      val jsonFields: scala.collection.immutable.Map[Predef.String, Json] = 
-        fields.map { case (name: Predef.String, value: DynamicValue) => 
+      val jsonFields: scala.collection.immutable.Map[Predef.String, Json] =
+        fields.map { case (name: Predef.String, value: DynamicValue) =>
           (name, dynamicValueToJson(value))
         }.toMap
       Json.Object(jsonFields)
@@ -63,7 +64,7 @@ object JsonCodecOps {
       Json.Array(elements.map(dynamicValueToJson))
     case DynamicValue.Map(entries) =>
       // Convert map to JSON object - keys must be strings
-      val jsonFields: scala.collection.immutable.Map[Predef.String, Json] = 
+      val jsonFields: scala.collection.immutable.Map[Predef.String, Json] =
         entries.map { case (key, value) =>
           val keyStr: Predef.String = dynamicValueToString(key)
           (keyStr, dynamicValueToJson(value))
@@ -75,19 +76,19 @@ object JsonCodecOps {
    * Converts a PrimitiveValue to a Json representation.
    */
   private def primitiveValueToJson(pv: PrimitiveValue): Json = pv match {
-    case PrimitiveValue.Unit              => Json.Null
-    case PrimitiveValue.Boolean(b)        => Json.Boolean(b)
-    case PrimitiveValue.Byte(b)           => Json.Number(BigDecimal(b))
-    case PrimitiveValue.Short(s)          => Json.Number(BigDecimal(s))
-    case PrimitiveValue.Int(i)            => Json.Number(BigDecimal(i))
-    case PrimitiveValue.Long(l)           => Json.Number(BigDecimal(l))
-    case PrimitiveValue.Float(f)          => Json.Number(BigDecimal(f.toDouble))
-    case PrimitiveValue.Double(d)         => Json.Number(BigDecimal(d))
-    case PrimitiveValue.Char(c)           => Json.String(c.toString)
-    case PrimitiveValue.String(s)         => Json.String(s)
-    case PrimitiveValue.BigInt(b)         => Json.Number(BigDecimal(b))
-    case PrimitiveValue.BigDecimal(b)     => Json.Number(b)
-    case other                            => Json.String(other.toString)
+    case PrimitiveValue.Unit          => Json.Null
+    case PrimitiveValue.Boolean(b)    => Json.Boolean(b)
+    case PrimitiveValue.Byte(b)       => Json.Number(BigDecimal(b))
+    case PrimitiveValue.Short(s)      => Json.Number(BigDecimal(s))
+    case PrimitiveValue.Int(i)        => Json.Number(BigDecimal(i))
+    case PrimitiveValue.Long(l)       => Json.Number(BigDecimal(l))
+    case PrimitiveValue.Float(f)      => Json.Number(BigDecimal(f.toDouble))
+    case PrimitiveValue.Double(d)     => Json.Number(BigDecimal(d))
+    case PrimitiveValue.Char(c)       => Json.String(c.toString)
+    case PrimitiveValue.String(s)     => Json.String(s)
+    case PrimitiveValue.BigInt(b)     => Json.Number(BigDecimal(b))
+    case PrimitiveValue.BigDecimal(b) => Json.Number(b)
+    case other                        => Json.String(other.toString)
   }
 
   /**
@@ -130,7 +131,7 @@ object JsonCodecOps {
       Right(DynamicValue.Primitive(PrimitiveValue.String(s)))
     case Json.Array(elements) =>
       val converted = elements.map(jsonToDynamicValue)
-      val errors = converted.collect { case Left(err) => err }
+      val errors    = converted.collect { case Left(err) => err }
       if (errors.nonEmpty) {
         Left(errors.head)
       } else {
@@ -155,9 +156,9 @@ object JsonCodecOps {
         }
       } else {
         // Multi-key object is definitely a record
-        val converted: Vector[Either[JsonDecoderError, (Predef.String, DynamicValue)]] = 
+        val converted: Vector[Either[JsonDecoderError, (Predef.String, DynamicValue)]] =
           fields.toVector.map { case (name: Predef.String, value: Json) =>
-            jsonToDynamicValue(value).map { (dv: DynamicValue) => 
+            jsonToDynamicValue(value).map { (dv: DynamicValue) =>
               (name: Predef.String, dv)
             }
           }

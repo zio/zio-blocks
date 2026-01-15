@@ -1,8 +1,8 @@
 package zio.blocks.schema.json
 
 /**
- * A `JsonEncoder[A]` is a typeclass that can encode a value of type `A` into
- * a JSON representation.
+ * A `JsonEncoder[A]` is a typeclass that can encode a value of type `A` into a
+ * JSON representation.
  */
 trait JsonEncoder[A] {
   def encode(a: A): Json

@@ -9,13 +9,13 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
   // Custom assertion to check if a Json value is an Object
   private def isJsonObject: Assertion[Json] = Assertion.assertion("isJsonObject") {
     case _: Json.Object => true
-    case _ => false
+    case _              => false
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("JsonEncoderDecoderSpec")(
     suite("primitives")(
       test("String round-trip") {
-        val value = "hello"
+        val value   = "hello"
         val encoder = JsonEncoder[String]
         val decoder = JsonDecoder[String]
         val encoded = encoder.encode(value)
@@ -23,7 +23,7 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
         assert(decoder.decode(encoded))(isRight(equalTo(value)))
       },
       test("Int round-trip") {
-        val value = 42
+        val value   = 42
         val encoder = JsonEncoder[Int]
         val decoder = JsonDecoder[Int]
         val encoded = encoder.encode(value)
@@ -31,17 +31,17 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
         assert(decoder.decode(encoded))(isRight(equalTo(value)))
       },
       test("Boolean round-trip") {
-        val trueValue = true
+        val trueValue  = true
         val falseValue = false
-        val encoder = JsonEncoder[Boolean]
-        val decoder = JsonDecoder[Boolean]
+        val encoder    = JsonEncoder[Boolean]
+        val decoder    = JsonDecoder[Boolean]
         assert(encoder.encode(trueValue))(equalTo(Json.Boolean(true))) &&
         assert(decoder.decode(Json.Boolean(true)))(isRight(equalTo(trueValue))) &&
         assert(encoder.encode(falseValue))(equalTo(Json.Boolean(false))) &&
         assert(decoder.decode(Json.Boolean(false)))(isRight(equalTo(falseValue)))
       },
       test("BigDecimal round-trip") {
-        val value = BigDecimal(3.14)
+        val value   = BigDecimal(3.14)
         val encoder = JsonEncoder[BigDecimal]
         val decoder = JsonDecoder[BigDecimal]
         val encoded = encoder.encode(value)
@@ -51,7 +51,7 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
     ),
     suite("Option types")(
       test("Option[String] with Some") {
-        val value = Some("hello")
+        val value   = Some("hello")
         val encoder = JsonEncoder[Option[String]]
         val decoder = JsonDecoder[Option[String]]
         val encoded = encoder.encode(value)
@@ -60,14 +60,14 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
       },
       test("Option[String] with None") {
         val value: Option[String] = None
-        val encoder = JsonEncoder[Option[String]]
-        val decoder = JsonDecoder[Option[String]]
-        val encoded = encoder.encode(value)
+        val encoder               = JsonEncoder[Option[String]]
+        val decoder               = JsonDecoder[Option[String]]
+        val encoded               = encoder.encode(value)
         assert(encoded)(equalTo(Json.Null)) &&
         assert(decoder.decode(encoded))(isRight(equalTo(value)))
       },
       test("Option[Int] with Some") {
-        val value = Some(42)
+        val value   = Some(42)
         val encoder = JsonEncoder[Option[Int]]
         val decoder = JsonDecoder[Option[Int]]
         val encoded = encoder.encode(value)
@@ -76,9 +76,9 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
       },
       test("Option[Int] with None") {
         val value: Option[Int] = None
-        val encoder = JsonEncoder[Option[Int]]
-        val decoder = JsonDecoder[Option[Int]]
-        val encoded = encoder.encode(value)
+        val encoder            = JsonEncoder[Option[Int]]
+        val decoder            = JsonDecoder[Option[Int]]
+        val encoded            = encoder.encode(value)
         assert(encoded)(equalTo(Json.Null)) &&
         assert(decoder.decode(encoded))(isRight(equalTo(value)))
       }
@@ -89,7 +89,7 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
         object Person {
           implicit val schema: Schema[Person] = Schema.derived
         }
-        val value = Person("Alice", 30)
+        val value   = Person("Alice", 30)
         val encoder = Person.schema.deriveJsonEncoder
         val decoder = Person.schema.deriveJsonDecoder
         val encoded = encoder.encode(value)
@@ -101,7 +101,7 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
         object Point {
           implicit val schema: Schema[Point] = Schema.derived
         }
-        val value = Point(10, 20)
+        val value   = Point(10, 20)
         val encoder = Point.schema.deriveJsonEncoder
         val decoder = Point.schema.deriveJsonDecoder
         val encoded = encoder.encode(value)
@@ -116,7 +116,7 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
         object Person {
           implicit val schema: Schema[Person] = Schema.derived
         }
-        val value = Person("Bob", Address("NYC", 10001))
+        val value   = Person("Bob", Address("NYC", 10001))
         val encoder = Person.schema.deriveJsonEncoder
         val decoder = Person.schema.deriveJsonDecoder
         val encoded = encoder.encode(value)
@@ -127,7 +127,7 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
     suite("error cases")(
       test("String decoder rejects Number") {
         val decoder = JsonDecoder[String]
-        val json = Json.Number(BigDecimal(123))
+        val json    = Json.Number(BigDecimal(123))
         assert(decoder.decode(json))(
           isLeft(
             hasField("message", (e: JsonDecoderError) => e.message, containsString("Expected string"))
@@ -136,43 +136,43 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
       },
       test("Int decoder rejects String") {
         val decoder = JsonDecoder[Int]
-        val json = Json.String("not a number")
+        val json    = Json.String("not a number")
         assert(decoder.decode(json))(isLeft)
       },
       test("Boolean decoder rejects Number") {
         val decoder = JsonDecoder[Boolean]
-        val json = Json.Number(BigDecimal(1))
+        val json    = Json.Number(BigDecimal(1))
         assert(decoder.decode(json))(isLeft)
       },
       test("Int decoder rejects Array") {
         val decoder = JsonDecoder[Int]
-        val json = Json.Array(scala.collection.immutable.Vector.empty)
+        val json    = Json.Array(scala.collection.immutable.Vector.empty)
         assert(decoder.decode(json))(isLeft)
       },
       test("Int decoder rejects Object") {
         val decoder = JsonDecoder[Int]
-        val json = Json.Object(scala.collection.immutable.Map.empty)
+        val json    = Json.Object(scala.collection.immutable.Map.empty)
         assert(decoder.decode(json))(isLeft)
       },
       test("Int decoder rejects non-integer Numbers") {
         val decoder = JsonDecoder[Int]
-        val json = Json.Number(BigDecimal(42.5))
+        val json    = Json.Number(BigDecimal(42.5))
         assert(decoder.decode(json))(isLeft)
       },
       test("Int decoder accepts integer-valued Numbers") {
         val decoder = JsonDecoder[Int]
-        val json = Json.Number(BigDecimal(42))
+        val json    = Json.Number(BigDecimal(42))
         assert(decoder.decode(json))(isRight(equalTo(42)))
       },
       test("Option decoder accepts Null as None") {
         val decoder = JsonDecoder[Option[String]]
-        val json = Json.Null
+        val json    = Json.Null
         assert(decoder.decode(json))(isRight(equalTo(None)))
       }
     ),
     suite("round-trip consistency")(
       test("encode then decode returns original value (String)") {
-        val value = "round-trip test"
+        val value   = "round-trip test"
         val encoder = JsonEncoder[String]
         val decoder = JsonDecoder[String]
         val encoded = encoder.encode(value)
@@ -180,7 +180,7 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
         assert(decoded)(isRight(equalTo(value)))
       },
       test("encode then decode returns original value (Int)") {
-        val value = 12345
+        val value   = 12345
         val encoder = JsonEncoder[Int]
         val decoder = JsonDecoder[Int]
         val encoded = encoder.encode(value)
@@ -188,7 +188,7 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
         assert(decoded)(isRight(equalTo(value)))
       },
       test("encode then decode returns original value (BigDecimal)") {
-        val value = BigDecimal(99.99)
+        val value   = BigDecimal(99.99)
         val encoder = JsonEncoder[BigDecimal]
         val decoder = JsonDecoder[BigDecimal]
         val encoded = encoder.encode(value)
@@ -198,4 +198,3 @@ object JsonEncoderDecoderSpec extends SchemaBaseSpec {
     )
   )
 }
-

@@ -1,8 +1,8 @@
 package zio.blocks.schema.json
 
 /**
- * A `JsonDecoder[A]` is a typeclass that can decode a value of type `A` from
- * a JSON representation.
+ * A `JsonDecoder[A]` is a typeclass that can decode a value of type `A` from a
+ * JSON representation.
  */
 trait JsonDecoder[A] {
   def decode(json: Json): Either[JsonDecoderError, A]
