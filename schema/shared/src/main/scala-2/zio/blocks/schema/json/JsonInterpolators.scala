@@ -40,7 +40,7 @@ object PathInterpolatorMacro {
     import c.universe._
 
     val Apply(_, List(Apply(_, rawParts))) = c.prefix.tree
-    val parts = rawParts.map { case Literal(Constant(s: String)) => s }
+    val parts                              = rawParts.map { case Literal(Constant(s: String)) => s }
 
     if (args.nonEmpty) {
       c.abort(c.enclosingPosition, "Path interpolator does not support interpolated variables")
@@ -55,7 +55,7 @@ object PathInterpolatorMacro {
     // Parse the path string and build a DynamicOptic
     // For now, this is a simplified implementation
     // Full implementation would parse: "field1.field2[0].field3" etc.
-    
+
     c.Expr[DynamicOptic](q"_root_.zio.blocks.schema.DynamicOptic.parse($pathString)")
   }
 }
@@ -68,7 +68,7 @@ object JsonInterpolatorMacro {
     import c.universe._
 
     val Apply(_, List(Apply(_, rawParts))) = c.prefix.tree
-    val parts = rawParts.map { case Literal(Constant(s: String)) => s }
+    val parts                              = rawParts.map { case Literal(Constant(s: String)) => s }
 
     if (args.nonEmpty) {
       c.abort(c.enclosingPosition, "JSON interpolator does not support interpolated variables yet")
