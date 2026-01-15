@@ -202,14 +202,30 @@ final class ToonReader private[toon] (
     else decodeError(s"Expected boolean, got: $value")
   }
 
+  def readByte(): Byte = {
+    val value = readPrimitiveToken()
+    if (hasLeadingZero(value)) decodeError(s"Expected byte without leading zero, got: $value")
+    try value.toByte
+    catch { case _: NumberFormatException => decodeError(s"Expected byte, got: $value") }
+  }
+
+  def readShort(): Short = {
+    val value = readPrimitiveToken()
+    if (hasLeadingZero(value)) decodeError(s"Expected short without leading zero, got: $value")
+    try value.toShort
+    catch { case _: NumberFormatException => decodeError(s"Expected short, got: $value") }
+  }
+
   def readInt(): Int = {
     val value = readPrimitiveToken()
+    if (hasLeadingZero(value)) decodeError(s"Expected int without leading zero, got: $value")
     try value.toInt
     catch { case _: NumberFormatException => decodeError(s"Expected int, got: $value") }
   }
 
   def readLong(): Long = {
     val value = readPrimitiveToken()
+    if (hasLeadingZero(value)) decodeError(s"Expected long without leading zero, got: $value")
     try value.toLong
     catch { case _: NumberFormatException => decodeError(s"Expected long, got: $value") }
   }
@@ -217,30 +233,40 @@ final class ToonReader private[toon] (
   def readFloat(): Float = {
     val value = readPrimitiveToken()
     if (value == "null") Float.NaN
-    else
+    else {
+      if (hasLeadingZero(value)) decodeError(s"Expected float without leading zero, got: $value")
       try value.toFloat
       catch { case _: NumberFormatException => decodeError(s"Expected float, got: $value") }
+    }
   }
 
   def readDouble(): Double = {
     val value = readPrimitiveToken()
     if (value == "null") Double.NaN
-    else
+    else {
+      if (hasLeadingZero(value)) decodeError(s"Expected double without leading zero, got: $value")
       try value.toDouble
       catch { case _: NumberFormatException => decodeError(s"Expected double, got: $value") }
+    }
   }
 
   def readBigDecimal(): BigDecimal = {
     val value = readPrimitiveToken()
+    if (hasLeadingZero(value)) decodeError(s"Expected BigDecimal without leading zero, got: $value")
     try BigDecimal(value)
     catch { case _: NumberFormatException => decodeError(s"Expected BigDecimal, got: $value") }
   }
 
   def readBigInt(): BigInt = {
     val value = readPrimitiveToken()
+    if (hasLeadingZero(value)) decodeError(s"Expected BigInt without leading zero, got: $value")
     try BigInt(value)
     catch { case _: NumberFormatException => decodeError(s"Expected BigInt, got: $value") }
   }
+
+  private[this] def hasLeadingZero(value: String): Boolean =
+    value.startsWith("0") && value.length > 1 && Character.isDigit(value.charAt(1)) ||
+      value.startsWith("-0") && value.length > 2 && Character.isDigit(value.charAt(2))
 
   def readString(): String = readPrimitiveToken()
 
