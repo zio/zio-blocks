@@ -7,6 +7,7 @@ import zio.blocks.schema.SchemaError.ExpectationMismatch
 import org.apache.thrift.protocol.{TProtocol, TBinaryProtocol}
 import java.nio.ByteBuffer
 import scala.util.control.NonFatal
+import zio.blocks.chunk.Chunk
 
 import zio.blocks.schema.binding.RegisterOffset
 
@@ -27,20 +28,34 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
   def encode(value: A, protocol: TProtocol): Unit
   def decodeUnsafe(protocol: TProtocol): A
 
-  override def encode(value: A, output: ByteBuffer): Unit = {
-    val transport = new WriteByteBufferTransport(output)
+  def encode(value: A): Chunk[Byte] = {
+    val transport = new ThriftTransport.Write()
     val protocol  = new TBinaryProtocol(transport)
     encode(value, protocol)
+    transport.chunk
   }
 
-  override def decode(input: ByteBuffer): Either[SchemaError, A] = {
-    val transport = new ReadByteBufferTransport(input)
+  def decode(input: Chunk[Byte]): Either[SchemaError, A] = {
+    val transport = new ThriftTransport.Read(input)
     val protocol  = new TBinaryProtocol(transport)
     try {
       Right(decodeUnsafe(protocol))
     } catch {
       case error if NonFatal(error) => Left(toError(error))
     }
+  }
+
+  override def encode(value: A, output: ByteBuffer): Unit = {
+    val transport = new ThriftTransport.Write()
+    val protocol  = new TBinaryProtocol(transport)
+    encode(value, protocol)
+    val chunk = transport.chunk
+    output.put(chunk.toArray)
+  }
+
+  override def decode(input: ByteBuffer): Either[SchemaError, A] = {
+    val chunk = Chunk.fromByteBuffer(input)
+    decode(chunk)
   }
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(

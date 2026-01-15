@@ -1,47 +1,61 @@
 package zio.blocks.schema.thrift
 
-import org.apache.thrift.transport.TTransport
-import java.nio.ByteBuffer
+import org.apache.thrift.TConfiguration
+import org.apache.thrift.transport.{TMemoryTransport, TTransport}
+import zio.blocks.chunk.Chunk
 
-private[thrift] class ReadByteBufferTransport(buffer: ByteBuffer) extends TTransport {
-  override def isOpen: Boolean = true
-  override def open(): Unit    = {}
-  override def close(): Unit   = {}
+object ThriftTransport {
 
-  override def read(buf: Array[Byte], off: Int, len: Int): Int = {
-    if (!buffer.hasRemaining) return -1 // EOF
-    val remaining = buffer.remaining()
-    val toRead    = math.min(len, remaining)
-    buffer.get(buf, off, toRead)
-    toRead
+  class Write extends TTransport {
+    val underlying = new TMemoryTransport(Array.emptyByteArray)
+
+    override def isOpen: Boolean = underlying.isOpen
+
+    override def open(): Unit = underlying.open()
+
+    override def close(): Unit = underlying.close()
+
+    override def read(buf: Array[Byte], off: Int, len: Int): Int =
+      throw new UnsupportedOperationException
+
+    override def write(buf: Array[Byte], off: Int, len: Int): Unit =
+      underlying.write(buf, off, len)
+
+    override def getConfiguration: TConfiguration =
+      underlying.getConfiguration
+
+    override def updateKnownMessageSize(size: Long): Unit =
+      underlying.updateKnownMessageSize(size)
+
+    override def checkReadBytesAvailable(numBytes: Long): Unit =
+      underlying.checkReadBytesAvailable(numBytes)
+
+    def chunk: Chunk[Byte] =
+      Chunk.fromArray(underlying.getOutput.toByteArray)
   }
 
-  override def write(buf: Array[Byte], off: Int, len: Int): Unit =
-    throw new UnsupportedOperationException("Read-only transport")
+  class Read(input: Chunk[Byte]) extends TTransport {
+    val underlying = new TMemoryTransport(input.toArray)
 
-  override def getConfiguration: org.apache.thrift.TConfiguration = new org.apache.thrift.TConfiguration()
-  override def updateKnownMessageSize(size: Long): Unit           = {}
-  override def checkReadBytesAvailable(numBytes: Long): Unit      =
-    if (buffer.remaining() < numBytes)
-      throw new org.apache.thrift.transport.TTransportException("Not enough bytes remaining")
-}
+    override def isOpen: Boolean = underlying.isOpen
 
-private[thrift] class WriteByteBufferTransport(buffer: ByteBuffer) extends TTransport {
-  override def isOpen: Boolean = true
-  override def open(): Unit    = {}
-  override def close(): Unit   = {}
+    override def open(): Unit = underlying.open()
 
-  override def read(buf: Array[Byte], off: Int, len: Int): Int =
-    throw new UnsupportedOperationException("Write-only transport")
+    override def close(): Unit = underlying.close()
 
-  override def write(buf: Array[Byte], off: Int, len: Int): Unit =
-    // Ensure buffer has space? BinaryCodec assumes buffer is large enough or handles it?
-    // Codec.scala doesn't specify strategy for resizing.
-    // AvroBinaryCodec uses a wrapper OutputStream that writes to ByteBuffer.
-    // If we reach limit, ByteBuffer throws BufferOverflowException.
-    buffer.put(buf, off, len)
+    override def read(buf: Array[Byte], off: Int, len: Int): Int =
+      underlying.read(buf, off, len)
 
-  override def getConfiguration: org.apache.thrift.TConfiguration = new org.apache.thrift.TConfiguration()
-  override def updateKnownMessageSize(size: Long): Unit           = {}
-  override def checkReadBytesAvailable(numBytes: Long): Unit      = {}
+    override def write(buf: Array[Byte], off: Int, len: Int): Unit =
+      throw new UnsupportedOperationException
+
+    override def getConfiguration: TConfiguration =
+      underlying.getConfiguration
+
+    override def updateKnownMessageSize(size: Long): Unit =
+      underlying.updateKnownMessageSize(size)
+
+    override def checkReadBytesAvailable(numBytes: Long): Unit =
+      underlying.checkReadBytesAvailable(numBytes)
+  }
 }

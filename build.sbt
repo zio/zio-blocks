@@ -176,14 +176,15 @@ lazy val `schema-avro` = project
 
 lazy val `schema-thrift` = project
   .settings(stdSettings("zio-blocks-schema-thrift"))
-  .dependsOn(schema.jvm)
+  .dependsOn(schema.jvm, chunk.jvm)
   .settings(buildInfoSettings("zio.blocks.schema.thrift"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.apache.thrift" % "libthrift"    % "0.19.0",
-      "dev.zio"          %% "zio-test"     % "2.1.24" % Test,
-      "dev.zio"          %% "zio-test-sbt" % "2.1.24" % Test
+      "org.apache.thrift"  % "libthrift"              % "0.20.0",
+      "jakarta.annotation" % "jakarta.annotation-api" % "3.0.0",
+      "dev.zio"           %% "zio-test"               % "2.1.24" % Test,
+      "dev.zio"           %% "zio-test-sbt"           % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq()

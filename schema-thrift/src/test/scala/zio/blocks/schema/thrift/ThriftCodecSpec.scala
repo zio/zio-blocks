@@ -60,6 +60,9 @@ object ThriftCodecSpec extends ZIOSpecDefault {
       test("UUID") {
         encodeAndDecode(Schema[java.util.UUID], java.util.UUID.randomUUID())
       },
+      test("Char") {
+        encodeAndDecode(Schema[Char], 'A')
+      },
       test("Currency") {
         encodeAndDecode(Schema[java.util.Currency], java.util.Currency.getInstance("USD"))
       }
