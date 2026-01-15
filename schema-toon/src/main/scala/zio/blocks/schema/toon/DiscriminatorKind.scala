@@ -27,7 +27,7 @@ object DiscriminatorKind {
   /**
    * Represents a discriminator strategy where a specific field in the TOON
    * record is used to identify the subtype of a sealed hierarchy, e.g.
-   * `$type: SubtypeIdentifier` followed by the record fields.
+   * `\$type: SubtypeIdentifier` followed by the record fields.
    *
    * Can be used only for serializing sealed hierarchy subtypes of non-abstract
    * classes only (not union types).
