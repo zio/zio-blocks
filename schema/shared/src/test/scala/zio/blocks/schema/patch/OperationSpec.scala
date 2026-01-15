@@ -4,7 +4,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
 
-object OperationSpec extends ZIOSpecDefault {
+object OperationSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("OperationSpec")(
     suite("Patch.StringOp")(
       test("Insert serializes/deserializes") {

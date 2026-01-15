@@ -5,7 +5,7 @@ import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
 
 // Tests for the new DynamicOptic.Node of elements, wrapped, and case types.
-object DynamicOpticNodeExtensionsSpec extends ZIOSpecDefault {
+object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
 
   // Helper to create DynamicValue representations
   def stringPrimitive(s: String): DynamicValue =

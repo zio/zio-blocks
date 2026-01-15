@@ -4,7 +4,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
 
-object SerializationSpec extends ZIOSpecDefault {
+object SerializationSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("SerializationSpec")(
     suite("DynamicOptic.Node serialization")(

@@ -6,7 +6,7 @@ import zio.test._
 import java.time._
 import java.util.{Currency, UUID}
 
-object ToonBinaryCodecDeriverSpec extends ZIOSpecDefault {
+object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("ToonBinaryCodecDeriverSpec")(
     suite("primitives")(
       test("Unit") {

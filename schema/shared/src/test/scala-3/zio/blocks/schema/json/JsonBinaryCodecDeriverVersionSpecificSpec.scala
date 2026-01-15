@@ -1,10 +1,10 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.{Modifier, Schema}
+import zio.blocks.schema.{Modifier, Schema, SchemaBaseSpec}
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
 
-object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
+object JsonBinaryCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverVersionSpecificSpec")(
     suite("records")(
       test("generic tuples") {

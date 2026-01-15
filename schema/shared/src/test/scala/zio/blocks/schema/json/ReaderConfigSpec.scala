@@ -1,11 +1,12 @@
 package zio.blocks.schema.json
 
+import zio.blocks.schema.SchemaBaseSpec
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test.Assertion._
 import zio.test._
 import scala.util.Try
 
-object ReaderConfigSpec extends ZIOSpecDefault {
+object ReaderConfigSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("ReaderConfigSpec")(
     test("have safe and handy defaults") {
       assert(ReaderConfig.maxBufSize)(equalTo(33554432)) &&

@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.test.Assertion._
 import zio.test._
 
-object DocSpec extends ZIOSpecDefault {
+object DocSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("DocSpec")(
     suite("Doc.Empty")(
       test("has consistent equals and hashCode") {

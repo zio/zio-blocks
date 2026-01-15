@@ -5,7 +5,7 @@ import zio.test._
 import zio.test.Assertion._
 import java.time.YearMonth
 
-object PatchSpec extends ZIOSpecDefault {
+object PatchSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("PatchSpec")(
     test("replace a field with a new value") {
       val person1 = Person(12345678901L, "John", "123 Main St", Nil)

@@ -1,11 +1,11 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema.json.JsonNestedRecordsBenchmark
-import zio.blocks.schema.{DynamicOptic, SchemaError}
+import zio.blocks.schema.{DynamicOptic, SchemaBaseSpec, SchemaError}
 import zio.test._
 import zio.test.Assertion._
 
-object JsonNestedRecordsBenchmarkSpec extends ZIOSpecDefault {
+object JsonNestedRecordsBenchmarkSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonNestedRecordsBenchmarkSpec")(
     test("reading") {
       val benchmark = new JsonNestedRecordsBenchmark
