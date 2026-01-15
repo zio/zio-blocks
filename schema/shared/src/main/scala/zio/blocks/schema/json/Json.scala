@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 
 import java.io.{Reader, Writer}
 import java.nio.ByteBuffer
@@ -200,6 +200,59 @@ sealed trait Json extends Product with Serializable { self =>
 
   /** Merges this JSON value with another using the specified merge strategy. */
   def merge(that: Json, strategy: MergeStrategy): Json = strategy.merge(DynamicOptic.root, this, that)
+
+  // ============ Patching ============
+
+  /**
+   * Applies a [[JsonPatch]] to this JSON.
+   *
+   * @param patch
+   *   The patch to apply
+   * @return
+   *   Either an error if the patch cannot be applied, or the patched JSON
+   */
+  def patch(patch: JsonPatch): Either[JsonError, Json] = ???
+
+  /**
+   * Applies a [[JsonPatch]], throwing on failure.
+   *
+   * @param patch
+   *   The patch to apply
+   * @return
+   *   The patched JSON
+   * @throws JsonError
+   *   if the patch cannot be applied
+   */
+  def patchUnsafe(patch: JsonPatch): Json = this.patch(patch).fold(throw _, identity)
+
+  // ============ Diffing ============
+
+  /**
+   * Computes a [[JsonPatch]] that transforms this JSON into the target.
+   *
+   * @param target
+   *   The target JSON
+   * @return
+   *   A patch that transforms this into target
+   */
+  def diff(target: Json): JsonPatch = ???
+
+  // ============ Validation ============
+
+  /**
+   * Validates this JSON against a [[JsonSchema]].
+   *
+   * @param schema
+   *   The schema to validate against
+   * @return
+   *   `None` if valid, `Some(error)` if invalid
+   */
+  def check(schema: JsonSchema): Option[SchemaError] = ???
+
+  /**
+   * Returns `true` if this JSON conforms to the given [[JsonSchema]].
+   */
+  def conforms(schema: JsonSchema): scala.Boolean = check(schema).isEmpty
 
   // ============ Transformations ============
 
@@ -1322,6 +1375,31 @@ object Json {
    */
   def fromKVUnsafe(kvs: Seq[(DynamicOptic, Json)]): Json =
     fromKV(kvs).fold(throw _, identity)
+
+  // ============ Patch Interop ============
+
+  /**
+   * Serializes a [[JsonPatch]] to its JSON representation.
+   *
+   * The format follows RFC 6902 (JSON Patch) for standard operations, with
+   * extensions for LCS-based sequence diffs.
+   *
+   * @param patch
+   *   The patch to serialize
+   * @return
+   *   The JSON representation of the patch
+   */
+  def fromJsonPatch(patch: JsonPatch): Json = ???
+
+  /**
+   * Deserializes a JSON representation into a [[JsonPatch]].
+   *
+   * @param json
+   *   The JSON patch representation
+   * @return
+   *   Either an error or the parsed patch
+   */
+  def toJsonPatch(json: Json): Either[JsonError, JsonPatch] = ???
 
   // ============ Typed Encoding ============
 

@@ -1,6 +1,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
+import zio.blocks.schema.json.interpolators._
 import zio.test._
 
 object JsonSpec extends ZIOSpecDefault {
@@ -285,6 +286,76 @@ object JsonSpec extends ZIOSpecDefault {
         val result = json.encode(WriterConfig)
         assertTrue(result == "{\"a\":1}")
       }
+    ),
+    suite("interpolators")(
+      suite("path interpolator")(
+        test("empty path returns root") {
+          val path = p""
+          assertTrue(path == DynamicOptic.root)
+        },
+        test("single field") {
+          val path = p"name"
+          assertTrue(path.nodes.length == 1)
+        },
+        test("nested fields") {
+          val path = p"user.name"
+          assertTrue(path.nodes.length == 2)
+        },
+        test("field with array index") {
+          val path = p"users[0]"
+          assertTrue(path.nodes.length == 2)
+        },
+        test("complex path") {
+          val path = p"users[0].name"
+          assertTrue(path.nodes.length == 3)
+        },
+        test("path navigation works") {
+          val json = Json.obj("user" -> Json.obj("name" -> Json.str("Alice")))
+          val path = p"user.name"
+          assertTrue(json.get(path).single == Right(Json.str("Alice")))
+        }
+      ),
+      suite("json interpolator")(
+        test("null literal") {
+          val json = j"null"
+          assertTrue(json == Json.Null)
+        },
+        test("boolean literal") {
+          val json = j"true"
+          assertTrue(json == Json.Boolean.True)
+        },
+        test("number literal") {
+          val json = j"42"
+          assertTrue(json == Json.num(42))
+        },
+        test("string literal") {
+          val json = j""""hello""""
+          assertTrue(json == Json.str("hello"))
+        },
+        test("array literal") {
+          val json = j"[1, 2, 3]"
+          assertTrue(json == Json.arr(Json.num(1), Json.num(2), Json.num(3)))
+        },
+        test("object literal") {
+          val json = j"""{"name": "Alice", "age": 30}"""
+          assertTrue(json == Json.obj("name" -> Json.str("Alice"), "age" -> Json.num(30)))
+        },
+        test("interpolation with string") {
+          val name = "Bob"
+          val json = j"""{"name": $name}"""
+          assertTrue(json == Json.obj("name" -> Json.str("Bob")))
+        },
+        test("interpolation with number") {
+          val age  = 25
+          val json = j"""{"age": $age}"""
+          assertTrue(json == Json.obj("age" -> Json.num(25)))
+        },
+        test("interpolation with boolean") {
+          val active = true
+          val json   = j"""{"active": $active}"""
+          assertTrue(json == Json.obj("active" -> Json.Boolean.True))
+        }
+      )
     )
   )
 }
