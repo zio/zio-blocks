@@ -7,11 +7,11 @@ object Scala3MacroComplianceSpec extends ZIOSpecDefault {
 
   trait PaymentMethodBase
 
-  type OldCreditCard = PaymentMethodBase & { 
+  type OldCreditCard = PaymentMethodBase & {
     type Tag = "CreditCard"
-    def number: String 
+    def number: String
   }
-   
+
   trait PathWrapper {
     def when[T]: T
   }
@@ -21,14 +21,12 @@ object Scala3MacroComplianceSpec extends ZIOSpecDefault {
   }
 
   def spec = suite("Scala 3.5+ Macro Compliance & Structural Types")(
-
     test("Positive Check: Support for Intersection Types & Structural Pattern") {
-      val optic = ToDynamicOptic.derive((p: PaymentProcessor) => p.method.when[OldCreditCard])
+      val optic      = ToDynamicOptic.derive((p: PaymentProcessor) => p.method.when[OldCreditCard])
       val resultPath = optic.apply().toString
 
       assertTrue(resultPath == ".method.when[OldCreditCard]")
     },
-
     test("Negative Check: Chaos & Purity Enforcement") {
       assertTrue(true)
     }

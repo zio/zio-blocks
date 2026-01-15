@@ -14,7 +14,7 @@ object SchemaExpr {
 
   case class Converted[A, B](
     operand: SchemaExpr[A],
-    f: A => Either[String, B], 
+    f: A => Either[String, B],
     g: B => Either[String, A]
   ) extends SchemaExpr[B]
 

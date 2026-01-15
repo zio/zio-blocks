@@ -8,6 +8,6 @@ trait ToDynamicOptic[S, A] {
 }
 
 object ToDynamicOptic {
-  inline def derive[S, A](inline selector: S => A): ToDynamicOptic[S, A] = 
+  inline def derive[S, A](inline selector: S => A): ToDynamicOptic[S, A] =
     AccessorMacros.derive(selector)
 }

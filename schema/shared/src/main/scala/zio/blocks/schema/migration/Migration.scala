@@ -10,7 +10,7 @@ case class Migration[A, B](
 
   def apply(value: A): Either[MigrationError, B] = {
     val sourceDyn = sourceSchema.toDynamicValue(value)
-    
+
     dynamicMigration.apply(sourceDyn).flatMap { migratedDyn =>
       targetSchema.fromDynamicValue(migratedDyn).left.map { err =>
         MigrationError.DecodingError(err.toString)
@@ -28,16 +28,14 @@ case class Migration[A, B](
 }
 
 object Migration {
-  
-  def identity[A](implicit schema: Schema[A]): Migration[A, A] = {
+
+  def identity[A](implicit schema: Schema[A]): Migration[A, A] =
     Migration(
       DynamicMigration(Vector.empty),
       schema,
       schema
     )
-  }
 
-  def newBuilder[A, B](implicit source: Schema[A], target: Schema[B]): MigrationBuilder[A, B] = {
+  def newBuilder[A, B](implicit source: Schema[A], target: Schema[B]): MigrationBuilder[A, B] =
     MigrationBuilder.make[A, B]
-  }
 }

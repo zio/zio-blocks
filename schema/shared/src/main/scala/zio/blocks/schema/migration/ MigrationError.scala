@@ -8,7 +8,7 @@ sealed trait MigrationError extends Exception {
 }
 
 object MigrationError {
-  
+
   case class FieldNotFound(path: DynamicOptic, fieldName: String) extends MigrationError {
     def message: String = s"Field '$fieldName' not found at path: ${path.toString}"
   }

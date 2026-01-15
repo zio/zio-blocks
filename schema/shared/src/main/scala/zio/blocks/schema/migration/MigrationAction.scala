@@ -30,7 +30,7 @@ object MigrationAction {
     override def reverse: MigrationAction = {
       val oldName = at.nodes.lastOption match {
         case Some(DynamicOptic.Node.Field(n)) => n
-        case _ => "unknown"
+        case _                                => "unknown"
       }
       val newPath = DynamicOptic(at.nodes.dropRight(1) :+ DynamicOptic.Node.Field(to))
       Rename(newPath, oldName)
@@ -54,7 +54,7 @@ object MigrationAction {
   case class Optionalize(
     at: DynamicOptic
   ) extends MigrationAction {
-    override def reverse: MigrationAction = 
+    override def reverse: MigrationAction =
       Mandate(at, SchemaExpr.Constant(DynamicValue.Primitive(PrimitiveValue.Unit)))
   }
 
