@@ -38,13 +38,11 @@ object PathInterpolatorMacro {
   def p_impl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[DynamicOptic] = {
     import quotes.reflect.*
 
-    // Extract the string parts
     val parts = sc match {
       case '{ StringContext(${ Varargs(Exprs(parts)) }: _*) } => parts
       case _                                                  => report.errorAndAbort("Invalid StringContext")
     }
 
-    // Check for interpolation
     val argsList = args match {
       case Varargs(a) => a
       case _          => Seq.empty
@@ -60,7 +58,6 @@ object PathInterpolatorMacro {
 
     val pathString = parts.head
 
-    // Parse the path string and build a DynamicOptic
     '{ DynamicOptic.parse(${ Expr(pathString) }) }
   }
 }
@@ -72,13 +69,11 @@ object JsonInterpolatorMacro {
   def j_impl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Json] = {
     import quotes.reflect.*
 
-    // Extract the string parts
     val parts = sc match {
       case '{ StringContext(${ Varargs(Exprs(parts)) }: _*) } => parts
       case _                                                  => report.errorAndAbort("Invalid StringContext")
     }
 
-    // Check for interpolation
     val argsList = args match {
       case Varargs(a) => a
       case _          => Seq.empty
@@ -94,7 +89,6 @@ object JsonInterpolatorMacro {
 
     val jsonString = parts.head
 
-    // Parse the JSON string at compile time
     '{ Json.decode(${ Expr(jsonString) }).fold(throw _, identity) }
   }
 }
