@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration
 
 // format: off
-import zio.blocks.schema._
+// import zio.blocks.schema._
 
 /**
  * Version-specific methods for MigrationBuilder (Scala 2). Provides

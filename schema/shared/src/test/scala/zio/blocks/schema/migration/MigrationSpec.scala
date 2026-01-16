@@ -252,6 +252,7 @@ object MigrationSpec extends ZIOSpecDefault {
         test("applies typed migration using schemas") {
           case class Person(name: String, age: Int)
           case class PersonV2(fullName: String, age: Int)
+          val _ = PersonV2
 
           implicit val personSchema: Schema[Person]     = Schema.derived
           implicit val personV2Schema: Schema[PersonV2] = Schema.derived
@@ -273,6 +274,7 @@ object MigrationSpec extends ZIOSpecDefault {
           case class V1(a: String)
           case class V2(b: String)
           case class V3(c: String)
+          val _ = V2; val _ = V3
 
           implicit val v1Schema: Schema[V1] = Schema.derived
           implicit val v2Schema: Schema[V2] = Schema.derived
@@ -297,6 +299,7 @@ object MigrationSpec extends ZIOSpecDefault {
         test("structural reverse returns Migration[B, A]") {
           case class Before(old: String)
           case class After(renamed: String)
+          val _ = Before; val _ = After
 
           implicit val beforeSchema: Schema[Before] = Schema.derived
           implicit val afterSchema: Schema[After]   = Schema.derived
@@ -315,6 +318,7 @@ object MigrationSpec extends ZIOSpecDefault {
           // m.apply(a) == Right(b) => m.reverse.apply(b) == Right(a)
           case class V1(name: String)
           case class V2(fullName: String)
+          val _ = V2
 
           implicit val v1Schema: Schema[V1] = Schema.derived
           implicit val v2Schema: Schema[V2] = Schema.derived
@@ -337,6 +341,7 @@ object MigrationSpec extends ZIOSpecDefault {
         test("builder produces working migration") {
           case class V1(oldName: String, age: Int)
           case class V2(newName: String, age: Int)
+          val _ = V2
 
           implicit val v1Schema: Schema[V1] = Schema.derived
           implicit val v2Schema: Schema[V2] = Schema.derived
@@ -352,6 +357,7 @@ object MigrationSpec extends ZIOSpecDefault {
         test("all actions have 'at' field set to root by default") {
           case class V1(a: String, b: Int)
           case class V2(c: String, d: Int)
+          val _ = V1; val _ = V2
 
           implicit val v1Schema: Schema[V1] = Schema.derived
           implicit val v2Schema: Schema[V2] = Schema.derived
@@ -365,6 +371,7 @@ object MigrationSpec extends ZIOSpecDefault {
         test("convenience methods work") {
           case class V1(name: String)
           case class V2(name: String, newField: Int)
+          val _ = V1; val _ = V2
 
           implicit val v1Schema: Schema[V1] = Schema.derived
           implicit val v2Schema: Schema[V2] = Schema.derived
@@ -400,6 +407,7 @@ object MigrationSpec extends ZIOSpecDefault {
         },
         test("returns error when no default is defined") {
           case class NoDefault(value: Int)
+          val _                                  = NoDefault
           implicit val schema: Schema[NoDefault] = Schema.derived
 
           val expr   = SchemaExpr.defaultValue[Any, NoDefault]

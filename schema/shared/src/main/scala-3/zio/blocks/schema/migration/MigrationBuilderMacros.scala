@@ -186,10 +186,11 @@ private[migration] object MigrationBuilderMacros {
   def mandateFieldImpl[A: Type, B: Type](
     builder: Expr[MigrationBuilder[A, B]],
     sourceSelector: Expr[A => Option[?]],
-    targetSelector: Expr[B => Any],
+    unusedTargetSelector: Expr[B => Any],
     defaultValue: Expr[DynamicValue]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect.*
+    val _ = unusedTargetSelector
 
     val path = extractNestedPath(sourceSelector.asTerm) match {
       case Right(p) if p.nonEmpty => p
@@ -212,10 +213,11 @@ private[migration] object MigrationBuilderMacros {
   def changeFieldTypeImpl[A: Type, B: Type](
     builder: Expr[MigrationBuilder[A, B]],
     sourceSelector: Expr[A => Any],
-    targetSelector: Expr[B => Any],
+    unusedTargetSelector: Expr[B => Any],
     converter: Expr[SchemaExpr[DynamicValue, DynamicValue]]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect.*
+    val _ = unusedTargetSelector
 
     val path = extractNestedPath(sourceSelector.asTerm) match {
       case Right(p) if p.nonEmpty => p

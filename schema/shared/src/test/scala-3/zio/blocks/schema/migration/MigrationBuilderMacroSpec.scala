@@ -72,6 +72,7 @@ object MigrationBuilderMacroSpec extends ZIOSpecDefault {
         test("renameField with selector at top level") {
           case class V0(name: String)
           case class V1(fullName: String)
+          val _                       = V0; val _ = V1
           implicit val v0: Schema[V0] = Schema.derived
           implicit val v1: Schema[V1] = Schema.derived
 
@@ -87,6 +88,7 @@ object MigrationBuilderMacroSpec extends ZIOSpecDefault {
         test("addField with selector at top level") {
           case class V0(name: String)
           case class V1(name: String, country: String)
+          val _                       = V0; val _ = V1
           implicit val v0: Schema[V0] = Schema.derived
           implicit val v1: Schema[V1] = Schema.derived
 
@@ -102,6 +104,7 @@ object MigrationBuilderMacroSpec extends ZIOSpecDefault {
         test("dropField with selector - verifies action") {
           case class V0(name: String, obsolete: Int)
           case class V1(name: String)
+          val _                       = V0; val _ = V1
           implicit val v0: Schema[V0] = Schema.derived
           implicit val v1: Schema[V1] = Schema.derived
 

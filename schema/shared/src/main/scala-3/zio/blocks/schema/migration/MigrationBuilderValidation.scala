@@ -49,7 +49,7 @@ private[migration] object MigrationBuilderValidation {
     val hasOpaqueActions = actions.contains(ExtractedAction.Opaque)
 
     // Simulate the field transformation
-    val (handledSourceFields, producedTargetFields) = simulateTransformation(sourceFields, actions)
+    val (handledSourceFields, producedTargetFields) = simulateTransformation(actions)
 
     // Calculate unmapped fields
     val unmappedSource = sourceFields.diff(handledSourceFields).diff(targetFields)
@@ -385,7 +385,6 @@ private[migration] object MigrationBuilderValidation {
    * Simulate the field transformation to determine what fields are handled/produced.
    */
   private def simulateTransformation(
-    sourceFields: Set[String],
     actions: List[ExtractedAction]
   ): (Set[String], Set[String]) = {
     var handledSource = Set.empty[String]

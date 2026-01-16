@@ -341,7 +341,7 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
   }
 
   private def simulateTransformation(
-    sourceFields: Set[String],
+    _sourceFields: Set[String],
     actions: List[ExtractedAction]
   ): (Set[String], Set[String]) = {
     var handledSource = Set.empty[String]
