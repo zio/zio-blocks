@@ -17,7 +17,7 @@ object ArrayFormat {
 
   /**
    * Force tabular format: `items[N]{field1,field2}: val1,val2` Falls back to
-   * List if array is not tabular-eligible.
+   * List if an array is not tabular-eligible.
    */
   case object Tabular extends ArrayFormat
 

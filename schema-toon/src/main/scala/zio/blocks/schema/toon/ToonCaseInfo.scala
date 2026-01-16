@@ -11,12 +11,9 @@ private[toon] final class ToonCaseLeafInfo(val name: String, val codec: ToonBina
 private[toon] final class ToonCaseNodeInfo(discr: Discriminator[?], children: Array[ToonCaseInfo])
     extends ToonCaseInfo {
   @tailrec
-  def discriminate(x: Any): ToonCaseLeafInfo = {
-    val idx = discr.asInstanceOf[Discriminator[Any]].discriminate(x)
-    children(idx) match {
-      case leaf: ToonCaseLeafInfo => leaf
-      case node: ToonCaseNodeInfo => node.discriminate(x)
-    }
+  def discriminate(x: Any): ToonCaseLeafInfo = children(discr.asInstanceOf[Discriminator[Any]].discriminate(x)) match {
+    case leaf: ToonCaseLeafInfo => leaf
+    case node: ToonCaseNodeInfo => node.discriminate(x)
   }
 }
 

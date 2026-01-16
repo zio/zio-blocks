@@ -1,5 +1,6 @@
 package zio.blocks.schema.toon
 
+import zio.blocks.schema.DynamicOptic
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.annotation.switch
@@ -81,8 +82,9 @@ final class ToonReader private[toon] (
     lines = null
   }
 
-  def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = {
-    val content = new String(bytes, offset, length, UTF_8)
+  def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = reset(new String(bytes, offset, length, UTF_8))
+
+  def reset(content: String): Unit = {
     lines = content.split("\n", -1)
     lineIndex = 0
     inlineContext = false
@@ -348,8 +350,15 @@ final class ToonReader private[toon] (
     else if (looksLikeNumber(token)) parseNumber(token)
     else token
 
-  def decodeError(msg: String): Nothing =
-    throw new ToonBinaryCodecError(Nil, s"Line ${lineIndex + 1}: $msg")
+  def decodeError(msg: String): Nothing = throw new ToonBinaryCodecError(Nil, msg)
+
+  def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
+    case e: ToonBinaryCodecError =>
+      e.spans = new ::(span, e.spans)
+      throw e
+    case _ =>
+      throw new ToonBinaryCodecError(new ::(span, Nil), error.getMessage)
+  }
 
   private def readPrimitiveToken(): String = {
     skipWhitespace()
