@@ -928,11 +928,11 @@ object ThriftFormat
                 }
               }
               new ThriftBinaryCodec[A]() {
-                private[this] val deconstructor                = binding.deconstructor
-                private[this] val constructor                  = binding.constructor
-                private[this] val usedRegisters                = offset
-                private[this] val fieldCodecs                  = codecs
-                @volatile private[this] var types: Array[Byte] = null
+                private[this] val deconstructor                  = binding.deconstructor
+                private[this] val constructor                    = binding.constructor
+                private[this] val usedRegisters                  = offset
+                private[this] val fieldCodecs                    = codecs
+                @volatile private[this] var types: Array[Byte]   = null
                 @volatile private[this] var offsets: Array[Long] = null
 
                 private[this] def getTypes: Array[Byte] = {
@@ -966,7 +966,7 @@ object ThriftFormat
                 }
 
                 def decodeUnsafe(protocol: TProtocol): A = {
-                  val regs      = Registers(usedRegisters)
+                  val regs = Registers(usedRegisters)
                   protocol.readStructBegin()
                   val len     = fieldCodecs.length
                   val seen    = new Array[Boolean](len)
@@ -981,15 +981,22 @@ object ThriftFormat
                       try {
                         codec.valueType match {
                           case ThriftBinaryCodec.objectType =>
-                            regs.setObject(regOffset, codec.asInstanceOf[ThriftBinaryCodec[AnyRef]].decodeUnsafe(protocol))
+                            regs.setObject(
+                              regOffset,
+                              codec.asInstanceOf[ThriftBinaryCodec[AnyRef]].decodeUnsafe(protocol)
+                            )
                           case ThriftBinaryCodec.intType =>
                             regs.setInt(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Int]].decodeUnsafe(protocol))
                           case ThriftBinaryCodec.longType =>
                             regs.setLong(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Long]].decodeUnsafe(protocol))
                           case ThriftBinaryCodec.floatType =>
-                            regs.setFloat(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Float]].decodeUnsafe(protocol))
+                            regs
+                              .setFloat(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Float]].decodeUnsafe(protocol))
                           case ThriftBinaryCodec.doubleType =>
-                            regs.setDouble(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Double]].decodeUnsafe(protocol))
+                            regs.setDouble(
+                              regOffset,
+                              codec.asInstanceOf[ThriftBinaryCodec[Double]].decodeUnsafe(protocol)
+                            )
                           case ThriftBinaryCodec.booleanType =>
                             regs.setBoolean(
                               regOffset,
@@ -1000,12 +1007,14 @@ object ThriftFormat
                           case ThriftBinaryCodec.charType =>
                             regs.setChar(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Char]].decodeUnsafe(protocol))
                           case ThriftBinaryCodec.shortType =>
-                            regs.setShort(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Short]].decodeUnsafe(protocol))
+                            regs
+                              .setShort(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Short]].decodeUnsafe(protocol))
                           case _ =>
                             codec.asInstanceOf[ThriftBinaryCodec[Unit]].decodeUnsafe(protocol)
                         }
                       } catch {
-                        case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
+                        case error if NonFatal(error) =>
+                          decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
                       }
                       seen(idx) = true
                     } else {
