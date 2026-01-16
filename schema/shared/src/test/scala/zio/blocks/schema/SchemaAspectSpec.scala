@@ -4,7 +4,7 @@ import zio.blocks.schema.binding.Binding
 import zio.test.Assertion._
 import zio.test._
 
-object SchemaAspectSpec extends ZIOSpecDefault {
+object SchemaAspectSpec extends SchemaBaseSpec {
   case class Person(name: String, age: Int)
 
   object Person extends CompanionOptics[Person] {

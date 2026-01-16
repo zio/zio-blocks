@@ -12,6 +12,8 @@ trait MapDeconstructor[M[_, _]] {
   def getKey[K, V](kv: KeyValue[K, V]): K
 
   def getValue[K, V](kv: KeyValue[K, V]): V
+
+  def getKeyValue[K, V](kv: KeyValue[K, V]): (K, V)
 }
 
 object MapDeconstructor {
@@ -27,5 +29,7 @@ object MapDeconstructor {
     def getKey[K, V](kv: (K, V)): K = kv._1
 
     def getValue[K, V](kv: (K, V)): V = kv._2
+
+    def getKeyValue[K, V](kv: (K, V)): (K, V) = kv
   }
 }

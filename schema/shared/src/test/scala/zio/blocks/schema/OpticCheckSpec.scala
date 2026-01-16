@@ -5,7 +5,7 @@ import zio.blocks.schema.OpticCheck.{EmptyMap, EmptySequence, UnexpectedCase}
 import zio.test._
 import zio.test.Assertion._
 
-object OpticCheckSpec extends ZIOSpecDefault {
+object OpticCheckSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("OpticCheckSpec")(
     test("can contain errors") {
       val opticCheck = OpticCheck(errors =

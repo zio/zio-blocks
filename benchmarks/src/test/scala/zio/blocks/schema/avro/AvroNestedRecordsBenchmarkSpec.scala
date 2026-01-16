@@ -1,10 +1,10 @@
 package zio.blocks.schema.avro
 
-import zio.blocks.schema.{DynamicOptic, SchemaError}
+import zio.blocks.schema.{DynamicOptic, SchemaBaseSpec, SchemaError}
 import zio.test._
 import zio.test.Assertion._
 
-object AvroNestedRecordsBenchmarkSpec extends ZIOSpecDefault {
+object AvroNestedRecordsBenchmarkSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("AvroNestedRecordsBenchmarkSpec")(
     test("reading") {
       val benchmark = new AvroNestedRecordsBenchmark

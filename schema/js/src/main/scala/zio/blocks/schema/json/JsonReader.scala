@@ -7,6 +7,7 @@ import java.time._
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.json.JsonReader._
@@ -47,7 +48,7 @@ final class JsonReader private[json] (
   private[this] var head: Int = 0,
   private[this] var tail: Int = 0,
   private[this] var charBuf: Array[Char] = new Array[Char](4096),
-  private[this] val stack: Registers = Registers(0),
+  private[this] val stack: Registers = Registers(RegisterOffset(objects = 64, ints = 64)),
   private[this] var top: RegisterOffset = -1L,
   private[this] var maxTop: RegisterOffset = 0L,
   private[this] var config: ReaderConfig = null,
@@ -4376,7 +4377,7 @@ object JsonReader {
   final val bigDecimalMathContext: MathContext = MathContext.DECIMAL128
 
   /**
-   * The default limit for number of decimal digits in mantissa of parsed
+   * The default limit for the number of decimal digits in mantissa of parsed
    * `BigDecimal` values.
    */
   final val bigDecimalDigitsLimit: Int = 308

@@ -29,15 +29,15 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; schema-migration/test; benchmarks/test; examples/test"
+  "schemaJVM/test; chunkJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; schema-migration/test; examples/test"
 )
 addCommandAlias(
   "testJS",
-  "+schemaJS/test; +chunkJS/test; +streamsJS/test"
+  "schemaJS/test; chunkJS/test; streamsJS/test; schema-toonJS/test"
 )
 addCommandAlias(
   "testNative",
-  "+schemaNative/test; +chunkNative/test; +streamsNative/test"
+  "schemaNative/test; chunkNative/test; streamsNative/test; schema-toonNative/test"
 )
 
 lazy val root = project
@@ -51,6 +51,9 @@ lazy val root = project
     schema.native,
     `schema-avro`,
     `schema-migration`,
+    `schema-toon`.jvm,
+    `schema-toon`.js,
+    `schema-toon`.native,
     streams.jvm,
     streams.js,
     streams.native,
@@ -153,7 +156,7 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 
 lazy val `schema-avro` = project
   .settings(stdSettings("zio-blocks-schema-avro"))
-  .dependsOn(schema.jvm)
+  .dependsOn(schema.jvm % "compile->compile;test->test")
   .settings(buildInfoSettings("zio.blocks.schema.avro"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
@@ -187,10 +190,56 @@ lazy val `schema-migration` = project
     )
   )
 
+lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-schema-toon"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.schema.toon"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .dependsOn(schema % "compile->compile;test->test")
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    )
+  )
+  .jvmSettings(
+    libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+        )
+    })
+  )
+  .jsSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+        )
+    })
+  )
+  .nativeSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
+  )
+
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.7.4")))
-  .dependsOn(schema)
+  .dependsOn(schema % "compile->compile;test->test")
   .settings(crossProjectSettings)
   .settings(
     libraryDependencies ++= Seq(
@@ -214,7 +263,7 @@ lazy val examples = project
 
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
-  .dependsOn(schema.jvm)
+  .dependsOn(schema.jvm % "compile->compile;test->test")
   .dependsOn(chunk.jvm)
   .dependsOn(`schema-avro`)
   .enablePlugins(JmhPlugin)

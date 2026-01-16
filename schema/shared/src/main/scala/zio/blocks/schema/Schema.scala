@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
+import zio.blocks.schema.patch.{Patch, PatchMode}
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -75,6 +76,16 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def modifier(modifier: Modifier.Reflect): Schema[A] = new Schema(reflect.modifier(modifier))
 
   def modifiers(modifiers: Iterable[Modifier.Reflect]): Schema[A] = new Schema(reflect.modifiers(modifiers))
+
+  def diff(oldValue: A, newValue: A): Patch[A] = {
+    val oldDynamic   = toDynamicValue(oldValue)
+    val newDynamic   = toDynamicValue(newValue)
+    val dynamicPatch = oldDynamic.diff(newDynamic)
+    Patch(dynamicPatch, this)
+  }
+
+  def patch(value: A, patch: Patch[A]): Either[SchemaError, A] =
+    patch.apply(value, PatchMode.Strict)
 
   def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](

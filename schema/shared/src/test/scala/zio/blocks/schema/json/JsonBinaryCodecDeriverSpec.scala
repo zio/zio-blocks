@@ -13,7 +13,7 @@ import java.time._
 import java.util.{Currency, UUID}
 import scala.collection.immutable.ArraySeq
 
-object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
+object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverSpec")(
     suite("primitives")(
       test("Unit") {
@@ -37,9 +37,11 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(10: Byte, "10") &&
         roundTrip(Byte.MinValue, "-128") &&
         roundTrip(Byte.MaxValue, "127") &&
+        decode("-0", 0: Byte) &&
         decodeError[Byte]("-129", "value is too large for byte at: .") &&
         decodeError[Byte]("128", "value is too large for byte at: .") &&
         decodeError[Byte]("01", "illegal number with leading zero at: .") &&
+        decodeError[Byte]("-01", "illegal number with leading zero at: .") &&
         decodeError[Byte]("1.0", "illegal number at: .") &&
         decodeError[Byte]("1e1", "illegal number at: .") &&
         decodeError[Byte]("1E1", "illegal number at: .") &&
@@ -55,9 +57,11 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(1000: Short, "1000") &&
         roundTrip(Short.MinValue, "-32768") &&
         roundTrip(Short.MaxValue, "32767") &&
+        decode("-0", 0: Short) &&
         decodeError[Short]("-32769", "value is too large for short at: .") &&
         decodeError[Short]("32768", "value is too large for short at: .") &&
         decodeError[Short]("01", "illegal number with leading zero at: .") &&
+        decodeError[Short]("-01", "illegal number with leading zero at: .") &&
         decodeError[Short]("1.0", "illegal number at: .") &&
         decodeError[Short]("1e1", "illegal number at: .") &&
         decodeError[Short]("1E1", "illegal number at: .") &&
@@ -69,9 +73,11 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         check(Gen.int)(x => roundTrip(x, x.toString)) &&
         roundTrip(Int.MinValue, "-2147483648") &&
         roundTrip(Int.MaxValue, "2147483647") &&
+        decode("-0", 0) &&
         decodeError[Int]("-2147483649", "value is too large for int at: .") &&
         decodeError[Int]("2147483648", "value is too large for int at: .") &&
         decodeError[Int]("01", "illegal number with leading zero at: .") &&
+        decodeError[Int]("-01", "illegal number with leading zero at: .") &&
         decodeError[Int]("1.0", "illegal number at: .") &&
         decodeError[Int]("1E1", "illegal number at: .") &&
         decodeError[Int]("1e1", "illegal number at: .") &&
@@ -83,10 +89,12 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         check(Gen.long)(x => roundTrip(x, x.toString)) &&
         roundTrip(Long.MinValue, "-9223372036854775808") &&
         roundTrip(Long.MaxValue, "9223372036854775807") &&
+        decode("-0", 0L) &&
         decodeError[Long]("-92233720368547758091234567", "value is too large for long at: .") &&
         decodeError[Long]("-9223372036854775809", "value is too large for long at: .") &&
         decodeError[Long]("9223372036854775808", "value is too large for long at: .") &&
         decodeError[Long]("01", "illegal number with leading zero at: .") &&
+        decodeError[Long]("-01", "illegal number with leading zero at: .") &&
         decodeError[Long]("1.0", "illegal number at: .") &&
         decodeError[Long]("1e1", "illegal number at: .") &&
         decodeError[Long]("1E1", "illegal number at: .") &&
@@ -148,6 +156,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError[Float]("1. ", "illegal number at: .") &&
         decodeError[Float]("1e+e", "illegal number at: .") &&
         decodeError[Float]("01", "illegal number with leading zero at: .") &&
+        decodeError[Float]("-01", "illegal number with leading zero at: .") &&
         decodeError[Float]("", "unexpected end of input at: .") &&
         decodeError[Float]("1,", "expected end of input at: .")
       },
@@ -209,6 +218,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError[Double]("1. ", "illegal number at: .") &&
         decodeError[Double]("1e+e", "illegal number at: .") &&
         decodeError[Double]("01", "illegal number with leading zero at: .") &&
+        decodeError[Double]("-01", "illegal number with leading zero at: .") &&
         decodeError[Double]("", "unexpected end of input at: .") &&
         decodeError[Double]("1,", "expected end of input at: .")
       },
@@ -402,6 +412,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(BigInt("-" + "9" * 3), "-" + "9" * 3) &&
         roundTrip(BigInt("9" * 30), "9" * 30) &&
         roundTrip(BigInt("9" * 300), "9" * 300) &&
+        decode("-0", BigInt(0)) &&
         encode(BigInt("9" * 1000), "9" * 1000) &&
         decodeError[BigInt]("", "unexpected end of input at: .") &&
         decodeError[BigInt]("01", "illegal number with leading zero at: .") &&
@@ -418,8 +429,9 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(BigDecimal("126.09999999999999001"), "126.09999999999999001") &&
         roundTrip(BigDecimal("0.0287500000000000000000"), "0.0287500000000000000000") &&
         roundTrip(BigDecimal("-1." + "1" * 3 + "E+1234"), "-1." + "1" * 3 + "E+1234") &&
-        encode(BigDecimal("1." + "1" * 30 + "E+123456789"), "1." + "1" * 30 + "E+123456789") &&
+        decode("-0.0", BigDecimal("0.0")) &&
         decode("1." + "1" * 300 + "E+1234", BigDecimal("1.111111111111111111111111111111111E+1234")) &&
+        encode(BigDecimal("1." + "1" * 30 + "E+123456789"), "1." + "1" * 30 + "E+123456789") &&
         encode(BigDecimal("1." + "1" * 1000 + "E+1234"), "1." + "1" * 1000 + "E+1234") &&
         decodeError[BigDecimal]("", "unexpected end of input at: .") &&
         decodeError[BigDecimal]("1,", "expected end of input at: .") &&
