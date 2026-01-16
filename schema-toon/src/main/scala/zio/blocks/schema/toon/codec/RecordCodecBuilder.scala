@@ -353,21 +353,12 @@ private[toon] final class RecordCodecBuilder(
       }
 
       override def encodeTabularRow(x: A, out: ToonWriter, delimiter: Delimiter): Unit = {
+        out.ensureIndent()
+        out.enterInlineContext()
         val fieldLen = fieldInfos.length
-        if (fieldLen > 0 && usedRegisters == 0) {
-          usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
-        }
-
+        if (fieldLen > 0 && usedRegisters == 0) usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
         val regs = Registers(usedRegisters)
         deconstructor.deconstruct(regs, 0, x)
-
-        var spaces = 0
-        while (spaces < out.getDepth * out.indentSize) {
-          out.writeChar(' ')
-          spaces += 1
-        }
-
-        out.enterInlineContext()
         var idx   = 0
         var first = true
         while (idx < fieldLen) {
@@ -384,14 +375,10 @@ private[toon] final class RecordCodecBuilder(
 
       override def decodeTabularRow(values: Array[String], fieldNames: Array[String], rowIndex: Int): A = {
         val fieldLen = fieldInfos.length
-        if (fieldLen > 0 && usedRegisters == 0) {
-          usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
-        }
-
+        if (fieldLen > 0 && usedRegisters == 0) usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
         val regs    = Registers(usedRegisters)
         val missing = new Array[Boolean](fieldLen)
         java.util.Arrays.fill(missing, true)
-
         var valueIdx = 0
         while (valueIdx < fieldNames.length && valueIdx < values.length) {
           val fieldName = fieldNames(valueIdx)
@@ -414,7 +401,6 @@ private[toon] final class RecordCodecBuilder(
           }
           valueIdx += 1
         }
-
         var idx = 0
         while (idx < missing.length) {
           if (missing(idx)) {
@@ -434,7 +420,6 @@ private[toon] final class RecordCodecBuilder(
           }
           idx += 1
         }
-
         constructor.construct(regs, 0)
       }
     }
