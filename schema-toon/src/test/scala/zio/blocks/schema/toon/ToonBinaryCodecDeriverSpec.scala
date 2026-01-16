@@ -12,6 +12,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     suite("primitives")(
       test("Unit") {
         roundTrip((), "null") &&
+        decode("\"null\"", ()) &&
         decodeError[Unit]("", "Line 3: Expected null, got:  at: .") &&
         decodeError[Unit]("null ,", "Line 2: Expected null, got: null , at: .") &&
         decodeError[Unit]("true", "Line 2: Expected null, got: true at: .")
@@ -19,18 +20,21 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       test("Boolean") {
         roundTrip(true, "true") &&
         roundTrip(false, "false") &&
+        decode("\"true\"", true) &&
+        decode("\"false\"", false) &&
         decodeError[Boolean]("yes", "Line 2: Expected boolean, got: yes at: .")
       },
       test("Byte") {
         check(Gen.byte)(x => roundTrip(x, x.toString)) &&
+        check(Gen.byte)(x => decode(s"\"$x\"", x)) &&
         roundTrip(1: Byte, "1") &&
         roundTrip(Byte.MinValue, "-128") &&
         roundTrip(Byte.MaxValue, "127") &&
         decode("-0", 0: Byte) &&
+        decode("01", 1: Byte) &&
+        decode("-01", -1: Byte) &&
         decodeError[Byte]("-129", "Line 2: Expected byte, got: -129 at: .") &&
         decodeError[Byte]("128", "Line 2: Expected byte, got: 128 at: .") &&
-        decodeError[Byte]("01", "Line 2: Expected byte without leading zero, got: 01 at: .") &&
-        decodeError[Byte]("-01", "Line 2: Expected byte without leading zero, got: -01 at: .") &&
         decodeError[Byte]("1.0", "Line 2: Expected byte, got: 1.0 at: .") &&
         decodeError[Byte]("1e1", "Line 2: Expected byte, got: 1e1 at: .") &&
         decodeError[Byte]("null", "Line 2: Expected byte, got: null at: .") &&
@@ -39,14 +43,15 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("Short") {
         check(Gen.short)(x => roundTrip(x, x.toString)) &&
+        check(Gen.short)(x => decode(s"\"$x\"", x)) &&
         roundTrip(1: Short, "1") &&
         roundTrip(Short.MinValue, "-32768") &&
         roundTrip(Short.MaxValue, "32767") &&
         decode("-0", 0: Short) &&
+        decode("01", 1: Short) &&
+        decode("-01", -1: Short) &&
         decodeError[Short]("-32769", "Line 2: Expected short, got: -32769 at: .") &&
         decodeError[Short]("32768", "Line 2: Expected short, got: 32768 at: .") &&
-        decodeError[Short]("01", "Line 2: Expected short without leading zero, got: 01 at: .") &&
-        decodeError[Short]("-01", "Line 2: Expected short without leading zero, got: -01 at: .") &&
         decodeError[Short]("1.0", "Line 2: Expected short, got: 1.0 at: .") &&
         decodeError[Short]("1e1", "Line 2: Expected short, got: 1e1 at: .") &&
         decodeError[Short]("null", "Line 2: Expected short, got: null at: .") &&
@@ -55,14 +60,15 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("Int") {
         check(Gen.int)(x => roundTrip(x, x.toString)) &&
+        check(Gen.int)(x => decode(s"\"$x\"", x)) &&
         roundTrip(42, "42") &&
         roundTrip(Int.MinValue, "-2147483648") &&
         roundTrip(Int.MaxValue, "2147483647") &&
         decode("-0", 0) &&
+        decode("01", 1) &&
+        decode("-01", -1) &&
         decodeError[Int]("-2147483649", "Line 2: Expected int, got: -2147483649 at: .") &&
         decodeError[Int]("2147483648", "Line 2: Expected int, got: 2147483648 at: .") &&
-        decodeError[Int]("01", "Line 2: Expected int without leading zero, got: 01 at: .") &&
-        decodeError[Int]("-01", "Line 2: Expected int without leading zero, got: -01 at: .") &&
         decodeError[Int]("1.0", "Line 2: Expected int, got: 1.0 at: .") &&
         decodeError[Int]("1e1", "Line 2: Expected int, got: 1e1 at: .") &&
         decodeError[Int]("null", "Line 2: Expected int, got: null at: .") &&
@@ -70,14 +76,16 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Int]("1,", "Line 2: Expected int, got: 1, at: .")
       },
       test("Long") {
+        check(Gen.long)(x => roundTrip(x, x.toString)) &&
+        check(Gen.long)(x => decode(s"\"$x\"", x)) &&
         roundTrip(42L, "42") &&
         roundTrip(Long.MinValue, "-9223372036854775808") &&
         roundTrip(Long.MaxValue, "9223372036854775807") &&
-        decode("-0", 0) &&
+        decode("-0", 0L) &&
+        decode("01", 1L) &&
+        decode("-01", -1L) &&
         decodeError[Long]("-9223372036854775809", "Line 2: Expected long, got: -9223372036854775809 at: .") &&
         decodeError[Long]("9223372036854775808", "Line 2: Expected long, got: 9223372036854775808 at: .") &&
-        decodeError[Long]("01", "Line 2: Expected long without leading zero, got: 01 at: .") &&
-        decodeError[Long]("-01", "Line 2: Expected long without leading zero, got: -01 at: .") &&
         decodeError[Long]("1.0", "Line 2: Expected long, got: 1.0 at: .") &&
         decodeError[Long]("1e1", "Line 2: Expected long, got: 1e1 at: .") &&
         decodeError[Long]("null", "Line 2: Expected long, got: null at: .") &&
@@ -86,6 +94,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("Float") {
         check(Gen.float)(x => decode(x.toString, x)) &&
+        check(Gen.float)(x => decode(s"\"$x\"", x)) &&
         roundTrip(0.0f, "0") &&
         roundTrip(Float.MinValue, "-340282350000000000000000000000000000000") &&
         roundTrip(Float.MaxValue, "340282350000000000000000000000000000000") &&
@@ -134,19 +143,20 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode("-12345678901234567890e-12345678901234567890", 0.0f) &&
         decode("0e1", 0.0f) &&
         decode("1.", 1.0f) &&
+        decode("01.0", 1.0f) &&
+        decode("-01.0", -1.0f) &&
         decode("-0.0", 0.0f) &&
         encode(-0.0f, "0") &&
         encode(Float.NaN, "null") && // should be roundTrip(Float.NaN, "null")
         encode(Float.PositiveInfinity, "null") &&
         encode(Float.NegativeInfinity, "null") &&
         decodeError[Float]("1e+e", "Line 2: Expected float, got: 1e+e at: .") &&
-        decodeError[Float]("01", "Line 2: Expected float without leading zero, got: 01 at: .") &&
-        decodeError[Float]("-01", "Line 2: Expected float without leading zero, got: -01 at: .") &&
         decodeError[Float]("", "Line 3: Expected float, got:  at: .") &&
         decodeError[Float]("1,", "Line 2: Expected float, got: 1, at: .")
       } @@ jvmOnly,
       test("Double") {
         check(Gen.double)(x => decode(x.toString, x)) &&
+        check(Gen.double)(x => decode(s"\"$x\"", x)) &&
         roundTrip(
           Double.MinValue,
           "-179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
@@ -213,14 +223,14 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode("15.0e-334", 0.0) &&
         decode("0e1", 0.0) &&
         decode("1.", 1.0) &&
+        decode("01.0", 1.0) &&
+        decode("-01.0", -1.0) &&
         decode("-0.0", 0.0) &&
         encode(-0.0, "0") &&
         encode(Double.NaN, "null") && // should be roundTrip(Float.NaN, "null")
         encode(Double.PositiveInfinity, "null") &&
         encode(Double.NegativeInfinity, "null") &&
         decodeError[Double]("1e+e", "Line 2: Expected double, got: 1e+e at: .") &&
-        decodeError[Double]("01", "Line 2: Expected double without leading zero, got: 01 at: .") &&
-        decodeError[Double]("-01", "Line 2: Expected double without leading zero, got: -01 at: .") &&
         decodeError[Double]("", "Line 3: Expected double, got:  at: .") &&
         decodeError[Double]("1,", "Line 2: Expected double, got: 1, at: .")
       },
@@ -235,15 +245,16 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("BigInt") {
         check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x => roundTrip(x, x.toString)) &&
+        check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x => decode(s"\"$x\"", x)) &&
         roundTrip(BigInt(0), "0") &&
         roundTrip(BigInt("-" + "9" * 3), "-" + "9" * 3) &&
         roundTrip(BigInt("9" * 30), "9" * 30) &&
         roundTrip(BigInt("9" * 300), "9" * 300) &&
         decode("-0", BigInt(0)) &&
+        decode("01", BigInt(1)) &&
+        decode("-01", BigInt(-1)) &&
         encode(BigInt("9" * 1000), "9" * 1000) &&
         decodeError[BigInt]("", "Line 3: Expected BigInt, got:  at: .") &&
-        decodeError[BigInt]("01", "Line 2: Expected BigInt without leading zero, got: 01 at: .") &&
-        decodeError[BigInt]("-01", "Line 2: Expected BigInt without leading zero, got: -01 at: .") &&
         decodeError[BigInt]("-a", "Line 2: Expected BigInt, got: -a at: .") &&
         decodeError[BigInt]("1.0", "Line 2: Expected BigInt, got: 1.0 at: .") &&
         decodeError[BigInt]("1e1", "Line 2: Expected BigInt, got: 1e1 at: .") &&
@@ -252,6 +263,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("BigDecimal") {
         check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x => roundTrip(x, x.toString)) &&
+        check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x => decode(s"\"$x\"", x)) &&
         roundTrip(BigDecimal("0.0"), "0") &&
         roundTrip(BigDecimal("126.09999999999999001"), "126.09999999999999001") &&
         roundTrip(BigDecimal("0.0287500000000000000000"), "0.02875") &&
@@ -262,86 +274,167 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode("0e1", BigDecimal(0.0)) &&
         decode("1.", BigDecimal(1.0)) &&
         decode("-0.0", BigDecimal(0)) &&
+        decode("01.0", BigDecimal(1)) &&
+        decode("-01.0", BigDecimal(-1)) &&
         encode(BigDecimal("1." + "1" * 1000 + "E+1234"), "1" * 1001 + "0" * 234) &&
         decodeError[BigDecimal]("", "Line 3: Expected BigDecimal, got:  at: .") &&
         decodeError[BigDecimal]("1,", "Line 2: Expected BigDecimal, got: 1, at: .") &&
         decodeError[BigDecimal]("1e+e", "Line 2: Expected BigDecimal, got: 1e+e at: .") &&
         decodeError[BigDecimal]("--8", "Line 2: Expected BigDecimal, got: --8 at: .") &&
         decodeError[BigDecimal]("null", "Line 2: Expected BigDecimal, got: null at: .") &&
-        decodeError[BigDecimal]("1e11111111111", "Line 2: Expected BigDecimal, got: 1e11111111111 at: .") &&
-        decodeError[BigDecimal]("01", "Line 2: Expected BigDecimal without leading zero, got: 01 at: .") &&
-        decodeError[BigDecimal]("-01", "Line 2: Expected BigDecimal without leading zero, got: -01 at: .")
+        decodeError[BigDecimal]("1e11111111111", "Line 2: Expected BigDecimal, got: 1e11111111111 at: .")
       },
       test("DayOfWeek") {
+        check(JavaTimeGen.genDayOfWeek)(x => roundTrip(x, x.toString)) &&
+        check(JavaTimeGen.genDayOfWeek)(x => decode(s"\"$x\"", x)) &&
         roundTrip(DayOfWeek.MONDAY, "MONDAY") &&
         roundTrip(DayOfWeek.FRIDAY, "FRIDAY") &&
         decodeError[DayOfWeek]("FUNDAY", "Line 2: Invalid day of week: FUNDAY at: .")
       },
       test("Duration") {
+        check(JavaTimeGen.genDuration)(x => roundTrip(x, x.toString)) &&
+        check(JavaTimeGen.genDuration)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Duration.ofSeconds(0), "PT0S") &&
         roundTrip(Duration.ofHours(2), "PT2H") &&
         decodeError[Duration]("5 hours", "Line 2: Invalid duration: 5 hours at: .")
       },
       test("Instant") {
+        check(JavaTimeGen.genInstant)(x => roundTrip(x, s"\"$x\"")) &&
+        check(JavaTimeGen.genInstant)(x => decode(x.toString, x)) &&
         roundTrip(Instant.EPOCH, "\"1970-01-01T00:00:00Z\"") &&
         decodeError[Instant]("yesterday", "Line 2: Invalid instant: yesterday at: .")
       },
       test("LocalDate") {
+        check(JavaTimeGen.genLocalDate)(x =>
+          roundTrip(
+            x,
+            if (x.getYear < 0) s"\"$x\""
+            else x.toString
+          )
+        ) &&
+        check(JavaTimeGen.genLocalDate)(x => decode(s"\"$x\"", x)) &&
+        check(JavaTimeGen.genLocalDate)(x => decode(x.toString, x)) &&
         roundTrip(LocalDate.of(2025, 1, 11), "2025-01-11") &&
         decodeError[LocalDate]("2025/01/11", "Line 2: Invalid local date: 2025/01/11 at: .")
       },
       test("LocalDateTime") {
+        check(JavaTimeGen.genLocalDateTime)(x => roundTrip(x, s"\"$x\"")) &&
+        check(JavaTimeGen.genLocalDateTime)(x => decode(x.toString, x)) &&
         roundTrip(LocalDateTime.of(2025, 1, 11, 10, 30), "\"2025-01-11T10:30\"")
       },
       test("LocalTime") {
+        check(JavaTimeGen.genLocalTime)(x => roundTrip(x, s"\"$x\"")) &&
+        check(JavaTimeGen.genLocalTime)(x => decode(x.toString, x)) &&
         roundTrip(LocalTime.of(10, 30), "\"10:30\"") &&
         decodeError[LocalTime]("25:99", "Line 2: Invalid local time: 25:99 at: .")
       },
       test("Month") {
+        check(JavaTimeGen.genMonth)(x => roundTrip(x, x.toString)) &&
+        check(JavaTimeGen.genMonth)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Month.JANUARY, "JANUARY") &&
         decodeError[Month]("SMARCH", "Line 2: Invalid month: SMARCH at: .")
       },
       test("MonthDay") {
+        check(JavaTimeGen.genMonthDay)(x => roundTrip(x, s"\"$x\"")) &&
+        check(JavaTimeGen.genMonthDay)(x => decode(x.toString, x)) &&
         roundTrip(MonthDay.of(1, 11), "\"--01-11\"")
       },
       test("OffsetDateTime") {
+        check(JavaTimeGen.genOffsetDateTime)(x => roundTrip(x, s"\"$x\"")) &&
+        check(JavaTimeGen.genOffsetDateTime)(x => decode(x.toString, x)) &&
         roundTrip(
           OffsetDateTime.of(LocalDateTime.of(2025, 1, 11, 10, 30), ZoneOffset.ofHours(1)),
           "\"2025-01-11T10:30+01:00\""
         )
       },
       test("OffsetTime") {
+        check(JavaTimeGen.genOffsetTime)(x => roundTrip(x, s"\"$x\"")) &&
+        check(JavaTimeGen.genOffsetTime)(x => decode(x.toString, x)) &&
         roundTrip(OffsetTime.of(LocalTime.of(10, 30), ZoneOffset.ofHours(1)), "\"10:30+01:00\"")
       },
       test("Period") {
+        check(JavaTimeGen.genPeriod)(x => roundTrip(x, x.toString)) &&
+        check(JavaTimeGen.genPeriod)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Period.ofDays(0), "P0D") &&
         roundTrip(Period.of(1, 2, 3), "P1Y2M3D")
       },
       test("Year") {
+        check(JavaTimeGen.genYear)(x => roundTrip(x, x.toString)) &&
+        check(JavaTimeGen.genYear)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Year.of(2025), "2025")
       },
       test("YearMonth") {
+        check(JavaTimeGen.genYearMonth)(x =>
+          roundTrip(
+            x,
+            if (x.getYear < 0) s"\"$x\""
+            else if (x.getYear >= 10000) "+" + x.toString
+            else x.toString
+          )
+        ) &&
+        check(JavaTimeGen.genYearMonth)(x =>
+          decode(
+            if (x.getYear >= 10000) s"\"+$x\""
+            else s"\"$x\"",
+            x
+          )
+        ) &&
+        check(JavaTimeGen.genYearMonth)(x =>
+          decode(
+            if (x.getYear >= 10000) "+" + x.toString
+            else x.toString,
+            x
+          )
+        ) &&
         roundTrip(YearMonth.of(2025, 1), "2025-01")
       },
       test("ZoneId") {
+        check(JavaTimeGen.genZoneId)(x =>
+          roundTrip(
+            x, {
+              var s = x.toString
+              if (s.indexOf(':') >= 0) s = s"\"$s\""
+              s
+            }
+          )
+        ) &&
+        check(JavaTimeGen.genZoneId)(x => decode(s"\"$x\"", x)) &&
+        check(JavaTimeGen.genZoneId)(x => decode(x.toString, x)) &&
         roundTrip(ZoneId.of("UTC"), "UTC") &&
         decodeError[ZoneId]("Fake/Timezone", "Line 2: Invalid zone id: Fake/Timezone at: .")
       },
       test("ZoneOffset") {
+        check(JavaTimeGen.genZoneOffset)(x =>
+          roundTrip(
+            x, {
+              var s = x.toString
+              if (s.indexOf(':') >= 0) s = s"\"$s\""
+              s
+            }
+          )
+        ) &&
+        check(JavaTimeGen.genZoneOffset)(x => decode(s"\"$x\"", x)) &&
+        check(JavaTimeGen.genZoneOffset)(x => decode(x.toString, x)) &&
         roundTrip(ZoneOffset.ofHours(0), "Z") &&
         roundTrip(ZoneOffset.ofHours(1), "\"+01:00\"")
       },
       test("ZonedDateTime") {
+        check(JavaTimeGen.genZonedDateTime)(x => roundTrip(x, s"\"$x\"")) &&
+        check(JavaTimeGen.genZonedDateTime)(x => decode(x.toString, x)) &&
         roundTrip(
           ZonedDateTime.of(LocalDateTime.of(2025, 1, 11, 10, 30), ZoneId.of("UTC")),
           "\"2025-01-11T10:30Z[UTC]\""
         )
       },
       test("Currency") {
+        check(Gen.currency)(x => roundTrip(x, x.toString)) &&
+        check(Gen.currency)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Currency.getInstance("USD"), "USD") &&
         decodeError[Currency]("FAKE", "Line 2: Invalid currency: FAKE at: .")
       },
       test("UUID") {
+        check(Gen.uuid)(x => roundTrip(x, x.toString)) &&
+        check(Gen.uuid)(x => decode(s"\"$x\"", x)) &&
         roundTrip(
           UUID.fromString("00000000-0000-0001-0000-000000000001"),
           "00000000-0000-0001-0000-000000000001"
