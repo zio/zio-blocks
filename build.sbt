@@ -29,7 +29,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; benchmarks/test; examples/test"
+  "+schemaJVM/test; +chunkJVM/test; +streamsJVM/test; +schema-avro/test; schema-migration/test; benchmarks/test; examples/test"
 )
 addCommandAlias(
   "testJS",
@@ -50,6 +50,7 @@ lazy val root = project
     schema.js,
     schema.native,
     `schema-avro`,
+    `schema-migration`,
     streams.jvm,
     streams.js,
     streams.native,
@@ -168,6 +169,22 @@ lazy val `schema-avro` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     })
+  )
+
+lazy val `schema-migration` = project
+  .settings(stdSettings("zio-blocks-schema-migration", Seq("3.7.4")))
+  .dependsOn(schema.jvm)
+  .settings(buildInfoSettings("zio.blocks.schema.migration"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio"             % "2.0.19",
+      "dev.zio" %% "zio-test"        % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt"    % "2.1.24" % Test
+    ),
+    scalacOptions ++= Seq(
+      "-language:implicitConversions"
+    )
   )
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
