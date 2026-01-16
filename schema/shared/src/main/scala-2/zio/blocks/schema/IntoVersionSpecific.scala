@@ -1088,6 +1088,60 @@ private object IntoVersionSpecificImpl {
 
     // === Derivation: Structural Type to Product ===
 
+    // Check if a structural type can be converted to a product type (nested structural support)
+    def canConvertStructuralToProduct(structuralTpe: Type, productTpe: Type): Boolean = {
+      if (!isStructuralType(structuralTpe)) return false
+      if (!isProductType(productTpe)) return false
+
+      val structMembers = getStructuralMembers(structuralTpe)
+      val productInfo   = new ProductInfo(productTpe)
+
+      productInfo.fields.forall { field =>
+        structMembers.exists { case (name, memberTpe) =>
+          name == field.name && (
+            memberTpe =:= field.tpe ||
+            findImplicitInto(memberTpe, field.tpe).isDefined ||
+            canConvertStructuralToProduct(memberTpe, field.tpe)
+          )
+        } || field.hasDefault || isOptionType(field.tpe)
+      }
+    }
+
+    // Generate conversion code for nested structural to product
+    def generateNestedStructuralConversion(structuralTpe: Type, productTpe: Type, accessExpr: Tree): Tree = {
+      val structMembers = getStructuralMembers(structuralTpe)
+      val productInfo   = new ProductInfo(productTpe)
+
+      val args = productInfo.fields.map { field =>
+        val matchingMember = structMembers.find(_._1 == field.name)
+        matchingMember match {
+          case Some((memberName, memberTpe)) =>
+            val methodName   = TermName(memberName)
+            val nestedAccess = q"$accessExpr.$methodName"
+            if (memberTpe =:= field.tpe) {
+              nestedAccess
+            } else if (isStructuralType(memberTpe) && isProductType(field.tpe)) {
+              generateNestedStructuralConversion(memberTpe, field.tpe, nestedAccess)
+            } else {
+              findImplicitInto(memberTpe, field.tpe) match {
+                case Some(intoInstance) =>
+                  q"""
+                    $intoInstance.into($nestedAccess) match {
+                      case _root_.scala.Right(v) => v
+                      case _root_.scala.Left(_) => throw new _root_.java.lang.RuntimeException("Conversion failed")
+                    }
+                  """
+                case None => nestedAccess
+              }
+            }
+          case None =>
+            if (field.hasDefault && field.defaultValue.isDefined) field.defaultValue.get
+            else q"_root_.scala.None"
+        }
+      }
+      q"new $productTpe(..$args)"
+    }
+
     def deriveStructuralToProduct(): c.Expr[Into[A, B]] = {
       val structuralMembers = getStructuralMembers(aTpe)
       val targetInfo        = new ProductInfo(bTpe)
@@ -1096,13 +1150,16 @@ private object IntoVersionSpecificImpl {
       // or use default value/None for optional fields
       val fieldMappings: List[(Option[(String, Type)], FieldInfo)] = targetInfo.fields.map { targetField =>
         val matchingMember = structuralMembers.find { case (name, memberTpe) =>
-          name == targetField.name && (memberTpe =:= targetField.tpe || findImplicitInto(
-            memberTpe,
-            targetField.tpe
-          ).isDefined)
+          name == targetField.name && (
+            memberTpe =:= targetField.tpe ||
+            findImplicitInto(memberTpe, targetField.tpe).isDefined ||
+            canConvertStructuralToProduct(memberTpe, targetField.tpe)
+          )
         }.orElse {
           val uniqueTypeMatches = structuralMembers.filter { case (_, memberTpe) =>
-            memberTpe =:= targetField.tpe || findImplicitInto(memberTpe, targetField.tpe).isDefined
+            memberTpe =:= targetField.tpe ||
+            findImplicitInto(memberTpe, targetField.tpe).isDefined ||
+            canConvertStructuralToProduct(memberTpe, targetField.tpe)
           }
           if (uniqueTypeMatches.size == 1) Some(uniqueTypeMatches.head) else None
         }
@@ -1133,6 +1190,9 @@ private object IntoVersionSpecificImpl {
 
             if (memberTpe =:= targetField.tpe) {
               accessExpr
+            } else if (isStructuralType(memberTpe) && isProductType(targetField.tpe)) {
+              // Nested structural to product conversion
+              generateNestedStructuralConversion(memberTpe, targetField.tpe, accessExpr)
             } else {
               // Need conversion via implicit Into
               findImplicitInto(memberTpe, targetField.tpe) match {
@@ -1172,14 +1232,66 @@ private object IntoVersionSpecificImpl {
 
     // === Derivation: Product to Structural Type ===
 
+    // Check if a product type can be converted to a structural type (nested structural support)
+    def canConvertProductToStructural(productTpe: Type, structuralTpe: Type): Boolean = {
+      if (!isProductType(productTpe)) return false
+      if (!isStructuralType(structuralTpe)) return false
+
+      val productInfo   = new ProductInfo(productTpe)
+      val structMembers = getStructuralMembers(structuralTpe)
+
+      structMembers.forall { case (memberName, memberTpe) =>
+        productInfo.fields.exists { field =>
+          field.name == memberName && (
+            field.tpe =:= memberTpe ||
+            field.tpe <:< memberTpe ||
+            canConvertProductToStructural(field.tpe, memberTpe)
+          )
+        }
+      }
+    }
+
+    // Generate a nested structural type from a product
+    def generateNestedProductToStructural(productTpe: Type, structuralTpe: Type, accessExpr: Tree): Tree = {
+      val productInfo   = new ProductInfo(productTpe)
+      val structMembers = getStructuralMembers(structuralTpe)
+
+      val methodDefs = structMembers.map { case (memberName, memberTpe) =>
+        val matchingField = productInfo.fields.find(_.name == memberName).get
+        val fieldAccess   = q"$accessExpr.${TermName(matchingField.name)}"
+
+        if (matchingField.tpe =:= memberTpe || matchingField.tpe <:< memberTpe) {
+          q"def ${TermName(memberName)}: $memberTpe = $fieldAccess"
+        } else if (isStructuralType(memberTpe) && isProductType(matchingField.tpe)) {
+          val nestedExpr = generateNestedProductToStructural(matchingField.tpe, memberTpe, fieldAccess)
+          q"def ${TermName(memberName)}: $memberTpe = $nestedExpr"
+        } else {
+          q"def ${TermName(memberName)}: $memberTpe = $fieldAccess"
+        }
+      }
+
+      q"new { ..$methodDefs }"
+    }
+
     def deriveProductToStructural(): c.Expr[Into[A, B]] = {
       val sourceInfo        = new ProductInfo(aTpe)
       val structuralMembers = getStructuralMembers(bTpe)
 
-      // Validate that all structural type members exist in the source product
+      // Check if we have nested structural types
+      val hasNestedStructural = structuralMembers.exists { case (memberName, memberTpe) =>
+        isStructuralType(memberTpe) && sourceInfo.fields.exists { field =>
+          field.name == memberName && isProductType(field.tpe)
+        }
+      }
+
+      // Validate that all structural type members can be satisfied
       structuralMembers.foreach { case (memberName, memberTpe) =>
         val matchingField = sourceInfo.fields.find { field =>
-          field.name == memberName && (field.tpe =:= memberTpe || field.tpe <:< memberTpe)
+          field.name == memberName && (
+            field.tpe =:= memberTpe ||
+            field.tpe <:< memberTpe ||
+            canConvertProductToStructural(field.tpe, memberTpe)
+          )
         }
         if (matchingField.isEmpty) {
           fail(
@@ -1189,18 +1301,43 @@ private object IntoVersionSpecificImpl {
         }
       }
 
-      // For pure structural types (JVM only - checked earlier), use a simple cast.
-      // This works because at runtime we're just creating an object that has
-      // the right methods, and Scala uses reflection to access them.
-      c.Expr[Into[A, B]](
-        q"""
-          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
-            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
-              _root_.scala.Right(a.asInstanceOf[$bTpe])
-            }
+      if (hasNestedStructural) {
+        // Generate a proper anonymous class with nested structural types
+        val methodDefs = structuralMembers.map { case (memberName, memberTpe) =>
+          val matchingField = sourceInfo.fields.find(_.name == memberName).get
+          val fieldAccess   = q"a.${TermName(matchingField.name)}"
+
+          if (matchingField.tpe =:= memberTpe || matchingField.tpe <:< memberTpe) {
+            q"def ${TermName(memberName)}: $memberTpe = $fieldAccess"
+          } else if (isStructuralType(memberTpe) && isProductType(matchingField.tpe)) {
+            val nestedExpr = generateNestedProductToStructural(matchingField.tpe, memberTpe, fieldAccess)
+            q"def ${TermName(memberName)}: $memberTpe = $nestedExpr"
+          } else {
+            q"def ${TermName(memberName)}: $memberTpe = $fieldAccess"
           }
-        """
-      )
+        }
+
+        c.Expr[Into[A, B]](
+          q"""
+            new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+              def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+                _root_.scala.Right((new { ..$methodDefs }).asInstanceOf[$bTpe])
+              }
+            }
+          """
+        )
+      } else {
+        // For simple structural types without nesting, use a simple cast
+        c.Expr[Into[A, B]](
+          q"""
+            new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+              def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+                _root_.scala.Right(a.asInstanceOf[$bTpe])
+              }
+            }
+          """
+        )
+      }
     }
 
     // === Derivation: Case Object to Case Object ===

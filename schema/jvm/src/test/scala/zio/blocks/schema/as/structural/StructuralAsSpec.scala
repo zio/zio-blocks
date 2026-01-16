@@ -89,6 +89,22 @@ object StructuralAsSpec extends ZIOSpecDefault {
 
         assert(result)(isRight(equalTo(original)))
       }
+    ),
+    suite("Deep nested structural types (JVM Only)")(
+      test("case class with nested case class - all fields round-trip") {
+        case class Inner(x: Int, y: Int)
+        case class Outer(name: String, inner: Inner)
+        val as       = As.derived[Outer, { def name: String; def inner: { def x: Int; def y: Int } }]
+        val original = Outer("test", Inner(1, 2))
+        assert(as.into(original).flatMap(as.from))(isRight(equalTo(original)))
+      },
+      test("multiple primitive types round-trip") {
+        case class Multi(s: String, i: Int, l: Long, b: Boolean)
+        val as       = As.derived[Multi, { def s: String; def i: Int; def l: Long; def b: Boolean }]
+        val original = Multi("x", 1, 2L, true)
+        assert(as.into(original).flatMap(as.from))(isRight(equalTo(original)))
+      }
     )
   )
 }
+
