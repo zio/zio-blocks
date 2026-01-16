@@ -1,14 +1,14 @@
 package zio.blocks.schema.migration
 
-import zio._
-import zio.blocks.schema.{DynamicValue, PrimitiveValue}
-import zio.test._
+import zio.blocks.schema.{DynamicOptic, SchemaExpr}
+import zio.blocks.schema.migration.MigrationAction.*
+import zio.test.*
 
 object MigrationRegistrySpec extends ZIOSpecDefault {
 
   override def spec =
     suite("MigrationRegistry")(
-      test("plan multi-step migration") {
+      test("plan multi-step migration returns composed program") {
         val v1 = SchemaId("User", 1)
         val v2 = SchemaId("User", 2)
         val v3 = SchemaId("User", 3)
@@ -17,17 +17,22 @@ object MigrationRegistrySpec extends ZIOSpecDefault {
           StoredMigration(
             v1,
             v2,
-            DynamicMigration.RenameField(Path.root, "name", "fullName")
+            DynamicMigration(
+              Rename(at = DynamicOptic.root.field("name"), to = "fullName")
+            )
           )
 
+        // AddField requires a SchemaExpr; for registry planning we don't need to run it,
+        // so a marker is sufficient here.
         val m23 =
           StoredMigration(
             v2,
             v3,
-            DynamicMigration.AddField(
-              Path.root,
-              "age",
-              DynamicValue.Primitive(PrimitiveValue.Int(0))
+            DynamicMigration(
+              AddField(
+                at = DynamicOptic.root.field("age"),
+                default = SchemaExpr.DefaultValueMarker.asInstanceOf[SchemaExpr[Any, Any]]
+              )
             )
           )
 
@@ -35,7 +40,8 @@ object MigrationRegistrySpec extends ZIOSpecDefault {
 
         val plan = reg.plan(v1, v3)
 
-        assertTrue(plan.isDefined)
+        assertTrue(plan.isDefined) &&
+        assertTrue(plan.get.actions.length == 2)
       }
     )
 }

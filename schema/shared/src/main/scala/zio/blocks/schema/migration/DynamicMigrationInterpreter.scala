@@ -652,7 +652,7 @@ object DynamicMigrationInterpreter {
       modifyAt(parent, root) {
         case DynamicValue.Record(fields) =>
           val idx = fields.indexWhere(_._1 == from)
-          if (idx < 0) Right(DynamicValue.Record(fields))
+          if (idx < 0) Left(MigrationError.MissingPath(at))
           else {
             val v = fields(idx)._2
             val without = fields.filterNot(_._1 == from)

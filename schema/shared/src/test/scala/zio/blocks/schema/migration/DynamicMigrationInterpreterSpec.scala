@@ -1,24 +1,50 @@
 package zio.blocks.schema.migration
 
-import zio._
-import zio.blocks.schema.{DynamicValue, PrimitiveValue}
-import zio.test._
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaExpr}
+import zio.blocks.schema.migration.MigrationAction.*
+import zio.test.*
 
 object DynamicMigrationInterpreterSpec extends ZIOSpecDefault {
 
   override def spec =
     suite("DynamicMigrationInterpreter")(
-      test("add + delete field") {
+      test("rename field in a record") {
         val dv =
           DynamicValue.Record(
             Vector("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
           )
 
-        val mig =
-          DynamicMigration.sequence(
-            DynamicMigration.AddField(Path.root, "b", DynamicValue.Primitive(PrimitiveValue.Int(2))),
-            DynamicMigration.DeleteField(Path.root, "a")
+        val mig = DynamicMigration(
+          Rename(at = DynamicOptic.root.field("a"), to = "b")
+        )
+
+        val out = DynamicMigrationInterpreter(mig, dv)
+
+        assertTrue(
+          out == Right(
+            DynamicValue.Record(
+              Vector("b" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            )
           )
+        )
+      },
+
+      test("drop field in a record") {
+        val dv =
+          DynamicValue.Record(
+            Vector(
+              "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+            )
+          )
+
+        // defaultForReverse is not used by the interpreter for DropField, so a marker is fine here.
+        val mig = DynamicMigration(
+          DropField(
+            at = DynamicOptic.root.field("a"),
+            defaultForReverse = SchemaExpr.DefaultValueMarker.asInstanceOf[SchemaExpr[Any, Any]]
+          )
+        )
 
         val out = DynamicMigrationInterpreter(mig, dv)
 
@@ -30,30 +56,31 @@ object DynamicMigrationInterpreterSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("wrap and unwrap array") {
-        val dv = DynamicValue.Primitive(PrimitiveValue.Int(42))
 
-        val mig =
-          DynamicMigration.sequence(
-            DynamicMigration.WrapInArray(Path.root),
-            DynamicMigration.UnwrapArray(Path.root)
+      test("optionalize wraps the focused value in Some") {
+        val dv =
+          DynamicValue.Record(
+            Vector("a" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
           )
 
-        assertTrue(DynamicMigrationInterpreter(mig, dv) == Right(dv))
-      },
-      test("primitive conversion") {
-        val dv = DynamicValue.Primitive(PrimitiveValue.Int(5))
-
-        val mig =
-          DynamicMigration.ConvertPrimitive(
-            Path.root,
-            DynamicMigration.Primitive.Int,
-            DynamicMigration.Primitive.String
-          )
+        val mig = DynamicMigration(
+          Optionalize(at = DynamicOptic.root.field("a"))
+        )
 
         val out = DynamicMigrationInterpreter(mig, dv)
 
-        assertTrue(out == Right(DynamicValue.Primitive(PrimitiveValue.String("5"))))
+        assertTrue(
+          out == Right(
+            DynamicValue.Record(
+              Vector(
+                "a" -> DynamicValue.Variant(
+                  "Some",
+                  DynamicValue.Primitive(PrimitiveValue.Int(42))
+                )
+              )
+            )
+          )
+        )
       }
     )
 }

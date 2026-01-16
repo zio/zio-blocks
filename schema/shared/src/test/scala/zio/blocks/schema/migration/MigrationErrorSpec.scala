@@ -1,7 +1,8 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.DynamicValue
-import zio.test._
+import zio.blocks.schema.{DynamicOptic, DynamicValue}
+import zio.blocks.schema.migration.MigrationAction.*
+import zio.test.*
 
 object MigrationErrorSpec extends ZIOSpecDefault {
 
@@ -10,12 +11,14 @@ object MigrationErrorSpec extends ZIOSpecDefault {
       test("missing path fails") {
         val dv = DynamicValue.Record(Vector.empty)
 
-        // This targets a field path that doesn't exist, so modifyAt should fail with MissingPath
-        val mig = DynamicMigration.WrapInArray(Path.root / "nope")
+        // Focus a missing record field => MissingPath
+        val mig = DynamicMigration(
+          Rename(at = DynamicOptic.root.field("nope"), to = "x")
+        )
 
         val out = DynamicMigrationInterpreter(mig, dv)
 
-        assertTrue(out == Left(MigrationError.MissingPath(Path.root / "nope")))
+        assertTrue(out == Left(MigrationError.MissingPath(DynamicOptic.root.field("nope"))))
       }
     )
 }

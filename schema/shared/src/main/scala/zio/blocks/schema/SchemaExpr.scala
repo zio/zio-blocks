@@ -402,14 +402,12 @@ object SchemaExpr {
 
   /** Required by #519.
     *
-    * The migration design calls `schema.defaultValue`. At the time this code
-    * was written, `Schema` also had builder-style overloads named
-    * `defaultValue`, which makes `schema.defaultValue` ambiguous in Scala 3.
-    *
-    * We avoid the overload ambiguity by selecting the *nullary* method using a
-    * structural type view.
+    * IMPORTANT: do NOT use reflection here.
+    * In this codebase, `defaultValue` is not guaranteed to exist as a JVM
+    * member method on `Schema` (it may be provided via extensions/companion
+    * utilities). A reflective structural call will fail at runtime on the JVM.
     */
   private def schemaDefaultValue[A](schema: Schema[A]): Either[String, A] =
-    schema.asInstanceOf[{ def defaultValue: Either[String, A] }].defaultValue
+    schema.asInstanceOf[{ def defaultValue(): Either[String, A] }].defaultValue()
 
 }

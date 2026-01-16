@@ -1,28 +1,49 @@
 package zio.blocks.schema.migration
 
-object DynamicMigrationLawsSpec {
+import zio.blocks.schema.{DynamicOptic, SchemaExpr}
+import zio.blocks.schema.migration.MigrationAction.*
+import zio.test.*
 
-  def testIdentity(): Unit = {
-    val p = DynamicMigration.id
-    assert(p.actions.isEmpty)
-    assert((p ++ p).actions.isEmpty)
-  }
+object DynamicMigrationLawsSpec extends ZIOSpecDefault {
 
-  def testAssociativity(): Unit = {
-    val a = DynamicMigration(MigrationAction.RenameField(zio.blocks.schema.DynamicOptic.root, "x", "y"))
-    val b = DynamicMigration(MigrationAction.DropField(zio.blocks.schema.DynamicOptic.root, "z", DefaultValueExpr))
-    val c = DynamicMigration(MigrationAction.AddField(zio.blocks.schema.DynamicOptic.root, "k", DefaultValueExpr))
+  override def spec =
+    suite("DynamicMigration laws")(
+      test("identity") {
+        val p = DynamicMigration.id
+        assertTrue(p.actions.isEmpty) &&
+        assertTrue((p ++ p).actions.isEmpty)
+      },
 
-    val left  = (a ++ b) ++ c
-    val right = a ++ (b ++ c)
-    assert(left.actions == right.actions)
-  }
+      test("associativity of ++") {
+        val a = DynamicMigration(Rename(DynamicOptic.root.field("x"), "y"))
+        val b = DynamicMigration(
+          DropField(
+            DynamicOptic.root.field("z"),
+            SchemaExpr.DefaultValueMarker.asInstanceOf[SchemaExpr[Any, Any]]
+          )
+        )
+        val c = DynamicMigration(
+          AddField(
+            DynamicOptic.root.field("k"),
+            SchemaExpr.DefaultValueMarker.asInstanceOf[SchemaExpr[Any, Any]]
+          )
+        )
 
-  def testReverseInvolution(): Unit = {
-    val p = DynamicMigration(
-      MigrationAction.RenameField(zio.blocks.schema.DynamicOptic.root, "a", "b"),
-      MigrationAction.DropField(zio.blocks.schema.DynamicOptic.root, "x", DefaultValueExpr)
+        val left = (a ++ b) ++ c
+        val right = a ++ (b ++ c)
+
+        assertTrue(left.actions == right.actions)
+      },
+
+      test("reverse is an involution for structurally invertible actions") {
+        val p = DynamicMigration(
+          Rename(DynamicOptic.root.field("a"), "b"),
+          DropField(
+            DynamicOptic.root.field("x"),
+            SchemaExpr.DefaultValueMarker.asInstanceOf[SchemaExpr[Any, Any]]
+          )
+        )
+        assertTrue(p.reverse.reverse.actions == p.actions)
+      }
     )
-    assert(p.reverse.reverse.actions == p.actions)
-  }
 }
