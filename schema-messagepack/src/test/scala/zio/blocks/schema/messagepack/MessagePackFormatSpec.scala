@@ -4,6 +4,8 @@ import zio.blocks.schema._
 import zio.blocks.schema.messagepack.MessagePackTestUtils._
 import zio.blocks.schema.binding.Binding
 import zio.test._
+import org.msgpack.core.MessagePack
+import org.msgpack.core.buffer.ArrayBufferOutput
 import java.time._
 import java.util.UUID
 import java.util.Currency
@@ -178,6 +180,33 @@ object MessagePackFormatSpec extends ZIOSpecDefault {
       test("simple record") {
         roundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")) &&
         decodeError[Record1](Array.empty[Byte], "Unexpected end of input")
+      },
+      test("record can decode out-of-order fields and ignore unknown fields") {
+        val value = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
+        val codec = Schema[Record1].derive(MessagePackFormat.deriver)
+
+        val out    = new ArrayBufferOutput()
+        val packer = MessagePack.newDefaultPacker(out)
+
+        // 9 known fields + 1 unknown field.
+        packer.packMapHeader(10)
+
+        // Write in reverse-ish order (MessagePack maps are unordered).
+        packer.packString("s"); packer.packString(value.s)
+        packer.packString("c"); packer.packInt(value.c.toInt)
+        packer.packString("d"); packer.packDouble(value.d)
+        packer.packString("f"); packer.packFloat(value.f)
+        packer.packString("l"); packer.packLong(value.l)
+        packer.packString("i"); packer.packInt(value.i)
+        packer.packString("sh"); packer.packShort(value.sh)
+        packer.packString("b"); packer.packByte(value.b)
+        // Unknown field should be ignored
+        packer.packString("extra"); packer.packInt(123)
+        packer.packString("bl"); packer.packBoolean(value.bl)
+
+        packer.flush()
+
+        assertTrue(codec.decode(out.toByteArray) == Right(value))
       },
       test("nested record") {
         roundTrip(

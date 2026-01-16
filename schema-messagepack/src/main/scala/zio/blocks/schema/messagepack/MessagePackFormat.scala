@@ -1211,88 +1211,123 @@ object MessagePackFormat
                 }
               }
               new MessagePackBinaryCodec[A]() {
-                private[this] val deconstructor = binding.deconstructor
-                private[this] val constructor   = binding.constructor
-                private[this] val usedRegisters = offset
-                private[this] val fieldCodecs   = codecs
-                private[this] val fieldNames    = fields.map(_.name)
+                private[this] val deconstructor    = binding.deconstructor
+                private[this] val constructor      = binding.constructor
+                private[this] val usedRegisters    = offset
+                private[this] val fieldCodecs      = codecs
+                private[this] val fieldNames       = fields.map(_.name)
+                private[this] val fieldNameToIndex = {
+                  val m = new java.util.HashMap[String, java.lang.Integer](fieldNames.length * 2)
+                  var i = 0
+                  while (i < fieldNames.length) {
+                    m.put(fieldNames(i), java.lang.Integer.valueOf(i))
+                    i += 1
+                  }
+                  m
+                }
+                @volatile private[this] var offsets: Array[Long] = null
+
+                private[this] def getOffsets: Array[Long] = {
+                  var o = offsets
+                  if (o eq null) {
+                    o = new Array[Long](fieldCodecs.length)
+                    var i   = 0
+                    var off = 0L
+                    while (i < fieldCodecs.length) {
+                      o(i) = off
+                      off += fieldCodecs(i).valueOffset
+                      i += 1
+                    }
+                    offsets = o
+                  }
+                  o
+                }
 
                 def decodeUnsafe(unpacker: MessageUnpacker): A = {
                   val mapSize = unpacker.unpackMapHeader()
-                  if (mapSize != fieldCodecs.length)
-                    decodeError(s"Expected record map with ${fieldCodecs.length} fields, got $mapSize")
-                  val regs = Registers(usedRegisters)
-                  val len  = fieldCodecs.length
-                  var idx  = 0
-                  try {
-                    while (idx < len) {
-                      val fieldName = unpacker.unpackString()
-                      var fieldIdx  = 0
-                      while (fieldIdx < fieldNames.length && fieldNames(fieldIdx) != fieldName) fieldIdx += 1
-                      if (fieldIdx >= fieldNames.length) decodeError(s"Unknown field: $fieldName")
+                  val regs    = Registers(usedRegisters)
+                  val len     = fieldCodecs.length
+                  val seen    = new Array[Boolean](len)
+                  val offsets = getOffsets
 
-                      var fieldOffset = 0L
-                      var i           = 0
-                      while (i < fieldIdx) {
-                        fieldOffset += fieldCodecs(i).valueOffset
-                        i += 1
+                  var entry = 0
+                  while (entry < mapSize) {
+                    val name                   = unpacker.unpackString()
+                    val idx: java.lang.Integer = fieldNameToIndex.get(name)
+                    if (idx eq null) {
+                      // Forward-compatible: ignore unknown fields.
+                      unpacker.skipValue()
+                    } else {
+                      val fieldIdx    = idx.intValue()
+                      val fieldOffset = offsets(fieldIdx)
+                      val codec       = fieldCodecs(fieldIdx)
+                      try {
+                        codec.valueType match {
+                          case MessagePackBinaryCodec.objectType =>
+                            regs.setObject(
+                              fieldOffset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[AnyRef]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.intType =>
+                            regs.setInt(
+                              fieldOffset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[Int]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.longType =>
+                            regs.setLong(
+                              fieldOffset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[Long]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.floatType =>
+                            regs.setFloat(
+                              fieldOffset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[Float]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.doubleType =>
+                            regs.setDouble(
+                              fieldOffset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[Double]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.booleanType =>
+                            regs.setBoolean(
+                              fieldOffset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.byteType =>
+                            regs.setByte(
+                              fieldOffset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[Byte]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.charType =>
+                            regs.setChar(
+                              fieldOffset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[Char]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.shortType =>
+                            regs.setShort(
+                              fieldOffset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[Short]].decodeUnsafe(unpacker)
+                            )
+                          case _ =>
+                            codec.asInstanceOf[MessagePackBinaryCodec[Unit]].decodeUnsafe(unpacker)
+                        }
+                      } catch {
+                        case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Field(name), error)
                       }
-
-                      val codec = fieldCodecs(fieldIdx)
-                      codec.valueType match {
-                        case MessagePackBinaryCodec.objectType =>
-                          regs.setObject(
-                            fieldOffset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[AnyRef]].decodeUnsafe(unpacker)
-                          )
-                        case MessagePackBinaryCodec.intType =>
-                          regs
-                            .setInt(fieldOffset, codec.asInstanceOf[MessagePackBinaryCodec[Int]].decodeUnsafe(unpacker))
-                        case MessagePackBinaryCodec.longType =>
-                          regs.setLong(
-                            fieldOffset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[Long]].decodeUnsafe(unpacker)
-                          )
-                        case MessagePackBinaryCodec.floatType =>
-                          regs.setFloat(
-                            fieldOffset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[Float]].decodeUnsafe(unpacker)
-                          )
-                        case MessagePackBinaryCodec.doubleType =>
-                          regs.setDouble(
-                            fieldOffset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[Double]].decodeUnsafe(unpacker)
-                          )
-                        case MessagePackBinaryCodec.booleanType =>
-                          regs.setBoolean(
-                            fieldOffset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].decodeUnsafe(unpacker)
-                          )
-                        case MessagePackBinaryCodec.byteType =>
-                          regs.setByte(
-                            fieldOffset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[Byte]].decodeUnsafe(unpacker)
-                          )
-                        case MessagePackBinaryCodec.charType =>
-                          regs.setChar(
-                            fieldOffset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[Char]].decodeUnsafe(unpacker)
-                          )
-                        case MessagePackBinaryCodec.shortType =>
-                          regs.setShort(
-                            fieldOffset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[Short]].decodeUnsafe(unpacker)
-                          )
-                        case _ => codec.asInstanceOf[MessagePackBinaryCodec[Unit]].decodeUnsafe(unpacker)
-                      }
-                      idx += 1
+                      seen(fieldIdx) = true
                     }
-                    constructor.construct(regs, 0)
-                  } catch {
-                    case error if NonFatal(error) =>
-                      val fieldName = if (idx < fieldNames.length) fieldNames(idx) else s"field_$idx"
-                      decodeError(new DynamicOptic.Node.Field(fieldName), error)
+                    entry += 1
                   }
+
+                  var missing = 0
+                  while (missing < len) {
+                    if (!seen(missing)) {
+                      decodeError(s"Missing field ${fieldNames(missing)}")
+                    }
+                    missing += 1
+                  }
+
+                  constructor.construct(regs, 0)
                 }
 
                 def encodeUnsafe(packer: MessagePacker, value: A): Unit = {
