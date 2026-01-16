@@ -742,7 +742,11 @@ object ToonBinaryCodec {
       catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid year-month: $s") }
     }
 
-    def encodeValue(x: java.time.YearMonth, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.YearMonth, out: ToonWriter): Unit = out.writeString {
+      var s = x.toString
+      if (x.getYear >= 10000) s = "+" + s
+      s
+    }
   }
 
   val zoneIdCodec: ToonBinaryCodec[ZoneId] = new ToonBinaryCodec[java.time.ZoneId]() {
