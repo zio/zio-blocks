@@ -236,12 +236,64 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("Char") {
         roundTrip('A', "A") &&
-        roundTrip('7', "7")
+        roundTrip(',', ",") &&
+        roundTrip('7', "\"7\"") &&
+        roundTrip('-', "\"-\"") &&
+        roundTrip(':', "\":\"") &&
+        roundTrip(' ', "\" \"")
       },
       test("String") {
         roundTrip("Hello", "Hello") &&
         roundTrip("Hello World", "Hello World") &&
-        roundTrip("", "\"\"")
+        roundTrip("", "\"\"") &&
+        roundTrip("a,b", "a,b") &&
+        roundTrip("1,2,3", "1,2,3") &&
+        roundTrip("Привіт", "Привіт") &&
+        roundTrip("🎸🎧", "🎸🎧") &&
+        roundTrip("日本語", "日本語") &&
+        roundTrip("foo bar baz", "foo bar baz") &&
+        roundTrip("αβγδ", "αβγδ") &&
+        roundTrip("中文字符", "中文字符") &&
+        roundTrip("עברית", "עברית") &&
+        roundTrip("🚀🎉💻", "🚀🎉💻") &&
+        roundTrip("日本:語", "\"日本:語\"") &&                         // colon forces quoting
+        roundTrip("中文,字符", "中文,字符") &&                           // comma doesn't force quoting at top-level
+        roundTrip("Привіт світ", "Привіт світ") &&               // spaces don't force quoting
+        roundTrip(" 日本語", "\" 日本語\"") &&                         // leading space forces quoting
+        roundTrip("🎸[test]", "\"🎸[test]\"") &&                 // brackets force quoting
+        roundTrip("test\\", "\"test\\\\\"") &&                   // ends with backslash
+        roundTrip("test\\\\", "\"test\\\\\\\\\"") &&             // ends with two backslashes
+        roundTrip("path\\to\\file", "\"path\\\\to\\\\file\"") && // backslashes in the middle
+        roundTrip("\\start", "\"\\\\start\"") &&                 // starts with backslash
+        roundTrip("quote\"here", "\"quote\\\"here\"") &&         // embedded quote
+        encode[String](
+          "tab:\there\nnewline\rcarriage\\backslash\"quote",
+          "\"tab:\\there\\nnewline\\rcarriage\\\\backslash\\\"quote\""
+        ) &&
+        encode[String]("", "\"\"") &&
+        encode[String](" hello", "\" hello\"") &&
+        encode[String]("hello ", "\"hello \"") &&
+        encode[String]("  ", "\"  \"") &&
+        encode[String]("true", "\"true\"") &&
+        encode[String]("false", "\"false\"") &&
+        encode[String]("null", "\"null\"") &&
+        encode[String]("42", "\"42\"") &&
+        encode[String]("-3.14", "\"-3.14\"") &&
+        encode[String]("1e6", "\"1e6\"") &&
+        encode[String]("05", "\"05\"") &&
+        encode[String]("key:value", "\"key:value\"") &&
+        encode[String]("10:30", "\"10:30\"") &&
+        encode[String]("say \"hi\"", "\"say \\\"hi\\\"\"") &&
+        encode[String]("path\\to", "\"path\\\\to\"") &&
+        encode[String]("line1\nline2", "\"line1\\nline2\"") &&
+        encode[String]("col1\tcol2", "\"col1\\tcol2\"") &&
+        encode[String]("return\r", "\"return\\r\"") &&
+        encode[String]("[array]", "\"[array]\"") &&
+        encode[String]("{object}", "\"{object}\"") &&
+        encode[String]("arr[0]", "\"arr[0]\"") &&
+        encode[String]("-", "\"-\"") &&
+        encode[String]("-flag", "\"-flag\"") &&
+        encode[String]("--option", "\"--option\"")
       },
       test("BigInt") {
         check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x => roundTrip(x, x.toString)) &&
@@ -442,66 +494,10 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[UUID]("not-a-uuid", "Line 2: Invalid UUID: not-a-uuid at: .")
       }
     ),
-    suite("string quoting")(
-      test("empty string must be quoted") {
-        encode[String]("", "\"\"")
-      },
-      test("strings with leading/trailing whitespace must be quoted") {
-        encode[String](" hello", "\" hello\"") &&
-        encode[String]("hello ", "\"hello \"") &&
-        encode[String]("  ", "\"  \"")
-      },
-      test("boolean-like strings must be quoted") {
-        encode[String]("true", "\"true\"") &&
-        encode[String]("false", "\"false\"") &&
-        encode[String]("null", "\"null\"")
-      },
-      test("numeric-like strings must be quoted") {
-        encode[String]("42", "\"42\"") &&
-        encode[String]("-3.14", "\"-3.14\"") &&
-        encode[String]("1e6", "\"1e6\"") &&
-        encode[String]("05", "\"05\"")
-      },
-      test("strings with colon must be quoted") {
-        encode[String]("key:value", "\"key:value\"") &&
-        encode[String]("10:30", "\"10:30\"")
-      },
-      test("strings with quotes/backslash must be quoted and escaped") {
-        encode[String]("say \"hi\"", "\"say \\\"hi\\\"\"") &&
-        encode[String]("path\\to", "\"path\\\\to\"")
-      },
-      test("strings with control characters must be quoted and escaped") {
-        encode[String]("line1\nline2", "\"line1\\nline2\"") &&
-        encode[String]("col1\tcol2", "\"col1\\tcol2\"") &&
-        encode[String]("return\r", "\"return\\r\"")
-      },
-      test("strings with brackets/braces must be quoted") {
-        encode[String]("[array]", "\"[array]\"") &&
-        encode[String]("{object}", "\"{object}\"") &&
-        encode[String]("arr[0]", "\"arr[0]\"")
-      },
-      test("strings starting with hyphen must be quoted") {
-        encode[String]("-", "\"-\"") &&
-        encode[String]("-flag", "\"-flag\"") &&
-        encode[String]("--option", "\"--option\"")
-      },
-      test("strings with comma need not be quoted at top level") {
-        roundTrip("a,b", "a,b") &&
-        roundTrip("1,2,3", "1,2,3")
-      },
-      test("unicode and emoji strings need not be quoted") {
-        roundTrip("Привіт", "Привіт") &&
-        roundTrip("🎸🎧", "🎸🎧") &&
-        roundTrip("日本語", "日本語")
-      },
-      test("strings with internal spaces need not be quoted") {
-        roundTrip("hello world", "hello world") &&
-        roundTrip("foo bar baz", "foo bar baz")
-      }
-    ),
     suite("records")(
       test("simple record") {
-        val expected =
+        roundTrip(
+          Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
           """bl: true
             |b: 1
             |sh: 2
@@ -509,15 +505,16 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             |l: 4
             |f: 5
             |d: 6
-            |c: 7
+            |c: "7"
             |s: VVV""".stripMargin
-        roundTrip(
-          Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
-          expected
         )
       },
       test("nested record") {
-        val expected =
+        roundTrip(
+          Record2(
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            Record1(false, 2: Byte, 3: Short, 4, 5L, 6.0f, 7.0, '8', "WWW")
+          ),
           """r1_1:
             |  bl: true
             |  b: 1
@@ -526,7 +523,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             |  l: 4
             |  f: 5
             |  d: 6
-            |  c: 7
+            |  c: "7"
             |  s: VVV
             |r1_2:
             |  bl: false
@@ -536,248 +533,31 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             |  l: 5
             |  f: 6
             |  d: 7
-            |  c: 8
+            |  c: "8"
             |  s: WWW""".stripMargin
-        roundTrip(
-          Record2(
-            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
-            Record1(false, 2: Byte, 3: Short, 4, 5L, 6.0f, 7.0, '8', "WWW")
-          ),
-          expected
         )
       },
       test("record with optional field") {
-        val expectedSome =
+        roundTrip(
+          Record4((), Some("VVV")),
           """hidden: null
             |optKey: VVV""".stripMargin
-        roundTrip(Record4((), Some("VVV")), expectedSome) &&
-        roundTrip(Record4((), None), "hidden: null")
-      },
-      test("record with optional field in middle") {
-        val expectedSome =
+        ) &&
+        roundTrip(Record4((), None), "hidden: null") &&
+        roundTrip(AllOptional(None, None, None), "") &&
+        roundTrip(AllOptional(None, None, Some(true)), "c: true") &&
+        roundTrip(
+          RecordWithOptionalMiddle(1, Some("hello"), 2),
           """first: 1
             |optMiddle: hello
             |last: 2""".stripMargin
-        val expectedNone =
+        ) &&
+        roundTrip(
+          RecordWithOptionalMiddle(1, None, 2),
           """first: 1
             |last: 2""".stripMargin
-        roundTrip(RecordWithOptionalMiddle(1, Some("hello"), 2), expectedSome) &&
-        roundTrip(RecordWithOptionalMiddle(1, None, 2), expectedNone)
-      }
-    ),
-    suite("sequences")(
-      test("primitive values") {
-        val expected = "xs[3]: 1,2,3"
-        roundTrip(IntList(List(1, 2, 3)), expected)
-      },
-      test("empty sequence") {
-        roundTrip(IntList(Nil), "")
-      },
-      test("string values") {
-        val expected = "xs[2]: hello,world"
-        roundTrip(StringList(List("hello", "world")), expected)
-      }
-    ),
-    suite("variants")(
-      test("case object enumeration") {
-        roundTrip[TrafficLight](TrafficLight.Green, "Green") &&
-        roundTrip[TrafficLight](TrafficLight.Yellow, "Yellow") &&
-        roundTrip[TrafficLight](TrafficLight.Red, "Red")
-      },
-      test("ADT with discriminator") {
-        val catExpected =
-          """Cat:
-            |  name: Whiskers
-            |  lives: 9""".stripMargin
-        val dogExpected =
-          """Dog:
-            |  name: Buddy
-            |  breed: Labrador""".stripMargin
-        roundTrip[Pet](Pet.Cat("Whiskers", 9), catExpected) &&
-        roundTrip[Pet](Pet.Dog("Buddy", "Labrador"), dogExpected)
-      },
-      test("option") {
-        roundTrip(Option(42), "42") &&
-        roundTrip[Option[Int]](None, "null")
-      },
-      test("either") {
-        val rightExpected =
-          """Right:
-            |  value: 42""".stripMargin
-        val leftExpected =
-          """Left:
-            |  value: error""".stripMargin
-        roundTrip[Either[String, Int]](Right(42), rightExpected) &&
-        roundTrip[Either[String, Int]](Left("error"), leftExpected)
-      }
-    ),
-    suite("maps")(
-      test("string key map") {
-        val expected =
-          """a: 1
-            |b: 2""".stripMargin
-        roundTrip(StringIntMap(Map("a" -> 1, "b" -> 2)), expected)
-      },
-      test("empty map") {
-        roundTrip(StringIntMap(Map.empty), "")
-      },
-      test("map field alongside other fields") {
-        val expected =
-          """name: test
-            |metadata:
-            |  role: admin
-            |  status: active
-            |count: 42""".stripMargin
-        roundTrip(RecordWithMapField("test", Map("role" -> "admin", "status" -> "active"), 42), expected)
-      },
-      test("map field alongside other fields with empty map") {
-        val expected =
-          """name: test
-            |count: 42""".stripMargin
-        roundTrip(RecordWithMapField("test", Map.empty, 42), expected)
-      }
-    ),
-    suite("property-based")(
-      test("Int roundtrip") {
-        check(Gen.int) { x =>
-          roundTrip(x, x.toString)
-        }
-      },
-      test("Long roundtrip") {
-        check(Gen.long) { x =>
-          roundTrip(x, x.toString)
-        }
-      },
-      test("Boolean roundtrip") {
-        check(Gen.boolean) { x =>
-          roundTrip(x, x.toString)
-        }
-      }
-    ),
-    suite("edge cases")(
-      test("deeply nested records (2 levels)") {
-        val expected =
-          """r1_1:
-            |  bl: true
-            |  b: 1
-            |  sh: 2
-            |  i: 3
-            |  l: 4
-            |  f: 5
-            |  d: 6
-            |  c: 7
-            |  s: inner
-            |r1_2:
-            |  bl: false
-            |  b: 2
-            |  sh: 3
-            |  i: 4
-            |  l: 5
-            |  f: 6
-            |  d: 7
-            |  c: 8
-            |  s: outer""".stripMargin
-        roundTrip(
-          Record2(
-            Record1(true, 1, 2, 3, 4L, 5.0f, 6.0, '7', "inner"),
-            Record1(false, 2, 3, 4, 5L, 6.0f, 7.0, '8', "outer")
-          ),
-          expected
         )
       },
-      test("record with all optional fields - all None") {
-        roundTrip(AllOptional(None, None, None), "")
-      },
-      test("record with all optional fields - Some in last position") {
-        roundTrip(AllOptional(None, None, Some(true)), "c: true")
-      },
-      test("list with many elements") {
-        val nums     = (1 to 10).toList
-        val expected = s"xs[10]: ${nums.mkString(",")}"
-        roundTrip(IntList(nums), expected)
-      },
-      test("list with single element") {
-        roundTrip(IntList(List(42)), "xs[1]: 42")
-      },
-      test("map with simple string values") {
-        val expected =
-          """a: hello
-            |b: world""".stripMargin
-        roundTrip(StringStringMap(Map("a" -> "hello", "b" -> "world")), expected)
-      },
-      test("string with all escape sequences") {
-        val input = "tab:\there\nnewline\rcarriage\\backslash\"quote"
-        encode[String](input, "\"tab:\\there\\nnewline\\rcarriage\\\\backslash\\\"quote\"")
-      },
-      test("very long string") {
-        val longStr = "a" * 1000
-        roundTrip(longStr, longStr)
-      },
-      test("special unicode characters") {
-        roundTrip("αβγδ", "αβγδ") &&   // Greek
-        roundTrip("中文字符", "中文字符") &&   // Chinese
-        roundTrip("עברית", "עברית") && // Hebrew (RTL)
-        roundTrip("🚀🎉💻", "🚀🎉💻")  // Emoji
-      },
-      test("unicode strings that require quoting") {
-        roundTrip("日本:語", "\"日本:語\"") &&           // colon forces quoting
-        roundTrip("中文,字符", "中文,字符") &&             // comma doesn't force quoting at top level
-        roundTrip("Привіт світ", "Привіт світ") && // spaces don't force quoting
-        roundTrip(" 日本語", "\" 日本語\"") &&           // leading space forces quoting
-        roundTrip("🎸[test]", "\"🎸[test]\"")      // brackets force quoting
-      },
-      test("strings with backslashes") {
-        roundTrip("test\\", "\"test\\\\\"") &&                   // ends with backslash
-        roundTrip("test\\\\", "\"test\\\\\\\\\"") &&             // ends with two backslashes
-        roundTrip("path\\to\\file", "\"path\\\\to\\\\file\"") && // backslashes in middle
-        roundTrip("\\start", "\"\\\\start\"") &&                 // starts with backslash
-        roundTrip("quote\"here", "\"quote\\\"here\"")            // embedded quote
-      }
-    ),
-    suite("format features")(
-      test("inline array format for primitives") {
-        val result = encode(IntList(List(1, 2, 3)), "xs[3]: 1,2,3")
-        result
-      },
-      test("record field ordering preserved") {
-        val expected =
-          """bl: true
-            |b: 1
-            |sh: 2
-            |i: 3
-            |l: 4
-            |f: 5
-            |d: 6
-            |c: 7
-            |s: test""".stripMargin
-        encode(Record1(true, 1, 2, 3, 4L, 5.0f, 6.0, '7', "test"), expected)
-      },
-      test("variant uses key discriminator") {
-        encode[Pet](
-          Pet.Cat("Whiskers", 9),
-          """Cat:
-  name: Whiskers
-  lives: 9"""
-        ) &&
-        encode[Pet](
-          Pet.Dog("Buddy", "Lab"),
-          """Dog:
-  name: Buddy
-  breed: Lab"""
-        )
-      },
-      test("null representation for Unit") {
-        roundTrip((), "null")
-      },
-      test("null representation for None") {
-        roundTrip[Option[Int]](None, "null")
-      },
-      test("simple enum uses name only") {
-        encode[TrafficLight](TrafficLight.Red, "Red") &&
-        encode[TrafficLight](TrafficLight.Green, "Green")
-      }
-    ),
-    suite("extra fields")(
       test("extra fields are ignored by default") {
         val toon = """name: Alice
                      |age: 25
@@ -798,70 +578,8 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         val toon    = """name: Bob
                         |age: 30""".stripMargin
         decode(toon, SimplePerson("Bob", 30), codec)
-      }
-    ),
-    suite("discriminators")(
-      test("Key discriminator encodes variant with key wrapper") {
-        val expected = """Dog:
-                         |  name: Buddy
-                         |  breed: Labrador""".stripMargin
-        encode[Pet](Pet.Dog("Buddy", "Labrador"), expected)
       },
-      test("Field discriminator encodes type field inline") {
-        val deriver  = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type"))
-        val codec    = deriveCodec(Pet.schema, deriver)
-        val expected = """type: Dog
-                         |name: Buddy
-                         |breed: Labrador""".stripMargin
-        encode(Pet.Dog("Buddy", "Labrador"), expected, codec)
-      },
-      test("Field discriminator roundtrips correctly") {
-        val deriver = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type"))
-        val codec   = deriveCodec(Pet.schema, deriver)
-        val toon    = """type: Cat
-                        |name: Whiskers
-                        |lives: 9""".stripMargin
-        decode(toon, Pet.Cat("Whiskers", 9), codec)
-      },
-      test("None discriminator encodes without wrapper") {
-        val deriver  = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
-        val codec    = deriveCodec(Pet.schema, deriver)
-        val expected = """name: Buddy
-                         |breed: Labrador""".stripMargin
-        encode(Pet.Dog("Buddy", "Labrador"), expected, codec)
-      },
-      test("None discriminator decode works with try-each-case") {
-        val deriver = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
-        val codec   = deriveCodec(Pet.schema, deriver)
-        val dogToon = """name: Buddy
-                        |breed: Labrador""".stripMargin
-        decode(dogToon, Pet.Dog("Buddy", "Labrador"), codec)
-      },
-      test("None discriminator roundtrips correctly") {
-        val deriver = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
-        val codec   = deriveCodec(Pet.schema, deriver)
-        val dog     = Pet.Dog("Buddy", "Labrador")
-        val cat     = Pet.Cat("Whiskers", 9)
-        val dogToon = """name: Buddy
-                        |breed: Labrador""".stripMargin
-        val catToon = """name: Whiskers
-                        |lives: 9""".stripMargin
-        encode(dog, dogToon, codec) &&
-        encode(cat, catToon, codec) &&
-        decode(dogToon, dog, codec) &&
-        decode(catToon, cat, codec)
-      }
-    ),
-    suite("integration")(
       test("user profile with address") {
-        val expected =
-          """name: John Doe
-            |age: 30
-            |email: john@example.com
-            |address:
-            |  street: 123 Main St
-            |  city: Anytown
-            |  zip: "12345"""".stripMargin
         roundTrip(
           UserProfile(
             "John Doe",
@@ -869,80 +587,191 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             "john@example.com",
             Address("123 Main St", "Anytown", "12345")
           ),
-          expected
+          """name: John Doe
+            |age: 30
+            |email: john@example.com
+            |address:
+            |  street: 123 Main St
+            |  city: Anytown
+            |  zip: "12345"""".stripMargin
         )
       },
       test("order with line items") {
-        val expected =
+        roundTrip(
+          Order("ORD-001", List("Widget", "Gadget"), BigDecimal("99.99")),
           """orderId: ORD-001
             |items[2]: Widget,Gadget
             |total: 99.99""".stripMargin
-        roundTrip(
-          Order("ORD-001", List("Widget", "Gadget"), BigDecimal("99.99")),
-          expected
         )
       },
       test("config with nested options") {
-        val expected =
+        roundTrip(
+          ServerConfig("localhost", 8080, Some(true)),
           """host: localhost
             |port: 8080
             |ssl: true""".stripMargin
+        )
+      },
+      test("map field alongside other fields") {
         roundTrip(
-          ServerConfig("localhost", 8080, Some(true)),
-          expected
+          RecordWithMapField("test", Map("role" -> "admin", "status" -> "active"), 42),
+          """name: test
+            |metadata:
+            |  role: admin
+            |  status: active
+            |count: 42""".stripMargin
+        )
+      },
+      test("map field alongside other fields with empty map") {
+        roundTrip(
+          RecordWithMapField("test", Map.empty, 42),
+          """name: test
+            |count: 42""".stripMargin
         )
       }
     ),
-    suite("array formats")(
+    suite("variants")(
+      test("case object enumeration") {
+        roundTrip[TrafficLight](TrafficLight.Green, "Green") &&
+        roundTrip[TrafficLight](TrafficLight.Yellow, "Yellow") &&
+        roundTrip[TrafficLight](TrafficLight.Red, "Red")
+      },
+      test("option") {
+        roundTrip(Option(42), "42") &&
+        roundTrip[Option[Int]](None, "null")
+      },
+      test("key discriminator roundtrips correctly") {
+        roundTrip[Pet](
+          Pet.Cat("Whiskers", 9),
+          """Cat:
+            |  name: Whiskers
+            |  lives: 9""".stripMargin
+        ) &&
+        roundTrip[Pet](
+          Pet.Dog("Buddy", "Lab"),
+          """Dog:
+            |  name: Buddy
+            |  breed: Lab""".stripMargin
+        )
+      },
+      test("field discriminator roundtrips correctly") {
+        val deriver = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type"))
+        val codec   = deriveCodec(Pet.schema, deriver)
+        roundTrip[Pet](
+          Pet.Dog("Buddy", "Labrador"),
+          """type: Dog
+            |name: Buddy
+            |breed: Labrador""".stripMargin,
+          codec
+        )
+      },
+      test("None discriminator roundtrips correctly") {
+        val deriver = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
+        val codec   = deriveCodec(Pet.schema, deriver)
+        roundTrip[Pet](
+          Pet.Dog("Buddy", "Labrador"),
+          """name: Buddy
+            |breed: Labrador""".stripMargin,
+          codec
+        ) &&
+        roundTrip[Pet](
+          Pet.Cat("Whiskers", 9),
+          """name: Whiskers
+            |lives: 9""".stripMargin,
+          codec
+        )
+      }
+    ),
+    suite("sequences")(
+      test("primitive values") {
+        roundTrip(IntList(List(1, 2, 3)), "xs[3]: 1,2,3")
+      },
+      test("empty sequence") {
+        roundTrip(IntList(Nil), "")
+      },
+      test("string values") {
+        roundTrip(StringList(List("hello", "world")), "xs[2]: hello,world")
+      },
+      test("list with many elements") {
+        val nums = (1 to 10).toList
+        roundTrip(IntList(nums), s"xs[10]: ${nums.mkString(",")}")
+      },
+      test("list with single element") {
+        roundTrip(IntList(List(42)), "xs[1]: 42")
+      },
+      test("inline array format for primitives") {
+        roundTrip(IntList(List(1, 2, 3)), "xs[3]: 1,2,3")
+      },
       test("ArrayFormat.Tabular encodes record arrays in tabular format") {
         val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
         val codec   = deriveCodec(PersonList.schema, deriver)
-        val persons = PersonList(
-          List(
-            SimplePerson("Alice", 25),
-            SimplePerson("Bob", 30)
-          )
+        roundTrip(
+          PersonList(
+            List(
+              SimplePerson("Alice", 25),
+              SimplePerson("Bob", 30)
+            )
+          ),
+          """people[2]{name,age}:
+            |  Alice,25
+            |  Bob,30""".stripMargin,
+          codec
         )
-        val expected = """people[2]{name,age}:
-                         |  Alice,25
-                         |  Bob,30""".stripMargin
-        encode(persons, expected, codec)
       },
       test("ArrayFormat.Tabular with custom delimiter") {
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.Tabular)
-          .withDelimiter(Delimiter.Pipe)
+        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Pipe)
         val codec   = deriveCodec(PersonList.schema, deriver)
-        val persons = PersonList(
-          List(
-            SimplePerson("Alice", 25),
-            SimplePerson("Bob", 30)
-          )
+        roundTrip(
+          PersonList(
+            List(
+              SimplePerson("Alice", 25),
+              SimplePerson("Bob", 30)
+            )
+          ),
+          """people[2|]{name|age}:
+            |  Alice|25
+            |  Bob|30""".stripMargin,
+          codec
         )
-        val expected = """people[2|]{name|age}:
-                         |  Alice|25
-                         |  Bob|30""".stripMargin
-        encode(persons, expected, codec)
       },
       test("ArrayFormat.List forces list format even for primitives") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec    = deriveCodec(IntList.schema, deriver)
-        val list     = IntList(List(1, 2, 3))
-        val expected = """xs[3]:
-                         |  - 1
-                         |  - 2
-                         |  - 3""".stripMargin
-        encode(list, expected, codec)
+        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
+        val codec   = deriveCodec(IntList.schema, deriver)
+        roundTrip(
+          IntList(List(1, 2, 3)),
+          """xs[3]:
+            |  - 1
+            |  - 2
+            |  - 3""".stripMargin,
+          codec
+        )
       },
       test("withDelimiter affects inline arrays") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec    = deriveCodec(IntList.schema, deriver)
-        val list     = IntList(List(1, 2, 3))
-        val expected = """xs[3|]: 1|2|3"""
-        encode(list, expected, codec)
+        val deriver = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
+        val codec   = deriveCodec(IntList.schema, deriver)
+        roundTrip(IntList(List(1, 2, 3)), """xs[3|]: 1|2|3""", codec)
       }
     ),
-    suite("DynamicValue")(
+    suite("maps")(
+      test("string key map") {
+        roundTrip(
+          StringIntMap(Map("a" -> 1, "b" -> 2)),
+          """a: 1
+            |b: 2""".stripMargin
+        )
+      },
+      test("empty map") {
+        roundTrip(StringIntMap(Map.empty), "")
+      },
+      test("map with simple string values") {
+        roundTrip(
+          StringStringMap(Map("a" -> "hello", "b" -> "world")),
+          """a: hello
+            |b: world""".stripMargin
+        )
+      }
+    ),
+    suite("dynamic")(
       test("DynamicValue Map encodes correctly") {
         val map = DynamicValue.Map(
           Vector(
@@ -1114,8 +943,6 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     case class Cat(name: String, lives: Int)    extends Pet
     case class Dog(name: String, breed: String) extends Pet
   }
-
-  implicit val eitherSchema: Schema[Either[String, Int]] = Schema.derived
 
   case class NestedRecord(inner: Option[NestedRecord], value: String)
 
