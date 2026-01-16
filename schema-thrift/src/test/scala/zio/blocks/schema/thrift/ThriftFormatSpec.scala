@@ -8,6 +8,7 @@ import java.time._
 import java.util.UUID
 import java.util.Currency
 import scala.collection.immutable.ArraySeq
+import org.apache.thrift.protocol.{TCompactProtocol, TField, TStruct, TType}
 
 object ThriftFormatSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("ThriftFormatSpec")(
@@ -183,6 +184,62 @@ object ThriftFormatSpec extends ZIOSpecDefault {
     suite("records")(
       test("simple record") {
         roundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"))
+      },
+      test("record can decode out-of-order thrift fields (and ignore unknown fields)") {
+        val value = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
+        val codec = Schema[Record1].derive(ThriftFormat.deriver)
+
+        val transport = new ChunkTransport()
+        val protocol  = new TCompactProtocol(transport)
+
+        protocol.writeStructBegin(new TStruct(""))
+
+        // Write fields in reverse order (Thrift does not guarantee field order).
+        protocol.writeFieldBegin(new TField("s", TType.STRING, 9))
+        protocol.writeString(value.s)
+        protocol.writeFieldEnd()
+
+        protocol.writeFieldBegin(new TField("c", TType.I32, 8))
+        protocol.writeI32(value.c.toInt)
+        protocol.writeFieldEnd()
+
+        protocol.writeFieldBegin(new TField("d", TType.DOUBLE, 7))
+        protocol.writeDouble(value.d)
+        protocol.writeFieldEnd()
+
+        protocol.writeFieldBegin(new TField("f", TType.I32, 6))
+        protocol.writeI32(java.lang.Float.floatToIntBits(value.f))
+        protocol.writeFieldEnd()
+
+        protocol.writeFieldBegin(new TField("l", TType.I64, 5))
+        protocol.writeI64(value.l)
+        protocol.writeFieldEnd()
+
+        protocol.writeFieldBegin(new TField("i", TType.I32, 4))
+        protocol.writeI32(value.i)
+        protocol.writeFieldEnd()
+
+        protocol.writeFieldBegin(new TField("sh", TType.I16, 3))
+        protocol.writeI16(value.sh)
+        protocol.writeFieldEnd()
+
+        // Unknown field should be ignored
+        protocol.writeFieldBegin(new TField("unknown", TType.I32, 99))
+        protocol.writeI32(123)
+        protocol.writeFieldEnd()
+
+        protocol.writeFieldBegin(new TField("b", TType.BYTE, 2))
+        protocol.writeByte(value.b)
+        protocol.writeFieldEnd()
+
+        protocol.writeFieldBegin(new TField("bl", TType.BOOL, 1))
+        protocol.writeBool(value.bl)
+        protocol.writeFieldEnd()
+
+        protocol.writeFieldStop()
+        protocol.writeStructEnd()
+
+        assertTrue(codec.decode(transport.toByteArray) == Right(value))
       },
       test("nested record") {
         roundTrip(

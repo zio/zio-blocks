@@ -1,6 +1,6 @@
 package zio.blocks.schema.thrift
 
-import org.apache.thrift.protocol.{TField, TList, TMap, TProtocol, TStruct, TType}
+import org.apache.thrift.protocol.{TField, TList, TMap, TProtocol, TProtocolUtil, TStruct, TType}
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema._
 import zio.blocks.schema.codec.BinaryFormat
@@ -933,6 +933,7 @@ object ThriftFormat
                 private[this] val usedRegisters                = offset
                 private[this] val fieldCodecs                  = codecs
                 @volatile private[this] var types: Array[Byte] = null
+                @volatile private[this] var offsets: Array[Long] = null
 
                 private[this] def getTypes: Array[Byte] = {
                   var t = types
@@ -948,55 +949,83 @@ object ThriftFormat
                   t
                 }
 
+                private[this] def getOffsets: Array[Long] = {
+                  var o = offsets
+                  if (o eq null) {
+                    o = new Array[Long](fieldCodecs.length)
+                    var i   = 0
+                    var off = 0L
+                    while (i < fieldCodecs.length) {
+                      o(i) = off
+                      off += fieldCodecs(i).valueOffset
+                      i += 1
+                    }
+                    offsets = o
+                  }
+                  o
+                }
+
                 def decodeUnsafe(protocol: TProtocol): A = {
                   val regs      = Registers(usedRegisters)
-                  var regOffset = 0L
                   protocol.readStructBegin()
-                  val len = fieldCodecs.length
-                  var idx = 0
-                  try {
-                    while (idx < len) {
-                      val field = protocol.readFieldBegin()
-                      if (field.`type` == TType.STOP) {
-                        decodeError(s"Expected field ${idx + 1}, got STOP")
+                  val len     = fieldCodecs.length
+                  val seen    = new Array[Boolean](len)
+                  val offsets = getOffsets
+
+                  var field = protocol.readFieldBegin()
+                  while (field.`type` != TType.STOP) {
+                    val idx = field.id.toInt - 1
+                    if (idx >= 0 && idx < len) {
+                      val codec     = fieldCodecs(idx)
+                      val regOffset = offsets(idx)
+                      try {
+                        codec.valueType match {
+                          case ThriftBinaryCodec.objectType =>
+                            regs.setObject(regOffset, codec.asInstanceOf[ThriftBinaryCodec[AnyRef]].decodeUnsafe(protocol))
+                          case ThriftBinaryCodec.intType =>
+                            regs.setInt(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Int]].decodeUnsafe(protocol))
+                          case ThriftBinaryCodec.longType =>
+                            regs.setLong(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Long]].decodeUnsafe(protocol))
+                          case ThriftBinaryCodec.floatType =>
+                            regs.setFloat(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Float]].decodeUnsafe(protocol))
+                          case ThriftBinaryCodec.doubleType =>
+                            regs.setDouble(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Double]].decodeUnsafe(protocol))
+                          case ThriftBinaryCodec.booleanType =>
+                            regs.setBoolean(
+                              regOffset,
+                              codec.asInstanceOf[ThriftBinaryCodec[Boolean]].decodeUnsafe(protocol)
+                            )
+                          case ThriftBinaryCodec.byteType =>
+                            regs.setByte(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Byte]].decodeUnsafe(protocol))
+                          case ThriftBinaryCodec.charType =>
+                            regs.setChar(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Char]].decodeUnsafe(protocol))
+                          case ThriftBinaryCodec.shortType =>
+                            regs.setShort(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Short]].decodeUnsafe(protocol))
+                          case _ =>
+                            codec.asInstanceOf[ThriftBinaryCodec[Unit]].decodeUnsafe(protocol)
+                        }
+                      } catch {
+                        case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
                       }
-                      val codec = fieldCodecs(idx)
-                      codec.valueType match {
-                        case ThriftBinaryCodec.objectType =>
-                          regs
-                            .setObject(regOffset, codec.asInstanceOf[ThriftBinaryCodec[AnyRef]].decodeUnsafe(protocol))
-                        case ThriftBinaryCodec.intType =>
-                          regs.setInt(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Int]].decodeUnsafe(protocol))
-                        case ThriftBinaryCodec.longType =>
-                          regs.setLong(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Long]].decodeUnsafe(protocol))
-                        case ThriftBinaryCodec.floatType =>
-                          regs.setFloat(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Float]].decodeUnsafe(protocol))
-                        case ThriftBinaryCodec.doubleType =>
-                          regs
-                            .setDouble(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Double]].decodeUnsafe(protocol))
-                        case ThriftBinaryCodec.booleanType =>
-                          regs.setBoolean(
-                            regOffset,
-                            codec.asInstanceOf[ThriftBinaryCodec[Boolean]].decodeUnsafe(protocol)
-                          )
-                        case ThriftBinaryCodec.byteType =>
-                          regs.setByte(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Byte]].decodeUnsafe(protocol))
-                        case ThriftBinaryCodec.charType =>
-                          regs.setChar(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Char]].decodeUnsafe(protocol))
-                        case ThriftBinaryCodec.shortType =>
-                          regs.setShort(regOffset, codec.asInstanceOf[ThriftBinaryCodec[Short]].decodeUnsafe(protocol))
-                        case _ => codec.asInstanceOf[ThriftBinaryCodec[Unit]].decodeUnsafe(protocol)
-                      }
-                      protocol.readFieldEnd()
-                      regOffset += codec.valueOffset
-                      idx += 1
+                      seen(idx) = true
+                    } else {
+                      // Allow forward-compatible readers: ignore unknown fields (as long as protocol can skip them).
+                      TProtocolUtil.skip(protocol, field.`type`)
                     }
-                    readFieldStop(protocol)
-                    protocol.readStructEnd()
-                    constructor.construct(regs, 0)
-                  } catch {
-                    case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
+                    protocol.readFieldEnd()
+                    field = protocol.readFieldBegin()
                   }
+                  protocol.readStructEnd()
+
+                  var missing = 0
+                  while (missing < len) {
+                    if (!seen(missing)) {
+                      decodeError(s"Missing field ${fields(missing).name} (${missing + 1})")
+                    }
+                    missing += 1
+                  }
+
+                  constructor.construct(regs, 0)
                 }
 
                 def encode(value: A, protocol: TProtocol): Unit = {
