@@ -21,7 +21,6 @@ object MacroTest extends ZIOSpecDefault {
         fieldPath.serialize == "name"
       )
     },
-
     test("MacroSelectors should extract field name") {
       val fieldName = MacroSelectors.fieldName((p: TestPerson) => p.age)
 

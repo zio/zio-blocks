@@ -20,7 +20,6 @@ object HOASTest extends ZIOSpecDefault {
         fieldPath.serialize == "name"
       )
     },
-
     test("HOAS should extract with explicit lambda") {
       val fieldPath = HOASPathMacros.extractPathHOAS[TestPerson](p => p.age)
 

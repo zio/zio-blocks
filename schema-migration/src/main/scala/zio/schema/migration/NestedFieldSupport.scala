@@ -4,8 +4,8 @@ import zio.schema._
 import zio.Chunk
 
 /**
- * Enhanced support for nested field operations.
- * Handles paths like "person.address.street"
+ * Enhanced support for nested field operations. Handles paths like
+ * "person.address.street"
  */
 object NestedFieldSupport {
 
@@ -16,7 +16,7 @@ object NestedFieldSupport {
     value: DynamicValue,
     path: FieldPath,
     operation: DynamicValue => Either[MigrationError, DynamicValue]
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     path match {
       case FieldPath.Root(name) =>
         // Base case: apply directly to the field
@@ -29,7 +29,7 @@ object NestedFieldSupport {
                     typeId,
                     values.map {
                       case (n, v) if n == name => (n, newValue)
-                      case other => other
+                      case other               => other
                     }
                   )
                 }
@@ -37,11 +37,13 @@ object NestedFieldSupport {
                 Left(MigrationError.FieldNotFound(name))
             }
           case _ =>
-            Left(MigrationError.TypeMismatch(
-              name,
-              "Record",
-              value.getClass.getSimpleName
-            ))
+            Left(
+              MigrationError.TypeMismatch(
+                name,
+                "Record",
+                value.getClass.getSimpleName
+              )
+            )
         }
 
       case FieldPath.Nested(parent, child) =>
@@ -59,7 +61,7 @@ object NestedFieldSupport {
                         typeId,
                         values.map {
                           case (n, v) if n == parentName => (n, newParentValue)
-                          case other => other
+                          case other                     => other
                         }
                       )
                     }
@@ -68,19 +70,22 @@ object NestedFieldSupport {
                 }
               case nestedParent: FieldPath.Nested =>
                 // Further nesting: recurse on parent
-                applyNested(value, nestedParent, { parentValue =>
-                  applyNested(parentValue, FieldPath.Root(child), operation)
-                })
+                applyNested(
+                  value,
+                  nestedParent,
+                  parentValue => applyNested(parentValue, FieldPath.Root(child), operation)
+                )
             }
           case _ =>
-            Left(MigrationError.TypeMismatch(
-              path.serialize,
-              "Record",
-              value.getClass.getSimpleName
-            ))
+            Left(
+              MigrationError.TypeMismatch(
+                path.serialize,
+                "Record",
+                value.getClass.getSimpleName
+              )
+            )
         }
     }
-  }
 
   /**
    * Get a nested field value
@@ -88,20 +93,23 @@ object NestedFieldSupport {
   def getNested(
     value: DynamicValue,
     path: FieldPath
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     path match {
       case FieldPath.Root(name) =>
         value match {
           case DynamicValue.Record(_, values) =>
-            values.find(_._1 == name)
+            values
+              .find(_._1 == name)
               .map { case (_, v) => Right(v) }
               .getOrElse(Left(MigrationError.FieldNotFound(name)))
           case _ =>
-            Left(MigrationError.TypeMismatch(
-              name,
-              "Record",
-              value.getClass.getSimpleName
-            ))
+            Left(
+              MigrationError.TypeMismatch(
+                name,
+                "Record",
+                value.getClass.getSimpleName
+              )
+            )
         }
 
       case FieldPath.Nested(parent, child) =>
@@ -109,7 +117,6 @@ object NestedFieldSupport {
           getNested(parentValue, FieldPath.Root(child))
         }
     }
-  }
 
   /**
    * Set a nested field value
@@ -118,16 +125,14 @@ object NestedFieldSupport {
     value: DynamicValue,
     path: FieldPath,
     newValue: DynamicValue
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     applyNested(value, path, _ => Right(newValue))
-  }
 
   /**
    * Check if a nested field exists
    */
-  def hasNested(value: DynamicValue, path: FieldPath): Boolean = {
+  def hasNested(value: DynamicValue, path: FieldPath): Boolean =
     getNested(value, path).isRight
-  }
 
   /**
    * Add a nested field (creating parent structure if needed)
@@ -136,24 +141,28 @@ object NestedFieldSupport {
     value: DynamicValue,
     path: FieldPath,
     defaultValue: DynamicValue
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     path match {
       case FieldPath.Root(name) =>
         value match {
           case DynamicValue.Record(typeId, values) =>
             if (values.exists(_._1 == name)) {
-              Left(MigrationError.InvalidMigration(
-                s"Field $name already exists"
-              ))
+              Left(
+                MigrationError.InvalidMigration(
+                  s"Field $name already exists"
+                )
+              )
             } else {
               Right(DynamicValue.Record(typeId, values + (name -> defaultValue)))
             }
           case _ =>
-            Left(MigrationError.TypeMismatch(
-              name,
-              "Record",
-              value.getClass.getSimpleName
-            ))
+            Left(
+              MigrationError.TypeMismatch(
+                name,
+                "Record",
+                value.getClass.getSimpleName
+              )
+            )
         }
 
       case FieldPath.Nested(parent, child) =>
@@ -164,7 +173,6 @@ object NestedFieldSupport {
           }
         }
     }
-  }
 
   /**
    * Drop a nested field
@@ -172,21 +180,25 @@ object NestedFieldSupport {
   def dropNested(
     value: DynamicValue,
     path: FieldPath
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     path match {
       case FieldPath.Root(name) =>
         value match {
           case DynamicValue.Record(typeId, values) =>
-            Right(DynamicValue.Record(
-              typeId,
-              values.filter(_._1 != name)
-            ))
+            Right(
+              DynamicValue.Record(
+                typeId,
+                values.filter(_._1 != name)
+              )
+            )
           case _ =>
-            Left(MigrationError.TypeMismatch(
-              name,
-              "Record",
-              value.getClass.getSimpleName
-            ))
+            Left(
+              MigrationError.TypeMismatch(
+                name,
+                "Record",
+                value.getClass.getSimpleName
+              )
+            )
         }
 
       case FieldPath.Nested(parent, child) =>
@@ -196,5 +208,4 @@ object NestedFieldSupport {
           }
         }
     }
-  }
 }

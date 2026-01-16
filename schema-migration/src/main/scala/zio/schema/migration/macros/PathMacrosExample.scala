@@ -5,19 +5,20 @@ import zio.schema.migration.FieldPath
 import zio.schema.migration.PathMacros
 
 /**
- * Example implementations showing how to use PathMacros for type-safe field selection.
+ * Example implementations showing how to use PathMacros for type-safe field
+ * selection.
  *
  * This demonstrates the ergonomic API:
  *
- * .addField(_.age, 0)  instead of  .addField("age", 0)
+ * .addField(_.age, 0) instead of .addField("age", 0)
  *
- * NOTE: This is a reference implementation showing macro usage patterns.
- * The actual PathMacros implementation is in zio.schema.migration.PathMacros.
+ * NOTE: This is a reference implementation showing macro usage patterns. The
+ * actual PathMacros implementation is in zio.schema.migration.PathMacros.
  *
  * Full integration requires:
- * 1. Updating MigrationBuilder to use these macros
- * 2. Adding implicit Schema resolution
- * 3. Compile-time validation of field existence
+ *   1. Updating MigrationBuilder to use these macros
+ *   2. Adding implicit Schema resolution
+ *   3. Compile-time validation of field existence
  */
 
 /**
@@ -28,8 +29,8 @@ object ValidationMacros {
   /**
    * Validate that a field exists in a schema at compile-time
    *
-   * This would integrate with ZIO Schema's type-level information
-   * to ensure the field path is valid.
+   * This would integrate with ZIO Schema's type-level information to ensure the
+   * field path is valid.
    */
   inline def validateField[A](inline selector: A => Any): Unit =
     ${ validateFieldImpl[A]('selector) }
@@ -56,8 +57,7 @@ object ValidationMacros {
 /**
  * Enhanced MigrationBuilder using macros
  *
- * This shows how the builder API would look with macro-powered
- * field selectors.
+ * This shows how the builder API would look with macro-powered field selectors.
  */
 object EnhancedBuilderExample {
   import zio.schema.*
@@ -82,9 +82,9 @@ object EnhancedBuilderExample {
       inline selector: B => T,
       defaultValue: T
     ): MacroMigrationBuilder[A, B] = {
-      val path = PathMacros.extractPath(selector)
+      val path    = PathMacros.extractPath(selector)
       val dynamic = DynamicValue.fromSchemaAndValue(summon[Schema[T]], defaultValue)
-      val action = MigrationAction.AddField(path, dynamic)
+      val action  = MigrationAction.AddField(path, dynamic)
       new MacroMigrationBuilder[A, B](sourceSchema, targetSchema, actions :+ action)
     }
 
@@ -96,7 +96,7 @@ object EnhancedBuilderExample {
     inline def dropField[T](
       inline selector: A => T
     ): MacroMigrationBuilder[A, B] = {
-      val path = PathMacros.extractPath(selector)
+      val path   = PathMacros.extractPath(selector)
       val action = MigrationAction.DropField(path)
       new MacroMigrationBuilder[A, B](sourceSchema, targetSchema, actions :+ action)
     }
@@ -112,7 +112,7 @@ object EnhancedBuilderExample {
     ): MacroMigrationBuilder[A, B] = {
       val oldPath = PathMacros.extractPath(oldSelector)
       val newPath = PathMacros.extractPath(newSelector)
-      val action = MigrationAction.RenameField(oldPath, newPath)
+      val action  = MigrationAction.RenameField(oldPath, newPath)
       new MacroMigrationBuilder[A, B](sourceSchema, targetSchema, actions :+ action)
     }
 
@@ -125,7 +125,7 @@ object EnhancedBuilderExample {
       inline selector: A => Any,
       transformation: SerializableTransformation
     ): MacroMigrationBuilder[A, B] = {
-      val path = PathMacros.extractPath(selector)
+      val path   = PathMacros.extractPath(selector)
       val action = MigrationAction.TransformField(path, transformation)
       new MacroMigrationBuilder[A, B](sourceSchema, targetSchema, actions :+ action)
     }
@@ -139,36 +139,30 @@ object EnhancedBuilderExample {
   /**
    * Example usage with macro-powered API
    *
-   * NOTE: This cannot be in the same file as the macro definitions due to Scala 3 restrictions.
-   * In a real implementation, this would be in a separate file.
+   * NOTE: This cannot be in the same file as the macro definitions due to Scala
+   * 3 restrictions. In a real implementation, this would be in a separate file.
    *
    * Example code (move to separate file to use):
    *
-   * case class PersonV1(firstName: String, lastName: String, age: Int)
-   * case class PersonV2(fullName: String, age: Int, verified: Boolean)
+   * case class PersonV1(firstName: String, lastName: String, age: Int) case
+   * class PersonV2(fullName: String, age: Int, verified: Boolean)
    *
-   * given Schema[PersonV1] = DeriveSchema.gen[PersonV1]
-   * given Schema[PersonV2] = DeriveSchema.gen[PersonV2]
+   * given Schema[PersonV1] = DeriveSchema.gen[PersonV1] given Schema[PersonV2] =
+   * DeriveSchema.gen[PersonV2]
    *
-   * // This is the ergonomic API we want:
-   * val migration = new MacroMigrationBuilder[PersonV1, PersonV2](
-   *   summon[Schema[PersonV1]],
-   *   summon[Schema[PersonV2]],
-   *   Chunk.empty
-   * )
-   *   .renameField(_.firstName, _.fullName)  // Compile-time validated!
-   *   .dropField(_.lastName)                 // Type-safe!
-   *   .addField(_.verified, false)           // Knows the type!
-   *   .transformField(_.age, SerializableTransformation.AddConstant(1))  // Serializable transformation!
-   *   .build
+   * // This is the ergonomic API we want: val migration = new
+   * MacroMigrationBuilder[PersonV1, PersonV2]( summon[Schema[PersonV1]],
+   * summon[Schema[PersonV2]], Chunk.empty ) .renameField(_.firstName,
+   * _.fullName) // Compile-time validated! .dropField(_.lastName) // Type-safe!
+   * .addField(_.verified, false) // Knows the type! .transformField(_.age,
+   * SerializableTransformation.AddConstant(1)) // Serializable transformation!
+   * .build
    *
-   * // Apply the migration
-   * val v1 = PersonV1("John", "Doe", 30)
-   * val v2: Either[MigrationError, PersonV2] = migration(v1)
+   * // Apply the migration val v1 = PersonV1("John", "Doe", 30) val v2:
+   * Either[MigrationError, PersonV2] = migration(v1)
    */
-  def example(): Unit = {
+  def example(): Unit =
     println("Macro example usage must be in a separate file")
-  }
 }
 
 /**
@@ -180,9 +174,9 @@ object SchemaCompatibilityMacros {
    * Verify at compile-time that a migration is valid
    *
    * This would check:
-   * - All referenced fields exist
-   * - Type transformations are compatible
-   * - Target schema can accommodate the changes
+   *   - All referenced fields exist
+   *   - Type transformations are compatible
+   *   - Target schema can accommodate the changes
    */
   inline def validateMigration[A, B](
     inline builder: Any

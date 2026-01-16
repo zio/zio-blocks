@@ -25,7 +25,7 @@ object MigrationSpec extends ZIOSpecDefault {
       case class After(name: String, age: Int)
 
       implicit val beforeSchema: Schema[Before] = DeriveSchema.gen[Before]
-      implicit val afterSchema: Schema[After] = DeriveSchema.gen[After]
+      implicit val afterSchema: Schema[After]   = DeriveSchema.gen[After]
 
       val migration = MigrationBuilder[Before, After]
         .addField[Int]("age", 0)
@@ -36,13 +36,12 @@ object MigrationSpec extends ZIOSpecDefault {
 
       assertTrue(result.isRight)
     },
-
     test("should rename a field") {
       case class Before(oldName: String)
       case class After(newName: String)
 
       implicit val beforeSchema: Schema[Before] = DeriveSchema.gen[Before]
-      implicit val afterSchema: Schema[After] = DeriveSchema.gen[After]
+      implicit val afterSchema: Schema[After]   = DeriveSchema.gen[After]
 
       val migration = MigrationBuilder[Before, After]
         .renameField("oldName", "newName")
@@ -53,13 +52,12 @@ object MigrationSpec extends ZIOSpecDefault {
 
       assertTrue(result.isRight)
     },
-
     test("should drop a field") {
       case class Before(name: String, age: Int)
       case class After(name: String)
 
       implicit val beforeSchema: Schema[Before] = DeriveSchema.gen[Before]
-      implicit val afterSchema: Schema[After] = DeriveSchema.gen[After]
+      implicit val afterSchema: Schema[After]   = DeriveSchema.gen[After]
 
       val migration = MigrationBuilder[Before, After]
         .dropField("age")
@@ -70,7 +68,6 @@ object MigrationSpec extends ZIOSpecDefault {
 
       assertTrue(result.isRight)
     },
-
     test("should compose migrations") {
       case class V1(a: String)
       case class V2(b: String)
@@ -90,18 +87,17 @@ object MigrationSpec extends ZIOSpecDefault {
 
       val composedMigration = migration1 ++ migration2
 
-      val v1 = V1("test")
+      val v1     = V1("test")
       val result = composedMigration(v1)
 
       assertTrue(result.isRight)
     },
-
     test("should reverse a migration") {
       case class Before(name: String, age: Int)
       case class After(name: String)
 
       implicit val beforeSchema: Schema[Before] = DeriveSchema.gen[Before]
-      implicit val afterSchema: Schema[After] = DeriveSchema.gen[After]
+      implicit val afterSchema: Schema[After]   = DeriveSchema.gen[After]
 
       val migration = MigrationBuilder[Before, After]
         .dropField("age")
@@ -112,13 +108,12 @@ object MigrationSpec extends ZIOSpecDefault {
       // Drop is not reversible
       assertTrue(reversed.isLeft)
     },
-
     test("should reverse a reversible migration") {
       case class Before(name: String)
       case class After(name: String, age: Int)
 
       implicit val beforeSchema: Schema[Before] = DeriveSchema.gen[Before]
-      implicit val afterSchema: Schema[After] = DeriveSchema.gen[After]
+      implicit val afterSchema: Schema[After]   = DeriveSchema.gen[After]
 
       val migration = MigrationBuilder[Before, After]
         .addField[Int]("age", 25)
@@ -128,7 +123,6 @@ object MigrationSpec extends ZIOSpecDefault {
 
       assertTrue(reversed.isRight)
     },
-
     test("should optimize redundant operations") {
       case class V1(a: String)
       case class V2(c: String)
@@ -146,7 +140,6 @@ object MigrationSpec extends ZIOSpecDefault {
       val actions = migration.dynamicMigration.actions
       assertTrue(actions.length == 1)
     },
-
     test("DynamicMigration should serialize and deserialize") {
       val migration = DynamicMigration.single(
         MigrationAction.AddField(
@@ -159,12 +152,11 @@ object MigrationSpec extends ZIOSpecDefault {
       // For now, just verify the schema exists
       assertTrue(DynamicMigration.schema != null)
     },
-
     test("FieldPath should parse correctly") {
       val path = FieldPath.parse("person.address.street")
       assertTrue(
         path.isRight &&
-        path.toOption.get.serialize == "person.address.street"
+          path.toOption.get.serialize == "person.address.street"
       )
     }
   )

@@ -8,15 +8,16 @@ import scala.quoted.*
  * This uses Scala 3's quoted pattern matching with HOAS patterns to extract
  * lambda bodies BEFORE eta-expansion occurs.
  *
- * Based on Scala 3 documentation: https://docs.scala-lang.org/scala3/reference/metaprogramming/macros.html
+ * Based on Scala 3 documentation:
+ * https://docs.scala-lang.org/scala3/reference/metaprogramming/macros.html
  */
 object HOASPathMacros {
 
   /**
    * Extract field path using HOAS pattern matching.
    *
-   * Pattern: '{ (x: T) => $f(x) }
-   * This extracts the function body before eta-expansion.
+   * Pattern: '{ (x: T) => $f(x) } This extracts the function body before
+   * eta-expansion.
    */
   inline def extractPathHOAS[A](inline selector: A => Any): FieldPath =
     ${ extractPathHOASImpl[A]('selector) }
@@ -47,7 +48,7 @@ object HOASPathMacros {
     // If the term is itself a lambda, extract its body
     val bodyTerm = term match {
       case Lambda(_, body) => body
-      case other => other
+      case other           => other
     }
 
     def extractNames(t: Term): List[String] = t match {
@@ -84,11 +85,11 @@ object HOASPathMacros {
     // Build FieldPath expression
     fields match {
       case head :: Nil =>
-        '{ FieldPath.Root(${Expr(head)}) }
+        '{ FieldPath.Root(${ Expr(head) }) }
 
       case head :: tail =>
-        tail.foldLeft[Expr[FieldPath]]('{ FieldPath.Root(${Expr(head)}) }) {
-          (acc, field) => '{ FieldPath.Nested($acc, ${Expr(field)}) }
+        tail.foldLeft[Expr[FieldPath]]('{ FieldPath.Root(${ Expr(head) }) }) { (acc, field) =>
+          '{ FieldPath.Nested($acc, ${ Expr(field) }) }
         }
 
       case Nil =>

@@ -5,8 +5,8 @@ import zio.Chunk
 import scala.collection.immutable.ListMap
 
 /**
- * An action that transforms a DynamicValue from one shape to another.
- * All actions are serializable and can be reversed if possible.
+ * An action that transforms a DynamicValue from one shape to another. All
+ * actions are serializable and can be reversed if possible.
  */
 sealed trait MigrationAction {
   def reverse: Option[MigrationAction]
@@ -24,55 +24,61 @@ object MigrationAction {
 
     def reverse: Option[MigrationAction] = Some(DropField(path))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       path match {
         case FieldPath.Root(name) =>
           value match {
             case DynamicValue.Record(typeId, values) =>
               // Use existing typeId, convert to ListMap with new field
-              Right(DynamicValue.Record(
-                typeId,
-                values + (name -> defaultValue)
-              ))
+              Right(
+                DynamicValue.Record(
+                  typeId,
+                  values + (name -> defaultValue)
+                )
+              )
             case _ =>
-              Left(MigrationError.TypeMismatch(
-                path.serialize,
-                "Record",
-                value.getClass.getSimpleName
-              ))
+              Left(
+                MigrationError.TypeMismatch(
+                  path.serialize,
+                  "Record",
+                  value.getClass.getSimpleName
+                )
+              )
           }
         case nested: FieldPath.Nested =>
           // Use NestedFieldSupport for nested paths
           NestedFieldSupport.addNested(value, path, defaultValue)
       }
-    }
   }
 
   /** Drop a field from the record */
   case class DropField(path: FieldPath) extends MigrationAction {
     def reverse: Option[MigrationAction] = None // Lossy - cannot recover dropped data
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       path match {
         case FieldPath.Root(name) =>
           value match {
             case DynamicValue.Record(typeId, values) =>
-              Right(DynamicValue.Record(
-                typeId,
-                values - name
-              ))
+              Right(
+                DynamicValue.Record(
+                  typeId,
+                  values - name
+                )
+              )
             case _ =>
-              Left(MigrationError.TypeMismatch(
-                path.serialize,
-                "Record",
-                value.getClass.getSimpleName
-              ))
+              Left(
+                MigrationError.TypeMismatch(
+                  path.serialize,
+                  "Record",
+                  value.getClass.getSimpleName
+                )
+              )
           }
         case nested: FieldPath.Nested =>
           // Use NestedFieldSupport for nested paths
           NestedFieldSupport.dropNested(value, path)
       }
-    }
   }
 
   /** Rename a field */
@@ -83,7 +89,7 @@ object MigrationAction {
 
     def reverse: Option[MigrationAction] = Some(RenameField(newPath, oldPath))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       (oldPath, newPath) match {
         case (FieldPath.Root(oldName), FieldPath.Root(newName)) =>
           value match {
@@ -97,21 +103,22 @@ object MigrationAction {
                   Left(MigrationError.FieldNotFound(oldPath.serialize))
               }
             case _ =>
-              Left(MigrationError.TypeMismatch(
-                oldPath.serialize,
-                "Record",
-                value.getClass.getSimpleName
-              ))
+              Left(
+                MigrationError.TypeMismatch(
+                  oldPath.serialize,
+                  "Record",
+                  value.getClass.getSimpleName
+                )
+              )
           }
         case _ =>
           // Handle nested paths - get old value, drop old, add new
           for {
-            oldValue <- NestedFieldSupport.getNested(value, oldPath)
+            oldValue  <- NestedFieldSupport.getNested(value, oldPath)
             afterDrop <- NestedFieldSupport.dropNested(value, oldPath)
-            result <- NestedFieldSupport.addNested(afterDrop, newPath, oldValue)
+            result    <- NestedFieldSupport.addNested(afterDrop, newPath, oldValue)
           } yield result
       }
-    }
   }
 
   /** Transform a field using a serializable transformation */
@@ -122,7 +129,7 @@ object MigrationAction {
 
     def reverse: Option[MigrationAction] = None // Cannot reverse arbitrary transformation
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       path match {
         case FieldPath.Root(name) =>
           value match {
@@ -139,19 +146,22 @@ object MigrationAction {
                   Left(MigrationError.FieldNotFound(path.serialize))
               }
             case _ =>
-              Left(MigrationError.TypeMismatch(
-                path.serialize,
-                "Record",
-                value.getClass.getSimpleName
-              ))
+              Left(
+                MigrationError.TypeMismatch(
+                  path.serialize,
+                  "Record",
+                  value.getClass.getSimpleName
+                )
+              )
           }
         case nested: FieldPath.Nested =>
           // Use NestedFieldSupport for nested transformations
-          NestedFieldSupport.applyNested(value, path, v =>
-            transformation(v).left.map(err => MigrationError.TransformationFailed(path.serialize, err))
+          NestedFieldSupport.applyNested(
+            value,
+            path,
+            v => transformation(v).left.map(err => MigrationError.TransformationFailed(path.serialize, err))
           )
       }
-    }
   }
 
   /** Compose multiple field migrations */
@@ -168,12 +178,11 @@ object MigrationAction {
       }
     }
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
         case (Right(v), action) => action(v)
-        case (left, _) => left
+        case (left, _)          => left
       }
-    }
   }
 
   // Schema for serialization

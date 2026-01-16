@@ -2,13 +2,16 @@ package zio.schema.migration
 
 import zio.schema._
 
-/** Represents a path to a field in a schema, serializable and reconstructable */
+/**
+ * Represents a path to a field in a schema, serializable and reconstructable
+ */
 sealed trait FieldPath {
   def serialize: String
   def ::(segment: String): FieldPath = FieldPath.Nested(this, segment)
 }
 
 object FieldPath {
+
   /** Root field path pointing to a top-level field */
   case class Root(name: String) extends FieldPath {
     def serialize: String = name
@@ -25,7 +28,7 @@ object FieldPath {
     if (segments.isEmpty) {
       Left("Empty path")
     } else {
-      val root = Root(segments.head)
+      val root   = Root(segments.head)
       val nested = segments.tail.foldLeft[FieldPath](root) { (acc, segment) =>
         FieldPath.Nested(acc, segment)
       }

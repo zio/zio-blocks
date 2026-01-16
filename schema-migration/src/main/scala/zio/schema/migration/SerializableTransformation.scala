@@ -3,8 +3,8 @@ package zio.schema.migration
 import zio.schema._
 
 /**
- * A serializable representation of data transformations.
- * Unlike arbitrary functions, these can be serialized and stored.
+ * A serializable representation of data transformations. Unlike arbitrary
+ * functions, these can be serialized and stored.
  */
 sealed trait SerializableTransformation {
   def apply(value: DynamicValue): Either[String, DynamicValue]
@@ -76,7 +76,7 @@ object SerializableTransformation {
       case DynamicValue.Primitive(s: String, _) =>
         s.toIntOption match {
           case Some(i) => Right(DynamicValue.Primitive(i, StandardType.IntType))
-          case None => Left(s"Cannot convert '$s' to Int")
+          case None    => Left(s"Cannot convert '$s' to Int")
         }
       case _ =>
         Left("Expected String value for StringToInt transformation")
@@ -104,12 +104,11 @@ object SerializableTransformation {
 
   /** Chain multiple transformations */
   case class Chain(transformations: List[SerializableTransformation]) extends SerializableTransformation {
-    def apply(value: DynamicValue): Either[String, DynamicValue] = {
+    def apply(value: DynamicValue): Either[String, DynamicValue] =
       transformations.foldLeft[Either[String, DynamicValue]](Right(value)) {
         case (Right(v), transformation) => transformation(v)
-        case (left, _) => left
+        case (left, _)                  => left
       }
-    }
   }
 
   /** Identity transformation (no-op) */

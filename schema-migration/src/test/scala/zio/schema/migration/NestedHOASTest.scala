@@ -13,7 +13,7 @@ object NestedHOASTest extends ZIOSpecDefault {
   case class Person(name: String, age: Int, address: Address)
 
   given Schema[Address] = DeriveSchema.gen[Address]
-  given Schema[Person] = DeriveSchema.gen[Person]
+  given Schema[Person]  = DeriveSchema.gen[Person]
 
   def spec = suite("NestedHOASTest")(
     test("HOAS should extract nested field path") {
@@ -23,7 +23,6 @@ object NestedHOASTest extends ZIOSpecDefault {
         fieldPath.serialize == "address.street"
       )
     },
-
     test("HOAS should extract triple nested path") {
       val fieldPath = HOASPathMacros.extractPathHOAS[Person](p => p.address.city)
 

@@ -5,24 +5,23 @@ import scala.quoted.*
 /**
  * Scala 3 macros for extracting field paths from lambda expressions.
  *
- * Enables ergonomic API:
- *   .addField(_.age, 0)  instead of  .addField("age", 0)
+ * Enables ergonomic API: .addField(_.age, 0) instead of .addField("age", 0)
  *
- * Requires the zio-schema-migration-plugin compiler plugin to be loaded.
- * The plugin intercepts lambda expressions before eta-expansion and stores
- * field paths as tree attachments, which this macro retrieves.
+ * Requires the zio-schema-migration-plugin compiler plugin to be loaded. The
+ * plugin intercepts lambda expressions before eta-expansion and stores field
+ * paths as tree attachments, which this macro retrieves.
  */
 object PathMacros {
 
   /**
    * Extract a field path from a lambda expression
    *
-   * Usage:
-   *   extractPath[Person](_.name) => FieldPath.Root("name")
-   *   extractPath[Person](_.address.street) => FieldPath.Nested(Root("address"), "street")
+   * Usage: extractPath[Person](_.name) => FieldPath.Root("name")
+   * extractPath[Person](_.address.street) => FieldPath.Nested(Root("address"),
+   * "street")
    *
-   * Note: Requires compiler plugin for automatic field path extraction.
-   * The plugin transforms this call to extractPathWithString.
+   * Note: Requires compiler plugin for automatic field path extraction. The
+   * plugin transforms this call to extractPathWithString.
    */
   inline def extractPath[A](inline selector: A => Any): FieldPath =
     ${ extractPathImpl[A]('selector) }
@@ -30,20 +29,22 @@ object PathMacros {
   /**
    * Extract path with string provided by compiler plugin.
    *
-   * This method is called by the compiler plugin after it extracts the field path.
-   * Users should not call this directly.
+   * This method is called by the compiler plugin after it extracts the field
+   * path. Users should not call this directly.
    */
   inline def extractPathWithString[A](inline selector: A => Any, pathString: String): FieldPath =
-    FieldPath.parse(pathString).getOrElse(
-      throw new IllegalArgumentException(s"Invalid field path: $pathString")
-    )
+    FieldPath
+      .parse(pathString)
+      .getOrElse(
+        throw new IllegalArgumentException(s"Invalid field path: $pathString")
+      )
 
   /**
    * Implementation of path extraction macro.
    *
-   * This checks for a field path attachment from the compiler plugin.
-   * If found, uses that. Otherwise falls back to term inspection (which
-   * will likely fail due to eta-expansion).
+   * This checks for a field path attachment from the compiler plugin. If found,
+   * uses that. Otherwise falls back to term inspection (which will likely fail
+   * due to eta-expansion).
    */
   def extractPathImpl[A: Type](
     selector: Expr[A => Any]
@@ -71,7 +72,7 @@ object PathMacros {
     // If term is a lambda, extract its body
     val bodyTerm = term match {
       case Lambda(_, body) => body
-      case other => other
+      case other           => other
     }
 
     def extractFieldNames(t: Term): List[String] = t match {
@@ -112,7 +113,7 @@ object PathMacros {
       // Access the attachment through reflection
       // FieldPathKey is defined in the plugin, we need to access it dynamically
       val attachmentClass = Class.forName("zio.schema.migration.plugin.FieldSelectorPhase$FieldPathKey$")
-      val keyInstance = attachmentClass.getField("MODULE$").get(null)
+      val keyInstance     = attachmentClass.getField("MODULE$").get(null)
 
       // Try to get attachment (this is a simplified approach)
       // In reality, we need proper API access
@@ -132,20 +133,19 @@ object PathMacros {
     buildFieldPath(fields)
   }
 
-  private def buildFieldPath(using Quotes)(fields: List[String]): Expr[FieldPath] = {
+  private def buildFieldPath(using Quotes)(fields: List[String]): Expr[FieldPath] =
     fields match {
       case head :: Nil =>
-        '{ FieldPath.Root(${Expr(head)}) }
+        '{ FieldPath.Root(${ Expr(head) }) }
 
       case head :: tail =>
-        tail.foldLeft[Expr[FieldPath]]('{ FieldPath.Root(${Expr(head)}) }) {
-          (acc, field) => '{ FieldPath.Nested($acc, ${Expr(field)}) }
+        tail.foldLeft[Expr[FieldPath]]('{ FieldPath.Root(${ Expr(head) }) }) { (acc, field) =>
+          '{ FieldPath.Nested($acc, ${ Expr(field) }) }
         }
 
       case Nil =>
         quotes.reflect.report.errorAndAbort("Empty field path")
     }
-  }
 
   private def extractFromTerm(using Quotes)(selectorTerm: quotes.reflect.Term): Expr[FieldPath] = {
     import quotes.reflect.*
@@ -181,35 +181,35 @@ object PathMacros {
 
     // Unwrap the selector to get to the lambda body
     def unwrapTerm(term: Term): Term = term match {
-      case Block(_, expr) => unwrapTerm(expr)
+      case Block(_, expr)      => unwrapTerm(expr)
       case Inlined(_, _, expr) => unwrapTerm(expr)
-      case Typed(inner, _) => unwrapTerm(inner)
-      case other => other
+      case Typed(inner, _)     => unwrapTerm(inner)
+      case other               => other
     }
 
     // Extract body, handling eta-expansion with deep tree inspection
     def extractBody(term: Term): Term = term match {
-      case Lambda(_, body) => body
-      case Block(List(), expr) => extractBody(expr)
+      case Lambda(_, body)                     => body
+      case Block(List(), expr)                 => extractBody(expr)
       case Block(stats, expr) if stats.isEmpty => extractBody(expr)
-      case Inlined(_, _, expr) => extractBody(expr)
-      case Typed(inner, _) => extractBody(inner)
+      case Inlined(_, _, expr)                 => extractBody(expr)
+      case Typed(inner, _)                     => extractBody(inner)
       // Handle closure/function references
       case Ident(name) =>
         // Try to find the definition in the symbol tree
         term.symbol.tree match {
           case DefDef(_, _, _, Some(rhs)) => extractBody(rhs)
-          case ValDef(_, _, Some(rhs)) => extractBody(rhs)
-          case _ =>
+          case ValDef(_, _, Some(rhs))    => extractBody(rhs)
+          case _                          =>
             // Last resort: check if this is a Select that we can extract
             report.errorAndAbort(s"Invalid field selector: ${term.show}")
         }
       case Apply(fun, args) => extractBody(fun)
-      case other => other
+      case other            => other
     }
 
     val unwrapped = unwrapTerm(selectorTerm)
-    val body = extractBody(unwrapped)
+    val body      = extractBody(unwrapped)
 
     val fields = extractFieldNames(body).filter(_.nonEmpty)
 

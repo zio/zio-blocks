@@ -6,8 +6,8 @@ import zio.schema.Schema
 /**
  * Macro implementations for MigrationBuilder.
  *
- * These macros extract field paths from lambda expressions and delegate
- * to the string-based methods, avoiding nested inline complexity.
+ * These macros extract field paths from lambda expressions and delegate to the
+ * string-based methods, avoiding nested inline complexity.
  */
 object MigrationBuilderMacros {
 
@@ -21,7 +21,7 @@ object MigrationBuilderMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect._
 
-    val fieldPath = PathMacros.extractPathImpl[B](selector)
+    val fieldPath  = PathMacros.extractPathImpl[B](selector)
     val pathString = extractPathString(fieldPath)
 
     // We need to get the Schema[T] from implicit scope at the call site
@@ -42,7 +42,7 @@ object MigrationBuilderMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect._
 
-    val fieldPath = PathMacros.extractPathImpl[A](selector)
+    val fieldPath  = PathMacros.extractPathImpl[A](selector)
     val pathString = extractPathString(fieldPath)
 
     '{ $builder.dropField($pathString) }
@@ -58,8 +58,8 @@ object MigrationBuilderMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect._
 
-    val oldPath = PathMacros.extractPathImpl[A](oldSelector)
-    val newPath = PathMacros.extractPathImpl[B](newSelector)
+    val oldPath       = PathMacros.extractPathImpl[A](oldSelector)
+    val newPath       = PathMacros.extractPathImpl[B](newSelector)
     val oldPathString = extractPathString(oldPath)
     val newPathString = extractPathString(newPath)
 
@@ -76,7 +76,7 @@ object MigrationBuilderMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect._
 
-    val fieldPath = PathMacros.extractPathImpl[A](selector)
+    val fieldPath  = PathMacros.extractPathImpl[A](selector)
     val pathString = extractPathString(fieldPath)
 
     '{ $builder.transformField($pathString, $transformation) }

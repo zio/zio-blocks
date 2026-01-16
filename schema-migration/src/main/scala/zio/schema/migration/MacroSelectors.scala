@@ -21,8 +21,8 @@ object MacroSelectors {
     ${ fieldNameImpl[A]('selector) }
 
   /**
-   * Plugin-facing version with extracted path string.
-   * Users should not call this directly.
+   * Plugin-facing version with extracted path string. Users should not call
+   * this directly.
    */
   inline def fieldNameWithString[A](inline selector: A => Any, pathString: String): String =
     pathString
@@ -52,13 +52,15 @@ object MacroSelectors {
     ${ fieldImpl[A]('selector) }
 
   /**
-   * Plugin-facing version with extracted path string.
-   * Users should not call this directly.
+   * Plugin-facing version with extracted path string. Users should not call
+   * this directly.
    */
   inline def fieldWithString[A](inline selector: A => Any, pathString: String): FieldPath =
-    FieldPath.parse(pathString).getOrElse(
-      throw new IllegalArgumentException(s"Invalid field path: $pathString")
-    )
+    FieldPath
+      .parse(pathString)
+      .getOrElse(
+        throw new IllegalArgumentException(s"Invalid field path: $pathString")
+      )
 
   def fieldImpl[A: Type](selector: Expr[A => Any])(using Quotes): Expr[FieldPath] = {
     import quotes.reflect._
@@ -79,15 +81,11 @@ object MacroSelectors {
  *
  * These avoid nested inline by using MacroSelectors in a separate step.
  *
- * Usage:
- *   import MacroSelectors._
+ * Usage: import MacroSelectors._
  *
- *   val migration = MigrationBuilder[V1, V2]
- *     .addField(fieldName((v: V2) => v.age), 0)
- *     .renameField(
- *       fieldName((v: V1) => v.firstName),
- *       fieldName((v: V2) => v.fullName)
- *     )
+ * val migration = MigrationBuilder[V1, V2] .addField(fieldName((v: V2) =>
+ * v.age), 0) .renameField( fieldName((v: V1) => v.firstName), fieldName((v: V2) =>
+ * v.fullName) )
  */
 object MacroSelectorHelpers {
   // No extension methods needed - users can call fieldName() or field()

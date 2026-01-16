@@ -5,12 +5,14 @@ import zio.schema._
 /**
  * A type-safe migration from schema A to schema B.
  *
- * Wraps a DynamicMigration with source and target schemas,
- * providing type safety at compile time while maintaining
- * the ability to serialize the underlying migration.
+ * Wraps a DynamicMigration with source and target schemas, providing type
+ * safety at compile time while maintaining the ability to serialize the
+ * underlying migration.
  *
- * @tparam A Source schema type
- * @tparam B Target schema type
+ * @tparam A
+ *   Source schema type
+ * @tparam B
+ *   Target schema type
  */
 case class Migration[A, B](
   dynamicMigration: DynamicMigration,
@@ -21,7 +23,7 @@ case class Migration[A, B](
   /**
    * Apply this migration to a value of type A, producing a value of type B
    */
-  def apply(value: A): Either[MigrationError, B] = {
+  def apply(value: A): Either[MigrationError, B] =
     for {
       // Convert to DynamicValue using source schema
       dynamic <- toDynamic(value)
@@ -30,7 +32,6 @@ case class Migration[A, B](
       // Convert back to typed value using target schema
       result <- fromDynamic(migrated)
     } yield result
-  }
 
   /**
    * Compose this migration with another migration
@@ -61,32 +62,35 @@ case class Migration[A, B](
    */
   def toDynamic: DynamicMigration = dynamicMigration
 
-  private def toDynamic(value: A): Either[MigrationError, DynamicValue] = {
+  private def toDynamic(value: A): Either[MigrationError, DynamicValue] =
     try {
       Right(DynamicValue.fromSchemaAndValue(sourceSchema, value))
     } catch {
       case e: Exception =>
-        Left(MigrationError.ValidationFailed(
-          "root",
-          s"Failed to convert to DynamicValue: ${e.getMessage}"
-        ))
+        Left(
+          MigrationError.ValidationFailed(
+            "root",
+            s"Failed to convert to DynamicValue: ${e.getMessage}"
+          )
+        )
     }
-  }
 
-  private def fromDynamic(value: DynamicValue): Either[MigrationError, B] = {
+  private def fromDynamic(value: DynamicValue): Either[MigrationError, B] =
     value.toTypedValue(targetSchema) match {
       case Left(error) =>
-        Left(MigrationError.ValidationFailed(
-          "root",
-          s"Failed to convert from DynamicValue: $error"
-        ))
+        Left(
+          MigrationError.ValidationFailed(
+            "root",
+            s"Failed to convert from DynamicValue: $error"
+          )
+        )
       case Right(result) =>
         Right(result)
     }
-  }
 }
 
 object Migration {
+
   /**
    * Create a new migration builder for transforming A to B
    */

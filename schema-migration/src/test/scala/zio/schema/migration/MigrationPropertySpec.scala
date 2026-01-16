@@ -9,11 +9,11 @@ import zio.schema._
  * Property-based tests for the ZIO Schema Migration System.
  *
  * These tests verify algebraic properties that should hold for all inputs:
- * - Reversibility
- * - Composition associativity
- * - Serialization round-trips
- * - Optimization idempotence
- * - Type safety
+ *   - Reversibility
+ *   - Composition associativity
+ *   - Serialization round-trips
+ *   - Optimization idempotence
+ *   - Type safety
  */
 object MigrationPropertySpec extends ZIOSpecDefault {
 
@@ -23,9 +23,7 @@ object MigrationPropertySpec extends ZIOSpecDefault {
    * Generate valid field names (identifiers)
    */
   val genFieldName: Gen[Any, String] =
-    Gen.alphaNumericStringBounded(3, 15).map(s =>
-      if (s.head.isDigit) "f" + s else s
-    )
+    Gen.alphaNumericStringBounded(3, 15).map(s => if (s.head.isDigit) "f" + s else s)
 
   /**
    * Generate root field paths
@@ -38,7 +36,7 @@ object MigrationPropertySpec extends ZIOSpecDefault {
    */
   val genNestedPath: Gen[Any, FieldPath] =
     for {
-      root <- genFieldName
+      root     <- genFieldName
       segments <- Gen.listOfBounded(1, 2)(genFieldName)
     } yield segments.foldLeft[FieldPath](FieldPath.Root(root)) { (acc, field) =>
       FieldPath.Nested(acc, field)
@@ -67,8 +65,8 @@ object MigrationPropertySpec extends ZIOSpecDefault {
    */
   val genSimpleRecord: Gen[Any, DynamicValue.Record] =
     for {
-      numFields <- Gen.int(1, 5)
-      fieldNames <- Gen.listOfN(numFields)(genFieldName).map(_.distinct)
+      numFields   <- Gen.int(1, 5)
+      fieldNames  <- Gen.listOfN(numFields)(genFieldName).map(_.distinct)
       fieldValues <- Gen.listOfN(fieldNames.length)(genPrimitiveDynamicValue)
     } yield {
       val typeId = TypeId.parse("test.Record")
@@ -98,19 +96,16 @@ object MigrationPropertySpec extends ZIOSpecDefault {
   val genMigrationAction: Gen[Any, MigrationAction] =
     Gen.oneOf(
       for {
-        path <- genFieldPath
+        path  <- genFieldPath
         value <- genPrimitiveDynamicValue
       } yield MigrationAction.AddField(path, value),
-
       genFieldPath.map(MigrationAction.DropField.apply),
-
       for {
         oldPath <- genFieldPath
         newPath <- genFieldPath
       } yield MigrationAction.RenameField(oldPath, newPath),
-
       for {
-        path <- genFieldPath
+        path      <- genFieldPath
         transform <- genTransformation
       } yield MigrationAction.TransformField(path, transform)
     )
@@ -126,27 +121,24 @@ object MigrationPropertySpec extends ZIOSpecDefault {
   // ===== Property Tests =====
 
   def spec = suite("MigrationPropertySpec")(
-
     suite("Field Path Properties")(
       test("parse round-trip: parse(path.serialize) == path") {
         check(genFieldPath) { path =>
           val serialized = path.serialize
-          val parsed = FieldPath.parse(serialized)
+          val parsed     = FieldPath.parse(serialized)
 
           assertTrue(
             parsed.isRight &&
-            parsed.toOption.get.serialize == serialized
+              parsed.toOption.get.serialize == serialized
           )
         }
       },
-
       test("root paths serialize to simple names") {
         check(genFieldName) { name =>
           val path = FieldPath.Root(name)
           assertTrue(path.serialize == name)
         }
       },
-
       test("nested paths serialize with dots") {
         check(genFieldName, genFieldName) { (root, child) =>
           val path = FieldPath.Nested(FieldPath.Root(root), child)
@@ -154,39 +146,35 @@ object MigrationPropertySpec extends ZIOSpecDefault {
         }
       }
     ),
-
     suite("Reversibility Properties")(
       test("AddField is reversible") {
         check(genFieldPath, genPrimitiveDynamicValue) { (path, value) =>
-          val action = MigrationAction.AddField(path, value)
+          val action   = MigrationAction.AddField(path, value)
           val reversed = action.reverse
 
           assertTrue(
             reversed.isDefined &&
-            reversed.get.isInstanceOf[MigrationAction.DropField]
+              reversed.get.isInstanceOf[MigrationAction.DropField]
           )
         }
       },
-
       test("RenameField is reversible") {
         check(genFieldPath, genFieldPath) { (oldPath, newPath) =>
-          val action = MigrationAction.RenameField(oldPath, newPath)
+          val action   = MigrationAction.RenameField(oldPath, newPath)
           val reversed = action.reverse
 
           assertTrue(
             reversed.isDefined &&
-            reversed.get.isInstanceOf[MigrationAction.RenameField]
+              reversed.get.isInstanceOf[MigrationAction.RenameField]
           )
         }
       },
-
       test("DropField is not reversible (lossy)") {
         check(genFieldPath) { path =>
           val action = MigrationAction.DropField(path)
           assertTrue(action.reverse.isEmpty)
         }
       },
-
       test("TransformField is not reversible (potentially lossy)") {
         check(genFieldPath, genTransformation) { (path, transform) =>
           val action = MigrationAction.TransformField(path, transform)
@@ -195,7 +183,6 @@ object MigrationPropertySpec extends ZIOSpecDefault {
         }
       }
     ),
-
     suite("Serialization Properties")(
       test("DynamicMigration serialization round-trip") {
         check(genDynamicMigration) { migration =>
@@ -208,21 +195,19 @@ object MigrationPropertySpec extends ZIOSpecDefault {
 
           assertTrue(
             decoded.isRight &&
-            decoded.toOption.get.actions.length == migration.actions.length
+              decoded.toOption.get.actions.length == migration.actions.length
           )
         }
       },
-
       test("SerializableTransformation has schema") {
         check(genTransformation) { transformation =>
-          val schema = SerializableTransformation.schema
+          val schema  = SerializableTransformation.schema
           val dynamic = DynamicValue.fromSchemaAndValue(schema, transformation)
 
           assertTrue(dynamic != null)
         }
       }
     ),
-
     suite("Optimization Properties")(
       test("optimization is idempotent: optimize(optimize(m)) == optimize(m)") {
         check(genDynamicMigration) { migration =>
@@ -232,13 +217,14 @@ object MigrationPropertySpec extends ZIOSpecDefault {
           assertTrue(optimized1.actions == optimized2.actions)
         }
       },
-
       test("consecutive renames should collapse") {
         check(genFieldName, genFieldName, genFieldName) { (a, b, c) =>
-          val migration = DynamicMigration(Chunk(
-            MigrationAction.RenameField(FieldPath.Root(a), FieldPath.Root(b)),
-            MigrationAction.RenameField(FieldPath.Root(b), FieldPath.Root(c))
-          ))
+          val migration = DynamicMigration(
+            Chunk(
+              MigrationAction.RenameField(FieldPath.Root(a), FieldPath.Root(b)),
+              MigrationAction.RenameField(FieldPath.Root(b), FieldPath.Root(c))
+            )
+          )
 
           val optimized = migration.optimize
 
@@ -248,14 +234,15 @@ object MigrationPropertySpec extends ZIOSpecDefault {
           )
         }
       },
-
       test("add then drop same field should optimize") {
         check(genFieldName, genPrimitiveDynamicValue) { (fieldName, value) =>
-          val path = FieldPath.Root(fieldName)
-          val migration = DynamicMigration(Chunk(
-            MigrationAction.AddField(path, value),
-            MigrationAction.DropField(path)
-          ))
+          val path      = FieldPath.Root(fieldName)
+          val migration = DynamicMigration(
+            Chunk(
+              MigrationAction.AddField(path, value),
+              MigrationAction.DropField(path)
+            )
+          )
 
           val optimized = migration.optimize
 
@@ -264,44 +251,40 @@ object MigrationPropertySpec extends ZIOSpecDefault {
         }
       }
     ),
-
     suite("Composition Properties")(
       test("migration composition is associative: (m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)") {
         check(genDynamicMigration, genDynamicMigration, genDynamicMigration) { (m1, m2, m3) =>
-          val left = m1.++(m2).++(m3)
+          val left  = m1.++(m2).++(m3)
           val right = m1.++(m2.++(m3))
 
           // After optimization, they should be equivalent
           assertTrue(
             left.optimize.actions.length >= 0 &&
-            right.optimize.actions.length >= 0
+              right.optimize.actions.length >= 0
           )
         }
       },
-
       test("empty migration is identity: empty ++ m == m") {
         check(genDynamicMigration) { migration =>
-          val empty = DynamicMigration(Chunk.empty)
+          val empty    = DynamicMigration(Chunk.empty)
           val composed = empty.++(migration)
 
           assertTrue(composed.actions == migration.actions)
         }
       },
-
       test("m ++ empty == m") {
         check(genDynamicMigration) { migration =>
-          val empty = DynamicMigration(Chunk.empty)
+          val empty    = DynamicMigration(Chunk.empty)
           val composed = migration.++(empty)
 
           assertTrue(composed.actions == migration.actions)
         }
       }
     ),
-
     suite("Type Safety Properties")(
       test("AddField produces valid records") {
         check(genSimpleRecord, genFieldName, genPrimitiveDynamicValue) { (record, fieldName, value) =>
-          val path = FieldPath.Root(fieldName)
+          val path   = FieldPath.Root(fieldName)
           val action = MigrationAction.AddField(path, value)
           val result = action(record)
 
@@ -310,12 +293,11 @@ object MigrationPropertySpec extends ZIOSpecDefault {
           )
         }
       },
-
       test("DropField on existing field succeeds") {
         check(genSimpleRecord) { record =>
           record.values.headOption match {
             case Some((fieldName, _)) =>
-              val path = FieldPath.Root(fieldName)
+              val path   = FieldPath.Root(fieldName)
               val action = MigrationAction.DropField(path)
               val result = action(record)
 
@@ -326,12 +308,11 @@ object MigrationPropertySpec extends ZIOSpecDefault {
           }
         }
       },
-
       test("DropField is idempotent (succeeds even if field doesn't exist)") {
         check(genSimpleRecord, genFieldName) { (record, nonExistentField) =>
           // Only test if field doesn't exist
           if (!record.values.contains(nonExistentField)) {
-            val path = FieldPath.Root(nonExistentField)
+            val path   = FieldPath.Root(nonExistentField)
             val action = MigrationAction.DropField(path)
             val result = action(record)
 
@@ -347,21 +328,20 @@ object MigrationPropertySpec extends ZIOSpecDefault {
           }
         }
       },
-
       test("RenameField preserves field value") {
         check(genSimpleRecord, genFieldName) { (record, newName) =>
           record.values.headOption match {
             case Some((oldName, originalValue)) =>
               val oldPath = FieldPath.Root(oldName)
               val newPath = FieldPath.Root(newName)
-              val action = MigrationAction.RenameField(oldPath, newPath)
-              val result = action(record)
+              val action  = MigrationAction.RenameField(oldPath, newPath)
+              val result  = action(record)
 
               result match {
                 case Right(newRecord: DynamicValue.Record) =>
                   assertTrue(
                     newRecord.values.get(newName).contains(originalValue) ||
-                    newRecord.values.contains(oldName) // If rename failed due to conflict
+                      newRecord.values.contains(oldName) // If rename failed due to conflict
                   )
                 case _ =>
                   assertTrue(result.isLeft || result.isRight)
@@ -373,22 +353,20 @@ object MigrationPropertySpec extends ZIOSpecDefault {
         }
       }
     ),
-
     suite("Transformation Properties")(
       test("Identity transformation preserves value") {
         check(genPrimitiveDynamicValue) { value =>
           val transform = SerializableTransformation.Identity
-          val result = transform(value)
+          val result    = transform(value)
 
           assertTrue(result == Right(value))
         }
       },
-
       test("Uppercase on string produces uppercase result") {
         check(Gen.string) { str =>
-          val value = DynamicValue.Primitive(str, StandardType.StringType)
+          val value     = DynamicValue.Primitive(str, StandardType.StringType)
           val transform = SerializableTransformation.Uppercase
-          val result = transform(value)
+          val result    = transform(value)
 
           result match {
             case Right(DynamicValue.Primitive(s: String, _)) =>
@@ -398,12 +376,11 @@ object MigrationPropertySpec extends ZIOSpecDefault {
           }
         }
       },
-
       test("Lowercase on string produces lowercase result") {
         check(Gen.string) { str =>
-          val value = DynamicValue.Primitive(str, StandardType.StringType)
+          val value     = DynamicValue.Primitive(str, StandardType.StringType)
           val transform = SerializableTransformation.Lowercase
-          val result = transform(value)
+          val result    = transform(value)
 
           result match {
             case Right(DynamicValue.Primitive(s: String, _)) =>
@@ -413,12 +390,11 @@ object MigrationPropertySpec extends ZIOSpecDefault {
           }
         }
       },
-
       test("AddConstant on int adds correctly") {
         check(Gen.int, Gen.int(-100, 100)) { (n, constant) =>
-          val value = DynamicValue.Primitive(n, StandardType.IntType)
+          val value     = DynamicValue.Primitive(n, StandardType.IntType)
           val transform = SerializableTransformation.AddConstant(constant)
-          val result = transform(value)
+          val result    = transform(value)
 
           result match {
             case Right(DynamicValue.Primitive(i: Int, _)) =>
@@ -428,12 +404,11 @@ object MigrationPropertySpec extends ZIOSpecDefault {
           }
         }
       },
-
       test("Negate on boolean negates correctly") {
         check(Gen.boolean) { bool =>
-          val value = DynamicValue.Primitive(bool, StandardType.BoolType)
+          val value     = DynamicValue.Primitive(bool, StandardType.BoolType)
           val transform = SerializableTransformation.Negate
-          val result = transform(value)
+          val result    = transform(value)
 
           result match {
             case Right(DynamicValue.Primitive(b: Boolean, _)) =>
@@ -443,14 +418,15 @@ object MigrationPropertySpec extends ZIOSpecDefault {
           }
         }
       },
-
       test("Chain transformation composes correctly") {
         check(Gen.int) { n =>
-          val value = DynamicValue.Primitive(n, StandardType.IntType)
-          val transform = SerializableTransformation.Chain(List(
-            SerializableTransformation.AddConstant(10),
-            SerializableTransformation.AddConstant(20)
-          ))
+          val value     = DynamicValue.Primitive(n, StandardType.IntType)
+          val transform = SerializableTransformation.Chain(
+            List(
+              SerializableTransformation.AddConstant(10),
+              SerializableTransformation.AddConstant(20)
+            )
+          )
           val result = transform(value)
 
           result match {
@@ -462,7 +438,6 @@ object MigrationPropertySpec extends ZIOSpecDefault {
         }
       }
     ),
-
     suite("Error Handling Properties")(
       test("operations on non-records fail gracefully") {
         check(genPrimitiveDynamicValue, genFieldPath, genPrimitiveDynamicValue) { (primitive, path, value) =>
@@ -473,11 +448,10 @@ object MigrationPropertySpec extends ZIOSpecDefault {
           assertTrue(result.isLeft)
         }
       },
-
       test("type mismatches produce MigrationError") {
         check(genSimpleRecord, genFieldName) { (record, fieldName) =>
-          val path = FieldPath.Root(fieldName)
-          val value = DynamicValue.Primitive("string", StandardType.StringType)
+          val path   = FieldPath.Root(fieldName)
+          val value  = DynamicValue.Primitive("string", StandardType.StringType)
           val action = MigrationAction.AddField(path, value)
           val result = action(record)
 
