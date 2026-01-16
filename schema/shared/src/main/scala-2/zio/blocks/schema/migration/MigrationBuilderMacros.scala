@@ -5,14 +5,11 @@ import scala.reflect.macros.whitebox
 
 private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
   import c.universe._
+  import MigrationMacroTypes._
 
   // Intermediate representation of a path node
-  private sealed trait PathNode
-  private object PathNode {
-    final case class Field(name: String) extends PathNode
-    final case object Elements           extends PathNode
-    final case class Case(name: String)  extends PathNode
-  }
+  // Moved to MigrationMacroTypes
+
 
   // Helper to extract the list of nodes from a selector expression
   private def extractPath(selector: Tree): List[PathNode] = {
@@ -156,21 +153,8 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
     val builder            = c.prefix
     c.Expr[MigrationBuilder[A, B]](q"$builder.mandateField($fieldName, $default, $optic)")
   }
-  // ============================================================================
-  // Compile-time Validation Logic
-  // ============================================================================
+  // ExtractedAction moved to MigrationMacroTypes
 
-  sealed trait ExtractedAction
-  object ExtractedAction {
-    case class Rename(from: String, to: String)           extends ExtractedAction
-    case class Drop(fieldName: String)                    extends ExtractedAction
-    case class Add(fieldName: String)                     extends ExtractedAction
-    case class Optionalize(fieldName: String)             extends ExtractedAction
-    case class Mandate(fieldName: String)                 extends ExtractedAction
-    case class ChangeType(from: String, to: String)       extends ExtractedAction
-    case class RenameCase(from: String, to: String)       extends ExtractedAction
-    case object Opaque                                    extends ExtractedAction
-  }
 
   def buildImpl[A: WeakTypeTag, B: WeakTypeTag]: c.Expr[Migration[A, B]] = {
     import c.universe._
@@ -186,7 +170,7 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
 
     // 3. Simulate Transformation
     // Fields existing in both are implicit
-    val (handledSource, producedTarget) = simulateTransformation(sourceFields, actions)
+    val (handledSource, producedTarget) = simulateTransformation(actions)
 
     // 4. Calculate Unmapped
     val unmappedSource = sourceFields.diff(handledSource).diff(targetFields)
@@ -313,7 +297,7 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
   private def tryExtractSelector(tree: Tree): Option[String] = {
      tree match {
        // Function(List(ValDef(...)), Select(Ident(...), name))
-       case Function(_, body) =>
+       case Function(_, _) =>
          // Hack: reuse extractPath which expects Function(List(_), body) but logic separates
          // extractPath implementation expects Function or just body?
          // extractPath(selector: Tree) { selector match case Function ... }
@@ -341,7 +325,6 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
   }
 
   private def simulateTransformation(
-    _sourceFields: Set[String],
     actions: List[ExtractedAction]
   ): (Set[String], Set[String]) = {
     var handledSource = Set.empty[String]
@@ -367,5 +350,26 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
       case _ => ()
     }
     (handledSource, producedTarget)
+  }
+}
+
+private[migration] object MigrationMacroTypes {
+  sealed trait PathNode
+  object PathNode {
+    final case class Field(name: String) extends PathNode
+    final case object Elements           extends PathNode
+    final case class Case(name: String)  extends PathNode
+  }
+
+  sealed trait ExtractedAction
+  object ExtractedAction {
+    case class Rename(from: String, to: String)           extends ExtractedAction
+    case class Drop(fieldName: String)                    extends ExtractedAction
+    case class Add(fieldName: String)                     extends ExtractedAction
+    case class Optionalize(fieldName: String)             extends ExtractedAction
+    case class Mandate(fieldName: String)                 extends ExtractedAction
+    case class ChangeType(from: String, to: String)       extends ExtractedAction
+    case class RenameCase(from: String, to: String)       extends ExtractedAction
+    case object Opaque                                    extends ExtractedAction
   }
 }
