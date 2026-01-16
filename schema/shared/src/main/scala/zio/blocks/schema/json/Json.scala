@@ -488,35 +488,6 @@ sealed trait Json { self =>
     strategy.merge(DynamicOptic.root, self, other)
 
   // ===========================================================================
-  // Patching
-  // ===========================================================================
-
-  /**
-   * Applies a [[JsonPatch]] to this JSON.
-   *
-   * @param patch
-   *   The patch to apply
-   * @return
-   *   Either an error if the patch cannot be applied, or the patched JSON
-   */
-  def patch(_patch: JsonPatch): Either[JsonError, Json] = {
-    val _ = _patch
-    Left(JsonError("JsonPatch is not implemented (out of scope)", DynamicOptic.root))
-  }
-
-  /**
-   * Applies a [[JsonPatch]], throwing on failure.
-   *
-   * @param patch
-   *   The patch to apply
-   * @return
-   *   The patched JSON
-   * @throws JsonError
-   *   if the patch cannot be applied
-   */
-  def patchUnsafe(patch: JsonPatch): Json = this.patch(patch).fold(throw _, identity)
-
-  // ===========================================================================
   // Transformation
   // ===========================================================================
 
@@ -748,24 +719,7 @@ sealed trait Json { self =>
   // Diffing
   // ===========================================================================
 
-  /**
-   * Computes a [[JsonPatch]] that transforms this JSON into the target.
-   *
-   * {{{
-   * val patch = source.diff(target)
-   * source.patch(patch) == Right(target) // true
-   * }}}
-   *
-   * @param target
-   *   The target JSON
-   * @return
-   *   A patch that transforms this into target
-   */
-  def diff(_target: Json): JsonPatch = {
-    val _ = _target
-    // Stub - JsonPatch is out of scope
-    JsonPatch.empty
-  }
+  // diff method removed (JsonPatch is out of scope)
 
   // ===========================================================================
   // Folding
@@ -914,20 +868,7 @@ sealed trait Json { self =>
   // Validation
   // ===========================================================================
 
-  /**
-   * Validates this JSON against a [[JsonSchema]].
-   *
-   * @param schema
-   *   The schema to validate against
-   * @return
-   *   `None` if valid, `Some(error)` if invalid
-   */
-  def check(schema: JsonSchema): Option[SchemaError] = schema.validate(self, DynamicOptic.root)
-
-  /**
-   * Returns `true` if this JSON conforms to the given [[JsonSchema]].
-   */
-  def conforms(schema: JsonSchema): scala.Boolean = check(schema).isEmpty
+  // check and conforms methods removed (JsonSchema is out of scope)
 
   // ===========================================================================
   // KV Representation
@@ -1031,15 +972,13 @@ sealed trait Json { self =>
   private def compareObjects(a: Vector[(String, Json)], b: Vector[(String, Json)], seen: Set[(Int, Int)]): Int = {
     val aSorted = a.sortBy(_._1)
     val bSorted = b.sortBy(_._1)
-    val len     = math.min(aSorted.size, bSorted.size)
-    var i       = 0
+    val len = math.min(aSorted.size, bSorted.size)
+    var i = 0
     while (i < len) {
-      val (ak, av) = aSorted(i)
-      val (bk, bv) = bSorted(i)
-      val keyCmp   = ak.compare(bk)
+      val keyCmp = aSorted(i)._1.compare(bSorted(i)._1)
       if (keyCmp != 0) return keyCmp
-      val valCmp = av.compareInternal(bv, seen)
-      if (valCmp != 0) return valCmp
+      val valueCmp = aSorted(i)._2.compareInternal(bSorted(i)._2, seen)
+      if (valueCmp != 0) return valueCmp
       i += 1
     }
     aSorted.size.compare(bSorted.size)
@@ -1702,41 +1641,6 @@ object Json {
    * Assembles JSON from path-value pairs, throwing on conflict.
    */
   def fromKVUnsafe(kvs: Seq[(DynamicOptic, Json)]): Json = fromKV(kvs).fold(throw _, identity)
-
-  // ===========================================================================
-  // Patch Interop
-  // ===========================================================================
-
-  /**
-   * Serializes a [[JsonPatch]] to its JSON representation.
-   *
-   * The format follows RFC 6902 (JSON Patch) for standard operations, with
-   * extensions for LCS-based sequence diffs.
-   *
-   * @param patch
-   *   The patch to serialize
-   * @return
-   *   The JSON representation of the patch
-   */
-  def fromJsonPatch(_patch: JsonPatch): Json = {
-    val _ = _patch
-    // Stub - JsonPatch is out of scope
-    Json.Array(Vector.empty)
-  }
-
-  /**
-   * Deserializes a JSON representation into a [[JsonPatch]].
-   *
-   * @param json
-   *   The JSON patch representation
-   * @return
-   *   Either an error or the parsed patch
-   */
-  def toJsonPatch(_json: Json): Either[JsonError, JsonPatch] = {
-    val _ = _json
-    // Stub - JsonPatch is out of scope
-    Left(JsonError("JsonPatch is not implemented (out of scope)", DynamicOptic.root))
-  }
 
   // ===========================================================================
   // Ordering
