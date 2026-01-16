@@ -52,10 +52,6 @@ object PathInterpolatorMacro {
 
     val pathString = parts.head
 
-    // Parse the path string and build a DynamicOptic
-    // For now, this is a simplified implementation
-    // Full implementation would parse: "field1.field2[0].field3" etc.
-
     c.Expr[DynamicOptic](q"_root_.zio.blocks.schema.DynamicOptic.parse($pathString)")
   }
 }
@@ -80,7 +76,6 @@ object JsonInterpolatorMacro {
 
     val jsonString = parts.head
 
-    // Parse the JSON string at compile time
     c.Expr[Json](q"_root_.zio.blocks.schema.json.Json.decode($jsonString).fold(throw _, identity)")
   }
 }
