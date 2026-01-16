@@ -151,6 +151,11 @@ object MigrationAction {
 
   /**
    * Make a field optional by wrapping its value in Some.
+   *
+   * Note: Option types in Scala are represented as:
+   *   - Some(x) -> DynamicValue.Variant("Some",
+   *     DynamicValue.Record(Vector("value" -> x)))
+   *   - None -> DynamicValue.Variant("None", DynamicValue.Record(Vector.empty))
    */
   final case class Optionalize(
     at: DynamicOptic,
@@ -162,7 +167,8 @@ object MigrationAction {
         case DynamicValue.Record(fields) =>
           val updated = fields.map {
             case (name, v) if name == fieldName =>
-              (name, DynamicValue.Variant("Some", v))
+              // Wrap in Some with the correct structure: Variant("Some", Record(Vector("value" -> v)))
+              (name, DynamicValue.Variant("Some", DynamicValue.Record(Vector("value" -> v))))
             case other => other
           }
           if (!fields.exists(_._1 == fieldName)) {

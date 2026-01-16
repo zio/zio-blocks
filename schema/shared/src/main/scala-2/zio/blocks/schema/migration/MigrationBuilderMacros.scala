@@ -224,13 +224,24 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
 
   private def extractActionsFromBuilder(tree: Tree): List[ExtractedAction] = {
     def loop(t: Tree, acc: List[ExtractedAction]): List[ExtractedAction] = t match {
+      // Simple method: builder.method(args)
       case Apply(Select(qual, name), args) =>
         val action = extractActionFromMethod(name.decodedName.toString, args)
         loop(qual, action :: acc)
 
-      // Generic methods
+      // Generic method: builder.method[T](args)
       case Apply(TypeApply(Select(qual, name), _), args) =>
         val action = extractActionFromMethod(name.decodedName.toString, args)
+        loop(qual, action :: acc)
+
+      // Method with two argument lists (explicit + implicit): builder.method[T](args1)(args2)
+      case Apply(Apply(TypeApply(Select(qual, name), _), args1), _) =>
+        val action = extractActionFromMethod(name.decodedName.toString, args1)
+        loop(qual, action :: acc)
+
+      // Method with two argument lists (non-generic): builder.method(args1)(args2)
+      case Apply(Apply(Select(qual, name), args1), _) =>
+        val action = extractActionFromMethod(name.decodedName.toString, args1)
         loop(qual, action :: acc)
 
        // Typed/Inlined wrappers
