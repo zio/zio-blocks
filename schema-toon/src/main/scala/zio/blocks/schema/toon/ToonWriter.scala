@@ -91,7 +91,7 @@ final class ToonWriter private (
 
   def writeFloat(x: Float): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
-    else if (x == 0.0f) writeRaw(zeroBytes)
+    else if (x == 0.0f) writeByte('0')
     else {
       val str = java.lang.Float.toString(x)
       writeDecimalString(str)
@@ -99,7 +99,7 @@ final class ToonWriter private (
 
   def writeDouble(x: Double): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
-    else if (x == 0.0 || x == -0.0) writeRaw(zeroBytes)
+    else if (x == 0.0 || x == -0.0) writeByte('0')
     else {
       val str = java.lang.Double.toString(x)
       writeDecimalString(str)
@@ -112,7 +112,7 @@ final class ToonWriter private (
 
   def writeBigInt(x: BigInt): Unit = writeRaw(x.toString.getBytes(UTF_8))
 
-  def writeChar(c: Char): Unit = writeRaw(c.toString.getBytes(UTF_8))
+  def writeChar(c: Char): Unit = writeString(c.toString)
 
   def writeString(s: String): Unit =
     if (needsQuoting(s, if (inlineContext) activeDelimiter else null)) writeQuotedString(s)
@@ -126,14 +126,15 @@ final class ToonWriter private (
     ensureIndent()
     if (isValidUnquotedKey(key)) writeRaw(key.getBytes(UTF_8))
     else writeQuotedString(key)
-    writeRaw(colonSpaceBytes)
+    writeByte(':')
+    writeByte(' ')
   }
 
   def writeKeyOnly(key: String): Unit = {
     ensureIndent()
     if (isValidUnquotedKey(key)) writeRaw(key.getBytes(UTF_8))
     else writeQuotedString(key)
-    writeRaw(colonBytes)
+    writeByte(':')
     newLine()
   }
 
@@ -166,7 +167,7 @@ final class ToonWriter private (
       }
       writeByte('}')
     }
-    writeRaw(colonBytes)
+    writeByte(':')
   }
 
   def writeArrayHeaderInline(key: String, length: Int): Unit =
@@ -193,12 +194,13 @@ final class ToonWriter private (
       i += 1
     }
     writeByte('}')
-    writeRaw(colonBytes)
+    writeByte(':')
   }
 
   def writeListItemMarker(): Unit = {
     ensureIndent()
-    writeRaw(listItemBytes)
+    writeByte('-')
+    writeByte(' ')
   }
 
   def writeDelimiter(d: Delimiter): Unit = writeByte(d.char)
@@ -210,7 +212,10 @@ final class ToonWriter private (
     lineStart = true
   }
 
-  def writeColonSpace(): Unit = writeRaw(colonSpaceBytes)
+  def writeColonSpace(): Unit = {
+    writeByte(':')
+    writeByte(' ')
+  }
 
   private[toon] def ensureIndent(): Unit =
     if (lineStart) {
@@ -265,12 +270,22 @@ final class ToonWriter private (
     while (i < s.length) {
       val c = s.charAt(i)
       (c: @switch) match {
-        case '"'  => writeRaw(escQuote)
-        case '\\' => writeRaw(escBackslash)
-        case '\n' => writeRaw(escNewline)
-        case '\r' => writeRaw(escCarriageReturn)
-        case '\t' => writeRaw(escTab)
-        case _    =>
+        case '"' =>
+          writeByte('\\')
+          writeByte('"')
+        case '\\' =>
+          writeByte('\\')
+          writeByte('\\')
+        case '\n' =>
+          writeByte('\\')
+          writeByte('n')
+        case '\r' =>
+          writeByte('\\')
+          writeByte('r')
+        case '\t' =>
+          writeByte('\\')
+          writeByte('t')
+        case _ =>
           if (c < 0x80) writeByte(c.toByte)
           else if (Character.isHighSurrogate(c) && i + 1 < s.length && Character.isLowSurrogate(s.charAt(i + 1))) {
             writeRaw(s.substring(i, i + 2).getBytes(UTF_8))
@@ -298,18 +313,9 @@ final class ToonWriter private (
 }
 
 object ToonWriter {
-  private val nullBytes         = "null".getBytes(UTF_8)
-  private val trueBytes         = "true".getBytes(UTF_8)
-  private val falseBytes        = "false".getBytes(UTF_8)
-  private val zeroBytes         = "0".getBytes(UTF_8)
-  private val colonBytes        = ":".getBytes(UTF_8)
-  private val colonSpaceBytes   = ": ".getBytes(UTF_8)
-  private val listItemBytes     = "- ".getBytes(UTF_8)
-  private val escQuote          = "\\\"".getBytes(UTF_8)
-  private val escBackslash      = "\\\\".getBytes(UTF_8)
-  private val escNewline        = "\\n".getBytes(UTF_8)
-  private val escCarriageReturn = "\\r".getBytes(UTF_8)
-  private val escTab            = "\\t".getBytes(UTF_8)
+  private val nullBytes  = "null".getBytes(UTF_8)
+  private val trueBytes  = "true".getBytes(UTF_8)
+  private val falseBytes = "false".getBytes(UTF_8)
 
   private val validKeyPattern          = "^[A-Za-z_][A-Za-z0-9_.]*$".r.pattern
   private val identifierSegmentPattern = "^[A-Za-z_][A-Za-z0-9_]*$".r.pattern
