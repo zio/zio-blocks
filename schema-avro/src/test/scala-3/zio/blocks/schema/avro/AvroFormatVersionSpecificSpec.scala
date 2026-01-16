@@ -1,10 +1,10 @@
 package zio.blocks.schema.avro
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{Schema, SchemaBaseSpec}
 import zio.blocks.schema.avro.AvroTestUtils._
 import zio.test._
 
-object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
+object AvroFormatVersionSpecificSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("AvroFormatVersionSpecificSpec")(
     suite("records")(
       test("generic tuples") {

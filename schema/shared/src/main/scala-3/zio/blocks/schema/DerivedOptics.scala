@@ -9,7 +9,7 @@ import scala.language.dynamics
  *
  * Usage:
  * {{{
- * case class Person(name: String, age: Int)
+ * case class Person(name: String, age: Int) derives Schema
  * object Person extends DerivedOptics[Person]
  *
  * // Access optics via the `optics` member:
@@ -17,22 +17,9 @@ import scala.language.dynamics
  * val ageLens: Lens[Person, Int] = Person.optics.age
  * }}}
  *
- * You can also use Scala 3's `export` to make optics top-level in the
- * companion:
- * {{{
- * case class Person(name: String, age: Int)
- * object Person extends DerivedOptics[Person] {
- *   export optics.*
- * }
- *
- * // Now access optics directly:
- * val nameLens: Lens[Person, String] = Person.name
- * val ageLens: Lens[Person, Int] = Person.age
- * }}}
- *
  * For sealed traits/enums:
  * {{{
- * sealed trait Shape
+ * sealed trait Shape derives Schema
  * case class Circle(radius: Double) extends Shape
  * case class Rectangle(width: Double, height: Double) extends Shape
  * object Shape extends DerivedOptics[Shape]
@@ -225,28 +212,22 @@ private[schema] object DerivedOpticsMacros {
   def opticsImpl[S: Type](schema: Expr[Schema[S]], prefixUnderscore: Boolean)(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val tpe = TypeRepr.of[S]
-
+    val tpe           = TypeRepr.of[S]
     val caseClassType = tpe.dealias
     val caseClassSym  = caseClassType.typeSymbol
-
-    // Check for ZIO Prelude Newtype/Subtype by name to avoid dependency
-    val isPrelude = tpe.baseClasses.exists { sym =>
+    val isPrelude     = tpe.baseClasses.exists { sym =>
       val name     = sym.name
       val isTarget = name == "Newtype" || name == "Subtype"
       isTarget && sym.owner.fullName == "zio.prelude"
     }
-
     val isCaseClass = caseClassSym.flags.is(Flags.Case)
     val isSealed    = caseClassSym.flags.is(Flags.Sealed)
     val isEnum      = caseClassSym.flags.is(Flags.Enum)
-
     if (isCaseClass) {
       buildCaseClassOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
     } else if (isSealed || isEnum) {
       buildSealedTraitOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
     } else if (isPrelude) {
-      // Treat ZIO Prelude types as wrappers
       buildWrapperOptics[S](schema, tpe, caseClassType, prefixUnderscore)
     } else {
       buildWrapperOptics[S](schema, tpe, caseClassType, prefixUnderscore)
@@ -265,28 +246,23 @@ private[schema] object DerivedOpticsMacros {
     val underlyingTpe = underlyingType.asInstanceOf[TypeRepr]
     underlyingTpe.asType match {
       case '[u] =>
-        val fieldName = if (prefixUnderscore) "_value" else "value"
-
-        // Create the refinement type: OpticsHolder { val value: Lens[S, u] }
+        val fieldName   = if (prefixUnderscore) "_value" else "value"
         val lensType    = TypeRepr.of[Lens[S, u]]
         val refinedType = Refinement(TypeRepr.of[OpticsHolder], fieldName, lensType)
-
         refinedType.asType match {
           case '[rt] =>
             val cacheKey = Expr(tpe.show + (if (prefixUnderscore) "_" else ""))
-
             '{
               getOrCreate(
                 $cacheKey, {
                   // Runtime check: try to treat the schema as a wrapper
                   val reflectData = $schema.reflect
                   val opticsMap   = if (reflectData.isWrapper) {
-                    val w = reflectData.asInstanceOf[_root_.zio.blocks.schema.Reflect.Wrapper.Bound[S, u]]
+                    val w = reflectData.asInstanceOf[Reflect.Wrapper.Bound[S, u]]
                     // Convert Wrapper to Fake Record
-                    val record = _root_.zio.blocks.schema.DerivedOptics.wrapperAsRecord(w)
+                    val record = DerivedOptics.wrapperAsRecord(w)
                     // Create Lens from Fake Record (field index 0)
-                    val lens = _root_.zio.blocks.schema
-                      .Lens(record, record.fields(0).asInstanceOf[_root_.zio.blocks.schema.Term.Bound[S, u]])
+                    val lens = Lens(record, record.fields(0).asInstanceOf[zio.blocks.schema.Term.Bound[S, u]])
                     Map(${ Expr(fieldName) } -> lens)
                   } else {
                     Map.empty
@@ -307,29 +283,18 @@ private[schema] object DerivedOpticsMacros {
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val symCast = sym.asInstanceOf[Symbol]
-    val tpeCast = tpe.asInstanceOf[TypeRepr]
-
-    val fields = symCast.caseFields
-
-    // Build the structural refinement type
-    // Start with OpticsHolder as the base type
+    val symCast               = sym.asInstanceOf[Symbol]
+    val tpeCast               = tpe.asInstanceOf[TypeRepr]
+    val fields                = symCast.caseFields
     var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
-
-    // Add a refinement for each field: def fieldName: Lens[S, FieldType]
     for (field <- fields) {
       val fieldType    = tpeCast.memberType(field).dealias
       val lensType     = TypeRepr.of[Lens].appliedTo(List(tpeCast, fieldType))
       val accessorName = if (prefixUnderscore) "_" + field.name else field.name
       refinedType = Refinement(refinedType, accessorName, lensType)
     }
-
-    // Get unique type string at compile time for the cache key
-    // We use show to ensure generic types like Box[Int] and Box[String] have different keys
     val cacheKey: Expr[String]              = Expr(tpeCast.show + (if (prefixUnderscore) "_" else ""))
     val prefixUnderscoreExpr: Expr[Boolean] = Expr(prefixUnderscore)
-
-    // Match the refined type and create the implementation
     refinedType.asType match {
       case '[t] =>
         '{
@@ -338,8 +303,8 @@ private[schema] object DerivedOpticsMacros {
               val reflectData = $schema.reflect
               val record      = reflectData.asRecord.orElse {
                 reflectData.asWrapperUnknown.map { _ =>
-                  val w = reflectData.asInstanceOf[_root_.zio.blocks.schema.Reflect.Wrapper.Bound[S, Any]]
-                  _root_.zio.blocks.schema.DerivedOptics.wrapperAsRecord(w)
+                  val w = reflectData.asInstanceOf[Reflect.Wrapper.Bound[S, Any]]
+                  DerivedOptics.wrapperAsRecord(w)
                 }
               }.getOrElse(
                 throw new RuntimeException(s"Expected a record schema for ${$cacheKey}")
@@ -350,7 +315,7 @@ private[schema] object DerivedOpticsMacros {
                   .getOrElse(
                     throw new RuntimeException(s"Cannot find lens for field ${term.name}")
                   )
-                val name = if ($prefixUnderscoreExpr) "_" + term.name else term.name
+                val name = NameTransformer.encode(if ($prefixUnderscoreExpr) "_" + term.name else term.name)
                 name -> lens
               }.toMap
               new OpticsHolder(members)
@@ -368,15 +333,10 @@ private[schema] object DerivedOpticsMacros {
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val symCast = sym.asInstanceOf[Symbol]
-    val tpeCast = tpe.asInstanceOf[TypeRepr]
-
-    val children = symCast.children
-
-    // Build the structural refinement type
+    val symCast               = sym.asInstanceOf[Symbol]
+    val tpeCast               = tpe.asInstanceOf[TypeRepr]
+    val children              = symCast.children
     var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
-
-    // Add a refinement for each child: def childName: Prism[S, ChildType]
     for (child <- children) {
       val childType = if (child.isType) {
         // If the child has type parameters, try to apply the parent's type arguments
@@ -397,12 +357,8 @@ private[schema] object DerivedOpticsMacros {
       val accessorName = if (prefixUnderscore) "_" + baseName else baseName
       refinedType = Refinement(refinedType, accessorName, prismType)
     }
-
-    // Get unique type string at compile time for the cache key
     val cacheKey: Expr[String]              = Expr(tpeCast.show + (if (prefixUnderscore) "_" else ""))
     val prefixUnderscoreExpr: Expr[Boolean] = Expr(prefixUnderscore)
-
-    // Match the refined type and create the implementation
     refinedType.asType match {
       case '[t] =>
         '{
@@ -419,7 +375,7 @@ private[schema] object DerivedOpticsMacros {
                     throw new RuntimeException(s"Cannot find prism for case ${term.name}")
                   )
                 val baseName = lowerFirst(term.name)
-                val name     = if (prefixUs) "_" + baseName else baseName
+                val name     = NameTransformer.encode(if (prefixUs) "_" + baseName else baseName)
                 name -> prism
               }.toMap
               new OpticsHolder(members)
@@ -427,5 +383,65 @@ private[schema] object DerivedOpticsMacros {
           ).asInstanceOf[t]
         }
     }
+  }
+}
+
+// Borrowed from `dotty.tools.dotc.util.NameTransformer`
+private object NameTransformer {
+  private[this] val nops   = 128
+  private[this] val ncodes = 26 * 26
+
+  private class OpCodes(val op: Char, val code: String, val next: OpCodes)
+
+  private[this] val op2code = new Array[String](nops)
+  private[this] val code2op = new Array[OpCodes](ncodes)
+
+  private def enterOp(op: Char, code: String): Unit = {
+    op2code(op.toInt) = code
+    val c = (code.charAt(1) - 'a') * 26 + code.charAt(2) - 'a'
+    code2op(c) = new OpCodes(op, code, code2op(c))
+  }
+
+  enterOp('~', "$tilde")
+  enterOp('=', "$eq")
+  enterOp('<', "$less")
+  enterOp('>', "$greater")
+  enterOp('!', "$bang")
+  enterOp('#', "$hash")
+  enterOp('%', "$percent")
+  enterOp('^', "$up")
+  enterOp('&', "$amp")
+  enterOp('|', "$bar")
+  enterOp('*', "$times")
+  enterOp('/', "$div")
+  enterOp('+', "$plus")
+  enterOp('-', "$minus")
+  enterOp(':', "$colon")
+  enterOp('\\', "$bslash")
+  enterOp('?', "$qmark")
+  enterOp('@', "$at")
+
+  def encode(name: String): String = {
+    var buf: java.lang.StringBuilder = null
+    val len                          = name.length()
+    var i                            = 0
+    while (i < len) {
+      val c = name.charAt(i)
+      if (c < nops && (op2code(c.toInt) ne null)) {
+        if (buf eq null) {
+          buf = new java.lang.StringBuilder
+          buf.append(name.substring(0, i))
+        }
+        buf.append(op2code(c.toInt))
+      } else if (!Character.isJavaIdentifierPart(c)) {
+        if (buf eq null) {
+          buf = new java.lang.StringBuilder
+          buf.append(name.substring(0, i))
+        }
+        buf.append("$u%04X".format(c.toInt))
+      } else if (buf ne null) buf.append(c)
+      i += 1
+    }
+    if (buf eq null) name else buf.toString
   }
 }

@@ -7,10 +7,11 @@ import java.time._
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.json.JsonReader._
-import scala.annotation.{switch, tailrec}
+import scala.annotation.{nowarn, switch, tailrec}
 
 /**
  * The reader to parse JSON input iteratively.
@@ -47,7 +48,7 @@ final class JsonReader private[json] (
   private[this] var head: Int = 0,
   private[this] var tail: Int = 0,
   private[this] var charBuf: Array[Char] = new Array[Char](4096),
-  private[this] val stack: Registers = Registers(0),
+  private[this] val stack: Registers = Registers(RegisterOffset(objects = 64, ints = 64)),
   private[this] var top: RegisterOffset = -1L,
   private[this] var maxTop: RegisterOffset = 0L,
   private[this] var config: ReaderConfig = null,
@@ -1413,7 +1414,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   an `Array[Byte]` instance containing the raw bytes of the JSON value.
-   * @throws JsonReaderException
+   * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or invalid type of JSON value
    */
   def readRawValAsBytes(): Array[Byte] = try {
@@ -2642,7 +2643,7 @@ final class JsonReader private[json] (
 
   private[this] def toDouble(pos: Int): Double = {
     val from = marks(markNum - 1)
-    java.lang.Double.parseDouble(new String(buf, 0, from, pos - from))
+    java.lang.Double.parseDouble(new String(buf, 0, from, pos - from)): @nowarn
   }
 
   private[this] def readFloat(isToken: Boolean): Float = {
@@ -2797,7 +2798,7 @@ final class JsonReader private[json] (
 
   private[this] def toFloat(pos: Int): Float = {
     val from = marks(markNum - 1)
-    java.lang.Float.parseFloat(new String(buf, 0, from, pos - from))
+    java.lang.Float.parseFloat(new String(buf, 0, from, pos - from)): @nowarn
   }
 
   private[this] def unsignedMultiplyHigh(x: Long, y: Long): Long =
@@ -4886,7 +4887,7 @@ object JsonReader {
   final val bigDecimalMathContext: MathContext = MathContext.DECIMAL128
 
   /**
-   * The default limit for number of decimal digits in mantissa of parsed
+   * The default limit for the number of decimal digits in mantissa of parsed
    * `BigDecimal` values.
    */
   final val bigDecimalDigitsLimit: Int = 308
@@ -4940,7 +4941,7 @@ private class Key {
     }
   }
 
-  override def toString: String = new String(bs, 0, from, to - from)
+  override def toString: String = new String(bs, 0, from, to - from): @nowarn
 
   private def bytes: Array[Byte] = bs
 

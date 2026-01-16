@@ -3,15 +3,16 @@ package zio.blocks.schema.json
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
 import zio.blocks.schema.{Schema, SchemaError}
+import scala.compiletime.uninitialized
 
 class JsonNestedRecordsBenchmark extends BaseBenchmark {
   import JsonNestedRecordsBenchmark._
 
   @Param(Array("1", "10", "100"))
   var size: Int                         = 100
-  var nestedRecords: Nested             = _
-  var encodedNestedRecords: Array[Byte] = _
-  var brokenNestedRecords: Array[Byte]  = _
+  var nestedRecords: Nested             = uninitialized
+  var encodedNestedRecords: Array[Byte] = uninitialized
+  var brokenNestedRecords: Array[Byte]  = uninitialized
 
   @Setup
   def setup(): Unit = {
@@ -24,7 +25,7 @@ class JsonNestedRecordsBenchmark extends BaseBenchmark {
   @Benchmark
   def readingZioBlocks: Nested = zioBlocksCodec.decode(encodedNestedRecords) match {
     case Right(value) => value
-    case Left(error)  => sys.error(error.getMessage)
+    case Left(error)  => throw error
   }
 
   @Benchmark

@@ -7,7 +7,7 @@ import zio.blocks.schema.json.JsonTestUtils._
 import zio.test.Assertion._
 import zio.test._
 
-object NeotypeSupportSpec extends ZIOSpecDefault {
+object NeotypeSupportSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("NeotypeSupportSpec")(
     test("derive schemas for cases classes with subtype and newtype fields") {
       val value = new Planet(Name("Earth"), Kilogram(5.97e24), Meter(6378000.0), Some(Meter(1.5e15)))

@@ -1,3 +1,4 @@
+import org.scalajs.sbtplugin.ScalaJSPlugin.autoImport.scalaJSLinkerConfig
 import sbt.Keys.*
 import sbt.{Def, *}
 import sbtbuildinfo.*
@@ -100,7 +101,8 @@ object BuildHelper {
           "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent", // workaround for `@deprecated("reasons") case class C() derives Schema`
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
-          "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s"
+          "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
+          "-Werror"
         )
       case _ =>
         Seq(
@@ -108,14 +110,15 @@ object BuildHelper {
           "11",
           "-language:existentials",
           "-opt:l:method",
-          "-Ywarn-unused"
+          "-Ywarn-unused",
+          "-Xfatal-warnings"
         )
     }),
     versionScheme := Some("early-semver"),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
     Test / parallelExecution := true,
-    Compile / fork           := true,
-    Test / fork              := true, // set fork to `true` to improve log readability
+    Compile / fork           := false,
+    Test / fork              := false, // set fork to `true` to improve log readability
     // For compatibility with Java 9+ module system;
     // without Automatic-Module-Name, the module name is derived from the jar file which is invalid because of the scalaVersion suffix.
     Compile / packageBin / packageOptions +=
@@ -126,15 +129,23 @@ object BuildHelper {
 
   def nativeSettings: Seq[Def.Setting[?]] = Seq(
     nativeConfig ~= {
-      _.withMode(Mode.releaseFast) // TODO: Test with `Mode.releaseSize` and `Mode.releaseFull`
-        .withLTO(LTO.none)
+      _.withMode(Mode.debug)
+        .withOptimize(false)
+        .withCompileOptions(
+          _ ++ Seq(
+            "-DGC_INITIAL_HEAP_SIZE=1g",
+            "-DGC_MAXIMUM_HEAP_SIZE=4g"
+          )
+        )
     },
-    coverageEnabled := false,
-    Test / fork     := false
+    coverageEnabled          := false,
+    Test / parallelExecution := false,
+    Test / fork              := false
   )
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
-    coverageEnabled := false,
-    Test / fork     := false
+    coverageEnabled          := false,
+    Test / parallelExecution := false,
+    Test / fork              := false
   )
 }

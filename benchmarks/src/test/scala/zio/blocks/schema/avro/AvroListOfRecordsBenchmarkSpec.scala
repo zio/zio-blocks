@@ -1,9 +1,10 @@
 package zio.blocks.schema.avro
 
+import zio.blocks.schema.SchemaBaseSpec
 import zio.test._
 import zio.test.Assertion._
 
-object AvroListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
+object AvroListOfRecordsBenchmarkSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("AvroListOfRecordsBenchmarkSpec")(
     test("reading") {
       val benchmark = new AvroListOfRecordsBenchmark

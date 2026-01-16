@@ -1,9 +1,10 @@
 package zio.blocks.schema.binding
 
+import zio.blocks.schema.SchemaBaseSpec
 import zio.test.Assertion._
 import zio.test._
 
-object RegistersSpec extends ZIOSpecDefault {
+object RegistersSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("RegistersSpec")(
     test("setRegisters") {
       val registers1 = Registers(RegisterOffset(bytes = 3, objects = 2))
