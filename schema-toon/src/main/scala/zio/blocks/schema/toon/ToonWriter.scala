@@ -74,6 +74,8 @@ final class ToonWriter private (
     java.util.Arrays.copyOf(buf, end)
   }
 
+  def encodeError(msg: String): Nothing = throw new ToonBinaryCodecError(Nil, msg)
+
   def writeToTrimmed(out: OutputStream): Unit = {
     var end = count
     while (end > 0 && (buf(end - 1) == '\n' || buf(end - 1) == ' ')) end -= 1

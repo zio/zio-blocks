@@ -15,9 +15,7 @@ private[toon] final class VariantCodecBuilder(
   discriminatorFields: ThreadLocal[List[ToonDiscriminatorFieldInfo]],
   codecDeriver: CodecDeriver
 ) {
-
-  private def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): ToonBinaryCodec[A] =
-    codecDeriver.derive(reflect)
+  private def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): ToonBinaryCodec[A] = codecDeriver.derive(reflect)
 
   private def isEnumeration[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
     enumValuesAsStrings && variant.isEnumeration
@@ -43,9 +41,8 @@ private[toon] final class VariantCodecBuilder(
       case Some(innerReflect) =>
         buildOptionCodec(innerReflect)
       case None =>
-        if (isEnumeration(variant)) {
-          buildEnumCodec(variant, discr)
-        } else {
+        if (isEnumeration(variant)) buildEnumCodec(variant, discr)
+        else {
           discriminatorKind match {
             case DiscriminatorKind.Field(fieldName) if hasOnlyRecordAndVariantCases(variant) =>
               buildFieldDiscriminatorCodec(variant, discr, fieldName)
@@ -71,10 +68,10 @@ private[toon] final class VariantCodecBuilder(
         } else {
           try Some(innerCodec.decodeValue(in, innerCodec.nullValue))
           catch {
-            case error if NonFatal(error) =>
+            case err if NonFatal(err) =>
               throw new ToonBinaryCodecError(
                 new ::(DynamicOptic.Node.Case("Some"), new ::(DynamicOptic.Node.Field("value"), Nil)),
-                error.getMessage
+                err.getMessage
               )
           }
         }
@@ -89,9 +86,7 @@ private[toon] final class VariantCodecBuilder(
           out.writeKey(fieldName)
           out.writeNull()
           out.newLine()
-        } else {
-          innerCodec.encodeAsField(fieldName, x.get, out)
-        }
+        } else innerCodec.encodeAsField(fieldName, x.get, out)
 
       override def nullValue: Option[Any] = None
     }.asInstanceOf[ToonBinaryCodec[Option[A]]]
@@ -146,11 +141,7 @@ private[toon] final class VariantCodecBuilder(
           val codec = caseInfo.codec.asInstanceOf[ToonBinaryCodec[A]]
           try codec.decodeValue(in, codec.nullValue)
           catch {
-            case error if NonFatal(error) =>
-              throw new ToonBinaryCodecError(
-                new ::(DynamicOptic.Node.Case(key), Nil),
-                error.getMessage
-              )
+            case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Case(key), err)
           }
         } else in.decodeError(s"Unknown variant case: $key")
       }
@@ -218,11 +209,9 @@ private[toon] final class VariantCodecBuilder(
           in.advanceLine()
           in.skipBlankLines()
         }
-
         val startDepth                 = in.getDepth
         var discriminatorValue: String = null
         val savedLines                 = new java.util.ArrayList[String]()
-
         while (in.hasMoreLines) {
           in.skipBlankLines()
           if (!in.hasMoreLines) {
@@ -235,7 +224,7 @@ private[toon] final class VariantCodecBuilder(
               if (discriminatorValue == null) {
                 in.decodeError(s"Missing discriminator field: $discriminatorFieldName")
               }
-              return decodeFromLines(savedLines, discriminatorValue, in)
+              return decodeFromLines(in, savedLines, discriminatorValue)
             } else if (currentDepth == startDepth && in.hasMoreContent) {
               savedLines.add(in.getCurrentLine)
               val lineContent = in.peekTrimmedContent
@@ -256,24 +245,17 @@ private[toon] final class VariantCodecBuilder(
             }
           }
         }
-
-        if (discriminatorValue == null) {
-          in.decodeError(s"Missing discriminator field: $discriminatorFieldName")
-        }
-
-        decodeFromLines(savedLines, discriminatorValue, in)
+        if (discriminatorValue == null) in.decodeError(s"Missing discriminator field: $discriminatorFieldName")
+        decodeFromLines(in, savedLines, discriminatorValue)
       }
 
       private def decodeFromLines(
+        in: ToonReader,
         savedLines: java.util.ArrayList[String],
-        discriminatorValue: String,
-        in: ToonReader
+        discriminatorValue: String
       ): A = {
         val caseInfo = map.get(discriminatorValue)
-        if (caseInfo eq null) {
-          in.decodeError(s"Unknown variant case: $discriminatorValue")
-        }
-
+        if (caseInfo eq null) in.decodeError(s"Unknown variant case: $discriminatorValue")
         val linesArray = new Array[String](savedLines.size)
         savedLines.toArray(linesArray)
         val combinedContent = linesArray.mkString("\n")
@@ -281,11 +263,7 @@ private[toon] final class VariantCodecBuilder(
         val codec           = caseInfo.codec.asInstanceOf[ToonBinaryCodec[A]]
         try codec.decodeValue(caseReader, codec.nullValue)
         catch {
-          case error if NonFatal(error) =>
-            throw new ToonBinaryCodecError(
-              new ::(DynamicOptic.Node.Case(discriminatorValue), Nil),
-              error.getMessage
-            )
+          case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Case(discriminatorValue), err)
         }
       }
 
