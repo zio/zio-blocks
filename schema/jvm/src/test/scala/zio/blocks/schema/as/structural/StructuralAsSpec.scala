@@ -26,10 +26,9 @@ object StructuralAsSpec extends ZIOSpecDefault {
 
         toResult match {
           case Right(r) =>
-            assert(r.name)(equalTo("Carol")) &&
-            assert(r.age)(equalTo(35))
+            assertTrue(r.name == "Carol", r.age == 35)
           case Left(err) =>
-            assert(err.toString)(equalTo("should not fail"))
+            assertTrue(err.toString == "should not fail")
         }
       },
       test("As[Person, Structural] round-trip works") {
@@ -107,27 +106,45 @@ object StructuralAsSpec extends ZIOSpecDefault {
       }
     ),
     suite("As structural round-trip chains (JVM Only)")(
-      test("Person → Structural → Person") {
+      test("Person ↔ Structural round-trip") {
         val as       = As.derived[Person, { def name: String; def age: Int }]
         val original = Person("Frank", 45)
 
-        val result = for {
+        // Person → Structural → Person
+        val personRoundTrip = for {
           struct <- as.into(original)
           back   <- as.from(struct)
         } yield back
 
-        assert(result)(isRight(equalTo(original)))
+        // Structural → Person → Structural
+        val struct              = as.into(original).toOption.get
+        val structuralRoundTrip = for {
+          person     <- as.from(struct)
+          structBack <- as.into(person)
+        } yield structBack
+
+        assert(personRoundTrip)(isRight(equalTo(original))) &&
+        assert(structuralRoundTrip.map(s => (s.name, s.age)))(isRight(equalTo((struct.name, struct.age))))
       },
-      test("Point → Structural → Point") {
+      test("Point ↔ Structural round-trip") {
         val as       = As.derived[Point, { def x: Int; def y: Int }]
         val original = Point(15, 25)
 
-        val result = for {
+        // Point → Structural → Point
+        val pointRoundTrip = for {
           struct <- as.into(original)
           back   <- as.from(struct)
         } yield back
 
-        assert(result)(isRight(equalTo(original)))
+        // Structural → Point → Structural
+        val struct              = as.into(original).toOption.get
+        val structuralRoundTrip = for {
+          point      <- as.from(struct)
+          structBack <- as.into(point)
+        } yield structBack
+
+        assert(pointRoundTrip)(isRight(equalTo(original))) &&
+        assert(structuralRoundTrip.map(s => (s.x, s.y)))(isRight(equalTo((struct.x, struct.y))))
       }
     ),
     suite("Deep nested structural types (JVM Only)")(
