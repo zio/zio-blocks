@@ -1,0 +1,24 @@
+﻿[info] welcome to sbt 1.12.0 (Microsoft Java 11.0.29)
+[info] loading settings for project open3-build-build from sbt-updates.sbt...
+[info] loading project definition from F:\opensource\open3\project\project
+[info] loading settings for project open3-build from plugins.sbt...
+[info] loading project definition from F:\opensource\open3\project
+[info] loading settings for project root from build.sbt...
+[info] resolving key references (26095 settings) ...
+[info] set current project to root (in build file:/F:/opensource/open3/)
+[info] compiling 1 Scala source to F:\opensource\open3\schema\jvm\target\scala-3.3.7\classes ...
+[info] done compiling
+[info] compiling 1 Scala source to F:\opensource\open3\schema-msgpack\target\scala-3.3.7\classes ...
+[info] done compiling
+[info] compiling 1 Scala source to F:\opensource\open3\schema-msgpack\target\scala-3.3.7\test-classes ...
+[error] -- [E198] Unused Symbol Error: F:\opensource\open3\schema-msgpack\src\test\scala\zio\blocks\schema\msgpack\MessagePackFormatSpec.scala:4:33 
+[error] 4 |import zio.blocks.schema.binding.Binding
+[error]   |                                 ^^^^^^^
+[error]   |                                 unused import
+[error] -- [E198] Unused Symbol Error: F:\opensource\open3\schema-msgpack\src\test\scala\zio\blocks\schema\msgpack\MessagePackFormatSpec.scala:6:26 
+[error] 6 |import zio.test.Assertion._
+[error]   |                          ^
+[error]   |                          unused import
+[error] two errors found
+[error] (schema-msgpack / Test / compileIncremental) Compilation failed
+[error] Total time: 15 s, completed 17-Jan-2026, 7:51:26 PM

@@ -1,0 +1,437 @@
+﻿[info] welcome to sbt 1.12.0 (Microsoft Java 11.0.29)
+[info] loading settings for project open3-build-build from sbt-updates.sbt...
+[info] loading project definition from F:\opensource\open3\project\project
+[info] loading settings for project open3-build from plugins.sbt...
+[info] loading project definition from F:\opensource\open3\project
+[info] loading settings for project root from build.sbt...
+[info] resolving key references (26095 settings) ...
+[info] set current project to root (in build file:/F:/opensource/open3/)
+[info] compiling 1 Scala source to F:\opensource\open3\schema\jvm\target\scala-3.3.7\classes ...
+[info] done compiling
+[info] compiling 3 Scala sources to F:\opensource\open3\schema-msgpack\target\scala-3.3.7\classes ...
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:677:47 
+[error] 677 |                  val builder = mapConstructor.newBuilder[Key, Value](size)
+[error]     |                                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value newBuilder is not a member of zio.blocks.schema.binding.MapConstructor[Map]
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:682:35 
+[error] 682 |                    mapConstructor.add(builder, k, v)
+[error]     |                    ^^^^^^^^^^^^^^^^^^
+[error]     |value add is not a member of zio.blocks.schema.binding.MapConstructor[Map]
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:685:33 
+[error] 685 |                  mapConstructor.result(builder)
+[error]     |                  ^^^^^^^^^^^^^^^^^^^^^
+[error]     |value result is not a member of zio.blocks.schema.binding.MapConstructor[Map]
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:694:39 
+[error] 694 |                    keyCodec.encode(kv._1, packer)
+[error]     |                                    ^^^^^
+[error]     |     value _1 is not a member of mapDeconstructor.KeyValue[Key, Value]
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:695:41 
+[error] 695 |                    valueCodec.encode(kv._2, packer)
+[error]     |                                      ^^^^^
+[error]     |     value _2 is not a member of mapDeconstructor.KeyValue[Key, Value]
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:736:39 
+[error] 736 |                DynamicValue.Primitive((), PrimitiveType.Unit)
+[error]     |                                       ^^^^^^^^^^^^^^^^^^^^^^
+[error]     |           Found:    (Unit, zio.blocks.schema.PrimitiveType.Unit.type)
+[error]     |           Required: zio.blocks.schema.PrimitiveValue
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | Tuple2.apply[Unit, zio.blocks.schema.PrimitiveType.Unit.type]((),
+[error]     |   zio.blocks.schema.PrimitiveType.Unit)
+[error]     |
+[error]     | I tried to show that
+[error]     |   (Unit, zio.blocks.schema.PrimitiveType.Unit.type)
+[error]     | conforms to
+[error]     |   zio.blocks.schema.PrimitiveValue
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (Unit, zio.blocks.schema.PrimitiveType.Unit.type)  <:  zio.blocks.schema.PrimitiveValue  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, K, V, K, V, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     | [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[mapDeconstructor.KeyValue[K, V]], [X0]: X0,
+[error]     |   [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A, B](x$0: Right[A, B]): Option[B], [A, B](x$0: Left[A, B]): Option[A],
+[error]     |   [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:738:39 
+[error] 738 |                DynamicValue.Primitive(unpacker.unpackBoolean(), PrimitiveType.Boolean)
+[error]     |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |     Found:    (Boolean, zio.blocks.schema.PrimitiveType.Boolean.type)
+[error]     |     Required: zio.blocks.schema.PrimitiveValue
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | Tuple2.apply[Boolean, zio.blocks.schema.PrimitiveType.Boolean.type](
+[error]     |   unpacker.unpackBoolean(), zio.blocks.schema.PrimitiveType.Boolean)
+[error]     |
+[error]     | I tried to show that
+[error]     |   (Boolean, zio.blocks.schema.PrimitiveType.Boolean.type)
+[error]     | conforms to
+[error]     |   zio.blocks.schema.PrimitiveValue
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (Boolean, zio.blocks.schema.PrimitiveType.Boolean.type)  <:  zio.blocks.schema.PrimitiveValue  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, K, V, K, V, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     | [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[mapDeconstructor.KeyValue[K, V]], [X0]: X0,
+[error]     |   [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A, B](x$0: Right[A, B]): Option[B], [A, B](x$0: Left[A, B]): Option[A],
+[error]     |   [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:740:39 
+[error] 740 |                DynamicValue.Primitive(unpacker.unpackLong(), PrimitiveType.Long)
+[error]     |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |           Found:    (Long, zio.blocks.schema.PrimitiveType.Long.type)
+[error]     |           Required: zio.blocks.schema.PrimitiveValue
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | Tuple2.apply[Long, zio.blocks.schema.PrimitiveType.Long.type](
+[error]     |   unpacker.unpackLong(), zio.blocks.schema.PrimitiveType.Long)
+[error]     |
+[error]     | I tried to show that
+[error]     |   (Long, zio.blocks.schema.PrimitiveType.Long.type)
+[error]     | conforms to
+[error]     |   zio.blocks.schema.PrimitiveValue
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (Long, zio.blocks.schema.PrimitiveType.Long.type)  <:  zio.blocks.schema.PrimitiveValue  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, K, V, K, V, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     | [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[mapDeconstructor.KeyValue[K, V]], [X0]: X0,
+[error]     |   [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A, B](x$0: Right[A, B]): Option[B], [A, B](x$0: Left[A, B]): Option[A],
+[error]     |   [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:742:39 
+[error] 742 |                DynamicValue.Primitive(unpacker.unpackDouble(), PrimitiveType.Double)
+[error]     |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |       Found:    (Double, zio.blocks.schema.PrimitiveType.Double.type)
+[error]     |       Required: zio.blocks.schema.PrimitiveValue
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | Tuple2.apply[Double, zio.blocks.schema.PrimitiveType.Double.type](
+[error]     |   unpacker.unpackDouble(), zio.blocks.schema.PrimitiveType.Double)
+[error]     |
+[error]     | I tried to show that
+[error]     |   (Double, zio.blocks.schema.PrimitiveType.Double.type)
+[error]     | conforms to
+[error]     |   zio.blocks.schema.PrimitiveValue
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (Double, zio.blocks.schema.PrimitiveType.Double.type)  <:  zio.blocks.schema.PrimitiveValue  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, K, V, K, V, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     | [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[mapDeconstructor.KeyValue[K, V]], [X0]: X0,
+[error]     |   [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A, B](x$0: Right[A, B]): Option[B], [A, B](x$0: Left[A, B]): Option[A],
+[error]     |   [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:744:39 
+[error] 744 |                DynamicValue.Primitive(unpacker.unpackString(), PrimitiveType.String)
+[error]     |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |       Found:    (String, zio.blocks.schema.PrimitiveType.String.type)
+[error]     |       Required: zio.blocks.schema.PrimitiveValue
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | Tuple2.apply[String, zio.blocks.schema.PrimitiveType.String.type](
+[error]     |   unpacker.unpackString(), zio.blocks.schema.PrimitiveType.String)
+[error]     |
+[error]     | I tried to show that
+[error]     |   (String, zio.blocks.schema.PrimitiveType.String.type)
+[error]     | conforms to
+[error]     |   zio.blocks.schema.PrimitiveValue
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (String, zio.blocks.schema.PrimitiveType.String.type)  <:  zio.blocks.schema.PrimitiveValue  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, K, V, K, V, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     | [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[mapDeconstructor.KeyValue[K, V]], [X0]: X0,
+[error]     |   [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A, B](x$0: Right[A, B]): Option[B], [A, B](x$0: Left[A, B]): Option[A],
+[error]     |   [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:749:57 
+[error] 749 |                DynamicValue.Primitive(bs, PrimitiveType.Binary)
+[error]     |                                           ^^^^^^^^^^^^^^^^^^^^
+[error]     |value Binary is not a member of object zio.blocks.schema.PrimitiveType
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:772:39 
+[error] 772 |                DynamicValue.Primitive((), PrimitiveType.Unit)
+[error]     |                                       ^^^^^^^^^^^^^^^^^^^^^^
+[error]     |           Found:    (Unit, zio.blocks.schema.PrimitiveType.Unit.type)
+[error]     |           Required: zio.blocks.schema.PrimitiveValue
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | Tuple2.apply[Unit, zio.blocks.schema.PrimitiveType.Unit.type]((),
+[error]     |   zio.blocks.schema.PrimitiveType.Unit)
+[error]     |
+[error]     | I tried to show that
+[error]     |   (Unit, zio.blocks.schema.PrimitiveType.Unit.type)
+[error]     | conforms to
+[error]     |   zio.blocks.schema.PrimitiveValue
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (Unit, zio.blocks.schema.PrimitiveType.Unit.type)  <:  zio.blocks.schema.PrimitiveValue  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, K, V, K, V, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, T1, T2, T1, T2, A, A
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     | [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[mapDeconstructor.KeyValue[K, V]], [X0]: X0,
+[error]     |   [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A, B](x$0: Right[A, B]): Option[B], [A, B](x$0: Left[A, B]): Option[A],
+[error]     |   [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [T1, T2](_1: T1, _2: T2): (T1, T2),
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1 >: (bs : Array[Byte])
+[error]     |      T2
+[error]     |      A
+[error]     |      A
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E107] Syntax Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:777:39 
+[error] 777 |            case DynamicValue.Primitive(v, pt) =>
+[error]     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |Wrong number of argument patterns for zio.blocks.schema.DynamicValue.Primitive; expected: (zio.blocks.schema.PrimitiveValue)
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     | The Unapply method of zio.blocks.schema.DynamicValue.Primitive was used with incorrect number of arguments.
+[error]     | Expected usage would be something like:
+[error]     | case zio.blocks.schema.DynamicValue.Primitive(_) => ...
+[error]     |
+[error]     | where subsequent arguments would have following types: (zio.blocks.schema.PrimitiveValue).
+[error]      ---------------------------------------------------------------------------
+[error] -- [E006] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:778:14 
+[error] 778 |              pt match {
+[error]     |              ^^
+[error]     |              Not found: pt
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     | Each identifier in Scala needs a matching declaration. There are two kinds of
+[error]     | identifiers: type identifiers and value identifiers. Value identifiers are introduced
+[error]     | by `val`, `def`, or `object` declarations. Type identifiers are introduced by `type`,
+[error]     | `class`, `enum`, or `trait` declarations.
+[error]     |
+[error]     | Identifiers refer to matching declarations in their environment, or they can be
+[error]     | imported from elsewhere.
+[error]     |
+[error]     | Possible reasons why no matching declaration was found:
+[error]     |  - The declaration or the use is mis-spelt.
+[error]     |  - An import is missing.
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:789:35 
+[error] 789 |                case PrimitiveType.Binary =>
+[error]     |                     ^^^^^^^^^^^^^^^^^^^^
+[error]     |value Binary is not a member of object zio.blocks.schema.PrimitiveType
+[error] 15 errors found
+[error] (schema-msgpack / Compile / compileIncremental) Compilation failed
+[error] Total time: 23 s, completed 17-Jan-2026, 7:26:58 PM

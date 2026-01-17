@@ -1,0 +1,38 @@
+﻿[info] welcome to sbt 1.12.0 (Microsoft Java 11.0.29)
+[info] loading settings for project open3-build-build from sbt-updates.sbt...
+[info] loading project definition from F:\opensource\open3\project\project
+[info] loading settings for project open3-build from plugins.sbt...
+[info] loading project definition from F:\opensource\open3\project
+[info] loading settings for project root from build.sbt...
+[info] resolving key references (26095 settings) ...
+[info] set current project to root (in build file:/F:/opensource/open3/)
+[info] compiling 1 Scala source to F:\opensource\open3\schema\jvm\target\scala-3.3.7\classes ...
+[info] done compiling
+[info] compiling 3 Scala sources to F:\opensource\open3\schema-msgpack\target\scala-3.3.7\classes ...
+[error] -- [E198] Unused Symbol Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackBinaryCodec.scala:8:16 
+[error] 8 |import java.io.{ByteArrayInputStream, ByteArrayOutputStream, OutputStream}
+[error]   |                ^^^^^^^^^^^^^^^^^^^^
+[error]   |                unused import
+[error] -- [E198] Unused Symbol Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackBinaryCodec.scala:8:61 
+[error] 8 |import java.io.{ByteArrayInputStream, ByteArrayOutputStream, OutputStream}
+[error]   |                                                             ^^^^^^^^^^^^
+[error]   |                                                             unused import
+[error] -- [E198] Unused Symbol Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:3:57 
+[error] 3 |import org.msgpack.core.{MessagePacker, MessageUnpacker, MessagePack}
+[error]   |                                                         ^^^^^^^^^^^
+[error]   |                                                         unused import
+[error] -- [E198] Unused Symbol Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:4:79 
+[error] 4 |import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
+[error]   |                                                                               ^^^^^^^^^^^^^^
+[error]   |                                                             unused import
+[error] -- [E198] Unused Symbol Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:5:50 
+[error] 5 |import zio.blocks.schema.binding.SeqDeconstructor._
+[error]   |                                                  ^
+[error]   |                                                  unused import
+[error] -- [E198] Unused Symbol Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:10:16 
+[error] 10 |import java.nio.ByteBuffer
+[error]    |                ^^^^^^^^^^
+[error]    |                unused import
+[error] 6 errors found
+[error] (schema-msgpack / Compile / compileIncremental) Compilation failed
+[error] Total time: 23 s, completed 17-Jan-2026, 7:35:08 PM

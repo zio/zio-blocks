@@ -11,15 +11,16 @@ import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
 /**
- * MessagePack binary codec for ZIO Blocks Schema.
- * Provides efficient binary serialization using the MessagePack format.
+ * MessagePack binary codec for ZIO Blocks Schema. Provides efficient binary
+ * serialization using the MessagePack format.
  *
  * Key features:
- * - Forward-compatible: Unknown fields are skipped gracefully
- * - Order-independent record decoding
- * - High performance with minimal allocations
+ *   - Forward-compatible: Unknown fields are skipped gracefully
+ *   - Order-independent record decoding
+ *   - High performance with minimal allocations
  */
-abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryCodec.objectType) extends BinaryCodec[A] {
+abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryCodec.objectType)
+    extends BinaryCodec[A] {
   val valueOffset: RegisterOffset.RegisterOffset = valueType match {
     case MessagePackBinaryCodec.objectType  => RegisterOffset(objects = 1)
     case MessagePackBinaryCodec.booleanType => RegisterOffset(booleans = 1)
@@ -57,7 +58,7 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
 
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
     val len = input.remaining()
-    val bs = new Array[Byte](len)
+    val bs  = new Array[Byte](len)
     input.get(bs)
     decode(bs)
   }

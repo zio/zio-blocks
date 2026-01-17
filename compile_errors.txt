@@ -1,0 +1,1152 @@
+﻿[info] welcome to sbt 1.12.0 (Microsoft Java 11.0.29)
+[info] loading settings for project open3-build-build from sbt-updates.sbt...
+[info] loading project definition from F:\opensource\open3\project\project
+[info] loading settings for project open3-build from plugins.sbt...
+[info] loading project definition from F:\opensource\open3\project
+[info] loading settings for project root from build.sbt...
+[info] resolving key references (26095 settings) ...
+[info] set current project to root (in build file:/F:/opensource/open3/)
+[info] compiling 3 Scala sources to F:\opensource\open3\schema-msgpack\target\scala-3.3.7\classes ...
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:627:33 
+[error] 627 |            val record = reflect.asRecordUnknown.get.record
+[error]     |                         ^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value asRecordUnknown is not a member of zio.blocks.schema.Reflect[F, A]
+[error]     |
+[error]     |where:    F is a type in method deriveCodec with bounds <: [_, _] =>> Any
+[error] -- [E172] Type Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:658:24 
+[error] 658 |                    if (fieldIdx != null) {
+[error]     |                        ^^^^^^^^^^^^^^^^
+[error]     |         Values of types Int and Null cannot be compared with == or !=
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:694:78 
+[error] 694 |                    val fieldBinding = fields(i).binding.asInstanceOf[Binding.Term[A, Any]]
+[error]     |                                                                      ^^^^^^^^^^^^
+[error]     | type Term is not a member of object zio.blocks.schema.binding.Binding
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:719:44 
+[error] 719 |                  val builder = constructor.newBuilder()
+[error]     |                                ^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value newBuilder is not a member of zio.blocks.schema.binding.SeqConstructor[Col] - did you mean constructor.newIntBuilder?
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:723:34 
+[error] 723 |                      constructor.add(builder, elementCodec.decodeUnsafe(unpacker))
+[error]     |                      ^^^^^^^^^^^^^^^
+[error]     |value add is not a member of zio.blocks.schema.binding.SeqConstructor[Col]
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:730:30 
+[error] 730 |                  constructor.result(builder)
+[error]     |                  ^^^^^^^^^^^^^^^^^^
+[error]     |value result is not a member of zio.blocks.schema.binding.SeqConstructor[Col] - did you mean constructor.resultInt?
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:758:44 
+[error] 758 |                  val builder = constructor.newBuilder()
+[error]     |                                ^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value newBuilder is not a member of zio.blocks.schema.binding.MapConstructor[Map]
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:763:32 
+[error] 763 |                    constructor.add(builder, k, v)
+[error]     |                    ^^^^^^^^^^^^^^^
+[error]     |value add is not a member of zio.blocks.schema.binding.MapConstructor[Map]
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:766:30 
+[error] 766 |                  constructor.result(builder)
+[error]     |                  ^^^^^^^^^^^^^^^^^^
+[error]     |value result is not a member of zio.blocks.schema.binding.MapConstructor[Map]
+[error] -- [E134] Type Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:775:29 
+[error] 775 |                    keyCodec.encode(k, packer)
+[error]     |                    ^^^^^^^^^^^^^^^
+[error]     |None of the overloaded alternatives of method encode in class MessagePackBinaryCodec with types
+[error]     | (value: Key, output: java.io.OutputStream): Unit
+[error]     | (value: Key): Array[Byte]
+[error]     | (value: Key, output: java.nio.ByteBuffer): Unit
+[error]     | (value: Key, packer: org.msgpack.core.MessagePacker): Unit
+[error]     |match arguments ((k : Any), (packer : org.msgpack.core.MessagePacker))
+[error] -- [E134] Type Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:776:31 
+[error] 776 |                    valueCodec.encode(v, packer)
+[error]     |                    ^^^^^^^^^^^^^^^^^
+[error]     |None of the overloaded alternatives of method encode in class MessagePackBinaryCodec with types
+[error]     | (value: Value, output: java.io.OutputStream): Unit
+[error]     | (value: Value): Array[Byte]
+[error]     | (value: Value, output: java.nio.ByteBuffer): Unit
+[error]     | (value: Value, packer: org.msgpack.core.MessagePacker): Unit
+[error]     |match arguments ((v : Any), (packer : org.msgpack.core.MessagePacker))
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:819:48 
+[error] 819 |            case org.msgpack.core.MessageFormat.ValueType.NIL =>
+[error]     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value ValueType is not a member of object org.msgpack.core.MessageFormat
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:821:27 
+[error] 821 |              DynamicValue.unit
+[error]     |              ^^^^^^^^^^^^^^^^^
+[error]     |value unit is not a member of object zio.blocks.schema.DynamicValue - did you mean DynamicValue.wait?
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:822:48 
+[error] 822 |            case org.msgpack.core.MessageFormat.ValueType.BOOLEAN =>
+[error]     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value ValueType is not a member of object org.msgpack.core.MessageFormat
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:823:27 
+[error] 823 |              DynamicValue.boolean(unpacker.unpackBoolean())
+[error]     |              ^^^^^^^^^^^^^^^^^^^^
+[error]     |value boolean is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:824:48 
+[error] 824 |            case org.msgpack.core.MessageFormat.ValueType.INTEGER =>
+[error]     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value ValueType is not a member of object org.msgpack.core.MessageFormat
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:825:27 
+[error] 825 |              DynamicValue.long(unpacker.unpackLong())
+[error]     |              ^^^^^^^^^^^^^^^^^
+[error]     |   value long is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:826:48 
+[error] 826 |            case org.msgpack.core.MessageFormat.ValueType.FLOAT =>
+[error]     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value ValueType is not a member of object org.msgpack.core.MessageFormat
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:827:27 
+[error] 827 |              DynamicValue.double(unpacker.unpackDouble())
+[error]     |              ^^^^^^^^^^^^^^^^^^^
+[error]     | value double is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:828:48 
+[error] 828 |            case org.msgpack.core.MessageFormat.ValueType.STRING =>
+[error]     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value ValueType is not a member of object org.msgpack.core.MessageFormat
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:829:27 
+[error] 829 |              DynamicValue.string(unpacker.unpackString())
+[error]     |              ^^^^^^^^^^^^^^^^^^^
+[error]     |value string is not a member of object zio.blocks.schema.DynamicValue - did you mean DynamicValue.toString?
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:830:48 
+[error] 830 |            case org.msgpack.core.MessageFormat.ValueType.BINARY =>
+[error]     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value ValueType is not a member of object org.msgpack.core.MessageFormat
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:834:27 
+[error] 834 |              DynamicValue.binary(bs)
+[error]     |              ^^^^^^^^^^^^^^^^^^^
+[error]     | value binary is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:835:48 
+[error] 835 |            case org.msgpack.core.MessageFormat.ValueType.ARRAY =>
+[error]     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value ValueType is not a member of object org.msgpack.core.MessageFormat
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:843:27 
+[error] 843 |              DynamicValue.sequence(builder.result())
+[error]     |              ^^^^^^^^^^^^^^^^^^^^^
+[error]     |value sequence is not a member of object zio.blocks.schema.DynamicValue - did you mean DynamicValue.Sequence?
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:844:48 
+[error] 844 |            case org.msgpack.core.MessageFormat.ValueType.MAP =>
+[error]     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value ValueType is not a member of object org.msgpack.core.MessageFormat
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:854:27 
+[error] 854 |              DynamicValue.record(builder.result())
+[error]     |              ^^^^^^^^^^^^^^^^^^^
+[error]     |value record is not a member of object zio.blocks.schema.DynamicValue - did you mean DynamicValue.Record?
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:857:27 
+[error] 857 |              DynamicValue.unit
+[error]     |              ^^^^^^^^^^^^^^^^^
+[error]     |value unit is not a member of object zio.blocks.schema.DynamicValue - did you mean DynamicValue.wait?
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:862:28 
+[error] 862 |          case DynamicValue.Unit => packer.packNil()
+[error]     |               ^^^^^^^^^^^^^^^^^
+[error]     |value Unit is not a member of object zio.blocks.schema.DynamicValue - did you mean DynamicValue.wait?
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:863:28 
+[error] 863 |          case DynamicValue.Boolean(v) => packer.packBoolean(v)
+[error]     |               ^^^^^^^^^^^^^^^^^^^^
+[error]     |value Boolean is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:863:61 
+[error] 863 |          case DynamicValue.Boolean(v) => packer.packBoolean(v)
+[error]     |                                                             ^
+[error]     |                                                   Found:    (v : Any)
+[error]     |                                                   Required: Boolean
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | v
+[error]     |
+[error]     | I tried to show that
+[error]     |   (v : Any)
+[error]     | conforms to
+[error]     |   Boolean
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (v : Any)  <:  Boolean
+[error]     |     ==> Any  <:  Boolean  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, A, X0, X0, X0, X0, X0, X0, A, A, X0, X0, X0, X0,
+[error]     |   X0, X0, X0, K, V, K, V, T1, T2, T1, T2, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, A, K, V
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     |   [F[_$22,_$23], A]
+[error]     |     (reflect: zio.blocks.schema.Reflect[F, A]):
+[error]     |       zio.blocks.schema.msgpack.MessagePackBinaryCodec[A]
+[error]     |   ,
+[error]     | [X0]: X0, [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A](c: Col[A]): Int, [A](c: Col[A]): Iterator[A], [X0]: X0, [X0]: Boolean,
+[error]     |   [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[deconstructor.KeyValue[K, V]],
+[error]     |   [T1, T2](x$0: (T1, T2)): Option[(T1, T2)],
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0, [A, B](x$0: Right[A, B]): Option[B],
+[error]     |   [A, B](x$0: Left[A, B]): Option[A], [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0,
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [K, V]:
+[error]     |     scala.collection.mutable.ReusableBuilder[(K, V),
+[error]     |       scala.collection.immutable.ListMap[K, V]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      F := [_, _] =>> Any
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1
+[error]     |      T2
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      K
+[error]     |      V
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:864:28 
+[error] 864 |          case DynamicValue.Byte(v) => packer.packByte(v)
+[error]     |               ^^^^^^^^^^^^^^^^^
+[error]     |   value Byte is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:864:55 
+[error] 864 |          case DynamicValue.Byte(v) => packer.packByte(v)
+[error]     |                                                       ^
+[error]     |                                                   Found:    (v : Any)
+[error]     |                                                   Required: Byte
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | v
+[error]     |
+[error]     | I tried to show that
+[error]     |   (v : Any)
+[error]     | conforms to
+[error]     |   Byte
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (v : Any)  <:  Byte
+[error]     |     ==> Any  <:  Byte  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, A, X0, X0, X0, X0, X0, X0, A, A, X0, X0, X0, X0,
+[error]     |   X0, X0, X0, K, V, K, V, T1, T2, T1, T2, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, A, K, V
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     |   [F[_$22,_$23], A]
+[error]     |     (reflect: zio.blocks.schema.Reflect[F, A]):
+[error]     |       zio.blocks.schema.msgpack.MessagePackBinaryCodec[A]
+[error]     |   ,
+[error]     | [X0]: X0, [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A](c: Col[A]): Int, [A](c: Col[A]): Iterator[A], [X0]: X0, [X0]: Boolean,
+[error]     |   [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[deconstructor.KeyValue[K, V]],
+[error]     |   [T1, T2](x$0: (T1, T2)): Option[(T1, T2)],
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0, [A, B](x$0: Right[A, B]): Option[B],
+[error]     |   [A, B](x$0: Left[A, B]): Option[A], [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0,
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [K, V]:
+[error]     |     scala.collection.mutable.ReusableBuilder[(K, V),
+[error]     |       scala.collection.immutable.ListMap[K, V]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      F := [_, _] =>> Any
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1
+[error]     |      T2
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      K
+[error]     |      V
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:865:28 
+[error] 865 |          case DynamicValue.Short(v) => packer.packShort(v)
+[error]     |               ^^^^^^^^^^^^^^^^^^
+[error]     |  value Short is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:865:57 
+[error] 865 |          case DynamicValue.Short(v) => packer.packShort(v)
+[error]     |                                                         ^
+[error]     |                                                   Found:    (v : Any)
+[error]     |                                                   Required: Short
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | v
+[error]     |
+[error]     | I tried to show that
+[error]     |   (v : Any)
+[error]     | conforms to
+[error]     |   Short
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (v : Any)  <:  Short
+[error]     |     ==> Any  <:  Short  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, A, X0, X0, X0, X0, X0, X0, A, A, X0, X0, X0, X0,
+[error]     |   X0, X0, X0, K, V, K, V, T1, T2, T1, T2, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, A, K, V
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     |   [F[_$22,_$23], A]
+[error]     |     (reflect: zio.blocks.schema.Reflect[F, A]):
+[error]     |       zio.blocks.schema.msgpack.MessagePackBinaryCodec[A]
+[error]     |   ,
+[error]     | [X0]: X0, [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A](c: Col[A]): Int, [A](c: Col[A]): Iterator[A], [X0]: X0, [X0]: Boolean,
+[error]     |   [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[deconstructor.KeyValue[K, V]],
+[error]     |   [T1, T2](x$0: (T1, T2)): Option[(T1, T2)],
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0, [A, B](x$0: Right[A, B]): Option[B],
+[error]     |   [A, B](x$0: Left[A, B]): Option[A], [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0,
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [K, V]:
+[error]     |     scala.collection.mutable.ReusableBuilder[(K, V),
+[error]     |       scala.collection.immutable.ListMap[K, V]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      F := [_, _] =>> Any
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1
+[error]     |      T2
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      K
+[error]     |      V
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:866:28 
+[error] 866 |          case DynamicValue.Int(v) => packer.packInt(v)
+[error]     |               ^^^^^^^^^^^^^^^^
+[error]     |    value Int is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:866:53 
+[error] 866 |          case DynamicValue.Int(v) => packer.packInt(v)
+[error]     |                                                     ^
+[error]     |                                                   Found:    (v : Any)
+[error]     |                                                   Required: Int
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | v
+[error]     |
+[error]     | I tried to show that
+[error]     |   (v : Any)
+[error]     | conforms to
+[error]     |   Int
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (v : Any)  <:  Int
+[error]     |     ==> Any  <:  Int  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, A, X0, X0, X0, X0, X0, X0, A, A, X0, X0, X0, X0,
+[error]     |   X0, X0, X0, K, V, K, V, T1, T2, T1, T2, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, A, K, V
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     |   [F[_$22,_$23], A]
+[error]     |     (reflect: zio.blocks.schema.Reflect[F, A]):
+[error]     |       zio.blocks.schema.msgpack.MessagePackBinaryCodec[A]
+[error]     |   ,
+[error]     | [X0]: X0, [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A](c: Col[A]): Int, [A](c: Col[A]): Iterator[A], [X0]: X0, [X0]: Boolean,
+[error]     |   [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[deconstructor.KeyValue[K, V]],
+[error]     |   [T1, T2](x$0: (T1, T2)): Option[(T1, T2)],
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0, [A, B](x$0: Right[A, B]): Option[B],
+[error]     |   [A, B](x$0: Left[A, B]): Option[A], [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0,
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [K, V]:
+[error]     |     scala.collection.mutable.ReusableBuilder[(K, V),
+[error]     |       scala.collection.immutable.ListMap[K, V]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      F := [_, _] =>> Any
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1
+[error]     |      T2
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      K
+[error]     |      V
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:867:28 
+[error] 867 |          case DynamicValue.Long(v) => packer.packLong(v)
+[error]     |               ^^^^^^^^^^^^^^^^^
+[error]     |   value Long is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:867:55 
+[error] 867 |          case DynamicValue.Long(v) => packer.packLong(v)
+[error]     |                                                       ^
+[error]     |                                                   Found:    (v : Any)
+[error]     |                                                   Required: Long
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | v
+[error]     |
+[error]     | I tried to show that
+[error]     |   (v : Any)
+[error]     | conforms to
+[error]     |   Long
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (v : Any)  <:  Long
+[error]     |     ==> Any  <:  Long  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, A, X0, X0, X0, X0, X0, X0, A, A, X0, X0, X0, X0,
+[error]     |   X0, X0, X0, K, V, K, V, T1, T2, T1, T2, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, A, K, V
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     |   [F[_$22,_$23], A]
+[error]     |     (reflect: zio.blocks.schema.Reflect[F, A]):
+[error]     |       zio.blocks.schema.msgpack.MessagePackBinaryCodec[A]
+[error]     |   ,
+[error]     | [X0]: X0, [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A](c: Col[A]): Int, [A](c: Col[A]): Iterator[A], [X0]: X0, [X0]: Boolean,
+[error]     |   [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[deconstructor.KeyValue[K, V]],
+[error]     |   [T1, T2](x$0: (T1, T2)): Option[(T1, T2)],
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0, [A, B](x$0: Right[A, B]): Option[B],
+[error]     |   [A, B](x$0: Left[A, B]): Option[A], [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0,
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [K, V]:
+[error]     |     scala.collection.mutable.ReusableBuilder[(K, V),
+[error]     |       scala.collection.immutable.ListMap[K, V]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      F := [_, _] =>> Any
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1
+[error]     |      T2
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      K
+[error]     |      V
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:868:28 
+[error] 868 |          case DynamicValue.Float(v) => packer.packFloat(v)
+[error]     |               ^^^^^^^^^^^^^^^^^^
+[error]     |  value Float is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:868:57 
+[error] 868 |          case DynamicValue.Float(v) => packer.packFloat(v)
+[error]     |                                                         ^
+[error]     |                                                   Found:    (v : Any)
+[error]     |                                                   Required: Float
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | v
+[error]     |
+[error]     | I tried to show that
+[error]     |   (v : Any)
+[error]     | conforms to
+[error]     |   Float
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (v : Any)  <:  Float
+[error]     |     ==> Any  <:  Float  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, A, X0, X0, X0, X0, X0, X0, A, A, X0, X0, X0, X0,
+[error]     |   X0, X0, X0, K, V, K, V, T1, T2, T1, T2, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, A, K, V
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     |   [F[_$22,_$23], A]
+[error]     |     (reflect: zio.blocks.schema.Reflect[F, A]):
+[error]     |       zio.blocks.schema.msgpack.MessagePackBinaryCodec[A]
+[error]     |   ,
+[error]     | [X0]: X0, [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A](c: Col[A]): Int, [A](c: Col[A]): Iterator[A], [X0]: X0, [X0]: Boolean,
+[error]     |   [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[deconstructor.KeyValue[K, V]],
+[error]     |   [T1, T2](x$0: (T1, T2)): Option[(T1, T2)],
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0, [A, B](x$0: Right[A, B]): Option[B],
+[error]     |   [A, B](x$0: Left[A, B]): Option[A], [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0,
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [K, V]:
+[error]     |     scala.collection.mutable.ReusableBuilder[(K, V),
+[error]     |       scala.collection.immutable.ListMap[K, V]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      F := [_, _] =>> Any
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1
+[error]     |      T2
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      K
+[error]     |      V
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:869:28 
+[error] 869 |          case DynamicValue.Double(v) => packer.packDouble(v)
+[error]     |               ^^^^^^^^^^^^^^^^^^^
+[error]     | value Double is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:869:59 
+[error] 869 |          case DynamicValue.Double(v) => packer.packDouble(v)
+[error]     |                                                           ^
+[error]     |                                                   Found:    (v : Any)
+[error]     |                                                   Required: Double
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | v
+[error]     |
+[error]     | I tried to show that
+[error]     |   (v : Any)
+[error]     | conforms to
+[error]     |   Double
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (v : Any)  <:  Double
+[error]     |     ==> Any  <:  Double  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, A, X0, X0, X0, X0, X0, X0, A, A, X0, X0, X0, X0,
+[error]     |   X0, X0, X0, K, V, K, V, T1, T2, T1, T2, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, A, K, V
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     |   [F[_$22,_$23], A]
+[error]     |     (reflect: zio.blocks.schema.Reflect[F, A]):
+[error]     |       zio.blocks.schema.msgpack.MessagePackBinaryCodec[A]
+[error]     |   ,
+[error]     | [X0]: X0, [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A](c: Col[A]): Int, [A](c: Col[A]): Iterator[A], [X0]: X0, [X0]: Boolean,
+[error]     |   [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[deconstructor.KeyValue[K, V]],
+[error]     |   [T1, T2](x$0: (T1, T2)): Option[(T1, T2)],
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0, [A, B](x$0: Right[A, B]): Option[B],
+[error]     |   [A, B](x$0: Left[A, B]): Option[A], [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0,
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [K, V]:
+[error]     |     scala.collection.mutable.ReusableBuilder[(K, V),
+[error]     |       scala.collection.immutable.ListMap[K, V]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      F := [_, _] =>> Any
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1
+[error]     |      T2
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      K
+[error]     |      V
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:870:28 
+[error] 870 |          case DynamicValue.Char(v) => packer.packInt(v)
+[error]     |               ^^^^^^^^^^^^^^^^^
+[error]     |   value Char is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:870:54 
+[error] 870 |          case DynamicValue.Char(v) => packer.packInt(v)
+[error]     |                                                      ^
+[error]     |                                                   Found:    (v : Any)
+[error]     |                                                   Required: Int
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | v
+[error]     |
+[error]     | I tried to show that
+[error]     |   (v : Any)
+[error]     | conforms to
+[error]     |   Int
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (v : Any)  <:  Int
+[error]     |     ==> Any  <:  Int  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, A, X0, X0, X0, X0, X0, X0, A, A, X0, X0, X0, X0,
+[error]     |   X0, X0, X0, K, V, K, V, T1, T2, T1, T2, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, A, K, V
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     |   [F[_$22,_$23], A]
+[error]     |     (reflect: zio.blocks.schema.Reflect[F, A]):
+[error]     |       zio.blocks.schema.msgpack.MessagePackBinaryCodec[A]
+[error]     |   ,
+[error]     | [X0]: X0, [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A](c: Col[A]): Int, [A](c: Col[A]): Iterator[A], [X0]: X0, [X0]: Boolean,
+[error]     |   [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[deconstructor.KeyValue[K, V]],
+[error]     |   [T1, T2](x$0: (T1, T2)): Option[(T1, T2)],
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0, [A, B](x$0: Right[A, B]): Option[B],
+[error]     |   [A, B](x$0: Left[A, B]): Option[A], [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0,
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [K, V]:
+[error]     |     scala.collection.mutable.ReusableBuilder[(K, V),
+[error]     |       scala.collection.immutable.ListMap[K, V]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      F := [_, _] =>> Any
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1
+[error]     |      T2
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      K
+[error]     |      V
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:871:28 
+[error] 871 |          case DynamicValue.String(v) => packer.packString(v)
+[error]     |               ^^^^^^^^^^^^^^^^^^^
+[error]     |value String is not a member of object zio.blocks.schema.DynamicValue - did you mean DynamicValue.toString?
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:871:59 
+[error] 871 |          case DynamicValue.String(v) => packer.packString(v)
+[error]     |                                                           ^
+[error]     |                                                   Found:    (v : Any)
+[error]     |                                                   Required: String
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | v
+[error]     |
+[error]     | I tried to show that
+[error]     |   (v : Any)
+[error]     | conforms to
+[error]     |   String
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (v : Any)  <:  String
+[error]     |     ==> Any  <:  String  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, A, X0, X0, X0, X0, X0, X0, A, A, X0, X0, X0, X0,
+[error]     |   X0, X0, X0, K, V, K, V, T1, T2, T1, T2, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, A, K, V
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     |   [F[_$22,_$23], A]
+[error]     |     (reflect: zio.blocks.schema.Reflect[F, A]):
+[error]     |       zio.blocks.schema.msgpack.MessagePackBinaryCodec[A]
+[error]     |   ,
+[error]     | [X0]: X0, [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A](c: Col[A]): Int, [A](c: Col[A]): Iterator[A], [X0]: X0, [X0]: Boolean,
+[error]     |   [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[deconstructor.KeyValue[K, V]],
+[error]     |   [T1, T2](x$0: (T1, T2)): Option[(T1, T2)],
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0, [A, B](x$0: Right[A, B]): Option[B],
+[error]     |   [A, B](x$0: Left[A, B]): Option[A], [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0,
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [K, V]:
+[error]     |     scala.collection.mutable.ReusableBuilder[(K, V),
+[error]     |       scala.collection.immutable.ListMap[K, V]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      F := [_, _] =>> Any
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1
+[error]     |      T2
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      K
+[error]     |      V
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:872:28 
+[error] 872 |          case DynamicValue.Binary(bs) =>
+[error]     |               ^^^^^^^^^^^^^^^^^^^
+[error]     | value Binary is not a member of object zio.blocks.schema.DynamicValue
+[error] -- [E008] Not Found Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:873:39 
+[error] 873 |            packer.packBinaryHeader(bs.length)
+[error]     |                                    ^^^^^^^^^
+[error]     |                                   value length is not a member of Any
+[error] -- [E007] Type Mismatch Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:874:32 
+[error] 874 |            packer.writePayload(bs)
+[error]     |                                ^^
+[error]     |                                Found:    (bs : Any)
+[error]     |                                Required: Array[Byte]
+[error]     |---------------------------------------------------------------------------
+[error]     | Explanation (enabled by `-explain`)
+[error]     |- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+[error]     |
+[error]     | Tree:
+[error]     |
+[error]     | bs
+[error]     |
+[error]     | I tried to show that
+[error]     |   (bs : Any)
+[error]     | conforms to
+[error]     |   Array[Byte]
+[error]     | but none of the attempts shown below succeeded:
+[error]     |
+[error]     |   ==> (bs : Any)  <:  Array[Byte]
+[error]     |     ==> Any  <:  Array[Byte]  = false
+[error]     |
+[error]     | The tests were made under a constraint with:
+[error]     |  uninstantiated variables: TC, A, X0, X0, X0, X0, X0, X0, A, A, X0, X0, X0, X0,
+[error]     |   X0, X0, X0, K, V, K, V, T1, T2, T1, T2, X0, X0, X0, X0, X0, A, B, A, B, X0,
+[error]     |   X0, X0, X0, X0, A, K, V
+[error]     |  constrained types:
+[error]     |   [TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]]
+[error]     |     (mimeType: String, deriver: zio.blocks.schema.derive.Deriver[TC]):
+[error]     |       zio.blocks.schema.codec.BinaryFormat[TC]
+[error]     |   ,
+[error]     |   [F[_$22,_$23], A]
+[error]     |     (reflect: zio.blocks.schema.Reflect[F, A]):
+[error]     |       zio.blocks.schema.msgpack.MessagePackBinaryCodec[A]
+[error]     |   ,
+[error]     | [X0]: X0, [X0]: X0, [X0]: Boolean, [X0]: X0, [X0]: X0, [X0]: X0,
+[error]     |   [A](c: Col[A]): Int, [A](c: Col[A]): Iterator[A], [X0]: X0, [X0]: Boolean,
+[error]     |   [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [X0]: X0, [K, V](m: Map[K, V]): Int,
+[error]     |   [K, V](m: Map[K, V]): Iterator[deconstructor.KeyValue[K, V]],
+[error]     |   [T1, T2](x$0: (T1, T2)): Option[(T1, T2)],
+[error]     |   [T1, T2](_1: T1, _2: T2): (T1, T2), [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0, [A, B](x$0: Right[A, B]): Option[B],
+[error]     |   [A, B](x$0: Left[A, B]): Option[A], [X0]: X0, [X0]: Boolean, [X0]: X0,
+[error]     |   [X0]: X0, [X0]: X0,
+[error]     |   [A]: scala.collection.mutable.ReusableBuilder[A, Vector[A]],
+[error]     |   [K, V]:
+[error]     |     scala.collection.mutable.ReusableBuilder[(K, V),
+[error]     |       scala.collection.immutable.ListMap[K, V]]
+[error]     |  bounds:
+[error]     |      TC[A] <: zio.blocks.schema.codec.BinaryCodec[A]
+[error]     |      F := [_, _] =>> Any
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      A
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      K
+[error]     |      V
+[error]     |      K
+[error]     |      V
+[error]     |      T1
+[error]     |      T2
+[error]     |      T1
+[error]     |      T2
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      B
+[error]     |      A
+[error]     |      B
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      X0
+[error]     |      A
+[error]     |      K
+[error]     |      V
+[error]     |  ordering:
+[error]     |  co-deps:
+[error]     |  contra-deps:
+[error]      ---------------------------------------------------------------------------
+[error] -- Error: F:\opensource\open3\schema-msgpack\src\main\scala\zio\blocks\schema\msgpack\MessagePackFormat.scala:774:40 
+[error] 774 |                    val (k, v) = it.next()
+[error]     |                                 ^^^^^^^^^
+[error]     |pattern's type (Any, Any) does not match the right hand side expression's type deconstructor.KeyValue[Key, Value]
+[error]     |
+[error]     |If the narrowing is intentional, this can be communicated by adding `: @unchecked` after the expression,
+[error]     |which may result in a MatchError at runtime.
+[error]     |This patch can be rewritten automatically under -rewrite -source 3.2-migration.
+[error] 51 errors found
+[error] (schema-msgpack / Compile / compileIncremental) Compilation failed
+[error] Total time: 11 s, completed 17-Jan-2026, 7:14:04 PM
