@@ -1,12 +1,12 @@
 /*
  * Copyright 2023 ZIO Blocks Maintainers
- *
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,8 +21,9 @@ import zio.blocks.schema.{DynamicOptic, SchemaError}
 /**
  * Represents a selection of zero or more JSON values, with accumulated errors.
  *
- * `JsonSelection` enables fluent chaining of operations that may fail without requiring immediate error handling.
- * Operations are applied to all values in the selection, and errors are accumulated.
+ * `JsonSelection` enables fluent chaining of operations that may fail without
+ * requiring immediate error handling. Operations are applied to all values in
+ * the selection, and errors are accumulated.
  *
  * {{{
  * val selection: JsonSelection = json.get(p"users[*].name")
@@ -32,7 +33,8 @@ import zio.blocks.schema.{DynamicOptic, SchemaError}
 final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { self =>
 
   /**
-   * Returns true if this selection contains no values (either empty or errored).
+   * Returns true if this selection contains no values (either empty or
+   * errored).
    */
   def isEmpty: Boolean = toEither.fold(_ => true, _.isEmpty)
 
@@ -202,7 +204,8 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   // ---------------------------------------------------------------------------
 
   /**
-   * Returns the single value if exactly one, an array of values if there are many, or otherwise an error.
+   * Returns the single value if exactly one, an array of values if there are
+   * many, or otherwise an error.
    */
   def one: Either[SchemaError, Json] =
     toEither.flatMap { jsons =>

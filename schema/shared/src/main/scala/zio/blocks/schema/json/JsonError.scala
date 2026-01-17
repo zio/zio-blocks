@@ -1,12 +1,12 @@
 /*
  * Copyright 2023 ZIO Blocks Maintainers
- *
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,12 +20,14 @@ import scala.util.control.NoStackTrace
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 
 /**
- * Represents an error that occurred during JSON parsing, encoding, or processing.
+ * Represents an error that occurred during JSON parsing, encoding, or
+ * processing.
  *
  * @param message
  *   A human-readable description of the error
  * @param path
- *   The location in the JSON structure where the error occurred, represented as a [[DynamicOptic]]
+ *   The location in the JSON structure where the error occurred, represented as
+ *   a [[DynamicOptic]]
  * @param offset
  *   Optional byte offset in the input where the error occurred
  * @param line
@@ -61,7 +63,8 @@ final case class JsonError(
 object JsonError {
 
   /**
-   * Creates a JsonError with only a message, using root path and no position info.
+   * Creates a JsonError with only a message, using root path and no position
+   * info.
    */
   def apply(message: String): JsonError =
     JsonError(message, DynamicOptic.root, None, None, None)
