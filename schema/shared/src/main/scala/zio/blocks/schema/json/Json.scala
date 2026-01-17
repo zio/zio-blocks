@@ -275,6 +275,12 @@ sealed trait Json { self =>
 }
 
 object Json {
+  implicit val orderingJson: Ordering[Json] = new Ordering[Json] {
+    override def compare(x: Json, y: Json): Int = x.compare(y)
+  }
+
+  implicit def orderingJsonSubtype[A <: Json]: Ordering[A] =
+    orderingJson.asInstanceOf[Ordering[A]]
 
   final case class Object(objectFields: Vector[(java.lang.String, Json)]) extends Json {
     override def isObject: scala.Boolean = true

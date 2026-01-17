@@ -632,7 +632,8 @@ object JsonSpec extends ZIOSpecDefault {
       assertTrue(a.hashCode == b.hashCode)
     },
     test("ordering is available implicitly") {
-      val jsons = List(Json.String("b"), Json.String("a"), Json.String("c"))
+      implicit val orderingJsonString: Ordering[Json.String] = Ordering.by(_.stringValue.getOrElse(""))
+      val jsons: List[Json] = List(Json.String("b"), Json.String("a"), Json.String("c"))
       val sorted = jsons.sorted
       assertTrue(sorted.head == Json.String("a"))
     }
