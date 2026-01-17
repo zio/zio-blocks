@@ -69,6 +69,7 @@ lazy val root = project
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
+  .dependsOn(chunk)
   .settings(stdSettings("zio-blocks-schema"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))

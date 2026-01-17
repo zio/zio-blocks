@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.time._
 import java.util.{Currency, UUID}
 import scala.annotation.switch
-import scala.collection.immutable.{ArraySeq, VectorBuilder}
+import scala.collection.immutable.VectorBuilder
 import scala.util.control.NonFatal
 
 /**
@@ -48,7 +48,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
 
   /**
    * Attempts to decode a value of type `A` from the specified `JsonReader`, but
-   * may fail with `JsonBinaryCodecError` error if the JSON input does not
+   * may fail with `JsonError` error if the JSON input does not
    * encode a value of this type.
    *
    * @param in
@@ -62,7 +62,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
 
   /**
    * Encodes the specified value using provided `JsonWriter`, but may fail with
-   * `JsonBinaryCodecError` if it cannot be encoded properly according to
+   * `JsonError` if it cannot be encoded properly according to
    * RFC-8259 requirements.
    *
    * @param x
@@ -81,7 +81,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
 
   /**
    * Attempts to decode a value of type `A` from the specified `JsonReader`, but
-   * may fail with `JsonBinaryCodecError` error if the JSON input is not a key
+   * may fail with `JsonError` error if the JSON input is not a key
    * or does not encode a value of this type.
    *
    * @param in
@@ -92,7 +92,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
 
   /**
    * Encodes the specified value using provided `JsonWriter` as a JSON key, but
-   * may fail with `JsonBinaryCodecError` if it cannot be encoded properly,
+   * may fail with `JsonError` if it cannot be encoded properly,
    * according to RFC-8259 requirements.
    *
    * @param x
@@ -368,22 +368,10 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(
-      new ExpectationMismatch(
-        error match {
-          case e: JsonBinaryCodecError =>
-            var list  = e.spans
-            val array = new Array[DynamicOptic.Node](list.size)
-            var idx   = 0
-            while (list ne Nil) {
-              array(idx) = list.head
-              idx += 1
-              list = list.tail
-            }
-            new DynamicOptic(ArraySeq.unsafeWrapArray(array))
-          case _ => DynamicOptic.root
-        },
-        error.getMessage
-      ),
+      error match {
+        case e: JsonError => new ExpectationMismatch(e.path, e.message)
+        case _            => new ExpectationMismatch(DynamicOptic.root, error.getMessage)
+      },
       Nil
     )
   )

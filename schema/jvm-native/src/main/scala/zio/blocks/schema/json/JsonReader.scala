@@ -62,12 +62,12 @@ final class JsonReader private[json] (
   private[this] var zoneIdKey: Key         = null
 
   /**
-   * Throws a [[JsonBinaryCodecError]] indicating that a required field with the
+   * Throws a [[JsonError]] indicating that a required field with the
    * given name is missing.
    *
    * @param reqField
    *   the name of the missing required field
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def requiredFieldError(reqField: String): Nothing = {
@@ -78,12 +78,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Throws a [[JsonBinaryCodecError]] indicating that a field with the given
+   * Throws a [[JsonError]] indicating that a field with the given
    * name is duplicated.
    *
    * @param len
    *   the length of the duplicated field name in the internal char buffer
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def duplicatedKeyError(len: Int): Nothing = {
@@ -93,12 +93,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Throws a [[JsonBinaryCodecError]] indicating that an unexpected field with
+   * Throws a [[JsonError]] indicating that an unexpected field with
    * the given name was encountered.
    *
    * @param len
    *   the length of the unexpected field name in the internal char buffer
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def unexpectedKeyError(len: Int): Nothing = {
@@ -108,18 +108,18 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Throws a [[JsonBinaryCodecError]] indicating that an illegal discriminator
+   * Throws a [[JsonError]] indicating that an illegal discriminator
    * field name was encountered.
    */
   def discriminatorError(): Nothing = decodeError("illegal discriminator")
 
   /**
-   * Throws a [[JsonBinaryCodecError]] indicating that an illegal value was
+   * Throws a [[JsonError]] indicating that an illegal value was
    * encountered for the given discriminator field.
    *
    * @param discriminatorFieldName
    *   the name of the discriminator field
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def discriminatorValueError(discriminatorFieldName: String): Nothing = {
@@ -130,12 +130,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Throws a [[JsonBinaryCodecError]] indicating that an illegal enum value
+   * Throws a [[JsonError]] indicating that an illegal enum value
    * with the given length was encountered.
    *
    * @param len
    *   the length of the illegal enum value in the internal char buffer.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def enumValueError(len: Int): Nothing = {
@@ -159,7 +159,7 @@ final class JsonReader private[json] (
    *   the name of the JSON key to skip to
    * @return
    *   `true` if the key was found, `false` otherwise
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or invalid encoding of JSON key
    */
   def skipToKey(key: String): Boolean = {
@@ -202,7 +202,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   the length of the key in the internal char buffer
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or invalid encoding of JSON key
    */
   def readKeyAsCharBuf(): Int = {
@@ -219,7 +219,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `String` instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or invalid encoding of JSON key
    */
   def readKeyAsString(): String = {
@@ -235,7 +235,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.Duration]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsDuration(): Duration = {
@@ -250,7 +250,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.Instant]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsInstant(): Instant = {
@@ -265,7 +265,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.LocalDate]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsLocalDate(): LocalDate = {
@@ -280,7 +280,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.LocalDateTime]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsLocalDateTime(): LocalDateTime = {
@@ -295,7 +295,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.LocalTime]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsLocalTime(): LocalTime = {
@@ -310,7 +310,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.MonthDay]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsMonthDay(): MonthDay = {
@@ -325,7 +325,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.OffsetDateTime]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsOffsetDateTime(): OffsetDateTime = {
@@ -340,7 +340,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.OffsetTime]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsOffsetTime(): OffsetTime = {
@@ -355,7 +355,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.Period]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsPeriod(): Period = {
@@ -370,7 +370,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.Year]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsYear(): Year = {
@@ -385,7 +385,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.YearMonth]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsYearMonth(): YearMonth = {
@@ -400,7 +400,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.ZonedDateTime]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsZonedDateTime(): ZonedDateTime = {
@@ -415,7 +415,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.ZoneId]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsZoneId(): ZoneId = {
@@ -430,7 +430,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.time.ZoneOffset]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsZoneOffset(): ZoneOffset = {
@@ -445,7 +445,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Boolean` value of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsBoolean(): Boolean = {
@@ -461,7 +461,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Byte` value of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsByte(): Byte = {
@@ -477,7 +477,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Char` value of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key or
    *   exceeding capacity of `Char` or when parsed char is a part of a surrogate
    *   pair
@@ -495,7 +495,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Short` value of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsShort(): Short = {
@@ -511,7 +511,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   an `Int` value of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsInt(): Int = {
@@ -527,7 +527,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Long` value of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsLong(): Long = {
@@ -543,7 +543,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Float` value of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsFloat(): Float = {
@@ -559,7 +559,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Double` value of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsDouble(): Double = {
@@ -576,7 +576,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `BigInt` instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key or
    *   exceeding of the default limit
    */
@@ -590,7 +590,7 @@ final class JsonReader private[json] (
    *   the maximum number of decimal digits allowed in the parsed `BigInt` value
    * @return
    *   a `BigInt` instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key or
    *   exceeding of the provided limit
    */
@@ -609,7 +609,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `BigDecimal` instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key or
    *   exceeding of default limits
    */
@@ -628,7 +628,7 @@ final class JsonReader private[json] (
    *   the maximum number of decimal digits allowed
    * @return
    *   a `BigDecimal` instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key or
    *   exceeding of provided limits
    */
@@ -645,7 +645,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a [[java.util.UUID]] instance of the parsed JSON key
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsUUID(): UUID = {
@@ -660,7 +660,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Byte` value of the parsed JSON value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value or exceeding capacity of `Byte`
    */
@@ -671,7 +671,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Char` value of the parsed JSON value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or invalid encoding of JSON value
    *   or exceeding capacity of `Char` or when parsed char is a part of a
    *   surrogate pair
@@ -688,7 +688,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Short` value of the parsed JSON value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value or exceeding capacity of `Short`
    */
@@ -699,7 +699,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   an `Int` value of the parsed JSON value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value or exceeding capacity of `Int`
    */
@@ -710,7 +710,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Long` value of the parsed JSON value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value or exceeding capacity of `Long`
    */
@@ -721,7 +721,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Double` value of the parsed JSON value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value
    */
@@ -732,7 +732,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Float` value of the parsed JSON value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value
    */
@@ -741,7 +741,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON number value into a `BigInt` instance with the default limit
    * of allowed digits. In case of `null` JSON value returns the provided
-   * default value or throws a [[JsonBinaryCodecError]] if the provided default
+   * default value or throws a [[JsonError]] if the provided default
    * value is `null`.
    *
    * @param default
@@ -749,7 +749,7 @@ final class JsonReader private[json] (
    * @return
    *   a `BigInt` instance of the parsed JSON value or the provided default
    *   value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value or exceeding of the default limit or when
    *   both the JSON value and the provided default value are `null`
@@ -759,7 +759,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON number value into a `BigInt` instance with the provided limit
    * of allowed digits. In case of `null` JSON value returns the provided
-   * default value or throws a [[JsonBinaryCodecError]] if the provided default
+   * default value or throws a [[JsonError]] if the provided default
    * value is `null`.
    *
    * @param default
@@ -769,7 +769,7 @@ final class JsonReader private[json] (
    * @return
    *   a `BigInt` instance of the parsed JSON value or the provided default
    *   value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value or exceeding of the default limit or when
    *   both the JSON value and the provided default value are `null`
@@ -781,14 +781,14 @@ final class JsonReader private[json] (
    * limit of allowed digits for mantissa, the default limit for scale, and the
    * default instance of [[java.math.MathContext]] for precision. In case of
    * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default `BigDecimal` value to return if the JSON value is `null`
    * @return
    *   a `BigDecimal` instance of the parsed JSON value or the provided default
    *   value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value or exceeding of default limits or when both
    *   the JSON value and the provided default value are `null`
@@ -801,7 +801,7 @@ final class JsonReader private[json] (
    * limit of allowed digits for mantissa, the provided limit for scale, and the
    * provided instance of [[java.math.MathContext]] for precision. In case of
    * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default `BigDecimal` value to return if the JSON value is `null`
@@ -814,7 +814,7 @@ final class JsonReader private[json] (
    * @return
    *   a `BigDecimal` instance of the parsed JSON value or the provided default
    *   value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value or exceeding of provided limits or when both
    *   the JSON value and the provided default value are `null`
@@ -825,14 +825,14 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a `String` instance. In case of `null` JSON
    * value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default `String` value to return if the JSON value is `null`.
    * @return
    *   a `String` instance of the parsed JSON value or the default value if the
    *   JSON value is `null`.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or invalid encoding of JSON value
    *   or when both the JSON value and the provided default value are `null`
    */
@@ -849,7 +849,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.Duration]] instance. In case
    * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.Duration]] value to return if the JSON value is
@@ -857,7 +857,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.Duration]] instance of the parsed JSON value or the default
    *   value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -871,7 +871,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.Instant]] instance. In case of
    * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.Instant]] value to return if the JSON value is
@@ -879,7 +879,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.Instant]] instance of the parsed JSON value or the default
    *   value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -893,7 +893,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.LocalDate]] instance. In case
    * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.LocalDate]] value to return if the JSON value is
@@ -901,7 +901,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.LocalDate]] instance of the parsed JSON value or the
    *   default value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -915,7 +915,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.LocalDateTime]] instance. In
    * case of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.LocalDateTime]] value to return if the JSON value
@@ -923,7 +923,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.LocalDateTime]] instance of the parsed JSON value or the
    *   default value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -937,7 +937,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.LocalTime]] instance. In case
    * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.LocalTime]] value to return if the JSON value is
@@ -945,7 +945,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.LocalTime]] instance of the parsed JSON value or the
    *   default value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -959,7 +959,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.MonthDay]] instance. In case
    * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.MonthDay]] value to return if the JSON value is
@@ -967,7 +967,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.MonthDay]] instance of the parsed JSON value or the default
    *   value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -981,7 +981,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.OffsetDateTime]] instance. In
    * case of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.OffsetDateTime]] value to return if the JSON
@@ -989,7 +989,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.OffsetDateTime]] instance of the parsed JSON value or the
    *   default value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -1003,7 +1003,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.OffsetTime]] instance. In case
    * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.OffsetTime]] value to return if the JSON value is
@@ -1011,7 +1011,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.OffsetTime]] instance of the parsed JSON value or the
    *   default value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -1025,7 +1025,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.Period]] instance. In case of
    * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.Period]] value to return if the JSON value is
@@ -1033,7 +1033,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.Period]] instance of the parsed JSON value or the default
    *   value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -1047,7 +1047,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.Year]] instance. In case of
    * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.Year]] value to return if the JSON value is
@@ -1055,7 +1055,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.Year]] instance of the parsed JSON value or the default
    *   value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -1069,7 +1069,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.YearMonth]] instance. In case
    * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.YearMonth]] value to return if the JSON value is
@@ -1077,7 +1077,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.YearMonth]] instance of the parsed JSON value or the
    *   default value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -1091,7 +1091,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.ZonedDateTime]] instance. In
    * case of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.ZonedDateTime]] value to return if the JSON value
@@ -1099,7 +1099,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.ZonedDateTime]] instance of the parsed JSON value or the
    *   default value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -1113,7 +1113,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.ZoneId]] instance. In case of
    * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.ZoneId]] value to return if the JSON value is
@@ -1121,7 +1121,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.ZoneId]] instance of the parsed JSON value or the default
    *   value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -1135,7 +1135,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.time.ZoneOffset]] instance. In case
    * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.time.ZoneOffset]] value to return if the JSON value is
@@ -1143,7 +1143,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.time.ZoneOffset]] instance of the parsed JSON value or the
    *   default value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -1157,7 +1157,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a [[java.util.UUID]] instance. In case of
    * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default [[java.util.UUID]] value to return if the JSON value is
@@ -1165,7 +1165,7 @@ final class JsonReader private[json] (
    * @return
    *   a [[java.util.UUID]] instance of the parsed JSON value or the default
    *   value if the JSON value is `null`
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when both the JSON value and the provided default value are `null`
    */
@@ -1181,7 +1181,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Boolean` value of the parsed JSON value.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or unexpected JSON value
    */
   def readBoolean(): Boolean = parseBoolean(isToken = true, head)
@@ -1192,7 +1192,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a length of the string in the internal char buffer
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or invalid encoding of JSON value
    */
   def readStringAsCharBuf(): Int = {
@@ -1206,7 +1206,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Byte` value of the parsed JSON value.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   exceeding the capacity of `Byte`
    */
@@ -1222,7 +1222,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Short` value of the parsed JSON value.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   exceeding the capacity of `Short`
    */
@@ -1238,7 +1238,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   an `Int` value of the parsed JSON value.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   exceeding the capacity of `Int`
    */
@@ -1254,7 +1254,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Long` value of the parsed JSON value.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   exceeding the capacity of `Long`
    */
@@ -1270,7 +1270,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Double` value of the parsed JSON value.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value
    */
   def readStringAsDouble(): Double = {
@@ -1285,7 +1285,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Float` value of the parsed JSON value.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value
    */
   def readStringAsFloat(): Float = {
@@ -1298,7 +1298,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a `BigInt` instance with the default limit
    * of allowed digits. In case of `null` JSON value returns the provided
-   * default value or throws a [[JsonBinaryCodecError]] if the provided default
+   * default value or throws a [[JsonError]] if the provided default
    * value is `null`.
    *
    * @param default
@@ -1306,7 +1306,7 @@ final class JsonReader private[json] (
    * @return
    *   a `BigInt` instance of the parsed JSON value or the provided default
    *   value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   exceeding of the default limit or when both the JSON value and the
    *   provided default value are `null`
@@ -1316,7 +1316,7 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON string value into a `BigInt` instance with the provided limit
    * of allowed digits. In case of `null` JSON value returns the provided
-   * default value or throws a [[JsonBinaryCodecError]] if the provided default
+   * default value or throws a [[JsonError]] if the provided default
    * value is `null`.
    *
    * @param default
@@ -1326,7 +1326,7 @@ final class JsonReader private[json] (
    * @return
    *   a `BigInt` instance of the parsed JSON value or the provided default
    *   value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   exceeding of the default limit or when both the JSON value and the
    *   provided default value are `null`
@@ -1346,14 +1346,14 @@ final class JsonReader private[json] (
    * limit of allowed digits for mantissa, the default limit for scale, and the
    * default instance of [[java.math.MathContext]] for precision. In case of
    * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default `BigDecimal` value to return if the JSON value is `null`
    * @return
    *   a `BigDecimal` instance of the parsed JSON value or the provided default
    *   value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   exceeding of default limits or when both the JSON value and the provided
    *   default value are `null`
@@ -1366,7 +1366,7 @@ final class JsonReader private[json] (
    * limit of allowed digits for mantissa, the provided limit for scale, and the
    * provided instance of [[java.math.MathContext]] for precision. In case of
    * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * [[JsonError]] if the provided default value is `null`.
    *
    * @param default
    *   the default `BigDecimal` value to return if the JSON value is `null`
@@ -1379,7 +1379,7 @@ final class JsonReader private[json] (
    * @return
    *   a `BigDecimal` instance of the parsed JSON value or the provided default
    *   value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   exceeding of provided limits or when both the JSON value and the provided
    *   default value are `null`
@@ -1399,7 +1399,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   a `Boolean` value of the parsed JSON value.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value
    */
   def readStringAsBoolean(): Boolean = {
@@ -1414,7 +1414,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   an `Array[Byte]` instance containing the raw bytes of the JSON value.
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or invalid type of JSON value
    */
   def readRawValAsBytes(): Array[Byte] = try {
@@ -1429,7 +1429,7 @@ final class JsonReader private[json] (
 
   /**
    * Finishes reading the `null` JSON value and returns the provided default
-   * value or throws [[JsonBinaryCodecError]].
+   * value or throws [[JsonError]].
    *
    * @param default
    *   the default value to return
@@ -1439,7 +1439,7 @@ final class JsonReader private[json] (
    *   the type of the default value
    * @return
    *   the default value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when the provided default value is `null`
    */
@@ -1460,7 +1460,7 @@ final class JsonReader private[json] (
 
   /**
    * Finishes reading the `null` JSON value and returns the provided default
-   * value or throws [[JsonBinaryCodecError]] with a message of expecting `null`
+   * value or throws [[JsonError]] with a message of expecting `null`
    * or the provided token.
    *
    * @param default
@@ -1471,7 +1471,7 @@ final class JsonReader private[json] (
    *   the type of the default value
    * @return
    *   the default value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input or illegal format of JSON value or
    *   when the provided default value is `null`
    */
@@ -1495,7 +1495,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   the next byte from the input
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input
    */
   def nextByte(): Byte = nextByte(head)
@@ -1505,7 +1505,7 @@ final class JsonReader private[json] (
    *
    * @return
    *   the next token from the input
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input
    */
   def nextToken(): Byte = nextToken(head)
@@ -1518,7 +1518,7 @@ final class JsonReader private[json] (
    *   the token to match
    * @return
    *   `true` if the next token matches `t`, `false` otherwise
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input
    */
   def isNextToken(t: Byte): Boolean = isNextToken(t, head)
@@ -1597,7 +1597,7 @@ final class JsonReader private[json] (
   /**
    * Skips the next JSON value.
    *
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input
    */
   def skip(): Unit = {
@@ -1625,67 +1625,66 @@ final class JsonReader private[json] (
   def registers: Registers = this.stack
 
   /**
-   * Throws a [[JsonBinaryCodecError]] with the message `expected ','`.
+   * Throws a [[JsonError]] with the message `expected ','`.
    *
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def commaError(): Nothing = decodeError("expected ','")
 
   /**
-   * Throws a [[JsonBinaryCodecError]] with the message `expected ']'`.
+   * Throws a [[JsonError]] with the message `expected ']'`.
    *
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def arrayEndError(): Nothing = decodeError("expected ']'")
 
   /**
-   * Throws a [[JsonBinaryCodecError]] with the message `expected ']' or ','`.
+   * Throws a [[JsonError]] with the message `expected ']' or ','`.
    *
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def arrayEndOrCommaError(): Nothing = decodeError("expected ']' or ','")
 
   /**
-   * Throws a [[JsonBinaryCodecError]] with the message `expected '}' or ','`.
+   * Throws a [[JsonError]] with the message `expected '}' or ','`.
    *
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def objectEndOrCommaError(): Nothing = decodeError("expected '}' or ','")
 
   /**
-   * Throws a [[JsonBinaryCodecError]] with the given message.
+   * Throws a [[JsonError]] with the given message.
    *
    * @param msg
    *   the exception message
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def decodeError(msg: String): Nothing = decodeError(appendString(msg, 0))
 
   /**
-   * Throws a [[JsonBinaryCodecError]] wrapping the given error and adding a
+   * Throws a [[JsonError]] wrapping the given error and adding a
    * span.
    *
    * @param span
    *   the span to add to the error
    * @param error
    *   the error to wrap
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
-    case e: JsonBinaryCodecError =>
-      e.spans = new ::(span, e.spans)
-      throw e
-    case _ => throw new JsonBinaryCodecError(new ::(span, Nil), error.getMessage)
+    case e: JsonError =>
+      throw e.copy(path = new DynamicOptic(Vector(span) ++ e.path.nodes))
+    case _ => throw JsonError(error.getMessage, new DynamicOptic(Vector(span)))
   }
 
   /**
-   * Throws a [[JsonBinaryCodecError]] wrapping the given error and adding two
+   * Throws a [[JsonError]] wrapping the given error and adding two
    * spans.
    *
    * @param span1
@@ -1694,32 +1693,30 @@ final class JsonReader private[json] (
    *   the second span to add to the error
    * @param error
    *   the error to wrap
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def decodeError(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
-    case e: JsonBinaryCodecError =>
-      e.spans = new ::(span1, new ::(span2, e.spans))
-      throw e
-    case _ => throw new JsonBinaryCodecError(new ::(span1, new ::(span2, Nil)), error.getMessage)
+    case e: JsonError =>
+      throw e.copy(path = new DynamicOptic(Vector(span1, span2) ++ e.path.nodes))
+    case _ => throw JsonError(error.getMessage, new DynamicOptic(Vector(span1, span2)))
   }
 
   /**
-   * Throws a [[JsonBinaryCodecError]] wrapping the given error and adding a
+   * Throws a [[JsonError]] wrapping the given error and adding a
    * list of spans.
    *
    * @param spans
    *   the list of spans to add to the error
    * @param error
    *   the error to wrap
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   always
    */
   def decodeError(spans: List[DynamicOptic.Node], error: Throwable): Nothing = error match {
-    case e: JsonBinaryCodecError =>
-      e.spans = spans.foldLeft(e.spans)((ss, s) => s :: ss)
-      throw e
-    case _ => throw new JsonBinaryCodecError(spans, error.getMessage)
+    case e: JsonError =>
+      throw e.copy(path = new DynamicOptic(spans.toVector ++ e.path.nodes))
+    case _ => throw JsonError(error.getMessage, new DynamicOptic(spans.toVector))
   }
 
   /**
@@ -1748,7 +1745,7 @@ final class JsonReader private[json] (
    *   the type of the value to read
    * @return
    *   an instance of type `A` containing the decoded JSON value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input during parsing of JSON value or
    *   unexpected format of JSON value or when configured checking of reaching
    *   the end of input doesn't pass after reading of the whole JSON value
@@ -1795,7 +1792,7 @@ final class JsonReader private[json] (
    *   the type of the value to read
    * @return
    *   an instance of type `A` containing the decoded JSON value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input during parsing of JSON value or
    *   unexpected format of JSON value or when configured checking of reaching
    *   the end of input doesn't pass after reading of the whole JSON value
@@ -1836,7 +1833,7 @@ final class JsonReader private[json] (
    *   the type of the value to read
    * @return
    *   an instance of type `A` containing the decoded JSON value
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   in cases of reaching the end of input during parsing of JSON value or
    *   unexpected format of JSON value or when configured checking of reaching
    *   the end of input doesn't pass after reading of the whole JSON value
@@ -1891,7 +1888,7 @@ final class JsonReader private[json] (
    * Skips whitespace characters and checks if there are non-whitespace
    * characters left in the input.
    *
-   * @throws JsonBinaryCodecError
+   * @throws JsonError
    *   when there is at least one non-whitespace character left in the input
    */
   private[json] def endOfInputOrError(): Unit = if (skipWhitespaces()) decodeError("expected end of input")
@@ -1951,7 +1948,7 @@ final class JsonReader private[json] (
   }
 
   private[this] def decodeError(from: Int): Nothing =
-    throw new JsonBinaryCodecError(Nil, new String(charBuf, 0, from))
+    throw JsonError(new String(charBuf, 0, from))
 
   private[this] def setMark(pos: Int): Unit = {
     val i = markNum
