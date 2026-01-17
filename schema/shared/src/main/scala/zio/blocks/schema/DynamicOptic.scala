@@ -140,7 +140,7 @@ object DynamicOptic {
             nodes :+= Node.AtIndices(indices)
           } else if (content.contains(":")) {
             // Slice notation: [start:end] or [start:end:step]
-            val sliceParts = content.split(":").map(_.trim)
+            val sliceParts                  = content.split(":").map(_.trim)
             val (startOpt, endOpt, stepOpt) = sliceParts.length match {
               case 2 => (Some(sliceParts(0)), Some(sliceParts(1)), None)
               case 3 => (Some(sliceParts(0)), Some(sliceParts(1)), Some(sliceParts(2)))
@@ -150,9 +150,9 @@ object DynamicOptic {
 
             // Convert to Option[Int], allow empty for open-ended
             def parseOpt(s: String): Option[Int] = if (s == null || s.isEmpty) None else Some(s.toInt)
-            val start = startOpt.flatMap(parseOpt).getOrElse(0)
-            val end   = endOpt.flatMap(parseOpt)
-            val step  = stepOpt.flatMap(parseOpt).getOrElse(1)
+            val start                            = startOpt.flatMap(parseOpt).getOrElse(0)
+            val end                              = endOpt.flatMap(parseOpt)
+            val step                             = stepOpt.flatMap(parseOpt).getOrElse(1)
 
             // We can't know the array length here, so if end is None, treat as all elements
             // Otherwise, generate indices from start until end (exclusive), with step
