@@ -50,6 +50,7 @@ lazy val root = project
     schema.js,
     schema.native,
     `schema-avro`,
+    `schema-msgpack`,
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-toon`.native,
@@ -163,6 +164,26 @@ lazy val `schema-avro` = project
       "org.apache.avro" % "avro"         % "1.12.1",
       "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
+        )
+    })
+  )
+
+lazy val `schema-msgpack` = project
+  .settings(stdSettings("zio-blocks-schema-msgpack"))
+  .dependsOn(schema.jvm % "compile->compile;test->test")
+  .settings(buildInfoSettings("zio.blocks.schema.msgpack"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.msgpack"    % "msgpack-core"  % "0.9.8",
+      "dev.zio"       %% "zio-test"      % "2.1.24" % Test,
+      "dev.zio"       %% "zio-test-sbt"  % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq()
