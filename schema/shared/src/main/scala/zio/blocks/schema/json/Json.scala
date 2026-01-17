@@ -188,6 +188,13 @@ sealed trait Json { self =>
               case _                                                 => None
             }
             navigate(next, nodes.tail)
+          case DynamicOptic.Node.AtIndices(indices) =>
+            val next = current.flatMap {
+              case Json.Array(elems) =>
+                indices.collect { case i if i >= 0 && i < elems.size => elems(i) }
+              case _ => Vector.empty
+            }
+            navigate(next, nodes.tail)
           case DynamicOptic.Node.Elements =>
             val next = current.flatMap {
               case Json.Array(elems) => elems

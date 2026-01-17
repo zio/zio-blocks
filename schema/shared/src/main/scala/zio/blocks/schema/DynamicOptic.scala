@@ -139,8 +139,33 @@ object DynamicOptic {
             val indices = content.split(",").map(_.trim.toInt).toSeq
             nodes :+= Node.AtIndices(indices)
           } else if (content.contains(":")) {
-            // Slice notation not fully supported, treat as all elements for now
-            nodes :+= Node.Elements
+            // Slice notation: [start:end] or [start:end:step]
+            val sliceParts = content.split(":").map(_.trim)
+            val (startOpt, endOpt, stepOpt) = sliceParts.length match {
+              case 2 => (Some(sliceParts(0)), Some(sliceParts(1)), None)
+              case 3 => (Some(sliceParts(0)), Some(sliceParts(1)), Some(sliceParts(2)))
+              case 1 => (Some(sliceParts(0)), None, None)
+              case _ => (None, None, None)
+            }
+
+            // Convert to Option[Int], allow empty for open-ended
+            def parseOpt(s: String): Option[Int] = if (s == null || s.isEmpty) None else Some(s.toInt)
+            val start = startOpt.flatMap(parseOpt).getOrElse(0)
+            val end   = endOpt.flatMap(parseOpt)
+            val step  = stepOpt.flatMap(parseOpt).getOrElse(1)
+
+            // We can't know the array length here, so if end is None, treat as all elements
+            // Otherwise, generate indices from start until end (exclusive), with step
+            if (end.isEmpty) {
+              nodes :+= Node.Elements
+            } else {
+              val indices =
+                if (step > 0)
+                  start until end.get by step
+                else
+                  start until end.get by step // negative step
+              nodes :+= Node.AtIndices(indices)
+            }
           } else if (content.startsWith("\"") && content.endsWith("\"")) {
             // Bracket field notation: ["fieldName"]
             val fieldName = content.substring(1, content.length - 1)

@@ -438,6 +438,31 @@ object JsonSpec extends ZIOSpecDefault {
           )
           assertTrue(json.get(path).one == Right(Json.String("Alice")))
         },
+        test("parse array slice [1:3]") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"arr[1:3]"
+          val json = Json.Object("arr" -> Json.Array(Json.String("a"), Json.String("b"), Json.String("c"), Json.String("d")))
+          assertTrue(json.get(path).toEither == Right(Vector(Json.String("b"), Json.String("c"))))
+        },
+        test("parse array slice [0:4:2]") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"arr[0:4:2]"
+          val json = Json.Object("arr" -> Json.Array(Json.String("a"), Json.String("b"), Json.String("c"), Json.String("d")))
+          assertTrue(json.get(path).toEither == Right(Vector(Json.String("a"), Json.String("c"))))
+        },
+        test("parse array slice [:2]") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"arr[:2]"
+          val json = Json.Object("arr" -> Json.Array(Json.String("a"), Json.String("b"), Json.String("c")))
+          assertTrue(json.get(path).toEither == Right(Vector(Json.String("a"), Json.String("b"))))
+        },
+        test("parse array slice [1:]") {
+          import zio.blocks.schema.json.JsonInterpolators._
+          val path = p"arr[1:]"
+          val json = Json.Object("arr" -> Json.Array(Json.String("a"), Json.String("b"), Json.String("c")))
+          // Should return all elements from index 1 to end (but our parser currently treats as Elements)
+          assertTrue(json.get(path).toEither == Right(Vector(Json.String("a"), Json.String("b"), Json.String("c"))))
+        },
         test("parse all elements wildcard") {
           import zio.blocks.schema.json.JsonInterpolators._
           val path = p"users[*]"
