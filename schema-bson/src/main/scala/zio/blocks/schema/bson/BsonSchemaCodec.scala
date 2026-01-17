@@ -99,84 +99,83 @@ object BsonSchemaCodec {
   // Helper to recursively derive codec from Reflect structure
   private def deriveCodec[A](reflect: Reflect.Bound[A], config: Config): BsonCodec[A] =
     // Check if this is a Deferred type (recursive)
-    reflect match {
-      case deferred: Reflect.Deferred[?, ?] =>
-        // Use a lazy codec to break recursion
-        val cacheKey = (deferred, config)
-        codecCache.get(cacheKey) match {
-          case null =>
-            // Create a lazy codec placeholder
-            var lazyCodec: BsonCodec[A] = null
+    if (reflect.isInstanceOf[Reflect.Deferred[binding.Binding, A]]) {
+      val deferred = reflect.asInstanceOf[Reflect.Deferred[binding.Binding, A]]
+      // Use a lazy codec to break recursion
+      val cacheKey = (deferred, config)
+      codecCache.get(cacheKey) match {
+        case null =>
+          // Create a lazy codec placeholder
+          var lazyCodec: BsonCodec[A] = null
 
-            val encoder = new BsonEncoder[A] {
-              def encode(writer: BsonWriter, value: A, ctx: BsonEncoder.EncoderContext): Unit = {
-                if (lazyCodec == null) {
-                  lazyCodec = deriveCodec(deferred.value.asInstanceOf[Reflect.Bound[A]], config)
-                }
-                lazyCodec.encoder.encode(writer, value, ctx)
+          val encoder = new BsonEncoder[A] {
+            def encode(writer: BsonWriter, value: A, ctx: BsonEncoder.EncoderContext): Unit = {
+              if (lazyCodec == null) {
+                lazyCodec = deriveCodec(deferred.value.asInstanceOf[Reflect.Bound[A]], config)
               }
-
-              def toBsonValue(value: A): BsonValue = {
-                if (lazyCodec == null) {
-                  lazyCodec = deriveCodec(deferred.value.asInstanceOf[Reflect.Bound[A]], config)
-                }
-                lazyCodec.encoder.toBsonValue(value)
-              }
+              lazyCodec.encoder.encode(writer, value, ctx)
             }
 
-            val decoder = new BsonDecoder[A] {
-              def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): A = {
-                if (lazyCodec == null) {
-                  lazyCodec = deriveCodec(deferred.value.asInstanceOf[Reflect.Bound[A]], config)
-                }
-                lazyCodec.decoder.decodeUnsafe(reader, trace, ctx)
+            def toBsonValue(value: A): BsonValue = {
+              if (lazyCodec == null) {
+                lazyCodec = deriveCodec(deferred.value.asInstanceOf[Reflect.Bound[A]], config)
               }
+              lazyCodec.encoder.toBsonValue(value)
+            }
+          }
 
-              def fromBsonValueUnsafe(
-                value: BsonValue,
-                trace: List[BsonTrace],
-                ctx: BsonDecoder.BsonDecoderContext
-              ): A = {
-                if (lazyCodec == null) {
-                  lazyCodec = deriveCodec(deferred.value.asInstanceOf[Reflect.Bound[A]], config)
-                }
-                lazyCodec.decoder.fromBsonValueUnsafe(value, trace, ctx)
+          val decoder = new BsonDecoder[A] {
+            def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): A = {
+              if (lazyCodec == null) {
+                lazyCodec = deriveCodec(deferred.value.asInstanceOf[Reflect.Bound[A]], config)
               }
+              lazyCodec.decoder.decodeUnsafe(reader, trace, ctx)
             }
 
-            val codec = BsonCodec(encoder, decoder)
-            codecCache.put(cacheKey, codec.asInstanceOf[BsonCodec[Any]])
-            codec
-
-          case cached =>
-            cached.asInstanceOf[BsonCodec[A]]
-        }
-
-      case _ =>
-        // Non-deferred types
-        reflect.asPrimitive match {
-          case Some(primitive) =>
-            Codecs.primitiveCodec(primitive.primitiveType)
-          case None =>
-            if (reflect.isRecord) {
-              deriveRecordCodec(reflect.asRecord.get, config)
-            } else if (reflect.isSequence) {
-              val seq = reflect.asSequenceUnknown.get
-              deriveSequenceCodec(seq.sequence, config).asInstanceOf[BsonCodec[A]]
-            } else if (reflect.isMap) {
-              val m = reflect.asMapUnknown.get
-              deriveMapCodec(m.map, config).asInstanceOf[BsonCodec[A]]
-            } else if (reflect.isVariant) {
-              deriveVariantCodec(reflect.asVariant.get, config)
-            } else if (reflect.isWrapper) {
-              val w = reflect.asWrapperUnknown.get
-              deriveWrapperCodec(w.wrapper, config).asInstanceOf[BsonCodec[A]]
-            } else {
-              throw new UnsupportedOperationException(
-                s"BSON codec for ${reflect.typeName} (type: ${reflect.nodeType}) is not yet implemented."
-              )
+            def fromBsonValueUnsafe(
+              value: BsonValue,
+              trace: List[BsonTrace],
+              ctx: BsonDecoder.BsonDecoderContext
+            ): A = {
+              if (lazyCodec == null) {
+                lazyCodec = deriveCodec(deferred.value.asInstanceOf[Reflect.Bound[A]], config)
+              }
+              lazyCodec.decoder.fromBsonValueUnsafe(value, trace, ctx)
             }
-        }
+          }
+
+          val codec = BsonCodec(encoder, decoder)
+          codecCache.put(cacheKey, codec.asInstanceOf[BsonCodec[Any]])
+          codec
+
+        case cached =>
+          cached.asInstanceOf[BsonCodec[A]]
+      }
+    } else {
+      // Non-deferred types
+      reflect.asPrimitive match {
+        case Some(primitive) =>
+          Codecs.primitiveCodec(primitive.primitiveType)
+        case None =>
+          if (reflect.isRecord) {
+            deriveRecordCodec(reflect.asRecord.get, config)
+          } else if (reflect.isSequence) {
+            val seq = reflect.asSequenceUnknown.get
+            deriveSequenceCodec(seq.sequence, config).asInstanceOf[BsonCodec[A]]
+          } else if (reflect.isMap) {
+            val m = reflect.asMapUnknown.get
+            deriveMapCodec(m.map, config).asInstanceOf[BsonCodec[A]]
+          } else if (reflect.isVariant) {
+            deriveVariantCodec(reflect.asVariant.get, config)
+          } else if (reflect.isWrapper) {
+            val w = reflect.asWrapperUnknown.get
+            deriveWrapperCodec(w.wrapper, config).asInstanceOf[BsonCodec[A]]
+          } else {
+            throw new UnsupportedOperationException(
+              s"BSON codec for ${reflect.typeName} (type: ${reflect.nodeType}) is not yet implemented."
+            )
+          }
+      }
     }
 
   // Record (case class) codec derivation
