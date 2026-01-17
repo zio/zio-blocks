@@ -84,16 +84,18 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     if (actions.isEmpty) "Empty migration"
     else
       actions.map {
-        case MigrationAction.AddField(at, name, _)        => s"Add field '$name' at ${at.toString}"
-        case MigrationAction.DropField(at, name, _)       => s"Drop field '$name' at ${at.toString}"
-        case MigrationAction.Rename(at, from, to)         => s"Rename '$from' to '$to' at ${at.toString}"
-        case MigrationAction.TransformValue(at, _)        => s"Transform value at ${at.toString}"
-        case MigrationAction.Mandate(at, name, _)         => s"Mandate field '$name' at ${at.toString}"
-        case MigrationAction.Optionalize(at, name)        => s"Optionalize field '$name' at ${at.toString}"
-        case MigrationAction.Join(at, sources, target, _) =>
-          s"Join ${sources.mkString(", ")} into '$target' at ${at.toString}"
-        case MigrationAction.Split(at, source, targets, _) =>
-          s"Split '$source' into ${targets.mkString(", ")} at ${at.toString}"
+        case MigrationAction.AddField(at, name, _)           => s"Add field '$name' at ${at.toString}"
+        case MigrationAction.DropField(at, name, _)          => s"Drop field '$name' at ${at.toString}"
+        case MigrationAction.Rename(at, from, to)            => s"Rename '$from' to '$to' at ${at.toString}"
+        case MigrationAction.TransformValue(at, _)           => s"Transform value at ${at.toString}"
+        case MigrationAction.Mandate(at, name, _)            => s"Mandate field '$name' at ${at.toString}"
+        case MigrationAction.Optionalize(at, name)           => s"Optionalize field '$name' at ${at.toString}"
+        case MigrationAction.Join(at, sources, target, _, _) =>
+          val sourceStrs = sources.map(_.toString).mkString(", ")
+          s"Join [$sourceStrs] into ${target.toString} at ${at.toString}"
+        case MigrationAction.Split(at, source, targets, _, _) =>
+          val targetStrs = targets.map(_.toString).mkString(", ")
+          s"Split ${source.toString} into [$targetStrs] at ${at.toString}"
         case MigrationAction.ChangeType(at, name, _)    => s"Change type of '$name' at ${at.toString}"
         case MigrationAction.RenameCase(at, from, to)   => s"Rename case '$from' to '$to' at ${at.toString}"
         case MigrationAction.TransformCase(at, name, _) => s"Transform case '$name' at ${at.toString}"

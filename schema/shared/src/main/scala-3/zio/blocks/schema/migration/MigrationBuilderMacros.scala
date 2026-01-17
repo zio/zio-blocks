@@ -207,6 +207,29 @@ private[migration] object MigrationBuilderMacros {
   }
 
   // ============================================================================
+  // TransformField with nested path support
+  // ============================================================================
+
+  def transformFieldImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    sourceSelector: Expr[A => Any],
+    unusedTargetSelector: Expr[B => Any],
+    transform: Expr[SchemaExpr[DynamicValue, DynamicValue]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+    val _ = unusedTargetSelector
+
+    val path = extractNestedPath(sourceSelector.asTerm) match {
+      case Right(p) if p.nonEmpty => p
+      case Right(_)               => report.errorAndAbort("Empty path in selector")
+      case Left(err)              => report.errorAndAbort(err)
+    }
+
+    val optic = buildOpticExpr(path)
+    '{ $builder.transformField($optic, $transform) }
+  }
+
+  // ============================================================================
   // ChangeFieldType with nested path support
   // ============================================================================
 
@@ -294,5 +317,111 @@ private[migration] object MigrationBuilderMacros {
 
     val optic = buildOpticExpr(path)
     '{ $builder.transformValues($optic, $transform) }
+  }
+
+  // ============================================================================
+  // JoinFields with selector-based paths
+  // ============================================================================
+
+  // Note: Variadic selector approach (joinFieldsImpl) was removed because selectors
+  // passed as Seq cannot be inspected at compile time. Use joinFields2 for the
+  // common 2-source case, or use joinFields() directly with DynamicOptic paths
+  // for more than 2 sources.
+
+  /**
+   * Join exactly 2 source fields (most common case) using type-safe selectors.
+   */
+  def joinFields2Impl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    source1: Expr[A => Any],
+    source2: Expr[A => Any],
+    targetSelector: Expr[B => Any],
+    combiner: Expr[SchemaExpr[DynamicValue, DynamicValue]],
+    splitterForReverse: Expr[Option[SchemaExpr[DynamicValue, DynamicValue]]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+
+    // Extract source paths
+    val source1Path = extractNestedPath(source1.asTerm) match {
+      case Right(p) if p.nonEmpty => p
+      case Right(_)               => report.errorAndAbort("Empty path in source1 selector")
+      case Left(err)              => report.errorAndAbort(err)
+    }
+
+    val source2Path = extractNestedPath(source2.asTerm) match {
+      case Right(p) if p.nonEmpty => p
+      case Right(_)               => report.errorAndAbort("Empty path in source2 selector")
+      case Left(err)              => report.errorAndAbort(err)
+    }
+
+    val targetPath = extractNestedPath(targetSelector.asTerm) match {
+      case Right(p) if p.nonEmpty => p
+      case Right(_)               => report.errorAndAbort("Empty path in target selector")
+      case Left(err)              => report.errorAndAbort(err)
+    }
+
+    val source1Optic = buildOpticExpr(source1Path)
+    val source2Optic = buildOpticExpr(source2Path)
+    val targetOptic  = buildOpticExpr(targetPath)
+
+    '{
+      $builder.joinFields(
+        Vector($source1Optic, $source2Optic),
+        $targetOptic,
+        $combiner,
+        $splitterForReverse
+      )
+    }
+  }
+
+  // ============================================================================
+  // SplitField with selector-based paths
+  // ============================================================================
+
+  /**
+   * Split to exactly 2 target fields (most common case) using type-safe
+   * selectors.
+   */
+  def splitField2Impl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    sourceSelector: Expr[A => Any],
+    target1: Expr[B => Any],
+    target2: Expr[B => Any],
+    splitter: Expr[SchemaExpr[DynamicValue, DynamicValue]],
+    combinerForReverse: Expr[Option[SchemaExpr[DynamicValue, DynamicValue]]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+
+    // Extract source path
+    val sourcePath = extractNestedPath(sourceSelector.asTerm) match {
+      case Right(p) if p.nonEmpty => p
+      case Right(_)               => report.errorAndAbort("Empty path in source selector")
+      case Left(err)              => report.errorAndAbort(err)
+    }
+
+    val target1Path = extractNestedPath(target1.asTerm) match {
+      case Right(p) if p.nonEmpty => p
+      case Right(_)               => report.errorAndAbort("Empty path in target1 selector")
+      case Left(err)              => report.errorAndAbort(err)
+    }
+
+    val target2Path = extractNestedPath(target2.asTerm) match {
+      case Right(p) if p.nonEmpty => p
+      case Right(_)               => report.errorAndAbort("Empty path in target2 selector")
+      case Left(err)              => report.errorAndAbort(err)
+    }
+
+    val sourceOptic  = buildOpticExpr(sourcePath)
+    val target1Optic = buildOpticExpr(target1Path)
+    val target2Optic = buildOpticExpr(target2Path)
+
+    '{
+      $builder.splitField(
+        $sourceOptic,
+        Vector($target1Optic, $target2Optic),
+        $splitter,
+        $combinerForReverse
+      )
+    }
   }
 }

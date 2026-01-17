@@ -190,59 +190,151 @@ object MigrationAction {
 
   /**
    * Join multiple source fields into a single target field.
+   *
+   * Supports cross-nesting-level joins where source paths can be at different
+   * nesting depths (e.g., `_.address.street` + `_.origin.country` ->
+   * `_.address.fullAddress`).
+   *
+   * The combiner receives a `DynamicValue.Sequence` containing the source
+   * values in the same order as `sourcePaths`, making it easy to work with.
+   *
+   * @param at
+   *   The base path (typically root for cross-level joins)
+   * @param sourcePaths
+   *   Full paths to source fields (can be at different nesting levels)
+   * @param targetPath
+   *   Full path to target field
+   * @param combiner
+   *   Expression that receives Sequence of source values and produces target
+   *   value
+   * @param splitterForReverse
+   *   Optional splitter for reverse operation (Split)
    */
   final case class Join(
     at: DynamicOptic,
-    sourcePaths: Vector[String],
-    targetField: String,
-    combiner: SchemaExpr[DynamicValue, DynamicValue]
+    sourcePaths: Vector[DynamicOptic],
+    targetPath: DynamicOptic,
+    combiner: SchemaExpr[DynamicValue, DynamicValue],
+    splitterForReverse: Option[SchemaExpr[DynamicValue, DynamicValue]] = None
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
-      modifyAt(value, at) {
-        case DynamicValue.Record(fields) =>
-          val remaining = fields.filterNot(f => sourcePaths.contains(f._1))
-          combiner.evalDynamic(value) match {
-            case Right(results) if results.nonEmpty =>
-              Right(DynamicValue.Record(remaining :+ (targetField -> results.head)))
-            case Right(_) =>
-              Left(SchemaError.evaluationFailed(at, "Join combiner returned no value"))
-            case Left(err) =>
-              Left(SchemaError.evaluationFailed(at, err.toString))
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] = {
+      // Extract values from all source paths
+      val sourceValuesResult = sourcePaths.foldLeft[Either[SchemaError, Vector[DynamicValue]]](Right(Vector.empty)) {
+        (acc, path) =>
+          acc.flatMap { accumulated =>
+            getAt(value, path) match {
+              case Some(v) => Right(accumulated :+ v)
+              case None    => Left(SchemaError.missingField(Nil, path.toString))
+            }
           }
-        case other =>
-          Left(SchemaError.typeMismatch(at, "Record", other.getClass.getSimpleName))
       }
 
-    def reverse: MigrationAction = this
+      sourceValuesResult.flatMap { sourceValues =>
+        // Pass source values as a Sequence (clean API for combiner)
+        val sourceSequence = DynamicValue.Sequence(sourceValues)
+
+        // Apply combiner
+        combiner.evalDynamic(sourceSequence) match {
+          case Right(results) if results.nonEmpty =>
+            val combinedValue = results.head
+            // Remove source fields and set target field
+            val withRemovals = sourcePaths.foldLeft[Either[SchemaError, DynamicValue]](Right(value)) { (acc, path) =>
+              acc.flatMap(removeAt(_, path))
+            }
+            withRemovals.flatMap(setAt(_, targetPath, combinedValue))
+          case Right(_) =>
+            Left(SchemaError.evaluationFailed(at, "Join combiner returned no value"))
+          case Left(err) =>
+            Left(SchemaError.evaluationFailed(at, err.toString))
+        }
+      }
+    }
+
+    /** Reverse of Join is Split (if splitter is provided). */
+    def reverse: MigrationAction = splitterForReverse match {
+      case Some(splitter) =>
+        Split(at, targetPath, sourcePaths, splitter, Some(combiner))
+      case None =>
+        // Best-effort: return self (not semantically reversible without splitter)
+        this
+    }
   }
 
   /**
    * Split a source field into multiple target fields.
+   *
+   * Supports cross-nesting-level splits where target paths can be at different
+   * nesting depths (e.g., `_.fullName` -> `_.address.street` +
+   * `_.origin.country`).
+   *
+   * The splitter receives a single source value and should return a `Sequence`
+   * containing values for each target path in the same order.
+   *
+   * @param at
+   *   The base path (typically root for cross-level splits)
+   * @param sourcePath
+   *   Full path to source field
+   * @param targetPaths
+   *   Full paths to target fields (can be at different nesting levels)
+   * @param splitter
+   *   Expression that receives source value and produces Sequence of target
+   *   values
+   * @param combinerForReverse
+   *   Optional combiner for reverse operation (Join)
    */
   final case class Split(
     at: DynamicOptic,
-    sourceField: String,
-    targetPaths: Vector[String],
-    splitter: SchemaExpr[DynamicValue, DynamicValue]
+    sourcePath: DynamicOptic,
+    targetPaths: Vector[DynamicOptic],
+    splitter: SchemaExpr[DynamicValue, DynamicValue],
+    combinerForReverse: Option[SchemaExpr[DynamicValue, DynamicValue]] = None
   ) extends MigrationAction {
 
     def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
-      modifyAt(value, at) {
-        case DynamicValue.Record(fields) =>
-          val remaining = fields.filterNot(_._1 == sourceField)
-          splitter.evalDynamic(value) match {
+      // Get the source value
+      getAt(value, sourcePath) match {
+        case None =>
+          Left(SchemaError.missingField(Nil, sourcePath.toString))
+        case Some(sourceValue) =>
+          // Apply splitter to get target values
+          splitter.evalDynamic(sourceValue) match {
             case Right(results) =>
-              val newFields = targetPaths.zip(results).toVector
-              Right(DynamicValue.Record(remaining ++ newFields))
+              // Handle both direct results and Sequence-wrapped results
+              val splitValues: Vector[DynamicValue] = results.headOption match {
+                case Some(DynamicValue.Sequence(elements)) => elements
+                case _                                     => results.toVector
+              }
+
+              if (splitValues.length >= targetPaths.length) {
+                // Remove source field first
+                removeAt(value, sourcePath).flatMap { withoutSource =>
+                  // Set each target path with corresponding result
+                  targetPaths.zip(splitValues).foldLeft[Either[SchemaError, DynamicValue]](Right(withoutSource)) {
+                    case (acc, (path, v)) => acc.flatMap(setAt(_, path, v))
+                  }
+                }
+              } else {
+                Left(
+                  SchemaError.evaluationFailed(
+                    at,
+                    s"Split splitter returned ${splitValues.length} values, but ${targetPaths.length} expected"
+                  )
+                )
+              }
             case Left(err) =>
               Left(SchemaError.evaluationFailed(at, err.toString))
           }
-        case other =>
-          Left(SchemaError.typeMismatch(at, "Record", other.getClass.getSimpleName))
       }
 
-    def reverse: MigrationAction = this
+    /** Reverse of Split is Join (if combiner is provided). */
+    def reverse: MigrationAction = combinerForReverse match {
+      case Some(combiner) =>
+        Join(at, targetPaths, sourcePath, combiner, Some(splitter))
+      case None =>
+        // Best-effort: return self (not semantically reversible without combiner)
+        this
+    }
   }
 
   /**
@@ -497,6 +589,123 @@ object MigrationAction {
         case _ =>
           // Handle other node types as identity for now
           f(value)
+      }
+    }
+
+  /** Get a value at a specific path in the DynamicValue. */
+  private def getAt(value: DynamicValue, path: DynamicOptic): Option[DynamicValue] =
+    if (path.nodes.isEmpty) {
+      Some(value)
+    } else {
+      path.nodes.head match {
+        case DynamicOptic.Node.Field(name) =>
+          value match {
+            case DynamicValue.Record(fields) =>
+              fields.find(_._1 == name).flatMap { case (_, fieldValue) =>
+                getAt(fieldValue, DynamicOptic(path.nodes.tail))
+              }
+            case _ => None
+          }
+
+        case DynamicOptic.Node.Case(caseName) =>
+          value match {
+            case DynamicValue.Variant(name, innerValue) if name == caseName =>
+              getAt(innerValue, DynamicOptic(path.nodes.tail))
+            case _ => None
+          }
+
+        case _ => None
+      }
+    }
+
+  /**
+   * Set a value at a specific path in the DynamicValue, creating intermediate
+   * records if needed.
+   */
+  private def setAt(
+    value: DynamicValue,
+    path: DynamicOptic,
+    newValue: DynamicValue
+  ): Either[SchemaError, DynamicValue] =
+    if (path.nodes.isEmpty) {
+      Right(newValue)
+    } else {
+      path.nodes.head match {
+        case DynamicOptic.Node.Field(name) =>
+          value match {
+            case DynamicValue.Record(fields) =>
+              val remainingPath = DynamicOptic(path.nodes.tail)
+              fields.find(_._1 == name) match {
+                case Some((_, fieldValue)) =>
+                  setAt(fieldValue, remainingPath, newValue).map { updated =>
+                    val newFields = fields.map {
+                      case (n, _) if n == name => (n, updated)
+                      case other               => other
+                    }
+                    DynamicValue.Record(newFields)
+                  }
+                case None =>
+                  // Field doesn't exist, create it
+                  if (remainingPath.nodes.isEmpty) {
+                    Right(DynamicValue.Record(fields :+ (name -> newValue)))
+                  } else {
+                    // Need to create intermediate structure
+                    setAt(DynamicValue.Record(Vector.empty), remainingPath, newValue).map { nested =>
+                      DynamicValue.Record(fields :+ (name -> nested))
+                    }
+                  }
+              }
+            case other =>
+              Left(SchemaError.typeMismatch(path, "Record", other.getClass.getSimpleName))
+          }
+
+        case _ =>
+          Left(SchemaError.evaluationFailed(path, "Unsupported path node for setAt"))
+      }
+    }
+
+  /** Remove a value at a specific path in the DynamicValue. */
+  private def removeAt(value: DynamicValue, path: DynamicOptic): Either[SchemaError, DynamicValue] =
+    if (path.nodes.isEmpty) {
+      // Can't remove root
+      Left(SchemaError.evaluationFailed(path, "Cannot remove root value"))
+    } else if (path.nodes.length == 1) {
+      // Last node in path - remove this field
+      path.nodes.head match {
+        case DynamicOptic.Node.Field(name) =>
+          value match {
+            case DynamicValue.Record(fields) =>
+              Right(DynamicValue.Record(fields.filterNot(_._1 == name)))
+            case other =>
+              Left(SchemaError.typeMismatch(path, "Record", other.getClass.getSimpleName))
+          }
+        case _ =>
+          Left(SchemaError.evaluationFailed(path, "Unsupported path node for removeAt"))
+      }
+    } else {
+      // Navigate deeper
+      path.nodes.head match {
+        case DynamicOptic.Node.Field(name) =>
+          value match {
+            case DynamicValue.Record(fields) =>
+              fields.find(_._1 == name) match {
+                case Some((_, fieldValue)) =>
+                  val remainingPath = DynamicOptic(path.nodes.tail)
+                  removeAt(fieldValue, remainingPath).map { updated =>
+                    val newFields = fields.map {
+                      case (n, _) if n == name => (n, updated)
+                      case other               => other
+                    }
+                    DynamicValue.Record(newFields)
+                  }
+                case None =>
+                  Right(value) // Field doesn't exist, nothing to remove
+              }
+            case other =>
+              Left(SchemaError.typeMismatch(path, "Record", other.getClass.getSimpleName))
+          }
+        case _ =>
+          Left(SchemaError.evaluationFailed(path, "Unsupported path node for removeAt"))
       }
     }
 }

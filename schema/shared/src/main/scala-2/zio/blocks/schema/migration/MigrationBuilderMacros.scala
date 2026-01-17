@@ -142,6 +142,18 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
     c.Expr[MigrationBuilder[A, B]](q"$builder.optionalizeField($fieldName, $optic)")
   }
 
+  def transformFieldImpl[A: WeakTypeTag, B: WeakTypeTag](
+    source: c.Expr[A => Any],
+    target: c.Expr[B => Any],
+    transform: c.Expr[zio.blocks.schema.SchemaExpr[zio.blocks.schema.DynamicValue, zio.blocks.schema.DynamicValue]]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = target
+    val path = extractPath(source.tree)
+    val optic = mkDynamicOptic(path)
+    val builder = c.prefix
+    c.Expr[MigrationBuilder[A, B]](q"$builder.transformField($optic, $transform)")
+  }
+
   def mandateFieldImpl[A: WeakTypeTag, B: WeakTypeTag](
     source: c.Expr[A => Option[_]],
     target: c.Expr[B => Any],
@@ -350,6 +362,66 @@ private[migration] class MigrationBuilderMacros(val c: whitebox.Context) {
       case _ => ()
     }
     (handledSource, producedTarget)
+  }
+
+  // ============================================================================
+  // Join / Split macros
+  // ============================================================================
+
+  def joinFields2Impl[A: WeakTypeTag, B: WeakTypeTag](
+    source1: c.Expr[A => Any],
+    source2: c.Expr[A => Any]
+  )(
+    target: c.Expr[B => Any]
+  )(
+    combiner: c.Expr[zio.blocks.schema.SchemaExpr[zio.blocks.schema.DynamicValue, zio.blocks.schema.DynamicValue]],
+    splitterForReverse: c.Expr[Option[zio.blocks.schema.SchemaExpr[zio.blocks.schema.DynamicValue, zio.blocks.schema.DynamicValue]]]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    val source1Path = extractPath(source1.tree)
+    val source2Path = extractPath(source2.tree)
+    val targetPath  = extractPath(target.tree)
+
+    val source1Optic = mkDynamicOptic(source1Path)
+    val source2Optic = mkDynamicOptic(source2Path)
+    val targetOptic  = mkDynamicOptic(targetPath)
+
+    val builder = c.prefix
+    c.Expr[MigrationBuilder[A, B]](
+      q"""$builder.joinFields(
+        _root_.scala.collection.immutable.Vector($source1Optic, $source2Optic),
+        $targetOptic,
+        $combiner,
+        $splitterForReverse
+      )"""
+    )
+  }
+
+  def splitField2Impl[A: WeakTypeTag, B: WeakTypeTag](
+    source: c.Expr[A => Any]
+  )(
+    target1: c.Expr[B => Any],
+    target2: c.Expr[B => Any]
+  )(
+    splitter: c.Expr[zio.blocks.schema.SchemaExpr[zio.blocks.schema.DynamicValue, zio.blocks.schema.DynamicValue]],
+    combinerForReverse: c.Expr[Option[zio.blocks.schema.SchemaExpr[zio.blocks.schema.DynamicValue, zio.blocks.schema.DynamicValue]]]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    val sourcePath  = extractPath(source.tree)
+    val target1Path = extractPath(target1.tree)
+    val target2Path = extractPath(target2.tree)
+
+    val sourceOptic  = mkDynamicOptic(sourcePath)
+    val target1Optic = mkDynamicOptic(target1Path)
+    val target2Optic = mkDynamicOptic(target2Path)
+
+    val builder = c.prefix
+    c.Expr[MigrationBuilder[A, B]](
+      q"""$builder.splitField(
+        $sourceOptic,
+        _root_.scala.collection.immutable.Vector($target1Optic, $target2Optic),
+        $splitter,
+        $combinerForReverse
+      )"""
+    )
   }
 }
 

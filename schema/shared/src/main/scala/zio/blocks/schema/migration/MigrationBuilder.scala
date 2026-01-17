@@ -147,6 +147,68 @@ final class MigrationBuilder[A, B](
     copy(actions :+ MigrationAction.ChangeType(at, fieldName, converter))
 
   // ============================================================================
+  // Join / Split Operations
+  // ============================================================================
+
+  /**
+   * Join multiple source fields into a single target field.
+   *
+   * Example:
+   * {{{
+   *   .joinFields(
+   *     source = Vector(_.firstName, _.lastName),
+   *     target = _.fullName,
+   *     combiner = concatenateExpr,
+   *     splitterForReverse = Some(splitExpr)  // Makes migration reversible
+   *   )
+   * }}}
+   *
+   * The combiner receives a `DynamicValue.Sequence` containing the source values
+   * in the order they appear in `sourcePaths`.
+   *
+   * @param sourcePaths Paths to source fields to combine
+   * @param targetPath Path to target field
+   * @param combiner Expression to combine source values (receives Sequence)
+   * @param splitterForReverse Optional splitter expression for reverse migration
+   */
+  def joinFields(
+    sourcePaths: Vector[DynamicOptic],
+    targetPath: DynamicOptic,
+    combiner: SchemaExpr[DynamicValue, DynamicValue],
+    splitterForReverse: Option[SchemaExpr[DynamicValue, DynamicValue]] = None
+  ): MigrationBuilder[A, B] =
+    copy(actions :+ MigrationAction.Join(DynamicOptic.root, sourcePaths, targetPath, combiner, splitterForReverse))
+
+  /**
+   * Split a source field into multiple target fields.
+   *
+   * Example:
+   * {{{
+   *   .splitField(
+   *     source = _.fullName,
+   *     targets = Vector(_.firstName, _.lastName),
+   *     splitter = splitBySpaceExpr,
+   *     combinerForReverse = Some(concatenateExpr)  // Makes migration reversible
+   *   )
+   * }}}
+   *
+   * The splitter should return a `DynamicValue.Sequence` with one value for each
+   * target path in the same order.
+   *
+   * @param sourcePath Path to source field to split
+   * @param targetPaths Paths to target fields
+   * @param splitter Expression to split source value (should return Sequence)
+   * @param combinerForReverse Optional combiner expression for reverse migration
+   */
+  def splitField(
+    sourcePath: DynamicOptic,
+    targetPaths: Vector[DynamicOptic],
+    splitter: SchemaExpr[DynamicValue, DynamicValue],
+    combinerForReverse: Option[SchemaExpr[DynamicValue, DynamicValue]] = None
+  ): MigrationBuilder[A, B] =
+    copy(actions :+ MigrationAction.Split(DynamicOptic.root, sourcePath, targetPaths, splitter, combinerForReverse))
+
+  // ============================================================================
   // Enum Operations
   // ============================================================================
 
@@ -277,8 +339,8 @@ final class MigrationBuilder[A, B](
     case MigrationAction.Mandate(_, name, _)    => Set(name)
     case MigrationAction.Optionalize(_, name)   => Set(name)
     case MigrationAction.ChangeType(_, name, _) => Set(name)
-    case MigrationAction.Join(_, sources, _, _) => sources.toSet
-    case MigrationAction.Split(_, source, _, _) => Set(source)
+    case MigrationAction.Join(_, sources, _, _, _) => sources.flatMap(extractLeafFieldName).toSet
+    case MigrationAction.Split(_, source, _, _, _) => extractLeafFieldName(source).toSet
     case _                                      => Set.empty
   }
 
@@ -288,10 +350,16 @@ final class MigrationBuilder[A, B](
     case MigrationAction.Mandate(_, name, _)     => Set(name)
     case MigrationAction.Optionalize(_, name)    => Set(name)
     case MigrationAction.ChangeType(_, name, _)  => Set(name)
-    case MigrationAction.Join(_, _, target, _)   => Set(target)
-    case MigrationAction.Split(_, _, targets, _) => targets.toSet
+    case MigrationAction.Join(_, _, target, _, _)   => extractLeafFieldName(target).toSet
+    case MigrationAction.Split(_, _, targets, _, _) => targets.flatMap(extractLeafFieldName).toSet
     case _                                       => Set.empty
   }
+
+  /** Extract the leaf field name from a DynamicOptic path. */
+  private def extractLeafFieldName(path: DynamicOptic): Option[String] =
+    path.nodes.lastOption.collect {
+      case DynamicOptic.Node.Field(name) => name
+    }
 
   private def extractSchemaFields[T](schema: Schema[T]): Set[String] =
     // Use Reflect to extract field names from schema

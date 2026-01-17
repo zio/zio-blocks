@@ -70,6 +70,22 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
   }
 
   /**
+   * Transform a field value using type-safe selectors. Supports nested paths:
+   * `.transformField(_.address.street, _.address.street)(transform)`
+   *
+   * @param source Selector for source field
+   * @param target Selector for target field (typically same path)
+   * @param transform Expression to transform the field value
+   */
+  inline def transformField(
+    inline source: A => Any,
+    inline target: B => Any,
+    transform: SchemaExpr[DynamicValue, DynamicValue]
+  ): MigrationBuilder[A, B] = ${
+    MigrationBuilderMacros.transformFieldImpl[A, B]('self, 'source, 'target, 'transform)
+  }
+
+  /**
    * Change the type of a field using type-safe selectors. Supports nested
    * paths.
    */
@@ -110,5 +126,67 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
     transform: SchemaExpr[DynamicValue, DynamicValue]
   ): MigrationBuilder[A, B] = ${
     MigrationBuilderMacros.transformValuesImpl[A, B]('self, 'selector, 'transform)
+  }
+
+  // ============================================================================
+  // Join / Split with type-safe selectors
+  // ============================================================================
+
+  /**
+   * Join two source fields into a single target field using type-safe selectors.
+   *
+   * Example:
+   * {{{
+   *   .joinFields2(_.firstName, _.lastName)(_.fullName)(combiner)
+   *   .joinFields2(_.address.street, _.origin.country)(_.address.fullAddress)(combiner)
+   * }}}
+   *
+   * The combiner receives a `DynamicValue.Sequence` containing the two source values.
+   *
+   * @param source1 Selector for first source field
+   * @param source2 Selector for second source field
+   * @param target Selector for target field
+   * @param combiner Expression to combine source values
+   * @param splitterForReverse Optional splitter for reverse migration
+   */
+  inline def joinFields2(
+    inline source1: A => Any,
+    inline source2: A => Any
+  )(
+    inline target: B => Any
+  )(
+    combiner: SchemaExpr[DynamicValue, DynamicValue],
+    splitterForReverse: Option[SchemaExpr[DynamicValue, DynamicValue]] = None
+  ): MigrationBuilder[A, B] = ${
+    MigrationBuilderMacros.joinFields2Impl[A, B]('self, 'source1, 'source2, 'target, 'combiner, 'splitterForReverse)
+  }
+
+  /**
+   * Split a source field into two target fields using type-safe selectors.
+   *
+   * Example:
+   * {{{
+   *   .splitField2(_.fullName)(_.firstName, _.lastName)(splitter)
+   *   .splitField2(_.fullAddress)(_.address.street, _.origin.country)(splitter)
+   * }}}
+   *
+   * The splitter should return a `DynamicValue.Sequence` with two values.
+   *
+   * @param source Selector for source field
+   * @param target1 Selector for first target field
+   * @param target2 Selector for second target field
+   * @param splitter Expression to split source value
+   * @param combinerForReverse Optional combiner for reverse migration
+   */
+  inline def splitField2(
+    inline source: A => Any
+  )(
+    inline target1: B => Any,
+    inline target2: B => Any
+  )(
+    splitter: SchemaExpr[DynamicValue, DynamicValue],
+    combinerForReverse: Option[SchemaExpr[DynamicValue, DynamicValue]] = None
+  ): MigrationBuilder[A, B] = ${
+    MigrationBuilderMacros.splitField2Impl[A, B]('self, 'source, 'target1, 'target2, 'splitter, 'combinerForReverse)
   }
 }

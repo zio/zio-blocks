@@ -176,6 +176,234 @@ object MigrationSpec extends ZIOSpecDefault {
 
             assertTrue(reversed.actions.head.asInstanceOf[MigrationAction.Rename].from == "b")
           }
+        ),
+        suite("Join")(
+          test("joins fields at same nesting level") {
+            // Simple combiner that returns a constant
+            val combiner = SchemaExpr.dynamicLiteral[DynamicValue](
+              DynamicValue.Primitive(PrimitiveValue.String("combined"))
+            )
+            val action = MigrationAction.Join(
+              at = DynamicOptic.root,
+              sourcePaths = Vector(
+                DynamicOptic.root.field("firstName"),
+                DynamicOptic.root.field("lastName")
+              ),
+              targetPath = DynamicOptic.root.field("fullName"),
+              combiner = combiner
+            )
+            val record = DynamicValue.Record(
+              Vector(
+                "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+                "lastName"  -> DynamicValue.Primitive(PrimitiveValue.String("Doe")),
+                "age"       -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+              )
+            )
+
+            val result = action.apply(record)
+            assert(result)(isRight) &&
+            assert(result.map {
+              case DynamicValue.Record(fields) =>
+                // Should have removed firstName and lastName, added fullName
+                !fields.exists(_._1 == "firstName") &&
+                !fields.exists(_._1 == "lastName") &&
+                fields.exists(_._1 == "fullName") &&
+                fields.exists(_._1 == "age")
+              case _ => false
+            })(isRight(isTrue))
+          },
+          test("joins fields at different nesting levels (cross-level join)") {
+            // Cross-level: _.address.street + _.origin.country -> _.address.fullAddress
+            val combiner = SchemaExpr.dynamicLiteral[DynamicValue](
+              DynamicValue.Primitive(PrimitiveValue.String("cross-level-combined"))
+            )
+            val action = MigrationAction.Join(
+              at = DynamicOptic.root,
+              sourcePaths = Vector(
+                DynamicOptic.root.field("address").field("street"),
+                DynamicOptic.root.field("origin").field("country")
+              ),
+              targetPath = DynamicOptic.root.field("address").field("fullAddress"),
+              combiner = combiner
+            )
+            val record = DynamicValue.Record(
+              Vector(
+                "address" -> DynamicValue.Record(
+                  Vector(
+                    "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main")),
+                    "city"   -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
+                  )
+                ),
+                "origin" -> DynamicValue.Record(
+                  Vector(
+                    "country" -> DynamicValue.Primitive(PrimitiveValue.String("USA")),
+                    "code"    -> DynamicValue.Primitive(PrimitiveValue.String("US"))
+                  )
+                )
+              )
+            )
+
+            val result = action.apply(record)
+            assert(result)(isRight) &&
+            assert(result.map {
+              case DynamicValue.Record(fields) =>
+                // Check that cross-level join worked:
+                // - address.street should be removed
+                // - origin.country should be removed
+                // - address.fullAddress should be added
+                val addressFields = fields
+                  .find(_._1 == "address")
+                  .map {
+                    case (_, DynamicValue.Record(af)) => af.map(_._1).toSet
+                    case _                            => Set.empty[String]
+                  }
+                  .getOrElse(Set.empty)
+                val originFields = fields
+                  .find(_._1 == "origin")
+                  .map {
+                    case (_, DynamicValue.Record(of)) => of.map(_._1).toSet
+                    case _                            => Set.empty[String]
+                  }
+                  .getOrElse(Set.empty)
+
+                !addressFields.contains("street") &&
+                addressFields.contains("fullAddress") &&
+                addressFields.contains("city") &&
+                !originFields.contains("country") &&
+                originFields.contains("code")
+              case _ => false
+            })(isRight(isTrue))
+          }
+        ),
+        suite("Split")(
+          test("splits field at same nesting level") {
+            val splitter = SchemaExpr.dynamicLiteral[DynamicValue](
+              DynamicValue.Sequence(
+                Vector(
+                  DynamicValue.Primitive(PrimitiveValue.String("part1")),
+                  DynamicValue.Primitive(PrimitiveValue.String("part2"))
+                )
+              )
+            )
+            val action = MigrationAction.Split(
+              at = DynamicOptic.root,
+              sourcePath = DynamicOptic.root.field("fullName"),
+              targetPaths = Vector(
+                DynamicOptic.root.field("firstName"),
+                DynamicOptic.root.field("lastName")
+              ),
+              splitter = splitter
+            )
+            val record = DynamicValue.Record(
+              Vector(
+                "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe")),
+                "age"      -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+              )
+            )
+
+            val result = action.apply(record)
+            assert(result)(isRight) &&
+            assert(result.map {
+              case DynamicValue.Record(fields) =>
+                !fields.exists(_._1 == "fullName") &&
+                fields.exists(_._1 == "firstName") &&
+                fields.exists(_._1 == "lastName") &&
+                fields.exists(_._1 == "age")
+              case _ => false
+            })(isRight(isTrue))
+          },
+          test("splits field to different nesting levels (cross-level split)") {
+            // Cross-level: _.fullAddress -> _.address.street + _.origin.country
+            val splitter = SchemaExpr.dynamicLiteral[DynamicValue](
+              DynamicValue.Sequence(
+                Vector(
+                  DynamicValue.Primitive(PrimitiveValue.String("123 Main")),
+                  DynamicValue.Primitive(PrimitiveValue.String("USA"))
+                )
+              )
+            )
+            val action = MigrationAction.Split(
+              at = DynamicOptic.root,
+              sourcePath = DynamicOptic.root.field("fullAddress"),
+              targetPaths = Vector(
+                DynamicOptic.root.field("address").field("street"),
+                DynamicOptic.root.field("origin").field("country")
+              ),
+              splitter = splitter
+            )
+            val record = DynamicValue.Record(
+              Vector(
+                "fullAddress" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main, USA")),
+                "name"        -> DynamicValue.Primitive(PrimitiveValue.String("Test"))
+              )
+            )
+
+            val result = action.apply(record)
+            assert(result)(isRight) &&
+            assert(result.map {
+              case DynamicValue.Record(fields) =>
+                // Check cross-level split worked
+                !fields.exists(_._1 == "fullAddress") &&
+                fields.exists(_._1 == "address") &&
+                fields.exists(_._1 == "origin") &&
+                fields.exists(_._1 == "name")
+              case _ => false
+            })(isRight(isTrue))
+          },
+          test("reverse of Split with combiner returns Join") {
+            val splitter = SchemaExpr.dynamicLiteral[DynamicValue](
+              DynamicValue.Sequence(
+                Vector(
+                  DynamicValue.Primitive(PrimitiveValue.String("part1")),
+                  DynamicValue.Primitive(PrimitiveValue.String("part2"))
+                )
+              )
+            )
+            val combiner = SchemaExpr.dynamicLiteral[DynamicValue](
+              DynamicValue.Primitive(PrimitiveValue.String("combined"))
+            )
+            val split = MigrationAction.Split(
+              at = DynamicOptic.root,
+              sourcePath = DynamicOptic.root.field("fullName"),
+              targetPaths = Vector(
+                DynamicOptic.root.field("firstName"),
+                DynamicOptic.root.field("lastName")
+              ),
+              splitter = splitter,
+              combinerForReverse = Some(combiner)
+            )
+
+            val reversed = split.reverse
+            assertTrue(reversed.isInstanceOf[MigrationAction.Join]) &&
+            assertTrue(reversed.asInstanceOf[MigrationAction.Join].sourcePaths.length == 2)
+          },
+          test("reverse of Join with splitter returns Split") {
+            val combiner = SchemaExpr.dynamicLiteral[DynamicValue](
+              DynamicValue.Primitive(PrimitiveValue.String("combined"))
+            )
+            val splitter = SchemaExpr.dynamicLiteral[DynamicValue](
+              DynamicValue.Sequence(
+                Vector(
+                  DynamicValue.Primitive(PrimitiveValue.String("part1")),
+                  DynamicValue.Primitive(PrimitiveValue.String("part2"))
+                )
+              )
+            )
+            val join = MigrationAction.Join(
+              at = DynamicOptic.root,
+              sourcePaths = Vector(
+                DynamicOptic.root.field("firstName"),
+                DynamicOptic.root.field("lastName")
+              ),
+              targetPath = DynamicOptic.root.field("fullName"),
+              combiner = combiner,
+              splitterForReverse = Some(splitter)
+            )
+
+            val reversed = join.reverse
+            assertTrue(reversed.isInstanceOf[MigrationAction.Split]) &&
+            assertTrue(reversed.asInstanceOf[MigrationAction.Split].targetPaths.length == 2)
+          }
         )
       ),
       suite("DynamicMigration")(
