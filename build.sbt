@@ -29,7 +29,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "schemaJVM/test; chunkJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; examples/test"
+  "schemaJVM/test; chunkJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; schema-bson/test; examples/test"
 )
 addCommandAlias(
   "testJS",
@@ -50,6 +50,7 @@ lazy val root = project
     schema.js,
     schema.native,
     `schema-avro`,
+    `schema-bson`,
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-toon`.native,
@@ -173,6 +174,26 @@ lazy val `schema-avro` = project
     })
   )
 
+lazy val `schema-bson` = project
+  .settings(stdSettings("zio-blocks-schema-bson"))
+  .dependsOn(schema.jvm % "compile->compile;test->test")
+  .settings(buildInfoSettings("zio.blocks.schema.bson"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.mongodb" % "bson"         % "5.3.0",
+      "dev.zio"    %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio"    %% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
+        )
+    })
+  )
+
 lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-schema-toon"))
@@ -240,6 +261,7 @@ lazy val examples = project
   .dependsOn(schema.jvm)
   .dependsOn(streams.jvm)
   .dependsOn(`schema-avro`)
+  .dependsOn(`schema-bson`)
   .settings(
     publish / skip := true
   )
@@ -249,6 +271,7 @@ lazy val benchmarks = project
   .dependsOn(schema.jvm % "compile->compile;test->test")
   .dependsOn(chunk.jvm)
   .dependsOn(`schema-avro`)
+  .dependsOn(`schema-bson`)
   .enablePlugins(JmhPlugin)
   .settings(
     libraryDependencies ++= Seq(
