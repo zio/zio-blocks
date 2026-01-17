@@ -19,7 +19,6 @@ import zio.test._
  */
 object BsonCodecEnhancedSpec extends ZIOSpecDefault {
 
-  // Test data types
   case class Person(name: String, age: Int)
   object Person {
     implicit val schema: Schema[Person] = Schema.derived
@@ -42,7 +41,6 @@ object BsonCodecEnhancedSpec extends ZIOSpecDefault {
 
   def spec = suite("BsonCodecEnhancedSpec")(
     suite("Boolean type - enhanced testing")(
-      // Original simple tests
       test("encodes true") {
         val codec = BsonSchemaCodec.bsonCodec(Schema.boolean)
         val bson  = codec.encoder.toBsonValue(true)
@@ -53,8 +51,6 @@ object BsonCodecEnhancedSpec extends ZIOSpecDefault {
         val bson  = codec.encoder.toBsonValue(false)
         assertTrue(bson.asBoolean().getValue == false)
       },
-
-      // Enhanced: test both paths for true
       test("round-trip true - toBsonValue/as path") {
         val codec            = BsonSchemaCodec.bsonCodec(Schema.boolean)
         implicit val encoder = codec.encoder
@@ -65,13 +61,10 @@ object BsonCodecEnhancedSpec extends ZIOSpecDefault {
         val codec            = BsonSchemaCodec.bsonCodec(Schema.boolean)
         implicit val encoder = codec.encoder
         implicit val decoder = codec.decoder
-        // Booleans are not documents, so isDocument = false
         assertZIO(BsonTestHelpers.roundTripWriterReader(true, isDocument = false))(
           Assertion.isTrue
         )
       },
-
-      // Enhanced: test both paths for false
       test("round-trip false - toBsonValue/as path") {
         val codec            = BsonSchemaCodec.bsonCodec(Schema.boolean)
         implicit val encoder = codec.encoder
@@ -86,8 +79,6 @@ object BsonCodecEnhancedSpec extends ZIOSpecDefault {
           Assertion.isTrue
         )
       },
-
-      // Property-based test using both paths
       test("round-trip property test - toBsonValue/as") {
         val codec            = BsonSchemaCodec.bsonCodec(Schema.boolean)
         implicit val encoder = codec.encoder

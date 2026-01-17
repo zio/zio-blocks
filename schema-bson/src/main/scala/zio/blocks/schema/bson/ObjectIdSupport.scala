@@ -10,16 +10,6 @@ import zio.blocks.schema.binding.Binding
  * The ObjectId is represented as a wrapper around String (hex representation),
  * but when encoded to BSON, it uses the native BsonType.OBJECT_ID (12-byte
  * format) via special handling in BsonSchemaCodec.
- *
- * Usage:
- * {{{
- *   import zio.blocks.schema.bson.ObjectIdSupport._
- *
- *   case class User(id: ObjectId, name: String)
- *   object User {
- *     implicit val schema: Schema[User] = Schema.derived
- *   }
- * }}}
  */
 object ObjectIdSupport {
 

@@ -263,7 +263,8 @@ object BsonCodecJavaTimeSpec extends ZIOSpecDefault {
       },
       test("round-trip various datetimes") {
         val codec = BsonSchemaCodec.bsonCodec(Schema[LocalDateTime])
-        // Note: LocalDateTime.MIN/MAX cause overflow in BSON's epoch millisecond conversion
+        // Note: LocalDateTime.MIN/MAX cause overflow
+        // in BSON's epoch millisecond conversion
         // Test with reasonable date ranges instead
         val values = List(
           LocalDateTime.of(2025, 1, 16, 14, 30, 0),

@@ -15,39 +15,18 @@ object BsonSchemaCodec {
 
     /**
      * Wrapper with class name as field:
-     * {{{
-     *   {
-     *     mySum: {
-     *       SomeBranch: {
-     *         a: 123
-     *       }
-     *     }
-     *   }
-     * }}}
      */
     case object WrapperWithClassNameField extends SumTypeHandling
 
     /**
      * Discriminator field approach:
-     * {{{
-     *   {
-     *     mySum: {
-     *       type: "SomeBranch"
-     *       a: 123
-     *     }
-     *   }
-     * }}}
      */
     final case class DiscriminatorField(name: String) extends SumTypeHandling
 
     /**
      * No discriminator - encodes variant directly without wrapper or
-     * discriminator field:
-     * {{{
-     *   A("str") => {a: "str"}
-     *   B("str") => {b: "str"}
-     * }}}
-     * This only works when each case has distinct field names.
+     * discriminator field This only works when each case has distinct field
+     * names.
      */
     case object NoDiscriminator extends SumTypeHandling
   }
@@ -355,7 +334,7 @@ object BsonSchemaCodec {
               if (!config.ignoreExtraFields && !isIgnored) {
                 throw BsonDecoder.Error(BsonTrace.Field(name) :: trace, "Invalid extra field.")
               }
-            // Skip unknown fields (implicit continue)
+            // Skip unknown fields
           }
         }
 
@@ -786,7 +765,6 @@ object BsonSchemaCodec {
                   }
                 }
               } else {
-                // If it's not a document, we have a problem - can't inline it
                 throw new RuntimeException(s"Cannot use DiscriminatorField mode for non-record case: $caseName")
               }
 

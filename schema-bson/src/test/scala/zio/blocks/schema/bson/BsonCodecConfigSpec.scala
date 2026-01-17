@@ -57,10 +57,6 @@ object BsonCodecConfigSpec extends ZIOSpecDefault {
 
         // When we encode, we get { "mk_type": "StrictCase", "a": 123 }
         val encoded = codec.encoder.toBsonValue(value)
-
-        // When we decode, the record codec for StrictCase will see "mk_type" and "a".
-        // "a" is a field. "mk_type" is NOT a field of StrictCase.
-        // If strict validation checks for extra fields, it might fail on "mk_type" UNLESS handled.
         val decoded = encoded.as[StrictSum](codec.decoder)
 
         assertTrue(decoded == Right(value))

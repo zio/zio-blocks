@@ -4,12 +4,9 @@ import zio.blocks.schema.Schema
 import zio.test._
 
 /**
- * Scala 3-specific tests for BSON codec.
- *
- * These tests use features that are only available in Scala 3, such as Either
- * schema derivation.
+ * Scala 3-specific tests for BSON codec. Either.
  */
-object BsonCodecScala3Spec extends ZIOSpecDefault {
+object BsonCodecVersionSpecificSpec extends ZIOSpecDefault {
 
   final case class Result(value: Either[String, Int])
   object Result {
