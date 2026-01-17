@@ -1632,6 +1632,417 @@ object Reflect {
       F.fromBinding(Binding.Variant.option)
     )
 
+  private[this] def left[F[_, _], A, B](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Left[A, B]] =
+    new Record(Vector(new Term("value", element)), TypeName.left(element.typeName), F.fromBinding(Binding.Record.left))
+
+  private[this] def right[F[_, _], A, B](element: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, Right[A, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.right)
+    )
+
+  private[this] def leftDouble[F[_, _], B](
+    element: Reflect[F, Double]
+  )(implicit F: FromBinding[F]): Record[F, Left[Double, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.left(element.typeName),
+      F.fromBinding(Binding.Record.leftDouble)
+    )
+
+  private[this] def leftLong[F[_, _], B](
+    element: Reflect[F, Long]
+  )(implicit F: FromBinding[F]): Record[F, Left[Long, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.left(element.typeName),
+      F.fromBinding(Binding.Record.leftLong)
+    )
+
+  private[this] def leftFloat[F[_, _], B](
+    element: Reflect[F, Float]
+  )(implicit F: FromBinding[F]): Record[F, Left[Float, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.left(element.typeName),
+      F.fromBinding(Binding.Record.leftFloat)
+    )
+
+  private[this] def leftInt[F[_, _], B](element: Reflect[F, Int])(implicit F: FromBinding[F]): Record[F, Left[Int, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.left(element.typeName),
+      F.fromBinding(Binding.Record.leftInt)
+    )
+
+  private[this] def leftChar[F[_, _], B](
+    element: Reflect[F, Char]
+  )(implicit F: FromBinding[F]): Record[F, Left[Char, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.left(element.typeName),
+      F.fromBinding(Binding.Record.leftChar)
+    )
+
+  private[this] def leftShort[F[_, _], B](
+    element: Reflect[F, Short]
+  )(implicit F: FromBinding[F]): Record[F, Left[Short, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.left(element.typeName),
+      F.fromBinding(Binding.Record.leftShort)
+    )
+
+  private[this] def leftBoolean[F[_, _], B](
+    element: Reflect[F, Boolean]
+  )(implicit F: FromBinding[F]): Record[F, Left[Boolean, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.left(element.typeName),
+      F.fromBinding(Binding.Record.leftBoolean)
+    )
+
+  private[this] def leftByte[F[_, _], B](
+    element: Reflect[F, Byte]
+  )(implicit F: FromBinding[F]): Record[F, Left[Byte, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.left(element.typeName),
+      F.fromBinding(Binding.Record.leftByte)
+    )
+
+  private[this] def leftUnit[F[_, _], B](
+    element: Reflect[F, Unit]
+  )(implicit F: FromBinding[F]): Record[F, Left[Unit, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.left(element.typeName),
+      F.fromBinding(Binding.Record.leftUnit)
+    )
+
+  private[this] def rightDouble[F[_, _], A](
+    element: Reflect[F, Double]
+  )(implicit F: FromBinding[F]): Record[F, Right[A, Double]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.rightDouble)
+    )
+
+  private[this] def rightLong[F[_, _], A](
+    element: Reflect[F, Long]
+  )(implicit F: FromBinding[F]): Record[F, Right[A, Long]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.rightLong)
+    )
+
+  private[this] def rightFloat[F[_, _], A](
+    element: Reflect[F, Float]
+  )(implicit F: FromBinding[F]): Record[F, Right[A, Float]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.rightFloat)
+    )
+
+  private[this] def rightInt[F[_, _], A](
+    element: Reflect[F, Int]
+  )(implicit F: FromBinding[F]): Record[F, Right[A, Int]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.rightInt)
+    )
+
+  private[this] def rightChar[F[_, _], A](
+    element: Reflect[F, Char]
+  )(implicit F: FromBinding[F]): Record[F, Right[A, Char]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.rightChar)
+    )
+
+  private[this] def rightShort[F[_, _], A](
+    element: Reflect[F, Short]
+  )(implicit F: FromBinding[F]): Record[F, Right[A, Short]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.rightShort)
+    )
+
+  private[this] def rightBoolean[F[_, _], A](
+    element: Reflect[F, Boolean]
+  )(implicit F: FromBinding[F]): Record[F, Right[A, Boolean]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.rightBoolean)
+    )
+
+  private[this] def rightByte[F[_, _], A](
+    element: Reflect[F, Byte]
+  )(implicit F: FromBinding[F]): Record[F, Right[A, Byte]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.rightByte)
+    )
+
+  private[this] def rightUnit[F[_, _], A](
+    element: Reflect[F, Unit]
+  )(implicit F: FromBinding[F]): Record[F, Right[A, Unit]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.rightUnit)
+    )
+
+  def either[F[_, _], A, B](l: Reflect[F, A], r: Reflect[F, B])(implicit F: FromBinding[F]): Variant[F, Either[A, B]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, B](l)), new Term("Right", right[F, A, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherRightDouble[F[_, _], A <: AnyRef](l: Reflect[F, A], r: Reflect[F, Double])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[A, Double]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, Double](l)), new Term("Right", rightDouble[F, A](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherRightLong[F[_, _], A <: AnyRef](l: Reflect[F, A], r: Reflect[F, Long])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[A, Long]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, Long](l)), new Term("Right", rightLong[F, A](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherRightFloat[F[_, _], A <: AnyRef](l: Reflect[F, A], r: Reflect[F, Float])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[A, Float]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, Float](l)), new Term("Right", rightFloat[F, A](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherRightInt[F[_, _], A <: AnyRef](l: Reflect[F, A], r: Reflect[F, Int])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[A, Int]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, Int](l)), new Term("Right", rightInt[F, A](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherRightChar[F[_, _], A <: AnyRef](l: Reflect[F, A], r: Reflect[F, Char])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[A, Char]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, Char](l)), new Term("Right", rightChar[F, A](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherRightShort[F[_, _], A <: AnyRef](l: Reflect[F, A], r: Reflect[F, Short])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[A, Short]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, Short](l)), new Term("Right", rightShort[F, A](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherRightBoolean[F[_, _], A <: AnyRef](l: Reflect[F, A], r: Reflect[F, Boolean])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[A, Boolean]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, Boolean](l)), new Term("Right", rightBoolean[F, A](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherRightByte[F[_, _], A <: AnyRef](l: Reflect[F, A], r: Reflect[F, Byte])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[A, Byte]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, Byte](l)), new Term("Right", rightByte[F, A](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherRightUnit[F[_, _], A <: AnyRef](l: Reflect[F, A], r: Reflect[F, Unit])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[A, Unit]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, Unit](l)), new Term("Right", rightUnit[F, A](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLeftDouble[F[_, _], B <: AnyRef](l: Reflect[F, Double], r: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Double, B]] =
+    new Variant(
+      Vector(new Term("Left", leftDouble[F, B](l)), new Term("Right", right[F, Double, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLeftLong[F[_, _], B <: AnyRef](l: Reflect[F, Long], r: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Long, B]] =
+    new Variant(
+      Vector(new Term("Left", leftLong[F, B](l)), new Term("Right", right[F, Long, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLeftFloat[F[_, _], B <: AnyRef](l: Reflect[F, Float], r: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Float, B]] =
+    new Variant(
+      Vector(new Term("Left", leftFloat[F, B](l)), new Term("Right", right[F, Float, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLeftInt[F[_, _], B <: AnyRef](l: Reflect[F, Int], r: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Int, B]] =
+    new Variant(
+      Vector(new Term("Left", leftInt[F, B](l)), new Term("Right", right[F, Int, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLeftChar[F[_, _], B <: AnyRef](l: Reflect[F, Char], r: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Char, B]] =
+    new Variant(
+      Vector(new Term("Left", leftChar[F, B](l)), new Term("Right", right[F, Char, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLeftShort[F[_, _], B <: AnyRef](l: Reflect[F, Short], r: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Short, B]] =
+    new Variant(
+      Vector(new Term("Left", leftShort[F, B](l)), new Term("Right", right[F, Short, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLeftBoolean[F[_, _], B <: AnyRef](l: Reflect[F, Boolean], r: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Boolean, B]] =
+    new Variant(
+      Vector(new Term("Left", leftBoolean[F, B](l)), new Term("Right", right[F, Boolean, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLeftByte[F[_, _], B <: AnyRef](l: Reflect[F, Byte], r: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Byte, B]] =
+    new Variant(
+      Vector(new Term("Left", leftByte[F, B](l)), new Term("Right", right[F, Byte, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLeftUnit[F[_, _], B <: AnyRef](l: Reflect[F, Unit], r: Reflect[F, B])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Unit, B]] =
+    new Variant(
+      Vector(new Term("Left", leftUnit[F, B](l)), new Term("Right", right[F, Unit, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherIntBoolean[F[_, _]](l: Reflect[F, Int], r: Reflect[F, Boolean])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Int, Boolean]] =
+    new Variant(
+      Vector(new Term("Left", leftInt[F, Boolean](l)), new Term("Right", rightBoolean[F, Int](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherBooleanInt[F[_, _]](l: Reflect[F, Boolean], r: Reflect[F, Int])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Boolean, Int]] =
+    new Variant(
+      Vector(new Term("Left", leftBoolean[F, Int](l)), new Term("Right", rightInt[F, Boolean](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherIntLong[F[_, _]](l: Reflect[F, Int], r: Reflect[F, Long])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Int, Long]] =
+    new Variant(
+      Vector(new Term("Left", leftInt[F, Long](l)), new Term("Right", rightLong[F, Int](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLongInt[F[_, _]](l: Reflect[F, Long], r: Reflect[F, Int])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Long, Int]] =
+    new Variant(
+      Vector(new Term("Left", leftLong[F, Int](l)), new Term("Right", rightInt[F, Long](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherIntDouble[F[_, _]](l: Reflect[F, Int], r: Reflect[F, Double])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Int, Double]] =
+    new Variant(
+      Vector(new Term("Left", leftInt[F, Double](l)), new Term("Right", rightDouble[F, Int](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherDoubleInt[F[_, _]](l: Reflect[F, Double], r: Reflect[F, Int])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Double, Int]] =
+    new Variant(
+      Vector(new Term("Left", leftDouble[F, Int](l)), new Term("Right", rightInt[F, Double](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherLongDouble[F[_, _]](l: Reflect[F, Long], r: Reflect[F, Double])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Long, Double]] =
+    new Variant(
+      Vector(new Term("Left", leftLong[F, Double](l)), new Term("Right", rightDouble[F, Long](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
+  def eitherDoubleLong[F[_, _]](l: Reflect[F, Double], r: Reflect[F, Long])(implicit
+    F: FromBinding[F]
+  ): Variant[F, Either[Double, Long]] =
+    new Variant(
+      Vector(new Term("Left", leftDouble[F, Long](l)), new Term("Right", rightLong[F, Double](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] =
     new Sequence(element, TypeName.set(element.typeName), F.fromBinding(Binding.Seq.set))
 

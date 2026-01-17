@@ -95,6 +95,15 @@ object TypeName {
   def seq[A](element: TypeName[A]): TypeName[Seq[A]] =
     _seq.copy(params = Seq(element)).asInstanceOf[TypeName[Seq[A]]]
 
+  def left[A, B](element: TypeName[A]): TypeName[Left[A, B]] =
+    _left.copy(params = Seq(element)).asInstanceOf[TypeName[Left[A, B]]]
+
+  def right[A, B](element: TypeName[B]): TypeName[Right[A, B]] =
+    _right.copy(params = Seq(element)).asInstanceOf[TypeName[Right[A, B]]]
+
+  def either[A, B](l: TypeName[A], r: TypeName[B]): TypeName[Either[A, B]] =
+    _either.copy(params = Seq(l, r)).asInstanceOf[TypeName[Either[A, B]]]
+
   private[this] val _some       = new TypeName(Namespace.scala, "Some")
   private[this] val _option     = new TypeName(Namespace.scala, "Option")
   private[this] val _list       = new TypeName(Namespace.scalaCollectionImmutable, "List")
@@ -104,4 +113,7 @@ object TypeName {
   private[this] val _arraySeq   = new TypeName(Namespace.scalaCollectionImmutable, "ArraySeq")
   private[this] val _indexedSeq = new TypeName(Namespace.scalaCollectionImmutable, "IndexedSeq")
   private[this] val _seq        = new TypeName(Namespace.scalaCollectionImmutable, "Seq")
+  private[this] val _left       = new TypeName(Namespace.scalaUtil, "Left")
+  private[this] val _right      = new TypeName(Namespace.scalaUtil, "Right")
+  private[this] val _either     = new TypeName(Namespace.scalaUtil, "Either")
 }
