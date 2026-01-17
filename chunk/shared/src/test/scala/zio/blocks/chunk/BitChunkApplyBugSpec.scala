@@ -29,7 +29,7 @@ import zio.test._
  */
 object BitChunkApplyBugSpec extends ChunkBaseSpec {
 
-  def spec = suite("BitChunkApplyBugSpec")(
+  def spec: Spec[Any, Any] = suite("BitChunkApplyBugSpec")(
     suite("BitChunkByte")(
       test("apply(0) after drop(1)") {
         // 0x80 = "10000000" - only the first bit is 1

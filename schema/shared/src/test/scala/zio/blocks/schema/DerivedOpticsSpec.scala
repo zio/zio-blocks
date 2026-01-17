@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.test._
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.TypeId
 import scala.language.reflectiveCalls
 
 object DerivedOpticsSpec extends SchemaBaseSpec {
@@ -124,7 +125,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
         assertTrue(Empty.optics ne null)
       },
       test("case class with private constructor") {
-        case class Private private (value: Int)
+        case class Private(value: Int)
 
         object Private extends DerivedOptics[Private] {
           implicit val schema: Schema[Private] = Schema.derived
@@ -347,9 +348,9 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
           implicit val schema: Schema[CustomWrapper] = new Schema(
             new Reflect.Wrapper[Binding, CustomWrapper, String](
               Schema[String].reflect,
-              new TypeName(
-                new Namespace(List("zio", "blocks", "schema"), List("DerivedOpticsSpec", "CustomWrapper")),
+              TypeId.nominal[CustomWrapper](
                 "CustomWrapper",
+                "zio.blocks.schema.DerivedOpticsSpec.CustomWrapper",
                 Nil
               ),
               None,

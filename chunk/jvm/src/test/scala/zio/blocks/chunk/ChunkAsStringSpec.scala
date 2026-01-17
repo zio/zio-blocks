@@ -23,7 +23,7 @@ import java.nio.charset.{Charset, StandardCharsets}
 
 object ChunkAsStringSpec extends ChunkBaseSpec {
 
-  def spec = suite("ChunkAsStringSpec")(
+  def spec: Spec[Any, Any] = suite("ChunkAsStringSpec")(
     test("bytes asString with charset") {
       check(Gen.alphaNumericString) { str =>
         val chunk = Chunk.fromArray(str.getBytes(StandardCharsets.UTF_8))

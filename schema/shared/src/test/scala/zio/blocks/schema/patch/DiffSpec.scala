@@ -7,7 +7,7 @@ import java.time._
 
 object DiffSpec extends SchemaBaseSpec {
 
-  def spec = suite("Diff")(
+  def spec: Spec[TestEnvironment, Any] = suite("Diff")(
     suite("Empty patch")(
       test("diff(value, value) produces empty patch for primitives") {
         val schema = Schema[Int]

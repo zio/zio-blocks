@@ -111,7 +111,8 @@ object BuildHelper {
           "-language:existentials",
           "-opt:l:method",
           "-Ywarn-unused",
-          "-Xfatal-warnings"
+          "-Xfatal-warnings",
+          "-Xsource:3"
         )
     }),
     versionScheme := Some("early-semver"),
@@ -131,6 +132,7 @@ object BuildHelper {
     nativeConfig ~= {
       _.withMode(Mode.debug)
         .withOptimize(false)
+        .withLinkStubs(true)
         .withCompileOptions(
           _ ++ Seq(
             "-DGC_INITIAL_HEAP_SIZE=1g",

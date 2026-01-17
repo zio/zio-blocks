@@ -9,9 +9,13 @@ import zio.blocks.schema.{Term => SchemaTerm}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.schema.CommonMacroOps
+import zio.blocks.typeid._
 
 trait SchemaCompanionVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }
+
+  def tparam(t: TypeId[?]): TypeParam =
+    TypeParam("A", 0, Variance.Covariant, TypeBounds.exact(TypeRepr.Ref(t)))
 }
 
 private object SchemaCompanionVersionSpecificImpl {
@@ -95,6 +99,23 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     sTpe
   }
 
+  private def isNeotype(tpe: TypeRepr): Boolean = tpe match {
+    case TypeRef(compTpe, "Type") =>
+      compTpe.baseClasses.exists(_.fullName == "neotype.Newtype") || compTpe.baseClasses.exists(
+        _.fullName == "neotype.Subtype"
+      )
+    case _ => false
+  }
+
+  private def neotypeDealias(tpe: TypeRepr): TypeRepr = tpe match {
+    case TypeRef(compTpe, _) =>
+      compTpe.baseClasses.find(c => c.fullName == "neotype.Newtype" || c.fullName == "neotype.Subtype") match {
+        case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
+        case _         => fail(s"Cannot dealias neotype: ${tpe.show}.")
+      }
+    case _ => fail(s"Cannot dealias neotype: ${tpe.show}.")
+  }
+
   private def isZioPreludeNewtype(tpe: TypeRepr): Boolean = tpe match {
     case TypeRef(compTpe, "Type") => compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
     case _                        => false
@@ -119,15 +140,18 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     case _ => false
   }
 
+  private def isAppliedTypeAlias(tpe: TypeRepr): Boolean = tpe match {
+    case AppliedType(tycon, _) => isTypeRef(tycon)
+    case _                     => false
+  }
+
   private def typeRefDealias(tpe: TypeRepr): TypeRepr = tpe match {
     case trTpe: TypeRef =>
       val sTpe = trTpe.translucentSuperType.dealias
-      if (sTpe == trTpe) cannotDealiasTypeRef(tpe)
+      if (sTpe == trTpe) fail(s"Cannot dealias type reference: ${tpe.show}.")
       sTpe
-    case _ => cannotDealiasTypeRef(tpe)
+    case _ => fail(s"Cannot dealias type reference: ${tpe.show}.")
   }
-
-  private def cannotDealiasTypeRef(tpe: TypeRepr): Nothing = fail(s"Cannot dealias type reference: ${tpe.show}.")
 
   private def dealiasOnDemand(tpe: TypeRepr): TypeRepr =
     if (isOpaque(tpe)) opaqueDealias(tpe)
@@ -166,7 +190,10 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def isIArray(tpe: TypeRepr): Boolean = tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
 
-  private def isOption(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Option[?]]
+  private def isOption(tpe: TypeRepr): Boolean = {
+    val sym = tpe.typeSymbol
+    sym.fullName == "scala.Option" || sym.fullName == "scala.package.Option"
+  }
 
   private def isCollection(tpe: TypeRepr): Boolean =
     tpe <:< iterableOfWildcardTpe || tpe <:< iteratorOfWildcardTpe || tpe <:< arrayOfWildcardTpe || isIArray(tpe)
@@ -211,85 +238,349 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         }
     )
 
-  private val typeNameCache = new mutable.HashMap[TypeRepr, TypeName[?]]
+  private val typeIdCache = new mutable.HashMap[TypeRepr, TypeId[_]]
 
-  private def typeName[T: Type](tpe: TypeRepr, nestedTpes: List[TypeRepr] = Nil): TypeName[T] = {
-    def calculateTypeName(tpe: TypeRepr): TypeName[?] =
-      if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string
+  private def typeIdOf[T: Type](tpe: TypeRepr, nestedTpes: List[TypeRepr] = Nil): TypeId[T] = {
+    def calculateTypeId(tpe: TypeRepr): TypeId[_] = {
+      val dealiased = tpe.dealias
+      if (dealiased =:= TypeRepr.of[java.lang.String]) zio.blocks.typeid.TypeId.String
       else {
-        var packages: List[String] = Nil
-        var values: List[String]   = Nil
-        var name: String           = null
-        val isUnionTpe             = isUnion(tpe)
-        if (isUnionTpe) name = "|"
-        else {
-          val tpeTypeSymbol = tpe.typeSymbol
-          name = tpeTypeSymbol.name
-          if (isEnumValue(tpe)) {
-            values = name :: values
-            name = tpe.termSymbol.name
-          } else if (tpeTypeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
-          var owner = tpeTypeSymbol.owner
-          while (owner != defn.RootClass) {
-            val ownerName = owner.name
-            if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
-            else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
-            else values = ownerName :: values
-            owner = owner.owner
+        val sym =
+          if (tpe.termSymbol.exists && tpe.termSymbol.flags.is(Flags.Enum) && tpe.termSymbol.flags.is(Flags.Case))
+            tpe.termSymbol
+          else if (tpe.termSymbol.exists && !tpe.typeSymbol.isClassDef) tpe.termSymbol
+          else tpe.typeSymbol
+        var ownerSegments = List.empty[zio.blocks.typeid.Owner.Segment]
+        if (sym.exists && !isUnion(tpe)) {
+          var currOwner = sym.maybeOwner
+          while (currOwner.exists && currOwner != defn.RootClass && currOwner != defn.EmptyPackageClass) {
+            var ownerName = currOwner.name
+            if (ownerName.endsWith("$")) ownerName = ownerName.init
+            if (ownerName.endsWith("$package")) ownerName = ownerName.stripSuffix("$package")
+
+            if (ownerName != "package" && ownerName != "<empty>" && ownerName != "") {
+              ownerSegments = zio.blocks.typeid.Owner.Package(ownerName) :: ownerSegments
+            }
+            currOwner = currOwner.maybeOwner
           }
         }
-        val tpeTypeArgs =
-          if (isUnionTpe) allUnionTypes(tpe)
-          else if (isNamedTuple(tpe)) {
-            val tpeTypeArgs = typeArgs(tpe)
-            val nTpe        = tpeTypeArgs.head
-            val tTpe        = tpeTypeArgs.last
-            val nTypeArgs   =
-              if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
-              else typeArgs(nTpe)
-            var comma  = false
-            val labels = new java.lang.StringBuilder(name)
-            labels.append('[')
-            nTypeArgs.foreach { case ConstantType(StringConstant(str)) =>
-              if (comma) labels.append(',')
-              else comma = true
-              labels.append(str)
-            }
-            labels.append(']')
-            name = labels.toString
-            if (isGenericTuple(tTpe)) genericTupleTypeArgs(tTpe)
-            else typeArgs(tTpe)
-          } else if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe)
-          else typeArgs(tpe)
-        new TypeName(
-          new Namespace(packages, values),
-          name,
-          tpeTypeArgs.map { x =>
-            if (nestedTpes.contains(x)) typeName[Any](anyTpe)
-            else typeName(x, x :: nestedTpes)
-          }
-        )
-      }
+        val ownerObj = zio.blocks.typeid.Owner(ownerSegments)
 
-    typeNameCache
-      .getOrElseUpdate(
-        tpe,
-        calculateTypeName(tpe match {
-          case TypeRef(compTpe, "Type") => compTpe
-          case _                        => tpe
-        })
-      )
-      .asInstanceOf[TypeName[T]]
+        var name = if (isUnion(tpe)) "|" else if (sym.exists) sym.name else tpe.show
+
+        if (isNeotype(tpe) || isZioPreludeNewtype(tpe)) {
+          val ownerSym = sym.maybeOwner
+          if ((name == "Type" || name == "Newtype") && ownerSym.exists) {
+            name = ownerSym.name
+            if (name.endsWith("$")) name = name.init
+          }
+        }
+        if (name.endsWith("$")) name = name.init
+
+        if (isOption(dealiased) && typeArgs(dealiased).nonEmpty) {
+          val arg = typeArgs(dealiased).head
+          arg.asType match {
+            case '[t] =>
+              val inner = typeIdOf[t](arg, tpe :: nestedTpes).asInstanceOf[TypeId[t]]
+              zio.blocks.typeid.TypeId.Option(inner)
+            case _ =>
+              zio.blocks.typeid.TypeId.nominal(
+                "Option",
+                zio.blocks.typeid.Owner.parse("scala"),
+                Nil,
+                zio.blocks.typeid.TypeDefKind.Class(false, false, false, false)
+              )
+          }
+        } else if (isCollection(dealiased) && typeArgs(dealiased).nonEmpty) {
+          if (dealiased <:< TypeRepr.of[List[?]]) {
+            val arg = typeArgs(dealiased).head
+            arg.asType match {
+              case '[t] => zio.blocks.typeid.TypeId.List(typeIdOf[t](arg, tpe :: nestedTpes).asInstanceOf[TypeId[t]])
+              case _    =>
+                zio.blocks.typeid.TypeId.nominal(
+                  "List",
+                  zio.blocks.typeid.Owner.parse("scala.collection.immutable"),
+                  Nil,
+                  zio.blocks.typeid.TypeDefKind.Class(false, false, false, false)
+                )
+            }
+          } else if (dealiased <:< TypeRepr.of[Vector[?]]) {
+            val arg = typeArgs(dealiased).head
+            arg.asType match {
+              case '[t] => zio.blocks.typeid.TypeId.Vector(typeIdOf[t](arg, tpe :: nestedTpes).asInstanceOf[TypeId[t]])
+              case _    =>
+                zio.blocks.typeid.TypeId.nominal(
+                  "Vector",
+                  zio.blocks.typeid.Owner.parse("scala.collection.immutable"),
+                  Nil,
+                  zio.blocks.typeid.TypeDefKind.Class(false, false, false, false)
+                )
+            }
+          } else if (dealiased <:< TypeRepr.of[Set[?]]) {
+            val arg = typeArgs(dealiased).head
+            arg.asType match {
+              case '[t] => zio.blocks.typeid.TypeId.Set(typeIdOf[t](arg, tpe :: nestedTpes).asInstanceOf[TypeId[t]])
+              case _    =>
+                zio.blocks.typeid.TypeId.nominal(
+                  "Set",
+                  zio.blocks.typeid.Owner.parse("scala.collection.immutable"),
+                  Nil,
+                  zio.blocks.typeid.TypeDefKind.Class(false, false, false, false)
+                )
+            }
+          } else if (dealiased <:< TypeRepr.of[Map[?, ?]]) {
+            val kTpe = typeArgs(dealiased).head
+            val vTpe = typeArgs(dealiased).last
+            (kTpe.asType, vTpe.asType) match {
+              case ('[kt], '[vt]) =>
+                zio.blocks.typeid.TypeId.Map(
+                  typeIdOf[kt](kTpe, tpe :: nestedTpes).asInstanceOf[TypeId[kt]],
+                  typeIdOf[vt](vTpe, tpe :: nestedTpes).asInstanceOf[TypeId[vt]]
+                )
+              case _ =>
+                zio.blocks.typeid.TypeId.nominal(
+                  "Map",
+                  zio.blocks.typeid.Owner.parse("scala.collection.immutable"),
+                  Nil,
+                  zio.blocks.typeid.TypeDefKind.Class(false, false, false, false)
+                )
+            }
+          } else {
+            val cparams = typeArgs(dealiased).map { arg =>
+              arg.asType match {
+                case '[t] => zio.blocks.schema.Schema.tparam(typeIdOf[t](arg, tpe :: nestedTpes))
+                case _    => zio.blocks.typeid.TypeParam("A", 0)
+              }
+            }
+            zio.blocks.typeid.TypeId.nominal(
+              name,
+              ownerObj,
+              cparams.toList,
+              zio.blocks.typeid.TypeDefKind.Class(false, false, false, false)
+            )
+          }
+        } else {
+          val tparamNames = Vector("A", "B", "C", "D", "E", "F", "G", "H")
+          val params      = typeArgs(tpe).zipWithIndex.map { case (arg, idx) =>
+            val isTypeBounds = arg match {
+              case _: TypeBounds => true
+              case _             => false
+            }
+            val paramName = if (idx < tparamNames.length) tparamNames(idx) else s"T${idx + 1}"
+            if (arg.typeSymbol.isType && !isTypeBounds) {
+              arg.asType match {
+                case '[t] =>
+                  zio.blocks.schema.Schema.tparam(typeIdOf[t](arg, tpe :: nestedTpes))
+                case _ =>
+                  zio.blocks.typeid.TypeParam(
+                    paramName,
+                    idx,
+                    zio.blocks.typeid.Variance.Covariant,
+                    zio.blocks.typeid.TypeBounds.empty,
+                    zio.blocks.typeid.Kind.Type
+                  )
+              }
+            } else {
+              zio.blocks.typeid.TypeParam(
+                paramName,
+                idx,
+                zio.blocks.typeid.Variance.Covariant,
+                zio.blocks.typeid.TypeBounds.empty,
+                zio.blocks.typeid.Kind.Type
+              )
+            }
+          }
+
+          val tpeTypeSymbol = tpe.typeSymbol
+          val isOpaqueType  = isOpaque(tpe) || isNeotype(tpe) || isZioPreludeNewtype(tpe)
+
+          val kind = if (tpeTypeSymbol.exists && tpeTypeSymbol.isClassDef) {
+            if (tpeTypeSymbol.flags.is(Flags.Module)) zio.blocks.typeid.TypeDefKind.Object
+            else if (tpeTypeSymbol.flags.is(Flags.Trait))
+              zio.blocks.typeid.TypeDefKind.Trait(tpeTypeSymbol.flags.is(Flags.Sealed), Nil)
+            else if (tpeTypeSymbol.flags.is(Flags.Enum) && !tpeTypeSymbol.flags.is(Flags.Case))
+              zio.blocks.typeid.TypeDefKind.Enum(Nil)
+            else
+              zio.blocks.typeid.TypeDefKind.Class(
+                tpeTypeSymbol.flags.is(Flags.Case),
+                tpeTypeSymbol.flags.is(Flags.Abstract),
+                tpe <:< TypeRepr.of[Product],
+                tpeTypeSymbol.flags.is(Flags.Sealed) || isUnion(tpe)
+              )
+          } else if (isEnumValue(tpe)) zio.blocks.typeid.TypeDefKind.Object
+          else if (isOpaqueType) zio.blocks.typeid.TypeDefKind.OpaqueType(zio.blocks.typeid.TypeBounds.empty)
+          else zio.blocks.typeid.TypeDefKind.Class(false, false, false, false)
+
+          val parents     = Nil
+          val selfType    = None
+          val annotations = Nil
+
+          val (innerTypeId, isActuallyOpaque) = if (isOpaque(tpe)) {
+            if (nestedTpes.contains(tpe)) (None, false)
+            else {
+              val underlying = dealiasOnDemand(tpe)
+              underlying.asType match {
+                case '[u] =>
+                  (Some(typeIdOf[u](underlying, tpe :: nestedTpes).asInstanceOf[zio.blocks.typeid.TypeId[Any]]), true)
+                case _ => (None, false)
+              }
+            }
+          } else if (isNeotype(tpe)) {
+            if (nestedTpes.contains(tpe)) (None, false)
+            else {
+              val underlying = neotypeDealias(tpe)
+              underlying.asType match {
+                case '[u] =>
+                  (Some(typeIdOf[u](underlying, tpe :: nestedTpes).asInstanceOf[zio.blocks.typeid.TypeId[Any]]), true)
+                case _ => (None, false)
+              }
+            }
+          } else if (isZioPreludeNewtype(tpe)) {
+            if (nestedTpes.contains(tpe)) (None, false)
+            else {
+              val underlying = zioPreludeNewtypeDealias(tpe)
+              underlying.asType match {
+                case '[u] =>
+                  (Some(typeIdOf[u](underlying, tpe :: nestedTpes).asInstanceOf[zio.blocks.typeid.TypeId[Any]]), true)
+                case _ => (None, false)
+              }
+            }
+          } else if (isTypeRef(tpe) || isAppliedTypeAlias(tpe)) {
+            if (nestedTpes.contains(tpe)) (None, false)
+            else {
+              val underlying = if (isTypeRef(tpe)) typeRefDealias(tpe) else tpe.dealias
+              underlying.asType match {
+                case '[u] =>
+                  (Some(typeIdOf[u](underlying, tpe :: nestedTpes).asInstanceOf[zio.blocks.typeid.TypeId[Any]]), false)
+                case _ => (None, false)
+              }
+            }
+          } else (None, false)
+
+          innerTypeId match {
+            case Some(inner) if isActuallyOpaque =>
+              zio.blocks.typeid.TypeId.opaque(name, ownerObj, params, zio.blocks.typeid.TypeRepr.Ref(inner))
+            case Some(inner) =>
+              zio.blocks.typeid.TypeId.alias(name, ownerObj, params, zio.blocks.typeid.TypeRepr.Ref(inner), annotations)
+            case None =>
+              zio.blocks.typeid.TypeId.nominal(name, ownerObj, params, kind, parents, selfType, annotations)
+          }
+        }
+      }
+    }
+
+    typeIdCache.getOrElseUpdate(tpe, calculateTypeId(tpe)).asInstanceOf[zio.blocks.typeid.TypeId[T]]
   }
 
-  private def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = {
-    val packages = Varargs(tpeName.namespace.packages.map(Expr(_)))
-    val vs       = tpeName.namespace.values
-    val values   = if (vs.isEmpty) '{ Nil } else Varargs(vs.map(Expr(_)))
-    val name     = Expr(tpeName.name)
-    val ps       = tpeName.params
-    val params   = if (ps.isEmpty) '{ Nil } else Varargs(ps.map(param => toExpr(param.asInstanceOf[TypeName[T]])))
-    '{ new TypeName[T](new Namespace($packages, $values), $name, $params) }
+  private def toExpr(typeRepr: zio.blocks.typeid.TypeRepr)(using Quotes): Expr[zio.blocks.typeid.TypeRepr] = {
+    import zio.blocks.typeid.TypeRepr as TR
+    typeRepr match {
+      case TR.Ref(id) =>
+        val idExpr = toExpr(id)
+        '{ zio.blocks.typeid.TypeRepr.Ref($idExpr) }
+      case TR.Applied(tycon, args) =>
+        val tyconExpr = toExpr(tycon)
+        val argsExpr  = Varargs(args.map(toExpr))
+        '{ zio.blocks.typeid.TypeRepr.Applied($tyconExpr, $argsExpr.toList) }
+      case _ =>
+        // Fallback for complex types in serialization
+        val str = Expr(typeRepr.toString)
+        '{ zio.blocks.typeid.TypeRepr.Ref(zio.blocks.typeid.TypeId.nominal($str, "zio.blocks.typeid", Nil)) }
+    }
+  }
+
+  private def toExpr(typeId: TypeId[_])(using Quotes): Expr[TypeId[_]] = {
+    val name   = Expr(typeId.name)
+    val owner  = Expr(typeId.owner.asString)
+    val ps     = typeId.typeParams
+    val params = if (ps.isEmpty) '{ Nil }
+    else
+      Varargs(ps.map { p =>
+        val pName     = Expr(p.name)
+        val pIdx      = Expr(p.index)
+        val pVariance = p.variance match {
+          case Variance.Covariant     => '{ zio.blocks.typeid.Variance.Covariant }
+          case Variance.Contravariant => '{ zio.blocks.typeid.Variance.Contravariant }
+          case _                      => '{ zio.blocks.typeid.Variance.Invariant }
+        }
+        val boundExpr = p.bounds.asInstanceOf[zio.blocks.typeid.TypeBounds] match {
+          case zio.blocks.typeid.TypeBounds(Some(lower), Some(upper)) if lower == upper =>
+            val lowerExpr = toExpr(lower.asInstanceOf[zio.blocks.typeid.TypeRepr.Ref].id)
+            '{ zio.blocks.typeid.TypeBounds.exact(zio.blocks.typeid.TypeRepr.Ref($lowerExpr)) }
+          case zio.blocks.typeid.TypeBounds(_, _) =>
+            '{ zio.blocks.typeid.TypeBounds.empty }
+        }
+        '{
+          zio.blocks.typeid.TypeParam(
+            $pName,
+            $pIdx,
+            $pVariance,
+            $boundExpr
+          )
+        }
+      })
+
+    val defKind = toExpr(typeId.defKind)
+    if (typeId.isAlias && typeId.aliasedTo.isDefined) {
+      val aliasedExpr = toExpr(typeId.aliasedTo.get)
+      '{
+        zio.blocks.typeid.TypeId.alias($name, zio.blocks.typeid.Owner.parse($owner), $params.toList, $aliasedExpr)
+      }
+    } else if (typeId.isOpaque && typeId.representation.isDefined) {
+      val reprExpr = toExpr(typeId.representation.get)
+      '{
+        zio.blocks.typeid.TypeId.opaque(
+          $name,
+          zio.blocks.typeid.Owner.parse($owner),
+          $params.toList,
+          $reprExpr
+        )
+      }
+    } else {
+      '{ zio.blocks.typeid.TypeId.nominal($name, zio.blocks.typeid.Owner.parse($owner), $params.toList, $defKind) }
+    }
+  }
+
+  private def toExpr(kind: zio.blocks.typeid.TypeDefKind)(using Quotes): Expr[zio.blocks.typeid.TypeDefKind] = {
+    import zio.blocks.typeid.TypeDefKind
+    kind match {
+      case TypeDefKind.Class(abstract_, sealed_, case_, value_) =>
+        '{
+          zio.blocks.typeid.TypeDefKind.Class(
+            ${ Expr(abstract_) },
+            ${ Expr(sealed_) },
+            ${ Expr(case_) },
+            ${ Expr(value_) }
+          )
+        }
+      case TypeDefKind.Trait(sealed_, _) =>
+        '{ zio.blocks.typeid.TypeDefKind.Trait(${ Expr(sealed_) }, Nil) }
+      case TypeDefKind.Object =>
+        '{ zio.blocks.typeid.TypeDefKind.Object }
+      case TypeDefKind.Enum(cases) =>
+        val casesExpr = Expr.ofList(cases.map(enumCaseToExpr))
+        '{ zio.blocks.typeid.TypeDefKind.Enum($casesExpr) }
+      case TypeDefKind.TypeAlias     => '{ zio.blocks.typeid.TypeDefKind.TypeAlias }
+      case TypeDefKind.AbstractType  => '{ zio.blocks.typeid.TypeDefKind.AbstractType }
+      case TypeDefKind.OpaqueType(_) =>
+        '{ zio.blocks.typeid.TypeDefKind.OpaqueType(zio.blocks.typeid.TypeBounds.empty) }
+      case _ => '{ zio.blocks.typeid.TypeDefKind.Class(false, false, false, false) }
+    }
+  }
+
+  private def enumCaseToExpr(
+    caseInfo: zio.blocks.typeid.EnumCaseInfo
+  )(using Quotes): Expr[zio.blocks.typeid.EnumCaseInfo] = {
+    // Note: TypeRepr serialization is not fully implemented here. Passing Nil params for now.
+    val paramsExpr = Expr.ofList(Nil)
+    '{
+      zio.blocks.typeid.EnumCaseInfo(
+        ${ Expr(caseInfo.name) },
+        ${ Expr(caseInfo.ordinal) },
+        $paramsExpr,
+        ${ Expr(caseInfo.isObjectCase) }
+      )
+    }
   }
 
   private def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
@@ -669,13 +960,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
           case '[et] =>
             val schema   = findImplicitOrDeriveSchema[et](eTpe)
             val classTag = summonClassTag[et]
-            val tpeName  = toExpr(typeName[Array[et]](tpe))
+            val tpeName  = toExpr(typeIdOf[Array[et]](tpe))
             '{
               implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                  typeId = $tpeName
+                    .copy(typeParams = List(zio.blocks.schema.Schema.tparam($schema.reflect.typeId)))
+                    .asInstanceOf[TypeId[Array[et]]],
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArrayConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -718,13 +1011,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
           case '[et] =>
             val schema   = findImplicitOrDeriveSchema[et](eTpe)
             val classTag = summonClassTag[et]
-            val tpeName  = toExpr(typeName[IArray[et]](tpe))
+            val tpeName  = toExpr(typeIdOf[IArray[et]](tpe))
             '{
               implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                  typeId = $tpeName
+                    .copy(typeParams = List(zio.blocks.schema.Schema.tparam($schema.reflect.typeId)))
+                    .asInstanceOf[TypeId[IArray[et]]],
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.IArrayConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -767,13 +1062,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
           case '[et] =>
             val schema   = findImplicitOrDeriveSchema[et](eTpe)
             val classTag = summonClassTag[et]
-            val tpeName  = toExpr(typeName[ArraySeq[et]](tpe))
+            val tpeName  = toExpr(typeIdOf[ArraySeq[et]](tpe))
             '{
               implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                  typeId = $tpeName
+                    .copy(typeParams = List(zio.blocks.schema.Schema.tparam($schema.reflect.typeId)))
+                    .asInstanceOf[TypeId[ArraySeq[et]]],
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArraySeqConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -867,12 +1164,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
             else new ClassInfo[tt](tTpe)
           val fields  = typeInfo.fields[tt](Array.empty[String])
-          val tpeName = toExpr(typeName[tt](tTpe))
+          val tpeName = toExpr(typeIdOf[tt](tTpe))
           '{
             new Schema(
               reflect = new Reflect.Record[Binding, tt](
                 fields = Vector($fields*),
-                typeName = $tpeName,
+                typeId = ${ tpeName }.asInstanceOf[zio.blocks.typeid.TypeId[tt]],
                 recordBinding = new Binding.Record(
                   constructor = new Constructor[tt] {
                     def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -897,23 +1194,34 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       if (tpe <:< TypeRepr.of[None.type]) deriveSchemaForEnumOrModuleValue(tpe)
       else if (tpe <:< TypeRepr.of[Some[?]]) deriveSchemaForNonAbstractScalaClass(tpe)
       else {
-        val vTpe = typeArgs(tpe).head
-        if (vTpe =:= intTpe) '{ Schema.optionInt }
-        else if (vTpe =:= floatTpe) '{ Schema.optionFloat }
-        else if (vTpe =:= longTpe) '{ Schema.optionLong }
-        else if (vTpe =:= doubleTpe) '{ Schema.optionDouble }
-        else if (vTpe =:= booleanTpe) '{ Schema.optionBoolean }
-        else if (vTpe =:= byteTpe) '{ Schema.optionByte }
-        else if (vTpe =:= charTpe) '{ Schema.optionChar }
-        else if (vTpe =:= shortTpe) '{ Schema.optionShort }
-        else if (vTpe =:= unitTpe) '{ Schema.optionUnit }
-        else if (vTpe <:< anyRefTpe && !isOpaque(vTpe) && !isZioPreludeNewtype(vTpe)) {
-          vTpe.asType match {
-            case '[vt] =>
-              val schema = findImplicitOrDeriveSchema[vt & AnyRef](vTpe)
-              '{ Schema.option($schema) }
-          }
-        } else deriveSchemaForSealedTraitOrAbstractClassOrUnion(tpe)
+        tpe.asType match {
+          case '[ot] =>
+            val vTpe          = tpe.dealias.typeArgs.head
+            val dealiasedVTpe = if (isOpaque(vTpe)) opaqueDealias(vTpe) else vTpe.dealias
+
+            def cast(expr: Expr[Schema[?]]): Expr[Schema[ot]] =
+              expr.asExprOf[Schema[ot]]
+
+            val isPurePrimitive = vTpe =:= dealiasedVTpe
+
+            if (isPurePrimitive && dealiasedVTpe =:= stringTpe) cast('{ Schema.option(Schema.string) })
+            else if (isPurePrimitive && dealiasedVTpe =:= intTpe) cast('{ Schema.optionInt })
+            else if (isPurePrimitive && dealiasedVTpe =:= longTpe) cast('{ Schema.optionLong })
+            else if (isPurePrimitive && dealiasedVTpe =:= doubleTpe) cast('{ Schema.optionDouble })
+            else if (isPurePrimitive && dealiasedVTpe =:= floatTpe) cast('{ Schema.optionFloat })
+            else if (isPurePrimitive && dealiasedVTpe =:= booleanTpe) cast('{ Schema.optionBoolean })
+            else if (isPurePrimitive && dealiasedVTpe =:= byteTpe) cast('{ Schema.optionByte })
+            else if (isPurePrimitive && dealiasedVTpe =:= charTpe) cast('{ Schema.optionChar })
+            else if (isPurePrimitive && dealiasedVTpe =:= shortTpe) cast('{ Schema.optionShort })
+            else if (isPurePrimitive && dealiasedVTpe =:= unitTpe) cast('{ Schema.optionUnit })
+            else {
+              vTpe.asType match {
+                case '[vt] =>
+                  val schema = findImplicitOrDeriveSchema[vt](vTpe)
+                  cast('{ Schema.option($schema) })
+              }
+            }
+        }
       }
     } else if (isSealedTraitOrAbstractClass(tpe) || isUnion(tpe)) {
       deriveSchemaForSealedTraitOrAbstractClassOrUnion(tpe)
@@ -937,12 +1245,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
             else new ClassInfo[tt](tTpe)
           val fields  = typeInfo.fields[T](nameOverrides)
-          val tpeName = toExpr(typeName[T](tpe))
+          val tpeName = toExpr(typeIdOf[T](tpe))
           '{
             new Schema(
               reflect = new Reflect.Record[Binding, T](
                 fields = Vector($fields*),
-                typeName = $tpeName,
+                typeId = ${ tpeName }.asInstanceOf[zio.blocks.typeid.TypeId[T]],
                 recordBinding = new Binding.Record(
                   constructor = new Constructor {
                     def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -973,31 +1281,45 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       val sTpe = opaqueDealias(tpe)
       sTpe.asType match {
         case '[s] =>
-          val schema  = findImplicitOrDeriveSchema[s](sTpe)
-          val tpeName = toExpr(typeName[T](tpe).asInstanceOf[TypeName[s]])
-          '{ new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[T]] }
+          val schema = findImplicitOrDeriveSchema[s](sTpe)
+          val tpeId  = toExpr(typeIdOf[T](tpe))
+          '{
+            new Schema($schema.reflect.typeId(${ tpeId }.asInstanceOf[zio.blocks.typeid.TypeId[s]]))
+              .asInstanceOf[Schema[T]]
+          }
       }
     } else if (isZioPreludeNewtype(tpe)) {
       val sTpe = zioPreludeNewtypeDealias(tpe)
       sTpe.asType match {
         case '[s] =>
-          val schema  = findImplicitOrDeriveSchema[s](sTpe)
-          val tpeName = toExpr(typeName[T](tpe).asInstanceOf[TypeName[s]])
-          '{ new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[T]] }
+          val schema = findImplicitOrDeriveSchema[s](sTpe)
+          val tpeId  = toExpr(typeIdOf[T](tpe))
+          '{
+            new Schema($schema.reflect.typeId(${ tpeId }.asInstanceOf[zio.blocks.typeid.TypeId[s]]))
+              .asInstanceOf[Schema[T]]
+          }
       }
-    } else if (isTypeRef(tpe)) {
-      val sTpe = typeRefDealias(tpe)
-      sTpe.asType match { case '[s] => deriveSchema[s](sTpe) }
+    } else if (isTypeRef(tpe) || isAppliedTypeAlias(tpe)) {
+      val sTpe = if (isTypeRef(tpe)) typeRefDealias(tpe) else tpe.dealias
+      sTpe.asType match {
+        case '[s] =>
+          val schema = findImplicitOrDeriveSchema[s](sTpe)
+          val tpeId  = toExpr(typeIdOf[T](tpe))
+          '{
+            new Schema($schema.reflect.typeId(${ tpeId }.asInstanceOf[zio.blocks.typeid.TypeId[s]]))
+              .asInstanceOf[Schema[T]]
+          }
+      }
     } else cannotDeriveSchema(tpe)
   }.asInstanceOf[Expr[Schema[T]]]
 
   private def deriveSchemaForEnumOrModuleValue[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
-    val tpeName = toExpr(typeName(tpe))
+    val tpeName = toExpr(typeIdOf(tpe))
     '{
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector.empty,
-          typeName = $tpeName,
+          typeId = ${ tpeName }.asInstanceOf[zio.blocks.typeid.TypeId[T]],
           recordBinding = new Binding.Record(
             constructor = new ConstantConstructor(${
               Ref(
@@ -1017,12 +1339,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private def deriveSchemaForNonAbstractScalaClass[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
     val classInfo = new ClassInfo(tpe)
     val fields    = classInfo.fields(Array.empty[String])
-    val tpeName   = toExpr(typeName(tpe))
+    val tpeName   = toExpr(typeIdOf(tpe))
     '{
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector($fields*),
-          typeName = $tpeName,
+          typeId = ${ tpeName }.asInstanceOf[zio.blocks.typeid.TypeId[T]],
           recordBinding = new Binding.Record(
             constructor = new Constructor {
               def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }
@@ -1053,7 +1375,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       if (isUnion(tpe)) allUnionTypes(tpe)
       else directSubTypes(tpe)
     if (subtypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
-    val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
+    val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeIdOf(sTpe)))
     val maxCommonPrefixLength = {
       val minFullTermName = fullTermNames.min
       val maxFullTermName = fullTermNames.max
@@ -1093,12 +1415,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
           }.asInstanceOf[Expr[Matcher[? <: T]]]
       }
     })
-    val tpeName = toExpr(typeName(tpe))
+    val tpeName = toExpr(typeIdOf(tpe))
     '{
       new Schema(
         reflect = new Reflect.Variant[Binding, T](
           cases = Vector($cases*),
-          typeName = $tpeName,
+          typeId = ${ tpeName }.asInstanceOf[zio.blocks.typeid.TypeId[T]],
           variantBinding = new Binding.Variant(
             discriminator = new Discriminator {
               def discriminate(a: T): Int = ${
@@ -1146,20 +1468,23 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private def genNewArray[T: Type](size: Expr[Int]): Expr[Array[T]] =
     Apply(TypeApply(newArray, List(TypeTree.of[T])), List(size.asTerm)).asExpr.asInstanceOf[Expr[Array[T]]]
 
-  private def toFullTermName(tpeName: TypeName[?]): Array[String] = {
-    val packages     = tpeName.namespace.packages
-    val values       = tpeName.namespace.values
-    val fullTermName = new Array[String](packages.size + values.size + 1)
-    var idx          = 0
-    packages.foreach { p =>
-      fullTermName(idx) = p
+  private def toFullTermName(typeId: TypeId[?]): Array[String] = {
+    val rawOwnerSegments = typeId.owner.asString.split('.').filter(_.nonEmpty)
+    val ownerSegments    =
+      if (rawOwnerSegments.length > 0 && rawOwnerSegments(0) == "scala") rawOwnerSegments.drop(1)
+      else if (rawOwnerSegments.length > 1 && rawOwnerSegments(0) == "java" && rawOwnerSegments(1) == "lang")
+        rawOwnerSegments.drop(2)
+      else rawOwnerSegments
+    val fullTermName = new Array[String](ownerSegments.length + 1)
+
+    var idx = 0
+    var i   = 0
+    while (i < ownerSegments.length) {
+      fullTermName(idx) = ownerSegments(i)
       idx += 1
+      i += 1
     }
-    values.foreach { p =>
-      fullTermName(idx) = p
-      idx += 1
-    }
-    fullTermName(idx) = tpeName.name
+    fullTermName(idx) = typeId.name
     fullTermName
   }
 
@@ -1177,7 +1502,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private def cannotDeriveSchema(tpe: TypeRepr): Nothing = fail(s"Cannot derive schema for '${tpe.show}'.")
 
   def derived[A: Type]: Expr[Schema[A]] = {
-    val aTpe        = TypeRepr.of[A].dealias
+    val aTpe        = TypeRepr.of[A]
     val schema      = aTpe.asType match { case '[a] => deriveSchema[a](aTpe) }
     val schemaBlock = Block(schemaDefs.toList, schema.asTerm).asExpr.asInstanceOf[Expr[Schema[A]]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)

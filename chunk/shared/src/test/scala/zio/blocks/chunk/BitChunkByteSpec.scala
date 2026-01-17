@@ -42,7 +42,7 @@ object BitChunkByteSpec extends ChunkBaseSpec {
   def toBinaryString(byte: Byte): String =
     String.format("%8s", (byte.toInt & 0xff).toBinaryString).replace(' ', '0')
 
-  def spec = suite("BitChunkByteSpec")(
+  def spec: Spec[Any, Any] = suite("BitChunkByteSpec")(
     test("drop") {
       check(genByteChunk, genInt) { (bytes, n) =>
         val actual   = bytes.asBitsByte.drop(n).toBinaryString

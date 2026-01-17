@@ -46,6 +46,9 @@ lazy val root = project
     publish / skip := true
   )
   .aggregate(
+    typeid.jvm,
+    typeid.js,
+    typeid.native,
     schema.jvm,
     schema.js,
     schema.native,
@@ -67,8 +70,39 @@ lazy val root = project
     examples
   )
 
+lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-typeid"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.typeid"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    )
+  )
+  .jvmSettings(
+    libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value % Provided)
+      case _ => Seq()
+    })
+  )
+  .jsSettings(
+    libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value % Provided)
+      case _ => Seq()
+    })
+  )
+
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
+  .dependsOn(typeid)
   .settings(stdSettings("zio-blocks-schema"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))

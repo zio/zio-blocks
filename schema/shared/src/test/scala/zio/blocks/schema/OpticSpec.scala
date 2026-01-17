@@ -3,7 +3,8 @@ package zio.blocks.schema
 import zio.blocks.schema.DynamicOptic.Node._
 import zio.blocks.schema.OpticCheck._
 import zio.ZIO
-import zio.blocks.schema.binding._
+import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.TypeId
 import zio.test.Assertion._
 import zio.test._
 
@@ -3435,7 +3436,7 @@ object OpticSpecTypes {
     val w_wr1: Optional[Wrappers, Record1]       = optic(_.when[Wrapper].wrapped[Record1])
   }
 
-  case class Wrapper private (value: Record1) extends Wrappers
+  case class Wrapper(value: Record1) extends Wrappers
 
   object Wrapper extends CompanionOptics[Wrapper] {
     def apply(value: Record1): Either[String, Wrapper] =
@@ -3448,7 +3449,7 @@ object OpticSpecTypes {
 
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpticSpec")), "Wrapper"),
+      typeId = TypeId.nominal("Wrapper", "zio.blocks.schema.OpticSpec", Nil),
       wrapperPrimitiveType = None,
       wrapperBinding = Binding.Wrapper(
         wrap = Wrapper.apply,

@@ -21,7 +21,7 @@ import zio.test._
 
 object ChunkBuilderSpec extends ChunkBaseSpec {
 
-  def spec = suite("ChunkBuilderSpec")(
+  def spec: Spec[Any, Any] = suite("ChunkBuilderSpec")(
     suite("Boolean")(
       test("addOne")(
         check(genChunk(Gen.boolean)) { as =>

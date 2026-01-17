@@ -38,7 +38,7 @@ object BitChunkIntSpec extends ChunkBaseSpec {
     String.format("%32s", endiannessLong.toBinaryString).replace(' ', '0')
   }
 
-  def spec = suite("BitChunkIntSpec")(
+  def spec: Spec[Any, Any] = suite("BitChunkIntSpec")(
     test("drop") {
       check(genIntChunk, genInt, genEndianness) { (ints, n, endianness) =>
         val actual   = ints.asBitsInt(endianness).drop(n).toBinaryString

@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.typeid.TypeId
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
 import zio.blocks.schema.patch.{Patch, PatchMode}
@@ -22,10 +23,26 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def getDefaultValue[B](optic: Optic[A, B]): Option[B] = get(optic).flatMap(_.getDefaultValue)
 
-  def defaultValue[B](optic: Optic[A, B], value: => B): Schema[A] =
-    updated(optic)(_.defaultValue(value)).getOrElse(this)
-
   def defaultValue(value: => A): Schema[A] = new Schema(reflect.defaultValue(value))
+
+  def defaultValue[B](optic: Optic[A, B], value: B): Schema[A] = updated(optic)(_.defaultValue(value)).getOrElse(this)
+
+  def typeId: TypeId[A] = reflect.typeId
+
+  def ??(doc: Doc): Schema[A]     = new Schema(reflect.doc(doc))
+  def ??(text: String): Schema[A] = ??(Doc(text))
+
+  def transform[B](f: A => B, g: B => A, typeId: TypeId[B], primitive: Option[PrimitiveType[B]] = None): Schema[B] = {
+    val wrapperBinding = Binding.Wrapper((a: A) => Right(f(a)), g)
+    new Schema(
+      Reflect.Wrapper(
+        reflect,
+        typeId,
+        primitive,
+        wrapperBinding
+      )
+    )
+  }
 
   def derive[TC[_]](deriver: Deriver[TC]): TC[A] = deriving(deriver).derive
 
@@ -90,7 +107,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
-      reflect.typeName,
+      reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(wrap, unwrap)
     )
@@ -99,7 +116,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
-      reflect.typeName,
+      reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
@@ -171,7 +188,7 @@ object Schema extends SchemaCompanionVersionSpecific {
 
   implicit val uuid: Schema[java.util.UUID] = new Schema(Reflect.uuid[Binding])
 
-  implicit def option[A <: AnyRef](implicit element: Schema[A]): Schema[Option[A]] =
+  implicit def option[A](implicit element: Schema[A]): Schema[Option[A]] =
     new Schema(Reflect.option(element.reflect))
 
   implicit val optionDouble: Schema[Option[Double]] = new Schema(Reflect.optionDouble(Schema[Double].reflect))

@@ -15,7 +15,7 @@ final case class Schema[A](reflect: Reflect.Bound[A])
 ├────────────────────────────────────────────────────────────────┤
 │                Reflect.Bound[A] (Reflect[Binding, A])          │
 │    ┌─────────────────────────────────────────────────────┐     │
-│    │  Structure       │  TypeName[A], DynamicValue       │     │
+│    │  Structure       │  TypeId[A], DynamicValue         │     │
 │    │  (ADT nodes)     │  Doc, Examples, Default Value    │     │
 │    │                  │  Modifiers, Metadata             │     │
 │    └─────────────────────────────────────────────────────┘     │

@@ -56,7 +56,7 @@ object ChunkPackedBooleanSpec extends ChunkBaseSpec {
       .map(x => if (endianness == Chunk.BitChunk.Endianness.BigEndian) x else x.reverse)
       .mkString
 
-  def spec = suite("ChunkPackedBooleanSpec")(
+  def spec: Spec[Any, Any] = suite("ChunkPackedBooleanSpec")(
     test("pack byte") {
       check(genBoolChunk, genInt, genInt) { (bls, drop, take) =>
         val bools    = bls.drop(drop).take(take)

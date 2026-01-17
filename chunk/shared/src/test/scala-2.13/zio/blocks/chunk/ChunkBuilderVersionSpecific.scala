@@ -4,7 +4,7 @@ import zio.test._
 
 object ChunkBuilderVersionSpecific extends ChunkBaseSpec {
 
-  def spec = suite("ChunkBuilderVersionSpecific")(
+  def spec: Spec[Any, Any] = suite("ChunkBuilderVersionSpecific")(
     suite("Boolean")(
       test("knownSize")(
         check(Gen.chunkOf(Gen.boolean)) { zioChunk =>

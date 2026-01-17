@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.typeid.TypeId
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 
@@ -23,8 +24,8 @@ object PatchMode {
   implicit lazy val strictSchema: Schema[Strict.type] = new Schema(
     reflect = new Reflect.Record[Binding, Strict.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "PatchMode")), "Strict"),
-      recordBinding = new Binding.Record(
+      typeId = TypeId.nominal("Strict", "zio.blocks.schema.patch.PatchMode", Nil),
+      recordBinding = Binding.Record(
         constructor = new ConstantConstructor[Strict.type](Strict),
         deconstructor = new ConstantDeconstructor[Strict.type]
       ),
@@ -35,8 +36,8 @@ object PatchMode {
   implicit lazy val lenientSchema: Schema[Lenient.type] = new Schema(
     reflect = new Reflect.Record[Binding, Lenient.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "PatchMode")), "Lenient"),
-      recordBinding = new Binding.Record(
+      typeId = TypeId.nominal("Lenient", "zio.blocks.schema.patch.PatchMode", Nil),
+      recordBinding = Binding.Record(
         constructor = new ConstantConstructor[Lenient.type](Lenient),
         deconstructor = new ConstantDeconstructor[Lenient.type]
       ),
@@ -47,8 +48,8 @@ object PatchMode {
   implicit lazy val clobberSchema: Schema[Clobber.type] = new Schema(
     reflect = new Reflect.Record[Binding, Clobber.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "PatchMode")), "Clobber"),
-      recordBinding = new Binding.Record(
+      typeId = TypeId.nominal("Clobber", "zio.blocks.schema.patch.PatchMode", Nil),
+      recordBinding = Binding.Record(
         constructor = new ConstantConstructor[Clobber.type](Clobber),
         deconstructor = new ConstantDeconstructor[Clobber.type]
       ),
@@ -67,7 +68,7 @@ object PatchMode {
           lenientSchema.reflect.asTerm("Lenient"),
           clobberSchema.reflect.asTerm("Clobber")
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch")), "PatchMode"),
+        typeId = TypeId.nominal("PatchMode", "zio.blocks.schema.patch", Nil),
         variantBinding = new Binding.Variant(
           discriminator = new Discriminator[PatchMode] {
             def discriminate(a: PatchMode): Int = a match {

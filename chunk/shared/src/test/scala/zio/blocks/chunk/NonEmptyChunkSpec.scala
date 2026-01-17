@@ -34,7 +34,7 @@ object NonEmptyChunkSpec extends ChunkBaseSpec {
   lazy val genNonEmptyChunkFunction: Gen[Any, Any => NonEmptyChunk[Int]] =
     Gen.function(genNonEmptyChunkLocal)
 
-  def spec = suite("NonEmptyChunkSpec")(
+  def spec: Spec[Any, Any] = suite("NonEmptyChunkSpec")(
     test("+") {
       check(genNonEmptyChunkLocal, genInt)((as, a) => assert((as :+ a).toChunk)(equalTo(as.toChunk :+ a)))
     },

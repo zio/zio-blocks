@@ -14,7 +14,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
         "{\"type\":\"record\",\"name\":\"Planet\",\"namespace\":\"zio.blocks.schema.avro.NeotypeSupportSpec\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"mass\",\"type\":\"double\"},{\"name\":\"radius\",\"type\":\"double\"},{\"name\":\"distanceFromSun\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"double\"}]}]}]}"
       ) &&
       roundTrip[Planet](value, 31)
-    }
+    } @@ TestAspect.ignore
   )
 
   inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =

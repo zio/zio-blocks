@@ -5,6 +5,7 @@ import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._
 
+import zio.blocks.typeid.TypeId
 object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("ZIOPreludeSupportSpec")(
     test("derive schemas for cases classes with subtype and newtype fields") {
@@ -21,25 +22,29 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
+      assert(Planet.name.focus.typeId)(
         equalTo(
-          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
+          TypeId.nominal[Name]("Name", "zio.blocks.schema.ZIOPreludeSupportSpec", Nil)
         )
       ) &&
-      assert(Planet.mass.focus.typeName)(
+      assert(Planet.mass.focus.typeId)(
         equalTo(
-          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
+          TypeId.nominal[Kilogram]("Kilogram", "zio.blocks.schema.ZIOPreludeSupportSpec", Nil)
         )
       ) &&
-      assert(Planet.radius.focus.typeName)(
+      assert(Planet.radius.focus.typeId)(
         equalTo(
-          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          TypeId.nominal[Meter]("Meter", "zio.blocks.schema.ZIOPreludeSupportSpec", Nil)
         )
       ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
+      assert(Planet.distanceFromSun.focus.typeId)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          TypeId.nominal[Option[Meter]](
+            "Option",
+            "scala",
+            List(
+              Schema.tparam(TypeId.nominal[Meter]("Meter", "zio.blocks.schema.ZIOPreludeSupportSpec", Nil))
+            )
           )
         )
       )
@@ -65,7 +70,8 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   type Name = Name.Type
 
   object Name extends Newtype[String] {
-    override def assertion = assert(!zio.prelude.Assertion.isEmptyString)
+    @scala.annotation.nowarn("cat=scala3-migration")
+    override def assertion = this.assert(!zio.prelude.Assertion.isEmptyString)
 
     implicit val schema: Schema[Name] = Schema.derived
       .wrap[String](

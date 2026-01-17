@@ -6,7 +6,7 @@ import scala.collection.Factory
 
 object ChunkSpecVersionSpecific extends ChunkBaseSpec {
 
-  def spec = suite("ChunkSpecVersionSpecific")(
+  def spec: Spec[Any, Any] = suite("ChunkSpecVersionSpecific")(
     test("to") {
       val list  = List(1, 2, 3)
       val chunk = Chunk(1, 2, 3)

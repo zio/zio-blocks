@@ -105,7 +105,7 @@ object DynamicOpticSpec extends SchemaBaseSpec {
     val y: Prism[A, Y]             = optic(_.when[Y])
   }
 
-  case class PosInt private (value: Int) extends AnyVal
+  case class PosInt(value: Int) extends AnyVal
 
   object PosInt extends CompanionOptics[PosInt] {
     def apply(value: Int): Either[String, PosInt] =

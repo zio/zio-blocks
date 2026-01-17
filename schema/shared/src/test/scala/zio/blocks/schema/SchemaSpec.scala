@@ -5,6 +5,7 @@ import zio.blocks.schema.DynamicOptic.Node.{AtIndex, AtMapKey, Elements, MapValu
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{ExpectationMismatch, MissingField}
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.TypeId
 import zio.blocks.schema.codec.{TextCodec, TextFormat}
 import zio.blocks.schema.derive.Deriver
 import zio.test._
@@ -161,10 +162,15 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala")),
-                  name = "Tuple4",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
+                typeId = TypeId.nominal[(Byte, Short, Int, Long)](
+                  "Tuple4",
+                  "scala",
+                  List(
+                    Schema.tparam(TypeId.Byte),
+                    Schema.tparam(TypeId.Short),
+                    Schema.tparam(TypeId.Int),
+                    Schema.tparam(TypeId.Long)
+                  )
                 ),
                 recordBinding = null
               )
@@ -218,9 +224,10 @@ object SchemaSpec extends SchemaBaseSpec {
                     ),
                   Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-1"
+                typeId = TypeId.nominal[Record1](
+                  "Record-1",
+                  "zio.blocks.schema.SchemaSpec.spec",
+                  Nil
                 ),
                 recordBinding = null,
                 modifiers = Seq(
@@ -267,10 +274,10 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Byte].reflect.asTerm("b"),
                   Schema[Int].reflect.asTerm("i")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-2",
-                  params = Seq(TypeName.byte, TypeName.int)
+                typeId = TypeId.nominal[Record2[`i-8`, `i-32`]](
+                  "Record-2",
+                  "zio.blocks.schema.SchemaSpec.spec",
+                  List(Schema.tparam(TypeId.Byte), Schema.tparam(TypeId.Int))
                 ),
                 recordBinding = null
               )
@@ -307,9 +314,10 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Short].reflect.asTerm("s"),
                   Schema[Long].reflect.asTerm("l")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record3"
+                typeId = TypeId.nominal[Record3](
+                  "Record3",
+                  "zio.blocks.schema.SchemaSpec.spec",
+                  Nil
                 ),
                 recordBinding = null
               )
@@ -356,9 +364,10 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema.derived[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record4"
+                typeId = TypeId.nominal[Record4](
+                  "Record4",
+                  "zio.blocks.schema.SchemaSpec.spec",
+                  Nil
                 ),
                 recordBinding = null
               )
@@ -420,9 +429,10 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Unit].reflect.asTerm("u"),
                   Schema[Seq[Unit]].reflect.asTerm("su")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record5"
+                typeId = TypeId.nominal[Record5](
+                  "Record5",
+                  "zio.blocks.schema.SchemaSpec.spec",
+                  Nil
                 ),
                 recordBinding = null
               )
@@ -559,9 +569,10 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Option[DynamicValue]].reflect.asTerm("od"),
                   Schema[IndexedSeq[DynamicValue]].reflect.asTerm("isd")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record7"
+                typeId = TypeId.nominal[Record7](
+                  "Record7",
+                  "zio.blocks.schema.SchemaSpec.spec",
+                  Nil
                 ),
                 recordBinding = null
               )
@@ -577,13 +588,13 @@ object SchemaSpec extends SchemaBaseSpec {
         val value  = Record8[Option](Some(1), Some(Record8[Option](Some(2), None)))
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
-        assert(record.map(_.typeName))(
+        assert(record.map(_.typeId))(
           isSome(
             equalTo(
-              TypeName[Record8[Option]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Record8",
-                params = Seq(TypeName(Namespace.scala, "Option"))
+              TypeId.nominal[Record8[Option]](
+                "Record8",
+                "zio.blocks.schema.SchemaSpec.spec",
+                List(Schema.tparam(TypeId.nominal("Option", "scala", Nil)))
               )
             )
           )
@@ -691,7 +702,7 @@ object SchemaSpec extends SchemaBaseSpec {
           new Schema(
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
-              TypeName(Namespace(Seq("zio")), "Chunk"),
+              TypeId.nominal("Chunk", "zio", List(Schema.tparam(Schema[V].reflect.typeId))),
               None,
               new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
             )
@@ -938,12 +949,13 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(`Case-3`))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2", "Case-3")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(_.typeId))(
           isSome(
             equalTo(
-              TypeName[`Variant-1`](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-1"
+              TypeId.nominal[`Variant-1`](
+                "Variant-1",
+                "zio.blocks.schema.SchemaSpec.spec",
+                Nil
               )
             )
           )
@@ -994,13 +1006,13 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(Value[String]("WWW")))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("MissingValue", "NullValue", "Value")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(_.typeId))(
           isSome(
             equalTo(
-              TypeName[`Variant-2`[String]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-2",
-                params = Seq(TypeName.string)
+              TypeId.nominal[`Variant-2`[String]](
+                "Variant-2",
+                "zio.blocks.schema.SchemaSpec.spec",
+                List(Schema.tparam(TypeId.String))
               )
             )
           )
@@ -1048,20 +1060,21 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A1)))(isRight(equalTo(B.A1))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A2)))(isRight(equalTo(B.A2))) &&
         assert(variant1.map(_.cases.map(_.name)))(isSome(equalTo(Vector("A1", "A2")))) &&
-        assert(variant1.map(_.typeName))(
-          isSome(equalTo(TypeName[A](Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "A")))
+        assert(variant1.map(_.typeId))(
+          isSome(equalTo(TypeId.nominal[A]("A", "zio.blocks.schema.SchemaSpec", Nil)))
         ) &&
         assert(Level1_MultiLevel.c.getOption(Case))(isSome(equalTo(Case))) &&
         assert(Level1_MultiLevel.l1_c.getOption(Level1.Case))(isSome(equalTo(Level1.Case))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(Case)))(isRight(equalTo(Case))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(Level1.Case)))(isRight(equalTo(Level1.Case))) &&
         assert(variant2.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Level1.Case", "Case")))) &&
-        assert(variant2.map(_.typeName))(
+        assert(variant2.map(_.typeId))(
           isSome(
             equalTo(
-              TypeName[Level1.MultiLevel](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "Level1")),
-                name = "MultiLevel"
+              TypeId.nominal[Level1.MultiLevel](
+                "MultiLevel",
+                "zio.blocks.schema.SchemaSpec.Level1",
+                Nil
               )
             )
           )
@@ -1094,13 +1107,13 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(`Case-2`[Option](None)))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(_.typeId))(
           isSome(
             equalTo(
-              TypeName[`Variant-3`[Option]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-3",
-                params = Seq(TypeName(Namespace.scala, "Option"))
+              TypeId.nominal[`Variant-3`[Option]](
+                "Variant-3",
+                "zio.blocks.schema.SchemaSpec.spec",
+                List(Schema.tparam(TypeId.nominal("Option", "scala", Nil)))
               )
             )
           )
@@ -1120,13 +1133,13 @@ object SchemaSpec extends SchemaBaseSpec {
         val schema  = Schema.derived[Variant4[String, Int]]
         val variant = schema.reflect.asVariant
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Error", "Fatal", "Success", "Timeout")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(_.typeId))(
           isSome(
             equalTo(
-              TypeName[Variant4[String, Int]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant4",
-                params = Seq(TypeName.string, TypeName.int)
+              TypeId.nominal[Variant4[String, Int]](
+                "Variant4",
+                "zio.blocks.schema.SchemaSpec.spec",
+                List(Schema.tparam(TypeId.String), Schema.tparam(TypeId.Int))
               )
             )
           )
@@ -1201,7 +1214,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Schema.derived[Seq[Int]].doc("Seq (updated)").doc)(equalTo(Doc("Seq (updated)")))
       },
       test("gets and updates sequence examples") {
-        assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
+        assert(Schema[List[Double]].examples)(equalTo(Nil)) &&
         assert(Schema[Set[Int]].examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
       },
       test("gets and updates default values of sequence elements using optic focus") {
@@ -1401,7 +1414,11 @@ object SchemaSpec extends SchemaBaseSpec {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
-          typeName = TypeName.map(TypeName.int, TypeName.long),
+          typeId = TypeId.nominal[Map[Int, Long]](
+            "Map",
+            "scala.collection.immutable",
+            List(Schema.tparam(TypeId.Int), Schema.tparam(TypeId.Long))
+          ),
           mapBinding = Binding.Map[Map, Int, Long](
             constructor = MapConstructor.map,
             deconstructor = MapDeconstructor.map,
@@ -1514,7 +1531,7 @@ object SchemaSpec extends SchemaBaseSpec {
       },
       test("gets and updates dynamic examples") {
         val value = DynamicValue.Primitive(PrimitiveValue.Int(1))
-        assert(Schema[DynamicValue].examples)(equalTo(Seq.empty)) &&
+        assert(Schema[DynamicValue].examples)(equalTo(Nil)) &&
         assert(Schema[DynamicValue].examples(value).examples)(equalTo(value :: Nil))
       },
       test("appends dynamic modifiers") {
@@ -1542,7 +1559,7 @@ object SchemaSpec extends SchemaBaseSpec {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred3 = Reflect.int[Binding]
-        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeName.int, Binding.Primitive.int)
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeId.Int, Binding.Primitive.int)
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(Schema(deferred1))(equalTo(Schema(deferred1))) &&
         assert(Schema(deferred1).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
@@ -1567,7 +1584,7 @@ object SchemaSpec extends SchemaBaseSpec {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
-            TypeName.int,
+            TypeId.Int,
             Binding.Primitive(examples = Seq(1, 2, 3))
           )
         }
@@ -1712,7 +1729,7 @@ object SchemaSpec extends SchemaBaseSpec {
       },
       test("gets and updates wrapper examples") {
         val value = PosInt.applyUnsafe(1)
-        assert(Schema[PosInt].examples)(equalTo(Seq.empty)) &&
+        assert(Schema[PosInt].examples)(equalTo(Nil)) &&
         assert(Schema[PosInt].examples(value).examples)(equalTo(value :: Nil))
       },
       test("gets and updates default values of wrapped schema using optic focus") {
@@ -1877,7 +1894,7 @@ object SchemaSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Box2] = Schema.derived
   }
 
-  case class PosInt private (value: Int) extends AnyVal
+  case class PosInt(value: Int) extends AnyVal
 
   object PosInt extends CompanionOptics[PosInt] {
     def apply(value: Int): Either[String, PosInt] =
@@ -1911,7 +1928,7 @@ object SchemaSpec extends SchemaBaseSpec {
         new Deriver[TextCodec] {
           override def derivePrimitive[F[_, _], A](
             primitiveType: PrimitiveType[A],
-            typeName: TypeName[A],
+            typeId: TypeId[A],
             binding: Binding[BindingType.Primitive, A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -1924,7 +1941,7 @@ object SchemaSpec extends SchemaBaseSpec {
 
           override def deriveRecord[F[_, _], A](
             fields: IndexedSeq[Term[F, A, ?]],
-            typeName: TypeName[A],
+            typeId: TypeId[A],
             binding: Binding[BindingType.Record, A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -1937,7 +1954,7 @@ object SchemaSpec extends SchemaBaseSpec {
 
           override def deriveVariant[F[_, _], A](
             cases: IndexedSeq[Term[F, A, ?]],
-            typeName: TypeName[A],
+            typeId: TypeId[A],
             binding: Binding[BindingType.Variant, A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -1950,7 +1967,7 @@ object SchemaSpec extends SchemaBaseSpec {
 
           override def deriveSequence[F[_, _], C[_], A](
             element: Reflect[F, A],
-            typeName: TypeName[C[A]],
+            typeId: TypeId[C[A]],
             binding: Binding[BindingType.Seq[C], C[A]],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -1964,7 +1981,7 @@ object SchemaSpec extends SchemaBaseSpec {
           override def deriveMap[F[_, _], M[_, _], K, V](
             key: Reflect[F, K],
             value: Reflect[F, V],
-            typeName: TypeName[M[K, V]],
+            typeId: TypeId[M[K, V]],
             binding: Binding[BindingType.Map[M], M[K, V]],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -1991,7 +2008,7 @@ object SchemaSpec extends SchemaBaseSpec {
 
           override def deriveWrapper[F[_, _], A, B](
             wrapped: Reflect[F, B],
-            typeName: TypeName[A],
+            typeId: TypeId[A],
             wrapperPrimitiveType: Option[PrimitiveType[A]],
             binding: Binding[BindingType.Wrapper[A, B], A],
             doc: Doc,

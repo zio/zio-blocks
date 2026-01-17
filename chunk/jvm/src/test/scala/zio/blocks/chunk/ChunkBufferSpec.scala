@@ -24,7 +24,7 @@ import java.nio._
 
 object ChunkBufferSpec extends ChunkBaseSpec {
 
-  def spec = suite("ChunkBufferSpec")(
+  def spec: Spec[Any, Any] = suite("ChunkBufferSpec")(
     suite("ByteBuffer")(
       test("byte array buffer no copying") {
         ZIO.succeed {

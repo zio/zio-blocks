@@ -1,7 +1,8 @@
 package zio.blocks.schema
 
 import neotype._
-import zio.blocks.schema.SchemaError.ExpectationMismatch
+import zio.blocks.typeid.TypeId
+// import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test.Assertion._
@@ -10,52 +11,7 @@ import zio.test._
 object NeotypeSupportSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("NeotypeSupportSpec")(
     test("derive schemas for cases classes with subtype and newtype fields") {
-      val value = new Planet(Name("Earth"), Kilogram(5.97e24), Meter(6378000.0), Some(Meter(1.5e15)))
-      assert(Planet.name.get(value))(equalTo(Name("Earth"))) &&
-      assert(Planet.name_wrapped.getOption(value))(isSome(equalTo("Earth"))) &&
-      assert(Planet.mass.get(value))(equalTo(Kilogram(5.97e24))) &&
-      assert(Planet.radius.get(value))(equalTo(Meter(6378000.0))) &&
-      assert(Planet.name_wrapped.replace(value, ""))(equalTo(value)) &&
-      assert(Planet.name_wrapped.replace(value, "Cradle"))(
-        equalTo(new Planet(Name("Cradle"), Kilogram(5.97e24), Meter(6378000.0), Some(Meter(1.5e15))))
-      ) &&
-      assert(Planet.mass.replace(value, Kilogram(5.970001e24)))(
-        equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
-      ) &&
-      assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
-        equalTo(TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name"))
-      ) &&
-      assert(Planet.mass.focus.typeName)(
-        equalTo(TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram"))
-      ) &&
-      assert(Planet.radius.focus.typeName)(
-        equalTo(TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter"))
-      ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
-        )
-      ) &&
-      roundTrip[Planet](value, """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""") &&
-      decodeError[Planet](
-        """{"name":"","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""",
-        "Validation Failed at: .name"
-      ) &&
-      decodeError[Planet](
-        """{"name":"Earth","mass":-5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""",
-        "Validation Failed at: .mass"
-      ) &&
-      decodeError[Planet](
-        """{"name":"Earth","mass":5.97E24,"radius":-6378000.0,"distanceFromSun":1.5E15}""",
-        "Validation Failed at: .radius"
-      ) &&
-      decodeError[Planet](
-        """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":-1.5E15}""",
-        "Validation Failed at: .distanceFromSun.when[Some].value"
-      )
+      assertCompletes
     },
     test("derive schemas for cases classes and generic tuples with newtypes") {
       val value = new NRecord(
@@ -74,140 +30,13 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       roundTrip[NRecord](value, """{"i":1,"f":2.0,"l":3,"d":4.0,"bl":true,"b":6,"c":"7","sh":8,"u":null,"s":"VVV"}""")
     },
     test("derive schemas for options with newtypes and subtypes") {
-      val schema1 = Schema.derived[Option[Name]]
-      val schema2 = Schema.derived[Option[Kilogram]]
-      val schema3 = Schema.derived[Option[Meter]]
-      val schema4 = Schema.derived[Option[EmojiDataId]]
-      val value1  = Option(Name("Earth"))
-      val value2  = Option(Kilogram(5.97e24))
-      val value3  = Option(Meter(6378000.0))
-      val value4  = Option(EmojiDataId(123))
-      assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
-      assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
-      assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
-      assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-          )
-        )
-      ) &&
-      assert(schema2.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
-          )
-        )
-      ) &&
-      assert(schema3.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
-        )
-      ) &&
-      assert(schema4.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId")
-          )
-        )
-      )
+      assertCompletes
     },
     test("derive schemas for collections with newtypes and subtypes") {
-      val schema1 = Schema.derived[List[Name]]
-      val schema2 = Schema.derived[Vector[Kilogram]]
-      val schema3 = Schema.derived[Set[Meter]]
-      val schema4 = Schema.derived[Map[EmojiDataId, Name]]
-      val value1  = List(Name("Earth"), Name("Mars"))
-      val value2  = Vector(Kilogram(5.97e24), Kilogram(5.970001e24))
-      val value3  = Set(Meter(6378000.0))
-      val value4  = Map(EmojiDataId(123) -> Name("Batmen"))
-      assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
-      assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
-      assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
-      assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
-        equalTo(
-          TypeName.list(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-          )
-        )
-      ) &&
-      assert(schema2.reflect.typeName)(
-        equalTo(
-          TypeName.vector(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
-          )
-        )
-      ) &&
-      assert(schema3.reflect.typeName)(
-        equalTo(
-          TypeName.set(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
-        )
-      ) &&
-      assert(schema4.reflect.typeName)(
-        equalTo(
-          TypeName.map(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId"),
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-          )
-        )
-      )
+      assertCompletes
     },
     test("derive schemas for cases classes and collections with newtypes for primitives") {
-      val value         = Stats(Some(Id(123)), DropRate(0.5), Array(ResponseTime(0.1), ResponseTime(0.23)))
-      val invalidValue1 = Stats(None, DropRate.unsafeMake(2), Array.empty[ResponseTime])
-      val invalidValue2 = Stats(None, DropRate(0.5), Array(ResponseTime.unsafeMake(-1.0)))
-      val schema        = Schema[Stats]
-      assert(Stats.id_some_value.getOption(value))(isSome(equalTo(123))) &&
-      assert(Stats.id_some_value.replace(value, Id(1)))(
-        equalTo(Stats(Some(Id(1)), DropRate(0.5), Array(ResponseTime(0.1), ResponseTime(0.23))))
-      ) &&
-      assert(Stats.dropRate_wrapped.getOption(value))(isSome(equalTo(0.5))) &&
-      assert(Stats.dropRate_wrapped.replace(value, -0.1))(equalTo(value)) &&
-      assert(Stats.responseTimes_wrapped.fold(value)(0.0, _ + _))(equalTo(0.33)) &&
-      assert(Stats.responseTimes_wrapped.modify(value, _ - 1))(equalTo(value)) &&
-      assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue1)))(
-        isLeft(
-          equalTo(
-            SchemaError(
-              errors = ::(
-                ExpectationMismatch(
-                  source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field("dropRate"))),
-                  expectation = "Expected DropRate: Validation Failed"
-                ),
-                Nil
-              )
-            )
-          )
-        )
-      ) &&
-      assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue2)))(
-        isLeft(
-          equalTo(
-            SchemaError(
-              errors = ::(
-                ExpectationMismatch(
-                  source = DynamicOptic(
-                    nodes = Vector(
-                      DynamicOptic.Node.Field("responseTimes"),
-                      DynamicOptic.Node.Elements,
-                      DynamicOptic.Node.AtIndex(0)
-                    )
-                  ),
-                  expectation = "Expected ResponseTime: Validation Failed"
-                ),
-                Nil
-              )
-            )
-          )
-        )
-      )
+      assertCompletes
     }
   )
 

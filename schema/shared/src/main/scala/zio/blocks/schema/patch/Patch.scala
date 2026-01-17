@@ -29,7 +29,7 @@ import zio.blocks.schema.binding.Binding
  * @param schema
  *   The schema for type S, enabling type-safe conversion
  */
-final case class Patch[S] private[schema] (dynamicPatch: DynamicPatch, schema: Schema[S]) {
+final case class Patch[S](dynamicPatch: DynamicPatch, schema: Schema[S]) {
 
   // Compose two patches. The result applies this patch first, then that patch.
   def ++(that: Patch[S]): Patch[S] = Patch(this.dynamicPatch ++ that.dynamicPatch, this.schema)

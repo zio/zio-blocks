@@ -5,6 +5,7 @@ import zio.blocks.schema.binding.{Binding, Registers, RegisterOffset}
 import zio.blocks.schema.derive.BindingInstance
 import zio.blocks.schema.toon._
 import zio.blocks.schema.toon.ToonCodecUtils.unescapeQuoted
+import zio.blocks.typeid.TypeId
 
 import scala.util.control.NonFatal
 
@@ -17,7 +18,7 @@ private[toon] final class RecordCodecBuilder(
   requireOptionFields: Boolean,
   requireCollectionFields: Boolean,
   requireDefaultValueFields: Boolean,
-  recursiveRecordCache: ThreadLocal[java.util.HashMap[TypeName[_], Array[ToonFieldInfo]]],
+  recursiveRecordCache: ThreadLocal[java.util.HashMap[TypeId[?], Array[ToonFieldInfo]]],
   discriminatorFields: ThreadLocal[List[ToonDiscriminatorFieldInfo]],
   codecDeriver: CodecDeriver
 ) {
@@ -139,8 +140,8 @@ private[toon] final class RecordCodecBuilder(
     val fields       = record.fields
     val len          = fields.length
     val isRecursive  = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
-    val typeName     = record.typeName
-    var infos        = if (isRecursive) recursiveRecordCache.get.get(typeName) else null
+    val typeId       = record.typeId
+    var infos        = if (isRecursive) recursiveRecordCache.get.get(typeId) else null
     val deriveCodecs = infos eq null
 
     if (deriveCodecs) {
@@ -158,7 +159,7 @@ private[toon] final class RecordCodecBuilder(
         )
         idx += 1
       }
-      if (isRecursive) recursiveRecordCache.get.put(typeName, infos)
+      if (isRecursive) recursiveRecordCache.get.put(typeId, infos)
       discriminatorFields.set(null :: discriminatorFields.get)
     }
 
