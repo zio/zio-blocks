@@ -205,4 +205,85 @@ object Schema extends SchemaCompanionVersionSpecific {
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
+
+  implicit def either[A <: AnyRef, B <: AnyRef](implicit l: Schema[A], r: Schema[B]): Schema[Either[A, B]] =
+    new Schema(Reflect.either(l.reflect, r.reflect))
+
+  implicit def eitherRightDouble[A <: AnyRef](implicit l: Schema[A]): Schema[Either[A, Double]] =
+    new Schema(Reflect.eitherRightDouble(l.reflect, Schema[Double].reflect))
+
+  implicit def eitherRightLong[A <: AnyRef](implicit l: Schema[A]): Schema[Either[A, Long]] =
+    new Schema(Reflect.eitherRightLong(l.reflect, Schema[Long].reflect))
+
+  implicit def eitherRightFloat[A <: AnyRef](implicit l: Schema[A]): Schema[Either[A, Float]] =
+    new Schema(Reflect.eitherRightFloat(l.reflect, Schema[Float].reflect))
+
+  implicit def eitherRightInt[A <: AnyRef](implicit l: Schema[A]): Schema[Either[A, Int]] =
+    new Schema(Reflect.eitherRightInt(l.reflect, Schema[Int].reflect))
+
+  implicit def eitherRightChar[A <: AnyRef](implicit l: Schema[A]): Schema[Either[A, Char]] =
+    new Schema(Reflect.eitherRightChar(l.reflect, Schema[Char].reflect))
+
+  implicit def eitherRightShort[A <: AnyRef](implicit l: Schema[A]): Schema[Either[A, Short]] =
+    new Schema(Reflect.eitherRightShort(l.reflect, Schema[Short].reflect))
+
+  implicit def eitherRightBoolean[A <: AnyRef](implicit l: Schema[A]): Schema[Either[A, Boolean]] =
+    new Schema(Reflect.eitherRightBoolean(l.reflect, Schema[Boolean].reflect))
+
+  implicit def eitherRightByte[A <: AnyRef](implicit l: Schema[A]): Schema[Either[A, Byte]] =
+    new Schema(Reflect.eitherRightByte(l.reflect, Schema[Byte].reflect))
+
+  implicit def eitherRightUnit[A <: AnyRef](implicit l: Schema[A]): Schema[Either[A, Unit]] =
+    new Schema(Reflect.eitherRightUnit(l.reflect, Schema[Unit].reflect))
+
+  implicit def eitherLeftDouble[B <: AnyRef](implicit r: Schema[B]): Schema[Either[Double, B]] =
+    new Schema(Reflect.eitherLeftDouble(Schema[Double].reflect, r.reflect))
+
+  implicit def eitherLeftLong[B <: AnyRef](implicit r: Schema[B]): Schema[Either[Long, B]] =
+    new Schema(Reflect.eitherLeftLong(Schema[Long].reflect, r.reflect))
+
+  implicit def eitherLeftFloat[B <: AnyRef](implicit r: Schema[B]): Schema[Either[Float, B]] =
+    new Schema(Reflect.eitherLeftFloat(Schema[Float].reflect, r.reflect))
+
+  implicit def eitherLeftInt[B <: AnyRef](implicit r: Schema[B]): Schema[Either[Int, B]] =
+    new Schema(Reflect.eitherLeftInt(Schema[Int].reflect, r.reflect))
+
+  implicit def eitherLeftChar[B <: AnyRef](implicit r: Schema[B]): Schema[Either[Char, B]] =
+    new Schema(Reflect.eitherLeftChar(Schema[Char].reflect, r.reflect))
+
+  implicit def eitherLeftShort[B <: AnyRef](implicit r: Schema[B]): Schema[Either[Short, B]] =
+    new Schema(Reflect.eitherLeftShort(Schema[Short].reflect, r.reflect))
+
+  implicit def eitherLeftBoolean[B <: AnyRef](implicit r: Schema[B]): Schema[Either[Boolean, B]] =
+    new Schema(Reflect.eitherLeftBoolean(Schema[Boolean].reflect, r.reflect))
+
+  implicit def eitherLeftByte[B <: AnyRef](implicit r: Schema[B]): Schema[Either[Byte, B]] =
+    new Schema(Reflect.eitherLeftByte(Schema[Byte].reflect, r.reflect))
+
+  implicit def eitherLeftUnit[B <: AnyRef](implicit r: Schema[B]): Schema[Either[Unit, B]] =
+    new Schema(Reflect.eitherLeftUnit(Schema[Unit].reflect, r.reflect))
+
+  implicit val eitherIntBoolean: Schema[Either[Int, Boolean]] =
+    new Schema(Reflect.eitherIntBoolean(Schema[Int].reflect, Schema[Boolean].reflect))
+
+  implicit val eitherBooleanInt: Schema[Either[Boolean, Int]] =
+    new Schema(Reflect.eitherBooleanInt(Schema[Boolean].reflect, Schema[Int].reflect))
+
+  implicit val eitherIntLong: Schema[Either[Int, Long]] =
+    new Schema(Reflect.eitherIntLong(Schema[Int].reflect, Schema[Long].reflect))
+
+  implicit val eitherLongInt: Schema[Either[Long, Int]] =
+    new Schema(Reflect.eitherLongInt(Schema[Long].reflect, Schema[Int].reflect))
+
+  implicit val eitherIntDouble: Schema[Either[Int, Double]] =
+    new Schema(Reflect.eitherIntDouble(Schema[Int].reflect, Schema[Double].reflect))
+
+  implicit val eitherDoubleInt: Schema[Either[Double, Int]] =
+    new Schema(Reflect.eitherDoubleInt(Schema[Double].reflect, Schema[Int].reflect))
+
+  implicit val eitherLongDouble: Schema[Either[Long, Double]] =
+    new Schema(Reflect.eitherLongDouble(Schema[Long].reflect, Schema[Double].reflect))
+
+  implicit val eitherDoubleLong: Schema[Either[Double, Long]] =
+    new Schema(Reflect.eitherDoubleLong(Schema[Double].reflect, Schema[Long].reflect))
 }
