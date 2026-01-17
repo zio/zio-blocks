@@ -254,6 +254,83 @@ private object AsVersionSpecificImpl {
           // and become None when coming back (if target has them as Option)
         }
       }
+
+      // Check: fields that exist in target but NOT in source (the reverse direction)
+      // These must be either Optional or have defaults, otherwise the round-trip fails
+      targetFieldsByName.foreach { case (name, targetField) =>
+        if (!sourceFieldsByName.contains(name)) {
+          // Target has a field that source doesn't have
+          // When going B → A, this field will be missing
+          // It's only OK if:
+          // 1. The field is an Option type (can be None)
+          // 2. The field has a default value
+          val isOptional  = isOptionType(targetField.tpe)
+          val hasDefault  = targetField.hasDefault
+
+          if (!isOptional && !hasDefault) {
+            val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+            val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+            fail(
+              s"""Cannot derive As[$aTpe, $bTpe]: Missing required field breaks round-trip
+                 |
+                 |  ${aTpe.typeSymbol.name}($sourceFieldsStr)
+                 |  ${bTpe.typeSymbol.name}($targetFieldsStr)
+                 |
+                 |Field '$name: ${targetField.tpe}' exists in ${bTpe.typeSymbol.name} but not in ${aTpe.typeSymbol.name}
+                 |
+                 |When converting B → A (from method), the '$name' field cannot be populated.
+                 |
+                 |For As[A, B] to work, missing fields must be either:
+                 |  - Optional (Option[T]) - can become None in reverse direction
+                 |  - Have a default value - can use default in reverse direction
+                 |
+                 |Consider:
+                 |  - Making '$name' an Option type in both A and B
+                 |  - Adding a default value for '$name' in both types
+                 |  - Using Into[A, B] instead (one-way conversion)""".stripMargin
+            )
+          }
+        }
+      }
+
+      // Also check the reverse: fields in source that don't exist in target
+      // When going A → B, these get dropped. When coming back B → A, they can't be restored
+      // unless they are Optional or have defaults
+      sourceFieldsByName.foreach { case (name, sourceField) =>
+        if (!targetFieldsByName.contains(name)) {
+          // Source has a field that target doesn't have
+          // When going A → B → A, this field will be lost
+          // It's only OK if the field is Optional or has a default
+          val isOptional = isOptionType(sourceField.tpe)
+          val hasDefault = sourceField.hasDefault
+
+          if (!isOptional && !hasDefault) {
+            val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+            val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+            fail(
+              s"""Cannot derive As[$aTpe, $bTpe]: Missing required field breaks round-trip
+                 |
+                 |  ${aTpe.typeSymbol.name}($sourceFieldsStr)
+                 |  ${bTpe.typeSymbol.name}($targetFieldsStr)
+                 |
+                 |Field '$name: ${sourceField.tpe}' exists in ${aTpe.typeSymbol.name} but not in ${bTpe.typeSymbol.name}
+                 |
+                 |When converting A → B → A (round-trip), the '$name' field value will be lost
+                 |because it cannot be stored in B and restored back.
+                 |
+                 |For As[A, B] to work, fields that don't exist in the other type must be either:
+                 |  - Optional (Option[T]) - becomes None after round-trip
+                 |  - Have a default value - restored to default after round-trip
+                 |
+                 |Consider:
+                 |  - Making '$name' an Option type
+                 |  - Adding a default value for '$name'
+                 |  - Adding the field to ${bTpe.typeSymbol.name}
+                 |  - Using Into[A, B] instead (one-way conversion)""".stripMargin
+            )
+          }
+        }
+      }
     }
 
     // === ZIO Prelude Newtype Detection ===
@@ -372,17 +449,127 @@ private object AsVersionSpecificImpl {
 
     // === Main Derivation Logic ===
 
-    val aIsProduct   = isProductType(aTpe)
-    val bIsProduct   = isProductType(bTpe)
-    val aIsTuple     = isTupleType(aTpe)
-    val bIsTuple     = isTupleType(bTpe)
-    val aIsCoproduct = isSealedTrait(aTpe)
-    val bIsCoproduct = isSealedTrait(bTpe)
+    def isStructuralType(tpe: Type): Boolean = {
+      val dealiased = tpe.dealias
+      dealiased match {
+        case RefinedType(parents, decls) =>
+          parents.forall(p => p =:= typeOf[AnyRef] || p =:= typeOf[Any] || p =:= typeOf[Object]) &&
+          decls.nonEmpty
+        case _ => false
+      }
+    }
+
+    class StructuralFieldInfo(val name: String, val tpe: Type)
+
+    class StructuralInfo(tpe: Type) {
+      val fields: List[StructuralFieldInfo] = {
+        tpe.dealias match {
+          case RefinedType(_, decls) =>
+            decls.toList.collect {
+              case m: MethodSymbol if m.isMethod && m.paramLists.flatten.isEmpty =>
+                new StructuralFieldInfo(m.name.decodedName.toString, m.returnType)
+            }
+          case _ => Nil
+        }
+      }
+    }
+
+    def checkStructuralFieldMappingConsistency(sourceInfo: ProductInfo, targetInfo: StructuralInfo): Unit = {
+      val sourceFieldsByName = sourceInfo.fields.map(f => f.name -> f).toMap
+      val targetFieldsByName = targetInfo.fields.map(f => f.name -> f).toMap
+
+      // Check: fields in source that don't exist in target
+      sourceFieldsByName.foreach { case (name, sourceField) =>
+        if (!targetFieldsByName.contains(name)) {
+          val isOptional = isOptionType(sourceField.tpe)
+          val hasDefault = sourceField.hasDefault
+
+          if (!isOptional && !hasDefault) {
+            val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+            val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+            fail(
+              s"""Cannot derive As[$aTpe, $bTpe]: Missing required field breaks round-trip
+                 |
+                 |  ${aTpe.typeSymbol.name}($sourceFieldsStr)
+                 |  Structural($targetFieldsStr)
+                 |
+                 |Field '$name: ${sourceField.tpe}' exists in ${aTpe.typeSymbol.name} but not in the structural type.
+                 |
+                 |When converting A → B → A (round-trip), the '$name' field value will be lost
+                 |because it cannot be stored in the structural type and restored back.
+                 |
+                 |For As[A, B] to work, fields that don't exist in the other type must be either:
+                 |  - Optional (Option[T]) - becomes None after round-trip
+                 |  - Have a default value - restored to default after round-trip
+                 |
+                 |Consider:
+                 |  - Making '$name' an Option type
+                 |  - Adding a default value for '$name'
+                 |  - Adding the field to the structural type
+                 |  - Using Into[A, B] instead (one-way conversion)""".stripMargin
+            )
+          }
+        }
+      }
+    }
+
+    def checkStructuralFieldMappingConsistencyReverse(sourceInfo: StructuralInfo, targetInfo: ProductInfo): Unit = {
+      val sourceFieldsByName = sourceInfo.fields.map(f => f.name -> f).toMap
+      val targetFieldsByName = targetInfo.fields.map(f => f.name -> f).toMap
+
+      // Check: fields in target that don't exist in source
+      targetFieldsByName.foreach { case (name, targetField) =>
+        if (!sourceFieldsByName.contains(name)) {
+          val isOptional = isOptionType(targetField.tpe)
+          val hasDefault = targetField.hasDefault
+
+          if (!isOptional && !hasDefault) {
+            val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+            val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+            fail(
+              s"""Cannot derive As[$aTpe, $bTpe]: Missing required field breaks round-trip
+                 |
+                 |  Structural($sourceFieldsStr)
+                 |  ${bTpe.typeSymbol.name}($targetFieldsStr)
+                 |
+                 |Field '$name: ${targetField.tpe}' exists in ${bTpe.typeSymbol.name} but not in the structural type.
+                 |
+                 |When converting B → A (from method), the '$name' field cannot be populated.
+                 |
+                 |For As[A, B] to work, missing fields must be either:
+                 |  - Optional (Option[T]) - can become None in reverse direction
+                 |  - Have a default value - can use default in reverse direction
+                 |
+                 |Consider:
+                 |  - Making '$name' an Option type in both types
+                 |  - Adding a default value for '$name'
+                 |  - Using Into[A, B] instead (one-way conversion)""".stripMargin
+            )
+          }
+        }
+      }
+    }
+
+    val aIsProduct    = isProductType(aTpe)
+    val bIsProduct    = isProductType(bTpe)
+    val aIsTuple      = isTupleType(aTpe)
+    val bIsTuple      = isTupleType(bTpe)
+    val aIsCoproduct  = isSealedTrait(aTpe)
+    val bIsCoproduct  = isSealedTrait(bTpe)
+    val aIsStructural = isStructuralType(aTpe)
+    val bIsStructural = isStructuralType(bTpe)
 
     // Perform compatibility checks based on type category
-    (aIsProduct, bIsProduct, aIsTuple, bIsTuple, aIsCoproduct, bIsCoproduct) match {
-      case (true, true, _, _, _, _) =>
-        // Case class to case class
+    (aIsProduct, bIsProduct, aIsTuple, bIsTuple, aIsCoproduct, bIsCoproduct, aIsStructural, bIsStructural) match {
+      case (_, _, true, true, _, _, _, _) =>
+      // Tuple to tuple - no default value checks needed, positional matching
+
+      case (true, _, _, true, _, _, _, _) | (_, true, true, _, _, _, _, _) =>
+        // Product to tuple or tuple to product - use positional matching, no field name checks needed
+        // Tuples use positional matching so field names (_1, _2, etc.) don't need to match case class field names
+
+      case (true, true, _, _, _, _, _, _) =>
+        // Case class to case class (non-tuple products)
         val aInfo = new ProductInfo(aTpe)
         val bInfo = new ProductInfo(bTpe)
 
@@ -393,7 +580,29 @@ private object AsVersionSpecificImpl {
         // Check field mapping consistency
         checkFieldMappingConsistency(aInfo, bInfo)
 
-      case (true, _, _, true, _, _) | (_, true, true, _, _, _) =>
+      case (true, _, _, _, _, _, _, true) =>
+        // Case class to structural type
+        val aInfo = new ProductInfo(aTpe)
+        val bInfo = new StructuralInfo(bTpe)
+
+        // Check no default values in source
+        checkNoDefaultValues(aInfo, "source")
+
+        // Check field mapping consistency for structural types
+        checkStructuralFieldMappingConsistency(aInfo, bInfo)
+
+      case (_, true, _, _, _, _, true, _) =>
+        // Structural type to case class
+        val aInfo = new StructuralInfo(aTpe)
+        val bInfo = new ProductInfo(bTpe)
+
+        // Check no default values in target
+        checkNoDefaultValues(bInfo, "target")
+
+        // Check field mapping consistency for structural types
+        checkStructuralFieldMappingConsistencyReverse(aInfo, bInfo)
+
+      case (true, _, _, true, _, _, _, _) | (_, true, true, _, _, _, _, _) =>
         // Case class to/from tuple
         if (aIsProduct) {
           val aInfo = new ProductInfo(aTpe)
@@ -404,10 +613,10 @@ private object AsVersionSpecificImpl {
           checkNoDefaultValues(bInfo, "target")
         }
 
-      case (_, _, true, true, _, _) =>
+      case (_, _, true, true, _, _, _, _) =>
       // Tuple to tuple - no default value checks needed
 
-      case (_, _, _, _, true, true) =>
+      case (_, _, _, _, true, true, _, _) =>
       // Coproduct to coproduct - no additional checks needed
 
       case _ =>

@@ -10,6 +10,11 @@ object StructuralAsSpec extends ZIOSpecDefault {
 
   case class Person(name: String, age: Int)
   case class Point(x: Int, y: Int)
+  case class Employee(name: String, age: Int, department: String)
+
+  case class PersonWithOptDept(name: String, age: Int, department: Option[String])
+
+  case class PersonWithDefaultDept(name: String, age: Int, department: String = "Unknown")
 
   def spec: Spec[TestEnvironment, Any] = suite("StructuralAsJVMOnlySpec")(
     suite("As with Pure Structural Types (JVM Only)")(
@@ -49,21 +54,56 @@ object StructuralAsSpec extends ZIOSpecDefault {
 
         assert(roundTrip)(isRight(equalTo(original)))
       },
-      test("As with subset of fields") {
-        case class Employee(name: String, age: Int, department: String)
+      test("As with subset of fields fails to compile for non-optional fields") {
+        // This test verifies that the code DOES NOT compile.
+        // The As.derived[Employee, { def name: String; def age: Int }] call should fail
+        // because 'department' is neither Optional nor has a default.
+        //
+        // We test this using typeCheck which returns Left if compilation fails.
+        // Note: We use the Employee class defined at module level to ensure proper macro expansion.
+        for {
+          // Test the reverse Into direction which should fail
+          intoChecked <- typeCheck(
+                           """
+            import zio.blocks.schema._
+            import zio.blocks.schema.as.structural.StructuralAsSpec.Employee
+            Into.derived[{ def name: String; def age: Int }, Employee]
+            """
+                         )
+          // Also test the As which should fail for the same reason
+          asChecked <- typeCheck(
+                         """
+            import zio.blocks.schema._
+            import zio.blocks.schema.as.structural.StructuralAsSpec.Employee
+            As.derived[Employee, { def name: String; def age: Int }]
+            """
+                       )
+        } yield assertTrue(intoChecked.isLeft, asChecked.isLeft)
+      }
+    ),
+    suite("As with Optional fields (JVM Only)")(
+      test("As works when source has extra Optional field") {
+        val as       = As.derived[PersonWithOptDept, { def name: String; def age: Int }]
+        val original = PersonWithOptDept("Alice", 30, Some("Engineering"))
 
-        val as       = As.derived[Employee, { def name: String; def age: Int }]
-        val original = Employee("Eve", 28, "Engineering")
+        val roundTrip = for {
+          struct <- as.into(original)
+          back   <- as.from(struct)
+        } yield back
 
-        val toResult = as.into(original)
+        // After round-trip, department becomes None
+        assert(roundTrip)(isRight(equalTo(PersonWithOptDept("Alice", 30, None))))
+      },
+      test("As works when source Optional field is None") {
+        val as       = As.derived[PersonWithOptDept, { def name: String; def age: Int }]
+        val original = PersonWithOptDept("Bob", 25, None)
 
-        toResult match {
-          case Right(r) =>
-            assert(r.name)(equalTo("Eve")) &&
-            assert(r.age)(equalTo(28))
-          case Left(err) =>
-            assert(err.toString)(equalTo("should not fail"))
-        }
+        val roundTrip = for {
+          struct <- as.into(original)
+          back   <- as.from(struct)
+        } yield back
+
+        assert(roundTrip)(isRight(equalTo(original)))
       }
     ),
     suite("As structural round-trip chains (JVM Only)")(
@@ -107,4 +147,3 @@ object StructuralAsSpec extends ZIOSpecDefault {
     )
   )
 }
-

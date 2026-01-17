@@ -397,8 +397,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       structMembers.exists { case (name, memberTpe) =>
         name == field.name && (
           memberTpe =:= field.tpe ||
-          findImplicitInto(memberTpe, field.tpe).isDefined ||
-          canConvertStructuralToProduct(memberTpe, field.tpe)
+            findImplicitInto(memberTpe, field.tpe).isDefined ||
+            canConvertStructuralToProduct(memberTpe, field.tpe)
         )
       } || field.hasDefault || isOptionType(field.tpe)
     }
@@ -413,53 +413,88 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val structuralMembers = getStructuralMembers(aTpe)
     val targetInfo        = new ProductInfo[B](bTpe)
 
-    // For each target field, find matching structural member (by name or unique type)
-    // or use default value/None for optional fields
+    // Track which structural members have been used to avoid duplicate mappings
+    val usedMembers = scala.collection.mutable.Set[(String, TypeRepr)]()
+
+    // For each target field, find matching structural member using priority algorithm:
+    // 1. Exact match: Same name + same type
+    // 2. Name match with coercion: Same name + coercible type
+    // 3. Unique type match: Type appears only once in both source and target
+    // 4. Use default value or None for optional fields
     val fieldMappings: List[(Option[(String, TypeRepr)], FieldInfo)] = targetInfo.fields.map { targetField =>
-      val matchingMember = structuralMembers.find { case (name, memberTpe) =>
-        name == targetField.name && (memberTpe =:= targetField.tpe || requiresOpaqueConversion(
-          memberTpe,
-          targetField.tpe
-        ) || requiresNewtypeConversion(memberTpe, targetField.tpe) || findImplicitInto(
-          memberTpe,
-          targetField.tpe
-        ).isDefined || canConvertStructuralToProduct(memberTpe, targetField.tpe))
-      }.orElse {
-        val uniqueTypeMatches = structuralMembers.filter { case (_, memberTpe) =>
-          memberTpe =:= targetField.tpe || requiresOpaqueConversion(
-            memberTpe,
-            targetField.tpe
-          ) || requiresNewtypeConversion(memberTpe, targetField.tpe) || findImplicitInto(
-            memberTpe,
-            targetField.tpe
-          ).isDefined || canConvertStructuralToProduct(memberTpe, targetField.tpe)
-        }
-        if (uniqueTypeMatches.size == 1) Some(uniqueTypeMatches.head) else None
+      // Priority 1: Exact name and type match
+      val exactMatch = structuralMembers.find { case (name, memberTpe) =>
+        name == targetField.name && memberTpe =:= targetField.tpe && !usedMembers.contains((name, memberTpe))
       }
 
+      // Priority 2: Name match with coercion (same name, convertible type)
+      val nameMatchWithCoercion: Option[(String, TypeRepr)] = if (exactMatch.isEmpty) {
+        structuralMembers.find { case (name, memberTpe) =>
+          name == targetField.name &&
+          (requiresOpaqueConversion(memberTpe, targetField.tpe) ||
+            requiresNewtypeConversion(memberTpe, targetField.tpe) ||
+            findImplicitInto(memberTpe, targetField.tpe).isDefined ||
+            canConvertStructuralToProduct(memberTpe, targetField.tpe)) &&
+          !usedMembers.contains((name, memberTpe))
+        }
+      } else None
+
+      // Priority 3: Unique type match (type appears only once in both unused source and remaining target)
+      val uniqueTypeMatch: Option[(String, TypeRepr)] = if (exactMatch.isEmpty && nameMatchWithCoercion.isEmpty) {
+        val remainingTargetFields = targetInfo.fields.dropWhile(_ != targetField)
+        val unusedMembers         = structuralMembers.filterNot(usedMembers.contains)
+
+        // Find all members with compatible type
+        val typeMatches = unusedMembers.filter { case (_, memberTpe) =>
+          memberTpe =:= targetField.tpe ||
+          requiresOpaqueConversion(memberTpe, targetField.tpe) ||
+          requiresNewtypeConversion(memberTpe, targetField.tpe) ||
+          findImplicitInto(memberTpe, targetField.tpe).isDefined ||
+          canConvertStructuralToProduct(memberTpe, targetField.tpe)
+        }
+
+        // Also check if this type appears only once in remaining target fields
+        val targetTypeCount = remainingTargetFields.count { f =>
+          f.tpe =:= targetField.tpe ||
+          requiresOpaqueConversion(targetField.tpe, f.tpe) ||
+          requiresNewtypeConversion(targetField.tpe, f.tpe)
+        }
+
+        // Only use unique type match if type appears exactly once in both source and remaining target
+        if (typeMatches.size == 1 && targetTypeCount == 1) Some(typeMatches.head) else None
+      } else None
+
+      val matchingMember = exactMatch.orElse(nameMatchWithCoercion).orElse(uniqueTypeMatch)
+
       matchingMember match {
-        case Some((memberName, memberTpe)) => (Some((memberName, memberTpe)), targetField)
-        case None                          =>
+        case Some((memberName, memberTpe)) =>
+          usedMembers.add((memberName, memberTpe))
+          (Some((memberName, memberTpe)), targetField)
+        case None =>
           // No matching structural member - check for default value or Option type
-          if (targetField.hasDefault && targetField.defaultValue.isDefined) {
-            (None, targetField) // Will use default value
-          } else if (isOptionType(targetField.tpe)) {
-            (None, targetField) // Will use None
-          } else {
+          val hasDefaultValue = targetField.hasDefault && targetField.defaultValue.isDefined
+          val isOptional      = isOptionType(targetField.tpe)
+
+          if (!hasDefaultValue && !isOptional) {
+            // Required field with no match - fail immediately
             val sourceMembers = structuralMembers.map { case (n, t) => s"$n: ${t.show}" }.mkString(", ")
+            val missingField  = s"${targetField.name}: ${targetField.tpe.show}"
             fail(
-              s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Missing structural member
+              s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Missing required field
                  |
-                 |  Source structural type has: { $sourceMembers }
-                 |  Target field required: ${targetField.name}: ${targetField.tpe.show}
+                 |  Source structural type: { $sourceMembers }
+                 |  Missing field: $missingField
                  |
-                 |No matching member found in structural type for target field '${targetField.name}'.
+                 |The target type requires field '${targetField.name}' but no matching member was found in the structural type.
                  |
                  |Consider:
-                 |  - Ensuring the structural type has member '${targetField.name}: ${targetField.tpe.show}'
-                 |  - Making '${targetField.name}' an Option type (defaults to None)
+                 |  - Adding member '${targetField.name}: ${targetField.tpe.show}' to the structural type
+                 |  - Making '${targetField.name}' an Option type (will default to None)
                  |  - Adding a default value for '${targetField.name}' in the target type""".stripMargin
             )
+          } else {
+            // Has default or is optional - OK to use None or default
+            (None, targetField)
           }
       }
     }
@@ -485,7 +520,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       matchingMember match {
         case Some((memberName, memberTpe)) =>
           // Build: accessTerm.getClass.getMethod("memberName").invoke(accessTerm)
-          val getClassCall = Select.unique(accessTerm, "getClass")
+          val getClassCall  = Select.unique(accessTerm, "getClass")
           val getMethodCall = Apply(
             Select.unique(getClassCall, "getMethod"),
             List(Literal(StringConstant(memberName)))
@@ -512,7 +547,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                     // Try implicit Into
                     findImplicitInto(memberTpe, field.tpe) match {
                       case Some(intoInstance) =>
-                        val typedInto = intoInstance.asExprOf[Into[mt, t]]
+                        val typedInto   = intoInstance.asExprOf[Into[mt, t]]
                         val castedValue = TypeApply(
                           Select.unique(invokeCall, "asInstanceOf"),
                           List(TypeTree.of[mt])
@@ -572,7 +607,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                             // Nested structural to product conversion
                             // Build the conversion code recursively using buildNestedConversion
                             val structMembers = getStructuralMembers(memberTpe)
-                            val productInfo = new ProductInfo[Any](targetField.tpe)(using Type.of[Any])
+                            val productInfo   = new ProductInfo[Any](targetField.tpe)(using Type.of[Any])
 
                             val nestedArgs: List[Term] = productInfo.fields.map { nestedField =>
                               val matchingNestedMember = structMembers.find(_._1 == nestedField.name)
@@ -585,8 +620,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                                           val nestedMemberNameExpr = Expr(nestedMemberName)
                                           if (nestedMemberTpe =:= nestedField.tpe) {
                                             '{
-                                              val outerMethod = a.getClass.getMethod($memberNameExpr)
-                                              val outerValue = outerMethod.invoke(a)
+                                              val outerMethod  = a.getClass.getMethod($memberNameExpr)
+                                              val outerValue   = outerMethod.invoke(a)
                                               val nestedMethod = outerValue.getClass.getMethod($nestedMemberNameExpr)
                                               nestedMethod.invoke(outerValue).asInstanceOf[nt]
                                             }.asTerm
@@ -596,20 +631,23 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                                               case Some(intoInstance) =>
                                                 val typedInto = intoInstance.asExprOf[Into[nmt, nt]]
                                                 '{
-                                                  val outerMethod = a.getClass.getMethod($memberNameExpr)
-                                                  val outerValue = outerMethod.invoke(a)
-                                                  val nestedMethod = outerValue.getClass.getMethod($nestedMemberNameExpr)
+                                                  val outerMethod  = a.getClass.getMethod($memberNameExpr)
+                                                  val outerValue   = outerMethod.invoke(a)
+                                                  val nestedMethod =
+                                                    outerValue.getClass.getMethod($nestedMemberNameExpr)
                                                   val nestedValue = nestedMethod.invoke(outerValue).asInstanceOf[nmt]
                                                   $typedInto.into(nestedValue) match {
                                                     case Right(v) => v
-                                                    case Left(_)  => throw new RuntimeException("Nested conversion failed")
+                                                    case Left(_)  =>
+                                                      throw new RuntimeException("Nested conversion failed")
                                                   }
                                                 }.asTerm
                                               case None =>
                                                 '{
-                                                  val outerMethod = a.getClass.getMethod($memberNameExpr)
-                                                  val outerValue = outerMethod.invoke(a)
-                                                  val nestedMethod = outerValue.getClass.getMethod($nestedMemberNameExpr)
+                                                  val outerMethod  = a.getClass.getMethod($memberNameExpr)
+                                                  val outerValue   = outerMethod.invoke(a)
+                                                  val nestedMethod =
+                                                    outerValue.getClass.getMethod($nestedMemberNameExpr)
                                                   nestedMethod.invoke(outerValue).asInstanceOf[nt]
                                                 }.asTerm
                                             }
@@ -619,8 +657,13 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                                 case None =>
                                   if (nestedField.hasDefault && nestedField.defaultValue.isDefined) {
                                     nestedField.defaultValue.get
-                                  } else {
+                                  } else if (isOptionType(nestedField.tpe)) {
                                     '{ None }.asTerm
+                                  } else {
+                                    // This should never happen - validation should have caught this
+                                    fail(
+                                      s"Internal error: Missing required nested field '${nestedField.name}' without default or Option type"
+                                    )
                                   }
                               }
                             }
@@ -649,12 +692,18 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                       }
                   }
                 case None =>
-                  // Use default value or None
+                  // Use default value or None for Option types
+                  // This should only happen for fields with defaults or Option types
+                  // because the validation in deriveStructuralToProduct should have already failed otherwise
                   if (targetField.hasDefault && targetField.defaultValue.isDefined) {
                     targetField.defaultValue.get
-                  } else {
+                  } else if (isOptionType(targetField.tpe)) {
                     // Option type - return None
                     '{ None }.asTerm
+                  } else {
+                    // This should never happen if validation is correct
+                    // But if it does, generate a compile-time error by calling fail
+                    fail(s"Internal error: Missing required field '${targetField.name}' without default or Option type")
                   }
               }
             }
@@ -679,8 +728,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       productInfo.fields.exists { field =>
         field.name == memberName && (
           field.tpe =:= memberTpe ||
-          field.tpe <:< memberTpe ||
-          canConvertProductToStructural(field.tpe, memberTpe)
+            field.tpe <:< memberTpe ||
+            canConvertProductToStructural(field.tpe, memberTpe)
         )
       }
     }
@@ -705,8 +754,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       val matchingField = sourceInfo.fields.find { f =>
         f.name == memberName && (
           f.tpe =:= memberTpe ||
-          f.tpe <:< memberTpe ||
-          canConvertProductToStructural(f.tpe, memberTpe)
+            f.tpe <:< memberTpe ||
+            canConvertProductToStructural(f.tpe, memberTpe)
         )
       }
       if (matchingField.isEmpty) {
@@ -732,11 +781,10 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       // This is complex in Scala 3 macros, so for now we use a runtime approach
       '{
         new Into[A, B] {
-          def into(a: A): Either[SchemaError, B] = {
+          def into(a: A): Either[SchemaError, B] =
             // For nested structural types, we need to create wrapper objects at runtime
             // This uses reflection which is JVM-only (already checked in caller)
             Right(a.asInstanceOf[B])
-          }
         }
       }
     } else {
@@ -1085,8 +1133,14 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  private def isOptionType(tpe: TypeRepr): Boolean =
-    tpe.dealias.baseType(TypeRepr.of[Option[?]].typeSymbol) != TypeRepr.of[Nothing]
+  private def isOptionType(tpe: TypeRepr): Boolean = {
+    val dealiased = tpe.dealias
+    dealiased.typeSymbol.fullName == "scala.Option" ||
+    (dealiased match {
+      case AppliedType(tycon, _) => tycon.typeSymbol.fullName == "scala.Option"
+      case _                     => false
+    })
+  }
 
   private def findMatchingSourceField(
     targetField: FieldInfo,
@@ -1417,7 +1471,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                       '{ arr(${ Expr(idx) }).asInstanceOf[t] }.asTerm
                   }
                 }
-                targetInfo.construct(args).asExprOf[B]
+                (targetInfo.construct(args).asExprOf[B])
               })
             case Left(err) => Left(err)
           }
@@ -1749,7 +1803,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                       }
                     }
                     val constructed = targetInfo.construct(args)
-                    constructed.asExprOf[B]
+                    (constructed.asExprOf[B])
                   })
                 case Left(err) => Left(err)
               }

@@ -61,6 +61,19 @@ object StructuralTypeSourceSpec extends ZIOSpecDefault {
         val result = into.into(source)
 
         assert(result)(isRight(equalTo(Employee("Carol", 25, "Engineering"))))
+      },
+      test("structural type with field missing for target without default fails") {
+        typeCheck("""
+          import zio.blocks.schema.into.structural.StructuralTypeSourceSpec._
+          val source = makePerson("Dave", 35)
+          val into   = Into.derived[{ def name: String; def age: Int }, Employee]
+        """).map { result =>
+          val error = result.swap.getOrElse("")
+          assertTrue(
+            result.isLeft,
+            error.contains("Missing required field") && error.contains("department")
+          )
+        }
       }
     ),
     suite("Structural to Case Class - Extra Source Fields")(

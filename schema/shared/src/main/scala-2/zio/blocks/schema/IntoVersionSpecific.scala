@@ -1146,35 +1146,79 @@ private object IntoVersionSpecificImpl {
       val structuralMembers = getStructuralMembers(aTpe)
       val targetInfo        = new ProductInfo(bTpe)
 
-      // For each target field, find matching structural member (by name or unique type)
-      // or use default value/None for optional fields
+      // Track which structural members have been used to avoid duplicate mappings
+      val usedMembers = scala.collection.mutable.Set[(String, Type)]()
+
+      // For each target field, find matching structural member using priority algorithm:
+      // 1. Exact match: Same name + same type
+      // 2. Name match with coercion: Same name + coercible type
+      // 3. Unique type match: Type appears only once in both source and target
+      // 4. Use default value or None for optional fields
       val fieldMappings: List[(Option[(String, Type)], FieldInfo)] = targetInfo.fields.map { targetField =>
-        val matchingMember = structuralMembers.find { case (name, memberTpe) =>
-          name == targetField.name && (
-            memberTpe =:= targetField.tpe ||
-            findImplicitInto(memberTpe, targetField.tpe).isDefined ||
-            canConvertStructuralToProduct(memberTpe, targetField.tpe)
-          )
-        }.orElse {
-          val uniqueTypeMatches = structuralMembers.filter { case (_, memberTpe) =>
+
+        // Priority 1: Exact name and type match
+        val exactMatch: Option[(String, Type)] = structuralMembers.find { case (name, memberTpe) =>
+          name == targetField.name && memberTpe =:= targetField.tpe && !usedMembers.contains((name, memberTpe))
+        }
+
+        // Priority 2: Name match with coercion (same name, convertible type)
+        val nameMatchWithCoercion: Option[(String, Type)] = if (exactMatch.isEmpty) {
+          structuralMembers.find { case (name, memberTpe) =>
+            name == targetField.name &&
+            (findImplicitInto(memberTpe, targetField.tpe).isDefined ||
+             canConvertStructuralToProduct(memberTpe, targetField.tpe)) &&
+            !usedMembers.contains((name, memberTpe))
+          }
+        } else None
+
+        // Priority 3: Unique type match (type appears only once in both unused source and remaining target)
+        val uniqueTypeMatch: Option[(String, Type)] = if (exactMatch.isEmpty && nameMatchWithCoercion.isEmpty) {
+          val remainingTargetFields = targetInfo.fields.dropWhile(_ != targetField)
+          val unusedMembers = structuralMembers.filterNot(usedMembers.contains)
+
+          // Find all members with compatible type
+          val typeMatches = unusedMembers.filter { case (_, memberTpe) =>
             memberTpe =:= targetField.tpe ||
             findImplicitInto(memberTpe, targetField.tpe).isDefined ||
             canConvertStructuralToProduct(memberTpe, targetField.tpe)
           }
-          if (uniqueTypeMatches.size == 1) Some(uniqueTypeMatches.head) else None
-        }
+
+          // Also check if this type appears only once in remaining target fields
+          val targetTypeCount = remainingTargetFields.count { f =>
+            f.tpe =:= targetField.tpe
+          }
+
+          // Only use unique type match if type appears exactly once in both source and remaining target
+          if (typeMatches.size == 1 && targetTypeCount == 1) Some(typeMatches.head) else None
+        } else None
+
+        val matchingMember = exactMatch.orElse(nameMatchWithCoercion).orElse(uniqueTypeMatch)
 
         matchingMember match {
-          case Some((memberName, memberTpe)) => (Some((memberName, memberTpe)), targetField)
-          case None                          =>
+          case Some((memberName, memberTpe)) =>
+            usedMembers.add((memberName, memberTpe))
+            (Some((memberName, memberTpe)), targetField)
+          case None =>
             // No matching structural member - check for default value or Option type
             if (targetField.hasDefault && targetField.defaultValue.isDefined) {
               (None, targetField) // Will use default value
             } else if (isOptionType(targetField.tpe)) {
               (None, targetField) // Will use None
             } else {
+              val sourceMembers = structuralMembers.map { case (n, t) => s"$n: $t" }.mkString(", ")
+              val missingField = s"${targetField.name}: ${targetField.tpe}"
               fail(
-                s"Cannot derive Into[$aTpe, $bTpe]: no matching structural member found for field '${targetField.name}: ${targetField.tpe}'"
+                s"""Cannot derive Into[$aTpe, $bTpe]: Missing required field
+                   |
+                   |  Source structural type: { $sourceMembers }
+                   |  Missing field: $missingField
+                   |
+                   |The target type requires field '${targetField.name}' but no matching member was found in the structural type.
+                   |
+                   |Consider:
+                   |  - Adding member '${targetField.name}: ${targetField.tpe}' to the structural type
+                   |  - Making '${targetField.name}' an Option type (will default to None)
+                   |  - Adding a default value for '${targetField.name}' in the target type""".stripMargin
               )
             }
         }
