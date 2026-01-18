@@ -38,7 +38,11 @@ import java.util.concurrent.TimeUnit
     "-XX:-UseDynamicNumberOfCompilerThreads",
     "-XX:-UsePerfData",
     "-XX:+UnlockExperimentalVMOptions",
-    "-XX:+TrustFinalNonStaticFields"
+    "-XX:+TrustFinalNonStaticFields",
+    "--add-modules",
+    "jdk.incubator.vector",
+    "--add-exports",
+    "java.base/jdk.internal.vm.vector=ALL-UNNAMED"
   )
 )
 abstract class BaseBenchmark
