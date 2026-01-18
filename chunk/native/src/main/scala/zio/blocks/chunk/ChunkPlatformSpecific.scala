@@ -103,7 +103,7 @@ private[chunk] trait ChunkPlatformSpecific {
     var sum = 0L
     var i   = 0
     while (i < length) {
-      sum += array(offset + i) & 0xFF
+      sum += array(offset + i) & 0xff
       i += 1
     }
     sum

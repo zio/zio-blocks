@@ -1488,15 +1488,15 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     }
 
   /**
-   * Calculates a checksum of all bytes in this chunk.
-   * If the chunk contains non-byte elements, the result is undefined.
+   * Calculates a checksum of all bytes in this chunk. If the chunk contains
+   * non-byte elements, the result is undefined.
    */
   def byteChecksum: Long = {
     var sum = 0L
-    val it = this.chunkIterator
-    var i = 0
+    val it  = this.chunkIterator
+    var i   = 0
     while (it.hasNextAt(i)) {
-      sum += it.nextAt(i).asInstanceOf[Byte] & 0xFF
+      sum += it.nextAt(i).asInstanceOf[Byte] & 0xff
       i += 1
     }
     sum
@@ -2352,7 +2352,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
           case "and" => bitwiseAnd(leftArr, startLeft, rightArr, startRight, arr, 0, bytes)
           case "or"  => bitwiseOr(leftArr, startLeft, rightArr, startRight, arr, 0, bytes)
           case "xor" => bitwiseXor(leftArr, startLeft, rightArr, startRight, arr, 0, bytes)
-          case _ =>
+          case _     =>
             var n = 0
             while (n < bytes) {
               arr(n) = f(self.nthByte(n), that.nthByte(n))
@@ -2903,9 +2903,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
         if (res == -1) -1 else res + start
       }
     }
-    private[zio] def matchAny(candidates: Array[Byte]): Boolean = {
+    private[zio] def matchAny(candidates: Array[Byte]): Boolean =
       Chunk.matchAny(array, offset, length, candidates)
-    }
 
     override def byteChecksum: Long =
       Chunk.byteChecksum(array, offset, length)
