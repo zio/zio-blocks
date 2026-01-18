@@ -66,4 +66,113 @@ private[chunk] trait ChunkPlatformSpecific {
     private val CharClass       = classOf[Char]
     private val CharClassBox    = classOf[java.lang.Character]
   }
+
+  private[chunk] def byteChecksum(array: Array[Byte], offset: Int, length: Int): Int = {
+    var i     = offset
+    var sum   = 0
+    val limit = offset + length - 7
+    while (i < limit) {
+      sum += (array(i) & 0xff) +
+        (array(i + 1) & 0xff) +
+        (array(i + 2) & 0xff) +
+        (array(i + 3) & 0xff) +
+        (array(i + 4) & 0xff) +
+        (array(i + 5) & 0xff) +
+        (array(i + 6) & 0xff) +
+        (array(i + 7) & 0xff)
+      i += 8
+    }
+    val end = offset + length
+    while (i < end) {
+      sum += array(i) & 0xff
+      i += 1
+    }
+    sum
+  }
+
+  private[chunk] def findFirst(array: Array[Byte], length: Int, element: Byte, fromIndex: Int): Int = {
+    var i = fromIndex
+    while (i < length) {
+      if (array(i) == element) return i
+      i += 1
+    }
+    -1
+  }
+
+  private[chunk] def findFirstNot(array: Array[Byte], length: Int, element: Byte, fromIndex: Int): Int = {
+    var i = fromIndex
+    while (i < length) {
+      if (array(i) != element) return i
+      i += 1
+    }
+    -1
+  }
+
+  private[chunk] def matchAny(array: Array[Byte], length: Int, candidates: Array[Byte]): Boolean = {
+    var i    = 0
+    val clen = candidates.length
+    while (i < length) {
+      val b = array(i)
+      var j = 0
+      while (j < clen) {
+        if (b == candidates(j)) return true
+        j += 1
+      }
+      i += 1
+    }
+    false
+  }
+
+  // Bitwise operations - basic implementation (JIT handles simple loops well)
+  private[chunk] def bitwiseAnd(
+    l: Array[Byte],
+    lOffset: Int,
+    r: Array[Byte],
+    rOffset: Int,
+    length: Int
+  ): Array[Byte] = {
+    val res = new Array[Byte](length)
+    var i   = 0
+    while (i < length) {
+      res(i) = (l(i + lOffset) & r(i + rOffset)).toByte
+      i += 1
+    }
+    res
+  }
+
+  private[chunk] def bitwiseOr(l: Array[Byte], lOffset: Int, r: Array[Byte], rOffset: Int, length: Int): Array[Byte] = {
+    val res = new Array[Byte](length)
+    var i   = 0
+    while (i < length) {
+      res(i) = (l(i + lOffset) | r(i + rOffset)).toByte
+      i += 1
+    }
+    res
+  }
+
+  private[chunk] def bitwiseXor(
+    l: Array[Byte],
+    lOffset: Int,
+    r: Array[Byte],
+    rOffset: Int,
+    length: Int
+  ): Array[Byte] = {
+    val res = new Array[Byte](length)
+    var i   = 0
+    while (i < length) {
+      res(i) = (l(i + lOffset) ^ r(i + rOffset)).toByte
+      i += 1
+    }
+    res
+  }
+
+  private[chunk] def bitwiseNot(array: Array[Byte], offset: Int, length: Int): Array[Byte] = {
+    val res = new Array[Byte](length)
+    var i   = 0
+    while (i < length) {
+      res(i) = (~array(i + offset)).toByte
+      i += 1
+    }
+    res
+  }
 }

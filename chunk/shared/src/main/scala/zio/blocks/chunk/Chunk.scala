@@ -2346,38 +2346,99 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
 
     def and(that: BitChunkByte): BitChunkByte =
-      bitwise(that, (l, r) => (l & r).asInstanceOf[Byte], _ && _)
+      if (this.length == that.length && (this.minBitIndex & 7) == 0 && (that.minBitIndex & 7) == 0) {
+        (this.bytes, that.bytes) match {
+          case (l: ByteArray, r: ByteArray) =>
+            val lenBytes = (this.length + 7) >> 3
+            val newArr   = Chunk.bitwiseAnd(
+              l.array,
+              l.offset + (this.minBitIndex >> 3),
+              r.array,
+              r.offset + (that.minBitIndex >> 3),
+              lenBytes
+            )
+            BitChunkByte(Chunk.fromArray(newArr), 0, this.length)
+          case _ => bitwise(that, (l, r) => (l & r).asInstanceOf[Byte], _ && _)
+        }
+      } else bitwise(that, (l, r) => (l & r).asInstanceOf[Byte], _ && _)
 
-    def &(that: BitChunkByte): BitChunkByte =
-      bitwise(that, (l, r) => (l & r).asInstanceOf[Byte], _ && _)
+    def &(that: BitChunkByte): BitChunkByte = and(that)
 
     def or(that: BitChunkByte): BitChunkByte =
-      bitwise(that, (l, r) => (l | r).asInstanceOf[Byte], _ || _)
+      if (this.length == that.length && (this.minBitIndex & 7) == 0 && (that.minBitIndex & 7) == 0) {
+        (this.bytes, that.bytes) match {
+          case (l: ByteArray, r: ByteArray) =>
+            val lenBytes = (this.length + 7) >> 3
+            val newArr   = Chunk.bitwiseOr(
+              l.array,
+              l.offset + (this.minBitIndex >> 3),
+              r.array,
+              r.offset + (that.minBitIndex >> 3),
+              lenBytes
+            )
+            BitChunkByte(Chunk.fromArray(newArr), 0, this.length)
+          case _ => bitwise(that, (l, r) => (l | r).asInstanceOf[Byte], _ || _)
+        }
+      } else bitwise(that, (l, r) => (l | r).asInstanceOf[Byte], _ || _)
 
-    def |(that: BitChunkByte): BitChunkByte =
-      bitwise(that, (l, r) => (l | r).asInstanceOf[Byte], _ || _)
+    def |(that: BitChunkByte): BitChunkByte = or(that)
 
     def xor(that: BitChunkByte): BitChunkByte =
-      bitwise(that, (l, r) => (l ^ r).asInstanceOf[Byte], _ ^ _)
+      if (this.length == that.length && (this.minBitIndex & 7) == 0 && (that.minBitIndex & 7) == 0) {
+        (this.bytes, that.bytes) match {
+          case (l: ByteArray, r: ByteArray) =>
+            val lenBytes = (this.length + 7) >> 3
+            val newArr   = Chunk.bitwiseXor(
+              l.array,
+              l.offset + (this.minBitIndex >> 3),
+              r.array,
+              r.offset + (that.minBitIndex >> 3),
+              lenBytes
+            )
+            BitChunkByte(Chunk.fromArray(newArr), 0, this.length)
+          case _ => bitwise(that, (l, r) => (l ^ r).asInstanceOf[Byte], _ ^ _)
+        }
+      } else bitwise(that, (l, r) => (l ^ r).asInstanceOf[Byte], _ ^ _)
 
-    def ^(that: BitChunkByte): BitChunkByte =
-      bitwise(that, (l, r) => (l ^ r).asInstanceOf[Byte], _ ^ _)
+    def ^(that: BitChunkByte): BitChunkByte = xor(that)
 
     def negate: BitChunkByte = {
+      if ((minBitIndex & 7) == 0) {
+        bytes match {
+          case b: ByteArray =>
+            val lenBytes = (this.length + 7) >> 3
+            val newArr   = Chunk.bitwiseNot(
+              b.array,
+              b.offset + (minBitIndex >> 3),
+              lenBytes
+            )
+            // Mask the last byte if necessary because bitwiseNot inverts ALL bits including padding
+            val leftovers = this.length & 7
+            if (leftovers != 0) {
+              val lastIdx = lenBytes - 1
+              // Keep top N bits, clear bottom (8-N) bits
+              val mask = (-1 << (8 - leftovers)).toByte
+              newArr(lastIdx) = (newArr(lastIdx) & mask).toByte
+            }
+            return BitChunkByte(Chunk.fromArray(newArr), 0, this.length)
+          case _ => ()
+        }
+      }
+
       val bits      = self.length
-      val bytes     = bits >> 3
-      val leftovers = bits - bytes * 8
+      val byteCount = bits >> 3
+      val leftovers = bits - byteCount * 8
 
       val arr = Array.ofDim[Byte](
-        if (leftovers == 0) bytes else bytes + 1
+        if (leftovers == 0) byteCount else byteCount + 1
       )
 
-      (0 until bytes).foreach { n =>
+      (0 until byteCount).foreach { n =>
         arr(n) = (~self.nthByte(n)).asInstanceOf[Byte]
       }
 
       if (leftovers != 0) {
-        val offset     = bytes * 8
+        val offset     = byteCount * 8
         var last: Byte = null.asInstanceOf[Byte]
         var mask       = 128
         var i          = 0
@@ -2387,7 +2448,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
           i += 1
           mask >>= 1
         }
-        arr(bytes) = last
+        arr(byteCount) = last
       }
 
       BitChunkByte(Chunk.fromArray(arr), 0, bits)
@@ -2852,6 +2913,15 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
       builder.result()
     }
+
+    override def indexOf[B >: Byte](elem: B, from: Int): Int =
+      elem match {
+        case b: Byte =>
+          val idx = Chunk.findFirst(array, offset + length, b, offset + (from max 0))
+          if (idx >= 0) idx - offset else -1
+        case _ =>
+          super.indexOf(elem, from)
+      }
     def hasNextAt(index: Int): Boolean =
       index < length
     override protected def mapChunk[B](f: Byte => B): Chunk[B] = {
