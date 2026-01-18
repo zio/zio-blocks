@@ -359,7 +359,7 @@ private object IntoVersionSpecificImpl {
     }
 
     /** Convert a value to a single-field product wrapper, returning Either[SchemaError, Any] */
-    def convertToSingleFieldProductEither(sourceExpr: Tree, sourceTpe: Type, targetTpe: Type, fieldName: String): Tree = {
+    def convertToSingleFieldProductEither(sourceExpr: Tree, targetTpe: Type): Tree = {
       val targetTypeTree = TypeTree(targetTpe)
       // Direct wrapping - types match exactly
       q"""
@@ -631,7 +631,7 @@ private object IntoVersionSpecificImpl {
                 q"_root_.scala.Right[$schemaErrorType, Any](a.$getter.asInstanceOf[$targetTpe])"
               } else if (isSingleFieldConversion) {
                 // Convert primitive to single-field product wrapper
-                convertToSingleFieldProductEither(q"a.$getter", sourceTpe, targetTpe, sourceField.name)
+                convertToSingleFieldProductEither(q"a.$getter", targetTpe)
               } else if (isSingleFieldUnwrapping) {
                 // Unwrap single-field product to primitive
                 unwrapSingleFieldProductEither(q"a.$getter", sourceTpe, targetTpe)
@@ -1092,7 +1092,7 @@ private object IntoVersionSpecificImpl {
                 q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter.asInstanceOf[$targetTpe])"
               } else if (isSingleFieldConversion) {
                 // Convert primitive to single-field product wrapper
-                convertToSingleFieldProductEither(q"$bindingName.$getter", sourceTpe, targetTpe, sourceField.name)
+                convertToSingleFieldProductEither(q"$bindingName.$getter", targetTpe)
               } else if (isSingleFieldUnwrapping) {
                 // Unwrap single-field product to primitive
                 unwrapSingleFieldProductEither(q"$bindingName.$getter", sourceTpe, targetTpe)

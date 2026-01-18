@@ -22,6 +22,7 @@ object VectorToArraySpec extends ZIOSpecDefault {
     },
     test("case class with Vector field to case class with Array field") {
       case class Source(items: Vector[Int])
+      @scala.annotation.nowarn("msg=unused local definition")
       case class Target(items: Array[Long])
 
       val result = Into.derived[Source, Target].into(Source(Vector(1, 2, 3)))

@@ -466,9 +466,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   /** Convert a value to a single-field product wrapper */
   private def convertToSingleFieldProduct(
     sourceValue: Term,
-    sourceTpe: TypeRepr,
-    targetTpe: TypeRepr,
-    fieldName: String
+    targetTpe: TypeRepr
   ): Expr[Either[SchemaError, Any]] = {
     val targetSym = targetTpe.classSymbol.get
     val ctor      = targetSym.primaryConstructor
@@ -482,8 +480,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   /** Unwrap a single-field product wrapper to its underlying value */
   private def unwrapSingleFieldProduct(
     sourceValue: Term,
-    sourceTpe: TypeRepr,
-    targetTpe: TypeRepr
+    sourceTpe: TypeRepr
   ): Expr[Either[SchemaError, Any]] = {
     val fieldInfo      = getSingleFieldInfo(sourceTpe)
     val extractedValue = Select(sourceValue, fieldInfo.getter)
@@ -693,81 +690,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
 
     // Use reflection to access structural type members (JVM only - checked in caller)
     deriveReflectiveStructuralToProduct[A, B](fieldMappings, targetInfo)
-  }
-
-  // Generate nested structural to product conversion code
-  // This generates the full conversion inline to avoid quote scope issues
-  private def buildNestedConversion(
-    structuralTpe: TypeRepr,
-    productTpe: TypeRepr,
-    accessTerm: Term
-  )(using Quotes): Term = {
-    import quotes.reflect.*
-
-    val structMembers = getStructuralMembers(structuralTpe)
-    val productInfo   = new ProductInfo[Any](productTpe)(using Type.of[Any])
-
-    val args: List[Term] = productInfo.fields.map { field =>
-      val matchingMember = structMembers.find(_._1 == field.name)
-      matchingMember match {
-        case Some((memberName, memberTpe)) =>
-          // Build: accessTerm.getClass.getMethod("memberName").invoke(accessTerm)
-          val getClassCall  = Select.unique(accessTerm, "getClass")
-          val getMethodCall = Apply(
-            Select.unique(getClassCall, "getMethod"),
-            List(Literal(StringConstant(memberName)))
-          )
-          val invokeCall = Apply(
-            Select.unique(getMethodCall, "invoke"),
-            List(accessTerm)
-          )
-
-          field.tpe.asType match {
-            case '[t] =>
-              memberTpe.asType match {
-                case '[mt] =>
-                  if (memberTpe =:= field.tpe) {
-                    // Direct cast: invoke(...).asInstanceOf[t]
-                    TypeApply(
-                      Select.unique(invokeCall, "asInstanceOf"),
-                      List(TypeTree.of[t])
-                    )
-                  } else if (isStructuralType(memberTpe) && field.tpe.classSymbol.exists(isProductType)) {
-                    // Nested structural - recursively build conversion
-                    buildNestedConversion(memberTpe, field.tpe, invokeCall)
-                  } else {
-                    // Try implicit Into
-                    findImplicitInto(memberTpe, field.tpe) match {
-                      case Some(intoInstance) =>
-                        val typedInto   = intoInstance.asExprOf[Into[mt, t]]
-                        val castedValue = TypeApply(
-                          Select.unique(invokeCall, "asInstanceOf"),
-                          List(TypeTree.of[mt])
-                        ).asExprOf[mt]
-                        '{
-                          $typedInto.into($castedValue) match {
-                            case Right(v) => v
-                            case Left(_)  => throw new RuntimeException("Conversion failed")
-                          }
-                        }.asTerm
-                      case None =>
-                        TypeApply(
-                          Select.unique(invokeCall, "asInstanceOf"),
-                          List(TypeTree.of[t])
-                        )
-                    }
-                  }
-              }
-          }
-        case None =>
-          if (field.hasDefault && field.defaultValue.isDefined) {
-            field.defaultValue.get
-          } else {
-            '{ None }.asTerm
-          }
-      }
-    }
-    productInfo.construct(args)
   }
 
   // Reflection-based structural type conversion (JVM only)
@@ -1567,11 +1489,11 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
               }
               // Check if target is a single-field case class (wrapper)
               else if (requiresSingleFieldProductConversion(sourceTpe, targetTpe)) {
-                convertToSingleFieldProduct(sourceValue, sourceTpe, targetTpe, sourceField.name)
+                convertToSingleFieldProduct(sourceValue, targetTpe)
               }
               // Check if source is a single-field case class (wrapper) that needs unwrapping
               else if (requiresSingleFieldProductUnwrapping(sourceTpe, targetTpe)) {
-                unwrapSingleFieldProduct(sourceValue, sourceTpe, targetTpe)
+                unwrapSingleFieldProduct(sourceValue, sourceTpe)
               }
               // Check if this is a collection with element type conversion needed
               else if (requiresCollectionElementConversion(sourceTpe, targetTpe)) {
@@ -2653,11 +2575,51 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       println(s"  typeSym.name: ${typeSym.name}")
     }
 
+    // Helper to find underlying type from module's base types
+    def findUnderlyingFromModuleClass(moduleClassTpe: TypeRepr): Option[TypeRepr] = {
+      val baseTypes = moduleClassTpe.baseClasses.flatMap { base =>
+        val baseTpe = moduleClassTpe.baseType(base)
+        if (DEBUG_NEWTYPE && base.fullName.contains("zio.prelude")) {
+          println(s"    checking base: ${base.fullName} -> ${baseTpe.show}")
+        }
+        baseTpe match {
+          case AppliedType(tycon, args) if args.nonEmpty =>
+            val tyconName = tycon.typeSymbol.fullName
+            if (
+              tyconName.contains("Subtype") || tyconName
+                .contains("Newtype") || tyconName.contains("NewtypeCustom")
+            ) {
+              if (DEBUG_NEWTYPE) {
+                println(s"    found newtype base: ${baseTpe.show} with args: ${args.map(_.show)}")
+              }
+              Some(args.head)
+            } else None
+          case _ => None
+        }
+      }
+      baseTypes.headOption
+    }
+
+    // Helper to try widening strategy
+    def tryWiden(tpeToWiden: TypeRepr): Option[TypeRepr] = {
+      val widened = tpeToWiden.widen
+      if (DEBUG_NEWTYPE) {
+        println(s"  widened: ${widened.show}")
+        println(s"  widened != tpeToWiden: ${widened != tpeToWiden}")
+      }
+      if (widened != tpeToWiden && !widened.typeSymbol.fullName.contains("zio.prelude")) {
+        if (DEBUG_NEWTYPE) {
+          println(s"  -> returning widened: ${widened.show}")
+        }
+        Some(widened)
+      } else None
+    }
+
     // For ZIO Prelude newtypes, we need to find the underlying type.
     // The type structure is: TypeRef(TermRef(_, "RtAge"), "Type")
     // We need to look at the prefix to find the module with Subtype[X] or Newtype[X] type arguments.
 
-    if (typeSym.name == "Type") {
+    val result: Option[TypeRepr] = if (typeSym.name == "Type") {
       dealiased match {
         case TypeRef(prefix, _) =>
           prefix match {
@@ -2668,107 +2630,55 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 println(s"  moduleSym.isModule: ${moduleSym.flags.is(Flags.Module)}")
               }
               if (moduleSym.flags.is(Flags.Module)) {
-                // Strategy 1: Look at the module's base types to find Subtype[X] or Newtype[X]
-                // The module class type (not the module term itself)
                 val moduleClassTpe = moduleSym.moduleClass.typeRef
-
                 if (DEBUG_NEWTYPE) {
                   println(s"  moduleClassTpe: ${moduleClassTpe.show}")
                   println(s"  moduleClassTpe.baseClasses: ${moduleClassTpe.baseClasses.map(_.fullName)}")
                 }
-
-                // Find base type that is Subtype[X] or Newtype[X]
-                val baseTypes = moduleClassTpe.baseClasses.flatMap { base =>
-                  val baseTpe = moduleClassTpe.baseType(base)
-                  if (DEBUG_NEWTYPE && base.fullName.contains("zio.prelude")) {
-                    println(s"    checking base: ${base.fullName} -> ${baseTpe.show}")
-                  }
-                  baseTpe match {
-                    case AppliedType(tycon, args) if args.nonEmpty =>
-                      val tyconName = tycon.typeSymbol.fullName
-                      if (
-                        tyconName.contains("Subtype") || tyconName
-                          .contains("Newtype") || tyconName.contains("NewtypeCustom")
-                      ) {
-                        if (DEBUG_NEWTYPE) {
-                          println(s"    found newtype base: ${baseTpe.show} with args: ${args.map(_.show)}")
-                        }
-                        // The first type arg is the underlying type
-                        Some(args.head)
-                      } else None
-                    case _ => None
-                  }
+                // Strategy 1: Look at the module's base types
+                findUnderlyingFromModuleClass(moduleClassTpe).orElse {
+                  // Strategy 2: Try widen
+                  tryWiden(dealiased)
                 }
-
-                baseTypes.headOption match {
-                  case Some(underlyingType) =>
-                    if (DEBUG_NEWTYPE) {
-                      println(s"  -> returning underlying from base type: ${underlyingType.show}")
-                    }
-                    return underlyingType
-                  case None => // Fall through to other strategies
-                }
-
-                // Strategy 2: Try widen - this works for Subtype[Int] where Type extends Int
-                val widened = dealiased.widen
-                if (DEBUG_NEWTYPE) {
-                  println(s"  widened: ${widened.show}")
-                  println(s"  widened != dealiased: ${widened != dealiased}")
-                }
-                if (widened != dealiased && !widened.typeSymbol.fullName.contains("zio.prelude")) {
-                  if (DEBUG_NEWTYPE) {
-                    println(s"  -> returning widened: ${widened.show}")
-                  }
-                  return widened
-                }
-              }
+              } else None
             case ThisType(tref) =>
-              // For types defined in the same scope
               val enclosingSym = tref.typeSymbol
               if (DEBUG_NEWTYPE) {
                 println(s"  ThisType enclosingSym: ${enclosingSym.fullName}")
               }
               if (enclosingSym.flags.is(Flags.Module)) {
-                // Try same base type lookup
                 val moduleClassTpe = enclosingSym.moduleClass.typeRef
-                val baseTypes      = moduleClassTpe.baseClasses.flatMap { base =>
-                  val baseTpe = moduleClassTpe.baseType(base)
-                  baseTpe match {
-                    case AppliedType(tycon, args) if args.nonEmpty =>
-                      val tyconName = tycon.typeSymbol.fullName
-                      if (tyconName.contains("Subtype") || tyconName.contains("Newtype")) {
-                        Some(args.head)
-                      } else None
-                    case _ => None
-                  }
+                findUnderlyingFromModuleClass(moduleClassTpe).orElse {
+                  tryWiden(dealiased)
                 }
-                baseTypes.headOption.foreach { underlyingType =>
-                  return underlyingType
-                }
-
-                // Try widen
-                val widened = dealiased.widen
-                if (widened != dealiased && !widened.typeSymbol.fullName.contains("zio.prelude")) {
-                  return widened
-                }
-              }
+              } else None
             case _ =>
               if (DEBUG_NEWTYPE) {
                 println(s"  Unknown prefix type: ${prefix.getClass.getSimpleName}")
               }
+              None
           }
         case _ =>
           if (DEBUG_NEWTYPE) {
             println(s"  dealiased is not TypeRef: ${dealiased.getClass.getSimpleName}")
           }
+          None
       }
-    }
+    } else None
 
-    // Fallback: return the original type
-    if (DEBUG_NEWTYPE) {
-      println(s"  -> fallback: returning dealiased: ${dealiased.show}")
+    result match {
+      case Some(underlying) =>
+        if (DEBUG_NEWTYPE) {
+          println(s"  -> returning underlying: ${underlying.show}")
+        }
+        underlying
+      case None =>
+        // Fallback: return the original type
+        if (DEBUG_NEWTYPE) {
+          println(s"  -> fallback: returning dealiased: ${dealiased.show}")
+        }
+        dealiased
     }
-    dealiased
   }
 
   /** Convert value to ZIO Prelude newtype with validation */

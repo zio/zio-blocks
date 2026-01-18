@@ -604,6 +604,15 @@ private object AsVersionSpecificImpl {
       case (true, _, _, true, _, _, _, _) | (_, true, true, _, _, _, _, _) =>
         // Product to tuple or tuple to product - use positional matching, no field name checks needed
         // Tuples use positional matching so field names (_1, _2, etc.) don't need to match case class field names
+        // But we still need to check for default values in the product types
+        if (aIsProduct && !aIsTuple) {
+          val aInfo = new ProductInfo(aTpe)
+          checkNoDefaultValues(aInfo, "source")
+        }
+        if (bIsProduct && !bIsTuple) {
+          val bInfo = new ProductInfo(bTpe)
+          checkNoDefaultValues(bInfo, "target")
+        }
 
       case (true, true, _, _, _, _, _, _) =>
         // Case class to case class (non-tuple products)
@@ -638,20 +647,6 @@ private object AsVersionSpecificImpl {
 
         // Check field mapping consistency for structural types
         checkStructuralFieldMappingConsistencyReverse(aInfo, bInfo)
-
-      case (true, _, _, true, _, _, _, _) | (_, true, true, _, _, _, _, _) =>
-        // Case class to/from tuple
-        if (aIsProduct) {
-          val aInfo = new ProductInfo(aTpe)
-          checkNoDefaultValues(aInfo, "source")
-        }
-        if (bIsProduct) {
-          val bInfo = new ProductInfo(bTpe)
-          checkNoDefaultValues(bInfo, "target")
-        }
-
-      case (_, _, true, true, _, _, _, _) =>
-      // Tuple to tuple - no default value checks needed
 
       case (_, _, _, _, true, true, _, _) =>
       // Coproduct to coproduct - no additional checks needed

@@ -3,7 +3,6 @@ package zio.blocks.schema.into.structural
 import zio.blocks.schema._
 import zio.test._
 import zio.test.Assertion._
-import scala.language.reflectiveCalls
 
 /**
  * Tests for structural type as source in Into derivation.
