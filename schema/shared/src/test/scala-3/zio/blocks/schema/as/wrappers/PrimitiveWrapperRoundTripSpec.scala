@@ -30,9 +30,9 @@ object RtOpaqueName {
 
 /**
  * Tests for As round-trip conversions between primitives and wrapper types:
- * - ZIO Prelude Newtype/Subtype
- * - Scala 3 opaque types
- * - AnyVal case classes (value classes)
+ *   - ZIO Prelude Newtype/Subtype
+ *   - Scala 3 opaque types
+ *   - AnyVal case classes (value classes)
  */
 object PrimitiveWrapperRoundTripSpec extends ZIOSpecDefault {
 
@@ -50,7 +50,7 @@ object PrimitiveWrapperRoundTripSpec extends ZIOSpecDefault {
   }
 
   // === AnyVal Case Classes ===
-  case class RtAgeWrapper(value: Int) extends AnyVal
+  case class RtAgeWrapper(value: Int)     extends AnyVal
   case class RtNameWrapper(value: String) extends AnyVal
 
   import PreludeDomain._
@@ -106,8 +106,8 @@ object PrimitiveWrapperRoundTripSpec extends ZIOSpecDefault {
         val intRoundTrip = as.into(original).flatMap(as.from)
 
         // OpaqueAge -> Int -> OpaqueAge
-        val age              = RtOpaqueAge.unsafe(30)
-        val opaqueRoundTrip  = as.from(age).flatMap(as.into)
+        val age             = RtOpaqueAge.unsafe(30)
+        val opaqueRoundTrip = as.from(age).flatMap(as.into)
 
         assert(intRoundTrip)(isRight(equalTo(original))) &&
         assertTrue(
@@ -151,7 +151,7 @@ object PrimitiveWrapperRoundTripSpec extends ZIOSpecDefault {
         val intRoundTrip = as.into(original).flatMap(as.from)
 
         // AgeWrapper -> Int -> AgeWrapper
-        val wrapper         = RtAgeWrapper(30)
+        val wrapper          = RtAgeWrapper(30)
         val wrapperRoundTrip = as.from(wrapper).flatMap(as.into)
 
         assert(intRoundTrip)(isRight(equalTo(original))) &&

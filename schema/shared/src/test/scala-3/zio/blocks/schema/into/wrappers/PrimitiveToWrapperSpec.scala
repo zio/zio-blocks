@@ -30,9 +30,9 @@ object OpaqueName {
 
 /**
  * Tests for direct Into conversions between primitives and wrapper types:
- * - ZIO Prelude Newtype/Subtype
- * - Scala 3 opaque types
- * - AnyVal case classes (value classes)
+ *   - ZIO Prelude Newtype/Subtype
+ *   - Scala 3 opaque types
+ *   - AnyVal case classes (value classes)
  */
 object PrimitiveToWrapperSpec extends ZIOSpecDefault {
 
@@ -50,7 +50,7 @@ object PrimitiveToWrapperSpec extends ZIOSpecDefault {
   }
 
   // === AnyVal Case Classes ===
-  case class AgeWrapper(value: Int) extends AnyVal
+  case class AgeWrapper(value: Int)     extends AnyVal
   case class NameWrapper(value: String) extends AnyVal
 
   import PreludeDomain._
@@ -88,14 +88,14 @@ object PrimitiveToWrapperSpec extends ZIOSpecDefault {
       ),
       suite("Into: Newtype -> Primitive")(
         test("Age -> Int") {
-          val into = Into.derived[Age, Int]
-          val age  = Age.make(30).toOption.get
+          val into   = Into.derived[Age, Int]
+          val age    = Age.make(30).toOption.get
           val result = into.into(age)
           assert(result)(isRight(equalTo(30)))
         },
         test("Name -> String") {
-          val into = Into.derived[Name, String]
-          val name = Name.make("Alice").toOption.get
+          val into   = Into.derived[Name, String]
+          val name   = Name.make("Alice").toOption.get
           val result = into.into(name)
           assert(result)(isRight(equalTo("Alice")))
         }

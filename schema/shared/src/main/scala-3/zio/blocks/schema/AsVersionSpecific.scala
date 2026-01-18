@@ -357,13 +357,10 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
       if (!sourceFieldsByName.contains(name)) {
         // Target has a field that source doesn't have
         // When going B → A, this field will be missing
-        // It's only OK if:
-        // 1. The field is an Option type (can be None)
-        // 2. The field has a default value
+        // For As, only Option fields are allowed (defaults break round-trip guarantee)
         val isOptional = isOptionType(targetField.tpe)
-        val hasDefault = targetField.hasDefault
 
-        if (!isOptional && !hasDefault) {
+        if (!isOptional) {
           val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
           val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
           fail(
@@ -376,13 +373,11 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
                |
                |When converting B → A (from method), the '$name' field cannot be populated.
                |
-               |For As[A, B] to work, missing fields must be either:
-               |  - Optional (Option[T]) - can become None in reverse direction
-               |  - Have a default value - can use default in reverse direction
+               |For As[A, B] to work, missing fields must be Optional (Option[T]).
+               |Default values are NOT allowed as they break the round-trip guarantee.
                |
                |Consider:
                |  - Making '$name' an Option type in both A and B
-               |  - Adding a default value for '$name' in both types
                |  - Using Into[A, B] instead (one-way conversion)""".stripMargin
           )
         }
@@ -391,16 +386,15 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
 
     // Also check the reverse: fields in source that don't exist in target
     // When going A → B, these get dropped. When coming back B → A, they can't be restored
-    // unless they are Optional or have defaults
+    // For As, only Optional fields are allowed (defaults break round-trip guarantee)
     sourceFieldsByName.foreach { case (name, sourceField) =>
       if (!targetFieldsByName.contains(name)) {
         // Source has a field that target doesn't have
         // When going A → B → A, this field will be lost
-        // It's only OK if the field is Optional or has a default
+        // For As, only Option fields are allowed
         val isOptional = isOptionType(sourceField.tpe)
-        val hasDefault = sourceField.hasDefault
 
-        if (!isOptional && !hasDefault) {
+        if (!isOptional) {
           val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
           val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
           fail(
@@ -414,13 +408,11 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
                |When converting A → B → A (round-trip), the '$name' field value will be lost
                |because it cannot be stored in B and restored back.
                |
-               |For As[A, B] to work, fields that don't exist in the other type must be either:
-               |  - Optional (Option[T]) - becomes None after round-trip
-               |  - Have a default value - restored to default after round-trip
+               |For As[A, B] to work, fields that don't exist in the other type must be Optional (Option[T]).
+               |Default values are NOT allowed as they break the round-trip guarantee.
                |
                |Consider:
                |  - Making '$name' an Option type
-               |  - Adding a default value for '$name'
                |  - Adding the field to ${bTpe.typeSymbol.name}
                |  - Using Into[A, B] instead (one-way conversion)""".stripMargin
           )
@@ -441,13 +433,12 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
 
     // Check: fields in source that don't exist in target
     // When going A → B → A, this field will be lost
-    // It's only OK if the field is Optional or has a default
+    // For As, only Optional fields are allowed (defaults break round-trip guarantee)
     sourceFieldsByName.foreach { case (name, sourceField) =>
       if (!targetFieldsByName.contains(name)) {
         val isOptional = isOptionType(sourceField.tpe)
-        val hasDefault = sourceField.hasDefault
 
-        if (!isOptional && !hasDefault) {
+        if (!isOptional) {
           val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
           val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
           fail(
@@ -461,13 +452,11 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
                |When converting A → B → A (round-trip), the '$name' field value will be lost
                |because it cannot be stored in the structural type and restored back.
                |
-               |For As[A, B] to work, fields that don't exist in the other type must be either:
-               |  - Optional (Option[T]) - becomes None after round-trip
-               |  - Have a default value - restored to default after round-trip
+               |For As[A, B] to work, fields that don't exist in the other type must be Optional (Option[T]).
+               |Default values are NOT allowed as they break the round-trip guarantee.
                |
                |Consider:
                |  - Making '$name' an Option type
-               |  - Adding a default value for '$name'
                |  - Adding the field to the structural type
                |  - Using Into[A, B] instead (one-way conversion)""".stripMargin
           )
@@ -488,12 +477,12 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
 
     // Check: fields in target that don't exist in source
     // When going B → A, this field will be missing
+    // For As, only Optional fields are allowed (defaults break round-trip guarantee)
     targetFieldsByName.foreach { case (name, targetField) =>
       if (!sourceFieldsByName.contains(name)) {
         val isOptional = isOptionType(targetField.tpe)
-        val hasDefault = targetField.hasDefault
 
-        if (!isOptional && !hasDefault) {
+        if (!isOptional) {
           val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
           val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
           fail(
@@ -506,13 +495,11 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
                |
                |When converting B → A (from method), the '$name' field cannot be populated.
                |
-               |For As[A, B] to work, missing fields must be either:
-               |  - Optional (Option[T]) - can become None in reverse direction
-               |  - Have a default value - can use default in reverse direction
+               |For As[A, B] to work, missing fields must be Optional (Option[T]).
+               |Default values are NOT allowed as they break the round-trip guarantee.
                |
                |Consider:
                |  - Making '$name' an Option type in both types
-               |  - Adding a default value for '$name'
                |  - Using Into[A, B] instead (one-way conversion)""".stripMargin
           )
         }

@@ -18,7 +18,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   private def isPrimitiveOrBoxed(tpe: TypeRepr): Boolean = {
     // Dealias to handle type aliases like scala.Predef.String -> java.lang.String
     val dealiased = tpe.dealias
-    val sym = dealiased.typeSymbol
+    val sym       = dealiased.typeSymbol
     sym == defn.ByteClass || sym == defn.ShortClass ||
     sym == defn.IntClass || sym == defn.LongClass ||
     sym == defn.FloatClass || sym == defn.DoubleClass ||
@@ -132,15 +132,15 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         deriveCoproductToCoproduct[A, B](aTpe, bTpe)
       case _ =>
         // Debug: Print what's being checked
-        val isPrimA = isPrimitiveOrBoxed(aTpe)
-        val isPrimB = isPrimitiveOrBoxed(bTpe)
-        val bIsSingleField = bIsProduct && isSingleFieldProduct(bTpe)
-        val aIsSingleField = aIsProduct && isSingleFieldProduct(aTpe)
-        val isNewtypeConv = requiresNewtypeConversion(aTpe, bTpe)
+        val isPrimA         = isPrimitiveOrBoxed(aTpe)
+        val isPrimB         = isPrimitiveOrBoxed(bTpe)
+        val bIsSingleField  = bIsProduct && isSingleFieldProduct(bTpe)
+        val aIsSingleField  = aIsProduct && isSingleFieldProduct(aTpe)
+        val isNewtypeConv   = requiresNewtypeConversion(aTpe, bTpe)
         val isNewtypeUnwrap = requiresNewtypeUnwrapping(aTpe, bTpe)
-        val isOpaqueConv = requiresOpaqueConversion(aTpe, bTpe)
-        val isOpaqueUnwrap = requiresOpaqueUnwrapping(aTpe, bTpe)
-        
+        val isOpaqueConv    = requiresOpaqueConversion(aTpe, bTpe)
+        val isOpaqueUnwrap  = requiresOpaqueUnwrapping(aTpe, bTpe)
+
         // Check for opaque type conversions
         if (isOpaqueConv) {
           deriveOpaqueConversion[A, B](aTpe, bTpe)
@@ -163,17 +163,17 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
             if (bIsProduct) "product" else if (bIsTuple) "tuple" else if (bIsCoproduct) "coproduct" else "other"
           // Add debug info to error message
           val debugInfo = s"""
-               |Debug info:
-               |  isPrimitiveOrBoxed(A): $isPrimA
-               |  isPrimitiveOrBoxed(B): $isPrimB
-               |  bIsProduct: $bIsProduct
-               |  bIsSingleField: $bIsSingleField
-               |  aIsProduct: $aIsProduct
-               |  aIsSingleField: $aIsSingleField
-               |  isNewtypeConv: $isNewtypeConv
-               |  isNewtypeUnwrap: $isNewtypeUnwrap
-               |  isOpaqueConv: $isOpaqueConv
-               |  isOpaqueUnwrap: $isOpaqueUnwrap""".stripMargin
+                             |Debug info:
+                             |  isPrimitiveOrBoxed(A): $isPrimA
+                             |  isPrimitiveOrBoxed(B): $isPrimB
+                             |  bIsProduct: $bIsProduct
+                             |  bIsSingleField: $bIsSingleField
+                             |  aIsProduct: $aIsProduct
+                             |  aIsSingleField: $aIsSingleField
+                             |  isNewtypeConv: $isNewtypeConv
+                             |  isNewtypeUnwrap: $isNewtypeUnwrap
+                             |  isOpaqueConv: $isOpaqueConv
+                             |  isOpaqueUnwrap: $isOpaqueUnwrap""".stripMargin
           fail(unsupportedTypeCombinationError(aTpe, bTpe, sourceKind, targetKind) + debugInfo)
         }
     }
@@ -346,10 +346,13 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     info.fields.head
   }
 
-  private def derivePrimitiveToSingleFieldProduct[A: Type, B: Type](aTpe: TypeRepr, bTpe: TypeRepr): Expr[Into[A, B]] = {
+  private def derivePrimitiveToSingleFieldProduct[A: Type, B: Type](
+    aTpe: TypeRepr,
+    bTpe: TypeRepr
+  ): Expr[Into[A, B]] = {
     val fieldInfo = getSingleFieldInfo(bTpe)
     val fieldType = fieldInfo.tpe
-    
+
     // Check if types are compatible (same or coercible)
     if (aTpe =:= fieldType) {
       // Direct wrapping - types match exactly
@@ -357,9 +360,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       val ctor      = targetSym.primaryConstructor
       '{
         new Into[A, B] {
-          def into(a: A): Either[SchemaError, B] = {
+          def into(a: A): Either[SchemaError, B] =
             Right(${ Apply(Select(New(TypeTree.of[B]), ctor), List('a.asTerm)).asExprOf[B] })
-          }
         }
       }
     } else {
@@ -370,11 +372,10 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
           val ctor      = targetSym.primaryConstructor
           '{
             new Into[A, B] {
-              def into(a: A): Either[SchemaError, B] = {
+              def into(a: A): Either[SchemaError, B] =
                 ${ fieldInto.asExprOf[Into[Any, Any]] }.into(a.asInstanceOf[Any]).map { converted =>
                   ${ Apply(Select(New(TypeTree.of[B]), ctor), List('{ converted }.asTerm)).asExprOf[B] }
                 }
-              }
             }
           }
         case None =>
@@ -392,19 +393,21 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  private def deriveSingleFieldProductToPrimitive[A: Type, B: Type](aTpe: TypeRepr, bTpe: TypeRepr): Expr[Into[A, B]] = {
+  private def deriveSingleFieldProductToPrimitive[A: Type, B: Type](
+    aTpe: TypeRepr,
+    bTpe: TypeRepr
+  ): Expr[Into[A, B]] = {
     val fieldInfo = getSingleFieldInfo(aTpe)
     val fieldType = fieldInfo.tpe
-    
+
     // Check if types are compatible (same or coercible)
     if (fieldType =:= bTpe) {
       // Direct unwrapping - types match exactly
       // Use the getter from FieldInfo instead of looking up method by name
       '{
         new Into[A, B] {
-          def into(a: A): Either[SchemaError, B] = {
+          def into(a: A): Either[SchemaError, B] =
             Right(${ Select('a.asTerm, fieldInfo.getter).asExprOf[B] })
-          }
         }
       }
     } else {
@@ -432,6 +435,61 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
           )
       }
     }
+  }
+
+  // === Single-field Product Field Conversion Helpers (for use when converting fields) ===
+
+  /**
+   * Check if we need to convert a primitive field to a single-field product
+   * wrapper field
+   */
+  private def requiresSingleFieldProductConversion(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean =
+    // Target is a single-field product and source matches the single field's type exactly
+    if (!isSingleFieldProduct(targetTpe)) false
+    else {
+      val fieldType = getSingleFieldInfo(targetTpe).tpe
+      sourceTpe =:= fieldType
+    }
+
+  /**
+   * Check if we need to unwrap a single-field product field to a primitive
+   * field
+   */
+  private def requiresSingleFieldProductUnwrapping(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean =
+    // Source is a single-field product and target matches the single field's type exactly
+    if (!isSingleFieldProduct(sourceTpe)) false
+    else {
+      val fieldType = getSingleFieldInfo(sourceTpe).tpe
+      fieldType =:= targetTpe
+    }
+
+  /** Convert a value to a single-field product wrapper */
+  private def convertToSingleFieldProduct(
+    sourceValue: Term,
+    sourceTpe: TypeRepr,
+    targetTpe: TypeRepr,
+    fieldName: String
+  ): Expr[Either[SchemaError, Any]] = {
+    val targetSym = targetTpe.classSymbol.get
+    val ctor      = targetSym.primaryConstructor
+
+    // Direct wrapping - types match exactly
+    '{
+      Right(${ Apply(Select(New(Inferred(targetTpe)), ctor), List(sourceValue)).asExpr })
+    }
+  }
+
+  /** Unwrap a single-field product wrapper to its underlying value */
+  private def unwrapSingleFieldProduct(
+    sourceValue: Term,
+    sourceTpe: TypeRepr,
+    targetTpe: TypeRepr
+  ): Expr[Either[SchemaError, Any]] = {
+    val fieldInfo      = getSingleFieldInfo(sourceTpe)
+    val extractedValue = Select(sourceValue, fieldInfo.getter)
+
+    // Direct unwrapping - types match exactly
+    '{ Right(${ extractedValue.asExprOf[Any] }) }
   }
 
   private def isTupleType(tpe: TypeRepr): Boolean =
@@ -1294,17 +1352,19 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       return exactMatch
     }
 
-    // Priority 2: Name match with conversion - same name + implicit Into available or opaque type/newtype conversion
+    // Priority 2: Name match with conversion - same name + implicit Into available or opaque type/newtype/single-field-product conversion
     val nameWithConversion = sourceInfo.fields.find { sf =>
       val nameMatches = !usedSourceFields.contains(sf.index) && sf.name == targetField.name
       if (nameMatches) {
-        val opaqueConv     = requiresOpaqueConversion(sf.tpe, targetField.tpe)
-        val opaqueUnwrap   = requiresOpaqueUnwrapping(sf.tpe, targetField.tpe)
-        val newtypeConv    = requiresNewtypeConversion(sf.tpe, targetField.tpe)
-        val newtypeUnwrap  = requiresNewtypeUnwrapping(sf.tpe, targetField.tpe)
-        val implicitInto   = findImplicitInto(sf.tpe, targetField.tpe).isDefined
-        val collectionConv = requiresCollectionElementConversion(sf.tpe, targetField.tpe)
-        opaqueConv || opaqueUnwrap || newtypeConv || newtypeUnwrap || implicitInto || collectionConv
+        val opaqueConv        = requiresOpaqueConversion(sf.tpe, targetField.tpe)
+        val opaqueUnwrap      = requiresOpaqueUnwrapping(sf.tpe, targetField.tpe)
+        val newtypeConv       = requiresNewtypeConversion(sf.tpe, targetField.tpe)
+        val newtypeUnwrap     = requiresNewtypeUnwrapping(sf.tpe, targetField.tpe)
+        val singleFieldConv   = requiresSingleFieldProductConversion(sf.tpe, targetField.tpe)
+        val singleFieldUnwrap = requiresSingleFieldProductUnwrapping(sf.tpe, targetField.tpe)
+        val implicitInto      = findImplicitInto(sf.tpe, targetField.tpe).isDefined
+        val collectionConv    = requiresCollectionElementConversion(sf.tpe, targetField.tpe)
+        opaqueConv || opaqueUnwrap || newtypeConv || newtypeUnwrap || singleFieldConv || singleFieldUnwrap || implicitInto || collectionConv
       } else {
         false
       }
@@ -1325,7 +1385,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
       if (uniqueTypeMatch.isDefined) return uniqueTypeMatch
 
-      // Also check for unique type match with conversion (implicit Into, opaque type, or newtype)
+      // Also check for unique type match with conversion (implicit Into, opaque type, newtype, or single-field product)
       val uniqueConvertibleMatch = sourceInfo.fields.find { sf =>
         !usedSourceFields.contains(sf.index) && {
           val isSourceTypeUnique = sourceTypeFreq.getOrElse(sf.tpe.dealias.show, 0) == 1
@@ -1334,6 +1394,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
               requiresOpaqueUnwrapping(sf.tpe, targetField.tpe) ||
               requiresNewtypeConversion(sf.tpe, targetField.tpe) ||
               requiresNewtypeUnwrapping(sf.tpe, targetField.tpe) ||
+              requiresSingleFieldProductConversion(sf.tpe, targetField.tpe) ||
+              requiresSingleFieldProductUnwrapping(sf.tpe, targetField.tpe) ||
               findImplicitInto(sf.tpe, targetField.tpe).isDefined
           )
         }
@@ -1357,12 +1419,14 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
 
         if (!hasExactNameMatchElsewhere) {
           if (positionalField.tpe =:= targetField.tpe) return Some(positionalField)
-          // Also check for positional conversion (implicit Into, opaque type, or newtype)
+          // Also check for positional conversion (implicit Into, opaque type, newtype, or single-field product)
           if (
             requiresOpaqueConversion(positionalField.tpe, targetField.tpe) ||
             requiresOpaqueUnwrapping(positionalField.tpe, targetField.tpe) ||
             requiresNewtypeConversion(positionalField.tpe, targetField.tpe) ||
             requiresNewtypeUnwrapping(positionalField.tpe, targetField.tpe) ||
+            requiresSingleFieldProductConversion(positionalField.tpe, targetField.tpe) ||
+            requiresSingleFieldProductUnwrapping(positionalField.tpe, targetField.tpe) ||
             findImplicitInto(positionalField.tpe, targetField.tpe).isDefined
           ) {
             return Some(positionalField)
@@ -1500,6 +1564,14 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
               else if (requiresNewtypeUnwrapping(sourceTpe, targetTpe)) {
                 // Newtype unwrapping is safe at runtime
                 '{ Right(${ sourceValue.asExpr }.asInstanceOf[Any]) }
+              }
+              // Check if target is a single-field case class (wrapper)
+              else if (requiresSingleFieldProductConversion(sourceTpe, targetTpe)) {
+                convertToSingleFieldProduct(sourceValue, sourceTpe, targetTpe, sourceField.name)
+              }
+              // Check if source is a single-field case class (wrapper) that needs unwrapping
+              else if (requiresSingleFieldProductUnwrapping(sourceTpe, targetTpe)) {
+                unwrapSingleFieldProduct(sourceValue, sourceTpe, targetTpe)
               }
               // Check if this is a collection with element type conversion needed
               else if (requiresCollectionElementConversion(sourceTpe, targetTpe)) {
@@ -2497,7 +2569,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val dealiased      = tpe.dealias
     val typeSym        = dealiased.typeSymbol
     val typeSymbolName = typeSym.name
-    
+
     if (DEBUG_NEWTYPE) {
       println(s"isZIONewtype check for ${tpe.show}:")
       println(s"  dealiased: ${dealiased.show}")
@@ -2510,7 +2582,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     // We need to:
     // 1. Check if the type symbol name is "Type"
     // 2. Check if the type has a prefix that points to a module with `make` or `wrap` methods
-    
+
     if (typeSymbolName == "Type") {
       // Look at the type structure to find the companion object
       dealiased match {
@@ -2528,7 +2600,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 println(s"  moduleSym.isModule: ${moduleSym.flags.is(Flags.Module)}")
               }
               if (moduleSym.flags.is(Flags.Module)) {
-                val allMethods = moduleSym.methodMembers
+                val allMethods    = moduleSym.methodMembers
                 val hasMakeMethod = allMethods.exists(_.name == "make")
                 val hasWrapMethod = allMethods.exists(_.name == "wrap")
                 if (DEBUG_NEWTYPE) {
@@ -2547,7 +2619,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
               // Try to find the companion in the enclosing scope
               val enclosingSym = tref.typeSymbol
               if (enclosingSym.flags.is(Flags.Module)) {
-                val allMethods = enclosingSym.methodMembers
+                val allMethods    = enclosingSym.methodMembers
                 val hasMakeMethod = allMethods.exists(_.name == "make")
                 val hasWrapMethod = allMethods.exists(_.name == "wrap")
                 if (hasMakeMethod || hasWrapMethod) {
@@ -2574,17 +2646,17 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     // Dealias the type first in case it's a type alias
     val dealiased = tpe.dealias
     val typeSym   = dealiased.typeSymbol
-    
+
     if (DEBUG_NEWTYPE) {
       println(s"getNewtypeUnderlying for ${tpe.show}:")
       println(s"  dealiased: ${dealiased.show}")
       println(s"  typeSym.name: ${typeSym.name}")
     }
-    
+
     // For ZIO Prelude newtypes, we need to find the underlying type.
     // The type structure is: TypeRef(TermRef(_, "RtAge"), "Type")
     // We need to look at the prefix to find the module with Subtype[X] or Newtype[X] type arguments.
-    
+
     if (typeSym.name == "Type") {
       dealiased match {
         case TypeRef(prefix, _) =>
@@ -2599,12 +2671,12 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 // Strategy 1: Look at the module's base types to find Subtype[X] or Newtype[X]
                 // The module class type (not the module term itself)
                 val moduleClassTpe = moduleSym.moduleClass.typeRef
-                
+
                 if (DEBUG_NEWTYPE) {
                   println(s"  moduleClassTpe: ${moduleClassTpe.show}")
                   println(s"  moduleClassTpe.baseClasses: ${moduleClassTpe.baseClasses.map(_.fullName)}")
                 }
-                
+
                 // Find base type that is Subtype[X] or Newtype[X]
                 val baseTypes = moduleClassTpe.baseClasses.flatMap { base =>
                   val baseTpe = moduleClassTpe.baseType(base)
@@ -2614,7 +2686,10 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                   baseTpe match {
                     case AppliedType(tycon, args) if args.nonEmpty =>
                       val tyconName = tycon.typeSymbol.fullName
-                      if (tyconName.contains("Subtype") || tyconName.contains("Newtype") || tyconName.contains("NewtypeCustom")) {
+                      if (
+                        tyconName.contains("Subtype") || tyconName
+                          .contains("Newtype") || tyconName.contains("NewtypeCustom")
+                      ) {
                         if (DEBUG_NEWTYPE) {
                           println(s"    found newtype base: ${baseTpe.show} with args: ${args.map(_.show)}")
                         }
@@ -2624,7 +2699,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                     case _ => None
                   }
                 }
-                
+
                 baseTypes.headOption match {
                   case Some(underlyingType) =>
                     if (DEBUG_NEWTYPE) {
@@ -2633,7 +2708,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                     return underlyingType
                   case None => // Fall through to other strategies
                 }
-                
+
                 // Strategy 2: Try widen - this works for Subtype[Int] where Type extends Int
                 val widened = dealiased.widen
                 if (DEBUG_NEWTYPE) {
@@ -2656,7 +2731,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
               if (enclosingSym.flags.is(Flags.Module)) {
                 // Try same base type lookup
                 val moduleClassTpe = enclosingSym.moduleClass.typeRef
-                val baseTypes = moduleClassTpe.baseClasses.flatMap { base =>
+                val baseTypes      = moduleClassTpe.baseClasses.flatMap { base =>
                   val baseTpe = moduleClassTpe.baseType(base)
                   baseTpe match {
                     case AppliedType(tycon, args) if args.nonEmpty =>
@@ -2670,7 +2745,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 baseTypes.headOption.foreach { underlyingType =>
                   return underlyingType
                 }
-                
+
                 // Try widen
                 val widened = dealiased.widen
                 if (widened != dealiased && !widened.typeSymbol.fullName.contains("zio.prelude")) {

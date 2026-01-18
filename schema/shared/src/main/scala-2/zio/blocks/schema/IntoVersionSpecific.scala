@@ -208,13 +208,15 @@ private object IntoVersionSpecificImpl {
       }
       if (exactMatch.isDefined) return exactMatch
 
-      // Priority 2: Name match with coercion - same name + coercible type, implicit Into available, or newtype conversion/unwrapping
+      // Priority 2: Name match with coercion - same name + coercible type, implicit Into available, newtype, or single-field product conversion/unwrapping
       val nameWithCoercion = sourceInfo.fields.find { sourceField =>
         !usedSourceFields.contains(sourceField.index) &&
         sourceField.name == targetField.name &&
         (findImplicitInto(sourceField.tpe, targetField.tpe).isDefined ||
           requiresNewtypeConversion(sourceField.tpe, targetField.tpe) ||
-          requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe))
+          requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe) ||
+          requiresSingleFieldProductConversion(sourceField.tpe, targetField.tpe) ||
+          requiresSingleFieldProductUnwrapping(sourceField.tpe, targetField.tpe))
       }
       if (nameWithCoercion.isDefined) return nameWithCoercion
 
@@ -233,14 +235,16 @@ private object IntoVersionSpecificImpl {
         }
         if (uniqueTypeMatch.isDefined) return uniqueTypeMatch
 
-        // Also check for unique coercible type match (including implicit Into and newtype conversion/unwrapping)
+        // Also check for unique coercible type match (including implicit Into, newtype, and single-field product conversion/unwrapping)
         val uniqueCoercibleMatch = sourceInfo.fields.find { sourceField =>
           if (usedSourceFields.contains(sourceField.index)) false
           else {
             val isSourceTypeUnique = sourceTypeFreq.getOrElse(sourceField.tpe.dealias.toString, 0) == 1
             isSourceTypeUnique && (findImplicitInto(sourceField.tpe, targetField.tpe).isDefined ||
               requiresNewtypeConversion(sourceField.tpe, targetField.tpe) ||
-              requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe))
+              requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe) ||
+              requiresSingleFieldProductConversion(sourceField.tpe, targetField.tpe) ||
+              requiresSingleFieldProductUnwrapping(sourceField.tpe, targetField.tpe))
           }
         }
         if (uniqueCoercibleMatch.isDefined) return uniqueCoercibleMatch
@@ -264,11 +268,13 @@ private object IntoVersionSpecificImpl {
             if (positionalField.tpe =:= targetField.tpe) {
               return Some(positionalField)
             }
-            // Also check coercible for positional (including implicit Into and newtype conversion/unwrapping)
+            // Also check coercible for positional (including implicit Into, newtype, and single-field product conversion/unwrapping)
             if (
               findImplicitInto(positionalField.tpe, targetField.tpe).isDefined ||
               requiresNewtypeConversion(positionalField.tpe, targetField.tpe) ||
-              requiresNewtypeUnwrapping(positionalField.tpe, targetField.tpe)
+              requiresNewtypeUnwrapping(positionalField.tpe, targetField.tpe) ||
+              requiresSingleFieldProductConversion(positionalField.tpe, targetField.tpe) ||
+              requiresSingleFieldProductUnwrapping(positionalField.tpe, targetField.tpe)
             ) {
               return Some(positionalField)
             }
@@ -318,6 +324,59 @@ private object IntoVersionSpecificImpl {
       } else {
         false
       }
+
+    // === Single-field Product Field Conversion Helpers (for use when converting fields) ===
+
+    /** Check if we need to convert a primitive field to a single-field product wrapper field */
+    def requiresSingleFieldProductConversion(sourceTpe: Type, targetTpe: Type): Boolean =
+      // Target is a single-field product and source matches the single field's type exactly
+      if (!isSingleFieldProduct(targetTpe)) false
+      else {
+        val fieldType = getSingleFieldInfo(targetTpe).tpe
+        sourceTpe =:= fieldType
+      }
+
+    /** Check if we need to unwrap a single-field product field to a primitive field */
+    def requiresSingleFieldProductUnwrapping(sourceTpe: Type, targetTpe: Type): Boolean =
+      // Source is a single-field product and target matches the single field's type exactly
+      if (!isSingleFieldProduct(sourceTpe)) false
+      else {
+        val fieldType = getSingleFieldInfo(sourceTpe).tpe
+        fieldType =:= targetTpe
+      }
+
+    /** Check if a type is a single-field product (case class with exactly one field) */
+    def isSingleFieldProduct(tpe: Type): Boolean =
+      isProductType(tpe) && {
+        val info = new ProductInfo(tpe)
+        info.fields.size == 1
+      }
+
+    /** Get the single field info for a single-field product type */
+    def getSingleFieldInfo(tpe: Type): FieldInfo = {
+      val info = new ProductInfo(tpe)
+      info.fields.head
+    }
+
+    /** Convert a value to a single-field product wrapper, returning Either[SchemaError, Any] */
+    def convertToSingleFieldProductEither(sourceExpr: Tree, sourceTpe: Type, targetTpe: Type, fieldName: String): Tree = {
+      val targetTypeTree = TypeTree(targetTpe)
+      // Direct wrapping - types match exactly
+      q"""
+        _root_.scala.Right[_root_.zio.blocks.schema.SchemaError, $targetTypeTree](new $targetTpe($sourceExpr))
+      """
+    }
+
+    /** Unwrap a single-field product wrapper to its underlying value, returning Either[SchemaError, Any] */
+    def unwrapSingleFieldProductEither(sourceExpr: Tree, sourceTpe: Type, targetTpe: Type): Tree = {
+      val fieldInfo = getSingleFieldInfo(sourceTpe)
+      val getter = fieldInfo.getter
+      val targetTypeTree = TypeTree(targetTpe)
+      // Direct unwrapping - types match exactly
+      q"""
+        _root_.scala.Right[_root_.zio.blocks.schema.SchemaError, $targetTypeTree]($sourceExpr.$getter)
+      """
+    }
 
     def getNewtypeUnderlying(tpe: Type): Option[Type] = {
       val dealiased = tpe.dealias
@@ -553,12 +612,16 @@ private object IntoVersionSpecificImpl {
             val targetTpe       = targetField.tpe
             val sourceFieldName = sourceField.name
 
-            // If types differ, try to find an implicit Into instance or handle newtype conversion
+            // If types differ, try to find an implicit Into instance or handle newtype/single-field-product conversion
             val conversionExpr = if (!(sourceTpe =:= targetTpe)) {
               // Check if it's a newtype conversion (underlying -> newtype)
               val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
               // Check if it's a newtype unwrapping (newtype -> underlying)
               val isNewtypeUnwrapping = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
+              // Check if it's a single-field product conversion (primitive -> wrapper)
+              val isSingleFieldConversion = requiresSingleFieldProductConversion(sourceTpe, targetTpe)
+              // Check if it's a single-field product unwrapping (wrapper -> primitive)
+              val isSingleFieldUnwrapping = requiresSingleFieldProductUnwrapping(sourceTpe, targetTpe)
 
               if (isNewtypeConversion) {
                 // Generate code to convert to newtype, using implicit Into if available
@@ -566,6 +629,12 @@ private object IntoVersionSpecificImpl {
               } else if (isNewtypeUnwrapping) {
                 // Unwrap newtype to underlying type - newtypes are type aliases, so just cast
                 q"_root_.scala.Right[$schemaErrorType, Any](a.$getter.asInstanceOf[$targetTpe])"
+              } else if (isSingleFieldConversion) {
+                // Convert primitive to single-field product wrapper
+                convertToSingleFieldProductEither(q"a.$getter", sourceTpe, targetTpe, sourceField.name)
+              } else if (isSingleFieldUnwrapping) {
+                // Unwrap single-field product to primitive
+                unwrapSingleFieldProductEither(q"a.$getter", sourceTpe, targetTpe)
               } else {
                 findImplicitInto(sourceTpe, targetTpe) match {
                   case Some(intoInstance) =>
@@ -1014,11 +1083,19 @@ private object IntoVersionSpecificImpl {
             val conversionExpr = if (!(sourceTpe =:= targetTpe)) {
               val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
               val isNewtypeUnwrapping = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
+              val isSingleFieldConversion = requiresSingleFieldProductConversion(sourceTpe, targetTpe)
+              val isSingleFieldUnwrapping = requiresSingleFieldProductUnwrapping(sourceTpe, targetTpe)
 
               if (isNewtypeConversion) {
                 convertToNewtypeEither(q"$bindingName.$getter", sourceTpe, targetTpe, sourceField.name)
               } else if (isNewtypeUnwrapping) {
                 q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter.asInstanceOf[$targetTpe])"
+              } else if (isSingleFieldConversion) {
+                // Convert primitive to single-field product wrapper
+                convertToSingleFieldProductEither(q"$bindingName.$getter", sourceTpe, targetTpe, sourceField.name)
+              } else if (isSingleFieldUnwrapping) {
+                // Unwrap single-field product to primitive
+                unwrapSingleFieldProductEither(q"$bindingName.$getter", sourceTpe, targetTpe)
               } else {
                 findImplicitInto(sourceTpe, targetTpe) match {
                   case Some(intoInstance) =>
@@ -1491,18 +1568,7 @@ private object IntoVersionSpecificImpl {
       )
     }
 
-    // === Single-field Product (AnyVal wrapper) Support ===
-
-    def isSingleFieldProduct(tpe: Type): Boolean =
-      isProductType(tpe) && {
-        val info = new ProductInfo(tpe)
-        info.fields.size == 1
-      }
-
-    def getSingleFieldInfo(tpe: Type): FieldInfo = {
-      val info = new ProductInfo(tpe)
-      info.fields.head
-    }
+    // === Single-field Product (AnyVal wrapper) Top-Level Derivation ===
 
     def derivePrimitiveToSingleFieldProduct(): c.Expr[Into[A, B]] = {
       val fieldInfo = getSingleFieldInfo(bTpe)
