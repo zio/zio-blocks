@@ -1,31 +1,27 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.Chunk
-import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema}
+import zio.Chunk
+import zio.blocks.schema.{DynamicOptic, SchemaExpr}
 
-final case class MigrationError(message: String, path: DynamicOptic = DynamicOptic.root)
-
-final case class DynamicMigration(actions: Chunk[MigrationAction]) {
-
-  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-    Right(value)
-
-  def reverse: DynamicMigration =
-    DynamicMigration(actions.reverse.map(_.reverse))
+sealed trait MigrationAction {
+  def at: DynamicOptic
+  def reverse: MigrationAction
 }
 
-final case class Migration[A, B](
-  dynamicMigration: DynamicMigration,
-  sourceSchema: Schema[A],
-  targetSchema: Schema[B]
-) {
-  def apply(value: A): Either[MigrationError, B] = {
-    val dynamicOld = sourceSchema.toDynamicValue(value)
-
-    targetSchema.fromDynamicValue(dynamicOld).left.map { schemaError =>
-      MigrationError(s"Conversion failed: ${schemaError.message}")
-    }
+object MigrationAction {
+  final case class AddField(at: DynamicOptic, default: SchemaExpr[Any, Any]) extends MigrationAction {
+    def reverse: MigrationAction = DropField(at, default)
   }
 
-  def reverse: Migration[B, A] = Migration(dynamicMigration.reverse, targetSchema, sourceSchema)
+  final case class DropField(at: DynamicOptic, defaultForReverse: SchemaExpr[Any, Any]) extends MigrationAction {
+    def reverse: MigrationAction = AddField(at, defaultForReverse)
+  }
+
+  final case class Rename(at: DynamicOptic, to: String) extends MigrationAction {
+    def reverse: MigrationAction = Rename(at, "old")
+  }
+
+  final case class TransformValue(at: DynamicOptic, expr: SchemaExpr[Any, Any]) extends MigrationAction {
+    def reverse: MigrationAction = this
+  }
 }
