@@ -180,12 +180,11 @@ lazy val `schema-msgpack` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.msgpack"    % "msgpack-core"  % "0.9.8",
-      "dev.zio"       %% "zio-test"      % "2.1.24" % Test,
-      "dev.zio"       %% "zio-test-sbt"  % "2.1.24" % Test
+      "org.msgpack" % "msgpack-core" % "0.9.8",
+      "dev.zio"    %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio"    %% "zio-test-sbt" % "2.1.24" % Test
     )
   )
-
 
 lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
