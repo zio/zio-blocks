@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.Chunk
+import zio.blocks.Chunk
 
 sealed trait Json
 object Json {
