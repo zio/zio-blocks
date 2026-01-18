@@ -173,6 +173,20 @@ lazy val `schema-avro` = project
     })
   )
 
+lazy val `schema-msgpack` = project
+  .settings(stdSettings("zio-blocks-schema-msgpack"))
+  .dependsOn(schema.jvm % "compile->compile;test->test")
+  .settings(buildInfoSettings("zio.blocks.schema.msgpack"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.msgpack"    % "msgpack-core"  % "0.9.8",
+      "dev.zio"       %% "zio-test"      % "2.1.24" % Test,
+      "dev.zio"       %% "zio-test-sbt"  % "2.1.24" % Test
+    )
+  )
+
+
 lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-schema-toon"))
