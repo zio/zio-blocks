@@ -1,35 +1,33 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, SchemaExpr}
-import zio.blocks.Chunk
+import zio.blocks.Chunk // Corrigido
+import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema}
 
-sealed trait MigrationAction {
-  def at: DynamicOptic
-  def reverse: MigrationAction
+final case class MigrationError(message: String, path: DynamicOptic = DynamicOptic.root)
+
+final case class DynamicMigration(actions: Chunk[MigrationAction]) {
+
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+  
+    Right(value)
+
+  def reverse: DynamicMigration = 
+    DynamicMigration(actions.reverse.map(_.reverse))
 }
 
-object MigrationAction {
-  final case class AddField(at: DynamicOptic, default: SchemaExpr[Any, Any]) extends MigrationAction {
-    def reverse: MigrationAction = DropField(at, default)
+final case class Migration[A, B](
+  dynamicMigration: DynamicMigration,
+  sourceSchema: Schema[A],
+  targetSchema: Schema[B]
+) {
+  def apply(value: A): Either[MigrationError, B] = {
+    val dynamicOld = sourceSchema.toDynamicValue(value)
+    
+  
+    targetSchema.fromDynamicValue(dynamicOld).left.map { schemaError =>
+      MigrationError(s"Conversion failed: ${schemaError.message}")
+    }
   }
 
-  final case class DropField(at: DynamicOptic, defaultForReverse: SchemaExpr[Any, Any]) extends MigrationAction {
-    def reverse: MigrationAction = AddField(at, defaultForReverse)
-  }
-
-  final case class Rename(at: DynamicOptic, to: String) extends MigrationAction {
-    def reverse: MigrationAction = Rename(at, "TODO") 
-  }
-
-  final case class TransformValue(at: DynamicOptic, expr: SchemaExpr[Any, Any]) extends MigrationAction {
-    def reverse: MigrationAction = this
-  }
-
-  final case class RenameCase(at: DynamicOptic, from: String, to: String) extends MigrationAction {
-    def reverse: MigrationAction = RenameCase(at, to, from)
-  }
-
-  final case class TransformCase(at: DynamicOptic, actions: Chunk[MigrationAction]) extends MigrationAction {
-    def reverse: MigrationAction = TransformCase(at, actions.reverse.map(_.reverse))
-  }
+  def reverse: Migration[B, A] = Migration(dynamicMigration.reverse, targetSchema, sourceSchema)
 }
