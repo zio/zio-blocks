@@ -1,6 +1,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
+import Json._
 
 /**
  * Extension methods for deriving JsonEncoder and JsonDecoder from Schema[A].
