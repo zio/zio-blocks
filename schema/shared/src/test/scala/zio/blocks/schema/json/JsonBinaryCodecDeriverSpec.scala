@@ -17,10 +17,11 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverSpec")(
     suite("primitives")(
       test("Unit") {
-        roundTrip((), "null") &&
+        roundTrip((), "{}") &&
         decodeError[Unit]("", "unexpected end of input at: .") &&
-        decodeError[Unit]("null ,", "expected end of input at: .") &&
-        decodeError[Unit]("true", "expected null at: .")
+        decodeError[Unit]("{} ,", "expected end of input at: .") &&
+        decodeError[Unit]("null", "expected an empty JSON object at: .") &&
+        decodeError[Unit]("""{"extra":null}""", "expected an empty JSON object at: .")
       },
       test("Boolean") {
         decode(" true", true) &&
@@ -1464,15 +1465,15 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
         roundTrip[TupleTest](
           ((), true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
-          """[null,true,1,2,3,4,5.0,6.0,"7","VVV"]"""
+          """[{},true,1,2,3,4,5.0,6.0,"7","VVV"]"""
         ) &&
         decodeError[TupleTest]("""""", "unexpected end of input at: .") &&
-        decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0,"7","VVV"],""", "expected end of input at: .") &&
-        decodeError[TupleTest]("""{null,true,1,2,3,4,5.0,6.0,"7","VVV"}""", "expected '[' at: .") &&
-        decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0,"7","VVV"}""", "expected ']' at: .") &&
-        decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0,7,"VVV"}""", "expected '\"' at: ._9") &&
-        decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0]""", "expected ',' at: .") &&
-        decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0,"7"]""", "expected ',' at: .")
+        decodeError[TupleTest]("""[{},true,1,2,3,4,5.0,6.0,"7","VVV"],""", "expected end of input at: .") &&
+        decodeError[TupleTest]("""{{},true,1,2,3,4,5.0,6.0,"7","VVV"}""", "expected '[' at: .") &&
+        decodeError[TupleTest]("""[{},true,1,2,3,4,5.0,6.0,"7","VVV"}""", "expected ']' at: .") &&
+        decodeError[TupleTest]("""[{},true,1,2,3,4,5.0,6.0,7,"VVV"}""", "expected '\"' at: ._9") &&
+        decodeError[TupleTest]("""[{},true,1,2,3,4,5.0,6.0]""", "expected ',' at: .") &&
+        decodeError[TupleTest]("""[{},true,1,2,3,4,5.0,6.0,"7"]""", "expected ',' at: .")
       },
       test("nested record") {
         roundTrip(
@@ -1513,28 +1514,19 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("record with unit and optional fields") {
-        roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""") &&
-        roundTrip(Record4((), None), """{"hіdden":null}""") &&
-        roundTrip(
-          Record4((), Some("VVV")),
-          """{
-            |  "hіdden": null,
-            |  "optKеy": "VVV"
-            |}""".stripMargin,
-          readerConfig = ReaderConfig,
-          writerConfig = WriterConfig.withIndentionStep(2)
-        )
+        roundTrip(Record4((), Some("VVV")), """{"hіdden":{},"optKеy":"VVV"}""") &&
+        roundTrip(Record4((), None), """{"hіdden":{}}""")
       },
       test("record with custom codec that enforces encoding of fields with empty option values") {
         val codec = Schema[Record4].derive(JsonBinaryCodecDeriver.withTransientNone(false))
-        roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""", codec) &&
-        roundTrip(Record4((), None), """{"hіdden":null,"optKеy":null}""", codec)
+        roundTrip(Record4((), Some("VVV")), """{"hіdden":{},"optKеy":"VVV"}""", codec) &&
+        roundTrip(Record4((), None), """{"hіdden":{},"optKеy":null}""", codec)
       },
       test("record with custom codec that require decoding of fields with empty option values") {
         val codec = Schema[Record4].derive(JsonBinaryCodecDeriver.withRequireOptionFields(true))
-        roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""", codec) &&
-        roundTrip(Record4((), None), """{"hіdden":null,"optKеy":null}""", codec) &&
-        decodeError("""{"hіdden":null}""", "missing required field \"optKеy\" at: .", codec)
+        roundTrip(Record4((), Some("VVV")), """{"hіdden":{},"optKеy":"VVV"}""", codec) &&
+        roundTrip(Record4((), None), """{"hіdden":{},"optKеy":null}""", codec) &&
+        decodeError("""{"hіdden":{}}""", "missing required field \"optKеy\" at: .", codec)
       },
       test("record with custom codecs of different field mapping") {
         roundTrip(
@@ -1866,7 +1858,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derive
         roundTrip(
           ((), true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
-          """[null,"true","1","2","3","4","5.0","6.0",55,"VVV"]""",
+          """[{},"true","1","2","3","4","5.0","6.0",55,"VVV"]""",
           codec
         )
       },
@@ -1943,8 +1935,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             }
           )
           .derive
-        roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""", codec) &&
-        roundTrip(Record4((), None), """{"hіdden":null}""", codec)
+        roundTrip(Record4((), Some("VVV")), """{"hіdden":{},"optKеy":"VVV"}""", codec) &&
+        roundTrip(Record4((), None), """{"hіdden":{}}""", codec)
       },
       test("record with a custom codec for nested record injected by optic") {
         val codec1 =
@@ -2101,7 +2093,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode("""null""", List.empty[Int]) &&
         roundTrip(List.empty[Int], """[]""") &&
         roundTrip(Array[Unit](), """[]""") &&
-        roundTrip(Array[Unit]((), (), ()), """[null,null,null]""") &&
+        roundTrip(Array[Unit]((), (), ()), """[{},{},{}]""") &&
         roundTrip(Array[Boolean](), """[]""") &&
         roundTrip(Array[Boolean](true, false, true), """[true,false,true]""") &&
         decodeError[Array[Boolean]]("1", "expected '[' or null at: .") &&
@@ -2522,6 +2514,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Map[Month, Long]]("""{"Jun":1}""", "illegal month value at: .at(0)") &&
         decodeError[Map[Currency, Long]]("""{"JJJ":1}""", "illegal currency value at: .at(0)") &&
         decodeError[Map[Int, Long]]("", "unexpected end of input at: .") &&
+        decodeError[Map[Int, Long]]("true", "expected '{' or null at: .") &&
         decodeError[Map[Int, Long]]("""{"1"""", "unexpected end of input at: .at(0)") &&
         decodeError[Map[Int, Long]]("""{"1":""", "unexpected end of input at: .atKey(<key>)") &&
         decodeError[Map[Int, Long]]("""{"1":2]""", "expected '}' or ',' at: .") &&
