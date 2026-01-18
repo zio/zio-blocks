@@ -200,8 +200,16 @@ object JsonPathInterpolator {
 object JsonLiteralInterpolator {
   implicit class JsonLiteralContext(val sc: StringContext) {
     def j(args: Any*): Json = {
-      val parts = sc.parts.map(_.s)
-      JsonLiteral(parts: _*)
+      // Reconstruct the JSON string from parts and arguments
+      val jsonString = sc.parts.zip(args).map { case (part, arg) =>
+        part + arg.toString
+      }.mkString + sc.parts.lastOption.getOrElse("")
+      
+      // Parse the JSON string
+      Json.parse(jsonString) match {
+        case Right(json) => json
+        case Left(error) => throw new RuntimeException(s"Invalid JSON literal: ${error.getMessage}")
+      }
     }
   }
 }
@@ -211,22 +219,4 @@ object JsonLiteralInterpolator {
  */
 case class JsonPath(parts: String*) {
   override def toString: String = parts.mkString(".")
-}
-
-/**
- * Simple literal representation for JSON interpolation.
- */
-case class JsonLiteral(parts: String*) {
-  override def toString: String = {
-    val jsonValues = parts.map {
-      case s if s.isInstanceOf[String] => Json.str(s)
-      case n if n.isInstanceOf[Int] => Json.num(n)
-      case n if n.isInstanceOf[Long] => Json.num(n)
-      case n if n.isInstanceOf[Double] => Json.num(n)
-      case n if n.isInstanceOf[Boolean] => Json.bool(n)
-      case _ => Json.str(n.toString)
-    }
-    
-    override def toString: String = jsonValues.map(_.toString).mkString(", ")
-  }
 }
