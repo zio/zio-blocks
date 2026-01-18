@@ -19,7 +19,7 @@ object MigrationAction {
   }
 
   final case class Rename(at: DynamicOptic, to: String) extends MigrationAction {
-    def reverse: MigrationAction = Rename(at, "oldName") 
+    def reverse: MigrationAction = Rename(at, "oldName")
   }
 
   final case class TransformValue(at: DynamicOptic, expr: SchemaExpr[Any, Any]) extends MigrationAction {
