@@ -15,98 +15,77 @@ import scala.language.experimental.macros
  * values. In Scala 2, use existential types like `List[_]` or `Map[_, _]` for
  * type constructors.
  *
+ * TypeId wraps a TypeRef which contains the actual type identity information.
+ * Two TypeIds are considered equal if they refer to the same underlying type,
+ * with type aliases being transparent (an alias equals its underlying type),
+ * while opaque types maintain nominal identity.
+ *
  * @tparam A
  *   The type (or type constructor) this TypeId represents
  */
-sealed trait TypeId[A] {
+final case class TypeId[A](ref: TypeRef) {
 
   /** The simple name of the type. */
-  def name: String
+  def name: String = ref.name
 
   /** The owner of this type (package, object, class, etc.). */
-  def owner: Owner
+  def owner: Owner = ref.owner
 
   /**
    * The type parameters of this type (empty for proper types, non-empty for
    * type constructors).
    */
-  def typeParams: List[TypeParam]
+  def typeParams: List[TypeParam] = ref.typeParams
 
   /** The arity of this type (number of type parameters). */
-  final def arity: Int = typeParams.size
+  def arity: Int = ref.arity
 
   /** The fully qualified name of this type. */
-  final def fullName: String =
-    if (owner.isRoot) name
-    else owner.asString + "." + name
+  def fullName: String = ref.fullName
 
   /** Returns true if this TypeId represents a nominal type. */
-  final def isNominal: Boolean = this match {
-    case _: TypeId.NominalImpl => true
-    case _                     => false
-  }
+  def isNominal: Boolean = ref.isInstanceOf[TypeRef.Nominal]
 
   /** Returns true if this TypeId represents a type alias. */
-  final def isAlias: Boolean = this match {
-    case _: TypeId.AliasImpl => true
-    case _                   => false
-  }
+  def isAlias: Boolean = ref.isInstanceOf[TypeRef.Alias]
 
   /** Returns true if this TypeId represents an opaque type. */
-  final def isOpaque: Boolean = this match {
-    case _: TypeId.OpaqueImpl => true
-    case _                    => false
-  }
+  def isOpaque: Boolean = ref.isInstanceOf[TypeRef.Opaque]
 
   /** If this is a type alias, returns the aliased type; otherwise None. */
-  final def aliasedType: Option[TypeRepr] = this match {
-    case impl: TypeId.AliasImpl => Some(impl.aliased)
-    case _                      => None
+  def aliasedType: Option[TypeRepr] = ref match {
+    case a: TypeRef.Alias => Some(a.aliased)
+    case _                => None
   }
 
   /**
    * If this is an opaque type, returns the underlying representation; otherwise
    * None.
    */
-  final def opaqueRepresentation: Option[TypeRepr] = this match {
-    case impl: TypeId.OpaqueImpl => Some(impl.representation)
-    case _                       => None
+  def opaqueRepresentation: Option[TypeRepr] = ref match {
+    case o: TypeRef.Opaque => Some(o.representation)
+    case _                 => None
   }
+
+  override def equals(other: Any): Boolean = other match {
+    case that: TypeId[_] => TypeId.structurallyEqual(this, that)
+    case _               => false
+  }
+
+  override def hashCode(): Int = TypeId.structuralHash(this)
 
   override def toString: String = {
     val paramStr = if (typeParams.isEmpty) "" else typeParams.map(_.name).mkString("[", ", ", "]")
-    val kindStr  = this match {
-      case _: TypeId.NominalImpl => "nominal"
-      case _: TypeId.AliasImpl   => "alias"
-      case _: TypeId.OpaqueImpl  => "opaque"
+    val kindStr = ref match {
+      case _: TypeRef.Nominal => "nominal"
+      case _: TypeRef.Alias   => "alias"
+      case _: TypeRef.Opaque  => "opaque"
     }
     s"TypeId.$kindStr($fullName$paramStr)"
   }
 }
 
 object TypeId {
-
-  // Private implementations
-
-  private[typeid] final case class NominalImpl(
-    name: String,
-    owner: Owner,
-    typeParams: List[TypeParam]
-  ) extends TypeId[Nothing]
-
-  private[typeid] final case class AliasImpl(
-    name: String,
-    owner: Owner,
-    typeParams: List[TypeParam],
-    aliased: TypeRepr
-  ) extends TypeId[Nothing]
-
-  private[typeid] final case class OpaqueImpl(
-    name: String,
-    owner: Owner,
-    typeParams: List[TypeParam],
-    representation: TypeRepr
-  ) extends TypeId[Nothing]
 
   // Macro derivation
 
@@ -121,7 +100,7 @@ object TypeId {
     owner: Owner,
     typeParams: List[TypeParam] = Nil
   ): TypeId[A] =
-    NominalImpl(name, owner, typeParams).asInstanceOf[TypeId[A]]
+    TypeId(TypeRef.Nominal(name, owner, typeParams))
 
   /** Creates a TypeId for a type alias. */
   def alias[A](
@@ -130,7 +109,7 @@ object TypeId {
     typeParams: List[TypeParam] = Nil,
     aliased: TypeRepr
   ): TypeId[A] =
-    AliasImpl(name, owner, typeParams, aliased).asInstanceOf[TypeId[A]]
+    TypeId(TypeRef.Alias(name, owner, typeParams, aliased))
 
   /** Creates a TypeId for an opaque type. */
   def opaque[A](
@@ -139,28 +118,75 @@ object TypeId {
     typeParams: List[TypeParam] = Nil,
     representation: TypeRepr
   ): TypeId[A] =
-    OpaqueImpl(name, owner, typeParams, representation).asInstanceOf[TypeId[A]]
+    TypeId(TypeRef.Opaque(name, owner, typeParams, representation))
 
   // Pattern matching extractors
 
   object Nominal {
-    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam])] = id match {
-      case impl: NominalImpl => Some((impl.name, impl.owner, impl.typeParams))
-      case _                 => None
+    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam])] = id.ref match {
+      case TypeRef.Nominal(name, owner, typeParams) => Some((name, owner, typeParams))
+      case _                                        => None
     }
   }
 
   object Alias {
-    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id match {
-      case impl: AliasImpl => Some((impl.name, impl.owner, impl.typeParams, impl.aliased))
-      case _               => None
+    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id.ref match {
+      case TypeRef.Alias(name, owner, typeParams, aliased) => Some((name, owner, typeParams, aliased))
+      case _                                               => None
     }
   }
 
   object Opaque {
-    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id match {
-      case impl: OpaqueImpl => Some((impl.name, impl.owner, impl.typeParams, impl.representation))
-      case _                => None
+    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id.ref match {
+      case TypeRef.Opaque(name, owner, typeParams, representation) => Some((name, owner, typeParams, representation))
+      case _                                                       => None
+    }
+  }
+
+  // Normalization and structural equality
+
+  /**
+   * Normalizes a TypeRef by following type alias chains.
+   * Aliases are resolved to their underlying type, while nominal and opaque types remain unchanged.
+   */
+  def normalize(ref: TypeRef): TypeRef = ref match {
+    case TypeRef.Alias(_, _, _, TypeRepr.Ref(id)) => normalize(id.ref)
+    case other                                    => other
+  }
+
+  /**
+   * Compares two TypeIds for structural equality.
+   * Type aliases are transparent: TypeId.of[Age] == TypeId.of[Int] where type Age = Int.
+   * Opaque types maintain nominal identity.
+   */
+  def structurallyEqual(a: TypeId[_], b: TypeId[_]): Boolean = {
+    val normA = normalize(a.ref)
+    val normB = normalize(b.ref)
+
+    (normA, normB) match {
+      // Opaque types only equal if they have the same fullName (nominal identity)
+      case (oa: TypeRef.Opaque, ob: TypeRef.Opaque) =>
+        oa.fullName == ob.fullName && oa.typeParams == ob.typeParams
+      // Opaque type is never equal to non-opaque
+      case (_: TypeRef.Opaque, _) => false
+      case (_, _: TypeRef.Opaque) => false
+      // For nominal types and resolved aliases, compare by fullName and typeParams
+      case _ =>
+        normA.fullName == normB.fullName && normA.typeParams == normB.typeParams
+    }
+  }
+
+  /**
+   * Computes a hash code for a TypeId that is consistent with structural equality.
+   */
+  def structuralHash(id: TypeId[_]): Int = {
+    val norm = normalize(id.ref)
+    norm match {
+      case o: TypeRef.Opaque =>
+        // Include "opaque" marker to distinguish from nominal with same name
+        ("opaque", o.fullName, o.typeParams).hashCode()
+      case _ =>
+        (norm.fullName, norm.typeParams).hashCode()
     }
   }
 

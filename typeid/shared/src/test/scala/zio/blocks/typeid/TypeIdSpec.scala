@@ -52,8 +52,27 @@ object TypeIdSpec extends ZIOSpecDefault {
     ),
     suite("TypeParam")(
       test("toString includes name and index") {
+        // Basic type param without variance shows just name@index
         assertTrue(
           TypeParam("X", 5).toString == "X@5"
+        )
+      },
+      test("variance is reflected in toString") {
+        val covariant     = TypeParam("A", 0, Variance.Covariant)
+        val contravariant = TypeParam("A", 0, Variance.Contravariant)
+        val invariant     = TypeParam("A", 0, Variance.Invariant)
+        assertTrue(
+          covariant.toString == "+A@0",
+          contravariant.toString == "-A@0",
+          invariant.toString == "A@0"
+        )
+      },
+      test("higher-kinded params show arity") {
+        val hk1 = TypeParam.higherKinded("F", 0, 1)
+        val hk2 = TypeParam.higherKinded("G", 0, 2)
+        assertTrue(
+          hk1.toString == "F[1]@0",
+          hk2.toString == "G[2]@0"
         )
       }
     ),
@@ -150,7 +169,7 @@ object TypeIdSpec extends ZIOSpecDefault {
       },
       test("ParamRef references type parameter") {
         val ref = TypeRepr.ParamRef(TypeParam.A)
-        assertTrue(ref.param == TypeParam.A)
+        assertTrue(ref.param == TypeParam.A, ref.binderDepth == 0)
       },
       test("containsParam correctly identifies type parameters") {
         val paramRef = TypeRepr.ParamRef(TypeParam.A)
@@ -169,14 +188,14 @@ object TypeIdSpec extends ZIOSpecDefault {
         val types  = List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string))
         val result = TypeRepr.intersection(types)
         assertTrue(
-          result == TypeRepr.Intersection(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string))
+          result == TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
         )
       },
       test("union combines types") {
         val types  = List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string))
         val result = TypeRepr.union(types)
         assertTrue(
-          result == TypeRepr.Union(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string))
+          result == TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
         )
       }
     ),

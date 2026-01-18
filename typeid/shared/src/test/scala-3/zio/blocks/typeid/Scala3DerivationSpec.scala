@@ -5,21 +5,21 @@ import zio.test._
 object Scala3DerivationSpec extends ZIOSpecDefault {
 
   object OpaqueTypes {
-    opaque type Email = String
-    opaque type Age = Int
+    opaque type Email       = String
+    opaque type Age         = Int
     opaque type SafeList[A] = List[A]
   }
 
   object TypeAliases {
-    type Age = Int
+    type Age          = Int
     type StringMap[V] = Map[String, V]
   }
 
   def spec = suite("Scala 3 TypeId Derivation")(
     test("opaque types are detected correctly") {
       val emailId = TypeId.derived[OpaqueTypes.Email]
-      val ageId = TypeId.derived[OpaqueTypes.Age]
-      val listId = TypeId.derived[OpaqueTypes.SafeList[Any]]
+      val ageId   = TypeId.derived[OpaqueTypes.Age]
+      val listId  = TypeId.derived[OpaqueTypes.SafeList[Any]]
 
       assertTrue(
         emailId.name == "Email" && emailId.isOpaque,
@@ -29,16 +29,16 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
     },
     test("opaque type representations are extracted correctly") {
       val emailId = TypeId.derived[OpaqueTypes.Email]
-      val ageId = TypeId.derived[OpaqueTypes.Age]
+      val ageId   = TypeId.derived[OpaqueTypes.Age]
 
       assertTrue(
         emailId.opaqueRepresentation.exists {
           case TypeRepr.Ref(typeId) => typeId.name == "String"
-          case _ => false
+          case _                    => false
         },
         ageId.opaqueRepresentation.exists {
           case TypeRepr.Ref(typeId) => typeId.name == "Int"
-          case _ => false
+          case _                    => false
         }
       )
     },
@@ -51,7 +51,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         mapId.name == "StringMap" && mapId.isAlias,
         ageId.aliasedType.exists {
           case TypeRepr.Ref(typeId) => typeId.name == "Int"
-          case _ => false
+          case _                    => false
         }
       )
     },
