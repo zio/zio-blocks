@@ -812,8 +812,27 @@ object JsonPatch {
             Left(JsonError.typeMismatch(currentPath, "Array", value.getClass.getSimpleName))
         }
 
-      case _ =>
-        Left(JsonError.invalidOperation(currentPath, s"Unsupported path node: $node"))
+      // JSON-incompatible path nodes - provide clear error messages
+      case DynamicOptic.Node.Case(caseName) =>
+        Left(JsonError.invalidOperation(currentPath, s"JSON does not support Variant types (case: $caseName)"))
+
+      case DynamicOptic.Node.AtMapKey(_) =>
+        Left(JsonError.invalidOperation(currentPath, "JSON objects use field() for string keys, not atMapKey()"))
+
+      case DynamicOptic.Node.Wrapped =>
+        Left(JsonError.invalidOperation(currentPath, "JSON does not support wrapped/newtype navigation"))
+
+      case DynamicOptic.Node.AtIndices(_) =>
+        Left(JsonError.invalidOperation(currentPath, "AtIndices is not supported in patches"))
+
+      case DynamicOptic.Node.AtMapKeys(_) =>
+        Left(JsonError.invalidOperation(currentPath, "AtMapKeys is not supported in patches"))
+
+      case DynamicOptic.Node.MapKeys =>
+        Left(JsonError.invalidOperation(currentPath, "MapKeys is not supported in patches"))
+
+      case DynamicOptic.Node.MapValues =>
+        Left(JsonError.invalidOperation(currentPath, "MapValues is not supported in patches"))
     }
   }
 
