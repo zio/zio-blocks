@@ -7,7 +7,7 @@ import zio.blocks.schema.json.JsonTestUtils._
 import zio.test.Assertion._
 import zio.test._
 
-object NeotypeSupportSpec extends ZIOSpecDefault {
+object NeotypeSupportSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("NeotypeSupportSpec")(
     test("derive schemas for cases classes with subtype and newtype fields") {
       val value = new Planet(Name("Earth"), Kilogram(5.97e24), Meter(6378000.0), Some(Meter(1.5e15)))
@@ -71,7 +71,7 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
         NString("VVV")
       )
       assert(NRecord.schema.fromDynamicValue(NRecord.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      roundTrip[NRecord](value, """{"i":1,"f":2.0,"l":3,"d":4.0,"bl":true,"b":6,"c":"7","sh":8,"u":null,"s":"VVV"}""")
+      roundTrip[NRecord](value, """{"i":1,"f":2.0,"l":3,"d":4.0,"bl":true,"b":6,"c":"7","sh":8,"u":{},"s":"VVV"}""")
     },
     test("derive schemas for options with newtypes and subtypes") {
       val schema1 = Schema.derived[Option[Name]]

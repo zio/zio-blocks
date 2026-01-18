@@ -1,10 +1,11 @@
 package zio.blocks.schema.json
 
+import zio.blocks.schema.SchemaBaseSpec
 import zio.blocks.schema.json.JsonListOfRecordsBenchmark
 import zio.test._
 import zio.test.Assertion._
 
-object JsonListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
+object JsonListOfRecordsBenchmarkSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonListOfRecordsBenchmarkSpec")(
     test("reading") {
       val benchmark = new JsonListOfRecordsBenchmark

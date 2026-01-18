@@ -4,7 +4,6 @@ import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
-
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time._
@@ -101,8 +100,7 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
    *   an instance of `ToonWriter` which provides access to TOON output to
    *   serialize the specified value as a TOON key
    */
-  def encodeKey(x: A, out: ToonWriter): Unit =
-    throw new ToonBinaryCodecError(Nil, "encoding as TOON key is not supported")
+  def encodeKey(x: A, out: ToonWriter): Unit = out.encodeError("encoding as TOON key is not supported")
 
   /**
    * Encodes the specified value as a field within a TOON record.
@@ -121,12 +119,6 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
   }
 
   /**
-   * Returns true if this codec handles sequence types (List, Vector, etc.).
-   * Sequence codecs may use special inline array format in TOON.
-   */
-  def isSequenceCodec: Boolean = false
-
-  /**
    * Decodes an inline array from comma-separated string values. Used for TOON's
    * compact inline array format: `xs[3]: 1,2,3`
    *
@@ -135,8 +127,8 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
    * @param expectedLength
    *   the expected length from the array header
    */
-  def decodeInlineArray(values: Array[String], expectedLength: Int): A =
-    throw new ToonBinaryCodecError(Nil, "decodeInlineArray not supported for this type")
+  def decodeInlineArray(in: ToonReader, values: Array[String], expectedLength: Int): A =
+    in.decodeError("decodeInlineArray not supported for this type")
 
   /**
    * Decodes a list-format array where each item is prefixed with `- `. Used for
@@ -148,7 +140,7 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
    *   the expected number of items from the array header
    */
   def decodeListArray(in: ToonReader, expectedLength: Int): A =
-    throw new ToonBinaryCodecError(Nil, "decodeListArray not supported for this type")
+    in.decodeError("decodeListArray not supported for this type")
 
   /**
    * Decodes a tabular array from field-value row data. Used for TOON's tabular
@@ -164,7 +156,7 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
    *   the delimiter to use for splitting rows
    */
   def decodeTabularArray(in: ToonReader, fieldNames: Array[String], expectedLength: Int, delimiter: Delimiter): A =
-    throw new ToonBinaryCodecError(Nil, "decodeTabularArray not supported for this type")
+    in.decodeError("decodeTabularArray not supported for this type")
 
   /**
    * Decodes a single tabular row into a record value. Used when this codec's
@@ -174,11 +166,9 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
    *   the values parsed from the row (one per field)
    * @param fieldNames
    *   the field names from the tabular header
-   * @param rowIndex
-   *   the index of this row (for error reporting)
    */
-  def decodeTabularRow(values: Array[String], fieldNames: Array[String], rowIndex: Int): A =
-    throw new ToonBinaryCodecError(Nil, "decodeTabularRow not supported for this type")
+  def decodeTabularRow(in: ToonReader, values: Array[String], fieldNames: Array[String]): A =
+    in.decodeError("decodeTabularRow not supported for this type")
 
   /**
    * Returns the field names for this codec if it represents a record type. Used
@@ -204,27 +194,27 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
     throw new ToonBinaryCodecError(Nil, "encodeTabularRow not supported for this type")
 
   /**
-   * Returns true if this codec represents a record type. Used to determine if
+   * Returns true if this codec represents a record type. Used to determine if a
    * tabular format can be applied.
    */
   def isRecordCodec: Boolean = false
 
   /**
    * Returns true if this codec represents a primitive type (Int, Long, String,
-   * etc.). Used to determine if inline array format can be applied.
+   * etc.). Used to determine if an inline array format can be applied.
    */
   def isPrimitive: Boolean = false
 
   /**
    * Returns true if this is a record codec where all fields are primitives.
-   * Used to determine if an array of these records can use tabular format in
-   * list item context.
+   * Used to determine if an array of these records can use a tabular format in
+   * the list item context.
    */
   def hasOnlyPrimitiveFields: Boolean = false
 
   /**
-   * Decodes a value of type `A` from the specified `ByteBuffer` using default
-   * configuration.
+   * Decodes a value of type `A` from the specified `ByteBuffer` using the
+   * default configuration.
    *
    * @param input
    *   the byte buffer containing TOON input
@@ -235,7 +225,7 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
   override def decode(input: ByteBuffer): Either[SchemaError, A] = decode(input, ReaderConfig)
 
   /**
-   * Encodes the specified value to the given `ByteBuffer` using default
+   * Encodes the specified value to the given `ByteBuffer` using the default
    * configuration.
    *
    * @param value
@@ -331,9 +321,8 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
 
   def decode(input: String, config: ReaderConfig): Either[SchemaError, A] =
     try {
-      val bytes  = input.getBytes(UTF_8)
       val reader = ToonReader(config)
-      reader.reset(bytes, 0, bytes.length)
+      reader.reset(input)
       try new Right(decodeValue(reader, nullValue))
       finally reader.endUse()
     } catch {
@@ -344,17 +333,6 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
     val writer = ToonWriter(config)
     encodeValue(value, writer)
     new String(writer.toByteArrayTrimmed, UTF_8)
-  }
-
-  protected def decodeError(msg: String): Nothing =
-    throw new ToonBinaryCodecError(Nil, msg)
-
-  protected def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
-    case e: ToonBinaryCodecError =>
-      e.spans = new ::(span, e.spans)
-      throw e
-    case _ =>
-      throw new ToonBinaryCodecError(new ::(span, Nil), error.getMessage)
   }
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
@@ -421,7 +399,7 @@ object ToonBinaryCodec {
 
     def decodeValue(in: ToonReader, default: Byte): Byte = {
       in.skipBlankLines()
-      in.readInt().toByte
+      in.readByte()
     }
 
     def encodeValue(x: Byte, out: ToonWriter): Unit = out.writeInt(x.toInt)
@@ -436,7 +414,7 @@ object ToonBinaryCodec {
 
     def decodeValue(in: ToonReader, default: Short): Short = {
       in.skipBlankLines()
-      in.readInt().toShort
+      in.readShort()
     }
 
     def encodeValue(x: Short, out: ToonWriter): Unit = out.writeInt(x.toInt)
@@ -742,7 +720,11 @@ object ToonBinaryCodec {
       catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid year-month: $s") }
     }
 
-    def encodeValue(x: java.time.YearMonth, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.YearMonth, out: ToonWriter): Unit = out.writeString {
+      var s = x.toString
+      if (x.getYear >= 10000) s = "+" + s
+      s
+    }
   }
 
   val zoneIdCodec: ToonBinaryCodec[ZoneId] = new ToonBinaryCodec[java.time.ZoneId]() {
@@ -902,8 +884,8 @@ object ToonBinaryCodec {
     }
 
     private def decodeInlinePrimitives(
-      values: Array[String],
       in: ToonReader,
+      values: Array[String],
       builder: VectorBuilder[DynamicValue]
     ): Unit = {
       var i = 0
@@ -1002,26 +984,21 @@ object ToonBinaryCodec {
       }
       val fieldsWithQuoteInfo = builder.result()
       in.expandPaths match {
-        case PathExpansion.Safe => expandAndMergeFieldsWithQuoteInfo(fieldsWithQuoteInfo, in)
+        case PathExpansion.Safe => expandAndMergeFieldsWithQuoteInfo(in, fieldsWithQuoteInfo)
         case PathExpansion.Off  =>
           val record = DynamicValue.Record(fieldsWithQuoteInfo.map { case ((k, _), v) => (k, v) })
           maybeExtractVariant(record, in)
       }
     }
 
-    private def expandAndMergeFieldsWithQuoteInfo(
-      fields: Vector[((String, Boolean), DynamicValue)],
-      in: ToonReader
-    ): DynamicValue = {
+    private def expandAndMergeFieldsWithQuoteInfo(in: ToonReader, fields: Vector[((String, Boolean), DynamicValue)]) = {
       val keyMap = scala.collection.mutable.LinkedHashMap.empty[String, DynamicValue]
-
       fields.foreach { case ((key, wasQuoted), value) =>
         val (expandedKey, expandedValue) =
           if (wasQuoted) (key, value) // Quoted keys are preserved as literals
           else expandDottedKey(key, value)
-        mergeIntoMap(keyMap, expandedKey, expandedValue, in)
+        mergeIntoMap(in, keyMap, expandedKey, expandedValue)
       }
-
       val result = new VectorBuilder[(String, DynamicValue)]
       keyMap.foreach { case (k, v) => result += ((k, v)) }
       maybeExtractVariant(DynamicValue.Record(result.result()), in)
@@ -1045,25 +1022,22 @@ object ToonBinaryCodec {
       }
 
     private def expandDottedKey(key: String, value: DynamicValue): (String, DynamicValue) =
-      if (!key.contains('.')) {
-        (key, value)
-      } else {
+      if (!key.contains('.')) (key, value)
+      else {
         val segments = key.split('.').toList
         if (segments.forall(ToonWriter.isIdentifierSegment)) {
           val nested = segments.tail.foldRight(value) { (segment, acc) =>
             DynamicValue.Record(Vector((segment, acc)))
           }
           (segments.head, nested)
-        } else {
-          (key, value)
-        }
+        } else (key, value)
       }
 
     private def mergeIntoMap(
+      in: ToonReader,
       map: scala.collection.mutable.LinkedHashMap[String, DynamicValue],
       key: String,
-      value: DynamicValue,
-      in: ToonReader
+      value: DynamicValue
     ): Unit =
       map.get(key) match {
         case None           => map.put(key, value)
@@ -1090,7 +1064,7 @@ object ToonBinaryCodec {
     ): DynamicValue.Record = {
       val mergedMap = scala.collection.mutable.LinkedHashMap.empty[String, DynamicValue]
       existing.fields.foreach { case (k, v) => mergedMap.put(k, v) }
-      incoming.fields.foreach { case (k, v) => mergeIntoMap(mergedMap, k, v, in) }
+      incoming.fields.foreach { case (k, v) => mergeIntoMap(in, mergedMap, k, v) }
       val result = new VectorBuilder[(String, DynamicValue)]
       mergedMap.foreach { case (k, v) => result += ((k, v)) }
       DynamicValue.Record(result.result())
@@ -1133,7 +1107,7 @@ object ToonBinaryCodec {
         in.skipBlankLinesInArray(true)
         decodeTabularRows(in, fields, length, startDepth, builder)
       } else if (inlineContent.nonEmpty) {
-        decodeInlinePrimitives(splitInlineValues(inlineContent, delim), in, builder)
+        decodeInlinePrimitives(in, splitInlineValues(inlineContent, delim), builder)
       } else {
         in.skipBlankLinesInArray(true)
         decodeListItems(in, length, startDepth, builder)
@@ -1187,7 +1161,7 @@ object ToonBinaryCodec {
         if (remaining.nonEmpty) {
           val values = splitInlineValues(remaining, delim)
           in.advanceLine()
-          decodeInlinePrimitives(values, in, builder)
+          decodeInlinePrimitives(in, values, builder)
         } else {
           in.advanceLine()
           in.skipBlankLinesInArray(true)
@@ -1676,9 +1650,9 @@ object ToonBinaryCodec {
           case v: PrimitiveValue.String     => out.writeString(v.value)
           case v: PrimitiveValue.BigInt     => out.writeBigInt(v.value)
           case v: PrimitiveValue.BigDecimal => out.writeBigDecimal(v.value)
-          case _                            => throw new ToonBinaryCodecError(Nil, "encoding as TOON key is not supported for this type")
+          case _                            => out.encodeError("encoding as TOON key is not supported for this type")
         }
-      case _ => throw new ToonBinaryCodecError(Nil, "encoding as TOON key is not supported")
+      case _ => out.encodeError("encoding as TOON key is not supported")
     }
   }
 }

@@ -11,7 +11,7 @@ import java.util.UUID
 import java.util.Currency
 import scala.collection.immutable.ArraySeq
 
-object AvroFormatSpec extends ZIOSpecDefault {
+object AvroFormatSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("AvroFormatSpec")(
     suite("primitives")(
       test("Unit") {

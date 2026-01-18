@@ -13,14 +13,15 @@ import java.time._
 import java.util.{Currency, UUID}
 import scala.collection.immutable.ArraySeq
 
-object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
+object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverSpec")(
     suite("primitives")(
       test("Unit") {
-        roundTrip((), "null") &&
+        roundTrip((), "{}") &&
         decodeError[Unit]("", "unexpected end of input at: .") &&
-        decodeError[Unit]("null ,", "expected end of input at: .") &&
-        decodeError[Unit]("true", "expected null at: .")
+        decodeError[Unit]("{} ,", "expected end of input at: .") &&
+        decodeError[Unit]("null", "expected an empty JSON object at: .") &&
+        decodeError[Unit]("""{"extra":null}""", "expected an empty JSON object at: .")
       },
       test("Boolean") {
         decode(" true", true) &&
@@ -37,9 +38,11 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(10: Byte, "10") &&
         roundTrip(Byte.MinValue, "-128") &&
         roundTrip(Byte.MaxValue, "127") &&
+        decode("-0", 0: Byte) &&
         decodeError[Byte]("-129", "value is too large for byte at: .") &&
         decodeError[Byte]("128", "value is too large for byte at: .") &&
         decodeError[Byte]("01", "illegal number with leading zero at: .") &&
+        decodeError[Byte]("-01", "illegal number with leading zero at: .") &&
         decodeError[Byte]("1.0", "illegal number at: .") &&
         decodeError[Byte]("1e1", "illegal number at: .") &&
         decodeError[Byte]("1E1", "illegal number at: .") &&
@@ -55,9 +58,11 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(1000: Short, "1000") &&
         roundTrip(Short.MinValue, "-32768") &&
         roundTrip(Short.MaxValue, "32767") &&
+        decode("-0", 0: Short) &&
         decodeError[Short]("-32769", "value is too large for short at: .") &&
         decodeError[Short]("32768", "value is too large for short at: .") &&
         decodeError[Short]("01", "illegal number with leading zero at: .") &&
+        decodeError[Short]("-01", "illegal number with leading zero at: .") &&
         decodeError[Short]("1.0", "illegal number at: .") &&
         decodeError[Short]("1e1", "illegal number at: .") &&
         decodeError[Short]("1E1", "illegal number at: .") &&
@@ -69,9 +74,11 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         check(Gen.int)(x => roundTrip(x, x.toString)) &&
         roundTrip(Int.MinValue, "-2147483648") &&
         roundTrip(Int.MaxValue, "2147483647") &&
+        decode("-0", 0) &&
         decodeError[Int]("-2147483649", "value is too large for int at: .") &&
         decodeError[Int]("2147483648", "value is too large for int at: .") &&
         decodeError[Int]("01", "illegal number with leading zero at: .") &&
+        decodeError[Int]("-01", "illegal number with leading zero at: .") &&
         decodeError[Int]("1.0", "illegal number at: .") &&
         decodeError[Int]("1E1", "illegal number at: .") &&
         decodeError[Int]("1e1", "illegal number at: .") &&
@@ -83,10 +90,12 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         check(Gen.long)(x => roundTrip(x, x.toString)) &&
         roundTrip(Long.MinValue, "-9223372036854775808") &&
         roundTrip(Long.MaxValue, "9223372036854775807") &&
+        decode("-0", 0L) &&
         decodeError[Long]("-92233720368547758091234567", "value is too large for long at: .") &&
         decodeError[Long]("-9223372036854775809", "value is too large for long at: .") &&
         decodeError[Long]("9223372036854775808", "value is too large for long at: .") &&
         decodeError[Long]("01", "illegal number with leading zero at: .") &&
+        decodeError[Long]("-01", "illegal number with leading zero at: .") &&
         decodeError[Long]("1.0", "illegal number at: .") &&
         decodeError[Long]("1e1", "illegal number at: .") &&
         decodeError[Long]("1E1", "illegal number at: .") &&
@@ -148,6 +157,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError[Float]("1. ", "illegal number at: .") &&
         decodeError[Float]("1e+e", "illegal number at: .") &&
         decodeError[Float]("01", "illegal number with leading zero at: .") &&
+        decodeError[Float]("-01", "illegal number with leading zero at: .") &&
         decodeError[Float]("", "unexpected end of input at: .") &&
         decodeError[Float]("1,", "expected end of input at: .")
       },
@@ -209,6 +219,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError[Double]("1. ", "illegal number at: .") &&
         decodeError[Double]("1e+e", "illegal number at: .") &&
         decodeError[Double]("01", "illegal number with leading zero at: .") &&
+        decodeError[Double]("-01", "illegal number with leading zero at: .") &&
         decodeError[Double]("", "unexpected end of input at: .") &&
         decodeError[Double]("1,", "expected end of input at: .")
       },
@@ -402,6 +413,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(BigInt("-" + "9" * 3), "-" + "9" * 3) &&
         roundTrip(BigInt("9" * 30), "9" * 30) &&
         roundTrip(BigInt("9" * 300), "9" * 300) &&
+        decode("-0", BigInt(0)) &&
         encode(BigInt("9" * 1000), "9" * 1000) &&
         decodeError[BigInt]("", "unexpected end of input at: .") &&
         decodeError[BigInt]("01", "illegal number with leading zero at: .") &&
@@ -418,8 +430,9 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(BigDecimal("126.09999999999999001"), "126.09999999999999001") &&
         roundTrip(BigDecimal("0.0287500000000000000000"), "0.0287500000000000000000") &&
         roundTrip(BigDecimal("-1." + "1" * 3 + "E+1234"), "-1." + "1" * 3 + "E+1234") &&
-        encode(BigDecimal("1." + "1" * 30 + "E+123456789"), "1." + "1" * 30 + "E+123456789") &&
+        decode("-0.0", BigDecimal("0.0")) &&
         decode("1." + "1" * 300 + "E+1234", BigDecimal("1.111111111111111111111111111111111E+1234")) &&
+        encode(BigDecimal("1." + "1" * 30 + "E+123456789"), "1." + "1" * 30 + "E+123456789") &&
         encode(BigDecimal("1." + "1" * 1000 + "E+1234"), "1." + "1" * 1000 + "E+1234") &&
         decodeError[BigDecimal]("", "unexpected end of input at: .") &&
         decodeError[BigDecimal]("1,", "expected end of input at: .") &&
@@ -1452,15 +1465,15 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
         roundTrip[TupleTest](
           ((), true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
-          """[null,true,1,2,3,4,5.0,6.0,"7","VVV"]"""
+          """[{},true,1,2,3,4,5.0,6.0,"7","VVV"]"""
         ) &&
         decodeError[TupleTest]("""""", "unexpected end of input at: .") &&
-        decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0,"7","VVV"],""", "expected end of input at: .") &&
-        decodeError[TupleTest]("""{null,true,1,2,3,4,5.0,6.0,"7","VVV"}""", "expected '[' at: .") &&
-        decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0,"7","VVV"}""", "expected ']' at: .") &&
-        decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0,7,"VVV"}""", "expected '\"' at: ._9") &&
-        decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0]""", "expected ',' at: .") &&
-        decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0,"7"]""", "expected ',' at: .")
+        decodeError[TupleTest]("""[{},true,1,2,3,4,5.0,6.0,"7","VVV"],""", "expected end of input at: .") &&
+        decodeError[TupleTest]("""{{},true,1,2,3,4,5.0,6.0,"7","VVV"}""", "expected '[' at: .") &&
+        decodeError[TupleTest]("""[{},true,1,2,3,4,5.0,6.0,"7","VVV"}""", "expected ']' at: .") &&
+        decodeError[TupleTest]("""[{},true,1,2,3,4,5.0,6.0,7,"VVV"}""", "expected '\"' at: ._9") &&
+        decodeError[TupleTest]("""[{},true,1,2,3,4,5.0,6.0]""", "expected ',' at: .") &&
+        decodeError[TupleTest]("""[{},true,1,2,3,4,5.0,6.0,"7"]""", "expected ',' at: .")
       },
       test("nested record") {
         roundTrip(
@@ -1501,28 +1514,19 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         )
       },
       test("record with unit and optional fields") {
-        roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""") &&
-        roundTrip(Record4((), None), """{"hіdden":null}""") &&
-        roundTrip(
-          Record4((), Some("VVV")),
-          """{
-            |  "hіdden": null,
-            |  "optKеy": "VVV"
-            |}""".stripMargin,
-          readerConfig = ReaderConfig,
-          writerConfig = WriterConfig.withIndentionStep(2)
-        )
+        roundTrip(Record4((), Some("VVV")), """{"hіdden":{},"optKеy":"VVV"}""") &&
+        roundTrip(Record4((), None), """{"hіdden":{}}""")
       },
       test("record with custom codec that enforces encoding of fields with empty option values") {
         val codec = Schema[Record4].derive(JsonBinaryCodecDeriver.withTransientNone(false))
-        roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""", codec) &&
-        roundTrip(Record4((), None), """{"hіdden":null,"optKеy":null}""", codec)
+        roundTrip(Record4((), Some("VVV")), """{"hіdden":{},"optKеy":"VVV"}""", codec) &&
+        roundTrip(Record4((), None), """{"hіdden":{},"optKеy":null}""", codec)
       },
       test("record with custom codec that require decoding of fields with empty option values") {
         val codec = Schema[Record4].derive(JsonBinaryCodecDeriver.withRequireOptionFields(true))
-        roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""", codec) &&
-        roundTrip(Record4((), None), """{"hіdden":null,"optKеy":null}""", codec) &&
-        decodeError("""{"hіdden":null}""", "missing required field \"optKеy\" at: .", codec)
+        roundTrip(Record4((), Some("VVV")), """{"hіdden":{},"optKеy":"VVV"}""", codec) &&
+        roundTrip(Record4((), None), """{"hіdden":{},"optKеy":null}""", codec) &&
+        decodeError("""{"hіdden":{}}""", "missing required field \"optKеy\" at: .", codec)
       },
       test("record with custom codecs of different field mapping") {
         roundTrip(
@@ -1854,7 +1858,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derive
         roundTrip(
           ((), true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
-          """[null,"true","1","2","3","4","5.0","6.0",55,"VVV"]""",
+          """[{},"true","1","2","3","4","5.0","6.0",55,"VVV"]""",
           codec
         )
       },
@@ -1931,8 +1935,8 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             }
           )
           .derive
-        roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""", codec) &&
-        roundTrip(Record4((), None), """{"hіdden":null}""", codec)
+        roundTrip(Record4((), Some("VVV")), """{"hіdden":{},"optKеy":"VVV"}""", codec) &&
+        roundTrip(Record4((), None), """{"hіdden":{}}""", codec)
       },
       test("record with a custom codec for nested record injected by optic") {
         val codec1 =
@@ -2089,7 +2093,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decode("""null""", List.empty[Int]) &&
         roundTrip(List.empty[Int], """[]""") &&
         roundTrip(Array[Unit](), """[]""") &&
-        roundTrip(Array[Unit]((), (), ()), """[null,null,null]""") &&
+        roundTrip(Array[Unit]((), (), ()), """[{},{},{}]""") &&
         roundTrip(Array[Boolean](), """[]""") &&
         roundTrip(Array[Boolean](true, false, true), """[true,false,true]""") &&
         decodeError[Array[Boolean]]("1", "expected '[' or null at: .") &&
@@ -2510,6 +2514,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError[Map[Month, Long]]("""{"Jun":1}""", "illegal month value at: .at(0)") &&
         decodeError[Map[Currency, Long]]("""{"JJJ":1}""", "illegal currency value at: .at(0)") &&
         decodeError[Map[Int, Long]]("", "unexpected end of input at: .") &&
+        decodeError[Map[Int, Long]]("true", "expected '{' or null at: .") &&
         decodeError[Map[Int, Long]]("""{"1"""", "unexpected end of input at: .at(0)") &&
         decodeError[Map[Int, Long]]("""{"1":""", "unexpected end of input at: .atKey(<key>)") &&
         decodeError[Map[Int, Long]]("""{"1":2]""", "expected '}' or ',' at: .") &&

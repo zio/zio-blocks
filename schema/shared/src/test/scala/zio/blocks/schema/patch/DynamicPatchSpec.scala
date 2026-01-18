@@ -4,7 +4,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
 
-object DynamicPatchSpec extends ZIOSpecDefault {
+object DynamicPatchSpec extends SchemaBaseSpec {
 
   // Helper to create primitive DynamicValues
   def intVal(n: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(n))

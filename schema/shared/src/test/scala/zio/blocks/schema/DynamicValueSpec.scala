@@ -4,7 +4,7 @@ import zio.test._
 import DynamicValueGen._
 import zio.test.Assertion.{equalTo, not}
 
-object DynamicValueSpec extends ZIOSpecDefault {
+object DynamicValueSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("DynamicValueSpec")(
     suite("DynamicValue equals and hashCode properties with Generators")(
       test("symmetry") {

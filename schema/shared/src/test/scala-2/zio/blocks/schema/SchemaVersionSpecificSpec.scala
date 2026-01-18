@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.test.Assertion._
 import zio.test._
 
-object SchemaVersionSpecificSpec extends ZIOSpecDefault {
+object SchemaVersionSpecificSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
     test("doesn't generate schema for unsupported classes") {
       typeCheck {

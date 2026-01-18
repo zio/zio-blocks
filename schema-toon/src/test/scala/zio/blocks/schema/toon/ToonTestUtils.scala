@@ -213,7 +213,7 @@ object ToonTestUtils {
   }
 
   def hasError(message: String): Assertion[Throwable] =
-    hasField[Throwable, String]("getMessage", _.getMessage, containsString(message))
+    hasField[Throwable, String]("getMessage", _.getMessage, equalTo(message))
 
   private[this] def readerConfig = ReaderConfig
 

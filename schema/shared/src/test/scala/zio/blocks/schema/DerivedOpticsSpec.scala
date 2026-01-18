@@ -4,7 +4,7 @@ import zio.test._
 import zio.blocks.schema.binding.Binding
 import scala.language.reflectiveCalls
 
-object DerivedOpticsSpec extends ZIOSpecDefault {
+object DerivedOpticsSpec extends SchemaBaseSpec {
   case class Person(name: String, age: Int)
 
   object Person extends DerivedOptics[Person] {

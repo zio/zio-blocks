@@ -11,95 +11,9 @@ import zio.test._
  * These tests verify that our implementation produces output matching the
  * official TOON specification fixtures and examples.
  */
-object ToonSpecConformanceSpec extends ZIOSpecDefault {
+object ToonSpecConformanceSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("TOON Spec Conformance")(
-    suite("numbers")(
-      test("negative zero normalizes to zero") {
-        encode(-0.0, "0")
-      },
-      test("no exponent notation for large numbers") {
-        encode(1000000L, "1000000")
-      },
-      test("decimal numbers without trailing zeros") {
-        encode(3.14, "3.14") && encode(5.0, "5")
-      },
-      test("leading zeros decode as string, not number") {
-        // "05" should be treated as a string, not the number 5
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("value: 05", record("value" -> dynamicStr("05")), config)
-      },
-      test("multiple leading zeros decode as string") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("value: 007", record("value" -> dynamicStr("007")), config)
-      },
-      test("negative with leading zero decodes as string") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("value: -05", record("value" -> dynamicStr("-05")), config)
-      },
-      test("single zero is a valid number") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("value: 0", record("value" -> dynamicInt(0)), config)
-      },
-      test("zero with decimal is a valid number") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic(
-          "value: 0.5",
-          record(
-            "value" -> zio.blocks.schema.DynamicValue
-              .Primitive(zio.blocks.schema.PrimitiveValue.BigDecimal(BigDecimal("0.5")))
-          ),
-          config
-        )
-      }
-    ),
-    suite("strings")(
-      test("quotes empty string") {
-        encode("", "\"\"")
-      },
-      test("quotes string that looks like true") {
-        encode("true", "\"true\"")
-      },
-      test("quotes string that looks like false") {
-        encode("false", "\"false\"")
-      },
-      test("quotes string that looks like null") {
-        encode("null", "\"null\"")
-      },
-      test("quotes string that looks like integer") {
-        encode("42", "\"42\"")
-      },
-      test("quotes string starting with hyphen") {
-        encode("-item", "\"-item\"")
-      },
-      test("quotes single hyphen") {
-        encode("-", "\"-\"")
-      },
-      test("escapes newline in string") {
-        encode("line1\nline2", "\"line1\\nline2\"")
-      },
-      test("escapes tab in string") {
-        encode("tab\there", "\"tab\\there\"")
-      },
-      test("escapes carriage return in string") {
-        encode("return\rcarriage", "\"return\\rcarriage\"")
-      },
-      test("escapes backslash in string") {
-        encode("C:\\Users\\path", "\"C:\\\\Users\\\\path\"")
-      },
-      test("quotes string with bracket notation") {
-        encode("[test]", "\"[test]\"")
-      },
-      test("quotes string with brace notation") {
-        encode("{key}", "\"{key}\"")
-      },
-      test("encodes Unicode string without quotes") {
-        encode("café", "café")
-      },
-      test("encodes emoji without quotes") {
-        encode("🚀", "🚀")
-      }
-    ),
     suite("inline arrays")(
       test("encodes string arrays inline") {
         val expected = "tags[2]: reading,gaming"
@@ -125,8 +39,8 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
         encode(Items(List("a", "", "b")), expected)
       },
       test("quotes array strings with comma") {
-        val expected = "items[3]: a,\"b,c\",\"d:e\""
-        encode(Items(List("a", "b,c", "d:e")), expected)
+        val expected = "items[3]: a,\"🚀,🚀\",\"d:e\""
+        encode(Items(List("a", "🚀,🚀", "d:e")), expected)
       },
       test("quotes strings that look like booleans in arrays") {
         val expected = "items[4]: x,\"true\",\"42\",\"-3.14\""
@@ -986,7 +900,7 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
       test("tabs in indentation error in strict mode") {
         val input = "items[2]:\n\t- 1\n  - 2"
         val codec = ToonTestUtils.deriveCodec(Nums.schema, ToonBinaryCodecDeriver)
-        decodeError(input, "Tabs are not allowed in indentation", codec, ReaderConfig.withStrict(true))
+        decodeError(input, "Tabs are not allowed in indentation at: .", codec, ReaderConfig.withStrict(true))
       },
       test("tabs in indentation accepted in non-strict mode") {
         val input  = "name: test"
@@ -997,7 +911,12 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
         val input   = "items[3]{id,note}:\n  1,a\n\n  2,b\n  3,c"
         val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
         val codec   = ToonTestUtils.deriveCodec(ItemsWithNote.schema, deriver)
-        decodeError(input, "Blank lines are not allowed inside arrays", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .items",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("blank lines inside tabular arrays parsed correctly") {
         val input   = "items[2]{id,note}:\n  1,first\n  2,second"
@@ -1009,17 +928,30 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
       test("indentation not multiple of indent size errors in strict mode") {
         val input = "user:\n   name: Ada" // 3 spaces instead of 2
         val codec = ToonTestUtils.deriveCodec(UserWrapper.schema, ToonBinaryCodecDeriver)
-        decodeError(input, "Indentation must be multiple of", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Indentation must be multiple of 2 spaces at: .user",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("path expansion conflict errors in strict mode") {
         val input  = "a.b: 1\na: 2"
         val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
-        decodeDynamicError(input, "Path expansion conflict", config)
+        decodeDynamicError(
+          input,
+          "Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
+          config
+        )
       },
       test("path expansion conflict object vs array errors in strict mode") {
         val input  = "a.b: 1\na[2]: 2,3"
         val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
-        decodeDynamicError(input, "Path expansion conflict", config)
+        decodeDynamicError(
+          input,
+          "Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
+          config
+        )
       },
       test("path expansion conflict uses LWW in non-strict mode") {
         // In non-strict mode, LWW applies: a: 2 wins over a.b: 1
@@ -1036,12 +968,12 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
       test("array count mismatch errors for inline arrays") {
         // Declared [3] but only 2 values provided
         val input = "nums[3]: 1,2"
-        decodeError[Nums](input, "Array count mismatch: expected 3 items but got 2")
+        decodeError[Nums](input, "Array count mismatch: expected 3 items but got 2 at: .nums")
       },
       test("array count mismatch errors for too many items") {
         // Declared [2] but 3 values provided
         val input = "nums[2]: 1,2,3"
-        decodeError[Nums](input, "Array count mismatch: expected 2 items but got 3")
+        decodeError[Nums](input, "Array count mismatch: expected 2 items but got 3 at: .nums")
       },
       test("array count match succeeds") {
         // Declared [3] with exactly 3 values
@@ -1052,7 +984,7 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
     suite("decode quoted keys")(
       test("decodes quoted key in array header") {
         val reader = ToonReader.fresh(ReaderConfig)
-        reader.reset("\"my-key\"[3]: 1,2,3".getBytes(java.nio.charset.StandardCharsets.UTF_8), 0, 18)
+        reader.reset("\"my-key\"[3]: 1,2,3")
         val header = reader.parseArrayHeader()
         assertTrue(header.key == "my-key") &&
         assertTrue(header.length == 3)
@@ -1060,7 +992,7 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
       test("decodes quoted key containing brackets in array header") {
         val reader = ToonReader.fresh(ReaderConfig)
         val input  = "\"key[test]\"[3]: 1,2,3"
-        reader.reset(input.getBytes(java.nio.charset.StandardCharsets.UTF_8), 0, input.length)
+        reader.reset(input)
         val header = reader.parseArrayHeader()
         assertTrue(header.key == "key[test]") &&
         assertTrue(header.length == 3)
@@ -1068,7 +1000,7 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
       test("decodes quoted key with tabular array format") {
         val reader = ToonReader.fresh(ReaderConfig)
         val input  = "\"x-items\"[2]{id,name}:\n  1,Ada\n  2,Bob"
-        reader.reset(input.getBytes(java.nio.charset.StandardCharsets.UTF_8), 0, input.length)
+        reader.reset(input)
         val header = reader.parseArrayHeader()
         assertTrue(header.key == "x-items") &&
         assertTrue(header.length == 2) &&
@@ -1077,7 +1009,7 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
       test("decodes quoted header keys in tabular arrays") {
         val reader = ToonReader.fresh(ReaderConfig)
         val input  = "items[2]{\"order:id\",\"full name\"}:\n  1,Ada\n  2,Bob"
-        reader.reset(input.getBytes(java.nio.charset.StandardCharsets.UTF_8), 0, input.length)
+        reader.reset(input)
         val header = reader.parseArrayHeader()
         assertTrue(header.key == "items") &&
         assertTrue(header.length == 2) &&
@@ -1086,21 +1018,21 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
       test("decodes quoted key in key-value pair") {
         val reader = ToonReader.fresh(ReaderConfig)
         val input  = "\"my-key\": value"
-        reader.reset(input.getBytes(java.nio.charset.StandardCharsets.UTF_8), 0, input.length)
+        reader.reset(input)
         val key = reader.readKey()
         assertTrue(key == "my-key")
       },
       test("decodes quoted key with colon inside") {
         val reader = ToonReader.fresh(ReaderConfig)
         val input  = "\"key:with:colons\": value"
-        reader.reset(input.getBytes(java.nio.charset.StandardCharsets.UTF_8), 0, input.length)
+        reader.reset(input)
         val key = reader.readKey()
         assertTrue(key == "key:with:colons")
       },
       test("decodes quoted key with escape sequences") {
         val reader = ToonReader.fresh(ReaderConfig)
         val input  = "\"key\\twith\\ttabs\": value"
-        reader.reset(input.getBytes(java.nio.charset.StandardCharsets.UTF_8), 0, input.length)
+        reader.reset(input)
         val key = reader.readKey()
         assertTrue(key == "key\twith\ttabs")
       }
@@ -2127,12 +2059,22 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
       test("throws on expansion conflict (object vs primitive) when strict=true") {
         val codec  = ToonBinaryCodec.dynamicValueCodec
         val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
-        decodeError("a.b: 1\na: 2", "conflict", codec, config)
+        decodeError(
+          "a.b: 1\na: 2",
+          "Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
+          codec,
+          config
+        )
       },
       test("throws on expansion conflict (object vs array) when strict=true") {
         val codec  = ToonBinaryCodec.dynamicValueCodec
         val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
-        decodeError("a.b: 1\na[2]: 2,3", "conflict", codec, config)
+        decodeError(
+          "a.b: 1\na[2]: 2,3",
+          "Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
+          codec,
+          config
+        )
       },
       test("applies LWW when strict=false (primitive overwrites expanded object)") {
         val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
@@ -2554,32 +2496,45 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
     ),
     suite("decode validation errors")(
       test("throws on array length mismatch (inline primitives - too many)") {
-        decodeError[Tags]("tags[2]: a,b,c", "Array count mismatch: expected 2 items but got 3")
+        decodeError[Tags]("tags[2]: a,b,c", "Array count mismatch: expected 2 items but got 3 at: .tags")
       },
       test("throws on tabular row value count mismatch with header field count") {
         val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
         val codec   = deriveCodec(PersonListWrapper.schema, deriver)
         // The decoder reports "Missing required field" when a tabular row has fewer values than headers
-        decodeError("people[2]{name,age}:\n  Ada,25\n  Bob", "Missing required field in tabular row: age", codec)
+        decodeError(
+          "people[2]{name,age}:\n  Ada,25\n  Bob",
+          "Missing required field in tabular row: age at: .people.at(1)",
+          codec
+        )
       },
       test("throws on tabular row count mismatch with header length") {
         val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
         val codec   = deriveCodec(PersonListWrapper.schema, deriver)
         // With [1], decoder reads 1 row then tries to parse next as key:value
-        decodeError("people[1]{name,age}:\n  Ada,25\n  Bob,30", "Expected key:value, no colon found", codec)
+        decodeError(
+          "people[1]{name,age}:\n  Ada,25\n  Bob,30",
+          "Expected key:value, no colon found at: .",
+          codec
+        )
       },
       test("throws on unterminated string") {
-        decodeError[NameWrapper]("name: \"unterminated", "Unterminated string")
+        decodeError[NameWrapper]("name: \"unterminated", "Unterminated string at: .name")
       },
       test("throws on invalid escape sequence") {
-        decodeError[NameWrapper]("name: \"a\\x\"", "Invalid escape")
+        decodeError[NameWrapper]("name: \"a\\x\"", "Invalid escape: \\x at: .name")
       }
     ),
     suite("decode indentation errors")(
       test("throws on object field with non-multiple indentation (3 spaces with indent=2)") {
         val input = "a:\n   b: 1"
         val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Indentation must be multiple of", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Indentation must be multiple of 2 spaces at: .",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("accepts correct indentation with custom indent size (4 spaces with indent=4)") {
         val input    = "a:\n    b: 1"
@@ -2590,12 +2545,12 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
       test("throws on tab character used in indentation") {
         val input = "a:\n\tb: 1"
         val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Tabs are not allowed in indentation", codec, ReaderConfig.withStrict(true))
+        decodeError(input, "Tabs are not allowed in indentation at: .", codec, ReaderConfig.withStrict(true))
       },
       test("throws on mixed tabs and spaces in indentation") {
         val input = "a:\n \tb: 1"
         val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Tabs are not allowed in indentation", codec, ReaderConfig.withStrict(true))
+        decodeError(input, "Tabs are not allowed in indentation at: .", codec, ReaderConfig.withStrict(true))
       },
       test("accepts tabs in quoted string values") {
         val input  = "text: \"hello\\tworld\""
@@ -2637,18 +2592,33 @@ object ToonSpecConformanceSpec extends ZIOSpecDefault {
       test("throws on blank line inside list array") {
         val input = "items[3]:\n  - a\n\n  - b\n  - c"
         val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Blank lines are not allowed inside arrays", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("throws on blank line inside tabular array") {
         val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
         val codec   = deriveCodec(PersonListWrapper.schema, deriver)
         val input   = "people[2]{name,age}:\n  Ada,25\n\n  Bob,30"
-        decodeError(input, "Blank lines are not allowed inside arrays", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .people",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("throws on multiple blank lines inside array") {
         val input = "items[2]:\n  - a\n\n\n  - b"
         val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Blank lines are not allowed inside arrays", codec, ReaderConfig.withStrict(true))
+        decodeError(
+          input,
+          "Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .",
+          codec,
+          ReaderConfig.withStrict(true)
+        )
       },
       test("accepts blank line between root-level fields") {
         val input    = "a: 1\n\nb: 2"

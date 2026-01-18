@@ -1,5 +1,6 @@
 package zio.blocks.schema.toon
 
+import zio.blocks.schema.DynamicOptic
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.annotation.switch
@@ -26,7 +27,7 @@ final class ToonReader private[toon] (
   private[toon] var discriminatorField: Option[String]
 ) {
 
-  private[this] var lines: Array[String]       = _
+  private[this] var lines: Array[String]       = null
   private[this] var lineIndex: Int             = 0
   private[this] var currentLine: String        = ""
   private[this] var currentDepth: Int          = 0
@@ -81,8 +82,9 @@ final class ToonReader private[toon] (
     lines = null
   }
 
-  def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = {
-    val content = new String(bytes, offset, length, UTF_8)
+  def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = reset(new String(bytes, offset, length, UTF_8))
+
+  def reset(content: String): Unit = {
     lines = content.split("\n", -1)
     lineIndex = 0
     inlineContext = false
@@ -202,6 +204,18 @@ final class ToonReader private[toon] (
     else decodeError(s"Expected boolean, got: $value")
   }
 
+  def readByte(): Byte = {
+    val value = readPrimitiveToken()
+    try value.toByte
+    catch { case _: NumberFormatException => decodeError(s"Expected byte, got: $value") }
+  }
+
+  def readShort(): Short = {
+    val value = readPrimitiveToken()
+    try value.toShort
+    catch { case _: NumberFormatException => decodeError(s"Expected short, got: $value") }
+  }
+
   def readInt(): Int = {
     val value = readPrimitiveToken()
     try value.toInt
@@ -217,17 +231,19 @@ final class ToonReader private[toon] (
   def readFloat(): Float = {
     val value = readPrimitiveToken()
     if (value == "null") Float.NaN
-    else
+    else {
       try value.toFloat
       catch { case _: NumberFormatException => decodeError(s"Expected float, got: $value") }
+    }
   }
 
   def readDouble(): Double = {
     val value = readPrimitiveToken()
     if (value == "null") Double.NaN
-    else
+    else {
       try value.toDouble
       catch { case _: NumberFormatException => decodeError(s"Expected double, got: $value") }
+    }
   }
 
   def readBigDecimal(): BigDecimal = {
@@ -334,8 +350,15 @@ final class ToonReader private[toon] (
     else if (looksLikeNumber(token)) parseNumber(token)
     else token
 
-  def decodeError(msg: String): Nothing =
-    throw new ToonBinaryCodecError(Nil, s"Line ${lineIndex + 1}: $msg")
+  def decodeError(msg: String): Nothing = throw new ToonBinaryCodecError(Nil, msg)
+
+  def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
+    case e: ToonBinaryCodecError =>
+      e.spans = new ::(span, e.spans)
+      throw e
+    case _ =>
+      throw new ToonBinaryCodecError(new ::(span, Nil), error.getMessage)
+  }
 
   private def readPrimitiveToken(): String = {
     skipWhitespace()

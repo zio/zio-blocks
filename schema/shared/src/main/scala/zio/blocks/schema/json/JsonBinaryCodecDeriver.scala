@@ -1472,7 +1472,7 @@ class JsonBinaryCodecDeriver private[json] (
               }
             } else {
               in.rollbackToken()
-              in.readNullOrTokenError(default, '[')
+              in.readNullOrTokenError(default, '{')
             }
 
           def encodeValue(x: Map[Key, Value], out: JsonWriter): Unit = {

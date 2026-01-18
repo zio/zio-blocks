@@ -4,7 +4,7 @@ import zio.ZIO
 import zio.test.Assertion._
 import zio.test._
 
-object LazySpec extends ZIOSpecDefault {
+object LazySpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("LazySpec")(
     test("equals") {
       assert(Lazy(42))(equalTo(Lazy(42))) &&

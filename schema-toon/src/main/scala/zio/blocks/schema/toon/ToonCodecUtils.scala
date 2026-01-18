@@ -4,7 +4,7 @@ private[toon] object ToonCodecUtils {
 
   def createReaderForValue(value: String): ToonReader = {
     val reader = ToonReader(ReaderConfig.withDelimiter(Delimiter.None))
-    reader.reset(value.getBytes(java.nio.charset.StandardCharsets.UTF_8), 0, value.length)
+    reader.reset(value)
     reader
   }
 
