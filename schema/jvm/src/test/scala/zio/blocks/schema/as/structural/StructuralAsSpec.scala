@@ -160,6 +160,72 @@ object StructuralAsSpec extends ZIOSpecDefault {
         val as       = As.derived[Multi, { def s: String; def i: Int; def l: Long; def b: Boolean }]
         val original = Multi("x", 1, 2L, true)
         assert(as.into(original).flatMap(as.from))(isRight(equalTo(original)))
+      },
+      test("3-level nested structural type round-trip") {
+        case class Level3(value: Int)
+        case class Level2(name: String, level3: Level3)
+        case class Level1(id: Long, level2: Level2)
+
+        type Struct = {
+          def id: Long
+          def level2: {
+            def name: String
+            def level3: { def value: Int }
+          }
+        }
+
+        val as       = As.derived[Level1, Struct]
+        val original = Level1(1L, Level2("test", Level3(42)))
+
+        // Level1 → Struct → Level1
+        val level1RoundTrip = as.into(original).flatMap(as.from)
+
+        // Struct → Level1 → Struct
+        val struct              = as.into(original).toOption.get
+        val structuralRoundTrip = as.from(struct).flatMap(as.into)
+
+        assert(level1RoundTrip)(isRight(equalTo(original))) &&
+        assert(structuralRoundTrip.map(s => (s.id, s.level2.name, s.level2.level3.value)))(
+          isRight(equalTo((struct.id, struct.level2.name, struct.level2.level3.value)))
+        )
+      },
+      test("4-level nested structural type round-trip") {
+        case class Level4(code: String)
+        case class Level3(value: Int, level4: Level4)
+        case class Level2(name: String, level3: Level3)
+        case class Level1(id: Long, level2: Level2)
+
+        type Struct = {
+          def id: Long
+          def level2: {
+            def name: String
+            def level3: {
+              def value: Int
+              def level4: { def code: String }
+            }
+          }
+        }
+
+        val as       = As.derived[Level1, Struct]
+        val original = Level1(1L, Level2("test", Level3(42, Level4("ABC"))))
+
+        // Level1 → Struct → Level1
+        val level1RoundTrip = as.into(original).flatMap(as.from)
+
+        // Struct → Level1 → Struct
+        val struct              = as.into(original).toOption.get
+        val structuralRoundTrip = as.from(struct).flatMap(as.into)
+
+        assert(level1RoundTrip)(isRight(equalTo(original))) &&
+        assert(
+          structuralRoundTrip.map(s => (s.id, s.level2.name, s.level2.level3.value, s.level2.level3.level4.code))
+        )(
+          isRight(
+            equalTo(
+              (struct.id, struct.level2.name, struct.level2.level3.value, struct.level2.level3.level4.code)
+            )
+          )
+        )
       }
     )
   )
