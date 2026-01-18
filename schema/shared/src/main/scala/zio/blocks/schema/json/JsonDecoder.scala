@@ -48,4 +48,46 @@ object JsonDecoder {
         case other     => decoder.decode(other).map(Some(_))
       }
     }
+
+  implicit def listDecoder[A](implicit decoder: JsonDecoder[A]): JsonDecoder[List[A]] =
+    new JsonDecoder[List[A]] {
+      def decode(json: Json): Either[JsonDecoderError, List[A]] = json match {
+        case Json.Array(elements) =>
+          elements.foldLeft[Either[JsonDecoderError, List[A]]](Right(Nil)) { (acc, elem) =>
+            for {
+              list <- acc
+              item <- decoder.decode(elem)
+            } yield list :+ item
+          }
+        case _ => Left(JsonDecoderError(s"Expected array, got $json"))
+      }
+    }
+
+  implicit def vectorDecoder[A](implicit decoder: JsonDecoder[A]): JsonDecoder[Vector[A]] =
+    new JsonDecoder[Vector[A]] {
+      def decode(json: Json): Either[JsonDecoderError, Vector[A]] = json match {
+        case Json.Array(elements) =>
+          elements.foldLeft[Either[JsonDecoderError, Vector[A]](Right(Vector.empty)) { (acc, elem) =>
+            for {
+              vector <- acc
+              item <- decoder.decode(elem)
+            } yield vector :+ item
+          }
+        case _ => Left(JsonDecoderError(s"Expected array, got $json"))
+      }
+    }
+
+  implicit def mapDecoder[A](implicit decoder: JsonDecoder[A]): JsonDecoder[Map[String, A]] =
+    new JsonDecoder[Map[String, A]] {
+      def decode(json: Json): Either[JsonDecoderError, Map[String, A]] = json match {
+        case Json.Object(fields) =>
+          fields.foldLeft[Either[JsonDecoderError, Map[String, A]](Right(Map.empty)) { (acc, field) =>
+            for {
+              map <- acc
+              value <- decoder.decode(field._2)
+            } yield map + (field._1 -> value)
+          }
+        case _ => Left(JsonDecoderError(s"Expected object, got $json"))
+      }
+    }
 }
