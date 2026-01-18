@@ -66,4 +66,58 @@ private[chunk] trait ChunkPlatformSpecific {
     private val CharClass       = classOf[Char]
     private val CharClassBox    = classOf[java.lang.Character]
   }
+
+  private[chunk] def findFirst(array: Array[Byte], offset: Int, length: Int, target: Byte): Int =
+    SIMDUtils.findFirstSIMD(array, offset, length, target)
+
+  private[chunk] def findFirstNot(array: Array[Byte], offset: Int, length: Int, target: Byte): Int =
+    SIMDUtils.findFirstNotSIMD(array, offset, length, target)
+
+  private[chunk] def matchAny(array: Array[Byte], offset: Int, length: Int, candidates: Array[Byte]): Boolean =
+    SIMDUtils.matchAnySIMD(array, offset, length, candidates)
+
+  private[chunk] def byteChecksum(array: Array[Byte], offset: Int, length: Int): Long =
+    SIMDUtils.checksumSIMD(array, offset, length)
+
+  private[chunk] def bitwiseAnd(
+    left: Array[Byte],
+    leftOffset: Int,
+    right: Array[Byte],
+    rightOffset: Int,
+    target: Array[Byte],
+    targetOffset: Int,
+    bytes: Int
+  ): Unit =
+    SIMDUtils.andSIMD(left, leftOffset, right, rightOffset, target, targetOffset, bytes)
+
+  private[chunk] def bitwiseOr(
+    left: Array[Byte],
+    leftOffset: Int,
+    right: Array[Byte],
+    rightOffset: Int,
+    target: Array[Byte],
+    targetOffset: Int,
+    bytes: Int
+  ): Unit =
+    SIMDUtils.orSIMD(left, leftOffset, right, rightOffset, target, targetOffset, bytes)
+
+  private[chunk] def bitwiseXor(
+    left: Array[Byte],
+    leftOffset: Int,
+    right: Array[Byte],
+    rightOffset: Int,
+    target: Array[Byte],
+    targetOffset: Int,
+    bytes: Int
+  ): Unit =
+    SIMDUtils.xorSIMD(left, leftOffset, right, rightOffset, target, targetOffset, bytes)
+
+  private[chunk] def bitwiseNot(
+    data: Array[Byte],
+    dataOffset: Int,
+    target: Array[Byte],
+    targetOffset: Int,
+    bytes: Int
+  ): Unit =
+    SIMDUtils.notSIMD(data, dataOffset, target, targetOffset, bytes)
 }

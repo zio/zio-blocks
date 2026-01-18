@@ -143,7 +143,18 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.chunk"))
   .enablePlugins(BuildInfoPlugin)
-  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jvmSettings(
+    mimaSettings(failOnProblem = false),
+    javacOptions ++= Seq(
+      "--add-modules", "jdk.incubator.vector",
+      "--add-exports", "java.base/jdk.internal.vm.vector=ALL-UNNAMED"
+    ),
+    javaOptions ++= Seq(
+      "--add-modules", "jdk.incubator.vector",
+      "--add-exports", "java.base/jdk.internal.vm.vector=ALL-UNNAMED"
+    ),
+    Test / fork := true
+  )
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
   .settings(
@@ -264,6 +275,15 @@ lazy val benchmarks = project
       "dev.zio"                               %% "zio-test"              % "2.1.24",
       "dev.zio"                               %% "zio-test-sbt"          % "2.1.24" % Test
     ),
+    javacOptions ++= Seq(
+      "--add-modules", "jdk.incubator.vector",
+      "--add-exports", "java.base/jdk.internal.vm.vector=ALL-UNNAMED"
+    ),
+    javaOptions ++= Seq(
+      "--add-modules", "jdk.incubator.vector",
+      "--add-exports", "java.base/jdk.internal.vm.vector=ALL-UNNAMED"
+    ),
+    fork := true,
     assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
       case x if x.endsWith("module-info.class") => MergeStrategy.discard
