@@ -420,6 +420,36 @@ private object IntoVersionSpecificImpl {
       }
     }
 
+    // === Derivation: Newtype Conversion (primitive -> newtype) ===
+    
+    def deriveNewtypeConversion(): c.Expr[Into[A, B]] = {
+      // Delegate to convertToNewtypeEither for the actual conversion
+      c.Expr[Into[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              ${convertToNewtypeEither(q"a", aTpe, bTpe, "value")}
+            }
+          }
+        """
+      )
+    }
+
+    // === Derivation: Newtype Unwrapping (newtype -> primitive) ===
+    
+    def deriveNewtypeUnwrapping(): c.Expr[Into[A, B]] = {
+      // Newtype unwrapping is safe at runtime since they are the same type
+      c.Expr[Into[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              _root_.scala.Right(a.asInstanceOf[$bTpe])
+            }
+          }
+        """
+      )
+    }
+
     // Find or use cached Into instance (also looks for As instances)
     def findImplicitInto(sourceTpe: Type, targetTpe: Type): Option[Tree] =
       // Check cache first
@@ -1461,6 +1491,108 @@ private object IntoVersionSpecificImpl {
       )
     }
 
+    // === Single-field Product (AnyVal wrapper) Support ===
+
+    def isSingleFieldProduct(tpe: Type): Boolean =
+      isProductType(tpe) && {
+        val info = new ProductInfo(tpe)
+        info.fields.size == 1
+      }
+
+    def getSingleFieldInfo(tpe: Type): FieldInfo = {
+      val info = new ProductInfo(tpe)
+      info.fields.head
+    }
+
+    def derivePrimitiveToSingleFieldProduct(): c.Expr[Into[A, B]] = {
+      val fieldInfo = getSingleFieldInfo(bTpe)
+      val fieldType = fieldInfo.tpe
+
+      // Check if types are compatible (same or coercible)
+      if (aTpe =:= fieldType) {
+        // Direct wrapping - types match exactly
+        c.Expr[Into[A, B]](
+          q"""
+            new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+              def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+                _root_.scala.Right(new $bTpe(a))
+              }
+            }
+          """
+        )
+      } else {
+        // Try to find an implicit Into for the field type conversion
+        findImplicitInto(aTpe, fieldType) match {
+          case Some(fieldInto) =>
+            c.Expr[Into[A, B]](
+              q"""
+                new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+                  def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+                    $fieldInto.into(a).map(converted => new $bTpe(converted.asInstanceOf[$fieldType]))
+                  }
+                }
+              """
+            )
+          case None =>
+            fail(
+              s"""Cannot derive Into[$aTpe, $bTpe]: No conversion available
+                 |
+                 |Source type: $aTpe
+                 |Target field type: $fieldType
+                 |
+                 |The single field of $bTpe has type $fieldType, which is not compatible with $aTpe.
+                 |
+                 |Consider providing an implicit Into[$aTpe, $fieldType].""".stripMargin
+            )
+        }
+      }
+    }
+
+    def deriveSingleFieldProductToPrimitive(): c.Expr[Into[A, B]] = {
+      val fieldInfo = getSingleFieldInfo(aTpe)
+      val fieldType = fieldInfo.tpe
+      val getter = fieldInfo.getter
+
+      // Check if types are compatible (same or coercible)
+      if (fieldType =:= bTpe) {
+        // Direct unwrapping - types match exactly
+        c.Expr[Into[A, B]](
+          q"""
+            new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+              def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+                _root_.scala.Right(a.$getter)
+              }
+            }
+          """
+        )
+      } else {
+        // Try to find an implicit Into for the field type conversion
+        findImplicitInto(fieldType, bTpe) match {
+          case Some(fieldInto) =>
+            c.Expr[Into[A, B]](
+              q"""
+                new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+                  def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+                    $fieldInto.into(a.$getter)
+                  }
+                }
+              """
+            )
+          case None =>
+            fail(
+              s"""Cannot derive Into[$aTpe, $bTpe]: No conversion available
+                 |
+                 |Source field type: $fieldType
+                 |Target type: $bTpe
+                 |
+                 |The single field of $aTpe has type $fieldType, which is not compatible with $bTpe.
+                 |
+                 |Consider providing an implicit Into[$fieldType, $bTpe].""".stripMargin
+            )
+        }
+      }
+    }
+
     // === Main entry point ===
 
     // Check if both types are primitives - if so, there should be a predefined instance
@@ -1605,28 +1737,50 @@ private object IntoVersionSpecificImpl {
         }
         deriveProductToStructural()
       case _ =>
-        val sourceKind =
-          if (aIsProduct) "product" else if (aIsTuple) "tuple" else if (aIsCoproduct) "coproduct" else "other"
-        val targetKind =
-          if (bIsProduct) "product" else if (bIsTuple) "tuple" else if (bIsCoproduct) "coproduct" else "other"
-        fail(
-          s"""Cannot derive Into[$aTpe, $bTpe]: Unsupported type combination
-             |
-             |Source type: $aTpe ($sourceKind)
-             |Target type: $bTpe ($targetKind)
-             |
-             |Into derivation supports:
-             |  - Product → Product (case class to case class)
-             |  - Product ↔ Tuple (case class to/from tuple)
-             |  - Tuple → Tuple
-             |  - Coproduct → Coproduct (sealed trait to sealed trait)
-             |  - Structural ↔ Product
-             |  - Primitive → Primitive (with coercion)
-             |
-             |Consider:
-             |  - Restructuring your types to fit a supported pattern
-             |  - Providing an explicit Into instance""".stripMargin
-        )
+        // Check for primitive <-> single-field product conversions
+        val isPrimA = isPrimitiveOrBoxed(aTpe)
+        val isPrimB = isPrimitiveOrBoxed(bTpe)
+        val bIsSingleField = bIsProduct && isSingleFieldProduct(bTpe)
+        val aIsSingleField = aIsProduct && isSingleFieldProduct(aTpe)
+        val isNewtypeConv = requiresNewtypeConversion(aTpe, bTpe)
+        val isNewtypeUnwrap = requiresNewtypeUnwrapping(aTpe, bTpe)
+        
+        if (isNewtypeConv) {
+          deriveNewtypeConversion()
+        } else if (isNewtypeUnwrap) {
+          deriveNewtypeUnwrapping()
+        } else if (isPrimA && bIsSingleField) {
+          // Primitive -> SingleFieldProduct (wrapping)
+          derivePrimitiveToSingleFieldProduct()
+        } else if (aIsSingleField && isPrimB) {
+          // SingleFieldProduct -> Primitive (unwrapping)
+          deriveSingleFieldProductToPrimitive()
+        } else {
+          val sourceKind =
+            if (aIsProduct) "product" else if (aIsTuple) "tuple" else if (aIsCoproduct) "coproduct" else "other"
+          val targetKind =
+            if (bIsProduct) "product" else if (bIsTuple) "tuple" else if (bIsCoproduct) "coproduct" else "other"
+          fail(
+            s"""Cannot derive Into[$aTpe, $bTpe]: Unsupported type combination
+               |
+               |Source type: $aTpe ($sourceKind)
+               |Target type: $bTpe ($targetKind)
+               |
+               |Into derivation supports:
+               |  - Product → Product (case class to case class)
+               |  - Product ↔ Tuple (case class to/from tuple)
+               |  - Tuple → Tuple
+               |  - Coproduct → Coproduct (sealed trait to sealed trait)
+               |  - Structural ↔ Product
+               |  - Primitive → Primitive (with coercion)
+               |  - Primitive ↔ Single-field Product (wrapping/unwrapping)
+               |  - Primitive ↔ ZIO Prelude Newtype (with validation)
+               |
+               |Consider:
+               |  - Restructuring your types to fit a supported pattern
+               |  - Providing an explicit Into instance""".stripMargin
+          )
+        }
     }
   }
 }
