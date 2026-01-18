@@ -6,9 +6,10 @@ import zio.test._
 import zio.test.Assertion._
 
 /**
- * Scala 2 tests for As round-trip conversions between primitives and wrapper types:
- * - ZIO Prelude Newtype/Subtype
- * - AnyVal case classes (value classes)
+ * Scala 2 tests for As round-trip conversions between primitives and wrapper
+ * types:
+ *   - ZIO Prelude Newtype/Subtype
+ *   - AnyVal case classes (value classes)
  *
  * Note: Opaque types are Scala 3 only.
  */
@@ -28,7 +29,7 @@ object PrimitiveWrapperRoundTripSpec extends ZIOSpecDefault {
   }
 
   // === AnyVal Case Classes ===
-  case class RtAgeWrapper(value: Int) extends AnyVal
+  case class RtAgeWrapper(value: Int)     extends AnyVal
   case class RtNameWrapper(value: String) extends AnyVal
 
   import PreludeDomain._

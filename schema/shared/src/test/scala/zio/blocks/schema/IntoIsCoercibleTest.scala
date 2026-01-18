@@ -120,8 +120,8 @@ object IntoIsCoercibleTest extends ZIOSpecDefault {
       },
       test("Long to Int in case class - overflow") {
         case class Source(value: Long)
-        @scala.annotation.nowarn("msg=unused local definition")
         case class Target(value: Int)
+        locally { val _ = Target }
 
         val source = Source(Long.MaxValue)
         val result = Into.derived[Source, Target].into(source)
@@ -142,8 +142,8 @@ object IntoIsCoercibleTest extends ZIOSpecDefault {
       },
       test("Double to Float in case class - overflow") {
         case class Source(value: Double)
-        @scala.annotation.nowarn("msg=unused local definition")
         case class Target(value: Float)
+        locally { val _ = Target }
 
         val source = Source(Double.MaxValue)
         val result = Into.derived[Source, Target].into(source)

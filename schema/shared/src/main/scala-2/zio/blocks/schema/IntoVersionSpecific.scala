@@ -327,7 +327,10 @@ private object IntoVersionSpecificImpl {
 
     // === Single-field Product Field Conversion Helpers (for use when converting fields) ===
 
-    /** Check if we need to convert a primitive field to a single-field product wrapper field */
+    /**
+     * Check if we need to convert a primitive field to a single-field product
+     * wrapper field
+     */
     def requiresSingleFieldProductConversion(sourceTpe: Type, targetTpe: Type): Boolean =
       // Target is a single-field product and source matches the single field's type exactly
       if (!isSingleFieldProduct(targetTpe)) false
@@ -336,7 +339,10 @@ private object IntoVersionSpecificImpl {
         sourceTpe =:= fieldType
       }
 
-    /** Check if we need to unwrap a single-field product field to a primitive field */
+    /**
+     * Check if we need to unwrap a single-field product field to a primitive
+     * field
+     */
     def requiresSingleFieldProductUnwrapping(sourceTpe: Type, targetTpe: Type): Boolean =
       // Source is a single-field product and target matches the single field's type exactly
       if (!isSingleFieldProduct(sourceTpe)) false
@@ -345,7 +351,10 @@ private object IntoVersionSpecificImpl {
         fieldType =:= targetTpe
       }
 
-    /** Check if a type is a single-field product (case class with exactly one field) */
+    /**
+     * Check if a type is a single-field product (case class with exactly one
+     * field)
+     */
     def isSingleFieldProduct(tpe: Type): Boolean =
       isProductType(tpe) && {
         val info = new ProductInfo(tpe)
@@ -358,7 +367,10 @@ private object IntoVersionSpecificImpl {
       info.fields.head
     }
 
-    /** Convert a value to a single-field product wrapper, returning Either[SchemaError, Any] */
+    /**
+     * Convert a value to a single-field product wrapper, returning
+     * Either[SchemaError, Any]
+     */
     def convertToSingleFieldProductEither(sourceExpr: Tree, targetTpe: Type): Tree = {
       val targetTypeTree = TypeTree(targetTpe)
       // Direct wrapping - types match exactly
@@ -367,10 +379,13 @@ private object IntoVersionSpecificImpl {
       """
     }
 
-    /** Unwrap a single-field product wrapper to its underlying value, returning Either[SchemaError, Any] */
+    /**
+     * Unwrap a single-field product wrapper to its underlying value, returning
+     * Either[SchemaError, Any]
+     */
     def unwrapSingleFieldProductEither(sourceExpr: Tree, sourceTpe: Type, targetTpe: Type): Tree = {
-      val fieldInfo = getSingleFieldInfo(sourceTpe)
-      val getter = fieldInfo.getter
+      val fieldInfo      = getSingleFieldInfo(sourceTpe)
+      val getter         = fieldInfo.getter
       val targetTypeTree = TypeTree(targetTpe)
       // Direct unwrapping - types match exactly
       q"""
@@ -480,8 +495,8 @@ private object IntoVersionSpecificImpl {
     }
 
     // === Derivation: Newtype Conversion (primitive -> newtype) ===
-    
-    def deriveNewtypeConversion(): c.Expr[Into[A, B]] = {
+
+    def deriveNewtypeConversion(): c.Expr[Into[A, B]] =
       // Delegate to convertToNewtypeEither for the actual conversion
       c.Expr[Into[A, B]](
         q"""
@@ -492,11 +507,10 @@ private object IntoVersionSpecificImpl {
           }
         """
       )
-    }
 
     // === Derivation: Newtype Unwrapping (newtype -> primitive) ===
-    
-    def deriveNewtypeUnwrapping(): c.Expr[Into[A, B]] = {
+
+    def deriveNewtypeUnwrapping(): c.Expr[Into[A, B]] =
       // Newtype unwrapping is safe at runtime since they are the same type
       c.Expr[Into[A, B]](
         q"""
@@ -507,7 +521,6 @@ private object IntoVersionSpecificImpl {
           }
         """
       )
-    }
 
     // Find or use cached Into instance (also looks for As instances)
     def findImplicitInto(sourceTpe: Type, targetTpe: Type): Option[Tree] =
@@ -683,7 +696,7 @@ private object IntoVersionSpecificImpl {
 
           // Create properly typed constructor arguments
           val constructorArgs = valNames.zip(targetTypes).map { case (name, targetTpe) =>
-            q"$name.right.get.asInstanceOf[$targetTpe]"
+            q"$name.toOption.get.asInstanceOf[$targetTpe]"
           }
 
           // Build error collection with field name enhancement
@@ -1081,8 +1094,8 @@ private object IntoVersionSpecificImpl {
             val sourceFieldName = sourceField.name
 
             val conversionExpr = if (!(sourceTpe =:= targetTpe)) {
-              val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
-              val isNewtypeUnwrapping = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
+              val isNewtypeConversion     = requiresNewtypeConversion(sourceTpe, targetTpe)
+              val isNewtypeUnwrapping     = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
               val isSingleFieldConversion = requiresSingleFieldProductConversion(sourceTpe, targetTpe)
               val isSingleFieldUnwrapping = requiresSingleFieldProductUnwrapping(sourceTpe, targetTpe)
 
@@ -1128,7 +1141,7 @@ private object IntoVersionSpecificImpl {
           }
 
           val constructorArgs = valNames.zip(targetTypes).map { case (name, targetTpe) =>
-            q"$name.right.get.asInstanceOf[$targetTpe]"
+            q"$name.toOption.get.asInstanceOf[$targetTpe]"
           }
 
           // Build error collection with field name enhancement
@@ -1207,8 +1220,8 @@ private object IntoVersionSpecificImpl {
         structMembers.exists { case (name, memberTpe) =>
           name == field.name && (
             memberTpe =:= field.tpe ||
-            findImplicitInto(memberTpe, field.tpe).isDefined ||
-            canConvertStructuralToProduct(memberTpe, field.tpe)
+              findImplicitInto(memberTpe, field.tpe).isDefined ||
+              canConvertStructuralToProduct(memberTpe, field.tpe)
           )
         } || field.hasDefault || isOptionType(field.tpe)
       }
@@ -1262,7 +1275,6 @@ private object IntoVersionSpecificImpl {
       // 3. Unique type match: Type appears only once in both source and target
       // 4. Use default value or None for optional fields
       val fieldMappings: List[(Option[(String, Type)], FieldInfo)] = targetInfo.fields.map { targetField =>
-
         // Priority 1: Exact name and type match
         val exactMatch: Option[(String, Type)] = structuralMembers.find { case (name, memberTpe) =>
           name == targetField.name && memberTpe =:= targetField.tpe && !usedMembers.contains((name, memberTpe))
@@ -1273,7 +1285,7 @@ private object IntoVersionSpecificImpl {
           structuralMembers.find { case (name, memberTpe) =>
             name == targetField.name &&
             (findImplicitInto(memberTpe, targetField.tpe).isDefined ||
-             canConvertStructuralToProduct(memberTpe, targetField.tpe)) &&
+              canConvertStructuralToProduct(memberTpe, targetField.tpe)) &&
             !usedMembers.contains((name, memberTpe))
           }
         } else None
@@ -1281,7 +1293,7 @@ private object IntoVersionSpecificImpl {
         // Priority 3: Unique type match (type appears only once in both unused source and remaining target)
         val uniqueTypeMatch: Option[(String, Type)] = if (exactMatch.isEmpty && nameMatchWithCoercion.isEmpty) {
           val remainingTargetFields = targetInfo.fields.dropWhile(_ != targetField)
-          val unusedMembers = structuralMembers.filterNot(usedMembers.contains)
+          val unusedMembers         = structuralMembers.filterNot(usedMembers.contains)
 
           // Find all members with compatible type
           val typeMatches = unusedMembers.filter { case (_, memberTpe) =>
@@ -1313,7 +1325,7 @@ private object IntoVersionSpecificImpl {
               (None, targetField) // Will use None
             } else {
               val sourceMembers = structuralMembers.map { case (n, t) => s"$n: $t" }.mkString(", ")
-              val missingField = s"${targetField.name}: ${targetField.tpe}"
+              val missingField  = s"${targetField.name}: ${targetField.tpe}"
               fail(
                 s"""Cannot derive Into[$aTpe, $bTpe]: Missing required field
                    |
@@ -1395,8 +1407,8 @@ private object IntoVersionSpecificImpl {
         productInfo.fields.exists { field =>
           field.name == memberName && (
             field.tpe =:= memberTpe ||
-            field.tpe <:< memberTpe ||
-            canConvertProductToStructural(field.tpe, memberTpe)
+              field.tpe <:< memberTpe ||
+              canConvertProductToStructural(field.tpe, memberTpe)
           )
         }
       }
@@ -1440,8 +1452,8 @@ private object IntoVersionSpecificImpl {
         val matchingField = sourceInfo.fields.find { field =>
           field.name == memberName && (
             field.tpe =:= memberTpe ||
-            field.tpe <:< memberTpe ||
-            canConvertProductToStructural(field.tpe, memberTpe)
+              field.tpe <:< memberTpe ||
+              canConvertProductToStructural(field.tpe, memberTpe)
           )
         }
         if (matchingField.isEmpty) {
@@ -1617,7 +1629,7 @@ private object IntoVersionSpecificImpl {
     def deriveSingleFieldProductToPrimitive(): c.Expr[Into[A, B]] = {
       val fieldInfo = getSingleFieldInfo(aTpe)
       val fieldType = fieldInfo.tpe
-      val getter = fieldInfo.getter
+      val getter    = fieldInfo.getter
 
       // Check if types are compatible (same or coercible)
       if (fieldType =:= bTpe) {
@@ -1804,13 +1816,13 @@ private object IntoVersionSpecificImpl {
         deriveProductToStructural()
       case _ =>
         // Check for primitive <-> single-field product conversions
-        val isPrimA = isPrimitiveOrBoxed(aTpe)
-        val isPrimB = isPrimitiveOrBoxed(bTpe)
-        val bIsSingleField = bIsProduct && isSingleFieldProduct(bTpe)
-        val aIsSingleField = aIsProduct && isSingleFieldProduct(aTpe)
-        val isNewtypeConv = requiresNewtypeConversion(aTpe, bTpe)
+        val isPrimA         = isPrimitiveOrBoxed(aTpe)
+        val isPrimB         = isPrimitiveOrBoxed(bTpe)
+        val bIsSingleField  = bIsProduct && isSingleFieldProduct(bTpe)
+        val aIsSingleField  = aIsProduct && isSingleFieldProduct(aTpe)
+        val isNewtypeConv   = requiresNewtypeConversion(aTpe, bTpe)
         val isNewtypeUnwrap = requiresNewtypeUnwrapping(aTpe, bTpe)
-        
+
         if (isNewtypeConv) {
           deriveNewtypeConversion()
         } else if (isNewtypeUnwrap) {

@@ -273,7 +273,7 @@ private object AsVersionSpecificImpl {
           // Target has a field that source doesn't have
           // When going B → A, this field will be missing
           // For As, only Option fields are allowed
-          val isOptional  = isOptionType(targetField.tpe)
+          val isOptional = isOptionType(targetField.tpe)
 
           if (!isOptional) {
             val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
@@ -503,7 +503,7 @@ private object AsVersionSpecificImpl {
     class StructuralFieldInfo(val name: String, val tpe: Type)
 
     class StructuralInfo(tpe: Type) {
-      val fields: List[StructuralFieldInfo] = {
+      val fields: List[StructuralFieldInfo] =
         tpe.dealias match {
           case RefinedType(_, decls) =>
             decls.toList.collect {
@@ -512,7 +512,6 @@ private object AsVersionSpecificImpl {
             }
           case _ => Nil
         }
-      }
     }
 
     def checkStructuralFieldMappingConsistency(sourceInfo: ProductInfo, targetInfo: StructuralInfo): Unit = {
