@@ -6,6 +6,7 @@
 
 
 
+
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,8 +16,10 @@
 
 
 
+
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
+
 
 
 
@@ -38,12 +41,15 @@ import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver}
 import org.msgpack.value.ValueType
 import java.nio.ByteBuffer
+import java.time._
 import scala.collection.mutable
 
 object MessagePackFormat
     extends BinaryFormat(
       "application/msgpack",
       new Deriver[MessagePackBinaryCodec] {
+        private[this] val recursiveCache = mutable.Map.empty[TypeName[_], MessagePackBinaryCodec[_]]
+
         override def derivePrimitive[F[_, _], A](
           primitiveType: PrimitiveType[A],
           typeName: TypeName[A],
@@ -337,6 +343,76 @@ object MessagePackFormat
           }
         }
 
+        private[this] val durationCodec = new MessagePackBinaryCodec[java.time.Duration] {
+          def encode(packer: MessagePacker, a: java.time.Duration): Unit = {
+            packer.packArrayHeader(2)
+            packer.packLong(a.getSeconds)
+            packer.packInt(a.getNano)
+          }
+          def decodeUnsafe(unpacker: MessageUnpacker): java.time.Duration = {
+            unpacker.unpackArrayHeader()
+            java.time.Duration.ofSeconds(unpacker.unpackLong(), unpacker.unpackInt().toLong)
+          }
+        }
+
+        private[this] val monthCodec = new MessagePackBinaryCodec[java.time.Month] {
+          def encode(packer: MessagePacker, a: java.time.Month): Unit  = packer.packInt(a.getValue)
+          def decodeUnsafe(unpacker: MessageUnpacker): java.time.Month = java.time.Month.of(unpacker.unpackInt())
+        }
+
+        private[this] val monthDayCodec = new MessagePackBinaryCodec[java.time.MonthDay] {
+          def encode(packer: MessagePacker, a: java.time.MonthDay): Unit = {
+            packer.packArrayHeader(2)
+            packer.packInt(a.getMonthValue)
+            packer.packInt(a.getDayOfMonth)
+          }
+          def decodeUnsafe(unpacker: MessageUnpacker): java.time.MonthDay = {
+            unpacker.unpackArrayHeader()
+            java.time.MonthDay.of(unpacker.unpackInt(), unpacker.unpackInt())
+          }
+        }
+
+        private[this] val yearCodec = new MessagePackBinaryCodec[java.time.Year] {
+          def encode(packer: MessagePacker, a: java.time.Year): Unit  = packer.packInt(a.getValue)
+          def decodeUnsafe(unpacker: MessageUnpacker): java.time.Year = java.time.Year.of(unpacker.unpackInt())
+        }
+
+        private[this] val yearMonthCodec = new MessagePackBinaryCodec[java.time.YearMonth] {
+          def encode(packer: MessagePacker, a: java.time.YearMonth): Unit = {
+            packer.packArrayHeader(2)
+            packer.packInt(a.getYear)
+            packer.packInt(a.getMonthValue)
+          }
+          def decodeUnsafe(unpacker: MessageUnpacker): java.time.YearMonth = {
+            unpacker.unpackArrayHeader()
+            java.time.YearMonth.of(unpacker.unpackInt(), unpacker.unpackInt())
+          }
+        }
+
+        private[this] val periodCodec = new MessagePackBinaryCodec[java.time.Period] {
+          def encode(packer: MessagePacker, a: java.time.Period): Unit = {
+            packer.packArrayHeader(3)
+            packer.packInt(a.getYears)
+            packer.packInt(a.getMonths)
+            packer.packInt(a.getDays)
+          }
+          def decodeUnsafe(unpacker: MessageUnpacker): java.time.Period = {
+            unpacker.unpackArrayHeader()
+            java.time.Period.of(unpacker.unpackInt(), unpacker.unpackInt(), unpacker.unpackInt())
+          }
+        }
+
+        private[this] val zoneIdCodec = new MessagePackBinaryCodec[java.time.ZoneId] {
+          def encode(packer: MessagePacker, a: java.time.ZoneId): Unit  = packer.packString(a.getId)
+          def decodeUnsafe(unpacker: MessageUnpacker): java.time.ZoneId = java.time.ZoneId.of(unpacker.unpackString())
+        }
+
+        private[this] val zoneOffsetCodec = new MessagePackBinaryCodec[java.time.ZoneOffset] {
+          def encode(packer: MessagePacker, a: java.time.ZoneOffset): Unit  = packer.packInt(a.getTotalSeconds)
+          def decodeUnsafe(unpacker: MessageUnpacker): java.time.ZoneOffset =
+            java.time.ZoneOffset.ofTotalSeconds(unpacker.unpackInt())
+        }
+
         private[this] val uuidCodec = new MessagePackBinaryCodec[java.util.UUID] {
           def encode(packer: MessagePacker, a: java.util.UUID): Unit = {
             packer.packExtensionTypeHeader(1.toByte, 16)
@@ -354,7 +430,16 @@ object MessagePackFormat
           }
         }
 
-        private[this] def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): MessagePackBinaryCodec[A] = {
+        private[this] def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): MessagePackBinaryCodec[A] =
+          if (recursiveCache.contains(reflect.typeName)) {
+            recursiveCache(reflect.typeName).asInstanceOf[MessagePackBinaryCodec[A]]
+          } else {
+            val codec = deriveCodecInternal(reflect)
+            recursiveCache += (reflect.typeName -> codec)
+            codec
+          }
+
+        private[this] def deriveCodecInternal[F[_, _], A](reflect: Reflect[F, A]): MessagePackBinaryCodec[A] = {
           if (reflect.isPrimitive) {
             val primitive = reflect.asPrimitive.get
             if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
@@ -377,6 +462,14 @@ object MessagePackFormat
                 case _: PrimitiveType.LocalDateTime  => localDateTimeCodec
                 case _: PrimitiveType.OffsetDateTime => offsetDateTimeCodec
                 case _: PrimitiveType.ZonedDateTime  => zonedDateTimeCodec
+                case _: PrimitiveType.Duration       => durationCodec
+                case _: PrimitiveType.Month          => monthCodec
+                case _: PrimitiveType.MonthDay       => monthDayCodec
+                case _: PrimitiveType.Year           => yearCodec
+                case _: PrimitiveType.YearMonth      => yearMonthCodec
+                case _: PrimitiveType.Period         => periodCodec
+                case _: PrimitiveType.ZoneId         => zoneIdCodec
+                case _: PrimitiveType.ZoneOffset     => zoneOffsetCodec
                 case _: PrimitiveType.UUID           => uuidCodec
                 case _                               => stringCodec // Fallback for other types
               }).asInstanceOf[MessagePackBinaryCodec[A]]
