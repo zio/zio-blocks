@@ -421,12 +421,13 @@ object JsonBinaryCodec {
 
   val unitCodec: JsonBinaryCodec[Unit] = new JsonBinaryCodec[Unit](JsonBinaryCodec.unitType) {
     def decodeValue(in: JsonReader, default: Unit): Unit =
-      if (in.isNextToken('n')) {
-        in.rollbackToken()
-        in.readNullOrError((), "expected null")
-      } else in.decodeError("expected null")
+      if (in.isNextToken('{') && in.isNextToken('}')) ()
+      else in.decodeError("expected an empty JSON object")
 
-    def encodeValue(x: Unit, out: JsonWriter): Unit = out.writeNull()
+    def encodeValue(x: Unit, out: JsonWriter): Unit = {
+      out.writeObjectStart()
+      out.writeObjectEnd()
+    }
   }
   val booleanCodec: JsonBinaryCodec[Boolean] = new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) {
     def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readBoolean()
