@@ -64,7 +64,8 @@ lazy val root = project
     scalaNextTests.native,
     benchmarks,
     docs,
-    examples
+    examples,
+    `schema-bson`
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -161,6 +162,26 @@ lazy val `schema-avro` = project
   .settings(
     libraryDependencies ++= Seq(
       "org.apache.avro" % "avro"         % "1.12.1",
+      "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
+        )
+    })
+  )
+
+lazy val `schema-bson` = project
+  .settings(stdSettings("zio-blocks-schema-bson"))
+  .dependsOn(schema.jvm % "compile->compile;test->test", chunk.jvm)
+  .settings(buildInfoSettings("zio.blocks.schema.bson"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.mongodb"    % "bson"         % "4.11.1",
       "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {

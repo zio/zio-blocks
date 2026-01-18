@@ -1,0 +1,2 @@
+// This directory should not contain any scala files.
+// The BSON implementation is in zio/blocks/schema/bson/
