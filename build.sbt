@@ -11,7 +11,8 @@ inThisBuild(
     licenses     := List(
       "Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")
     ),
-    developers := List(
+    headerLicense := Some(HeaderLicense.ALv2("2023", "ZIO Blocks Maintainers")),
+    developers    := List(
       Developer(
         "jdegoes",
         "John De Goes",
@@ -77,6 +78,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
+  .dependsOn(chunk)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
