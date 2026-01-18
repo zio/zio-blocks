@@ -6,12 +6,12 @@ import zio.blocks.schema.{DynamicValue, PrimitiveValue}
  * Represents a JSON value.
  *
  * The JSON data model consists of:
- *  - '''Objects''': Unordered collections of key-value pairs with string keys
- *  - '''Arrays''': Ordered sequences of values
- *  - '''Strings''': Unicode text
- *  - '''Numbers''': Numeric values (stored as BigDecimal for precision)
- *  - '''Booleans''': `true` or `false`
- *  - '''Null''': The null value
+ *   - '''Objects''': Unordered collections of key-value pairs with string keys
+ *   - '''Arrays''': Ordered sequences of values
+ *   - '''Strings''': Unicode text
+ *   - '''Numbers''': Numeric values (stored as BigDecimal for precision)
+ *   - '''Booleans''': `true` or `false`
+ *   - '''Null''': The null value
  *
  * ==Construction==
  * {{{
@@ -38,8 +38,8 @@ import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 sealed trait Json { self =>
 
   /**
-   * Returns the type index for ordering comparisons.
-   * Order: Null(0) < Boolean(1) < Number(2) < String(3) < Array(4) < Object(5)
+   * Returns the type index for ordering comparisons. Order: Null(0) <
+   * Boolean(1) < Number(2) < String(3) < Array(4) < Object(5)
    */
   def typeIndex: Int
 
@@ -86,13 +86,14 @@ sealed trait Json { self =>
   /**
    * Converts this JSON to a [[DynamicValue]].
    *
-   * This conversion is lossless; all JSON values can be represented as DynamicValue.
-   * - JSON objects become DynamicValue.Record (string keys only)
-   * - JSON arrays become DynamicValue.Sequence
-   * - JSON strings become DynamicValue.Primitive(PrimitiveValue.String)
-   * - JSON numbers become DynamicValue.Primitive(PrimitiveValue.BigDecimal)
-   * - JSON booleans become DynamicValue.Primitive(PrimitiveValue.Boolean)
-   * - JSON null becomes DynamicValue.Primitive(PrimitiveValue.Unit)
+   * This conversion is lossless; all JSON values can be represented as
+   * DynamicValue.
+   *   - JSON objects become DynamicValue.Record (string keys only)
+   *   - JSON arrays become DynamicValue.Sequence
+   *   - JSON strings become DynamicValue.Primitive(PrimitiveValue.String)
+   *   - JSON numbers become DynamicValue.Primitive(PrimitiveValue.BigDecimal)
+   *   - JSON booleans become DynamicValue.Primitive(PrimitiveValue.Boolean)
+   *   - JSON null becomes DynamicValue.Primitive(PrimitiveValue.Unit)
    */
   def toDynamicValue: DynamicValue = self match {
     case Json.Null =>
@@ -115,11 +116,12 @@ object Json {
   /**
    * A JSON object: an unordered collection of key-value pairs.
    *
-   * @param fields The key-value pairs. Keys should be unique.
+   * @param fields
+   *   The key-value pairs. Keys should be unique.
    */
   final case class Object(fields: Vector[(java.lang.String, Json)]) extends Json {
     override def isObject: scala.Boolean = true
-    def typeIndex: Int             = 5
+    def typeIndex: Int                   = 5
 
     def compare(that: Json): Int = that match {
       case thatObj: Object =>
@@ -147,7 +149,7 @@ object Json {
         // JSON object semantics treat key order as irrelevant.
         // We assume keys are unique (as documented).
         fields.toMap == otherFields.toMap
-      case _                   => false
+      case _ => false
     }
 
     override def hashCode(): Int = fields.toMap.hashCode()
@@ -165,11 +167,12 @@ object Json {
   /**
    * A JSON array: an ordered sequence of values.
    *
-   * @param elements The array elements
+   * @param elements
+   *   The array elements
    */
   final case class Array(elements: Vector[Json]) extends Json {
     override def isArray: scala.Boolean = true
-    def typeIndex: Int            = 4
+    def typeIndex: Int                  = 4
 
     def compare(that: Json): Int = that match {
       case thatArr: Array =>
@@ -205,11 +208,12 @@ object Json {
   /**
    * A JSON string.
    *
-   * @param value The string value (unescaped)
+   * @param value
+   *   The string value (unescaped)
    */
   final case class String(value: java.lang.String) extends Json {
     override def isString: scala.Boolean = true
-    def typeIndex: Int             = 3
+    def typeIndex: Int                   = 3
 
     def compare(that: Json): Int = that match {
       case thatStr: String => value.compare(thatStr.value)
@@ -222,42 +226,44 @@ object Json {
    *
    * Stored as BigDecimal to preserve precision.
    *
-   * @param value The number value
+   * @param value
+   *   The number value
    */
   final case class Number(value: BigDecimal) extends Json {
     override def isNumber: scala.Boolean = true
-    def typeIndex: Int             = 2
+    def typeIndex: Int                   = 2
 
     def compare(that: Json): Int = that match {
       case thatNum: Number => value.compare(thatNum.value)
       case _               => typeIndex - that.typeIndex
     }
 
-    def toInt: Int           = value.toInt
-    def toLong: Long         = value.toLong
-    def toFloat: Float       = value.toFloat
-    def toDouble: Double     = value.toDouble
-    def toBigInt: BigInt     = value.toBigInt
+    def toInt: Int               = value.toInt
+    def toLong: Long             = value.toLong
+    def toFloat: Float           = value.toFloat
+    def toDouble: Double         = value.toDouble
+    def toBigInt: BigInt         = value.toBigInt
     def toBigDecimal: BigDecimal = value
   }
 
   object Number {
-    def apply(n: Int): Number         = Number(BigDecimal(n))
-    def apply(n: Long): Number        = Number(BigDecimal(n))
-    def apply(n: Double): Number      = Number(BigDecimal(n))
-    def apply(n: Float): Number       = Number(BigDecimal(n.toDouble))
-    def apply(n: BigInt): Number      = Number(BigDecimal(n))
+    def apply(n: Int): Number              = Number(BigDecimal(n))
+    def apply(n: Long): Number             = Number(BigDecimal(n))
+    def apply(n: Double): Number           = Number(BigDecimal(n))
+    def apply(n: Float): Number            = Number(BigDecimal(n.toDouble))
+    def apply(n: BigInt): Number           = Number(BigDecimal(n))
     def apply(s: java.lang.String): Number = Number(BigDecimal(s))
   }
 
   /**
    * A JSON boolean.
    *
-   * @param value The boolean value
+   * @param value
+   *   The boolean value
    */
   final case class Boolean(value: scala.Boolean) extends Json {
     override def isBoolean: scala.Boolean = true
-    def typeIndex: Int              = 1
+    def typeIndex: Int                    = 1
 
     def compare(that: Json): Int = that match {
       case thatBool: Boolean => value.compare(thatBool.value)
@@ -275,7 +281,7 @@ object Json {
    */
   case object Null extends Json {
     override def isNull: scala.Boolean = true
-    def typeIndex: Int           = 0
+    def typeIndex: Int                 = 0
 
     def compare(that: Json): Int = that match {
       case Null => 0
@@ -292,16 +298,16 @@ object Json {
    * Converts a [[DynamicValue]] to JSON.
    *
    * This conversion handles JSON-compatible DynamicValue types:
-   * - DynamicValue.Record -> Json.Object (string keys only)
-   * - DynamicValue.Sequence -> Json.Array
-   * - DynamicValue.Primitive -> appropriate Json leaf type
+   *   - DynamicValue.Record -> Json.Object (string keys only)
+   *   - DynamicValue.Sequence -> Json.Array
+   *   - DynamicValue.Primitive -> appropriate Json leaf type
    *
    * For non-JSON-compatible types (Variant, Map with non-string keys),
    * reasonable conversions are made.
    */
   def fromDynamicValue(value: DynamicValue): Json = value match {
     case DynamicValue.Primitive(pv) => fromPrimitiveValue(pv)
-    case DynamicValue.Record(flds) =>
+    case DynamicValue.Record(flds)  =>
       Object(flds.map { case (k, v) => (k, fromDynamicValue(v)) })
     case DynamicValue.Variant(caseName, v) =>
       // Represent variant as object with _type and _value fields

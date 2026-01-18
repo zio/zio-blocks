@@ -6,17 +6,18 @@ import zio.blocks.schema.patch.DynamicPatch
 /**
  * An untyped patch that operates on [[Json]] values.
  *
- * `JsonPatch` is the JSON-specific counterpart to [[DynamicPatch]]. It represents
- * a sequence of operations that transform one JSON value into another. Patches
- * are serializable and composable.
+ * `JsonPatch` is the JSON-specific counterpart to [[DynamicPatch]]. It
+ * represents a sequence of operations that transform one JSON value into
+ * another. Patches are serializable and composable.
  *
  * ==Design==
  *
  * This type directly mirrors [[DynamicPatch]] but is specialized for JSON's
  * simpler data model:
- *  - JSON has 4 leaf types (String, Number, Boolean, Null) vs 30+ PrimitiveValues
- *  - JSON objects have string keys only (no arbitrary-keyed maps)
- *  - JSON has no native Variant type
+ *   - JSON has 4 leaf types (String, Number, Boolean, Null) vs 30+
+ *     PrimitiveValues
+ *   - JSON objects have string keys only (no arbitrary-keyed maps)
+ *   - JSON has no native Variant type
  *
  * ==Algebraic Laws==
  *
@@ -87,16 +88,20 @@ import zio.blocks.schema.patch.DynamicPatch
  * overwrite(json, JsonPatchMode.Clobber) // Right({"a":2})
  * }}}
  *
- * @param ops The sequence of patch operations
+ * @param ops
+ *   The sequence of patch operations
  */
 final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
 
   /**
    * Applies this patch to a JSON value.
    *
-   * @param json The JSON value to patch
-   * @param mode The patch mode (default: Strict)
-   * @return Either an error or the patched value
+   * @param json
+   *   The JSON value to patch
+   * @param mode
+   *   The patch mode (default: Strict)
+   * @return
+   *   Either an error or the patched value
    */
   def apply(json: Json, mode: JsonPatchMode = JsonPatchMode.Strict): Either[JsonError, Json] = {
     var current: Json                  = json
@@ -136,7 +141,8 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
   /**
    * Converts this JSON patch to a [[DynamicPatch]].
    *
-   * The conversion maps JSON-specific operations to their DynamicPatch equivalents.
+   * The conversion maps JSON-specific operations to their DynamicPatch
+   * equivalents.
    */
   def toDynamicPatch: DynamicPatch = {
     val dynamicOps = ops.map { jsonOp =>
@@ -171,9 +177,9 @@ object JsonPatch {
    * Law: `diff(old, new)(old, Strict) == Right(new)`
    *
    * The algorithm:
-   * 1. If values are equal, return empty patch
-   * 2. If types differ, use Set to replace entirely
-   * 3. For same types, compute minimal diff operations
+   *   1. If values are equal, return empty patch
+   *   2. If types differ, use Set to replace entirely
+   *   3. For same types, compute minimal diff operations
    */
   def diff(oldJson: Json, newJson: Json): JsonPatch =
     if (oldJson == newJson) {
@@ -202,7 +208,8 @@ object JsonPatch {
    * Creates a JSON patch from a [[DynamicPatch]].
    *
    * May fail if the DynamicPatch contains operations not representable in JSON
-   * (e.g., temporal deltas, non-BigDecimal numeric types that can't be unified).
+   * (e.g., temporal deltas, non-BigDecimal numeric types that can't be
+   * unified).
    */
   def fromDynamicPatch(patch: DynamicPatch): Either[JsonError, JsonPatch] = {
     val results = patch.ops.map { dynamicOp =>
@@ -251,8 +258,8 @@ object JsonPatch {
     /**
      * Apply a primitive delta operation.
      *
-     * Used for numeric deltas and string edits.
-     * Mirrors [[DynamicPatch.Operation.PrimitiveDelta]].
+     * Used for numeric deltas and string edits. Mirrors
+     * [[DynamicPatch.Operation.PrimitiveDelta]].
      */
     final case class PrimitiveDelta(op: PrimitiveOp) extends Op
 
@@ -267,16 +274,16 @@ object JsonPatch {
     /**
      * Apply object edit operations.
      *
-     * Used for adding, removing, or modifying object fields.
-     * Mirrors [[DynamicPatch.Operation.MapEdit]] but with string keys.
+     * Used for adding, removing, or modifying object fields. Mirrors
+     * [[DynamicPatch.Operation.MapEdit]] but with string keys.
      */
     final case class ObjectEdit(ops: Vector[ObjectOp]) extends Op
 
     /**
      * Apply a nested patch.
      *
-     * Used to group operations sharing a common path prefix.
-     * Mirrors [[DynamicPatch.Operation.Patch]].
+     * Used to group operations sharing a common path prefix. Mirrors
+     * [[DynamicPatch.Operation.Patch]].
      */
     final case class Nested(patch: JsonPatch) extends Op
   }
@@ -288,9 +295,8 @@ object JsonPatch {
   /**
    * Delta operations for JSON primitive values.
    *
-   * JSON has only one numeric type, so we use BigDecimal for deltas.
-   * Boolean has no delta (use Set to toggle).
-   * Null has no delta (use Set to change).
+   * JSON has only one numeric type, so we use BigDecimal for deltas. Boolean
+   * has no delta (use Set to toggle). Null has no delta (use Set to change).
    *
    * Mirrors [[DynamicPatch.PrimitiveOp]] but simplified for JSON's type system.
    */
@@ -1169,10 +1175,10 @@ object JsonPatch {
 
       case Op.PrimitiveDelta(PrimitiveOp.StringEdit(ops)) =>
         val dynamicOps = ops.map {
-          case StringOp.Insert(idx, text)       => DynamicPatch.StringOp.Insert(idx, text)
-          case StringOp.Delete(idx, len)        => DynamicPatch.StringOp.Delete(idx, len)
-          case StringOp.Append(text)            => DynamicPatch.StringOp.Append(text)
-          case StringOp.Modify(idx, len, text)  => DynamicPatch.StringOp.Modify(idx, len, text)
+          case StringOp.Insert(idx, text)      => DynamicPatch.StringOp.Insert(idx, text)
+          case StringOp.Delete(idx, len)       => DynamicPatch.StringOp.Delete(idx, len)
+          case StringOp.Append(text)           => DynamicPatch.StringOp.Append(text)
+          case StringOp.Modify(idx, len, text) => DynamicPatch.StringOp.Modify(idx, len, text)
         }
         DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.StringEdit(dynamicOps))
 
@@ -1238,10 +1244,10 @@ object JsonPatch {
             Right(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(delta))))
           case DynamicPatch.PrimitiveOp.StringEdit(ops) =>
             val jsonOps = ops.map {
-              case DynamicPatch.StringOp.Insert(idx, text)       => StringOp.Insert(idx, text)
-              case DynamicPatch.StringOp.Delete(idx, len)        => StringOp.Delete(idx, len)
-              case DynamicPatch.StringOp.Append(text)            => StringOp.Append(text)
-              case DynamicPatch.StringOp.Modify(idx, len, text)  => StringOp.Modify(idx, len, text)
+              case DynamicPatch.StringOp.Insert(idx, text)      => StringOp.Insert(idx, text)
+              case DynamicPatch.StringOp.Delete(idx, len)       => StringOp.Delete(idx, len)
+              case DynamicPatch.StringOp.Append(text)           => StringOp.Append(text)
+              case DynamicPatch.StringOp.Modify(idx, len, text) => StringOp.Modify(idx, len, text)
             }
             Right(Op.PrimitiveDelta(PrimitiveOp.StringEdit(jsonOps)))
           case _ =>
@@ -1289,7 +1295,7 @@ object JsonPatch {
   private def extractStringKey(value: DynamicValue): Either[JsonError, String] =
     value match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) => Right(s)
-      case _ => Left(JsonError(s"JSON object keys must be strings, got: ${value.getClass.getSimpleName}"))
+      case _                                                => Left(JsonError(s"JSON object keys must be strings, got: ${value.getClass.getSimpleName}"))
     }
 }
 
@@ -1310,11 +1316,11 @@ object JsonPatchMode {
    * Fail on precondition violations.
    *
    * In Strict mode:
-   * - Missing fields cause failure
-   * - Type mismatches cause failure
-   * - Out-of-bounds indices cause failure
-   * - Adding duplicate keys causes failure
-   * - Removing non-existent keys causes failure
+   *   - Missing fields cause failure
+   *   - Type mismatches cause failure
+   *   - Out-of-bounds indices cause failure
+   *   - Adding duplicate keys causes failure
+   *   - Removing non-existent keys causes failure
    */
   case object Strict extends JsonPatchMode
 
@@ -1322,9 +1328,9 @@ object JsonPatchMode {
    * Skip operations that fail preconditions.
    *
    * In Lenient mode:
-   * - Operations that would fail are silently skipped
-   * - The original value is preserved where operations fail
-   * - Always returns Right (never fails)
+   *   - Operations that would fail are silently skipped
+   *   - The original value is preserved where operations fail
+   *   - Always returns Right (never fails)
    */
   case object Lenient extends JsonPatchMode
 
@@ -1332,10 +1338,10 @@ object JsonPatchMode {
    * Replace/overwrite on conflicts.
    *
    * In Clobber mode:
-   * - Adding duplicate keys overwrites existing values
-   * - Out-of-bounds operations are clamped to valid ranges
-   * - Missing paths are skipped (like Lenient)
-   * - Always returns Right (never fails)
+   *   - Adding duplicate keys overwrites existing values
+   *   - Out-of-bounds operations are clamped to valid ranges
+   *   - Missing paths are skipped (like Lenient)
+   *   - Always returns Right (never fails)
    */
   case object Clobber extends JsonPatchMode
 }
