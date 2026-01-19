@@ -1,0 +1,789 @@
+---
+id: json
+title: "Json"
+---
+
+`Json` is an algebraic data type (ADT) for representing JSON values in ZIO Blocks. It provides a type-safe, schema-free way to work with JSON data, enabling navigation, transformation, merging, and querying without losing fidelity.
+
+## Overview
+
+The `Json` type represents all valid JSON values with six cases:
+
+```
+Json
+ ├── Json.Object   (key-value pairs, order-preserving)
+ ├── Json.Array    (ordered sequence of values)
+ ├── Json.String   (text)
+ ├── Json.Number   (arbitrary precision via BigDecimal)
+ ├── Json.Boolean  (true/false)
+ └── Json.Null     (null)
+```
+
+Key design decisions:
+
+- **Objects use `Vector[(String, Json)]`** to preserve insertion order while providing order-independent equality
+- **Numbers use `BigDecimal`** to preserve precision for financial and scientific data
+- **All navigation returns `JsonSelection`** for fluent, composable chaining
+
+## Creating JSON Values
+
+### Using Constructors
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+// Object with named fields
+val person = Json.obj(
+  "name" -> Json.str("Alice"),
+  "age" -> Json.num(30),
+  "active" -> Json.bool(true)
+)
+
+// Array of values
+val numbers = Json.arr(Json.num(1), Json.num(2), Json.num(3))
+
+// Primitive values
+val name = Json.str("Bob")
+val count = Json.num(42)
+val flag = Json.bool(false)
+val nothing = Json.Null
+```
+
+### Using Case Classes Directly
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val obj = Json.Object(Vector(
+  "x" -> Json.Number(10),
+  "y" -> Json.Number(20)
+))
+
+val arr = Json.Array(Vector(
+  Json.String("a"),
+  Json.String("b")
+))
+```
+
+### Parsing JSON Strings
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+// Safe parsing (returns Either)
+val parsed: Either[_, Json] = Json.parse("""{"name": "Alice", "age": 30}""")
+
+// Unsafe parsing (throws on error)
+val json = Json.parseUnsafe("""{"items": [1, 2, 3]}""")
+```
+
+### String Interpolators
+
+ZIO Blocks provides compile-time validated string interpolators for JSON:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.JsonInterpolators._
+
+// JSON literal with compile-time validation
+val person = json"""{"name": "Alice", "age": 30}"""
+
+// With Scala value interpolation
+val name = "Bob"
+val age = 25
+val person2 = json"""{"name": $name, "age": $age}"""
+
+// Path interpolator for navigation
+val path = p".users[0].name"
+```
+
+The `json"..."` interpolator validates JSON syntax at compile time, catching errors before runtime.
+
+## Type Testing and Access
+
+### Type Testing
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.parseUnsafe("""{"count": 42}""")
+
+json.isObject   // true
+json.isArray    // false
+json.isString   // false
+json.isNumber   // false
+json.isBoolean  // false
+json.isNull     // false
+```
+
+### Direct Value Access
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val str = Json.str("hello")
+str.stringValue  // Some("hello")
+
+val num = Json.num(42)
+num.numberValue  // Some(42)
+
+val bool = Json.bool(true)
+bool.booleanValue  // Some(true)
+
+val obj = Json.obj("a" -> Json.num(1))
+obj.fields  // Seq(("a", Json.Number(1)))
+
+val arr = Json.arr(Json.num(1), Json.num(2))
+arr.elements  // Seq(Json.Number(1), Json.Number(2))
+```
+
+## Navigation
+
+### Simple Navigation
+
+Navigate into objects by key and arrays by index:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.parseUnsafe("""{
+  "users": [
+    {"name": "Alice", "age": 30},
+    {"name": "Bob", "age": 25}
+  ]
+}""")
+
+// Navigate to a field
+val users = json.get("users")  // JsonSelection
+
+// Navigate to an array element
+val firstUser = json.get("users")(0)  // JsonSelection
+
+// Chain navigation
+val firstName = json.get("users")(0).get("name")  // JsonSelection
+
+// Extract the value
+val name: Either[_, String] = firstName.string  // Right("Alice")
+```
+
+### Path-Based Navigation with DynamicOptic
+
+Use `DynamicOptic` paths for complex navigation:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.JsonInterpolators._
+
+val json = Json.parseUnsafe("""{
+  "company": {
+    "employees": [
+      {"name": "Alice", "department": "Engineering"},
+      {"name": "Bob", "department": "Sales"}
+    ]
+  }
+}""")
+
+// Using path interpolator
+val path = p".company.employees[0].name"
+val name = json.get(path).string  // Right("Alice")
+
+// Equivalent to chained navigation
+val sameName = json.get("company").get("employees")(0).get("name").string
+```
+
+## JsonSelection
+
+`JsonSelection` is a fluent wrapper for navigation results, enabling composable chaining:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.{Json, JsonSelection}
+
+val json = Json.parseUnsafe("""{"users": [{"name": "Alice"}]}""")
+
+// Fluent chaining
+val result: JsonSelection = json
+  .get("users")
+  .asArray
+  .apply(0)
+  .get("name")
+  .asString
+
+// Extract values
+result.string      // Right("Alice")
+result.single      // Right(Json.String("Alice"))
+result.isSuccess   // true
+result.isFailure   // false
+```
+
+### Terminal Operations
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.{Json, JsonSelection}
+
+val selection: JsonSelection = ???
+
+// Get single value
+selection.single  // Either[JsonError, Json]
+selection.first   // Either[JsonError, Json] (first of many)
+selection.one     // Either[JsonError, Json] (single or wrap in array)
+
+// Get all values
+selection.all     // Either[JsonError, Vector[Json]]
+selection.toVector  // Vector[Json] (empty on error)
+
+// Type-specific extraction
+selection.string   // Either[JsonError, String]
+selection.number   // Either[JsonError, BigDecimal]
+selection.boolean  // Either[JsonError, Boolean]
+selection.int      // Either[JsonError, Int]
+selection.long     // Either[JsonError, Long]
+selection.double   // Either[JsonError, Double]
+```
+
+## Modification
+
+### Setting Values
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.JsonInterpolators._
+
+val json = Json.parseUnsafe("""{"user": {"name": "Alice", "age": 30}}""")
+
+// Set a value at a path
+val updated = json.set(p".user.name", Json.str("Bob"))
+// {"user": {"name": "Bob", "age": 30}}
+
+// Set with failure handling
+val result = json.setOrFail(p".user.email", Json.str("alice@example.com"))
+// Left(JsonError) - path doesn't exist
+```
+
+### Modifying Values
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.JsonInterpolators._
+
+val json = Json.parseUnsafe("""{"count": 10}""")
+
+// Modify with a function
+val incremented = json.modify(p".count") {
+  case Json.Number(n) => Json.Number(n + 1)
+  case other => other
+}
+// {"count": 11}
+
+// Modify with failure on missing path
+val result = json.modifyOrFail(p".count") {
+  case Json.Number(n) => Json.Number(n * 2)
+}
+// Right({"count": 20})
+```
+
+### Deleting Values
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.JsonInterpolators._
+
+val json = Json.parseUnsafe("""{"a": 1, "b": 2, "c": 3}""")
+
+// Delete a field
+val withoutB = json.delete(p".b")
+// {"a": 1, "c": 3}
+
+// Delete with failure handling
+val result = json.deleteOrFail(p".missing")
+// Left(JsonError) - path doesn't exist
+```
+
+### Inserting Values
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.JsonInterpolators._
+
+val json = Json.parseUnsafe("""{"existing": 1}""")
+
+// Insert a new field
+val withNew = json.insert(p".newField", Json.str("value"))
+// {"existing": 1, "newField": "value"}
+```
+
+## Transformation
+
+### Transform Up (Bottom-Up)
+
+Transform children before parents:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.DynamicOptic
+
+val json = Json.parseUnsafe("""{"values": [1, 2, 3]}""")
+
+// Double all numbers
+val doubled = json.transformUp { (path, value) =>
+  value match {
+    case Json.Number(n) => Json.Number(n * 2)
+    case other => other
+  }
+}
+// {"values": [2, 4, 6]}
+```
+
+### Transform Down (Top-Down)
+
+Transform parents before children:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.DynamicOptic
+
+val json = Json.parseUnsafe("""{"items": [{"x": 1}, {"x": 2}]}""")
+
+// Add a field to all objects
+val withId = json.transformDown { (path, value) =>
+  value match {
+    case obj @ Json.Object(fields) if !fields.exists(_._1 == "id") =>
+      Json.Object(("id" -> Json.str(path.toString)) +: fields)
+    case other => other
+  }
+}
+```
+
+### Transform Keys
+
+Rename object keys throughout the structure:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.parseUnsafe("""{"user_name": "Alice", "user_age": 30}""")
+
+// Convert snake_case to camelCase
+val camelCase = json.transformKeys { (path, key) =>
+  key.split("_").zipWithIndex.map {
+    case (word, 0) => word
+    case (word, _) => word.capitalize
+  }.mkString
+}
+// {"userName": "Alice", "userAge": 30}
+```
+
+## Filtering
+
+### Filter Values
+
+Keep only values matching a predicate:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.parseUnsafe("""{"a": 1, "b": null, "c": 2, "d": null}""")
+
+// Remove nulls (using predicate)
+val noNulls = json.filter((_, v) => !v.isNull)
+// {"a": 1, "c": 2}
+```
+
+### Project Paths
+
+Extract only specific paths:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.JsonInterpolators._
+
+val json = Json.parseUnsafe("""{
+  "user": {"name": "Alice", "email": "alice@example.com", "password": "secret"},
+  "metadata": {"created": "2024-01-01"}
+}""")
+
+// Keep only specific fields
+val projected = json.project(p".user.name", p".user.email")
+// {"user": {"name": "Alice", "email": "alice@example.com"}}
+```
+
+### Partition
+
+Split based on a predicate:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.parseUnsafe("""{"a": 1, "b": "text", "c": 2}""")
+
+// Separate numbers from non-numbers
+val (numbers, nonNumbers) = json.partition((_, v) => v.isNumber)
+// numbers: {"a": 1, "c": 2}
+// nonNumbers: {"b": "text"}
+```
+
+## Folding
+
+### Fold Up (Bottom-Up)
+
+Accumulate values from children to parents:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.parseUnsafe("""{"values": [1, 2, 3, 4, 5]}""")
+
+// Sum all numbers
+val sum = json.foldUp(BigDecimal(0)) { (path, value, acc) =>
+  value match {
+    case Json.Number(n) => acc + n
+    case _ => acc
+  }
+}
+// sum = 15
+```
+
+### Fold Down (Top-Down)
+
+Accumulate values from parents to children:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.DynamicOptic
+
+val json = Json.parseUnsafe("""{"a": {"b": {"c": 1}}}""")
+
+// Collect all paths
+val paths = json.foldDown(Vector.empty[DynamicOptic]) { (path, value, acc) =>
+  acc :+ path
+}
+```
+
+## Merging
+
+Combine two JSON values using different strategies:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.{Json, MergeStrategy}
+
+val base = Json.parseUnsafe("""{"a": 1, "b": {"x": 10}}""")
+val overlay = Json.parseUnsafe("""{"b": {"y": 20}, "c": 3}""")
+
+// Auto strategy (default) - deep merge objects, concat arrays
+val merged = base.merge(overlay)
+// {"a": 1, "b": {"x": 10, "y": 20}, "c": 3}
+
+// Deep merge
+val deep = base.merge(overlay, MergeStrategy.Deep)
+
+// Shallow merge (only top-level)
+val shallow = base.merge(overlay, MergeStrategy.Shallow)
+
+// Replace (right wins)
+val replaced = base.merge(overlay, MergeStrategy.Replace)
+// {"b": {"y": 20}, "c": 3}
+
+// Custom strategy
+val custom = base.merge(overlay, MergeStrategy.Custom { (path, left, right) =>
+  // Your merge logic here
+  right
+})
+```
+
+### Merge Strategies
+
+| Strategy | Objects | Arrays | Primitives |
+|----------|---------|--------|------------|
+| `Auto` | Deep merge | Concatenate | Replace |
+| `Deep` | Recursive merge | Concatenate | Replace |
+| `Shallow` | Top-level only | Concatenate | Replace |
+| `Replace` | Right wins | Right wins | Right wins |
+| `Concat` | Merge keys | Concatenate | Replace |
+| `Custom(f)` | User-defined | User-defined | User-defined |
+
+## Normalization
+
+Clean up JSON values:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.parseUnsafe("""{
+  "z": 1,
+  "a": null,
+  "m": {"empty": {}},
+  "b": 2
+}""")
+
+// Sort object keys alphabetically
+val sorted = json.sortKeys
+// {"a": null, "b": 2, "m": {"empty": {}}, "z": 1}
+
+// Remove null values
+val noNulls = json.dropNulls
+// {"z": 1, "m": {"empty": {}}, "b": 2}
+
+// Remove empty objects and arrays
+val noEmpty = json.dropEmpty
+// {"z": 1, "a": null, "b": 2}
+
+// Apply all normalizations
+val normalized = json.normalize
+// {"b": 2, "z": 1}
+```
+
+## Encoding and Decoding
+
+### Type Classes
+
+ZIO Blocks provides `JsonEncoder` and `JsonDecoder` type classes for converting between Scala types and `Json`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.{Json, JsonEncoder, JsonDecoder}
+
+// Encode Scala values to Json
+val intJson = JsonEncoder[Int].encode(42)  // Json.Number(42)
+val strJson = JsonEncoder[String].encode("hello")  // Json.String("hello")
+
+// Decode Json to Scala values
+val intResult = JsonDecoder[Int].decode(Json.num(42))  // Right(42)
+val strResult = JsonDecoder[String].decode(Json.str("hello"))  // Right("hello")
+```
+
+### Built-in Encoders/Decoders
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.{JsonEncoder, JsonDecoder}
+
+// Primitives
+JsonEncoder[String]
+JsonEncoder[Int]
+JsonEncoder[Long]
+JsonEncoder[Double]
+JsonEncoder[Boolean]
+JsonEncoder[BigDecimal]
+
+// Collections
+JsonEncoder[List[Int]]
+JsonEncoder[Vector[String]]
+JsonEncoder[Map[String, Int]]
+JsonEncoder[Option[String]]
+
+// Java time types
+JsonEncoder[java.time.Instant]
+JsonEncoder[java.time.LocalDate]
+JsonEncoder[java.time.ZonedDateTime]
+JsonEncoder[java.util.UUID]
+```
+
+### Schema-Based Derivation
+
+For complex types, use Schema-based derivation:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.Schema
+import zio.blocks.schema.json.{Json, JsonEncoder, JsonDecoder}
+
+case class Person(name: String, age: Int)
+
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+  
+  // Derived from schema (lower priority)
+  implicit val encoder: JsonEncoder[Person] = JsonEncoder.fromSchema
+  implicit val decoder: JsonDecoder[Person] = JsonDecoder.fromSchema
+}
+
+val person = Person("Alice", 30)
+val json = JsonEncoder[Person].encode(person)
+val decoded = JsonDecoder[Person].decode(json)
+```
+
+### Using the `as` Method
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.parseUnsafe("""{"name": "Alice", "age": 30}""")
+
+// Decode to a specific type
+case class Person(name: String, age: Int)
+// (assuming JsonDecoder[Person] is in scope)
+
+val person: Either[_, Person] = json.as[Person]
+
+// Unsafe version (throws on error)
+val personUnsafe: Person = json.asUnsafe[Person]
+```
+
+## Printing JSON
+
+### Basic Printing
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.obj("name" -> Json.str("Alice"), "age" -> Json.num(30))
+
+// Compact output
+val compact = json.print
+// {"name":"Alice","age":30}
+
+// Alias
+val encoded = json.encode
+```
+
+### With Writer Config
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.WriterConfig
+
+val json = Json.obj("name" -> Json.str("Alice"))
+
+// Pretty-printed output
+val pretty = json.print(WriterConfig.pretty)
+// {
+//   "name": "Alice"
+// }
+```
+
+### To Bytes
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.obj("x" -> Json.num(1))
+
+// As byte array
+val bytes: Array[Byte] = json.encodeToBytes
+```
+
+## Query Operations
+
+### Query with Predicate
+
+Find all values matching a condition:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val json = Json.parseUnsafe("""{
+  "users": [
+    {"name": "Alice", "active": true},
+    {"name": "Bob", "active": false},
+    {"name": "Charlie", "active": true}
+  ]
+}""")
+
+// Find all active users
+val activeUsers = json.query { (path, value) =>
+  value.get("active").boolean.getOrElse(false)
+}
+```
+
+### Convert to Key-Value Pairs
+
+Flatten to path-value pairs:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.DynamicOptic
+
+val json = Json.parseUnsafe("""{"a": {"b": 1, "c": 2}}""")
+
+val pairs: Seq[(DynamicOptic, Json)] = json.toKV
+// Seq(
+//   ($.a.b, Json.Number(1)),
+//   ($.a.c, Json.Number(2))
+// )
+```
+
+## Comparison and Equality
+
+### Object Equality
+
+Objects are compared **order-independently** (keys are compared as sorted sets):
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val obj1 = Json.parseUnsafe("""{"a": 1, "b": 2}""")
+val obj2 = Json.parseUnsafe("""{"b": 2, "a": 1}""")
+
+obj1 == obj2  // true (order-independent)
+```
+
+### Ordering
+
+JSON values have a total ordering for sorting:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+
+val values = List(
+  Json.str("z"),
+  Json.num(1),
+  Json.Null,
+  Json.bool(true)
+)
+
+// Sort by type, then by value
+val sorted = values.sortWith((a, b) => a.compare(b) < 0)
+// [null, true, 1, "z"]
+```
+
+Type ordering: Null < Boolean < Number < String < Array < Object
+
+## Conversion to DynamicValue
+
+Convert JSON to ZIO Blocks' semi-structured `DynamicValue`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.DynamicValue
+
+val json = Json.parseUnsafe("""{"name": "Alice"}""")
+
+val dynamic: DynamicValue = json.toDynamicValue
+```
+
+This enables interoperability with other ZIO Blocks formats (Avro, TOON, etc.).
+
+## Error Handling
+
+### JsonError
+
+Errors include path information for debugging:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.{Json, JsonError}
+
+val json = Json.parseUnsafe("""{"users": [{"name": "Alice"}]}""")
+
+val result = json.get("users")(5).get("name").string
+// Left(JsonError: Index 5 out of bounds at path $.users[5])
+```
+
+### Error Properties
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.JsonError
+import zio.blocks.schema.DynamicOptic
+
+val error: JsonError = ???
+
+error.message     // Error description
+error.path        // DynamicOptic path to error location
+error.offset      // Optional byte offset in input
+error.line        // Optional line number
+error.column      // Optional column number
+```
+
+## Cross-Platform Support
+
+The `Json` type works across all platforms:
+
+- **JVM** - Full functionality
+- **Scala.js** - Browser and Node.js
+- **Scala Native** - Native compilation
+
+String interpolators use compile-time validation that works on all platforms.
