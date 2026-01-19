@@ -194,7 +194,6 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       test("decode record with unknown fields - skips extra fields gracefully") {
         // Simulates schema evolution: newer producer adds fields, older consumer ignores them
         // This tests that unpacker.skipValue() correctly handles unknown fields
-        import org.msgpack.core.MessagePack
 
         // PersonV2 has an extra "email" field that PersonV1 doesn't know about
         case class PersonV1(name: String, age: Int)
@@ -216,8 +215,6 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         assertTrue(decodedV1 == Right(PersonV1("Alice", 30)))
       },
       test("decode record with multiple unknown fields") {
-        import org.msgpack.core.MessagePack
-
         case class SimpleRecord(id: Int)
         case class ExtendedRecord(id: Int, name: String, tags: List[String], active: Boolean)
 
