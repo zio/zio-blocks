@@ -3,10 +3,12 @@ package zio.blocks.schema
 import scala.language.experimental.macros
 
 /**
- * Enables the `p"..."` string interpolator for DynamicOptic path expressions in Scala 2.13.
+ * Enables the `p"..."` string interpolator for DynamicOptic path expressions in
+ * Scala 2.13.
  *
- * This interpolator parses path expressions at compile time, providing syntax validation
- * and generating `DynamicOptic` instances with zero runtime overhead.
+ * This interpolator parses path expressions at compile time, providing syntax
+ * validation and generating `DynamicOptic` instances with zero runtime
+ * overhead.
  *
  * ==Usage==
  * {{{
@@ -47,17 +49,21 @@ import scala.language.experimental.macros
  *   - `{*:}` - all map keys
  *   - `<CaseName>` - variant case
  *
- * @note This interpolator only supports literal strings. Interpolation variables are rejected
- *       at compile time.
+ * @note
+ *   This interpolator only supports literal strings. Interpolation variables
+ *   are rejected at compile time.
  */
 trait PathInterpolatorSyntax {
 
   implicit class PathOps(val sc: StringContext) {
+
     /**
      * Parse a path expression at compile time and produce a DynamicOptic.
      *
-     * @param args Must be empty - interpolation is not supported
-     * @return A DynamicOptic representing the parsed path
+     * @param args
+     *   Must be empty - interpolation is not supported
+     * @return
+     *   A DynamicOptic representing the parsed path
      */
     def p(args: Any*): DynamicOptic = macro PathMacros.pImpl
   }

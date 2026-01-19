@@ -6,26 +6,31 @@ import zio.blocks.schema.internal._
 /**
  * Scala 2.13 macro implementation for the `p"..."` path interpolator.
  *
- * This object provides compile-time parsing of path expressions, converting them
- * into `DynamicOptic` instances with position-aware error reporting.
+ * This object provides compile-time parsing of path expressions, converting
+ * them into `DynamicOptic` instances with position-aware error reporting.
  *
- * @see [[PathInterpolatorSyntax]] for usage examples
+ * @see
+ *   [[PathInterpolatorSyntax]] for usage examples
  */
 object PathMacros {
 
   /**
-   * Macro implementation that transforms a `StringContext` into a `DynamicOptic`.
+   * Macro implementation that transforms a `StringContext` into a
+   * `DynamicOptic`.
    *
    * This is called by the `p"..."` string interpolator at compile time. It:
-   * 1. Validates that no interpolation arguments are provided
-   * 2. Extracts the literal path string
-   * 3. Parses the path using [[PathParser]]
-   * 4. Converts parse results to `DynamicOptic.Node` instances
-   * 5. Generates the final expression tree
+   *   1. Validates that no interpolation arguments are provided
+   *   2. Extracts the literal path string
+   *   3. Parses the path using [[PathParser]]
+   *   4. Converts parse results to `DynamicOptic.Node` instances
+   *   5. Generates the final expression tree
    *
-   * @param c The macro Context
-   * @param args The interpolation arguments (must be empty)
-   * @return Tree creating the DynamicOptic
+   * @param c
+   *   The macro Context
+   * @param args
+   *   The interpolation arguments (must be empty)
+   * @return
+   *   Tree creating the DynamicOptic
    */
   def pImpl(c: Context)(args: c.Expr[Any]*): c.Tree = {
     import c.universe._
@@ -40,7 +45,7 @@ object PathMacros {
       case Apply(_, List(Apply(_, parts))) =>
         parts match {
           case List(Literal(Constant(s: String))) => s
-          case _ =>
+          case _                                  =>
             c.abort(c.enclosingPosition, "p interpolator only supports literal strings (no interpolation)")
         }
       case _ =>
