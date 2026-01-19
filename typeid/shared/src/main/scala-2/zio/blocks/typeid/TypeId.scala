@@ -93,47 +93,56 @@ final case class TypeId[A](ref: TypeRef) {
     case _                                 => Nil
   }
 
-  /** Returns the base types (parent classes/traits) of this type. */
-  def baseTypes: List[TypeRepr] = defKind.baseTypes
+  /** Returns the parent types (superclasses/supertraits) of this type. */
+  def parents: List[TypeRepr] = defKind.baseTypes
 
   /**
-   * Checks if this type is a subtype of another type.
-   *
-   * This method checks the type hierarchy using the extracted base types. It
-   * handles:
-   *   - Direct subtype relationships (class extends trait)
-   *   - Sealed trait subtypes
-   *
-   * Note: This is a best-effort check based on compile-time extracted
-   * information. For complex cases involving type parameters or implicit
-   * conversions, the check may return false even when a true subtype
-   * relationship exists at runtime.
-   *
-   * @param other
-   *   The potential supertype to check against
-   * @return
-   *   true if this type is a subtype of other
-   */
+    * Checks if this type is a subtype of another type.
+    *
+    * This method checks the type hierarchy using the extracted parent types. It
+    * handles:
+    *   - Direct subtype relationships (class extends trait)
+    *   - Sealed trait subtypes
+    *   - Transitive inheritance
+    *
+    * Note: This is a best-effort check based on compile-time extracted
+    * information. For complex cases involving type parameters or implicit
+    * conversions, the check may return false even when a true subtype
+    * relationship exists at runtime.
+    *
+    * @param other
+    *   The potential supertype to check against
+    * @return
+    *   true if this type is a subtype of other
+    */
   def isSubtypeOf(other: TypeId[_]): Boolean = {
     // A type is a subtype of itself
     if (TypeId.structurallyEqual(this, other)) return true
 
-    // Check if other appears in our base types
-    def checkBaseTypes(bases: List[TypeRepr], visited: Set[String]): Boolean =
-      bases.exists {
-        case TypeRepr.Ref(id) =>
-          if (visited.contains(id.fullName)) false
-          else if (TypeId.structurallyEqual(id, other)) true
-          else checkBaseTypes(id.baseTypes, visited + id.fullName)
-        case TypeRepr.Applied(TypeRepr.Ref(id), _) =>
-          if (visited.contains(id.fullName)) false
-          else if (id.fullName == other.fullName) true // Match by name for applied types
-          else checkBaseTypes(id.baseTypes, visited + id.fullName)
-        case _ => false
-      }
-
-    checkBaseTypes(baseTypes, Set(this.fullName))
+    // Check if other appears in our parent types (transitive)
+    TypeId.checkParents(this.parents, other, Set(this.fullName))
   }
+
+  /**
+    * Checks if this type is a supertype of another type.
+    *
+    * @param other
+    *   The potential subtype to check against
+    * @return
+    *   true if this type is a supertype of other
+    */
+  def isSupertypeOf(other: TypeId[_]): Boolean = other.isSubtypeOf(this)
+
+  /**
+    * Checks if this type is equivalent to another type (mutually subtypes).
+    *
+    * @param other
+    *   The type to compare with
+    * @return
+    *   true if both types are subtypes of each other
+    */
+  def isEquivalentTo(other: TypeId[_]): Boolean =
+    this.isSubtypeOf(other) && other.isSubtypeOf(this)
 
   /** If this is a type alias, returns the aliased type; otherwise None. */
   def aliasedType: Option[TypeRepr] = ref match {
@@ -263,9 +272,9 @@ object TypeId {
   }
 
   /**
-   * Computes a hash code for a TypeId that is consistent with structural
-   * equality.
-   */
+    * Computes a hash code for a TypeId that is consistent with structural
+    * equality.
+    */
   def structuralHash(id: TypeId[_]): Int = {
     val norm = normalize(id.ref)
     norm match {
@@ -276,6 +285,26 @@ object TypeId {
         (norm.fullName, norm.typeParams).hashCode()
     }
   }
+
+  // Subtyping helpers (private)
+
+  /**
+    * Recursively checks if any parent type matches the target TypeId.
+    */
+  private def checkParents(parents: List[TypeRepr], target: TypeId[_], visited: Set[String]): Boolean =
+    parents.exists { parent =>
+      parent match {
+        case TypeRepr.Ref(id) =>
+          if (visited.contains(id.fullName)) false
+          else if (structurallyEqual(id, target)) true
+          else checkParents(id.parents, target, visited + id.fullName)
+        case TypeRepr.Applied(TypeRepr.Ref(id), _) =>
+          if (visited.contains(id.fullName)) false
+          else if (id.fullName == target.fullName) true
+          else checkParents(id.parents, target, visited + id.fullName)
+        case _ => false
+      }
+    }
 
   // Predefined implicit TypeIds for common types
 

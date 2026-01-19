@@ -136,6 +136,210 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         assertTrue(
           intersectionId.name == "AAndB" && intersectionId.isAlias
         )
+      },
+      test("union type aliased type is Union TypeRepr") {
+        type StringOrInt = String | Int
+        val unionId = TypeId.derived[StringOrInt]
+
+        assertTrue(
+          unionId.aliasedType.exists {
+            case TypeRepr.Union(types) =>
+              types.length == 2 &&
+              types.exists {
+                case TypeRepr.Ref(id) => id.name == "String"
+                case _                => false
+              } &&
+              types.exists {
+                case TypeRepr.Ref(id) => id.name == "Int"
+                case _                => false
+              }
+            case _ => false
+          }
+        )
+      },
+      test("intersection type aliased type is Intersection TypeRepr") {
+        trait A
+        trait B
+        type AAndB = A & B
+        val intersectionId = TypeId.derived[AAndB]
+
+        assertTrue(
+          intersectionId.aliasedType.exists {
+            case TypeRepr.Intersection(types) =>
+              types.length == 2 &&
+              types.exists {
+                case TypeRepr.Ref(id) => id.name == "A"
+                case _                => false
+              } &&
+              types.exists {
+                case TypeRepr.Ref(id) => id.name == "B"
+                case _                => false
+              }
+            case _ => false
+          }
+        )
+      },
+      test("union type is equivalent to itself") {
+        type StringOrInt = String | Int
+        val unionId1 = TypeId.derived[StringOrInt]
+        val unionId2 = TypeId.derived[StringOrInt]
+
+        assertTrue(
+          unionId1.isEquivalentTo(unionId2),
+          unionId1.isSubtypeOf(unionId2),
+          unionId1.isSupertypeOf(unionId2)
+        )
+      },
+      test("intersection type is equivalent to itself") {
+        trait C
+        trait D
+        type CAndD = C & D
+        val intersectionId1 = TypeId.derived[CAndD]
+        val intersectionId2 = TypeId.derived[CAndD]
+
+        assertTrue(
+          intersectionId1.isEquivalentTo(intersectionId2),
+          intersectionId1.isSubtypeOf(intersectionId2),
+          intersectionId1.isSupertypeOf(intersectionId2)
+        )
+      },
+      test("different union types are not equivalent") {
+        type StringOrInt    = String | Int
+        type StringOrDouble = String | Double
+        val unionId1 = TypeId.derived[StringOrInt]
+        val unionId2 = TypeId.derived[StringOrDouble]
+
+        assertTrue(
+          !unionId1.isEquivalentTo(unionId2),
+          !unionId1.isSubtypeOf(unionId2),
+          !unionId1.isSupertypeOf(unionId2)
+        )
+      },
+      test("different intersection types are not equivalent") {
+        trait E
+        trait F
+        trait G
+        type EAndF = E & F
+        type EAndG = E & G
+        val intersectionId1 = TypeId.derived[EAndF]
+        val intersectionId2 = TypeId.derived[EAndG]
+
+        assertTrue(
+          !intersectionId1.isEquivalentTo(intersectionId2),
+          !intersectionId1.isSubtypeOf(intersectionId2),
+          !intersectionId1.isSupertypeOf(intersectionId2)
+        )
+      },
+      test("union type is not subtype of its member types") {
+        type StringOrInt = String | Int
+        val unionId  = TypeId.derived[StringOrInt]
+        val stringId = TypeId.derived[String]
+        val intId    = TypeId.derived[Int]
+
+        // A union type alias is a distinct type, not a subtype of its members
+        assertTrue(
+          !unionId.isSubtypeOf(stringId),
+          !unionId.isSubtypeOf(intId)
+        )
+      },
+      test("intersection type is not supertype of its member types") {
+        trait H
+        trait I
+        type HAndI = H & I
+        val intersectionId = TypeId.derived[HAndI]
+        val hId            = TypeId.derived[H]
+        val iId            = TypeId.derived[I]
+
+        // An intersection type alias is a distinct type, not a supertype of its members
+        assertTrue(
+          !intersectionId.isSupertypeOf(hId),
+          !intersectionId.isSupertypeOf(iId)
+        )
+      },
+      test("union types with same members in different order are equal") {
+        val union1 = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(TypeId.derived[String]),
+            TypeRepr.Ref(TypeId.derived[Int])
+          )
+        )
+        val union2 = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(TypeId.derived[Int]),
+            TypeRepr.Ref(TypeId.derived[String])
+          )
+        )
+
+        assertTrue(
+          union1 == union2,
+          union1.hashCode() == union2.hashCode()
+        )
+      },
+      test("intersection types with same members in different order are equal") {
+        trait J
+        trait K
+        val intersection1 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(TypeId.derived[J]),
+            TypeRepr.Ref(TypeId.derived[K])
+          )
+        )
+        val intersection2 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(TypeId.derived[K]),
+            TypeRepr.Ref(TypeId.derived[J])
+          )
+        )
+
+        assertTrue(
+          intersection1 == intersection2,
+          intersection1.hashCode() == intersection2.hashCode()
+        )
+      }
+    ),
+    suite("Opaque Type Nominality")(
+      test("opaque types are nominally distinct from their underlying type") {
+        val emailId  = TypeId.derived[OpaqueTypes.Email]
+        val stringId = TypeId.derived[String]
+
+        // Opaque types should NOT be subtypes of their underlying type (outside defining scope)
+        assertTrue(
+          !emailId.isSubtypeOf(stringId),
+          !stringId.isSubtypeOf(emailId),
+          !emailId.isEquivalentTo(stringId)
+        )
+      },
+      test("different opaque types with same underlying type are not equivalent") {
+        // Create another opaque type with String underlying type for comparison
+        val emailId = TypeId.derived[OpaqueTypes.Email]
+        val ageId   = TypeId.derived[OpaqueTypes.Age]
+
+        assertTrue(
+          !emailId.isSubtypeOf(ageId),
+          !ageId.isSubtypeOf(emailId),
+          !emailId.isEquivalentTo(ageId)
+        )
+      },
+      test("opaque type is equivalent to itself") {
+        val emailId1 = TypeId.derived[OpaqueTypes.Email]
+        val emailId2 = TypeId.derived[OpaqueTypes.Email]
+
+        assertTrue(
+          emailId1.isEquivalentTo(emailId2),
+          emailId1.isSubtypeOf(emailId2),
+          emailId2.isSubtypeOf(emailId1)
+        )
+      },
+      test("opaque type representation is accessible") {
+        val emailId = TypeId.derived[OpaqueTypes.Email]
+
+        // The representation can be accessed to know the underlying type
+        assertTrue(
+          emailId.opaqueRepresentation.exists {
+            case TypeRepr.Ref(id) => id.name == "String"
+            case _                => false
+          }
+        )
       }
     ),
     suite("Context Functions")(

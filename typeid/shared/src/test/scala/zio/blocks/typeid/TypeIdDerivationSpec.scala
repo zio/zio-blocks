@@ -45,6 +45,24 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     type StringMap[V] = Map[String, V]
   }
 
+  // Hierarchy for subtyping tests
+  trait Animal
+  trait Mammal         extends Animal
+  class Dog            extends Mammal
+  class Cat            extends Mammal
+  class GermanShepherd extends Dog
+
+  // For variance testing
+  trait Serializable
+  trait Comparable[A]
+
+  // Covariant container
+  sealed trait Box[+A]
+  object Box {
+    case class Full[+A](value: A) extends Box[A]
+    case object Empty             extends Box[Nothing]
+  }
+
   def spec = suite("TypeId Derivation")(
     suite("Primitive Types")(
       test("derives TypeId for Int") {
@@ -452,32 +470,32 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("Base Types")(
-      test("class extending trait has correct baseTypes") {
+    suite("Parent Types")(
+      test("class extending trait has correct parents") {
         val id = TypeId.derived[SimpleSealed.CaseA]
         assertTrue(
-          id.baseTypes.exists {
+          id.parents.exists {
             case TypeRepr.Ref(tid) => tid.name == "SimpleSealed"
             case _                 => false
           }
         )
       },
-      test("sealed trait subtypes have parent in baseTypes") {
+      test("sealed trait subtypes have parent in parents") {
         val caseAId = TypeId.derived[SimpleSealed.CaseA]
         val caseBId = TypeId.derived[SimpleSealed.CaseB]
         assertTrue(
-          caseAId.baseTypes.nonEmpty,
-          caseBId.baseTypes.nonEmpty
+          caseAId.parents.nonEmpty,
+          caseBId.parents.nonEmpty
         )
       },
-      test("baseTypes is accessible on all types") {
+      test("parents is accessible on all types") {
         val intId   = TypeId.derived[Int]
         val listId  = TypeId.derived[List[_]]
         val classId = TypeId.derived[SimpleClass]
         assertTrue(
-          intId.baseTypes.isInstanceOf[List[TypeRepr]],
-          listId.baseTypes.isInstanceOf[List[TypeRepr]],
-          classId.baseTypes.isInstanceOf[List[TypeRepr]]
+          intId.parents.isInstanceOf[List[TypeRepr]],
+          listId.parents.isInstanceOf[List[TypeRepr]],
+          classId.parents.isInstanceOf[List[TypeRepr]]
         )
       }
     ),
@@ -516,6 +534,36 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       }
     ),
+    suite("isSupertypeOf")(
+      test("sealed trait is supertype of its case class") {
+        val sealedId = TypeId.derived[SimpleSealed]
+        val caseAId  = TypeId.derived[SimpleSealed.CaseA]
+        assertTrue(
+          sealedId.isSupertypeOf(caseAId),
+          !caseAId.isSupertypeOf(sealedId)
+        )
+      },
+      test("type is supertype of itself") {
+        val id = TypeId.derived[SimpleClass]
+        assertTrue(id.isSupertypeOf(id))
+      }
+    ),
+    suite("isEquivalentTo")(
+      test("type is equivalent to itself") {
+        val id = TypeId.derived[SimpleClass]
+        assertTrue(id.isEquivalentTo(id))
+      },
+      test("unrelated types are not equivalent") {
+        val intId    = TypeId.derived[Int]
+        val stringId = TypeId.derived[String]
+        assertTrue(!intId.isEquivalentTo(stringId))
+      },
+      test("subtype and supertype are not equivalent") {
+        val sealedId = TypeId.derived[SimpleSealed]
+        val caseAId  = TypeId.derived[SimpleSealed.CaseA]
+        assertTrue(!sealedId.isEquivalentTo(caseAId))
+      }
+    ),
     suite("Type Aliases")(
       test("type aliases are detected correctly") {
         val ageId = TypeId.derived[TypeAliases.Age]
@@ -548,6 +596,140 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
             case _                                                                 => false
           }
         )
+      },
+      test("type alias is equivalent to its underlying type") {
+        val ageId = TypeId.derived[TypeAliases.Age]
+        val intId = TypeId.derived[Int]
+
+        assertTrue(
+          ageId.isEquivalentTo(intId),
+          ageId.isSubtypeOf(intId),
+          intId.isSubtypeOf(ageId)
+        )
+      }
+    ),
+    suite("Basic Subtyping")(
+      test("reflexivity - type is subtype of itself") {
+        val stringId = TypeId.derived[String]
+        val dogId    = TypeId.derived[Dog]
+
+        assertTrue(
+          stringId.isSubtypeOf(stringId),
+          dogId.isSubtypeOf(dogId)
+        )
+      },
+      test("reflexivity with derived type") {
+        val caseAId = TypeId.derived[SimpleSealed.CaseA]
+        assertTrue(caseAId.isSubtypeOf(caseAId))
+      }
+    ),
+    suite("Nominal Hierarchy Subtyping")(
+      test("class hierarchy subtyping") {
+        val dogId    = TypeId.derived[Dog]
+        val mammalId = TypeId.derived[Mammal]
+        val animalId = TypeId.derived[Animal]
+
+        assertTrue(
+          dogId.isSubtypeOf(mammalId),
+          dogId.isSubtypeOf(animalId),
+          mammalId.isSubtypeOf(animalId)
+        )
+      },
+      test("transitive subtyping through multiple levels") {
+        val germanShepherdId = TypeId.derived[GermanShepherd]
+        val dogId            = TypeId.derived[Dog]
+        val mammalId         = TypeId.derived[Mammal]
+        val animalId         = TypeId.derived[Animal]
+
+        assertTrue(
+          germanShepherdId.isSubtypeOf(dogId),
+          germanShepherdId.isSubtypeOf(mammalId),
+          germanShepherdId.isSubtypeOf(animalId)
+        )
+      },
+      test("supertype is not subtype of subtype") {
+        val dogId    = TypeId.derived[Dog]
+        val animalId = TypeId.derived[Animal]
+
+        assertTrue(
+          !animalId.isSubtypeOf(dogId)
+        )
+      },
+      test("siblings are not subtypes of each other") {
+        val dogId = TypeId.derived[Dog]
+        val catId = TypeId.derived[Cat]
+
+        assertTrue(
+          !dogId.isSubtypeOf(catId),
+          !catId.isSubtypeOf(dogId)
+        )
+      }
+    ),
+    suite("isSupertypeOf and isEquivalentTo")(
+      test("Animal is supertype of Dog") {
+        val animalId = TypeId.derived[Animal]
+        val dogId    = TypeId.derived[Dog]
+
+        assertTrue(
+          animalId.isSupertypeOf(dogId),
+          !dogId.isSupertypeOf(animalId)
+        )
+      },
+      test("equivalent types are mutual subtypes") {
+        val id1 = TypeId.derived[Dog]
+        val id2 = TypeId.derived[Dog]
+
+        assertTrue(
+          id1.isEquivalentTo(id2),
+          id1.isSubtypeOf(id2),
+          id2.isSubtypeOf(id1)
+        )
+      },
+      test("non-equivalent types in hierarchy") {
+        val dogId    = TypeId.derived[Dog]
+        val animalId = TypeId.derived[Animal]
+
+        assertTrue(
+          !dogId.isEquivalentTo(animalId),
+          !animalId.isEquivalentTo(dogId)
+        )
+      }
+    ),
+    suite("Intersection Type Order Independence")(
+      test("intersection types with same members in different order are equal") {
+        val intersection1 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(TypeId.derived[Serializable]),
+            TypeRepr.Ref(TypeId.derived[Comparable[String]])
+          )
+        )
+        val intersection2 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(TypeId.derived[Comparable[String]]),
+            TypeRepr.Ref(TypeId.derived[Serializable])
+          )
+        )
+
+        assertTrue(
+          intersection1 == intersection2,
+          intersection1.hashCode() == intersection2.hashCode()
+        )
+      },
+      test("intersection types with different members are not equal") {
+        val intersection1 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(TypeId.derived[Serializable]),
+            TypeRepr.Ref(TypeId.derived[Animal])
+          )
+        )
+        val intersection2 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(TypeId.derived[Serializable]),
+            TypeRepr.Ref(TypeId.derived[Mammal])
+          )
+        )
+
+        assertTrue(intersection1 != intersection2)
       }
     )
   )

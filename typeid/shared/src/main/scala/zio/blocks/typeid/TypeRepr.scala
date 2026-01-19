@@ -120,16 +120,50 @@ object TypeRepr {
    *
    * The list contains at least 2 types. For single types, use the type
    * directly.
+   *
+   * Note: Equality is order-independent, so `A & B` equals `B & A`.
    */
-  final case class Intersection(types: List[TypeRepr]) extends TypeRepr
+  final class Intersection private (val types: List[TypeRepr]) extends TypeRepr {
+    override def equals(other: Any): Boolean = other match {
+      case that: Intersection => this.types.toSet == that.types.toSet
+      case _                  => false
+    }
+
+    override def hashCode(): Int = types.toSet.hashCode()
+
+    override def toString: String = s"Intersection(${types.mkString(", ")})"
+  }
+
+  object Intersection {
+    def apply(types: List[TypeRepr]): Intersection = new Intersection(types)
+
+    def unapply(i: Intersection): Some[List[TypeRepr]] = Some(i.types)
+  }
 
   /**
    * Union type: `A | B | C` (Scala 3 only).
    *
    * The list contains at least 2 types. For single types, use the type
    * directly.
+   *
+   * Note: Equality is order-independent, so `A | B` equals `B | A`.
    */
-  final case class Union(types: List[TypeRepr]) extends TypeRepr
+  final class Union private (val types: List[TypeRepr]) extends TypeRepr {
+    override def equals(other: Any): Boolean = other match {
+      case that: Union => this.types.toSet == that.types.toSet
+      case _           => false
+    }
+
+    override def hashCode(): Int = types.toSet.hashCode()
+
+    override def toString: String = s"Union(${types.mkString(", ")})"
+  }
+
+  object Union {
+    def apply(types: List[TypeRepr]): Union = new Union(types)
+
+    def unapply(u: Union): Some[List[TypeRepr]] = Some(u.types)
+  }
 
   // ============================================================================
   // Tuple Types
