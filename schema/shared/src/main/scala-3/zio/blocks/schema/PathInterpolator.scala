@@ -3,10 +3,12 @@ package zio.blocks.schema
 import scala.quoted.*
 
 /**
- * Enables the `p"..."` string interpolator for DynamicOptic path expressions in Scala 3.
+ * Enables the `p"..."` string interpolator for DynamicOptic path expressions in
+ * Scala 3.
  *
- * This interpolator parses path expressions at compile time, providing syntax validation
- * and generating `DynamicOptic` instances with zero runtime overhead.
+ * This interpolator parses path expressions at compile time, providing syntax
+ * validation and generating `DynamicOptic` instances with zero runtime
+ * overhead.
  *
  * ==Usage==
  * {{{
@@ -48,16 +50,18 @@ import scala.quoted.*
  *   - `<CaseName>` - variant case
  *
  * ==Implementation Note==
- * This extension uses `inline sc: StringContext` which differs from the typical Scala 3
- * string interpolator pattern. This is required because we use `sc.valueOrAbort` to
- * extract the literal string parts at compile time. The standard non-inline approach
- * with quoted pattern matching was tested and does not work for this use case.
+ * This extension uses `inline sc: StringContext` which differs from the typical
+ * Scala 3 string interpolator pattern. This is required because we use
+ * `sc.valueOrAbort` to extract the literal string parts at compile time. The
+ * standard non-inline approach with quoted pattern matching was tested and does
+ * not work for this use case.
  *
- * @note This interpolator only supports literal strings. Interpolation variables are rejected
- *       at compile time.
+ * @note
+ *   This interpolator only supports literal strings. Interpolation variables
+ *   are rejected at compile time.
  */
 extension (inline sc: StringContext) {
-  inline def p(inline args: Any*): DynamicOptic = 
+  inline def p(inline args: Any*): DynamicOptic =
     ${ PathMacros.pImpl('sc, 'args) }
 }
 

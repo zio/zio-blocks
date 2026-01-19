@@ -6,26 +6,31 @@ import zio.blocks.schema.internal.*
 /**
  * Scala 3 macro implementation for the `p"..."` path interpolator.
  *
- * This object provides compile-time parsing of path expressions, converting them
- * into `DynamicOptic` instances with position-aware error reporting.
+ * This object provides compile-time parsing of path expressions, converting
+ * them into `DynamicOptic` instances with position-aware error reporting.
  *
- * @see [[PathInterpolatorSyntax]] for usage examples
+ * @see
+ *   [[PathInterpolatorSyntax]] for usage examples
  */
 object PathMacros {
 
   /**
-   * Macro implementation that transforms a `StringContext` into a `DynamicOptic`.
+   * Macro implementation that transforms a `StringContext` into a
+   * `DynamicOptic`.
    *
    * This is called by the `p"..."` string interpolator at compile time. It:
-   * 1. Validates that no interpolation arguments are provided
-   * 2. Extracts the literal path string
-   * 3. Parses the path using [[PathParser]]
-   * 4. Converts parse results to `DynamicOptic.Node` instances
-   * 5. Generates the final expression
+   *   1. Validates that no interpolation arguments are provided
+   *   2. Extracts the literal path string
+   *   3. Parses the path using [[PathParser]]
+   *   4. Converts parse results to `DynamicOptic.Node` instances
+   *   5. Generates the final expression
    *
-   * @param sc The StringContext expression from the interpolator
-   * @param args The interpolation arguments (must be empty)
-   * @return Expression creating the DynamicOptic
+   * @param sc
+   *   The StringContext expression from the interpolator
+   * @param args
+   *   The interpolation arguments (must be empty)
+   * @return
+   *   Expression creating the DynamicOptic
    */
   def pImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[DynamicOptic] = {
     import quotes.reflect.*
@@ -43,7 +48,7 @@ object PathMacros {
     // Step 2: Extract literal string from StringContext
     // Note: Using valueOrAbort requires the extension to use `inline sc: StringContext`
     val literal: String = sc.valueOrAbort.parts match {
-      case part :: Nil => part
+      case part :: Nil             => part
       case parts if parts.size > 1 =>
         report.errorAndAbort(
           "p interpolator does not support interpolation arguments (use literal strings only)",
@@ -112,7 +117,7 @@ object PathMacros {
     '{ new DynamicOptic($seqExpr.toVector) }
   }
 
-  private def dynamicValueToExpr(dv: DynamicValue)(using Quotes): Expr[DynamicValue] = {
+  private def dynamicValueToExpr(dv: DynamicValue)(using Quotes): Expr[DynamicValue] =
     dv match {
       case DynamicValue.Primitive(pv) =>
         pv match {
@@ -137,5 +142,4 @@ object PathMacros {
         import quotes.reflect.*
         report.errorAndAbort(s"Expected Primitive DynamicValue but got: $other")
     }
-  }
 }

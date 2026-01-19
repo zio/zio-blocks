@@ -6,10 +6,10 @@ import zio.test._
  * Comprehensive test suite for the p"..." path interpolator macro.
  *
  * Tests cover:
- * - All syntax forms (fields, indices, ranges, map keys, variants)
- * - Edge cases (empty paths, unicode, keywords as fields)
- * - Error conditions (verified via compile-time rejection)
- * - Whitespace handling
+ *   - All syntax forms (fields, indices, ranges, map keys, variants)
+ *   - Edge cases (empty paths, unicode, keywords as fields)
+ *   - Error conditions (verified via compile-time rejection)
+ *   - Whitespace handling
  */
 object DynamicOpticParserSpec extends ZIOSpecDefault with PathInterpolatorSyntax {
 

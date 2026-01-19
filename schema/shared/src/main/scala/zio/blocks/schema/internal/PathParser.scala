@@ -15,25 +15,25 @@ sealed trait ParseResult[+A] {
   }
 }
 
-case class ParseSuccess[A](value: A, consumed: Int) extends ParseResult[A]
+case class ParseSuccess[A](value: A, consumed: Int)   extends ParseResult[A]
 case class ParseError(message: String, position: Int) extends ParseResult[Nothing]
 
 /**
- * Intermediate representation for path segments.
- * This IR is easier to debug and test than direct DynamicOptic.Node construction.
+ * Intermediate representation for path segments. This IR is easier to debug and
+ * test than direct DynamicOptic.Node construction.
  */
 sealed trait PathSegment
 
 object PathSegment {
-  case class Field(name: String) extends PathSegment
-  case class Index(n: Int) extends PathSegment
-  case class Indices(ns: Seq[Int]) extends PathSegment
-  case object Elements extends PathSegment                     // [*] or [:*]
-  case class MapKey(key: MapKeyValue) extends PathSegment
+  case class Field(name: String)             extends PathSegment
+  case class Index(n: Int)                   extends PathSegment
+  case class Indices(ns: Seq[Int])           extends PathSegment
+  case object Elements                       extends PathSegment // [*] or [:*]
+  case class MapKey(key: MapKeyValue)        extends PathSegment
   case class MapKeys(keys: Seq[MapKeyValue]) extends PathSegment
-  case object MapValues extends PathSegment                    // {*} or {:*}
-  case object MapKeysSelector extends PathSegment              // {*:}
-  case class VariantCase(name: String) extends PathSegment     // <CaseName>
+  case object MapValues                      extends PathSegment // {*} or {:*}
+  case object MapKeysSelector                extends PathSegment // {*:}
+  case class VariantCase(name: String)       extends PathSegment // <CaseName>
 }
 
 /**
@@ -43,9 +43,9 @@ sealed trait MapKeyValue
 
 object MapKeyValue {
   case class StringKey(value: String) extends MapKeyValue
-  case class IntKey(value: Int) extends MapKeyValue
-  case class CharKey(value: Char) extends MapKeyValue
-  case class BoolKey(value: Boolean) extends MapKeyValue
+  case class IntKey(value: Int)       extends MapKeyValue
+  case class CharKey(value: Char)     extends MapKeyValue
+  case class BoolKey(value: Boolean)  extends MapKeyValue
 }
 
 /**
@@ -63,7 +63,8 @@ object MapKeyValue {
  *   - All map keys: `{*:}`
  *   - Variant case: `<CaseName>`
  *
- * Whitespace is allowed inside [], {}, and <> but not around dots or between segments.
+ * Whitespace is allowed inside [], {}, and <> but not around dots or between
+ * segments.
  */
 class PathParser(input: String) {
   private var pos: Int = 0
@@ -84,7 +85,7 @@ class PathParser(input: String) {
     ParseSuccess(segments.toList, input.length)
   }
 
-  private def parseSegment(): ParseResult[PathSegment] = {
+  private def parseSegment(): ParseResult[PathSegment] =
     peek() match {
       case Some('.') =>
         advance()
@@ -102,7 +103,6 @@ class PathParser(input: String) {
       case None =>
         ParseError("Unexpected end of input", pos)
     }
-  }
 
   private def parseField(): ParseResult[PathSegment] = {
     val startPos = pos
@@ -110,7 +110,7 @@ class PathParser(input: String) {
       case Some(c) if c.isWhitespace =>
         return ParseError("Whitespace not allowed before field name", pos)
       case Some(c) if isIdentifierStart(c) =>
-        // Continue
+      // Continue
       case Some(c) =>
         return ParseError(s"Expected field name but found '$c'", pos)
       case None =>
@@ -237,7 +237,8 @@ class PathParser(input: String) {
   }
 
   /**
-   * Parse map selector: {*}, {:*}, {*:}, {"key"}, {42}, {'c'}, {true}, {"a","b"}
+   * Parse map selector: {*}, {:*}, {*:}, {"key"}, {42}, {'c'}, {true},
+   * {"a","b"}
    */
   private def parseMap(): ParseResult[PathSegment] = {
     val startPos = pos
@@ -297,7 +298,10 @@ class PathParser(input: String) {
         parseBoolKey(startPos)
 
       case other =>
-        ParseError(s"Expected map key or selector after '{{' but found ${other.map(c => s"'$c'").getOrElse("EOF")}", pos)
+        ParseError(
+          s"Expected map key or selector after '{{' but found ${other.map(c => s"'$c'").getOrElse("EOF")}",
+          pos
+        )
     }
   }
 
@@ -323,7 +327,7 @@ class PathParser(input: String) {
 
     expect('}') match {
       case Some(err) => return err
-      case None =>
+      case None      =>
         if (keys.size == 1) {
           ParseSuccess(PathSegment.MapKey(keys.head), pos - startPos)
         } else {
@@ -402,7 +406,7 @@ class PathParser(input: String) {
   }
 
   private def parseBoolKey(startPos: Int): ParseResult[PathSegment] = {
-    val word = parseWord()
+    val word  = parseWord()
     val value = word match {
       case "true"  => true
       case "false" => false
@@ -478,7 +482,7 @@ class PathParser(input: String) {
       case None      =>
     }
 
-    val sb = new StringBuilder
+    val sb   = new StringBuilder
     var done = false
 
     while (!done && pos < input.length) {
@@ -505,7 +509,7 @@ class PathParser(input: String) {
     }
   }
 
-  private def parseEscapeChar(): ParseResult[Char] = {
+  private def parseEscapeChar(): ParseResult[Char] =
     peek() match {
       case Some('n')  => advance(); ParseSuccess('\n', 1)
       case Some('t')  => advance(); ParseSuccess('\t', 1)
@@ -516,7 +520,6 @@ class PathParser(input: String) {
       case Some(c)    => ParseError(s"Invalid escape sequence: \\$c", pos)
       case None       => ParseError("Unexpected end of input in escape sequence", pos)
     }
-  }
 
   private def parseWord(): String = {
     val sb = new StringBuilder
@@ -537,20 +540,18 @@ class PathParser(input: String) {
 
   private def advance(): Unit = pos += 1
 
-  private def expect(c: Char): Option[ParseError] = {
+  private def expect(c: Char): Option[ParseError] =
     if (peek().contains(c)) {
       advance()
       None
     } else {
       Some(ParseError(s"Expected '$c' but found ${peek().map(x => s"'$x'").getOrElse("EOF")}", pos))
     }
-  }
 
-  private def skipWhitespaceInBrackets(): Unit = {
+  private def skipWhitespaceInBrackets(): Unit =
     while (peek().exists(_.isWhitespace)) {
       advance()
     }
-  }
 
   private def isIdentifierStart(c: Char): Boolean = Character.isLetter(c) || c == '_'
 

@@ -1,7 +1,8 @@
 package zio.blocks.schema.internal
 
 /**
- * Generates human-readable compile errors with position tracking and helpful suggestions.
+ * Generates human-readable compile errors with position tracking and helpful
+ * suggestions.
  */
 object ErrorReporter {
 
