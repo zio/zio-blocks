@@ -7,7 +7,6 @@ object DynamicOpticParserSpec extends ZIOSpecDefault {
   import DynamicOptic.Node
 
   def spec = suite("DynamicOptic path interpolator p\"\"")(
-
     suite("Record field access")(
       test("single field with leading dot") {
         assertTrue(p".foo" == DynamicOptic(Vector(Node.Field("foo"))))
@@ -16,18 +15,26 @@ object DynamicOpticParserSpec extends ZIOSpecDefault {
         assertTrue(p"foo" == DynamicOptic(Vector(Node.Field("foo"))))
       },
       test("chained fields with leading dot") {
-        assertTrue(p".foo.bar.baz" == DynamicOptic(Vector(
-          Node.Field("foo"),
-          Node.Field("bar"),
-          Node.Field("baz")
-        )))
+        assertTrue(
+          p".foo.bar.baz" == DynamicOptic(
+            Vector(
+              Node.Field("foo"),
+              Node.Field("bar"),
+              Node.Field("baz")
+            )
+          )
+        )
       },
       test("chained fields without leading dot") {
-        assertTrue(p"foo.bar.baz" == DynamicOptic(Vector(
-          Node.Field("foo"),
-          Node.Field("bar"),
-          Node.Field("baz")
-        )))
+        assertTrue(
+          p"foo.bar.baz" == DynamicOptic(
+            Vector(
+              Node.Field("foo"),
+              Node.Field("bar"),
+              Node.Field("baz")
+            )
+          )
+        )
       },
       test("field with leading underscore") {
         assertTrue(p"._private" == DynamicOptic(Vector(Node.Field("_private"))))
@@ -111,44 +118,76 @@ object DynamicOpticParserSpec extends ZIOSpecDefault {
 
     suite("Sequence index access - ranges")(
       test("range basic") {
-        assertTrue(p"[0:5]" == DynamicOptic(Vector(
-          Node.AtIndices(Seq(0, 1, 2, 3, 4))
-        )))
+        assertTrue(
+          p"[0:5]" == DynamicOptic(
+            Vector(
+              Node.AtIndices(Seq(0, 1, 2, 3, 4))
+            )
+          )
+        )
       },
       test("range zero to ten") {
-        assertTrue(p"[0:10]" == DynamicOptic(Vector(
-          Node.AtIndices(Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
-        )))
+        assertTrue(
+          p"[0:10]" == DynamicOptic(
+            Vector(
+              Node.AtIndices(Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
+            )
+          )
+        )
       },
       test("range with spaces") {
-        assertTrue(p"[ 0 : 5 ]" == DynamicOptic(Vector(
-          Node.AtIndices(Seq(0, 1, 2, 3, 4))
-        )))
+        assertTrue(
+          p"[ 0 : 5 ]" == DynamicOptic(
+            Vector(
+              Node.AtIndices(Seq(0, 1, 2, 3, 4))
+            )
+          )
+        )
       },
       test("range starting nonzero") {
-        assertTrue(p"[5:8]" == DynamicOptic(Vector(
-          Node.AtIndices(Seq(5, 6, 7))
-        )))
+        assertTrue(
+          p"[5:8]" == DynamicOptic(
+            Vector(
+              Node.AtIndices(Seq(5, 6, 7))
+            )
+          )
+        )
       },
       test("range single element") {
-        assertTrue(p"[3:4]" == DynamicOptic(Vector(
-          Node.AtIndices(Seq(3))
-        )))
+        assertTrue(
+          p"[3:4]" == DynamicOptic(
+            Vector(
+              Node.AtIndices(Seq(3))
+            )
+          )
+        )
       },
       test("range empty when start equals end") {
-        assertTrue(p"[5:5]" == DynamicOptic(Vector(
-          Node.AtIndices(Seq.empty)
-        )))
+        assertTrue(
+          p"[5:5]" == DynamicOptic(
+            Vector(
+              Node.AtIndices(Seq.empty)
+            )
+          )
+        )
       },
       test("range inverted produces empty") {
-        assertTrue(p"[10:5]" == DynamicOptic(Vector(
-          Node.AtIndices(Seq.empty)
-        )))
+        assertTrue(
+          p"[10:5]" == DynamicOptic(
+            Vector(
+              Node.AtIndices(Seq.empty)
+            )
+          )
+        )
       },
       test("range with leading zeros") {
-        assertTrue(p"[001:005]" == DynamicOptic(Vector(
-          Node.AtIndices(Seq(1, 2, 3, 4))
-        )))
+        assertTrue(
+          p"[001:005]" == DynamicOptic(
+            Vector(
+              Node.AtIndices(Seq(1, 2, 3, 4))
+            )
+          )
+        )
       }
     ),
 
@@ -166,296 +205,500 @@ object DynamicOpticParserSpec extends ZIOSpecDefault {
         assertTrue(p"[ :* ]" == DynamicOptic(Vector(Node.Elements)))
       },
       test("chained single indices") {
-        assertTrue(p"[0][1][2]" == DynamicOptic(Vector(
-          Node.AtIndex(0),
-          Node.AtIndex(1),
-          Node.AtIndex(2)
-        )))
+        assertTrue(
+          p"[0][1][2]" == DynamicOptic(
+            Vector(
+              Node.AtIndex(0),
+              Node.AtIndex(1),
+              Node.AtIndex(2)
+            )
+          )
+        )
       },
       test("chained elements selectors") {
-        assertTrue(p"[*][*]" == DynamicOptic(Vector(
-          Node.Elements,
-          Node.Elements
-        )))
+        assertTrue(
+          p"[*][*]" == DynamicOptic(
+            Vector(
+              Node.Elements,
+              Node.Elements
+            )
+          )
+        )
       },
       test("chained colon star selectors") {
-        assertTrue(p"[:*][:*]" == DynamicOptic(Vector(
-          Node.Elements,
-          Node.Elements
-        )))
+        assertTrue(
+          p"[:*][:*]" == DynamicOptic(
+            Vector(
+              Node.Elements,
+              Node.Elements
+            )
+          )
+        )
       },
       test("mixed elements and indices") {
-        assertTrue(p"[*][0][*]" == DynamicOptic(Vector(
-          Node.Elements,
-          Node.AtIndex(0),
-          Node.Elements
-        )))
+        assertTrue(
+          p"[*][0][*]" == DynamicOptic(
+            Vector(
+              Node.Elements,
+              Node.AtIndex(0),
+              Node.Elements
+            )
+          )
+        )
       }
     ),
 
     suite("Map key access - string keys")(
       test("simple string key") {
-        assertTrue(p"""{"foo"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo")))
-        )))
+        assertTrue(
+          p"""{"foo"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo")))
+            )
+          )
+        )
       },
       test("string key with spaces") {
-        assertTrue(p"""{"foo bar"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo bar")))
-        )))
+        assertTrue(
+          p"""{"foo bar"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo bar")))
+            )
+          )
+        )
       },
       test("string key with escaped quote") {
-        assertTrue(p"""{"foo\"bar"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\"bar")))
-        )))
+        assertTrue(
+          p"""{"foo\"bar"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\"bar")))
+            )
+          )
+        )
       },
       test("string key with escaped backslash") {
-        assertTrue(p"""{"foo\\bar"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\\bar")))
-        )))
+        assertTrue(
+          p"""{"foo\\bar"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\\bar")))
+            )
+          )
+        )
       },
       test("string key with newline escape") {
-        assertTrue(p"""{"foo\nbar"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\nbar")))
-        )))
+        assertTrue(
+          p"""{"foo\nbar"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\nbar")))
+            )
+          )
+        )
       },
       test("string key with tab escape") {
-        assertTrue(p"""{"foo\tbar"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\tbar")))
-        )))
+        assertTrue(
+          p"""{"foo\tbar"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\tbar")))
+            )
+          )
+        )
       },
       test("string key with carriage return escape") {
-        assertTrue(p"""{"foo\rbar"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\rbar")))
-        )))
+        assertTrue(
+          p"""{"foo\rbar"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\rbar")))
+            )
+          )
+        )
       },
       test("string key only backslash") {
-        assertTrue(p"""{"\\"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("\\")))
-        )))
+        assertTrue(
+          p"""{"\\"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("\\")))
+            )
+          )
+        )
       },
       test("string key only quote") {
-        assertTrue(p"""{"\""}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("\"")))
-        )))
+        assertTrue(
+          p"""{"\""}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("\"")))
+            )
+          )
+        )
       },
       test("empty string key") {
-        assertTrue(p"""{""}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("")))
-        )))
+        assertTrue(
+          p"""{""}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("")))
+            )
+          )
+        )
       },
       test("string key with unicode") {
-        assertTrue(p"""{"日本語"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("日本語")))
-        )))
+        assertTrue(
+          p"""{"日本語"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("日本語")))
+            )
+          )
+        )
       },
       test("string key with emoji") {
-        assertTrue(p"""{"🎉"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("🎉")))
-        )))
+        assertTrue(
+          p"""{"🎉"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("🎉")))
+            )
+          )
+        )
       },
       test("multiple string keys") {
-        assertTrue(p"""{"foo", "bar", "baz"}""" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.String("foo")),
-            DynamicValue.Primitive(PrimitiveValue.String("bar")),
-            DynamicValue.Primitive(PrimitiveValue.String("baz"))
-          ))
-        )))
+        assertTrue(
+          p"""{"foo", "bar", "baz"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.String("foo")),
+                  DynamicValue.Primitive(PrimitiveValue.String("bar")),
+                  DynamicValue.Primitive(PrimitiveValue.String("baz"))
+                )
+              )
+            )
+          )
+        )
       },
       test("two string keys") {
-        assertTrue(p"""{"a", "b"}""" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.String("a")),
-            DynamicValue.Primitive(PrimitiveValue.String("b"))
-          ))
-        )))
+        assertTrue(
+          p"""{"a", "b"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.String("a")),
+                  DynamicValue.Primitive(PrimitiveValue.String("b"))
+                )
+              )
+            )
+          )
+        )
       }
     ),
 
     suite("Map key access - integer keys")(
       test("positive integer") {
-        assertTrue(p"{42}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(42)))
-        )))
+        assertTrue(
+          p"{42}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+            )
+          )
+        )
       },
       test("zero") {
-        assertTrue(p"{0}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(0)))
-        )))
+        assertTrue(
+          p"{0}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            )
+          )
+        )
       },
       test("negative integer") {
-        assertTrue(p"{-42}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-42)))
-        )))
+        assertTrue(
+          p"{-42}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-42)))
+            )
+          )
+        )
       },
       test("max int") {
-        assertTrue(p"{2147483647}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(2147483647)))
-        )))
+        assertTrue(
+          p"{2147483647}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(2147483647)))
+            )
+          )
+        )
       },
       test("min int") {
-        assertTrue(p"{-2147483648}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-2147483648)))
-        )))
+        assertTrue(
+          p"{-2147483648}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-2147483648)))
+            )
+          )
+        )
       },
       test("leading zeros") {
-        assertTrue(p"{007}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(7)))
-        )))
+        assertTrue(
+          p"{007}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(7)))
+            )
+          )
+        )
       },
       test("negative with leading zeros") {
-        assertTrue(p"{-007}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-7)))
-        )))
+        assertTrue(
+          p"{-007}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-7)))
+            )
+          )
+        )
       },
       test("multiple integer keys") {
-        assertTrue(p"{1, 2, 3}" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.Int(1)),
-            DynamicValue.Primitive(PrimitiveValue.Int(2)),
-            DynamicValue.Primitive(PrimitiveValue.Int(3))
-          ))
-        )))
+        assertTrue(
+          p"{1, 2, 3}" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.Int(1)),
+                  DynamicValue.Primitive(PrimitiveValue.Int(2)),
+                  DynamicValue.Primitive(PrimitiveValue.Int(3))
+                )
+              )
+            )
+          )
+        )
       },
       test("multiple integer keys with negatives") {
-        assertTrue(p"{-1, 0, 1}" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.Int(-1)),
-            DynamicValue.Primitive(PrimitiveValue.Int(0)),
-            DynamicValue.Primitive(PrimitiveValue.Int(1))
-          ))
-        )))
+        assertTrue(
+          p"{-1, 0, 1}" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.Int(-1)),
+                  DynamicValue.Primitive(PrimitiveValue.Int(0)),
+                  DynamicValue.Primitive(PrimitiveValue.Int(1))
+                )
+              )
+            )
+          )
+        )
       }
     ),
 
     suite("Map key access - boolean keys")(
       test("true") {
-        assertTrue(p"{true}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
-        )))
+        assertTrue(
+          p"{true}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+            )
+          )
+        )
       },
       test("false") {
-        assertTrue(p"{false}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
-        )))
+        assertTrue(
+          p"{false}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+            )
+          )
+        )
       },
       test("multiple booleans") {
-        assertTrue(p"{true, false}" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
-            DynamicValue.Primitive(PrimitiveValue.Boolean(false))
-          ))
-        )))
+        assertTrue(
+          p"{true, false}" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+                  DynamicValue.Primitive(PrimitiveValue.Boolean(false))
+                )
+              )
+            )
+          )
+        )
       },
       test("duplicate booleans") {
-        assertTrue(p"{true, true, false}" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
-            DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
-            DynamicValue.Primitive(PrimitiveValue.Boolean(false))
-          ))
-        )))
+        assertTrue(
+          p"{true, true, false}" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+                  DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+                  DynamicValue.Primitive(PrimitiveValue.Boolean(false))
+                )
+              )
+            )
+          )
+        )
       }
     ),
 
     suite("Map key access - char keys")(
       test("simple char") {
-        assertTrue(p"{'a'}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('a')))
-        )))
+        assertTrue(
+          p"{'a'}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('a')))
+            )
+          )
+        )
       },
       test("char space") {
-        assertTrue(p"{' '}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char(' ')))
-        )))
+        assertTrue(
+          p"{' '}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char(' ')))
+            )
+          )
+        )
       },
       test("char digit") {
-        assertTrue(p"{'9'}" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('9')))
-        )))
+        assertTrue(
+          p"{'9'}" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('9')))
+            )
+          )
+        )
       },
       test("char escaped newline") {
-        assertTrue(p"""{'\n'}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\n')))
-        )))
+        assertTrue(
+          p"""{'\n'}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\n')))
+            )
+          )
+        )
       },
       test("char escaped tab") {
-        assertTrue(p"""{'\t'}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\t')))
-        )))
+        assertTrue(
+          p"""{'\t'}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\t')))
+            )
+          )
+        )
       },
       test("char escaped carriage return") {
-        assertTrue(p"""{'\r'}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\r')))
-        )))
+        assertTrue(
+          p"""{'\r'}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\r')))
+            )
+          )
+        )
       },
       test("char escaped single quote") {
-        assertTrue(p"""{'\''}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\'')))
-        )))
+        assertTrue(
+          p"""{'\''}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\'')))
+            )
+          )
+        )
       },
       test("char escaped backslash") {
-        assertTrue(p"""{'\\'}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\\')))
-        )))
+        assertTrue(
+          p"""{'\\'}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\\')))
+            )
+          )
+        )
       },
       test("multiple char keys") {
-        assertTrue(p"{'a', 'b', 'c'}" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.Char('a')),
-            DynamicValue.Primitive(PrimitiveValue.Char('b')),
-            DynamicValue.Primitive(PrimitiveValue.Char('c'))
-          ))
-        )))
+        assertTrue(
+          p"{'a', 'b', 'c'}" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.Char('a')),
+                  DynamicValue.Primitive(PrimitiveValue.Char('b')),
+                  DynamicValue.Primitive(PrimitiveValue.Char('c'))
+                )
+              )
+            )
+          )
+        )
       }
     ),
 
     suite("Map key access - mixed types")(
       test("string and integer") {
-        assertTrue(p"""{"foo", 42}""" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.String("foo")),
-            DynamicValue.Primitive(PrimitiveValue.Int(42))
-          ))
-        )))
+        assertTrue(
+          p"""{"foo", 42}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.String("foo")),
+                  DynamicValue.Primitive(PrimitiveValue.Int(42))
+                )
+              )
+            )
+          )
+        )
       },
       test("integer and boolean") {
-        assertTrue(p"{1, true, 2, false}" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.Int(1)),
-            DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
-            DynamicValue.Primitive(PrimitiveValue.Int(2)),
-            DynamicValue.Primitive(PrimitiveValue.Boolean(false))
-          ))
-        )))
+        assertTrue(
+          p"{1, true, 2, false}" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.Int(1)),
+                  DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+                  DynamicValue.Primitive(PrimitiveValue.Int(2)),
+                  DynamicValue.Primitive(PrimitiveValue.Boolean(false))
+                )
+              )
+            )
+          )
+        )
       },
       test("string and char") {
-        assertTrue(p"""{"foo", 'x'}""" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.String("foo")),
-            DynamicValue.Primitive(PrimitiveValue.Char('x'))
-          ))
-        )))
+        assertTrue(
+          p"""{"foo", 'x'}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.String("foo")),
+                  DynamicValue.Primitive(PrimitiveValue.Char('x'))
+                )
+              )
+            )
+          )
+        )
       },
       test("all supported primitive types") {
-        assertTrue(p"""{"s", 'c', 42, true}""" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.String("s")),
-            DynamicValue.Primitive(PrimitiveValue.Char('c')),
-            DynamicValue.Primitive(PrimitiveValue.Int(42)),
-            DynamicValue.Primitive(PrimitiveValue.Boolean(true))
-          ))
-        )))
+        assertTrue(
+          p"""{"s", 'c', 42, true}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.String("s")),
+                  DynamicValue.Primitive(PrimitiveValue.Char('c')),
+                  DynamicValue.Primitive(PrimitiveValue.Int(42)),
+                  DynamicValue.Primitive(PrimitiveValue.Boolean(true))
+                )
+              )
+            )
+          )
+        )
       },
       test("negative int with string and bool") {
-        assertTrue(p"""{"key", -99, false}""" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.String("key")),
-            DynamicValue.Primitive(PrimitiveValue.Int(-99)),
-            DynamicValue.Primitive(PrimitiveValue.Boolean(false))
-          ))
-        )))
+        assertTrue(
+          p"""{"key", -99, false}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.String("key")),
+                  DynamicValue.Primitive(PrimitiveValue.Int(-99)),
+                  DynamicValue.Primitive(PrimitiveValue.Boolean(false))
+                )
+              )
+            )
+          )
+        )
       }
     ),
 
@@ -479,22 +722,34 @@ object DynamicOpticParserSpec extends ZIOSpecDefault {
         assertTrue(p"{ *: }" == DynamicOptic(Vector(Node.MapKeys)))
       },
       test("chained map values") {
-        assertTrue(p"{*}{*}" == DynamicOptic(Vector(
-          Node.MapValues,
-          Node.MapValues
-        )))
+        assertTrue(
+          p"{*}{*}" == DynamicOptic(
+            Vector(
+              Node.MapValues,
+              Node.MapValues
+            )
+          )
+        )
       },
       test("chained map keys") {
-        assertTrue(p"{*:}{*:}" == DynamicOptic(Vector(
-          Node.MapKeys,
-          Node.MapKeys
-        )))
+        assertTrue(
+          p"{*:}{*:}" == DynamicOptic(
+            Vector(
+              Node.MapKeys,
+              Node.MapKeys
+            )
+          )
+        )
       },
       test("map values then map keys") {
-        assertTrue(p"{*}{*:}" == DynamicOptic(Vector(
-          Node.MapValues,
-          Node.MapKeys
-        )))
+        assertTrue(
+          p"{*}{*:}" == DynamicOptic(
+            Vector(
+              Node.MapValues,
+              Node.MapKeys
+            )
+          )
+        )
       }
     ),
 
@@ -533,232 +788,352 @@ object DynamicOpticParserSpec extends ZIOSpecDefault {
         assertTrue(p"<café>" == DynamicOptic(Vector(Node.Case("café"))))
       },
       test("chained cases") {
-        assertTrue(p"<A><B>" == DynamicOptic(Vector(
-          Node.Case("A"),
-          Node.Case("B")
-        )))
+        assertTrue(
+          p"<A><B>" == DynamicOptic(
+            Vector(
+              Node.Case("A"),
+              Node.Case("B")
+            )
+          )
+        )
       },
       test("chained cases three") {
-        assertTrue(p"<A><B><C>" == DynamicOptic(Vector(
-          Node.Case("A"),
-          Node.Case("B"),
-          Node.Case("C")
-        )))
+        assertTrue(
+          p"<A><B><C>" == DynamicOptic(
+            Vector(
+              Node.Case("A"),
+              Node.Case("B"),
+              Node.Case("C")
+            )
+          )
+        )
       }
     ),
 
     suite("Combined paths - field then sequence")(
       test("field then index") {
-        assertTrue(p".items[0]" == DynamicOptic(Vector(
-          Node.Field("items"),
-          Node.AtIndex(0)
-        )))
+        assertTrue(
+          p".items[0]" == DynamicOptic(
+            Vector(
+              Node.Field("items"),
+              Node.AtIndex(0)
+            )
+          )
+        )
       },
       test("field then indices") {
-        assertTrue(p".items[0,1,2]" == DynamicOptic(Vector(
-          Node.Field("items"),
-          Node.AtIndices(Seq(0, 1, 2))
-        )))
+        assertTrue(
+          p".items[0,1,2]" == DynamicOptic(
+            Vector(
+              Node.Field("items"),
+              Node.AtIndices(Seq(0, 1, 2))
+            )
+          )
+        )
       },
       test("field then range") {
-        assertTrue(p".items[0:5]" == DynamicOptic(Vector(
-          Node.Field("items"),
-          Node.AtIndices(Seq(0, 1, 2, 3, 4))
-        )))
+        assertTrue(
+          p".items[0:5]" == DynamicOptic(
+            Vector(
+              Node.Field("items"),
+              Node.AtIndices(Seq(0, 1, 2, 3, 4))
+            )
+          )
+        )
       },
       test("field then elements") {
-        assertTrue(p".items[*]" == DynamicOptic(Vector(
-          Node.Field("items"),
-          Node.Elements
-        )))
+        assertTrue(
+          p".items[*]" == DynamicOptic(
+            Vector(
+              Node.Field("items"),
+              Node.Elements
+            )
+          )
+        )
       },
       test("field without dot then index") {
-        assertTrue(p"items[0]" == DynamicOptic(Vector(
-          Node.Field("items"),
-          Node.AtIndex(0)
-        )))
+        assertTrue(
+          p"items[0]" == DynamicOptic(
+            Vector(
+              Node.Field("items"),
+              Node.AtIndex(0)
+            )
+          )
+        )
       }
     ),
 
     suite("Combined paths - field then map")(
       test("field then string map key") {
-        assertTrue(p""".config{"host"}""" == DynamicOptic(Vector(
-          Node.Field("config"),
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("host")))
-        )))
+        assertTrue(
+          p""".config{"host"}""" == DynamicOptic(
+            Vector(
+              Node.Field("config"),
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("host")))
+            )
+          )
+        )
       },
       test("field then int map key") {
-        assertTrue(p".lookup{42}" == DynamicOptic(Vector(
-          Node.Field("lookup"),
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(42)))
-        )))
+        assertTrue(
+          p".lookup{42}" == DynamicOptic(
+            Vector(
+              Node.Field("lookup"),
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+            )
+          )
+        )
       },
       test("field then map values") {
-        assertTrue(p".lookup{*}" == DynamicOptic(Vector(
-          Node.Field("lookup"),
-          Node.MapValues
-        )))
+        assertTrue(
+          p".lookup{*}" == DynamicOptic(
+            Vector(
+              Node.Field("lookup"),
+              Node.MapValues
+            )
+          )
+        )
       },
       test("field then map keys") {
-        assertTrue(p".lookup{*:}" == DynamicOptic(Vector(
-          Node.Field("lookup"),
-          Node.MapKeys
-        )))
+        assertTrue(
+          p".lookup{*:}" == DynamicOptic(
+            Vector(
+              Node.Field("lookup"),
+              Node.MapKeys
+            )
+          )
+        )
       },
       test("field without dot then map key") {
-        assertTrue(p"""config{"host"}""" == DynamicOptic(Vector(
-          Node.Field("config"),
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("host")))
-        )))
+        assertTrue(
+          p"""config{"host"}""" == DynamicOptic(
+            Vector(
+              Node.Field("config"),
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("host")))
+            )
+          )
+        )
       }
     ),
 
     suite("Combined paths - field then variant")(
       test("field then variant case") {
-        assertTrue(p".result<Success>" == DynamicOptic(Vector(
-          Node.Field("result"),
-          Node.Case("Success")
-        )))
+        assertTrue(
+          p".result<Success>" == DynamicOptic(
+            Vector(
+              Node.Field("result"),
+              Node.Case("Success")
+            )
+          )
+        )
       },
       test("field without dot then variant") {
-        assertTrue(p"result<Success>" == DynamicOptic(Vector(
-          Node.Field("result"),
-          Node.Case("Success")
-        )))
+        assertTrue(
+          p"result<Success>" == DynamicOptic(
+            Vector(
+              Node.Field("result"),
+              Node.Case("Success")
+            )
+          )
+        )
       }
     ),
 
     suite("Combined paths - nested structures")(
       test("record in sequence") {
-        assertTrue(p".users[0].name" == DynamicOptic(Vector(
-          Node.Field("users"),
-          Node.AtIndex(0),
-          Node.Field("name")
-        )))
+        assertTrue(
+          p".users[0].name" == DynamicOptic(
+            Vector(
+              Node.Field("users"),
+              Node.AtIndex(0),
+              Node.Field("name")
+            )
+          )
+        )
       },
       test("all elements then field") {
-        assertTrue(p".users[*].email" == DynamicOptic(Vector(
-          Node.Field("users"),
-          Node.Elements,
-          Node.Field("email")
-        )))
+        assertTrue(
+          p".users[*].email" == DynamicOptic(
+            Vector(
+              Node.Field("users"),
+              Node.Elements,
+              Node.Field("email")
+            )
+          )
+        )
       },
       test("map values then field") {
-        assertTrue(p".lookup{*}.value" == DynamicOptic(Vector(
-          Node.Field("lookup"),
-          Node.MapValues,
-          Node.Field("value")
-        )))
+        assertTrue(
+          p".lookup{*}.value" == DynamicOptic(
+            Vector(
+              Node.Field("lookup"),
+              Node.MapValues,
+              Node.Field("value")
+            )
+          )
+        )
       },
       test("map keys then field") {
-        assertTrue(p".lookup{*:}.id" == DynamicOptic(Vector(
-          Node.Field("lookup"),
-          Node.MapKeys,
-          Node.Field("id")
-        )))
+        assertTrue(
+          p".lookup{*:}.id" == DynamicOptic(
+            Vector(
+              Node.Field("lookup"),
+              Node.MapKeys,
+              Node.Field("id")
+            )
+          )
+        )
       },
       test("variant then field") {
-        assertTrue(p".response<Ok>.body" == DynamicOptic(Vector(
-          Node.Field("response"),
-          Node.Case("Ok"),
-          Node.Field("body")
-        )))
+        assertTrue(
+          p".response<Ok>.body" == DynamicOptic(
+            Vector(
+              Node.Field("response"),
+              Node.Case("Ok"),
+              Node.Field("body")
+            )
+          )
+        )
       },
       test("variant then index") {
-        assertTrue(p"<Right>[0]" == DynamicOptic(Vector(
-          Node.Case("Right"),
-          Node.AtIndex(0)
-        )))
+        assertTrue(
+          p"<Right>[0]" == DynamicOptic(
+            Vector(
+              Node.Case("Right"),
+              Node.AtIndex(0)
+            )
+          )
+        )
       },
       test("variant then map access") {
-        assertTrue(p"""<Some>{"key"}""" == DynamicOptic(Vector(
-          Node.Case("Some"),
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key")))
-        )))
+        assertTrue(
+          p"""<Some>{"key"}""" == DynamicOptic(
+            Vector(
+              Node.Case("Some"),
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key")))
+            )
+          )
+        )
       },
       test("variant then elements") {
-        assertTrue(p"<Items>[*]" == DynamicOptic(Vector(
-          Node.Case("Items"),
-          Node.Elements
-        )))
+        assertTrue(
+          p"<Items>[*]" == DynamicOptic(
+            Vector(
+              Node.Case("Items"),
+              Node.Elements
+            )
+          )
+        )
       },
       test("variant then map values") {
-        assertTrue(p"<Data>{*}" == DynamicOptic(Vector(
-          Node.Case("Data"),
-          Node.MapValues
-        )))
+        assertTrue(
+          p"<Data>{*}" == DynamicOptic(
+            Vector(
+              Node.Case("Data"),
+              Node.MapValues
+            )
+          )
+        )
       }
     ),
 
     suite("Combined paths - deeply nested")(
       test("four levels of fields") {
-        assertTrue(p".a.b.c.d" == DynamicOptic(Vector(
-          Node.Field("a"),
-          Node.Field("b"),
-          Node.Field("c"),
-          Node.Field("d")
-        )))
+        assertTrue(
+          p".a.b.c.d" == DynamicOptic(
+            Vector(
+              Node.Field("a"),
+              Node.Field("b"),
+              Node.Field("c"),
+              Node.Field("d")
+            )
+          )
+        )
       },
       test("field sequence field sequence") {
-        assertTrue(p".items[0].children[1]" == DynamicOptic(Vector(
-          Node.Field("items"),
-          Node.AtIndex(0),
-          Node.Field("children"),
-          Node.AtIndex(1)
-        )))
+        assertTrue(
+          p".items[0].children[1]" == DynamicOptic(
+            Vector(
+              Node.Field("items"),
+              Node.AtIndex(0),
+              Node.Field("children"),
+              Node.AtIndex(1)
+            )
+          )
+        )
       },
       test("deeply nested with elements") {
-        assertTrue(p""".root.children[*].metadata{"tags"}[0]""" == DynamicOptic(Vector(
-          Node.Field("root"),
-          Node.Field("children"),
-          Node.Elements,
-          Node.Field("metadata"),
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("tags"))),
-          Node.AtIndex(0)
-        )))
+        assertTrue(
+          p""".root.children[*].metadata{"tags"}[0]""" == DynamicOptic(
+            Vector(
+              Node.Field("root"),
+              Node.Field("children"),
+              Node.Elements,
+              Node.Field("metadata"),
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("tags"))),
+              Node.AtIndex(0)
+            )
+          )
+        )
       },
       test("complex with variant") {
-        assertTrue(p".data<Some>.items[0,1,2].props{*:}" == DynamicOptic(Vector(
-          Node.Field("data"),
-          Node.Case("Some"),
-          Node.Field("items"),
-          Node.AtIndices(Seq(0, 1, 2)),
-          Node.Field("props"),
-          Node.MapKeys
-        )))
+        assertTrue(
+          p".data<Some>.items[0,1,2].props{*:}" == DynamicOptic(
+            Vector(
+              Node.Field("data"),
+              Node.Case("Some"),
+              Node.Field("items"),
+              Node.AtIndices(Seq(0, 1, 2)),
+              Node.Field("props"),
+              Node.MapKeys
+            )
+          )
+        )
       },
       test("all node types in sequence") {
-        assertTrue(p""".a[0]{"k"}<V>.b[*]{*}.c{*:}""" == DynamicOptic(Vector(
-          Node.Field("a"),
-          Node.AtIndex(0),
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("k"))),
-          Node.Case("V"),
-          Node.Field("b"),
-          Node.Elements,
-          Node.MapValues,
-          Node.Field("c"),
-          Node.MapKeys
-        )))
+        assertTrue(
+          p""".a[0]{"k"}<V>.b[*]{*}.c{*:}""" == DynamicOptic(
+            Vector(
+              Node.Field("a"),
+              Node.AtIndex(0),
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("k"))),
+              Node.Case("V"),
+              Node.Field("b"),
+              Node.Elements,
+              Node.MapValues,
+              Node.Field("c"),
+              Node.MapKeys
+            )
+          )
+        )
       },
       test("alternating field and index") {
-        assertTrue(p".a[0].b[1].c[2]" == DynamicOptic(Vector(
-          Node.Field("a"),
-          Node.AtIndex(0),
-          Node.Field("b"),
-          Node.AtIndex(1),
-          Node.Field("c"),
-          Node.AtIndex(2)
-        )))
+        assertTrue(
+          p".a[0].b[1].c[2]" == DynamicOptic(
+            Vector(
+              Node.Field("a"),
+              Node.AtIndex(0),
+              Node.Field("b"),
+              Node.AtIndex(1),
+              Node.Field("c"),
+              Node.AtIndex(2)
+            )
+          )
+        )
       },
       test("alternating field and map key") {
-        assertTrue(p""".a{"x"}.b{"y"}.c{"z"}""" == DynamicOptic(Vector(
-          Node.Field("a"),
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("x"))),
-          Node.Field("b"),
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("y"))),
-          Node.Field("c"),
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("z")))
-        )))
+        assertTrue(
+          p""".a{"x"}.b{"y"}.c{"z"}""" == DynamicOptic(
+            Vector(
+              Node.Field("a"),
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("x"))),
+              Node.Field("b"),
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("y"))),
+              Node.Field("c"),
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("z")))
+            )
+          )
+        )
       }
     ),
 
@@ -779,100 +1154,158 @@ object DynamicOpticParserSpec extends ZIOSpecDefault {
         assertTrue(p"[ 0 : 5 ]" == DynamicOptic(Vector(Node.AtIndices(Seq(0, 1, 2, 3, 4)))))
       },
       test("spaces in key list") {
-        assertTrue(p"""{ "a" , "b" }""" == DynamicOptic(Vector(
-          Node.AtMapKeys(Seq(
-            DynamicValue.Primitive(PrimitiveValue.String("a")),
-            DynamicValue.Primitive(PrimitiveValue.String("b"))
-          ))
-        )))
+        assertTrue(
+          p"""{ "a" , "b" }""" == DynamicOptic(
+            Vector(
+              Node.AtMapKeys(
+                Seq(
+                  DynamicValue.Primitive(PrimitiveValue.String("a")),
+                  DynamicValue.Primitive(PrimitiveValue.String("b"))
+                )
+              )
+            )
+          )
+        )
       },
       test("spaces around single index") {
         assertTrue(p"[ 0 ]" == DynamicOptic(Vector(Node.AtIndex(0))))
       },
       test("spaces around single key") {
-        assertTrue(p"""{ "foo" }""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo")))
-        )))
+        assertTrue(
+          p"""{ "foo" }""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo")))
+            )
+          )
+        )
       },
       test("spaces in variant") {
         assertTrue(p"< Foo >" == DynamicOptic(Vector(Node.Case("Foo"))))
       },
       test("mixed spacing in complex path") {
-        assertTrue(p""".foo[ 0 ].bar{ "key" }<Baz>""" == DynamicOptic(Vector(
-          Node.Field("foo"),
-          Node.AtIndex(0),
-          Node.Field("bar"),
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key"))),
-          Node.Case("Baz")
-        )))
+        assertTrue(
+          p""".foo[ 0 ].bar{ "key" }<Baz>""" == DynamicOptic(
+            Vector(
+              Node.Field("foo"),
+              Node.AtIndex(0),
+              Node.Field("bar"),
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key"))),
+              Node.Case("Baz")
+            )
+          )
+        )
       }
     ),
 
     suite("Parser robustness - unusual but valid")(
       test("index then field") {
-        assertTrue(p"[0].foo" == DynamicOptic(Vector(
-          Node.AtIndex(0),
-          Node.Field("foo")
-        )))
+        assertTrue(
+          p"[0].foo" == DynamicOptic(
+            Vector(
+              Node.AtIndex(0),
+              Node.Field("foo")
+            )
+          )
+        )
       },
       test("map key then field") {
-        assertTrue(p"""{"k"}.foo""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("k"))),
-          Node.Field("foo")
-        )))
+        assertTrue(
+          p"""{"k"}.foo""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("k"))),
+              Node.Field("foo")
+            )
+          )
+        )
       },
       test("variant then variant") {
-        assertTrue(p"<A><B>" == DynamicOptic(Vector(
-          Node.Case("A"),
-          Node.Case("B")
-        )))
+        assertTrue(
+          p"<A><B>" == DynamicOptic(
+            Vector(
+              Node.Case("A"),
+              Node.Case("B")
+            )
+          )
+        )
       },
       test("elements then elements") {
-        assertTrue(p"[*][*]" == DynamicOptic(Vector(
-          Node.Elements,
-          Node.Elements
-        )))
+        assertTrue(
+          p"[*][*]" == DynamicOptic(
+            Vector(
+              Node.Elements,
+              Node.Elements
+            )
+          )
+        )
       },
       test("map values then map values") {
-        assertTrue(p"{*}{*}" == DynamicOptic(Vector(
-          Node.MapValues,
-          Node.MapValues
-        )))
+        assertTrue(
+          p"{*}{*}" == DynamicOptic(
+            Vector(
+              Node.MapValues,
+              Node.MapValues
+            )
+          )
+        )
       },
       test("map keys then map keys") {
-        assertTrue(p"{*:}{*:}" == DynamicOptic(Vector(
-          Node.MapKeys,
-          Node.MapKeys
-        )))
+        assertTrue(
+          p"{*:}{*:}" == DynamicOptic(
+            Vector(
+              Node.MapKeys,
+              Node.MapKeys
+            )
+          )
+        )
       },
       test("elements then map values") {
-        assertTrue(p"[*]{*}" == DynamicOptic(Vector(
-          Node.Elements,
-          Node.MapValues
-        )))
+        assertTrue(
+          p"[*]{*}" == DynamicOptic(
+            Vector(
+              Node.Elements,
+              Node.MapValues
+            )
+          )
+        )
       },
       test("map values then elements") {
-        assertTrue(p"{*}[*]" == DynamicOptic(Vector(
-          Node.MapValues,
-          Node.Elements
-        )))
+        assertTrue(
+          p"{*}[*]" == DynamicOptic(
+            Vector(
+              Node.MapValues,
+              Node.Elements
+            )
+          )
+        )
       },
       test("variant at start then index") {
-        assertTrue(p"<Some>[0]" == DynamicOptic(Vector(
-          Node.Case("Some"),
-          Node.AtIndex(0)
-        )))
+        assertTrue(
+          p"<Some>[0]" == DynamicOptic(
+            Vector(
+              Node.Case("Some"),
+              Node.AtIndex(0)
+            )
+          )
+        )
       },
       test("index at start then variant") {
-        assertTrue(p"[0]<Some>" == DynamicOptic(Vector(
-          Node.AtIndex(0),
-          Node.Case("Some")
-        )))
+        assertTrue(
+          p"[0]<Some>" == DynamicOptic(
+            Vector(
+              Node.AtIndex(0),
+              Node.Case("Some")
+            )
+          )
+        )
       },
       test("map key at start") {
-        assertTrue(p"""{"key"}""" == DynamicOptic(Vector(
-          Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key")))
-        )))
+        assertTrue(
+          p"""{"key"}""" == DynamicOptic(
+            Vector(
+              Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key")))
+            )
+          )
+        )
       },
       test("index at start") {
         assertTrue(p"[0]" == DynamicOptic(Vector(Node.AtIndex(0))))
@@ -890,30 +1323,42 @@ object DynamicOpticParserSpec extends ZIOSpecDefault {
         assertTrue(p"{*:}" == DynamicOptic(Vector(Node.MapKeys)))
       },
       test("long chain of same type") {
-        assertTrue(p".a.b.c.d.e.f.g.h" == DynamicOptic(Vector(
-          Node.Field("a"),
-          Node.Field("b"),
-          Node.Field("c"),
-          Node.Field("d"),
-          Node.Field("e"),
-          Node.Field("f"),
-          Node.Field("g"),
-          Node.Field("h")
-        )))
+        assertTrue(
+          p".a.b.c.d.e.f.g.h" == DynamicOptic(
+            Vector(
+              Node.Field("a"),
+              Node.Field("b"),
+              Node.Field("c"),
+              Node.Field("d"),
+              Node.Field("e"),
+              Node.Field("f"),
+              Node.Field("g"),
+              Node.Field("h")
+            )
+          )
+        )
       },
       test("many indices in sequence") {
-        assertTrue(p"[0][1][2][3][4]" == DynamicOptic(Vector(
-          Node.AtIndex(0),
-          Node.AtIndex(1),
-          Node.AtIndex(2),
-          Node.AtIndex(3),
-          Node.AtIndex(4)
-        )))
+        assertTrue(
+          p"[0][1][2][3][4]" == DynamicOptic(
+            Vector(
+              Node.AtIndex(0),
+              Node.AtIndex(1),
+              Node.AtIndex(2),
+              Node.AtIndex(3),
+              Node.AtIndex(4)
+            )
+          )
+        )
       },
       test("large index list") {
-        assertTrue(p"[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]" == DynamicOptic(Vector(
-          Node.AtIndices(Seq(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15))
-        )))
+        assertTrue(
+          p"[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]" == DynamicOptic(
+            Vector(
+              Node.AtIndices(Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15))
+            )
+          )
+        )
       }
     ),
 
