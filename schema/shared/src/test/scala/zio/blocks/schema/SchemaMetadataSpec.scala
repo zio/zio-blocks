@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.test.Assertion._
 import zio.test._
 
-object SchemaMetadataSpec extends ZIOSpecDefault {
+object SchemaMetadataSpec extends SchemaBaseSpec {
   case class Record(s: String)
 
   object Record extends CompanionOptics[Record] {

@@ -11,7 +11,9 @@ import scala.reflect.macros.whitebox
  * Usage:
  * {{{
  * case class Person(name: String, age: Int)
- * object Person extends DerivedOptics[Person]
+ * object Person extends DerivedOptics[Person] {
+ *   implicit val schema: Schema[Person] = Schema.derived
+ * }
  *
  * // Access optics via the `optics` member:
  * val nameLens: Lens[Person, String] = Person.optics.name
@@ -23,7 +25,9 @@ import scala.reflect.macros.whitebox
  * sealed trait Shape
  * case class Circle(radius: Double) extends Shape
  * case class Rectangle(width: Double, height: Double) extends Shape
- * object Shape extends DerivedOptics[Shape]
+ * object Shape extends DerivedOptics[Shape] {
+ *   implicit val schema: Schema[Shape] = Schema.derived
+ * }
  *
  * // Access prisms via the `optics` member:
  * val circlePrism: Prism[Shape, Circle] = Shape.optics.circle
@@ -203,17 +207,13 @@ private[schema] object DerivedOpticsMacros {
     val originalType = weakTypeOf[S]
     val tpe          = originalType.dealias
     val typeSym      = tpe.typeSymbol.asClass
-
-    val isCaseClass = typeSym.isCaseClass
-    val isSealed    = typeSym.isSealed
-
-    // Check for ZIO Prelude Newtype/Subtype by name to avoid dependency
-    val baseClasses = originalType.baseClasses
-    val isPrelude   = baseClasses.exists { sym =>
+    val isCaseClass  = typeSym.isCaseClass
+    val isSealed     = typeSym.isSealed
+    val baseClasses  = originalType.baseClasses
+    val isPrelude    = baseClasses.exists { sym =>
       val fullName = sym.fullName
       fullName == "zio.prelude.Newtype" || fullName == "zio.prelude.Subtype"
     }
-
     if (isCaseClass) {
       buildCaseClassOptics(c)(schema, tpe, prefixUnderscore)
     } else if (isSealed) {
@@ -229,27 +229,22 @@ private[schema] object DerivedOpticsMacros {
     }
   }
 
-  private def buildCaseClassOptics[S: c.WeakTypeTag](c: whitebox.Context)(
+  private def buildCaseClassOptics[S](c: whitebox.Context)(
     schema: c.Expr[Schema[S]],
     tpe: c.universe.Type,
     prefixUnderscore: Boolean
   ): c.Tree = {
     import c.universe._
 
-    // Get case class fields from primary constructor
     val primaryConstructor = tpe.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
     }.getOrElse(c.abort(c.enclosingPosition, s"Could not find primary constructor for $tpe"))
-
-    val fields = primaryConstructor.paramLists.flatten
-
-    // Build method definitions for the anonymous class
+    val fields        = primaryConstructor.paramLists.flatten
     val lensAccessors = fields.zipWithIndex.map { case (field, idx) =>
       val baseName     = field.name.toString
       val accessorName = TermName(if (prefixUnderscore) "_" + baseName else baseName)
       val fieldType    = field.typeSignatureIn(tpe).dealias
       val lensType     = appliedType(typeOf[Lens[_, _]].typeConstructor, List(tpe, fieldType))
-
       q"""
         lazy val $accessorName: $lensType = {
           val ref = _schema.reflect
@@ -265,9 +260,7 @@ private[schema] object DerivedOpticsMacros {
         }
       """
     }
-
     val cacheKey = tpe.toString + (if (prefixUnderscore) "_" else "")
-
     q"""
       _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
         $cacheKey,
@@ -279,22 +272,18 @@ private[schema] object DerivedOpticsMacros {
     """
   }
 
-  private def buildSealedTraitOptics[S: c.WeakTypeTag](c: whitebox.Context)(
+  private def buildSealedTraitOptics[S](c: whitebox.Context)(
     schema: c.Expr[Schema[S]],
     tpe: c.universe.Type,
     prefixUnderscore: Boolean
   ): c.Tree = {
     import c.universe._
 
-    // Get direct subtypes
-    val subtypes = CommonMacroOps.directSubTypes(c)(tpe)
-
-    // Build method definitions for the anonymous class
+    val subtypes       = CommonMacroOps.directSubTypes(c)(tpe)
     val prismAccessors = subtypes.zipWithIndex.map { case (subtype, idx) =>
       val baseName     = lowerFirst(subtype.typeSymbol.name.toString)
       val accessorName = TermName(if (prefixUnderscore) "_" + baseName else baseName)
       val prismType    = appliedType(typeOf[Prism[_, _]].typeConstructor, List(tpe, subtype))
-
       q"""
         lazy val $accessorName: $prismType = {
           val variant = _schema.reflect.asVariant.getOrElse(
@@ -306,9 +295,7 @@ private[schema] object DerivedOpticsMacros {
         }
       """
     }
-
     val cacheKey = tpe.toString + (if (prefixUnderscore) "_" else "")
-
     q"""
       _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
         $cacheKey,
@@ -332,7 +319,6 @@ private[schema] object DerivedOpticsMacros {
     val fieldName    = TermName(fieldNameStr)
     val sType        = weakTypeOf[S]
     val cacheKey     = originalType.toString + (if (prefixUnderscore) "_" else "")
-
     q"""
       _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
         $cacheKey, {
@@ -346,9 +332,7 @@ private[schema] object DerivedOpticsMacros {
              case _ => 
                None
            }
-           
            val map = mapOpt.getOrElse(Map.empty)
-           
            new _root_.zio.blocks.schema.DerivedOptics.OpticsHolder(map) {
              lazy val $fieldName: _root_.zio.blocks.schema.Lens[$sType, $underlyingType] = 
                map.getOrElse($fieldNameStr, throw new NoSuchElementException("Optic " + $fieldNameStr + " not found (schema is not a wrapper)")).asInstanceOf[_root_.zio.blocks.schema.Lens[$sType, $underlyingType]]

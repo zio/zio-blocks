@@ -611,8 +611,8 @@ object ChunkSpec extends ChunkBaseSpec {
         assert(actual)(equalTo(expected))
       },
       test("matches an empty chunk") {
-        val chunk  = Chunk.empty
-        val actual = chunk match {
+        val chunk: Chunk[Int] = Chunk.empty[Int]
+        val actual            = chunk match {
           case Chunk() => Some(())
           case _       => None
         }

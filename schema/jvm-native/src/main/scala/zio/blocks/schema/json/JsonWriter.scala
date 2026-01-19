@@ -5,10 +5,11 @@ import java.math.BigInteger
 import java.nio.{BufferOverflowException, ByteBuffer}
 import java.time._
 import java.util.UUID
+import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.json.JsonWriter._
-import scala.annotation.tailrec
+import scala.annotation.{nowarn, tailrec}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.lang.Long.compareUnsigned
 
@@ -44,7 +45,7 @@ final class JsonWriter private[json] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
   private[this] var count: Int = 0,
   private[this] var limit: Int = 32768,
-  private[this] val stack: Registers = Registers(0),
+  private[this] val stack: Registers = Registers(RegisterOffset(objects = 64, ints = 64)),
   private[this] var top: RegisterOffset = -1L,
   private[this] var maxTop: RegisterOffset = 0L,
   private[this] var config: WriterConfig = null,
@@ -86,8 +87,8 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Char` value to write
-   * @throws JsonWriterException
-   *   in case of `Char` value is a part of surrogate pair
+   * @throws JsonBinaryCodecError
+   *   in the case of `Char` value is a part of the surrogate pair
    */
   def writeKey(x: Char): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -139,7 +140,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Float` value to write
-   * @throws JsonWriterException
+   * @throws JsonBinaryCodecError
    *   if the value is non-finite
    */
   def writeKey(x: Float): Unit = {
@@ -154,7 +155,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Double` value to write
-   * @throws JsonWriterException
+   * @throws JsonBinaryCodecError
    *   if the value is non-finite
    */
   def writeKey(x: Double): Unit = {
@@ -208,7 +209,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `String` value to write
-   * @throws JsonWriterException
+   * @throws JsonBinaryCodecError
    *   if the provided string has an illegal surrogate pair
    */
   def writeKey(x: String): Unit = {
@@ -496,7 +497,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `String` value to write
-   * @throws JsonWriterException
+   * @throws JsonBinaryCodecError
    *   if the provided string has an illegal surrogate pair
    */
   def writeVal(x: String): Unit = {
@@ -743,8 +744,8 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Char` value to write
-   * @throws JsonWriterException
-   *   in case of `Char` value is a part of surrogate pair
+   * @throws JsonBinaryCodecError
+   *   in the case of `Char` value is a part of the surrogate pair
    */
   def writeVal(x: Char): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -778,7 +779,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Float` value to write
-   * @throws JsonWriterException
+   * @throws JsonBinaryCodecError
    *   if the value is non-finite
    */
   def writeVal(x: Float): Unit = {
@@ -791,7 +792,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Double` value to write
-   * @throws JsonWriterException
+   * @throws JsonBinaryCodecError
    *   if the value is non-finite
    */
   def writeVal(x: Double): Unit = {
@@ -896,7 +897,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Float` value to write
-   * @throws JsonWriterException
+   * @throws JsonBinaryCodecError
    *   if the value is non-finite
    */
   def writeValAsString(x: Float): Unit = {
@@ -911,7 +912,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Double` value to write
-   * @throws JsonWriterException
+   * @throws JsonBinaryCodecError
    *   if the value is non-finite
    */
   def writeValAsString(x: Double): Unit = {
@@ -1211,7 +1212,7 @@ final class JsonWriter private[json] (
       step = Math.min(step, remaining)
       if (pos + step > limit) pos = flushAndGrowBuf(step, pos)
       val newOffset = offset + step
-      x.getBytes(offset, newOffset, buf, pos)
+      x.getBytes(offset, newOffset, buf, pos): @nowarn
       offset = newOffset
       pos += step
       remaining -= step
@@ -1231,7 +1232,7 @@ final class JsonWriter private[json] (
       step = Math.min(step, remaining)
       if (pos + step > limit) pos = flushAndGrowBuf(step, pos)
       val newOffset = offset + step
-      x.getBytes(offset, newOffset, buf, pos)
+      x.getBytes(offset, newOffset, buf, pos): @nowarn
       offset = newOffset
       pos += step
       remaining -= step
@@ -1247,7 +1248,7 @@ final class JsonWriter private[json] (
     val buf = this.buf
     buf(pos) = '"'
     pos += 1
-    s.getBytes(0, len, buf, pos)
+    s.getBytes(0, len, buf, pos): @nowarn
     pos += len
     buf(pos) = '"'
     count = pos + 1
@@ -1928,7 +1929,7 @@ final class JsonWriter private[json] (
         pos = flushAndGrowBuf(required, pos)
         buf = this.buf
       }
-      zoneId.getBytes(0, len, buf, pos)
+      zoneId.getBytes(0, len, buf, pos): @nowarn
       pos += len
       ByteArrayAccess.setShort(buf, pos, 0x225d)
       pos += 2

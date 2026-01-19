@@ -2,9 +2,9 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
 import zio.test.Assertion.{equalTo, isNone, isSome}
-import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert}
+import zio.test.{Spec, TestEnvironment, assert}
 
-object DynamicOpticSpec extends ZIOSpecDefault {
+object DynamicOpticSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("DynamicOpticSpec")(
     test("composition using apply, field, caseOf, at, atKey, elements, mapKeys, and mapValues methods") {
       assert(
@@ -16,12 +16,14 @@ object DynamicOpticSpec extends ZIOSpecDefault {
       assert(
         DynamicOptic.root
           .apply(DynamicOptic(Vector(DynamicOptic.Node.AtIndex(0))))
-          .apply(DynamicOptic(Vector(DynamicOptic.Node.AtMapKey("Z"))))
+          .apply(DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(Schema[String].toDynamicValue("Z")))))
       )(equalTo(DynamicOptic.root.at(0).atKey("Z"))) &&
       assert(
         DynamicOptic.root
           .apply(DynamicOptic(Vector(DynamicOptic.Node.AtIndices(Seq(0, 1, 2)))))
-          .apply(DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq("X", "Y", "Z")))))
+          .apply(
+            DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq("X", "Y", "Z").map(Schema[String].toDynamicValue))))
+          )
       )(equalTo(DynamicOptic.root.atIndices(0, 1, 2).atKeys("X", "Y", "Z"))) &&
       assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped)(
         equalTo(

@@ -1,10 +1,10 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.{Modifier, Schema}
+import zio.blocks.schema.{Modifier, Schema, SchemaBaseSpec}
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
 
-object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
+object JsonBinaryCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverVersionSpecificSpec")(
     suite("records")(
       test("generic tuples") {
@@ -68,7 +68,7 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
         roundTrip(Node(1.0, Node(2.0, End)), """{"val":1.0,"nxt":{"val":2.0,"nxt":{}}}""", codec)
       },
       test("union type with key discriminator") {
-        type Value = Int | Boolean | String | (Int, Boolean) | List[Int]
+        type Value = Int | Boolean | String | (Int, Boolean) | List[Int] | Unit
 
         implicit val schema: Schema[Value] = Schema.derived
 
@@ -76,10 +76,11 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
         roundTrip[Value](true, """{"Boolean":true}""") &&
         roundTrip[Value]("VVV", """{"String":"VVV"}""") &&
         roundTrip[Value]((1, true), """{"Tuple2":[1,true]}""") &&
-        roundTrip[Value](List(1, 2, 3), """{"collection.immutable.List":[1,2,3]}""")
+        roundTrip[Value](List(1, 2, 3), """{"collection.immutable.List":[1,2,3]}""") &&
+        roundTrip[Value]((), """{"Unit":{}}""")
       },
       test("union type without discriminator") {
-        type Value = Int | Boolean | String | (Int, Boolean) | List[Int]
+        type Value = Int | Boolean | String | (Int, Boolean) | List[Int] | Unit
 
         val codec = Schema.derived[Value].derive(JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
         roundTrip(1, "1", codec) &&
@@ -87,6 +88,7 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
         roundTrip("VVV", """"VVV"""", codec) &&
         roundTrip((1, true), "[1,true]", codec) &&
         roundTrip(List(1, 2, 3), "[1,2,3]", codec) &&
+        roundTrip((), "{}", codec) &&
         decodeError("[1,true,2]", "expected a variant value at: .", codec) &&
         decodeError("[1.0,2.0]", "expected a variant value at: .", codec) &&
         decodeError("1.001", "expected a variant value at: .", codec) &&

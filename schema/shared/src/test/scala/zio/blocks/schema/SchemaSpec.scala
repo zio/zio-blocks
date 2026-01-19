@@ -9,11 +9,10 @@ import zio.blocks.schema.codec.{TextCodec, TextFormat}
 import zio.blocks.schema.derive.Deriver
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect._
 import java.nio.CharBuffer
 import scala.collection.immutable.ArraySeq
 
-object SchemaSpec extends ZIOSpecDefault {
+object SchemaSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("SchemaSpec")(
     suite("Reflect.Primitive")(
       test("has consistent equals and hashCode") {
@@ -234,7 +233,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for generic record using a macro call") {
-        case class `Record-2`[B, I](b: B, i: I = null.asInstanceOf[I])
+        case class `Record-2`[B, I](b: B, i: I)
 
         type Record2[B, I] = `Record-2`[B, I]
         type `i-8`         = Byte
@@ -250,7 +249,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(bytes = 1, ints = 1)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(bytes = 1, ints = 1)))) &&
         assert(`Record-2`.b.focus.getDefaultValue)(isNone) &&
-        assert(`Record-2`.i.focus.getDefaultValue.isDefined)(equalTo(true)) &&
+        assert(`Record-2`.i.focus.getDefaultValue)(isNone) &&
         assert(`Record-2`.b.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(1: Byte)) &&
         assert(`Record-2`.i.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(2)) &&
         assert(`Record-2`.b.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3: Byte))(
@@ -278,7 +277,7 @@ object SchemaSpec extends ZIOSpecDefault {
             )
           )
         )
-      } @@ jvmOnly, // FIXME: ClassCastException and NullPointerException in Scala.js and Scala Native accordingly
+      },
       test("derives schema for record with multi list constructor using a macro call") {
         case class Record3(s: Short = 0: Short)(val l: Long)
 
@@ -1471,12 +1470,12 @@ object SchemaSpec extends ZIOSpecDefault {
               SchemaError(
                 errors = ::(
                   ExpectationMismatch(
-                    source = DynamicOptic(nodes = Vector(MapValues, AtMapKey(1))),
+                    source = DynamicOptic(nodes = Vector(MapValues, AtMapKey(Schema[Int].toDynamicValue(1)))),
                     expectation = "Expected Long"
                   ),
                   ::(
                     ExpectationMismatch(
-                      source = DynamicOptic(nodes = Vector(MapValues, AtMapKey(1))),
+                      source = DynamicOptic(nodes = Vector(MapValues, AtMapKey(Schema[Int].toDynamicValue(1)))),
                       expectation = "Expected Long"
                     ),
                     Nil

@@ -212,6 +212,7 @@ object Lens {
   }
 
   def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] = {
+    require((first ne null) && (second ne null))
     val lens1 = first.asInstanceOf[LensImpl[?, ?]]
     val lens2 = second.asInstanceOf[LensImpl[?, ?]]
     new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
@@ -371,6 +372,7 @@ object Prism {
   }
 
   def apply[S, T <: S, A <: T](first: Prism[S, T], second: Prism[T, A]): Prism[S, A] = {
+    require((first ne null) && (second ne null))
     val prism1 = first.asInstanceOf[PrismImpl[?, ?]]
     val prism2 = second.asInstanceOf[PrismImpl[?, ?]]
     new PrismImpl(prism1.sources ++ prism2.sources, prism1.focusTerms ++ prism2.focusTerms)
@@ -540,6 +542,7 @@ sealed trait Optional[S, A] extends Optic[S, A] {
 
 object Optional {
   def apply[S, T, A](first: Optional[S, T], second: Lens[T, A]): Optional[S, A] = {
+    require((first ne null) && (second ne null))
     val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
     val lens2     = second.asInstanceOf[Lens.LensImpl[?, ?]]
     new OptionalImpl(
@@ -550,6 +553,7 @@ object Optional {
   }
 
   def apply[S, T, A <: T](first: Optional[S, T], second: Prism[T, A]): Optional[S, A] = {
+    require((first ne null) && (second ne null))
     val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
     val prism2    = second.asInstanceOf[Prism.PrismImpl[?, ?]]
     new OptionalImpl(
@@ -560,6 +564,7 @@ object Optional {
   }
 
   def apply[S, T, A](first: Optional[S, T], second: Optional[T, A]): Optional[S, A] = {
+    require((first ne null) && (second ne null))
     val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
     val optional2 = second.asInstanceOf[OptionalImpl[?, ?]]
     new OptionalImpl(
@@ -570,6 +575,7 @@ object Optional {
   }
 
   def apply[S, T, A <: T](first: Lens[S, T], second: Prism[T, A]): Optional[S, A] = {
+    require((first ne null) && (second ne null))
     val lens1  = first.asInstanceOf[Lens.LensImpl[?, ?]]
     val prism2 = second.asInstanceOf[Prism.PrismImpl[?, ?]]
     new OptionalImpl(
@@ -580,6 +586,7 @@ object Optional {
   }
 
   def apply[S, T, A](first: Lens[S, T], second: Optional[T, A]): Optional[S, A] = {
+    require((first ne null) && (second ne null))
     val lens1     = first.asInstanceOf[Lens.LensImpl[?, ?]]
     val optional2 = second.asInstanceOf[OptionalImpl[?, ?]]
     new OptionalImpl(
@@ -590,6 +597,7 @@ object Optional {
   }
 
   def apply[S, T <: S, A](first: Prism[S, T], second: Lens[T, A]): Optional[S, A] = {
+    require((first ne null) && (second ne null))
     val prism1 = first.asInstanceOf[Prism.PrismImpl[?, ?]]
     val lens2  = second.asInstanceOf[Lens.LensImpl[?, ?]]
     new OptionalImpl(
@@ -599,6 +607,7 @@ object Optional {
     )
   }
   def apply[S, T <: S, A](first: Prism[S, T], second: Optional[T, A]): Optional[S, A] = {
+    require((first ne null) && (second ne null))
     val prism1    = first.asInstanceOf[Prism.PrismImpl[?, ?]]
     val optional2 = second.asInstanceOf[OptionalImpl[?, ?]]
     new OptionalImpl(
@@ -609,15 +618,19 @@ object Optional {
   }
 
   def at[A, C[_]](seq: Reflect.Sequence.Bound[A, C], index: Int): Optional[C[A], A] = {
-    require(index >= 0)
+    require((seq ne null) && index >= 0)
     new OptionalImpl(Array(seq), Array(seq.element.asTerm("at")), Array[Any](index))
   }
 
-  def atKey[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], key: K): Optional[M[K, V], V] =
+  def atKey[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], key: K): Optional[M[K, V], V] = {
+    require(map ne null)
     new OptionalImpl(Array(map), Array(map.value.asTerm("atKey")), Array[Any](key))
+  }
 
-  def wrapped[A, B](wrapper: Reflect.Wrapper.Bound[A, B]): Optional[A, B] =
+  def wrapped[A, B](wrapper: Reflect.Wrapper.Bound[A, B]): Optional[A, B] = {
+    require(wrapper ne null)
     new OptionalImpl(Array(wrapper), Array(wrapper.wrapped.asTerm("wrapped")), Array[Any](null))
+  }
 
   private[schema] case class OptionalImpl[S, A](
     sources: Array[Reflect.Bound[?]],
@@ -672,6 +685,7 @@ object Optional {
             bindings(idx) = new AtKeyBinding(
               mapDeconstructor = map.mapDeconstructor,
               mapConstructor = map.mapConstructor,
+              keySchema = map.key,
               key = params(idx).asInstanceOf[Key]
             )
         }
@@ -1165,7 +1179,8 @@ object Optional {
             case at: AtBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndex(at.index)
             case binding =>
-              new DynamicOptic.Node.AtMapKey[Key](binding.asInstanceOf[AtKeyBinding[Key, Map]].key)
+              val atKeyBinding = binding.asInstanceOf[AtKeyBinding[Key, Map]]
+              new DynamicOptic.Node.AtMapKey(atKeyBinding.keySchema.toDynamicValue(atKeyBinding.key))
           }
         }
         idx += 1
@@ -1217,7 +1232,7 @@ sealed trait Traversal[S, A] extends Optic[S, A] { self =>
 
 object Traversal {
   def atIndices[A, C[_]](seq: Reflect.Sequence.Bound[A, C], indices: Seq[Int]): Traversal[C[A], A] = {
-    require(indices.nonEmpty)
+    require((seq ne null) && (indices ne null) && indices.nonEmpty)
     val sortedIndices = indices.toArray
     java.util.Arrays.sort(sortedIndices)
     var prev = sortedIndices(0)
@@ -1233,7 +1248,7 @@ object Traversal {
   }
 
   def atKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], keys: Seq[K]): Traversal[M[K, V], V] = {
-    require(keys.nonEmpty)
+    require((map ne null) && (keys ne null) && keys.nonEmpty)
     new TraversalImpl(Array(map), Array(map.value.asTerm("atKeys")), Array[Any](keys))
   }
 
@@ -1307,20 +1322,35 @@ object Traversal {
     )
   }
 
-  def listValues[A](reflect: Reflect.Bound[A]): Traversal[List[A], A] = seqValues(Reflect.list(reflect))
+  def listValues[A](reflect: Reflect.Bound[A]): Traversal[List[A], A] = {
+    require(reflect ne null)
+    seqValues(Reflect.list(reflect))
+  }
 
-  def mapKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], K] =
+  def mapKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], K] = {
+    require(map ne null)
     new TraversalImpl(Array(map), Array(map.key.asTerm("key")), Array[Any](null))
+  }
 
-  def mapValues[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], V] =
+  def mapValues[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], V] = {
+    require(map ne null)
     new TraversalImpl(Array(map), Array(map.value.asTerm("value")), Array[Any](null))
+  }
 
-  def seqValues[A, C[_]](seq: Reflect.Sequence.Bound[A, C]): Traversal[C[A], A] =
+  def seqValues[A, C[_]](seq: Reflect.Sequence.Bound[A, C]): Traversal[C[A], A] = {
+    require(seq ne null)
     new TraversalImpl(Array(seq), Array(seq.element.asTerm("element")), Array[Any](null))
+  }
 
-  def setValues[A](reflect: Reflect.Bound[A]): Traversal[Set[A], A] = seqValues(Reflect.set(reflect))
+  def setValues[A](reflect: Reflect.Bound[A]): Traversal[Set[A], A] = {
+    require(reflect ne null)
+    seqValues(Reflect.set(reflect))
+  }
 
-  def vectorValues[A](reflect: Reflect.Bound[A]): Traversal[Vector[A], A] = seqValues(Reflect.vector(reflect))
+  def vectorValues[A](reflect: Reflect.Bound[A]): Traversal[Vector[A], A] = {
+    require(reflect ne null)
+    seqValues(Reflect.vector(reflect))
+  }
 
   private[schema] case class TraversalImpl[S, A](
     sources: Array[Reflect.Bound[?]],
@@ -1389,12 +1419,14 @@ object Traversal {
               bindings(idx) = new AtKeyBinding[Key, Map](
                 mapDeconstructor = map.mapDeconstructor,
                 mapConstructor = map.mapConstructor,
+                keySchema = map.key,
                 key = params(idx).asInstanceOf[Key]
               )
             } else if (focusTermName == "atKeys") {
               bindings(idx) = new AtKeysBinding[Key, Map](
                 mapDeconstructor = map.mapDeconstructor,
                 mapConstructor = map.mapConstructor,
+                keySchema = map.key,
                 keys = params(idx).asInstanceOf[Seq[Key]]
               )
             } else if (focusTermName == "key") {
@@ -2812,11 +2844,11 @@ object Traversal {
             case at: AtBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndex(at.index)
             case atKey: AtKeyBinding[Key, Map] @scala.unchecked =>
-              new DynamicOptic.Node.AtMapKey[Key](atKey.key)
+              new DynamicOptic.Node.AtMapKey(atKey.keySchema.toDynamicValue(atKey.key))
             case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndices(ArraySeq.unsafeWrapArray(atIndices.indices))
             case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
-              new DynamicOptic.Node.AtMapKeys[Key](atKeys.keys)
+              new DynamicOptic.Node.AtMapKeys(atKeys.keys.map(atKeys.keySchema.toDynamicValue))
             case _: SeqBinding[Col] @scala.unchecked =>
               DynamicOptic.Node.Elements
             case _: MapKeyBinding[Map] @scala.unchecked =>
@@ -2882,6 +2914,7 @@ private[schema] case class AtBinding[C[_]](
 private[schema] case class AtKeyBinding[K, M[_, _]](
   mapDeconstructor: MapDeconstructor[M],
   mapConstructor: MapConstructor[M],
+  keySchema: Reflect.Bound[K],
   key: K
 ) extends OpticBinding
 
@@ -2894,6 +2927,7 @@ private[schema] case class AtIndicesBinding[C[_]](
 private[schema] case class AtKeysBinding[K, M[_, _]](
   mapDeconstructor: MapDeconstructor[M],
   mapConstructor: MapConstructor[M],
+  keySchema: Reflect.Bound[K],
   keys: Seq[K]
 ) extends OpticBinding
 

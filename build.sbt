@@ -27,6 +27,18 @@ addCommandAlias("fmt", "all root/scalafmtSbt root/scalafmtAll")
 addCommandAlias("fmtCheck", "all root/scalafmtSbtCheck root/scalafmtCheckAll")
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
+addCommandAlias(
+  "testJVM",
+  "schemaJVM/test; chunkJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; examples/test"
+)
+addCommandAlias(
+  "testJS",
+  "schemaJS/test; chunkJS/test; streamsJS/test; schema-toonJS/test"
+)
+addCommandAlias(
+  "testNative",
+  "schemaNative/test; chunkNative/test; streamsNative/test; schema-toonNative/test"
+)
 
 lazy val root = project
   .in(file("."))
@@ -39,13 +51,15 @@ lazy val root = project
     schema.native,
     `schema-avro`,
     `schema-thrift`,
+    `schema-toon`.jvm,
+    `schema-toon`.js,
+    `schema-toon`.native,
     streams.jvm,
     streams.js,
     streams.native,
     chunk.jvm,
     chunk.js,
     chunk.native,
-    `chunk-benchmarks`,
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
@@ -66,7 +80,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC44" % Test,
+      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC41" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.24"     % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -84,7 +98,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
   )
@@ -97,7 +111,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
   )
@@ -140,22 +154,9 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     )
   )
 
-lazy val `chunk-benchmarks` = project
-  .settings(stdSettings("zio-blocks-chunk-benchmarks", Seq("3.3.7")))
-  .dependsOn(chunk.jvm)
-  .enablePlugins(JmhPlugin)
-  .settings(
-    libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-test"     % "2.1.24",
-      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
-    ),
-    publish / skip        := true,
-    mimaPreviousArtifacts := Set()
-  )
-
 lazy val `schema-avro` = project
   .settings(stdSettings("zio-blocks-schema-avro"))
-  .dependsOn(schema.jvm)
+  .dependsOn(schema.jvm % "compile->compile;test->test")
   .settings(buildInfoSettings("zio.blocks.schema.avro"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
@@ -168,7 +169,7 @@ lazy val `schema-avro` = project
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     })
   )
@@ -184,6 +185,36 @@ lazy val `schema-thrift` = project
       "jakarta.annotation" % "jakarta.annotation-api" % "3.0.0",
       "dev.zio"           %% "zio-test"               % "2.1.24" % Test,
       "dev.zio"           %% "zio-test-sbt"           % "2.1.24" % Test
+lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-schema-toon"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.schema.toon"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .dependsOn(schema % "compile->compile;test->test")
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    )
+  )
+  .jvmSettings(
+    libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+        )
+    })
+  )
+  .jsSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq()
@@ -193,11 +224,21 @@ lazy val `schema-thrift` = project
         )
     })
   )
+          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+        )
+    })
+  )
+  .nativeSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
+  )
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.7.4")))
-  .dependsOn(schema)
+  .dependsOn(schema % "compile->compile;test->test")
   .settings(crossProjectSettings)
   .settings(
     libraryDependencies ++= Seq(
@@ -221,11 +262,14 @@ lazy val examples = project
 
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
-  .dependsOn(schema.jvm)
+  .dependsOn(schema.jvm % "compile->compile;test->test")
+  .dependsOn(chunk.jvm)
   .dependsOn(`schema-avro`)
+  .dependsOn(`schema-toon`.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
     libraryDependencies ++= Seq(
+      "com.vitthalmirji"                      %% "toon4s-core"           % "0.5.0",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.8",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.14",
       "dev.zio"                               %% "zio-json"              % "0.7.45",
