@@ -1,0 +1,27 @@
+ Volume in drive D is data
+ Volume Serial Number is 5A64-80BF
+
+ Directory of d:\issues682\zio-blocks
+
+19-Jan-26  11:19 AM    <DIR>          .
+19-Jan-26  11:06 AM    <DIR>          ..
+19-Jan-26  11:06 AM                90 .git-blame-ignore-revs
+19-Jan-26  11:06 AM    <DIR>          .github
+19-Jan-26  11:06 AM               274 .gitignore
+19-Jan-26  11:06 AM               123 .jvmopts
+19-Jan-26  11:06 AM               741 .scalafmt.conf
+19-Jan-26  11:06 AM    <DIR>          benchmarks
+19-Jan-26  11:08 AM            10,804 build.sbt
+19-Jan-26  11:06 AM    <DIR>          chunk
+19-Jan-26  11:06 AM    <DIR>          docs
+19-Jan-26  11:06 AM    <DIR>          project
+19-Jan-26  11:06 AM             7,472 README.md
+19-Jan-26  11:06 AM    <DIR>          scalaNextTests
+19-Jan-26  11:06 AM    <DIR>          schema
+19-Jan-26  11:06 AM    <DIR>          schema-avro
+19-Jan-26  11:09 AM    <DIR>          schema-messagepack
+19-Jan-26  11:06 AM    <DIR>          schema-toon
+19-Jan-26  11:06 AM    <DIR>          streams
+19-Jan-26  11:19 AM                 0 test_output.txt
+               7 File(s)         19,504 bytes
+              13 Dir(s)  81,908,154,368 bytes free
