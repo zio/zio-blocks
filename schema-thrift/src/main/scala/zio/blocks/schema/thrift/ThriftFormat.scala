@@ -611,7 +611,7 @@ object ThriftFormat
 
               // Check for cached recursive codec
               val cache  = recursiveRecordCache.get()
-              var cached = cache.get(typeName)
+              val cached = cache.get(typeName)
               if (cached ne null) {
                 return new ThriftBinaryCodec[A]() {
                   def decodeUnsafe(protocol: TProtocol): A = {
