@@ -189,6 +189,50 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       test("Map[String, String]") {
         roundTrip(Map("name" -> "Alice", "city" -> "Boston"))
       }
+    ),
+    suite("forward compatibility")(
+      test("decode record with unknown fields - skips extra fields gracefully") {
+        // Simulates schema evolution: newer producer adds fields, older consumer ignores them
+        // This tests that unpacker.skipValue() correctly handles unknown fields
+        import org.msgpack.core.MessagePack
+
+        // PersonV2 has an extra "email" field that PersonV1 doesn't know about
+        case class PersonV1(name: String, age: Int)
+        case class PersonV2(name: String, age: Int, email: String)
+
+        implicit val personV1Schema: Schema[PersonV1] = Schema.derived
+        implicit val personV2Schema: Schema[PersonV2] = Schema.derived
+
+        val codecV1 = personV1Schema.derive(MessagePackFormat.deriver)
+        val codecV2 = personV2Schema.derive(MessagePackFormat.deriver)
+
+        // Encode with V2 (has extra field)
+        val personV2 = PersonV2("Alice", 30, "alice@example.com")
+        val encodedV2 = codecV2.encode(personV2)
+
+        // Decode with V1 (should skip unknown "email" field)
+        val decodedV1 = codecV1.decode(encodedV2)
+
+        assertTrue(decodedV1 == Right(PersonV1("Alice", 30)))
+      },
+      test("decode record with multiple unknown fields") {
+        import org.msgpack.core.MessagePack
+
+        case class SimpleRecord(id: Int)
+        case class ExtendedRecord(id: Int, name: String, tags: List[String], active: Boolean)
+
+        implicit val simpleSchema: Schema[SimpleRecord]     = Schema.derived
+        implicit val extendedSchema: Schema[ExtendedRecord] = Schema.derived
+
+        val codecSimple   = simpleSchema.derive(MessagePackFormat.deriver)
+        val codecExtended = extendedSchema.derive(MessagePackFormat.deriver)
+
+        val extended = ExtendedRecord(42, "Test", List("a", "b"), true)
+        val encoded  = codecExtended.encode(extended)
+        val decoded  = codecSimple.decode(encoded)
+
+        assertTrue(decoded == Right(SimpleRecord(42)))
+      }
     )
   )
 }
