@@ -555,7 +555,7 @@ final class ToonReader private[toon] (
   }
 
   private def parseNumber(s: String): Any =
-    if (s.contains(".") || s.contains("e") || s.contains("E")) {
+    if (s.indexOf('.') >= 0 || s.indexOf('e') >= 0 || s.indexOf('E') >= 0) {
       val d = s.toDouble
       if (d == d.toLong && d >= Long.MinValue && d <= Long.MaxValue) d.toLong
       else d
