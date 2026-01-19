@@ -39,6 +39,7 @@ object Person {
 // Get everything for free:
 val jsonCodec = Schema[Person].derive(JsonFormat.deriver)      // JSON serialization
 val avroCodec = Schema[Person].derive(AvroFormat.deriver)      // Avro serialization
+val toonCodec = Schema[Person].derive(ToonFormat.deriver)      // TOON serialization
 val protobuf  = Schema[Person].derive(ProtobufFormat.deriver)  // Protobuf serialization (not implemented yet)
 val thrift    = Schema[Person].derive(ThriftFormat.deriver)    // Thrift serialization (not implemented yet)
 // ...
@@ -51,14 +52,13 @@ Here are the key features that make ZIO Blocks stand out:
 1. **Zero Dependencies**: ZIO Blocks has no dependencies on the ZIO ecosystem, making it a universal schema library for Scala that works seamlessly with Akka, Typelevel, Kyo, or any other Scala stack.
 2. **High Performance**: ZIO Blocks uses a novel register-based design that stores primitives directly in byte arrays and objects in separate arrays, avoiding intermediate heap allocations and object boxing. This architecture enables zero-allocation serialization and deserialization.
 3. **Universal Data Formats**: Provides automatic serialization and deserialization across multiple formats:
-* **JSON** – Fast, type-safe JSON handling
-* **Avro** – Apache Avro binary format
-* **Protobuf** – Protocol Buffers
-* **Thrift** – Apache Thrift
-* **BSON** – MongoDB's binary JSON format
-* **MessagePack** – Efficient binary serialization
-
-
+   - **JSON** – Fast, type-safe JSON handling
+   - **Avro** – Apache Avro binary format
+   - **TOON** – Compact, LLM-optimized format
+   - **Protobuf** – Protocol Buffers
+   - **Thrift** – Apache Thrift
+   - **BSON** – MongoDB's binary JSON format
+   - **MessagePack** – Efficient binary serialization
 4. **Reflective Optics**: Combines traditional optics with embedded structural metadata that captures the actual structure of your data types. This enables type-safe introspection, writing DSLs, and dynamic customization of your data models.
 5. **Automatic Derivation**: By implementing a few core methods, you can automatically derive type class instances for all your types, eliminating boilerplate code generation.
 6. **Algebraic Migrations**: A pure, serializable migration engine that evolves schemas using structural types. It eliminates the need for runtime representations of old data versions while ensuring type safety via macros.
@@ -76,6 +76,7 @@ Now you have access to the core ZIO Blocks schema library. You can also add addi
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-json" % "0.0.1"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.1"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.1"
 ```
 
 ## Example
@@ -121,8 +122,6 @@ val updated = Person.age.replace(person, 42)
 
 println(s"Original age: ${person.age}, Updated age: ${updated.age}")
 
-```
-
 ## Schema Migrations
 
 ZIO Blocks simplifies data evolution with a pure, algebraic migration system. Unlike traditional tools, it treats migrations as **first-class, serializable data**, allowing you to transform structural types (past versions) into case classes (current versions) without keeping dead code.
@@ -148,7 +147,6 @@ val migration = Migration.newBuilder[UserV1, UserV2]
 val oldData = DynamicValue.fromSchemaAndValue(v1Schema, new { val name = "Alice"; val age = 30 })
 val result  = migration(oldData) 
 // Result: Right(UserV2("Alice", 30, true))
-
 ```
 
 ## Documentation
@@ -165,7 +163,7 @@ See the [Code of Conduct](https://zio.dev/code-of-conduct)
 
 ## Support
 
-Come chat with us on [][Link-Discord].
+Come chat with us on [![Badge-Discord]][Link-Discord].
 
 [Badge-Discord]: https://img.shields.io/discord/629491597070827530?logo=discord "chat on discord"
 [Link-Discord]: https://discord.gg/2ccFBr4 "Discord"
