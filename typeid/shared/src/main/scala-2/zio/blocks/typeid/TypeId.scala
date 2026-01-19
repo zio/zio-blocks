@@ -43,6 +43,9 @@ final case class TypeId[A](ref: TypeRef) {
   /** The fully qualified name of this type. */
   def fullName: String = ref.fullName
 
+  /** The kind of type definition (class, trait, object, enum, etc.). */
+  def defKind: TypeDefKind = ref.defKind
+
   /** Returns true if this TypeId represents a nominal type. */
   def isNominal: Boolean = ref.isInstanceOf[TypeRef.Nominal]
 
@@ -51,6 +54,86 @@ final case class TypeId[A](ref: TypeRef) {
 
   /** Returns true if this TypeId represents an opaque type. */
   def isOpaque: Boolean = ref.isInstanceOf[TypeRef.Opaque]
+
+  /** Returns true if this TypeId represents a class (case or regular). */
+  def isClass: Boolean = defKind.isInstanceOf[TypeDefKind.Class]
+
+  /** Returns true if this TypeId represents a case class. */
+  def isCaseClass: Boolean = defKind match {
+    case TypeDefKind.Class(_, _, isCase, _, _) => isCase
+    case _                                     => false
+  }
+
+  /** Returns true if this TypeId represents a trait. */
+  def isTrait: Boolean = defKind.isInstanceOf[TypeDefKind.Trait]
+
+  /** Returns true if this TypeId represents a sealed trait. */
+  def isSealedTrait: Boolean = defKind match {
+    case TypeDefKind.Trait(isSealed, _, _) => isSealed
+    case _                                 => false
+  }
+
+  /** Returns true if this TypeId represents an object. */
+  def isObject: Boolean = defKind.isInstanceOf[TypeDefKind.Object]
+
+  /** Returns true if this TypeId represents a Scala 3 enum. */
+  def isEnum: Boolean = defKind.isInstanceOf[TypeDefKind.Enum]
+
+  /** If this is an enum, returns the enum cases; otherwise empty list. */
+  def enumCases: List[EnumCaseInfo] = defKind match {
+    case TypeDefKind.Enum(cases, _) => cases
+    case _                          => Nil
+  }
+
+  /**
+   * If this is a sealed trait, returns known subtypes; otherwise empty list.
+   */
+  def knownSubtypes: List[TypeRepr] = defKind match {
+    case TypeDefKind.Trait(_, subtypes, _) => subtypes
+    case _                                 => Nil
+  }
+
+  /** Returns the base types (parent classes/traits) of this type. */
+  def baseTypes: List[TypeRepr] = defKind.baseTypes
+
+  /**
+   * Checks if this type is a subtype of another type.
+   *
+   * This method checks the type hierarchy using the extracted base types. It
+   * handles:
+   *   - Direct subtype relationships (class extends trait)
+   *   - Sealed trait subtypes
+   *
+   * Note: This is a best-effort check based on compile-time extracted
+   * information. For complex cases involving type parameters or implicit
+   * conversions, the check may return false even when a true subtype
+   * relationship exists at runtime.
+   *
+   * @param other
+   *   The potential supertype to check against
+   * @return
+   *   true if this type is a subtype of other
+   */
+  def isSubtypeOf(other: TypeId[_]): Boolean = {
+    // A type is a subtype of itself
+    if (TypeId.structurallyEqual(this, other)) return true
+
+    // Check if other appears in our base types
+    def checkBaseTypes(bases: List[TypeRepr], visited: Set[String]): Boolean =
+      bases.exists {
+        case TypeRepr.Ref(id) =>
+          if (visited.contains(id.fullName)) false
+          else if (TypeId.structurallyEqual(id, other)) true
+          else checkBaseTypes(id.baseTypes, visited + id.fullName)
+        case TypeRepr.Applied(TypeRepr.Ref(id), _) =>
+          if (visited.contains(id.fullName)) false
+          else if (id.fullName == other.fullName) true // Match by name for applied types
+          else checkBaseTypes(id.baseTypes, visited + id.fullName)
+        case _ => false
+      }
+
+    checkBaseTypes(baseTypes, Set(this.fullName))
+  }
 
   /** If this is a type alias, returns the aliased type; otherwise None. */
   def aliasedType: Option[TypeRepr] = ref match {
@@ -76,7 +159,7 @@ final case class TypeId[A](ref: TypeRef) {
 
   override def toString: String = {
     val paramStr = if (typeParams.isEmpty) "" else typeParams.map(_.name).mkString("[", ", ", "]")
-    val kindStr = ref match {
+    val kindStr  = ref match {
       case _: TypeRef.Nominal => "nominal"
       case _: TypeRef.Alias   => "alias"
       case _: TypeRef.Opaque  => "opaque"
@@ -98,66 +181,69 @@ object TypeId {
   def nominal[A](
     name: String,
     owner: Owner,
-    typeParams: List[TypeParam] = Nil
+    typeParams: List[TypeParam] = Nil,
+    defKind: TypeDefKind = TypeDefKind.Unknown
   ): TypeId[A] =
-    TypeId(TypeRef.Nominal(name, owner, typeParams))
+    TypeId(TypeRef.Nominal(name, owner, typeParams, defKind))
 
   /** Creates a TypeId for a type alias. */
   def alias[A](
     name: String,
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
-    aliased: TypeRepr
+    aliased: TypeRepr,
+    defKind: TypeDefKind = TypeDefKind.TypeAlias
   ): TypeId[A] =
-    TypeId(TypeRef.Alias(name, owner, typeParams, aliased))
+    TypeId(TypeRef.Alias(name, owner, typeParams, aliased, defKind))
 
   /** Creates a TypeId for an opaque type. */
   def opaque[A](
     name: String,
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
-    representation: TypeRepr
+    representation: TypeRepr,
+    defKind: TypeDefKind = TypeDefKind.OpaqueType()
   ): TypeId[A] =
-    TypeId(TypeRef.Opaque(name, owner, typeParams, representation))
+    TypeId(TypeRef.Opaque(name, owner, typeParams, representation, defKind))
 
   // Pattern matching extractors
 
   object Nominal {
     def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam])] = id.ref match {
-      case TypeRef.Nominal(name, owner, typeParams) => Some((name, owner, typeParams))
-      case _                                        => None
+      case TypeRef.Nominal(name, owner, typeParams, _) => Some((name, owner, typeParams))
+      case _                                           => None
     }
   }
 
   object Alias {
     def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id.ref match {
-      case TypeRef.Alias(name, owner, typeParams, aliased) => Some((name, owner, typeParams, aliased))
-      case _                                               => None
+      case TypeRef.Alias(name, owner, typeParams, aliased, _) => Some((name, owner, typeParams, aliased))
+      case _                                                  => None
     }
   }
 
   object Opaque {
     def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id.ref match {
-      case TypeRef.Opaque(name, owner, typeParams, representation) => Some((name, owner, typeParams, representation))
-      case _                                                       => None
+      case TypeRef.Opaque(name, owner, typeParams, representation, _) => Some((name, owner, typeParams, representation))
+      case _                                                          => None
     }
   }
 
   // Normalization and structural equality
 
   /**
-   * Normalizes a TypeRef by following type alias chains.
-   * Aliases are resolved to their underlying type, while nominal and opaque types remain unchanged.
+   * Normalizes a TypeRef by following type alias chains. Aliases are resolved
+   * to their underlying type, while nominal and opaque types remain unchanged.
    */
   def normalize(ref: TypeRef): TypeRef = ref match {
-    case TypeRef.Alias(_, _, _, TypeRepr.Ref(id)) => normalize(id.ref)
-    case other                                    => other
+    case TypeRef.Alias(_, _, _, TypeRepr.Ref(id), _) => normalize(id.ref)
+    case other                                       => other
   }
 
   /**
-   * Compares two TypeIds for structural equality.
-   * Type aliases are transparent: TypeId.of[Age] == TypeId.of[Int] where type Age = Int.
-   * Opaque types maintain nominal identity.
+   * Compares two TypeIds for structural equality. Type aliases are transparent:
+   * TypeId.of[Age] == TypeId.of[Int] where type Age = Int. Opaque types
+   * maintain nominal identity.
    */
   def structurallyEqual(a: TypeId[_], b: TypeId[_]): Boolean = {
     val normA = normalize(a.ref)
@@ -177,7 +263,8 @@ object TypeId {
   }
 
   /**
-   * Computes a hash code for a TypeId that is consistent with structural equality.
+   * Computes a hash code for a TypeId that is consistent with structural
+   * equality.
    */
   def structuralHash(id: TypeId[_]): Int = {
     val norm = normalize(id.ref)

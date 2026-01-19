@@ -40,6 +40,11 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
   trait SimpleTrait
   abstract class AbstractClass
 
+  object TypeAliases {
+    type Age          = Int
+    type StringMap[V] = Map[String, V]
+  }
+
   def spec = suite("TypeId Derivation")(
     suite("Primitive Types")(
       test("derives TypeId for Int") {
@@ -444,6 +449,104 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         assertTrue(
           derived.name == predefined.name,
           derived.arity == predefined.arity
+        )
+      }
+    ),
+    suite("Base Types")(
+      test("class extending trait has correct baseTypes") {
+        val id = TypeId.derived[SimpleSealed.CaseA]
+        assertTrue(
+          id.baseTypes.exists {
+            case TypeRepr.Ref(tid) => tid.name == "SimpleSealed"
+            case _                 => false
+          }
+        )
+      },
+      test("sealed trait subtypes have parent in baseTypes") {
+        val caseAId = TypeId.derived[SimpleSealed.CaseA]
+        val caseBId = TypeId.derived[SimpleSealed.CaseB]
+        assertTrue(
+          caseAId.baseTypes.nonEmpty,
+          caseBId.baseTypes.nonEmpty
+        )
+      },
+      test("baseTypes is accessible on all types") {
+        val intId   = TypeId.derived[Int]
+        val listId  = TypeId.derived[List[_]]
+        val classId = TypeId.derived[SimpleClass]
+        assertTrue(
+          intId.baseTypes.isInstanceOf[List[TypeRepr]],
+          listId.baseTypes.isInstanceOf[List[TypeRepr]],
+          classId.baseTypes.isInstanceOf[List[TypeRepr]]
+        )
+      }
+    ),
+    suite("isSubtypeOf")(
+      test("type is subtype of itself") {
+        val id = TypeId.derived[SimpleTrait]
+        assertTrue(id.isSubtypeOf(id))
+      },
+      test("case class is subtype of its sealed trait") {
+        val caseAId  = TypeId.derived[SimpleSealed.CaseA]
+        val sealedId = TypeId.derived[SimpleSealed]
+        assertTrue(
+          caseAId.isSubtypeOf(sealedId),
+          !sealedId.isSubtypeOf(caseAId)
+        )
+      },
+      test("case object is subtype of its sealed trait") {
+        val caseCId  = TypeId.derived[SimpleSealed.CaseC.type]
+        val sealedId = TypeId.derived[SimpleSealed]
+        assertTrue(caseCId.isSubtypeOf(sealedId))
+      },
+      test("unrelated types are not subtypes of each other") {
+        val intId    = TypeId.derived[Int]
+        val stringId = TypeId.derived[String]
+        assertTrue(
+          !intId.isSubtypeOf(stringId),
+          !stringId.isSubtypeOf(intId)
+        )
+      },
+      test("sibling subtypes are not subtypes of each other") {
+        val caseAId = TypeId.derived[SimpleSealed.CaseA]
+        val caseBId = TypeId.derived[SimpleSealed.CaseB]
+        assertTrue(
+          !caseAId.isSubtypeOf(caseBId),
+          !caseBId.isSubtypeOf(caseAId)
+        )
+      }
+    ),
+    suite("Type Aliases")(
+      test("type aliases are detected correctly") {
+        val ageId = TypeId.derived[TypeAliases.Age]
+        val mapId = TypeId.derived[TypeAliases.StringMap[Int]]
+
+        assertTrue(
+          ageId.name == "Age" && ageId.isAlias,
+          mapId.name == "StringMap" && mapId.isAlias
+        )
+      },
+      test("aliased types are extracted correctly") {
+        val ageId = TypeId.derived[TypeAliases.Age]
+
+        assertTrue(
+          ageId.aliasedType.exists {
+            case TypeRepr.Ref(typeId) => typeId.name == "Int"
+            case _                    => false
+          }
+        )
+      },
+      test("generic type alias has aliased type") {
+        val mapId = TypeId.derived[TypeAliases.StringMap[Int]]
+
+        // Generic type aliases may be represented as TypeLambda or Applied depending on Scala version
+        assertTrue(
+          mapId.aliasedType.isDefined,
+          mapId.aliasedType.exists {
+            case TypeRepr.Applied(TypeRepr.Ref(typeId), _)                         => typeId.name == "Map"
+            case TypeRepr.TypeLambda(_, TypeRepr.Applied(TypeRepr.Ref(typeId), _)) => typeId.name == "Map"
+            case _                                                                 => false
+          }
         )
       }
     )

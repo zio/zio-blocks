@@ -106,6 +106,7 @@ object TypeIdMacros {
     val name           = typeSymbol.name
     val ownerExpr      = buildOwner(typeSymbol.owner)
     val typeParamsExpr = buildTypeParams(typeSymbol)
+    val defKindExpr    = buildDefKind(typeSymbol)
 
     // Get the aliased type (with args applied)
     val aliasedType = tr.translucentSuperType.dealias
@@ -116,7 +117,8 @@ object TypeIdMacros {
         ${ Expr(name) },
         ${ ownerExpr },
         ${ typeParamsExpr },
-        ${ aliasedExpr }
+        ${ aliasedExpr },
+        ${ defKindExpr }
       )
     }
   }
@@ -244,6 +246,7 @@ object TypeIdMacros {
     val name           = typeSymbol.name
     val ownerExpr      = buildOwner(typeSymbol.owner)
     val typeParamsExpr = buildTypeParams(typeSymbol)
+    val defKindExpr    = buildDefKind(typeSymbol)
 
     // Get the aliased type
     val aliasedType = tr.translucentSuperType.dealias
@@ -254,7 +257,8 @@ object TypeIdMacros {
         ${ Expr(name) },
         ${ ownerExpr },
         ${ typeParamsExpr },
-        ${ aliasedExpr }
+        ${ aliasedExpr },
+        ${ defKindExpr }
       )
     }
   }
@@ -281,6 +285,9 @@ object TypeIdMacros {
     // Determine if this is an opaque or nominal type
     val flags = typeSymbol.flags
 
+    // Build the TypeDefKind
+    val defKindExpr = buildDefKind(typeSymbol)
+
     if (flags.is(Flags.Opaque)) {
       // Opaque type - extract the actual underlying representation
       val reprExpr = extractOpaqueRepresentation(tpe, typeSymbol)
@@ -289,7 +296,8 @@ object TypeIdMacros {
           ${ Expr(name) },
           ${ ownerExpr },
           ${ typeParamsExpr },
-          ${ reprExpr }
+          ${ reprExpr },
+          ${ defKindExpr }
         )
       }
     } else {
@@ -298,7 +306,8 @@ object TypeIdMacros {
         TypeId.nominal[A](
           ${ Expr(name) },
           ${ ownerExpr },
-          ${ typeParamsExpr }
+          ${ typeParamsExpr },
+          ${ defKindExpr }
         )
       }
     }
@@ -348,11 +357,36 @@ object TypeIdMacros {
         val typeReprs = types.map(buildTypeReprFromTypeRepr)
         '{ zio.blocks.typeid.TypeRepr.Intersection(${ Expr.ofList(typeReprs) }) }
 
-      // Handle applied types
+      // Handle refinement/structural types
+      case Refinement(parent, name, info) =>
+        buildRefinementType(tpe)
+
+      // Handle applied types - check for special types first
       case AppliedType(tycon, args) =>
-        val tyconRepr = buildTypeReprFromTypeRepr(tycon)
-        val argsRepr  = args.map(buildTypeReprFromTypeRepr)
-        '{ zio.blocks.typeid.TypeRepr.Applied($tyconRepr, ${ Expr.ofList(argsRepr) }) }
+        val tyconName = tycon.typeSymbol.fullName
+
+        // Check for Tuple types
+        if (isTupleType(tyconName)) {
+          buildTupleTypeRepr(args)
+        }
+        // Check for Function types
+        else if (isFunctionType(tyconName)) {
+          val paramTypes = args.init.map(buildTypeReprFromTypeRepr)
+          val resultType = buildTypeReprFromTypeRepr(args.last)
+          '{ zio.blocks.typeid.TypeRepr.Function(${ Expr.ofList(paramTypes) }, $resultType) }
+        }
+        // Check for Context Function types (Scala 3)
+        else if (isContextFunctionType(tyconName)) {
+          val paramTypes = args.init.map(buildTypeReprFromTypeRepr)
+          val resultType = buildTypeReprFromTypeRepr(args.last)
+          '{ zio.blocks.typeid.TypeRepr.ContextFunction(${ Expr.ofList(paramTypes) }, $resultType) }
+        }
+        // Regular applied type
+        else {
+          val tyconRepr = buildTypeReprFromTypeRepr(tycon)
+          val argsRepr  = args.map(buildTypeReprFromTypeRepr)
+          '{ zio.blocks.typeid.TypeRepr.Applied($tyconRepr, ${ Expr.ofList(argsRepr) }) }
+        }
 
       // Handle constant types (literal types)
       case ConstantType(const) =>
@@ -526,5 +560,292 @@ object TypeIdMacros {
     }
 
     Expr.ofList(params)
+  }
+
+  // ============================================================================
+  // Type Detection Helpers
+  // ============================================================================
+
+  private def isTupleType(fullName: String): Boolean =
+    fullName.startsWith("scala.Tuple") || fullName == "scala.EmptyTuple" ||
+      fullName.startsWith("scala.*:")
+
+  private def isFunctionType(fullName: String): Boolean =
+    fullName.startsWith("scala.Function") && !fullName.contains("ContextFunction")
+
+  private def isContextFunctionType(fullName: String): Boolean =
+    fullName.startsWith("scala.ContextFunction")
+
+  // ============================================================================
+  // Tuple Type Building
+  // ============================================================================
+
+  private def buildTupleTypeRepr(using
+    Quotes
+  )(
+    args: List[quotes.reflect.TypeRepr]
+  ): Expr[zio.blocks.typeid.TypeRepr] = {
+    // For now, treat all tuple elements as unlabeled
+    // Named tuple support would require additional detection
+    val elements = args.map { arg =>
+      val tpeRepr = buildTypeReprFromTypeRepr(arg)
+      '{ TupleElement(None, $tpeRepr) }
+    }
+    '{ zio.blocks.typeid.TypeRepr.Tuple(${ Expr.ofList(elements) }) }
+  }
+
+  // ============================================================================
+  // Refinement/Structural Type Building
+  // ============================================================================
+
+  private def buildRefinementType(using
+    Quotes
+  )(
+    tpe: quotes.reflect.TypeRepr
+  ): Expr[zio.blocks.typeid.TypeRepr] = {
+    import quotes.reflect.*
+
+    // Collect all refinement members
+    def collectRefinements(
+      t: TypeRepr,
+      members: List[(String, TypeRepr, Boolean)]
+    ): (TypeRepr, List[(String, TypeRepr, Boolean)]) =
+      t match {
+        case Refinement(parent, name, info) =>
+          val isMethod = info match {
+            case _: MethodType => true
+            case _             => false
+          }
+          val memberType = info match {
+            case mt: MethodType   => mt.resType
+            case TypeBounds(_, _) => t // Abstract type member
+            case other            => other
+          }
+          collectRefinements(parent, (name, memberType, isMethod) :: members)
+        case other =>
+          (other, members)
+      }
+
+    val (parent, refinements) = collectRefinements(tpe, Nil)
+
+    // Build parent types list
+    val parentTypes = parent match {
+      case AndType(_, _) => flattenIntersection(parent)
+      case other         => List(other)
+    }
+    val parentReprs = parentTypes.map(buildTypeReprFromTypeRepr)
+
+    // Build members list
+    val memberExprs = refinements.map { case (name, memberType, isMethod) =>
+      val typeRepr = buildTypeReprFromTypeRepr(memberType)
+      if (isMethod) {
+        // Def member (simplified - no parameters for now)
+        '{ Member.Def(${ Expr(name) }, Nil, Nil, $typeRepr) }
+      } else {
+        // Val member
+        '{ Member.Val(${ Expr(name) }, $typeRepr) }
+      }
+    }
+
+    '{ zio.blocks.typeid.TypeRepr.Structural(${ Expr.ofList(parentReprs) }, ${ Expr.ofList(memberExprs) }) }
+  }
+
+  // ============================================================================
+  // TypeDefKind Extraction
+  // ============================================================================
+
+  private def buildDefKind(using
+    Quotes
+  )(
+    sym: quotes.reflect.Symbol
+  ): Expr[TypeDefKind] = {
+    import quotes.reflect.*
+
+    val flags = sym.flags
+
+    // Check for enum first (Scala 3 specific)
+    if (flags.is(Flags.Enum) && !flags.is(Flags.Case)) {
+      // This is an enum definition - extract cases
+      buildEnumDefKind(sym)
+    } else if (flags.is(Flags.Enum) && flags.is(Flags.Case)) {
+      // This is an enum case
+      buildEnumCaseDefKind(sym)
+    } else if (flags.is(Flags.Module)) {
+      // Singleton object
+      buildObjectDefKind(sym)
+    } else if (flags.is(Flags.Trait)) {
+      // Trait
+      buildTraitDefKind(sym)
+    } else if (sym.isClassDef) {
+      // Class (regular, case, abstract, final, value)
+      buildClassDefKind(sym, flags)
+    } else if (flags.is(Flags.Opaque)) {
+      // Opaque type
+      '{ TypeDefKind.OpaqueType() }
+    } else if (sym.isAliasType) {
+      // Type alias
+      '{ TypeDefKind.TypeAlias }
+    } else if (sym.isAbstractType) {
+      // Abstract type member
+      '{ TypeDefKind.AbstractType }
+    } else {
+      '{ TypeDefKind.Unknown }
+    }
+  }
+
+  private def buildBaseTypes(using
+    Quotes
+  )(
+    sym: quotes.reflect.Symbol
+  ): Expr[List[TypeRepr]] = {
+
+    // Get the base classes excluding the type itself and common types like Any, AnyRef, Object
+    val baseClasses = sym.typeRef.baseClasses.filterNot { base =>
+      base == sym ||
+      base.fullName == "scala.Any" ||
+      base.fullName == "scala.AnyRef" ||
+      base.fullName == "java.lang.Object" ||
+      base.fullName == "scala.Matchable"
+    }
+
+    val baseExprs = baseClasses.map { base =>
+      buildTypeReprFromTypeRepr(base.typeRef)
+    }
+
+    Expr.ofList(baseExprs)
+  }
+
+  private def buildObjectDefKind(using
+    Quotes
+  )(
+    sym: quotes.reflect.Symbol
+  ): Expr[TypeDefKind] = {
+    val basesExpr = buildBaseTypes(sym)
+    '{ TypeDefKind.Object(bases = $basesExpr) }
+  }
+
+  private def buildClassDefKind(using
+    Quotes
+  )(
+    sym: quotes.reflect.Symbol,
+    flags: quotes.reflect.Flags
+  ): Expr[TypeDefKind] = {
+    import quotes.reflect.*
+
+    val isFinal    = flags.is(Flags.Final)
+    val isAbstract = flags.is(Flags.Abstract)
+    val isCase     = flags.is(Flags.Case)
+
+    // Check if it's a value class (extends AnyVal)
+    val isValue = sym.typeRef.baseClasses.exists(_.fullName == "scala.AnyVal")
+
+    val basesExpr = buildBaseTypes(sym)
+
+    '{
+      TypeDefKind.Class(
+        isFinal = ${ Expr(isFinal) },
+        isAbstract = ${ Expr(isAbstract) },
+        isCase = ${ Expr(isCase) },
+        isValue = ${ Expr(isValue) },
+        bases = $basesExpr
+      )
+    }
+  }
+
+  private def buildTraitDefKind(using
+    Quotes
+  )(
+    sym: quotes.reflect.Symbol
+  ): Expr[TypeDefKind] = {
+    import quotes.reflect.*
+
+    val flags    = sym.flags
+    val isSealed = flags.is(Flags.Sealed)
+
+    val basesExpr = buildBaseTypes(sym)
+
+    if (isSealed) {
+      // Get known subtypes for sealed traits
+      val children     = sym.children
+      val subtypeExprs = children.map { child =>
+        // Build a TypeRepr for each child
+        val childTypeRepr = child.typeRef
+        buildTypeReprFromTypeRepr(childTypeRepr)
+      }
+      '{ TypeDefKind.Trait(isSealed = true, knownSubtypes = ${ Expr.ofList(subtypeExprs) }, bases = $basesExpr) }
+    } else {
+      '{ TypeDefKind.Trait(isSealed = false, bases = $basesExpr) }
+    }
+  }
+
+  private def buildEnumDefKind(using
+    Quotes
+  )(
+    sym: quotes.reflect.Symbol
+  ): Expr[TypeDefKind] = {
+    import quotes.reflect.*
+
+    // Get enum cases from children
+    val children  = sym.children
+    val caseExprs = children.zipWithIndex.collect {
+      case (child, idx) if child.flags.is(Flags.Case) =>
+        buildEnumCaseInfo(child, idx)
+    }
+
+    val basesExpr = buildBaseTypes(sym)
+
+    '{ TypeDefKind.Enum(cases = ${ Expr.ofList(caseExprs) }, bases = $basesExpr) }
+  }
+
+  private def buildEnumCaseInfo(using
+    Quotes
+  )(
+    caseSym: quotes.reflect.Symbol,
+    ordinal: Int
+  ): Expr[EnumCaseInfo] = {
+    import quotes.reflect.*
+
+    val name = caseSym.name
+
+    // Check if this is an object case (no parameters) or a class case (with parameters)
+    val isObjectCase = caseSym.flags.is(Flags.Module) ||
+      caseSym.primaryConstructor.paramSymss.flatten.isEmpty
+
+    if (isObjectCase) {
+      '{ EnumCaseInfo(${ Expr(name) }, ${ Expr(ordinal) }, Nil, isObjectCase = true) }
+    } else {
+      // Extract constructor parameters
+      val params = caseSym.primaryConstructor.paramSymss.flatten.filter(_.isTerm).map { param =>
+        val paramName     = param.name
+        val paramType     = param.termRef.widenTermRefByName
+        val paramTypeRepr = buildTypeReprFromTypeRepr(paramType)
+        '{ EnumCaseParam(${ Expr(paramName) }, $paramTypeRepr) }
+      }
+      '{ EnumCaseInfo(${ Expr(name) }, ${ Expr(ordinal) }, ${ Expr.ofList(params) }, isObjectCase = false) }
+    }
+  }
+
+  private def buildEnumCaseDefKind(using
+    Quotes
+  )(
+    caseSym: quotes.reflect.Symbol
+  ): Expr[TypeDefKind] = {
+    import quotes.reflect.*
+
+    // Find parent enum
+    val parentSym = caseSym.owner
+
+    // Get ordinal by finding position in parent's children
+    val siblings = parentSym.children.filter(_.flags.is(Flags.Case))
+    val ordinal  = siblings.indexOf(caseSym)
+
+    // Check if object case
+    val isObjectCase = caseSym.flags.is(Flags.Module) ||
+      caseSym.primaryConstructor.paramSymss.flatten.isEmpty
+
+    // Build parent enum TypeRepr
+    val parentTypeRepr = buildTypeReprFromTypeRepr(parentSym.typeRef)
+
+    '{ TypeDefKind.EnumCase($parentTypeRepr, ${ Expr(ordinal) }, ${ Expr(isObjectCase) }) }
   }
 }

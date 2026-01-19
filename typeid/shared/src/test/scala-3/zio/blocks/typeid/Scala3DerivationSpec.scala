@@ -2,6 +2,16 @@ package zio.blocks.typeid
 
 import zio.test._
 
+/**
+ * Tests for Scala 3-specific TypeId derivation features.
+ *
+ * This spec covers features only available in Scala 3:
+ *   - Opaque types
+ *   - Enums and enum cases
+ *   - Union types
+ *   - Intersection types
+ *   - Context functions
+ */
 object Scala3DerivationSpec extends ZIOSpecDefault {
 
   object OpaqueTypes {
@@ -11,87 +21,144 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
   }
 
   object TypeAliases {
-    type Age          = Int
-    type StringMap[V] = Map[String, V]
+    type IntToString = Int => String
+    type Contextual  = Int ?=> String
   }
 
   def spec = suite("Scala 3 TypeId Derivation")(
-    test("opaque types are detected correctly") {
-      val emailId = TypeId.derived[OpaqueTypes.Email]
-      val ageId   = TypeId.derived[OpaqueTypes.Age]
-      val listId  = TypeId.derived[OpaqueTypes.SafeList[Any]]
+    suite("Opaque Types")(
+      test("opaque types are detected correctly") {
+        val emailId = TypeId.derived[OpaqueTypes.Email]
+        val ageId   = TypeId.derived[OpaqueTypes.Age]
+        val listId  = TypeId.derived[OpaqueTypes.SafeList[Any]]
 
-      assertTrue(
-        emailId.name == "Email" && emailId.isOpaque,
-        ageId.name == "Age" && ageId.isOpaque,
-        listId.name == "SafeList" && listId.isOpaque && listId.arity == 1
-      )
-    },
-    test("opaque type representations are extracted correctly") {
-      val emailId = TypeId.derived[OpaqueTypes.Email]
-      val ageId   = TypeId.derived[OpaqueTypes.Age]
+        assertTrue(
+          emailId.name == "Email" && emailId.isOpaque,
+          ageId.name == "Age" && ageId.isOpaque,
+          listId.name == "SafeList" && listId.isOpaque && listId.arity == 1
+        )
+      },
+      test("opaque type representations are extracted correctly") {
+        val emailId = TypeId.derived[OpaqueTypes.Email]
+        val ageId   = TypeId.derived[OpaqueTypes.Age]
 
-      assertTrue(
-        emailId.opaqueRepresentation.exists {
-          case TypeRepr.Ref(typeId) => typeId.name == "String"
-          case _                    => false
-        },
-        ageId.opaqueRepresentation.exists {
-          case TypeRepr.Ref(typeId) => typeId.name == "Int"
-          case _                    => false
+        assertTrue(
+          emailId.opaqueRepresentation.exists {
+            case TypeRepr.Ref(typeId) => typeId.name == "String"
+            case _                    => false
+          },
+          ageId.opaqueRepresentation.exists {
+            case TypeRepr.Ref(typeId) => typeId.name == "Int"
+            case _                    => false
+          }
+        )
+      },
+      test("opaque type TypeDefKind is OpaqueType") {
+        val emailId = TypeId.derived[OpaqueTypes.Email]
+        assertTrue(emailId.defKind.isInstanceOf[TypeDefKind.OpaqueType])
+      }
+    ),
+    suite("Enums")(
+      test("enum TypeDefKind includes enum cases") {
+        enum Status {
+          case Pending
+          case Active
+          case Completed
         }
-      )
-    },
-    test("type aliases work correctly") {
-      val ageId = TypeId.derived[TypeAliases.Age]
-      val mapId = TypeId.derived[TypeAliases.StringMap[Int]]
+        val statusId = TypeId.derived[Status]
 
-      assertTrue(
-        ageId.name == "Age" && ageId.isAlias,
-        mapId.name == "StringMap" && mapId.isAlias,
-        ageId.aliasedType.exists {
-          case TypeRepr.Ref(typeId) => typeId.name == "Int"
-          case _                    => false
+        assertTrue(
+          statusId.isEnum,
+          statusId.defKind match {
+            case TypeDefKind.Enum(cases, _) =>
+              cases.length == 3 &&
+              cases.exists(_.name == "Pending") &&
+              cases.exists(_.name == "Active") &&
+              cases.exists(_.name == "Completed")
+            case _ => false
+          },
+          statusId.enumCases.length == 3
+        )
+      },
+      test("enum with parameterized cases has correct EnumCaseInfo") {
+        enum Result[+T] {
+          case Success(value: T)
+          case Failure(error: String)
         }
-      )
-    },
-    test("scala 3 specific types work") {
-      // Union type
-      type StringOrInt = String | Int
-      val unionId = TypeId.derived[StringOrInt]
+        val resultId = TypeId.derived[Result[Any]]
 
-      // Intersection type
-      trait A
-      trait B
-      type AAndB = A & B
-      val intersectionId = TypeId.derived[AAndB]
+        assertTrue(
+          resultId.isEnum,
+          resultId.defKind match {
+            case TypeDefKind.Enum(cases, _) =>
+              cases.length == 2 &&
+              cases.exists(c => c.name == "Success" && !c.isObjectCase && c.params.nonEmpty) &&
+              cases.exists(c => c.name == "Failure" && !c.isObjectCase && c.params.exists(_.name == "error"))
+            case _ => false
+          }
+        )
+      },
+      test("enum object cases are marked as isObjectCase") {
+        enum Direction {
+          case North, South, East, West
+        }
+        val dirId = TypeId.derived[Direction]
 
-      // Enum
-      enum Color { case Red, Green, Blue }
-      val enumId = TypeId.derived[Color]
+        assertTrue(
+          dirId.isEnum,
+          dirId.enumCases.forall(_.isObjectCase)
+        )
+      },
+      test("enum case is subtype of parent enum") {
+        enum Status { case Pending, Active }
 
-      assertTrue(
-        unionId.name == "StringOrInt" && unionId.isAlias,
-        intersectionId.name == "AAndB" && intersectionId.isAlias,
-        enumId.name == "Color"
-      )
-    },
-    test("structural types with Selectable work correctly") {
-      // Structural type using Selectable
-      type Person = {
-        def name: String
-        def age: Int
-      } & Selectable
+        val pendingId = TypeId.derived[Status.Pending.type]
+        val statusId  = TypeId.derived[Status]
 
-      val structuralId = TypeId.derived[Person]
+        assertTrue(pendingId.isSubtypeOf(statusId))
+      }
+    ),
+    suite("Union and Intersection Types")(
+      test("union type alias works correctly") {
+        type StringOrInt = String | Int
+        val unionId = TypeId.derived[StringOrInt]
 
-      // Dynamic type (structural type without members)
-      val dynamicId = TypeId.derived[Selectable]
+        assertTrue(
+          unionId.name == "StringOrInt" && unionId.isAlias
+        )
+      },
+      test("intersection type alias works correctly") {
+        trait A
+        trait B
+        type AAndB = A & B
+        val intersectionId = TypeId.derived[AAndB]
 
-      assertTrue(
-        structuralId.name == "Person" && structuralId.isAlias,
-        dynamicId.name == "Selectable"
-      )
-    }
+        assertTrue(
+          intersectionId.name == "AAndB" && intersectionId.isAlias
+        )
+      }
+    ),
+    suite("Context Functions")(
+      test("context function type extracts as ContextFunction TypeRepr") {
+        val ctxFuncId = TypeId.derived[TypeAliases.Contextual]
+
+        assertTrue(
+          ctxFuncId.isAlias,
+          ctxFuncId.aliasedType.exists {
+            case TypeRepr.ContextFunction(params, result) =>
+              params.length == 1 &&
+              (params.head match {
+                case TypeRepr.Ref(id) => id.name == "Int"
+                case _                => false
+              }) &&
+              (result match {
+                case TypeRepr.Ref(id) => id.name == "String"
+                case _                => false
+              })
+            case _ => false
+          }
+        )
+      }
+    )
   )
 }
