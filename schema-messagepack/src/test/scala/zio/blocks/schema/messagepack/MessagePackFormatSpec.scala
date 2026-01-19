@@ -230,6 +230,41 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
 
         assertTrue(decoded == Right(SimpleRecord(42)))
       }
+    ),
+    suite("nested collections")(
+      test("List[List[Int]]") {
+        roundTrip(List(List(1, 2), List(3, 4, 5), List.empty[Int]))
+      },
+      test("Map[String, List[String]]") {
+        roundTrip(Map("fruits" -> List("apple", "banana"), "veggies" -> List("carrot")))
+      },
+      test("List[Map[String, Int]]") {
+        roundTrip(List(Map("a" -> 1), Map("b" -> 2, "c" -> 3)))
+      }
+    ),
+    suite("edge cases")(
+      test("empty case class") {
+        case class Empty()
+        implicit val emptySchema: Schema[Empty] = Schema.derived
+        roundTrip(Empty())
+      },
+      test("case class with many fields") {
+        case class ManyFields(
+          f1: Int, f2: Int, f3: Int, f4: Int, f5: Int,
+          f6: Int, f7: Int, f8: Int, f9: Int, f10: Int
+        )
+        implicit val manyFieldsSchema: Schema[ManyFields] = Schema.derived
+        roundTrip(ManyFields(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+      },
+      test("deeply nested record") {
+        case class Inner(value: Int)
+        case class Middle(inner: Inner)
+        case class Outer(middle: Middle)
+        implicit val innerSchema: Schema[Inner]   = Schema.derived
+        implicit val middleSchema: Schema[Middle] = Schema.derived
+        implicit val outerSchema: Schema[Outer]   = Schema.derived
+        roundTrip(Outer(Middle(Inner(42))))
+      }
     )
   )
 }

@@ -176,12 +176,15 @@ object MessagePackFormat
             val fieldCodecs  = new Array[MessagePackBinaryCodec[Any]](fieldCount)
             val fieldNames   = new Array[String](fieldCount)
             val fieldGetters = new Array[Any => Any](fieldCount)
-            var i            = 0
+            // O(1) field lookup map for efficient decoding
+            val fieldIndexMap = new java.util.HashMap[String, Integer](fieldCount)
+            var i             = 0
             while (i < fieldCount) {
               val field = fields(i)
               fieldCodecs(i) = deriveCodec(field.reflectField).asInstanceOf[MessagePackBinaryCodec[Any]]
               fieldNames(i) = field.label
               fieldGetters(i) = binding.fields(i).get.asInstanceOf[Any => Any]
+              fieldIndexMap.put(field.label, i)
               i += 1
             }
 
@@ -192,22 +195,17 @@ object MessagePackFormat
                 var j       = 0
                 while (j < mapSize) {
                   val key = unpacker.unpackString()
-                  var idx = 0
-                  var found = false
-                  while (idx < fieldCount && !found) {
-                    if (fieldNames(idx) == key) {
-                      found = true
-                      try {
-                        val value = fieldCodecs(idx).decodeValue(unpacker)
-                        binding.fields(idx).setAny(regs, value)
-                      } catch {
-                        case err if NonFatal(err) =>
-                          decodeError(DynamicOptic.Node.Field(key), err)
-                      }
+                  val idx = fieldIndexMap.get(key)
+                  if (idx ne null) {
+                    try {
+                      val value = fieldCodecs(idx).decodeValue(unpacker)
+                      binding.fields(idx).setAny(regs, value)
+                    } catch {
+                      case err if NonFatal(err) =>
+                        decodeError(DynamicOptic.Node.Field(key), err)
                     }
-                    idx += 1
-                  }
-                  if (!found) {
+                  } else {
+                    // Forward compatibility: skip unknown fields
                     unpacker.skipValue()
                   }
                   j += 1
@@ -270,11 +268,9 @@ object MessagePackFormat
                         decodeError(s"Expected 'value' field, got '$valueKey'")
                       }
                     } else {
-                      try result = caseCodecs(idx).decodeValue(unpacker).asInstanceOf[A]
-                      catch {
-                        case err if NonFatal(err) =>
-                          decodeError(DynamicOptic.Node.Case(typeName), err)
-                      }
+                      // Unit-type case with only _type field (no value field)
+                      // Use nullValue which returns () for Unit types
+                      result = caseCodecs(idx).nullValue.asInstanceOf[A]
                     }
                   }
                   idx += 1
