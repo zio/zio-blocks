@@ -135,9 +135,9 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
   )
 
   private[this] def getMessage(error: Throwable): String = error match {
-    case _: java.io.EOFException                        => "Unexpected end of input"
-    case _: org.msgpack.core.MessageInsufficientBufferException => "Insufficient buffer for MessagePack decoding"
-    case e                                              => e.getMessage
+    case _: java.io.EOFException                                 => "Unexpected end of input"
+    case _: org.msgpack.core.MessageInsufficientBufferException  => "Insufficient buffer for MessagePack decoding"
+    case e                                                       => e.getMessage
   }
 }
 
