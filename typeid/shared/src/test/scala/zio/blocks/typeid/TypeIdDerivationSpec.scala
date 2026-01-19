@@ -63,6 +63,28 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     case object Empty             extends Box[Nothing]
   }
 
+  // Recursive types for testing
+  sealed trait LinkedList[+A]
+  object LinkedList {
+    case class Node[+A](head: A, tail: LinkedList[A]) extends LinkedList[A]
+    case object Empty                                 extends LinkedList[Nothing]
+  }
+
+  sealed trait Tree[+A]
+  object Tree {
+    case class Branch[+A](value: A, left: Tree[A], right: Tree[A]) extends Tree[A]
+    case object Leaf                                               extends Tree[Nothing]
+  }
+
+  // Mutually recursive types
+  sealed trait Expr
+  case class Literal(value: Int)                 extends Expr
+  case class BinOp(op: Op, lhs: Expr, rhs: Expr) extends Expr
+
+  sealed trait Op
+  case object Plus  extends Op
+  case object Minus extends Op
+
   def spec = suite("TypeId Derivation")(
     suite("Primitive Types")(
       test("derives TypeId for Int") {
@@ -730,6 +752,220 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
 
         assertTrue(intersection1 != intersection2)
+      }
+    ),
+    suite("Map and Set Keys")(
+      test("TypeId can be used as Map keys") {
+        val intId    = TypeId.derived[Int]
+        val stringId = TypeId.derived[String]
+        val dogId    = TypeId.derived[Dog]
+
+        val typeMap: Map[TypeId[_], String] = Map(
+          intId    -> "integer type",
+          stringId -> "string type",
+          dogId    -> "dog type"
+        )
+
+        assertTrue(
+          typeMap.get(intId).contains("integer type"),
+          typeMap.get(stringId).contains("string type"),
+          typeMap.get(dogId).contains("dog type"),
+          typeMap.size == 3
+        )
+      },
+      test("TypeId can be used as Set elements") {
+        val intId    = TypeId.derived[Int]
+        val stringId = TypeId.derived[String]
+        val dogId    = TypeId.derived[Dog]
+
+        val typeSet: Set[TypeId[_]] = Set(intId, stringId, dogId)
+
+        assertTrue(
+          typeSet.contains(intId),
+          typeSet.contains(stringId),
+          typeSet.contains(dogId),
+          typeSet.size == 3
+        )
+      },
+      test("TypeId equality works correctly in Map lookups") {
+        val id1 = TypeId.derived[String]
+        val id2 = TypeId.derived[String]
+
+        val typeMap: Map[TypeId[_], String] = Map(id1 -> "first")
+
+        assertTrue(
+          typeMap.get(id2).contains("first"),
+          id1 == id2
+        )
+      },
+      test("TypeId equality works correctly in Set membership") {
+        val id1 = TypeId.derived[Dog]
+        val id2 = TypeId.derived[Dog]
+
+        val typeSet: Set[TypeId[_]] = Set(id1)
+
+        assertTrue(
+          typeSet.contains(id2),
+          id1 == id2
+        )
+      },
+      test("Different TypeIds are distinct in Map") {
+        val intId    = TypeId.derived[Int]
+        val stringId = TypeId.derived[String]
+
+        val typeMap: Map[TypeId[_], String] = Map(intId -> "int", stringId -> "string")
+        val intValue                        = typeMap.get(intId)
+        val stringValue                     = typeMap.get(stringId)
+
+        assertTrue(
+          typeMap.size == 2,
+          intValue.isDefined,
+          stringValue.isDefined,
+          intValue != stringValue
+        )
+      },
+      test("Type alias equals underlying type in Map") {
+        val ageId = TypeId.derived[TypeAliases.Age]
+        val intId = TypeId.derived[Int]
+
+        val typeMap: Map[TypeId[_], String] = Map(intId -> "integer")
+
+        assertTrue(
+          typeMap.get(ageId).contains("integer"),
+          ageId == intId
+        )
+      }
+    ),
+    suite("Recursive Types")(
+      test("derives TypeId for recursive linked list") {
+        val nodeId  = TypeId.derived[LinkedList.Node[Int]]
+        val emptyId = TypeId.derived[LinkedList.Empty.type]
+        val listId  = TypeId.derived[LinkedList[Int]]
+
+        assertTrue(
+          nodeId.name == "Node",
+          emptyId.name == "Empty",
+          listId.name == "LinkedList"
+        )
+      },
+      test("derives TypeId for recursive tree") {
+        val branchId = TypeId.derived[Tree.Branch[String]]
+        val leafId   = TypeId.derived[Tree.Leaf.type]
+        val treeId   = TypeId.derived[Tree[String]]
+
+        assertTrue(
+          branchId.name == "Branch",
+          leafId.name == "Leaf",
+          treeId.name == "Tree"
+        )
+      },
+      test("recursive type has correct parent in hierarchy") {
+        val nodeId = TypeId.derived[LinkedList.Node[Int]]
+
+        assertTrue(
+          nodeId.parents.exists {
+            case TypeRepr.Ref(id)                      => id.name == "LinkedList"
+            case TypeRepr.Applied(TypeRepr.Ref(id), _) => id.name == "LinkedList"
+            case _                                     => false
+          }
+        )
+      },
+      test("derives TypeId for mutually recursive types") {
+        val exprId    = TypeId.derived[Expr]
+        val literalId = TypeId.derived[Literal]
+        val binOpId   = TypeId.derived[BinOp]
+        val opId      = TypeId.derived[Op]
+
+        assertTrue(
+          exprId.name == "Expr",
+          literalId.name == "Literal",
+          binOpId.name == "BinOp",
+          opId.name == "Op"
+        )
+      },
+      test("mutually recursive types have correct relationships") {
+        val literalId = TypeId.derived[Literal]
+        val binOpId   = TypeId.derived[BinOp]
+        val exprId    = TypeId.derived[Expr]
+
+        assertTrue(
+          literalId.isSubtypeOf(exprId),
+          binOpId.isSubtypeOf(exprId)
+        )
+      },
+      test("recursive type can be used as Map key") {
+        val nodeId  = TypeId.derived[LinkedList.Node[Int]]
+        val emptyId = TypeId.derived[LinkedList.Empty.type]
+
+        val typeMap: Map[TypeId[_], String] = Map(
+          nodeId  -> "node constructor",
+          emptyId -> "empty list"
+        )
+
+        assertTrue(
+          typeMap.get(nodeId).contains("node constructor"),
+          typeMap.get(emptyId).contains("empty list")
+        )
+      }
+    ),
+    suite("Cross-Compilation Equality")(
+      test("same type derived multiple times equals itself") {
+        val id1 = TypeId.derived[String]
+        val id2 = TypeId.derived[String]
+        val id3 = TypeId.derived[String]
+
+        assertTrue(
+          id1 == id2,
+          id2 == id3,
+          id1 == id3,
+          id1.hashCode() == id2.hashCode(),
+          id2.hashCode() == id3.hashCode()
+        )
+      },
+      test("generic types derived with same type arguments are equal") {
+        val list1 = TypeId.derived[List[Int]]
+        val list2 = TypeId.derived[List[Int]]
+
+        assertTrue(
+          list1 == list2,
+          list1.hashCode() == list2.hashCode()
+        )
+      },
+      test("user-defined types are equal across derivations") {
+        val dog1 = TypeId.derived[Dog]
+        val dog2 = TypeId.derived[Dog]
+
+        assertTrue(
+          dog1 == dog2,
+          dog1.hashCode() == dog2.hashCode()
+        )
+      },
+      test("type constructors are equal across derivations") {
+        val list1 = TypeId.derived[List[_]]
+        val list2 = TypeId.derived[List[_]]
+
+        assertTrue(
+          list1 == list2,
+          list1.hashCode() == list2.hashCode()
+        )
+      },
+      test("nested types are equal across derivations") {
+        val nested1 = TypeId.derived[Outer.Nested]
+        val nested2 = TypeId.derived[Outer.Nested]
+
+        assertTrue(
+          nested1 == nested2,
+          nested1.hashCode() == nested2.hashCode()
+        )
+      },
+      test("sealed trait subtypes are equal across derivations") {
+        val caseA1 = TypeId.derived[SimpleSealed.CaseA]
+        val caseA2 = TypeId.derived[SimpleSealed.CaseA]
+
+        assertTrue(
+          caseA1 == caseA2,
+          caseA1.hashCode() == caseA2.hashCode()
+        )
       }
     )
   )
