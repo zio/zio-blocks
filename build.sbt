@@ -7,6 +7,7 @@ inThisBuild(
   List(
     name         := "ZIO Blocks",
     organization := "dev.zio",
+    scalaVersion := Scala3,
     homepage     := Some(url("https://zio.dev")),
     licenses     := List(
       "Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")
