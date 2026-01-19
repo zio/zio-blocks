@@ -44,20 +44,9 @@ private[toon] final class RecordCodecBuilder(
         else fieldReflect.asDynamic.get.dynamicBinding
       }.asInstanceOf[BindingInstance[ToonBinaryCodec, _, A]].binding.defaultValue
 
-  private def stripArrayNotation(key: String): (String, Boolean) = {
-    val bracketIdx =
-      if (key.startsWith("\"")) {
-        val closeQuoteIdx = key.indexOf('"', 1)
-        if (closeQuoteIdx > 0) key.indexOf('[', closeQuoteIdx + 1)
-        else key.indexOf('[')
-      } else key.indexOf('[')
-    if (bracketIdx > 0) (stripQuotes(key.substring(0, bracketIdx)), true)
-    else (stripQuotes(key), false)
-  }
-
-  private def stripQuotes(s: String): String =
-    if (s.startsWith("\"") && s.endsWith("\"") && s.length >= 2) s.substring(1, s.length - 1)
-    else s
+  private def stripQuotes(s: String, from: Int, to: Int): String =
+    if (to - from >= 2 && s.charAt(from) == '"' && s.charAt(to - 1) == '"') s.substring(from + 1, to - 1)
+    else s.substring(from, to)
 
   def build[F[_, _], A](record: Reflect.Record[F, A], binding: Binding.Record[A]): ToonBinaryCodec[A] = {
     val fields = record.fields
@@ -210,9 +199,21 @@ private[toon] final class RecordCodecBuilder(
           }
           if (!in.hasMoreContent || in.peekTrimmedContent.isEmpty) in.advanceLine()
           else {
-            val rawKey         = in.readKeyWithArrayNotation()
-            val (key, isArray) = stripArrayNotation(rawKey)
-            val fieldInfo      = fieldIndex.get(key)
+            val rawKey  = in.readKeyWithArrayNotation()
+            var isArray = false
+            val key     = {
+              val bracketIdx =
+                if (rawKey.startsWith("\"")) {
+                  val closeQuoteIdx = rawKey.indexOf('"', 1)
+                  if (closeQuoteIdx > 0) rawKey.indexOf('[', closeQuoteIdx + 1)
+                  else rawKey.indexOf('[')
+                } else rawKey.indexOf('[')
+              if (bracketIdx > 0) {
+                isArray = true
+                stripQuotes(rawKey, 0, bracketIdx)
+              } else stripQuotes(rawKey, 0, rawKey.length)
+            }
+            val fieldInfo = fieldIndex.get(key)
             if (fieldInfo ne null) {
               missing(fieldInfo.idx) = false
               try {
