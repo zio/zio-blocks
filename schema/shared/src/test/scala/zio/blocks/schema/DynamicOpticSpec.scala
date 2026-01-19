@@ -6,6 +6,15 @@ import zio.test.{Spec, TestEnvironment, assert}
 
 object DynamicOpticSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("DynamicOpticSpec")(
+    test("path interpolator matches manual DynamicOptic construction") {
+      assert(p"<X>.y")(equalTo(A.x(X.y).toDynamic)) &&
+      assert(p"<X>.y.z")(equalTo(A.x(X.y)(Y.z).toDynamic)) &&
+      assert(p"[0]")(equalTo(DynamicOptic.root.at(0))) &&
+      assert(p"[0,1,2]")(equalTo(DynamicOptic.root.atIndices(0, 1, 2))) &&
+      assert(p"[*]")(equalTo(DynamicOptic.elements)) &&
+      assert(p"{*:}")(equalTo(DynamicOptic.mapKeys)) &&
+      assert(p"{*}")(equalTo(DynamicOptic.mapValues))
+    },
     test("composition using apply, field, caseOf, at, atKey, elements, mapKeys, and mapValues methods") {
       assert(
         DynamicOptic.root
