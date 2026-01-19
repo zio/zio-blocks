@@ -206,7 +206,7 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         val codecV2 = personV2Schema.derive(MessagePackFormat.deriver)
 
         // Encode with V2 (has extra field)
-        val personV2 = PersonV2("Alice", 30, "alice@example.com")
+        val personV2  = PersonV2("Alice", 30, "alice@example.com")
         val encodedV2 = codecV2.encode(personV2)
 
         // Decode with V1 (should skip unknown "email" field)
@@ -250,8 +250,16 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       },
       test("case class with many fields") {
         case class ManyFields(
-          f1: Int, f2: Int, f3: Int, f4: Int, f5: Int,
-          f6: Int, f7: Int, f8: Int, f9: Int, f10: Int
+          f1: Int,
+          f2: Int,
+          f3: Int,
+          f4: Int,
+          f5: Int,
+          f6: Int,
+          f7: Int,
+          f8: Int,
+          f9: Int,
+          f10: Int
         )
         implicit val manyFieldsSchema: Schema[ManyFields] = Schema.derived
         roundTrip(ManyFields(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))

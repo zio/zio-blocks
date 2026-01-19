@@ -249,9 +249,9 @@ object MessagePackFormat
                 if (mapSize < 1) decodeError("Expected at least one field for variant")
                 val typeKey = unpacker.unpackString()
                 if (typeKey != "_type") decodeError(s"Expected '_type' field, got '$typeKey'")
-                val typeName = unpacker.unpackString()
-                var idx      = 0
-                var found    = false
+                val typeName  = unpacker.unpackString()
+                var idx       = 0
+                var found     = false
                 var result: A = null.asInstanceOf[A]
                 while (idx < caseCount && !found) {
                   if (caseNames(idx) == typeName) {
@@ -418,7 +418,8 @@ object MessagePackFormat
           dynamic: Reflect.Dynamic[F]
         ): MessagePackBinaryCodec[DynamicValue] =
           if (dynamic.dynamicBinding.isInstanceOf[Binding[?, ?]]) dynamicValueCodec
-          else dynamic.dynamicBinding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, DynamicValue]].instance.force
+          else
+            dynamic.dynamicBinding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, DynamicValue]].instance.force
 
         // Primitive codecs
         private val unitCodec: MessagePackBinaryCodec[Unit] =
@@ -720,7 +721,7 @@ object MessagePackFormat
             }
 
             override def encodeValue(value: DynamicValue, packer: MessageBufferPacker): Unit = value match {
-              case DynamicValue.Primitive(p) => encodePrimitive(p, packer)
+              case DynamicValue.Primitive(p)   => encodePrimitive(p, packer)
               case DynamicValue.Record(fields) =>
                 packer.packMapHeader(fields.size)
                 fields.foreach { case (k, v) =>
