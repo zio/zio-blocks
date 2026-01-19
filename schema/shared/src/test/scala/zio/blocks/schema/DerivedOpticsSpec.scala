@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.test._
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.{Owner, TypeId}
 import scala.language.reflectiveCalls
 
 object DerivedOpticsSpec extends SchemaBaseSpec {
@@ -347,9 +348,9 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
           implicit val schema: Schema[CustomWrapper] = new Schema(
             new Reflect.Wrapper[Binding, CustomWrapper, String](
               Schema[String].reflect,
-              new TypeName(
-                new Namespace(List("zio", "blocks", "schema"), List("DerivedOpticsSpec", "CustomWrapper")),
+              TypeId.nominal[CustomWrapper](
                 "CustomWrapper",
+                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DerivedOpticsSpec"), Owner.Term("CustomWrapper"))),
                 Nil
               ),
               None,

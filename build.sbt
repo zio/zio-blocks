@@ -29,15 +29,15 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "schemaJVM/test; chunkJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; examples/test"
+  "typeidJVM/test; schemaJVM/test; chunkJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; benchmarks/test; examples/test"
 )
 addCommandAlias(
   "testJS",
-  "schemaJS/test; chunkJS/test; streamsJS/test; schema-toonJS/test"
+  "typeidJS/test; schemaJS/test; chunkJS/test; streamsJS/test; schema-toonJS/test"
 )
 addCommandAlias(
   "testNative",
-  "schemaNative/test; chunkNative/test; streamsNative/test; schema-toonNative/test"
+  "typeidNative/test; schemaNative/test; chunkNative/test; streamsNative/test; schema-toonNative/test"
 )
 
 lazy val root = project
@@ -46,6 +46,9 @@ lazy val root = project
     publish / skip := true
   )
   .aggregate(
+    typeid.jvm,
+    typeid.js,
+    typeid.native,
     schema.jvm,
     schema.js,
     schema.native,
@@ -67,8 +70,32 @@ lazy val root = project
     examples
   )
 
+lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-typeid"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.typeid"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        )
+      case _ =>
+        Seq()
+    })
+  )
+
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
+  .dependsOn(typeid)
   .settings(stdSettings("zio-blocks-schema"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))

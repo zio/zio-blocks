@@ -167,7 +167,7 @@ private[schema] object CommonMacroOps {
   def isUnion(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect._
 
-    tpe match {
+    tpe.dealias match {
       case _: OrType => true
       case _         => false
     }
