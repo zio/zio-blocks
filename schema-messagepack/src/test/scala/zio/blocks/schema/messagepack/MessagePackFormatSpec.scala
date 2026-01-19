@@ -5,7 +5,6 @@ import zio.blocks.schema.messagepack.MessagePackTestUtils._
 import zio.blocks.schema.binding.Binding
 import zio.test._
 
-
 object MessagePackFormatSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("MessagePackFormatSpec")(
     suite("primitives")(
@@ -65,28 +64,28 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         roundTrip(java.time.DayOfWeek.WEDNESDAY, 1)
       },
       test("Duration") {
-        roundTrip(java.time.Duration.ofNanos(1234567890123456789L), 11) 
+        roundTrip(java.time.Duration.ofNanos(1234567890123456789L), 11)
         // 1234567890123456789L is large long.
         // Let's rely on calculation or existing msgpack behavior.
         // Array header: 1 byte (fixarray)
         // Seconds (long): 9 bytes
-        // Nanos (int): 5 bytes (int32) unless small. Nanos usually within int range, but could be large if not normalized? 
+        // Nanos (int): 5 bytes (int32) unless small. Nanos usually within int range, but could be large if not normalized?
         // Duration.ofNanos normalized?
         // Let's just put expected length and adjust if test fails, or calculate.
         // 1234567890123456789L nanos is about 39 years.
         // Seconds will be 1234567890.123... so seconds part is int-sized really.
-        
+
         // Actually I should correct my expectations. Avro had specific expectations. Msgpack is varying length.
         // I will use `roundTrip` that calculates length or update expected length after running once if I can't guess.
         // For now I'll put approximate or copy from Avro if similar size (Avro used fixed schema usually, msgpack adds headers).
         // Duration in Avro was 9 bytes (Long + Int). Msgpack adds headers.
-        
+
         // Let's skip exact length checks in the first pass or imply they are > 0.
         // Wait, roundTrip helper asserts exact length.
         // I'll calculate carefully or check msgpack spec.
-        
+
         // Array(2) -> 0x92 (1 byte)
-        // Seconds: 1234567890 -> 0xce ... (5 bytes, int32) or 0xd3 (9 bytes int64) if huge. 
+        // Seconds: 1234567890 -> 0xce ... (5 bytes, int32) or 0xd3 (9 bytes int64) if huge.
         // 1234567890 fits in Int32 (max 2147483647). Msgpack packs as smallest. so 5 bytes.
         // Nanos: 123456789 % 1000000000 = 123456789. Fits in int. 5 bytes.
         // Total: 1 + 5 + 5 = 11.

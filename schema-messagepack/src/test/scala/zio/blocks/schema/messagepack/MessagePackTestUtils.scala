@@ -20,12 +20,12 @@ object MessagePackTestUtils {
 
   def roundTrip[A](value: A, expectedLength: Int, codec: MessagePackBinaryCodec[A]): TestResult = {
     val maxBufSize = 4096
-    
+
     // Heap ByteBuffer
     val heapByteBuffer = ByteBuffer.allocate(maxBufSize)
     codec.encode(value, heapByteBuffer)
     val encodedBySchema1 = util.Arrays.copyOf(heapByteBuffer.array, heapByteBuffer.position)
-    
+
     // Direct ByteBuffer
     val directByteBuffer = ByteBuffer.allocateDirect(maxBufSize)
     codec.encode(value, directByteBuffer)

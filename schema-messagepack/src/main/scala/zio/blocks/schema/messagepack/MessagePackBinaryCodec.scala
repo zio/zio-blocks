@@ -9,8 +9,9 @@ import java.nio.ByteBuffer
 import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
-abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryCodec.objectType) extends BinaryCodec[A] {
-  
+abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryCodec.objectType)
+    extends BinaryCodec[A] {
+
   val valueOffset: RegisterOffset.RegisterOffset = valueType match {
     case MessagePackBinaryCodec.objectType  => RegisterOffset(objects = 1)
     case MessagePackBinaryCodec.booleanType => RegisterOffset(booleans = 1)
@@ -21,7 +22,7 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
     case MessagePackBinaryCodec.intType     => RegisterOffset(ints = 1)
     case MessagePackBinaryCodec.doubleType  => RegisterOffset(doubles = 1)
     case MessagePackBinaryCodec.longType    => RegisterOffset(longs = 1)
-    case _                           => RegisterOffset.Zero
+    case _                                  => RegisterOffset.Zero
   }
 
   def decodeError(expectation: String): Nothing = throw new MessagePackBinaryCodecError(Nil, expectation)
@@ -58,17 +59,17 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
     }
     decode(MessagePack.newDefaultUnpacker(bs, pos, len))
   }
-  
+
   def decode(input: Array[Byte]): Either[SchemaError, A] =
     decode(MessagePack.newDefaultUnpacker(input))
 
   def encode(value: A): Array[Byte] = {
     val packer = MessagePack.newDefaultBufferPacker()
     try {
-        encode(value, packer)
-        packer.toByteArray
+      encode(value, packer)
+      packer.toByteArray
     } finally {
-        packer.close()
+      packer.close()
     }
   }
 
@@ -81,7 +82,7 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
   }
 
   // Helper method for decoding logic
-  private[this] def decode(unpacker: MessageUnpacker): Either[SchemaError, A] = {
+  private[this] def decode(unpacker: MessageUnpacker): Either[SchemaError, A] =
     try {
       val res = decodeUnsafe(unpacker)
       if (unpacker.hasNext()) {
@@ -94,14 +95,12 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
     } finally {
       unpacker.close()
     }
-  }
 
   // Override default encode method to support direct buffer if needed, but msgpack-core works with buffers/streams
   override def encode(value: A, output: ByteBuffer): Unit = {
     val bytes = encode(value)
     output.put(bytes)
   }
-
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(
@@ -139,7 +138,7 @@ object MessagePackBinaryCodec {
   val doubleType  = 7
   val longType    = 8
   val unitType    = 9
-  
+
   val maxCollectionSize: Int = Integer.MAX_VALUE - 8
 }
 
