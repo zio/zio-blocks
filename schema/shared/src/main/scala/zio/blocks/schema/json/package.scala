@@ -35,7 +35,8 @@ package object json extends PathInterpolator {
    *
    * ==Path Syntax==
    *
-   * The `p` interpolator creates [[DynamicOptic]] paths using a JSONPath-compatible dialect:
+   * The `p` interpolator creates [[DynamicOptic]] paths using a
+   * JSONPath-compatible dialect:
    *
    * {{{
    * p"foo.bar"           // fields "foo" then "bar"
@@ -53,20 +54,21 @@ package object json extends PathInterpolator {
    *
    * ===JSONPath Compatibility===
    *
-   * This syntax is a dialect of JSONPath (RFC 9535). Most JSONPath expressions work:
-   *  - `$.foo.bar` - root prefix is optional and ignored
-   *  - `.field`, `["field"]` - field access
-   *  - `[n]`, `[*]`, `[m,n]`, `[m:n]` - array access
+   * This syntax is a dialect of JSONPath (RFC 9535). Most JSONPath expressions
+   * work:
+   *   - `$.foo.bar` - root prefix is optional and ignored
+   *   - `.field`, `["field"]` - field access
+   *   - `[n]`, `[*]`, `[m,n]`, `[m:n]` - array access
    *
    * '''Not supported:'''
-   *  - `..` (recursive descent)
-   *  - `[?()]` (filter expressions)
+   *   - `..` (recursive descent)
+   *   - `[?()]` (filter expressions)
    *
    * ===Extensions beyond JSONPath:===
-   *  - `{*}` - all object values (explicit, vs `[*]` which is array-focused in JSONPath)
-   *  - `{*:}` - all object keys (not expressible in standard JSONPath)
-   *  - Backtick escaping for field names
+   *   - `{*}` - all object values (explicit, vs `[*]` which is array-focused in
+   *     JSONPath)
+   *   - `{*:}` - all object keys (not expressible in standard JSONPath)
+   *   - Backtick escaping for field names
    */
   object interpolators extends PathInterpolator
 }
-
