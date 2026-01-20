@@ -266,6 +266,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             }
             name = infoTpe.termSymbol.name
           } else if (tpeTypeSymbol.flags.is(Flags.Module)) {
+            // For module types (singleton objects), check if it's an enum case
+            val parentEnumOpt = infoTpe.baseClasses.find { bc =>
+              bc != tpeTypeSymbol && bc.flags.is(Flags.Enum) && !bc.flags.is(Flags.Case)
+            }
+            parentEnumOpt.foreach { parentEnum =>
+              val enumClassName = Expr(parentEnum.name)
+              segments = '{ Owner.Type($enumClassName) } :: segments
+            }
             name = name.substring(0, name.length - 1)
           }
           var owner = tpeTypeSymbol.owner
