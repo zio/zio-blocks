@@ -77,16 +77,8 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
 
   /**
    * Navigates using a DynamicOptic path.
-   * Note: This is a placeholder as full DynamicOptic traversal requires implementation
-   * in Step 4 (Json.get). For now, we'll leave it as a stub or simple implementation if possible.
-   * Since Step 4 adds `get` to `Json`, we can delegate to that once it exists.
-   * For now, we will omit it or implement a basic version if DynamicOptic allows easy traversal.
-   * Given the task order, we'll implement basic structure now and refine if needed.
-   *
-   * Actually, the issue description implies `get` on `Json` uses `JsonSelection`.
-   * Here `get` on `JsonSelection` would drill down further.
    */
-  // def get(path: DynamicOptic): JsonSelection = ??? // Deferred to avoid circular dependency or complexity before Step 4
+  def get(path: DynamicOptic): JsonSelection = flatMap(_.get(path))
 
   // ===========================================================================
   // Type Filters

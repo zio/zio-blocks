@@ -1,5 +1,7 @@
 package zio.blocks.schema.json
 
+import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema.DynamicOptic.Node
 import scala.math.Ordering
 
 /**
@@ -92,6 +94,100 @@ sealed trait Json { self =>
    * Otherwise returns `None`.
    */
   def booleanValue: Option[scala.Boolean] = None
+
+  // ===========================================================================
+  // Navigation
+  // ===========================================================================
+
+  /**
+   * Selects values at the given index if this is an array.
+   */
+  def apply(index: Int): JsonSelection = self match {
+    case Json.Array(elems) if index >= 0 && index < elems.length =>
+      JsonSelection(Right(Vector(elems(index))))
+    case _ =>
+      JsonSelection.empty
+  }
+
+  /**
+   * Selects values with the given key if this is an object.
+   */
+  def apply(key: String): JsonSelection = self match {
+    case Json.Object(fields) =>
+      val matches = fields.collect { case (k, v) if k == key => v }
+      JsonSelection(Right(matches))
+    case _ =>
+      JsonSelection.empty
+  }
+
+  /**
+   * Navigates using a DynamicOptic path.
+   */
+  def get(path: DynamicOptic): JsonSelection =
+    path.nodes.foldLeft(JsonSelection(self)) { (acc, node) =>
+      acc.flatMap { json =>
+        (json, node) match {
+          case (Json.Object(fields), Node.Field(name)) =>
+            val matches = fields.collect { case (k, v) if k == name => v }
+            JsonSelection.fromVector(matches)
+          case (Json.Array(elems), Node.AtIndex(index)) =>
+            if (index >= 0 && index < elems.length) JsonSelection(elems(index))
+            else JsonSelection.empty
+          case _ => JsonSelection.empty
+        }
+      }
+    }
+
+  /**
+   * Modifies the value at the given path.
+   */
+  def modify(path: DynamicOptic, f: Json => Json): Json = {
+    if (path.nodes.isEmpty) f(self)
+    else {
+      val head = path.nodes.head
+      val tail = new DynamicOptic(path.nodes.tail)
+      (self, head) match {
+        case (Json.Object(fields), Node.Field(name)) =>
+          val newFields = fields.map {
+            case (k, v) if k == name => (k, v.modify(tail, f))
+            case other               => other
+          }
+          Json.Object(newFields)
+        case (Json.Array(elems), Node.AtIndex(index)) =>
+          if (index >= 0 && index < elems.length) {
+            val newElems = elems.updated(index, elems(index).modify(tail, f))
+            Json.Array(newElems)
+          } else self
+        case _ => self
+      }
+    }
+  }
+
+  /**
+   * Sets the value at the given path.
+   */
+  def set(path: DynamicOptic, value: Json): Json = modify(path, _ => value)
+
+  /**
+   * Deletes the value at the given path.
+   */
+  def delete(path: DynamicOptic): Json = {
+    if (path.nodes.isEmpty) self
+    else {
+      val parentPath = new DynamicOptic(path.nodes.init)
+      val targetNode = path.nodes.last
+      modify(parentPath, _.deleteNode(targetNode))
+    }
+  }
+
+  private def deleteNode(node: DynamicOptic.Node): Json = (self, node) match {
+    case (Json.Object(fields), Node.Field(name)) =>
+      Json.Object(fields.filterNot(_._1 == name))
+    case (Json.Array(elems), Node.AtIndex(index)) =>
+      if (index >= 0 && index < elems.length) Json.Array(elems.patch(index, Vector.empty, 1))
+      else self
+    case _ => self
+  }
 
   // ===========================================================================
   // Standard Methods
