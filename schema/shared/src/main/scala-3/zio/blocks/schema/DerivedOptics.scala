@@ -183,7 +183,7 @@ object DerivedOptics {
  * An optics holder that stores lenses/prisms in a map and provides dynamic
  * access. This is an implementation detail and should not be used directly.
  */
-private[schema] final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic with Selectable {
+final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic with Selectable {
   def selectDynamic(name: String): Any =
     members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
 }
