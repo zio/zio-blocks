@@ -196,7 +196,7 @@ object BsonCodecEnhancedSpec extends ZIOSpecDefault {
 
         val genColor = Gen.elements[Color](Red, Green, Blue)
 
-        check(genColor) { (value: Color) =>
+        check(genColor) { value =>
           assertTrue(BsonTestHelpers.roundTripToBsonValueAs(value))
         }
       },
@@ -207,7 +207,7 @@ object BsonCodecEnhancedSpec extends ZIOSpecDefault {
 
         val genColor = Gen.elements[Color](Red, Green, Blue)
 
-        check(genColor) { (value: Color) =>
+        check(genColor) { value =>
           assertZIO(BsonTestHelpers.roundTripWriterReader(value, isDocument = false))(
             Assertion.isTrue
           )

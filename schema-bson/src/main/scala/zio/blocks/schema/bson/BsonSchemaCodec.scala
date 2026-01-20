@@ -25,8 +25,6 @@ object BsonSchemaCodec {
 
     /**
      * No discriminator - encodes variant directly without wrapper or
-     * discriminator field This only works when each case has distinct field
-     * names.
      */
     case object NoDiscriminator extends SumTypeHandling
   }
@@ -41,11 +39,18 @@ object BsonSchemaCodec {
    *   If true (default), extra fields in BSON documents are silently ignored
    *   during decoding. If false, decoding will fail with an error when
    *   encountering unknown fields.
+   * @param useNativeObjectId
+   *   If true, org.bson.types.ObjectId will be encoded/decoded using BSON's
+   *   native ObjectId type (BsonType.OBJECT_ID). If false, ObjectId will be
+   *   treated as a regular wrapper and encoded as a string. Default is false.
+   *   Note: When using ObjectIdSupport.objectIdSchema, this is automatically
+   *   detected regardless of this setting.
    */
   class Config private (
     val sumTypeHandling: SumTypeHandling,
     val classNameMapping: TermMapping,
-    val ignoreExtraFields: Boolean
+    val ignoreExtraFields: Boolean,
+    val useNativeObjectId: Boolean
   ) {
 
     def withSumTypeHandling(sumTypeHandling: SumTypeHandling): Config =
@@ -57,19 +62,24 @@ object BsonSchemaCodec {
     def withIgnoreExtraFields(ignoreExtraFields: Boolean): Config =
       copy(ignoreExtraFields = ignoreExtraFields)
 
+    def withNativeObjectId(useNativeObjectId: Boolean): Config =
+      copy(useNativeObjectId = useNativeObjectId)
+
     private[this] def copy(
       sumTypeHandling: SumTypeHandling = sumTypeHandling,
       classNameMapping: TermMapping = classNameMapping,
-      ignoreExtraFields: Boolean = ignoreExtraFields
+      ignoreExtraFields: Boolean = ignoreExtraFields,
+      useNativeObjectId: Boolean = useNativeObjectId
     ): Config =
-      new Config(sumTypeHandling, classNameMapping, ignoreExtraFields)
+      new Config(sumTypeHandling, classNameMapping, ignoreExtraFields, useNativeObjectId)
   }
 
   object Config
       extends Config(
         sumTypeHandling = SumTypeHandling.WrapperWithClassNameField,
         classNameMapping = identity,
-        ignoreExtraFields = true
+        ignoreExtraFields = true,
+        useNativeObjectId = false
       )
 
   // Cache for deferred codecs to handle recursion
@@ -603,6 +613,11 @@ object BsonSchemaCodec {
       case_.modifiers.exists(_.isInstanceOf[Modifier.transient])
     }.toArray
 
+    // Check if each case is a case object (record with zero fields)
+    val isCaseObject: Array[Boolean] = cases.map { case_ =>
+      case_.value.isRecord && case_.value.asRecord.get.fields.isEmpty
+    }.toArray
+
     // Build case name to index map for decoding (including aliases)
     val caseNameToIndex = scala.collection.mutable.HashMap[String, Int]()
     var i               = 0
@@ -877,14 +892,18 @@ object BsonSchemaCodec {
 
       case SumTypeHandling.NoDiscriminator =>
         // NoDiscriminator mode: encode variant value directly without wrapper or discriminator
-        // This only works when each case has distinct field structure
+        // Case objects (zero fields) are encoded as strings
         val encoder = new BsonEncoder[A] {
           def encode(writer: BsonWriter, value: A, ctx: BsonEncoder.EncoderContext): Unit = {
             val caseIdx = discriminator.discriminate(value)
             if (transientCases(caseIdx)) {
               writer.writeStartDocument()
               writer.writeEndDocument()
+            } else if (isCaseObject(caseIdx)) {
+              // Case object: encode as string
+              writer.writeString(caseNames(caseIdx))
             } else {
+              // Regular case: encode value directly
               val caseCodec = caseCodecs(caseIdx)
               caseCodec.encoder.encode(writer, value, ctx)
             }
@@ -894,7 +913,11 @@ object BsonSchemaCodec {
             val caseIdx = discriminator.discriminate(value)
             if (transientCases(caseIdx)) {
               new org.bson.BsonDocument()
+            } else if (isCaseObject(caseIdx)) {
+              // Case object: encode as string
+              new org.bson.BsonString(caseNames(caseIdx))
             } else {
+              // Regular case: encode value directly
               val caseCodec = caseCodecs(caseIdx)
               caseCodec.encoder.toBsonValue(value)
             }
@@ -903,59 +926,89 @@ object BsonSchemaCodec {
 
         val decoder = new BsonDecoder[A] {
           def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): A = {
-            // Try each case codec until one succeeds
-            // This is inefficient but works when cases have distinct structures
-            var idx                                  = 0
-            var result: Option[A]                    = None
-            var lastError: Option[BsonDecoder.Error] = None
+            // Check if it's a string (case object)
+            val currentType = reader.getCurrentBsonType()
+            val bsonType    = if (currentType == null) reader.readBsonType() else currentType
 
-            while (idx < caseCodecs.length && result.isEmpty) {
-              if (!transientCases(idx)) {
-                val mark = reader.getMark()
-                try {
-                  val decoded = caseCodecs(idx).decoder.decodeUnsafe(reader, trace, ctx)
-                  result = Some(decoded.asInstanceOf[A])
-                } catch {
-                  case e: BsonDecoder.Error =>
-                    lastError = Some(e)
-                    mark.reset()
-                }
+            if (bsonType == org.bson.BsonType.STRING) {
+              // String value - match to case object by name
+              val stringValue = reader.readString()
+              caseNameToIndex.get(stringValue) match {
+                case Some(idx) if isCaseObject(idx) =>
+                  // Decode the case object using its codec
+                  caseCodecs(idx).decoder
+                    .fromBsonValueUnsafe(new org.bson.BsonDocument(), trace, ctx)
+                    .asInstanceOf[A]
+                case _ =>
+                  throw BsonDecoder.Error(trace, s"Unknown case object name: $stringValue")
               }
-              idx += 1
-            }
+            } else {
+              // Try each case codec until one succeeds
+              var idx                                  = 0
+              var result: Option[A]                    = None
+              var lastError: Option[BsonDecoder.Error] = None
 
-            result.getOrElse {
-              throw lastError.getOrElse(
-                BsonDecoder.Error(trace, "Could not decode variant - no matching case found")
-              )
+              while (idx < caseCodecs.length && result.isEmpty) {
+                if (!transientCases(idx) && !isCaseObject(idx)) {
+                  val mark = reader.getMark()
+                  try {
+                    val decoded = caseCodecs(idx).decoder.decodeUnsafe(reader, trace, ctx)
+                    result = Some(decoded.asInstanceOf[A])
+                  } catch {
+                    case e: BsonDecoder.Error =>
+                      lastError = Some(e)
+                      mark.reset()
+                  }
+                }
+                idx += 1
+              }
+
+              result.getOrElse {
+                throw lastError.getOrElse(
+                  BsonDecoder.Error(trace, "Could not decode variant - no matching case found")
+                )
+              }
             }
           }
 
-          def fromBsonValueUnsafe(value: BsonValue, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): A = {
-            // Try each case codec until one succeeds
-            var idx                                  = 0
-            var result: Option[A]                    = None
-            var lastError: Option[BsonDecoder.Error] = None
-
-            while (idx < caseCodecs.length && result.isEmpty) {
-              if (!transientCases(idx)) {
-                try {
-                  val decoded = caseCodecs(idx).decoder.fromBsonValueUnsafe(value, trace, ctx)
-                  result = Some(decoded.asInstanceOf[A])
-                } catch {
-                  case e: BsonDecoder.Error =>
-                    lastError = Some(e)
-                }
+          def fromBsonValueUnsafe(value: BsonValue, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): A =
+            // Check if it's a string (case object)
+            if (value.getBsonType() == org.bson.BsonType.STRING) {
+              val stringValue = value.asString().getValue()
+              caseNameToIndex.get(stringValue) match {
+                case Some(idx) if isCaseObject(idx) =>
+                  // Decode the case object using its codec
+                  caseCodecs(idx).decoder
+                    .fromBsonValueUnsafe(new org.bson.BsonDocument(), trace, ctx)
+                    .asInstanceOf[A]
+                case _ =>
+                  throw BsonDecoder.Error(trace, s"Unknown case object name: $stringValue")
               }
-              idx += 1
-            }
+            } else {
+              // Try each case codec until one succeeds
+              var idx                                  = 0
+              var result: Option[A]                    = None
+              var lastError: Option[BsonDecoder.Error] = None
 
-            result.getOrElse {
-              throw lastError.getOrElse(
-                BsonDecoder.Error(trace, "Could not decode variant - no matching case found")
-              )
+              while (idx < caseCodecs.length && result.isEmpty) {
+                if (!transientCases(idx) && !isCaseObject(idx)) {
+                  try {
+                    val decoded = caseCodecs(idx).decoder.fromBsonValueUnsafe(value, trace, ctx)
+                    result = Some(decoded.asInstanceOf[A])
+                  } catch {
+                    case e: BsonDecoder.Error =>
+                      lastError = Some(e)
+                  }
+                }
+                idx += 1
+              }
+
+              result.getOrElse {
+                throw lastError.getOrElse(
+                  BsonDecoder.Error(trace, "Could not decode variant - no matching case found")
+                )
+              }
             }
-          }
         }
 
         BsonCodec(encoder, decoder)
@@ -963,10 +1016,15 @@ object BsonSchemaCodec {
   }
 
   // Wrapper (newtype) codec derivation
-  private def deriveWrapperCodec[A, B](wrapper: Reflect.Wrapper.Bound[A, B], config: Config): BsonCodec[A] =
-    // Special case for ObjectId: use zio-bson's built-in codec
-    // ObjectId has typename "ObjectId" from namespace "org.bson.types"
-    if (wrapper.typeName.name == "ObjectId" && wrapper.typeName.namespace.packages == Seq("org", "bson", "types")) {
+  private def deriveWrapperCodec[A, B](wrapper: Reflect.Wrapper.Bound[A, B], config: Config): BsonCodec[A] = {
+    // Check if this is ObjectId and if we should use native BSON ObjectId codec
+    val isObjectId = wrapper.typeName.name == "ObjectId" &&
+      wrapper.typeName.namespace.packages == Seq("org", "bson", "types")
+
+    // Use native ObjectId codec if:
+    // 1. It's detected as ObjectId by typename (from ObjectIdSupport), OR
+    // 2. Config explicitly enables native ObjectId support AND it's actually an ObjectId type
+    if (isObjectId || (config.useNativeObjectId && isObjectId)) {
       // Import ObjectId type and use zio-bson's native codec
       BsonCodec.objectId.asInstanceOf[BsonCodec[A]]
     } else {
@@ -1009,6 +1067,7 @@ object BsonSchemaCodec {
 
       BsonCodec(encoder, decoder)
     }
+  }
 
   def bsonEncoder[A](schema: Schema[A], config: Config): BsonEncoder[A] =
     deriveCodec(schema.reflect, config).encoder

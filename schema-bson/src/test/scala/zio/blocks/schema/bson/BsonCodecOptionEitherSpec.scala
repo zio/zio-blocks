@@ -23,7 +23,6 @@ object BsonCodecOptionEitherSpec extends ZIOSpecDefault {
 
     implicit val schema: Schema[ApiResponse] = Schema.derived[ApiResponse]
   }
-
   def spec = suite("BsonCodecOptionEitherSpec")(
     suite("Option encoding/decoding")(
       test("encode/decode Some(value)") {

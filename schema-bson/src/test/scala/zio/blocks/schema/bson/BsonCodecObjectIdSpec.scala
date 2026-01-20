@@ -6,10 +6,11 @@ import zio.test._
 
 /**
  * Tests for ObjectId support in BSON codec. Covers:
- *   - Direct ObjectId encoding/decoding
+ *   - Direct ObjectId encoding/decoding with ObjectIdSupport
  *   - ObjectId wrapped in AnyVal (CustomerId)
  *   - ObjectId used in case classes (Customer)
  *   - Lists of ObjectId wrappers
+ *   - Config.withNativeObjectId(true) for explicit enablement
  */
 object BsonCodecObjectIdSpec extends ZIOSpecDefault {
 
@@ -198,6 +199,91 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
           codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded.id == customer.id && decoded.invitedFriends.length == 20)
+      }
+    ),
+    suite("Config.withNativeObjectId(true)")(
+      test("ObjectId with config enabled behaves same as ObjectIdSupport") {
+        val oid          = new ObjectId("507f1f77bcf86cd799439011")
+        val config       = BsonSchemaCodec.Config.withNativeObjectId(true)
+        val codec        = BsonSchemaCodec.bsonCodec(objectIdSchema, config)
+        val bson         = codec.encoder.toBsonValue(oid)
+        val decoded      =
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+
+        assertTrue(
+          decoded == oid,
+          bson.isObjectId
+        )
+      },
+      test("Customer with config enabled") {
+        val customer = Customer.example
+        val config   = BsonSchemaCodec.Config.withNativeObjectId(true)
+        val codec    = BsonSchemaCodec.bsonCodec(Customer.schema, config)
+        val bson     = codec.encoder.toBsonValue(customer)
+        val decoded  =
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+
+        assertTrue(decoded == customer)
+      },
+      test("config can be combined with other options") {
+        val customer = Customer.example
+        val config   = BsonSchemaCodec.Config
+          .withNativeObjectId(true)
+          .withIgnoreExtraFields(false)
+        val codec = BsonSchemaCodec.bsonCodec(Customer.schema, config)
+        val bson     = codec.encoder.toBsonValue(customer)
+        val decoded  =
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+
+        assertTrue(decoded == customer)
+      },
+      test("config with discriminator field") {
+        val customer = Customer.example
+        val config   = BsonSchemaCodec.Config
+          .withNativeObjectId(true)
+          .withSumTypeHandling(BsonSchemaCodec.SumTypeHandling.DiscriminatorField("_type"))
+        val codec = BsonSchemaCodec.bsonCodec(Customer.schema, config)
+        val bson     = codec.encoder.toBsonValue(customer)
+        val decoded  =
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+
+        assertTrue(decoded == customer)
+      },
+      test("round-trip with config enabled") {
+        val codec  = BsonSchemaCodec.bsonCodec(
+          Customer.schema,
+          BsonSchemaCodec.Config.withNativeObjectId(true)
+        )
+
+        check(Customer.gen) { customer =>
+          val bson    = codec.encoder.toBsonValue(customer)
+          val decoded =
+            codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+
+          assertTrue(decoded == customer)
+        }
+      }
+    ),
+    suite("Config with useNativeObjectId=false")(
+      test("default config has useNativeObjectId=false") {
+        assertTrue(BsonSchemaCodec.Config.useNativeObjectId == false)
+      },
+      test("ObjectIdSupport works even with default config") {
+        // ObjectIdSupport uses typename detection, which works regardless of config flag
+        val oid     = new ObjectId("507f1f77bcf86cd799439011")
+        val codec   = BsonSchemaCodec.bsonCodec(objectIdSchema) // default config
+        val bson    = codec.encoder.toBsonValue(oid)
+
+        assertTrue(bson.isObjectId) // Still encoded as native ObjectId
+      },
+      test("typename detection takes precedence over config flag") {
+        // Even with config disabled, ObjectIdSupport schema uses typename detection
+        val oid     = new ObjectId("507f1f77bcf86cd799439011")
+        val config  = BsonSchemaCodec.Config.withNativeObjectId(false)
+        val codec   = BsonSchemaCodec.bsonCodec(objectIdSchema, config)
+        val bson    = codec.encoder.toBsonValue(oid)
+
+        assertTrue(bson.isObjectId) // Still uses native ObjectId due to typename
       }
     )
   )
