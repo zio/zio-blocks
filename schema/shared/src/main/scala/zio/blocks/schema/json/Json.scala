@@ -465,6 +465,74 @@ sealed trait Json { self =>
     }
     case _ => other
   }
+
+  // ===========================================================================
+  // Transformation
+  // ===========================================================================
+
+  /**
+   * Transforms all values in this JSON bottom-up (children before parents).
+   *
+   * @param f The transformation function receiving path and value
+   * @return The transformed JSON
+   */
+  def transformUp(f: (DynamicOptic, Json) => Json): Json = {
+    // TODO: Implement bottom-up transformation
+    val _ = f
+    self
+  }
+
+  /**
+   * Transforms all values in this JSON top-down (parents before children).
+   *
+   * @param f The transformation function receiving path and value
+   * @return The transformed JSON
+   */
+  def transformDown(f: (DynamicOptic, Json) => Json): Json = {
+    // TODO: Implement top-down transformation
+    val _ = f
+    self
+  }
+
+  /**
+   * Transforms all object keys in this JSON.
+   *
+   * @param f The key transformation function receiving path and key
+   * @return The transformed JSON
+   */
+  def transformKeys(f: (DynamicOptic, java.lang.String) => java.lang.String): Json = {
+    // TODO: Implement key transformation
+    val _ = f
+    self
+  }
+
+  // ===========================================================================
+  // Filtering
+  // ===========================================================================
+
+  /**
+   * Removes entries matching the predicate.
+   *
+   * For objects, removes matching key-value pairs.
+   * For arrays, removes matching elements.
+   *
+   * @param p The predicate receiving path and value
+   * @return The filtered JSON
+   */
+  def filterNot(p: (DynamicOptic, Json) => scala.Boolean): Json = {
+    // TODO: Implement filtering
+    val _ = p
+    self
+  }
+
+  /**
+   * Keeps only entries matching the predicate.
+   *
+   * @param p The predicate receiving path and value
+   * @return The filtered JSON
+   */
+  def filter(p: (DynamicOptic, Json) => scala.Boolean): Json =
+    filterNot((path, json) => !p(path, json))
 }
 
 object Json {
