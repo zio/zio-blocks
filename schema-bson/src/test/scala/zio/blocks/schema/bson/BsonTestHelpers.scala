@@ -10,8 +10,7 @@ import zio.{Task, UIO, ZIO}
 import scala.reflect.{ClassTag, classTag}
 
 /**
- * Test helpers matching the old zio-schema-bson test infrastructure. Provides
- * comprehensive testing of BSON codecs through multiple paths:
+ * Provides comprehensive testing of BSON codecs through multiple paths:
  *   - toBsonValue/as (convenience methods)
  *   - BsonWriter/BsonReader (low-level codec provider)
  */

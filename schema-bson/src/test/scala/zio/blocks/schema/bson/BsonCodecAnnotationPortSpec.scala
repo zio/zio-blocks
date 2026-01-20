@@ -6,26 +6,18 @@ import zio.bson.BsonBuilder._
 import zio.test._
 
 /**
- * Ported tests from old zio-schema-bson's BsonConfig and MixedConfig test suites.
- * These tests originally used BSON-specific annotations (@bsonField, @bsonHint,
- * @bsonDiscriminator, @bsonExclude, @bsonNoExtraFields). The new implementation uses
- * Config and Modifier instead.
- *
- * Mapping:
+ * Mapping of zio-bson annotations to zio-blocks schema bson codec:
  * - @bsonDiscriminator("name") → Config.withSumTypeHandling(DiscriminatorField("name"))
  * - @bsonHint("name") → @Modifier.rename("name")
  * - @bsonField("name") → @Modifier.rename("name")
  * - @bsonExclude → @Modifier.transient
  * - @bsonNoExtraFields → Config.withIgnoreExtraFields(false)
  */
+
 object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
 
-  // ============================================================================
-  // PORTED FROM BsonConfig.scala.old
-  // ============================================================================
-
   object BsonConfigPort {
-    // 1. WithoutDiscriminator - plain variant without discriminator
+    // WithoutDiscriminator - plain variant without discriminator
     sealed trait WithoutDiscriminator
     object WithoutDiscriminator {
       case class A(s: String) extends WithoutDiscriminator
@@ -35,7 +27,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       val codec: BsonCodec[WithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 2. WithClassNameTransformOptions - using Config.withClassNameMapping
+    // WithClassNameTransformOptions - using Config.withClassNameMapping
     sealed trait WithClassNameTransformOptions
     object WithClassNameTransformOptions {
       case class A(s: String) extends WithClassNameTransformOptions
@@ -48,7 +40,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 3. WithDiscriminatorOptions - using Config.withSumTypeHandling(DiscriminatorField)
+    // WithDiscriminatorOptions - using Config.withSumTypeHandling(DiscriminatorField)
     sealed trait WithDiscriminatorOptions
     object WithDiscriminatorOptions {
       case class A(s: String) extends WithDiscriminatorOptions
@@ -63,7 +55,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 4. WithoutDiscriminatorOptions - using Config.withSumTypeHandling(WrapperWithClassNameField)
+    // WithoutDiscriminatorOptions - using Config.withSumTypeHandling(WrapperWithClassNameField)
     sealed trait WithoutDiscriminatorOptions
     object WithoutDiscriminatorOptions {
       case class A(s: String) extends WithoutDiscriminatorOptions
@@ -78,7 +70,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 5. WithDiscriminator - using Config to specify discriminator field name
+    // WithDiscriminator - using Config to specify discriminator field name
     sealed trait WithDiscriminator
     object WithDiscriminator {
       case class A(s: String) extends WithDiscriminator
@@ -93,8 +85,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 6. CaseNameEnumLike - using @Modifier.rename for enum-like case objects
-    // Note: For case objects to encode as strings, we need NoDiscriminator mode
+    // CaseNameEnumLike - using @Modifier.rename for enum-like case objects
     sealed trait CaseNameEnumLike
     object CaseNameEnumLike {
       @Modifier.rename("aName")
@@ -110,7 +101,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 7. CaseNameWithoutDiscriminator - using @Modifier.rename without discriminator
+    // CaseNameWithoutDiscriminator - using @Modifier.rename without discriminator
     sealed trait CaseNameWithoutDiscriminator
     object CaseNameWithoutDiscriminator {
       @Modifier.rename("aName")
@@ -123,7 +114,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       val codec: BsonCodec[CaseNameWithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 8. CaseNameWithDiscriminator - using @Modifier.rename with discriminator
+    // CaseNameWithDiscriminator - using @Modifier.rename with discriminator
     sealed trait CaseNameWithDiscriminator
     object CaseNameWithDiscriminator {
       @Modifier.rename("aName")
@@ -141,21 +132,21 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 9. FieldName - using @Modifier.rename for field
+    // FieldName - using @Modifier.rename for field
     case class FieldName(@Modifier.rename("customName") a: String)
     object FieldName {
       val schema: Schema[FieldName]   = Schema.derived[FieldName]
       val codec: BsonCodec[FieldName] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 10. AllowExtraFields - default behavior allows extra fields
+    // AllowExtraFields - default behavior allows extra fields
     case class AllowExtraFields(a: String)
     object AllowExtraFields {
       val schema: Schema[AllowExtraFields]   = Schema.derived[AllowExtraFields]
       val codec: BsonCodec[AllowExtraFields] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 11. RejectExtraFields - using Config.withIgnoreExtraFields(false)
+    // RejectExtraFields - using Config.withIgnoreExtraFields(false)
     case class RejectExtraFields(a: String)
     object RejectExtraFields {
       val schema: Schema[RejectExtraFields]   = Schema.derived[RejectExtraFields]
@@ -165,7 +156,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 12. TransientField - using @Modifier.transient
+    // TransientField - using @Modifier.transient
     case class TransientField(@Modifier.transient a: String = "defaultValue", b: Int)
     object TransientField {
       val schema: Schema[TransientField]   = Schema.derived[TransientField]
@@ -173,12 +164,8 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
     }
   }
 
-  // ============================================================================
-  // PORTED FROM MixedConfig.scala.old
-  // ============================================================================
-
   object MixedConfigPort {
-    // 1. NoDiscriminator - using Config.withSumTypeHandling(NoDiscriminator)
+    // NoDiscriminator - using Config.withSumTypeHandling(NoDiscriminator)
     sealed trait NoDiscriminator
     object NoDiscriminator {
       case class A(a: String) extends NoDiscriminator
@@ -192,7 +179,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 2. WithoutDiscriminator - plain variant
+    // WithoutDiscriminator - plain variant
     sealed trait WithoutDiscriminator
     object WithoutDiscriminator {
       case class A(s: String) extends WithoutDiscriminator
@@ -202,7 +189,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       val codec: BsonCodec[WithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 3. WithDiscriminator - using Config with discriminator field "$type"
+    // WithDiscriminator - using Config with discriminator field "$type"
     sealed trait WithDiscriminator
     object WithDiscriminator {
       case class A(s: String) extends WithDiscriminator
@@ -217,7 +204,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 4. CaseNameEnumLike - using @Modifier.rename for enum-like case objects
+    // CaseNameEnumLike - using @Modifier.rename for enum-like case objects
     // Note: For case objects to encode as strings, we need NoDiscriminator mode
     sealed trait CaseNameEnumLike
     object CaseNameEnumLike {
@@ -234,7 +221,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 5. CaseNameWithoutDiscriminator - using @Modifier.rename without discriminator
+    // CaseNameWithoutDiscriminator - using @Modifier.rename without discriminator
     sealed trait CaseNameWithoutDiscriminator
     object CaseNameWithoutDiscriminator {
       @Modifier.rename("aName")
@@ -247,7 +234,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       val codec: BsonCodec[CaseNameWithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 6. CaseNameWithDiscriminator - using @Modifier.rename with discriminator
+    // CaseNameWithDiscriminator - using @Modifier.rename with discriminator
     sealed trait CaseNameWithDiscriminator
     object CaseNameWithDiscriminator {
       @Modifier.rename("aName")
@@ -265,7 +252,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 7. CaseNameAliasesWithoutDiscriminator - using @Modifier.alias with @Modifier.rename
+    // CaseNameAliasesWithoutDiscriminator - using @Modifier.alias with @Modifier.rename
     sealed trait CaseNameAliasesWithoutDiscriminator
     object CaseNameAliasesWithoutDiscriminator {
       @Modifier.rename("aName")
@@ -281,7 +268,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       val codec: BsonCodec[CaseNameAliasesWithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 8. CaseNameAliasesWithDiscriminator - using @Modifier.alias with discriminator
+    // CaseNameAliasesWithDiscriminator - using @Modifier.alias with discriminator
     sealed trait CaseNameAliasesWithDiscriminator
     object CaseNameAliasesWithDiscriminator {
       @Modifier.rename("aName")
@@ -302,28 +289,28 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 9. FieldName - using @Modifier.rename for field
+    // FieldName - using @Modifier.rename for field
     case class FieldName(@Modifier.rename("customName") a: String)
     object FieldName {
       val schema: Schema[FieldName]   = Schema.derived[FieldName]
       val codec: BsonCodec[FieldName] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 10. FieldDefaultValue - field with default value
+    // FieldDefaultValue - field with default value
     case class FieldDefaultValue(a: String = "defaultValue")
     object FieldDefaultValue {
       val schema: Schema[FieldDefaultValue]   = Schema.derived[FieldDefaultValue]
       val codec: BsonCodec[FieldDefaultValue] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 11. AllowExtraFields - default behavior
+    // AllowExtraFields - default behavior
     case class AllowExtraFields(a: String)
     object AllowExtraFields {
       val schema: Schema[AllowExtraFields]   = Schema.derived[AllowExtraFields]
       val codec: BsonCodec[AllowExtraFields] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 12. RejectExtraFields - using Config.withIgnoreExtraFields(false)
+    // RejectExtraFields - using Config.withIgnoreExtraFields(false)
     case class RejectExtraFields(a: String)
     object RejectExtraFields {
       val schema: Schema[RejectExtraFields]   = Schema.derived[RejectExtraFields]
@@ -333,7 +320,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 13. TransientCaseWithoutDiscriminator - using @Modifier.transient on case
+    // TransientCaseWithoutDiscriminator - using @Modifier.transient on case
     sealed trait TransientCaseWithoutDiscriminator
     object TransientCaseWithoutDiscriminator {
       case class A(s: String) extends TransientCaseWithoutDiscriminator
@@ -346,7 +333,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       val codec: BsonCodec[TransientCaseWithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
-    // 14. TransientCaseWithDiscriminator - using @Modifier.transient with discriminator
+    // TransientCaseWithDiscriminator - using @Modifier.transient with discriminator
     sealed trait TransientCaseWithDiscriminator
     object TransientCaseWithDiscriminator {
       case class A(s: String) extends TransientCaseWithDiscriminator
@@ -364,17 +351,13 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       )
     }
 
-    // 15. TransientField - using @Modifier.transient on field
+    // TransientField - using @Modifier.transient on field
     case class TransientField(@Modifier.transient a: String = "defaultValue", b: Int)
     object TransientField {
       val schema: Schema[TransientField]   = Schema.derived[TransientField]
       val codec: BsonCodec[TransientField] = BsonSchemaCodec.bsonCodec(schema)
     }
   }
-
-  // ============================================================================
-  // TEST SUITES
-  // ============================================================================
 
   def spec = suite("BsonCodecAnnotationPortSpec")(
     suite("ported from BsonConfig (BSON annotations)")(
@@ -384,10 +367,6 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       mixedConfigTests
     )
   )
-
-  // ============================================================================
-  // BsonConfig Test Cases
-  // ============================================================================
 
   def bsonConfigTests = suite("bson config tests")(
     suite("without discriminator")(
@@ -630,10 +609,6 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       }
     )
   )
-
-  // ============================================================================
-  // MixedConfig Test Cases
-  // ============================================================================
 
   def mixedConfigTests = suite("mixed config tests")(
     suite("no discriminator mode")(

@@ -4,8 +4,7 @@ import zio.blocks.schema.Schema
 import zio.test._
 
 /**
- * Enhanced comprehensive tests demonstrating the full test infrastructure. We
- * skip basic roundtrip tests as they are covered in the rest of the tests.
+ * Enhanced comprehensive tests demonstrating the full test infrastructure.
  * Tests both toBsonValue/as path AND BsonWriter/BsonReader path for all major
  * type categories:
  *   - Boolean
