@@ -255,35 +255,68 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         var name: String                        = if (tpeTypeSymbol.exists) tpeTypeSymbol.name else "|"
         var typeParams: Expr[Seq[TypeParam]]    = '{ Nil }
         if (tpeTypeSymbol.exists) {
+          // Find parent enum class by checking owner chain for enum companion objects
+          var parentEnumOpt: Option[Symbol] = None
+
+          // First try baseClasses
+          parentEnumOpt = infoTpe.baseClasses.find { bc =>
+            bc != tpeTypeSymbol && bc.flags.is(Flags.Enum) && !bc.flags.is(Flags.Case)
+          }
+
+          // If not found, check owner chain for module whose companionClass is an enum
+          if (parentEnumOpt.isEmpty) {
+            var checkOwner = tpeTypeSymbol.owner
+            while (checkOwner != defn.RootClass && checkOwner.exists && parentEnumOpt.isEmpty) {
+              if (checkOwner.flags.is(Flags.Module)) {
+                val companion = checkOwner.companionClass
+                if (companion.exists && companion.flags.is(Flags.Enum) && !companion.flags.is(Flags.Case)) {
+                  parentEnumOpt = Some(companion)
+                }
+              }
+              checkOwner = checkOwner.owner
+            }
+          }
+
+          // If still not found and termSymbol exists, check its owner chain
+          if (parentEnumOpt.isEmpty && infoTpe.termSymbol.exists) {
+            var checkOwner = infoTpe.termSymbol.owner
+            while (checkOwner != defn.RootClass && checkOwner.exists && parentEnumOpt.isEmpty) {
+              if (checkOwner.flags.is(Flags.Module)) {
+                val companion = checkOwner.companionClass
+                if (companion.exists && companion.flags.is(Flags.Enum) && !companion.flags.is(Flags.Case)) {
+                  parentEnumOpt = Some(companion)
+                }
+              }
+              checkOwner = checkOwner.owner
+            }
+          }
+
+          // Add parent enum to segments (will be placed correctly after owner walk prepends)
+          parentEnumOpt.foreach { parentEnum =>
+            val enumClassName = Expr(parentEnum.name)
+            segments = '{ Owner.Type($enumClassName) } :: segments
+          }
+
+          // Handle name extraction
           if (isEnumValue(infoTpe)) {
-            // For enum values, find the parent enum class from base types and include it in owner chain
-            val parentEnumOpt = infoTpe.baseClasses.find { bc =>
-              bc != tpeTypeSymbol && bc.flags.is(Flags.Enum) && !bc.flags.is(Flags.Case)
-            }
-            parentEnumOpt.foreach { parentEnum =>
-              val enumClassName = Expr(parentEnum.name)
-              segments = '{ Owner.Type($enumClassName) } :: segments
-            }
             name = infoTpe.termSymbol.name
           } else if (tpeTypeSymbol.flags.is(Flags.Module)) {
-            // For module types (singleton objects), check if it's an enum case
-            val parentEnumOpt = infoTpe.baseClasses.find { bc =>
-              bc != tpeTypeSymbol && bc.flags.is(Flags.Enum) && !bc.flags.is(Flags.Case)
-            }
-            parentEnumOpt.foreach { parentEnum =>
-              val enumClassName = Expr(parentEnum.name)
-              segments = '{ Owner.Type($enumClassName) } :: segments
-            }
             name = name.substring(0, name.length - 1)
           }
+
+          // Walk owner chain, but skip the enum companion object if we already added the enum class
           var owner = tpeTypeSymbol.owner
           while (owner != defn.RootClass && owner.exists) {
             val ownerName = Expr(owner.name)
             if (owner.flags.is(Flags.Package)) {
               segments = '{ Owner.Package($ownerName) } :: segments
             } else if (owner.flags.is(Flags.Module)) {
-              val termName = Expr(owner.name.substring(0, owner.name.length - 1))
-              segments = '{ Owner.Term($termName) } :: segments
+              // Skip the enum companion if we already added the enum class as Type
+              val isEnumCompanion = parentEnumOpt.exists(pe => owner.companionClass == pe)
+              if (!isEnumCompanion) {
+                val termName = Expr(owner.name.substring(0, owner.name.length - 1))
+                segments = '{ Owner.Term($termName) } :: segments
+              }
             } else {
               segments = '{ Owner.Type($ownerName) } :: segments
             }
