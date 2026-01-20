@@ -165,7 +165,7 @@ object SchemaSpec extends SchemaBaseSpec {
                 typeId = TypeId.nominal[Tuple4](
                   "Tuple4",
                   Owner(List(Owner.Package("scala"))),
-                  List(TypeParam("_1", 0), TypeParam("_2", 1), TypeParam("_3", 2), TypeParam("_4", 3))
+                  List(TypeParam("T1", 0), TypeParam("T2", 1), TypeParam("T3", 2), TypeParam("T4", 3))
                 ),
                 recordBinding = null
               )
@@ -221,7 +221,7 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record1](
                   "Record-1",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
+                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
                   Nil
                 ),
                 recordBinding = null,
@@ -271,8 +271,8 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record2[`i-8`, `i-32`]](
                   "Record-2",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
-                  List(TypeParam("A", 0), TypeParam("B", 1))
+                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                  List(TypeParam("B", 0), TypeParam("I", 1))
                 ),
                 recordBinding = null
               )
@@ -311,7 +311,7 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record3](
                   "Record3",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
+                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
                   Nil
                 ),
                 recordBinding = null
@@ -361,7 +361,7 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record4](
                   "Record4",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
+                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
                   Nil
                 ),
                 recordBinding = null
@@ -426,7 +426,7 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record5](
                   "Record5",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
+                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
                   Nil
                 ),
                 recordBinding = null
@@ -566,7 +566,7 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record7](
                   "Record7",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
+                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
                   Nil
                 ),
                 recordBinding = null
@@ -588,7 +588,7 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[Record8[Option]](
                 "Record8",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
+                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
                 List(TypeParam("F", 0))
               )
             )
@@ -949,7 +949,7 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[`Variant-1`](
                 "Variant-1",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
+                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
                 Nil
               )
             )
@@ -1006,8 +1006,8 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[`Variant-2`[String]](
                 "Variant-2",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
-                List(TypeParam("V", 0))
+                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                List(TypeParam("A", 0))
               )
             )
           )
@@ -1107,7 +1107,7 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[`Variant-3`[Option]](
                 "Variant-3",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
+                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
                 List(TypeParam("F", 0))
               )
             )
@@ -1133,7 +1133,7 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[Variant4[String, Int]](
                 "Variant4",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("spec"))),
+                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
                 List(TypeParam("E", 0), TypeParam("A", 1))
               )
             )

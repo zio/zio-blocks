@@ -37,7 +37,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[Record1](
                 "Record1",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"), Owner.Term("spec"))),
+                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"), Owner.Type("spec"))),
                 Nil
               )
             )
@@ -110,7 +110,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                 typeId = TypeId.nominal[Tuple4](
                   "Tuple4",
                   Owner(List(Owner.Package("scala"))),
-                  List(TypeParam("_1", 0), TypeParam("_2", 1), TypeParam("_3", 2), TypeParam("_4", 3))
+                  List(TypeParam("T1", 0), TypeParam("T2", 1), TypeParam("T3", 2), TypeParam("T4", 3))
                 ),
                 recordBinding = null
               )
@@ -158,7 +158,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                 typeId = TypeId.nominal[GenericTuple4](
                   "Tuple4",
                   Owner(List(Owner.Package("scala"))),
-                  List(TypeParam("_1", 0), TypeParam("_2", 1), TypeParam("_3", 2), TypeParam("_4", 3))
+                  List(TypeParam("T1", 0), TypeParam("T2", 1), TypeParam("T3", 2), TypeParam("T4", 3))
                 ),
                 recordBinding = null
               )
@@ -195,7 +195,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                 typeId = TypeId.nominal[(Int, String)](
                   "Tuple2",
                   Owner(List(Owner.Package("scala"))),
-                  List(TypeParam("_1", 0), TypeParam("_2", 1))
+                  List(TypeParam("T1", 0), TypeParam("T2", 1))
                 ),
                 recordBinding = null
               )
@@ -220,7 +220,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                 typeId = TypeId.nominal[((Int, Long), (String, String))](
                   "Tuple2",
                   Owner(List(Owner.Package("scala"))),
-                  List(TypeParam("_1", 0), TypeParam("_2", 1))
+                  List(TypeParam("T1", 0), TypeParam("T2", 1))
                 ),
                 recordBinding = null
               )
@@ -238,7 +238,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                 typeId = TypeId.nominal[(Int, String)](
                   "Tuple2",
                   Owner(List(Owner.Package("scala"))),
-                  List(TypeParam("_1", 0), TypeParam("_2", 1))
+                  List(TypeParam("T1", 0), TypeParam("T2", 1))
                 ),
                 recordBinding = null
               )
@@ -634,7 +634,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[Variant1](
                 "Variant1",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"), Owner.Term("spec"))),
+                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"), Owner.Type("spec"))),
                 Nil
               )
             )
@@ -782,7 +782,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(123))))(isRight(equalTo(Variant(123)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(true))))(isRight(equalTo(Variant(true)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant("VVV"))))(isRight(equalTo(Variant("VVV")))) &&
-        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "String", "Boolean")))) &&
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("scala.Int", "java.lang.String", "scala.Boolean")))) &&
         assert(variant.map(_.typeId))(
           isSome(
             equalTo(
@@ -818,10 +818,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(Unions.v3.get(value2))(equalTo(213)) &&
         assert(Unions.v3_s.getOption(value1))(isSome(equalTo("VVV"))) &&
         assert(record.flatMap(_.fields(1).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("Int", "String"))) // deduplicates union cases without re-ordering
+          isSome(equalTo(Seq("scala.Int", "java.lang.String"))) // deduplicates union cases without re-ordering
         ) &&
         assert(record.flatMap(_.fields(2).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("Int", "Boolean", "String"))) // deduplicates union cases without re-ordering
+          isSome(equalTo(Seq("scala.Int", "scala.Boolean", "java.lang.String"))) // deduplicates union cases without re-ordering
         ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))

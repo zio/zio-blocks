@@ -267,7 +267,7 @@ object ReflectSpec extends SchemaBaseSpec {
       },
       test("gets and updates record type id") {
         val scalaOwner = Owner(List(Owner.Package("scala")))
-        val tuple4TypeParams = List(TypeParam("_1", 0), TypeParam("_2", 1), TypeParam("_3", 2), TypeParam("_4", 3))
+        val tuple4TypeParams = List(TypeParam("T1", 0), TypeParam("T2", 1), TypeParam("T3", 2), TypeParam("T4", 3))
         assert(tuple4Reflect.typeId)(
           equalTo(
             TypeId.nominal[(Byte, Short, Int, Long)]("Tuple4", scalaOwner, tuple4TypeParams)

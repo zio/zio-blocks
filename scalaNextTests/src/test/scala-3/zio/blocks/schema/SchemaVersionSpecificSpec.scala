@@ -212,7 +212,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                 typeId = TypeId.nominal[(Int, String)](
                   "Tuple2",
                   Owner(List(Owner.Package("scala"))),
-                  List(TypeParam("_1", 0), TypeParam("_2", 1))
+                  List(TypeParam("T1", 0), TypeParam("T2", 1))
                 ),
                 recordBinding = null
               )
