@@ -548,9 +548,9 @@ object ReflectSpec extends SchemaBaseSpec {
         )
       },
       test("gets and updates sequence type id") {
-        val sequence1                    = Reflect.vector(Reflect.int[Binding])
-        val actualTypeId: TypeId[_]      = sequence1.typeId
-        val expectedTypeId: TypeId[_]    = TypeId.vector
+        val sequence1                 = Reflect.vector(Reflect.int[Binding])
+        val actualTypeId: TypeId[_]   = sequence1.typeId
+        val expectedTypeId: TypeId[_] = TypeId.vector
         assertTrue(actualTypeId == expectedTypeId) &&
         assert(
           sequence1

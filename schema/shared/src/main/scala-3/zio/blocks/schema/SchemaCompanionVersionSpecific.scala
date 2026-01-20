@@ -302,7 +302,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     def namedTupleTypeIdExpr(tpe: TypeRepr): Expr[TypeId[?]] = {
       val tpeTypeArgs = typeArgs(tpe)
       val nTpe        = tpeTypeArgs.head
-      val nTypeArgs =
+      val nTypeArgs   =
         if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
         else typeArgs(nTpe)
       val fieldNames = nTypeArgs.collect { case ConstantType(StringConstant(str)) => str }
@@ -327,15 +327,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
     typeIdCache
       .getOrElseUpdate(
-        tpe, {
-          if (isNamedTuple(tpe)) namedTupleTypeIdExpr(tpe)
-          else {
-            val (infoTpe, origTpe) = tpe match {
-              case TypeRef(compTpe, "Type") => (compTpe, tpe) // Use companion for info, original for type param
-              case _                        => (tpe, tpe)
-            }
-            calculateTypeIdExpr(infoTpe, origTpe)
+        tpe,
+        if (isNamedTuple(tpe)) namedTupleTypeIdExpr(tpe)
+        else {
+          val (infoTpe, origTpe) = tpe match {
+            case TypeRef(compTpe, "Type") => (compTpe, tpe) // Use companion for info, original for type param
+            case _                        => (tpe, tpe)
           }
+          calculateTypeIdExpr(infoTpe, origTpe)
         }
       )
       .asInstanceOf[Expr[TypeId[T]]]
