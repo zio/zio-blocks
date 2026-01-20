@@ -6,7 +6,7 @@ import zio.blocks.schema.DynamicOptic
 object JsonInterpolators {
 
   extension (inline sc: StringContext) {
-    inline def json(inline args: Any*): Json = ${ jsonInterpolatorImpl('sc, 'args) }
+    inline def json(inline args: Any*): Json      = ${ jsonInterpolatorImpl('sc, 'args) }
     inline def p(inline args: Any*): DynamicOptic = ${ pathInterpolatorImpl('sc, 'args) }
   }
 
@@ -15,8 +15,8 @@ object JsonInterpolators {
 
     val parts = sc match {
       case '{ StringContext(${ Varargs(parts) }: _*) } =>
-        parts.map {
-          case '{ $part: String } => part.valueOrAbort
+        parts.map { case '{ $part: String } =>
+          part.valueOrAbort
         }
       case _ =>
         report.errorAndAbort("Expected a StringContext with string literal parts")
@@ -35,13 +35,15 @@ object JsonInterpolators {
     }
   }
 
-  private def pathInterpolatorImpl(sc: Expr[StringContext], @scala.annotation.unused args: Expr[Seq[Any]])(using Quotes): Expr[DynamicOptic] = {
+  private def pathInterpolatorImpl(sc: Expr[StringContext], @scala.annotation.unused args: Expr[Seq[Any]])(using
+    Quotes
+  ): Expr[DynamicOptic] = {
     import quotes.reflect._
 
     val parts = sc match {
       case '{ StringContext(${ Varargs(parts) }: _*) } =>
-        parts.map {
-          case '{ $part: String } => part.valueOrAbort
+        parts.map { case '{ $part: String } =>
+          part.valueOrAbort
         }
       case _ =>
         report.errorAndAbort("Expected a StringContext with string literal parts")

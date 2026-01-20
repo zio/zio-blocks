@@ -1,15 +1,15 @@
 package zio.blocks.schema.json
 
 /**
- * Shared runtime utilities for JSON string interpolation.
- * Used by both Scala 2 and Scala 3 macro implementations.
+ * Shared runtime utilities for JSON string interpolation. Used by both Scala 2
+ * and Scala 3 macro implementations.
  */
 object JsonInterpolatorRuntime {
 
   def jsonWithInterpolation(sc: StringContext, args: Seq[Any]): Json = {
-    val parts = sc.parts.iterator
+    val parts  = sc.parts.iterator
     val argsIt = args.iterator
-    val sb = new StringBuilder(parts.next())
+    val sb     = new StringBuilder(parts.next())
 
     while (argsIt.hasNext) {
       val arg = argsIt.next()
@@ -21,36 +21,36 @@ object JsonInterpolatorRuntime {
   }
 
   private[json] def encodeValue(value: Any): String = value match {
-    case s: String         => s""""${escapeString(s)}""""
-    case n: Int            => n.toString
-    case n: Long           => n.toString
-    case n: Double         => n.toString
-    case n: Float          => n.toString
-    case n: BigDecimal     => n.toString
-    case n: BigInt         => n.toString
-    case b: Boolean        => b.toString
-    case null              => "null"
-    case j: Json           => j.encode
-    case opt: Option[_]    => opt.fold("null")(encodeValue)
-    case seq: Seq[_]       => seq.map(encodeValue).mkString("[", ",", "]")
-    case arr: Array[_]     => arr.map(encodeValue).mkString("[", ",", "]")
-    case other             => s""""${escapeString(other.toString)}""""
+    case s: String      => s""""${escapeString(s)}""""
+    case n: Int         => n.toString
+    case n: Long        => n.toString
+    case n: Double      => n.toString
+    case n: Float       => n.toString
+    case n: BigDecimal  => n.toString
+    case n: BigInt      => n.toString
+    case b: Boolean     => b.toString
+    case null           => "null"
+    case j: Json        => j.encode
+    case opt: Option[_] => opt.fold("null")(encodeValue)
+    case seq: Seq[_]    => seq.map(encodeValue).mkString("[", ",", "]")
+    case arr: Array[_]  => arr.map(encodeValue).mkString("[", ",", "]")
+    case other          => s""""${escapeString(other.toString)}""""
   }
 
   private[json] def escapeString(s: String): String = {
     val sb = new StringBuilder
-    var i = 0
+    var i  = 0
     while (i < s.length) {
       s.charAt(i) match {
-        case '"'  => sb.append("\\\"")
-        case '\\' => sb.append("\\\\")
-        case '\b' => sb.append("\\b")
-        case '\f' => sb.append("\\f")
-        case '\n' => sb.append("\\n")
-        case '\r' => sb.append("\\r")
-        case '\t' => sb.append("\\t")
+        case '"'           => sb.append("\\\"")
+        case '\\'          => sb.append("\\\\")
+        case '\b'          => sb.append("\\b")
+        case '\f'          => sb.append("\\f")
+        case '\n'          => sb.append("\\n")
+        case '\r'          => sb.append("\\r")
+        case '\t'          => sb.append("\\t")
         case ch if ch < 32 => sb.append(f"\\u${ch.toInt}%04x")
-        case ch   => sb.append(ch)
+        case ch            => sb.append(ch)
       }
       i += 1
     }
@@ -58,20 +58,19 @@ object JsonInterpolatorRuntime {
   }
 
   /**
-   * Validates JSON syntax without parsing. Used by macros for compile-time validation.
-   * Returns None if valid, Some(errorMessage) if invalid.
-   * This is a pure-Scala implementation that works across JVM, JS, and Native.
+   * Validates JSON syntax without parsing. Used by macros for compile-time
+   * validation. Returns None if valid, Some(errorMessage) if invalid. This is a
+   * pure-Scala implementation that works across JVM, JS, and Native.
    */
-  def validateJsonSyntax(s: String): Option[String] = {
+  def validateJsonSyntax(s: String): Option[String] =
     new JsonValidator(s).validate()
-  }
-  
+
   private class JsonValidator(s: String) {
-    private var pos = 0
-    private def current: Char = if (pos < s.length) s.charAt(pos) else '\u0000'
-    private def advance(): Unit = pos += 1
+    private var pos                    = 0
+    private def current: Char          = if (pos < s.length) s.charAt(pos) else '\u0000'
+    private def advance(): Unit        = pos += 1
     private def skipWhitespace(): Unit = while (current.isWhitespace) advance()
-    
+
     def validate(): Option[String] = {
       val result = parseValue()
       if (result.isDefined) result
@@ -81,22 +80,22 @@ object JsonInterpolatorRuntime {
         else None
       }
     }
-    
+
     private def parseValue(): Option[String] = {
       skipWhitespace()
       current match {
-        case '"' => parseString()
-        case '{' => parseObject()
-        case '[' => parseArray()
-        case 't' => parseLiteral("true")
-        case 'f' => parseLiteral("false")
-        case 'n' => parseLiteral("null")
+        case '"'                        => parseString()
+        case '{'                        => parseObject()
+        case '['                        => parseArray()
+        case 't'                        => parseLiteral("true")
+        case 'f'                        => parseLiteral("false")
+        case 'n'                        => parseLiteral("null")
         case c if c == '-' || c.isDigit => parseNumber()
-        case c => Some(s"Unexpected character '$c' at position $pos")
+        case c                          => Some(s"Unexpected character '$c' at position $pos")
       }
     }
-    
-    private def parseString(): Option[String] = {
+
+    private def parseString(): Option[String] =
       if (current != '"') Some(s"Expected '\"' at position $pos")
       else {
         advance()
@@ -110,9 +109,8 @@ object JsonInterpolatorRuntime {
         if (current != '"') Some(s"Unterminated string at position $pos")
         else { advance(); None }
       }
-    }
-    
-    private def parseObject(): Option[String] = {
+
+    private def parseObject(): Option[String] =
       if (current != '{') Some(s"Expected '{{' at position $pos")
       else {
         advance()
@@ -120,8 +118,7 @@ object JsonInterpolatorRuntime {
         if (current == '}') { advance(); None }
         else parseObjectFields(first = true)
       }
-    }
-    
+
     private def parseObjectFields(first: Boolean): Option[String] = {
       if (!first) {
         skipWhitespace()
@@ -131,14 +128,14 @@ object JsonInterpolatorRuntime {
       skipWhitespace()
       parseString() match {
         case Some(err) => Some(err)
-        case None =>
+        case None      =>
           skipWhitespace()
           if (current != ':') Some(s"Expected ':' at position $pos")
           else {
             advance()
             parseValue() match {
               case Some(err) => Some(err)
-              case None =>
+              case None      =>
                 skipWhitespace()
                 if (current == '}') { advance(); None }
                 else parseObjectFields(first = false)
@@ -146,8 +143,8 @@ object JsonInterpolatorRuntime {
           }
       }
     }
-    
-    private def parseArray(): Option[String] = {
+
+    private def parseArray(): Option[String] =
       if (current != '[') Some(s"Expected '[' at position $pos")
       else {
         advance()
@@ -155,8 +152,7 @@ object JsonInterpolatorRuntime {
         if (current == ']') { advance(); None }
         else parseArrayElements(first = true)
       }
-    }
-    
+
     private def parseArrayElements(first: Boolean): Option[String] = {
       if (!first) {
         skipWhitespace()
@@ -165,13 +161,13 @@ object JsonInterpolatorRuntime {
       }
       parseValue() match {
         case Some(err) => Some(err)
-        case None =>
+        case None      =>
           skipWhitespace()
           if (current == ']') { advance(); None }
           else parseArrayElements(first = false)
       }
     }
-    
+
     private def parseLiteral(expected: String): Option[String] = {
       var i = 0
       while (i < expected.length) {
@@ -181,7 +177,7 @@ object JsonInterpolatorRuntime {
       }
       None
     }
-    
+
     private def parseNumber(): Option[String] = {
       if (current == '-') advance()
       if (!current.isDigit) return Some(s"Expected digit at position $pos")

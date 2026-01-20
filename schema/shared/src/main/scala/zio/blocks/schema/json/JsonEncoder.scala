@@ -141,28 +141,28 @@ object JsonEncoder {
   // Java Time Encoders
   // ─────────────────────────────────────────────────────────────────────────
 
-  implicit val instantEncoder: JsonEncoder[Instant] = instance(i => Json.String(i.toString))
-  implicit val localDateEncoder: JsonEncoder[LocalDate] = instance(d => Json.String(d.toString))
-  implicit val localTimeEncoder: JsonEncoder[LocalTime] = instance(t => Json.String(t.toString))
-  implicit val localDateTimeEncoder: JsonEncoder[LocalDateTime] = instance(dt => Json.String(dt.toString))
+  implicit val instantEncoder: JsonEncoder[Instant]               = instance(i => Json.String(i.toString))
+  implicit val localDateEncoder: JsonEncoder[LocalDate]           = instance(d => Json.String(d.toString))
+  implicit val localTimeEncoder: JsonEncoder[LocalTime]           = instance(t => Json.String(t.toString))
+  implicit val localDateTimeEncoder: JsonEncoder[LocalDateTime]   = instance(dt => Json.String(dt.toString))
   implicit val offsetDateTimeEncoder: JsonEncoder[OffsetDateTime] = instance(dt => Json.String(dt.toString))
-  implicit val offsetTimeEncoder: JsonEncoder[OffsetTime] = instance(t => Json.String(t.toString))
-  implicit val zonedDateTimeEncoder: JsonEncoder[ZonedDateTime] = instance(dt => Json.String(dt.toString))
-  implicit val durationEncoder: JsonEncoder[Duration] = instance(d => Json.String(d.toString))
-  implicit val periodEncoder: JsonEncoder[Period] = instance(p => Json.String(p.toString))
-  implicit val yearEncoder: JsonEncoder[Year] = instance(y => Json.String(y.toString))
-  implicit val yearMonthEncoder: JsonEncoder[YearMonth] = instance(ym => Json.String(ym.toString))
-  implicit val monthDayEncoder: JsonEncoder[MonthDay] = instance(md => Json.String(md.toString))
-  implicit val zoneIdEncoder: JsonEncoder[ZoneId] = instance(z => Json.String(z.toString))
-  implicit val zoneOffsetEncoder: JsonEncoder[ZoneOffset] = instance(z => Json.String(z.toString))
-  implicit val dayOfWeekEncoder: JsonEncoder[DayOfWeek] = instance(d => Json.String(d.toString))
-  implicit val monthEncoder: JsonEncoder[Month] = instance(m => Json.String(m.toString))
+  implicit val offsetTimeEncoder: JsonEncoder[OffsetTime]         = instance(t => Json.String(t.toString))
+  implicit val zonedDateTimeEncoder: JsonEncoder[ZonedDateTime]   = instance(dt => Json.String(dt.toString))
+  implicit val durationEncoder: JsonEncoder[Duration]             = instance(d => Json.String(d.toString))
+  implicit val periodEncoder: JsonEncoder[Period]                 = instance(p => Json.String(p.toString))
+  implicit val yearEncoder: JsonEncoder[Year]                     = instance(y => Json.String(y.toString))
+  implicit val yearMonthEncoder: JsonEncoder[YearMonth]           = instance(ym => Json.String(ym.toString))
+  implicit val monthDayEncoder: JsonEncoder[MonthDay]             = instance(md => Json.String(md.toString))
+  implicit val zoneIdEncoder: JsonEncoder[ZoneId]                 = instance(z => Json.String(z.toString))
+  implicit val zoneOffsetEncoder: JsonEncoder[ZoneOffset]         = instance(z => Json.String(z.toString))
+  implicit val dayOfWeekEncoder: JsonEncoder[DayOfWeek]           = instance(d => Json.String(d.toString))
+  implicit val monthEncoder: JsonEncoder[Month]                   = instance(m => Json.String(m.toString))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Other Standard Types
   // ─────────────────────────────────────────────────────────────────────────
 
-  implicit val uuidEncoder: JsonEncoder[UUID] = instance(u => Json.String(u.toString))
+  implicit val uuidEncoder: JsonEncoder[UUID]         = instance(u => Json.String(u.toString))
   implicit val currencyEncoder: JsonEncoder[Currency] = instance(c => Json.String(c.toString))
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -170,11 +170,11 @@ object JsonEncoder {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Derives a JsonEncoder from a Schema. This has lower priority than
-   * explicit JsonEncoder instances due to the implicit parameter.
+   * Derives a JsonEncoder from a Schema. This has lower priority than explicit
+   * JsonEncoder instances due to the implicit parameter.
    *
-   * This encoder uses the JsonBinaryCodec derived from the Schema to encode
-   * the value to bytes, then parses it back to Json.
+   * This encoder uses the JsonBinaryCodec derived from the Schema to encode the
+   * value to bytes, then parses it back to Json.
    */
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonEncoder[A] = instance { a =>
     val codec = schema.derive(JsonBinaryCodecDeriver)

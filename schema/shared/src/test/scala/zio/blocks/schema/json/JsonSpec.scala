@@ -61,13 +61,16 @@ object JsonSpec extends SchemaBaseSpec {
             Json.bool(true).booleanValue.contains(true),
             Json.bool(false).booleanValue.contains(false),
             Json.number(1).booleanValue.isEmpty
-            )
+          )
         }
       ),
       suite("navigation")(
         test("get retrieves field from object") {
           val json = Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))
-          assertTrue(json.get("name").single == Right(Json.str("Alice")), json.get("age").single == Right(Json.number(30)))
+          assertTrue(
+            json.get("name").single == Right(Json.str("Alice")),
+            json.get("age").single == Right(Json.number(30))
+          )
         },
         test("get returns error for missing field") {
           val json = Json.obj("name" -> Json.str("Alice"))
@@ -609,7 +612,12 @@ object JsonSpec extends SchemaBaseSpec {
       test("extraction methods") {
         val json = Json.arr(Json.str("a"), Json.str("b"), Json.str("c"))
         assertTrue(
-          JsonSelection.succeed(json).asArray.headOption.map(_.elements).contains(Vector(Json.str("a"), Json.str("b"), Json.str("c")))
+          JsonSelection
+            .succeed(json)
+            .asArray
+            .headOption
+            .map(_.elements)
+            .contains(Vector(Json.str("a"), Json.str("b"), Json.str("c")))
         )
       },
       test("++ combines selections") {
@@ -705,7 +713,9 @@ object JsonSpec extends SchemaBaseSpec {
         )
       },
       test("encode Vector") {
-        assertTrue(JsonEncoder[Vector[Int]].encode(Vector(1, 2, 3)) == Json.arr(Json.number(1), Json.number(2), Json.number(3)))
+        assertTrue(
+          JsonEncoder[Vector[Int]].encode(Vector(1, 2, 3)) == Json.arr(Json.number(1), Json.number(2), Json.number(3))
+        )
       },
       test("encode Map") {
         val encoded = JsonEncoder[Map[String, Int]].encode(Map("a" -> 1, "b" -> 2))
@@ -719,8 +729,8 @@ object JsonSpec extends SchemaBaseSpec {
     suite("additional coverage")(
       suite("merge strategies")(
         test("merge with Deep strategy merges objects deeply") {
-          val left = Json.obj("a" -> Json.obj("x" -> Json.number(1), "y" -> Json.number(2)))
-          val right = Json.obj("a" -> Json.obj("y" -> Json.number(3), "z" -> Json.number(4)))
+          val left   = Json.obj("a" -> Json.obj("x" -> Json.number(1), "y" -> Json.number(2)))
+          val right  = Json.obj("a" -> Json.obj("y" -> Json.number(3), "z" -> Json.number(4)))
           val merged = left.merge(right, MergeStrategy.Deep)
           assertTrue(
             merged.get("a").get("x").number == Right(BigDecimal(1)),
@@ -729,8 +739,8 @@ object JsonSpec extends SchemaBaseSpec {
           )
         },
         test("merge with Shallow strategy replaces nested objects") {
-          val left = Json.obj("a" -> Json.obj("x" -> Json.number(1), "y" -> Json.number(2)))
-          val right = Json.obj("a" -> Json.obj("z" -> Json.number(3)))
+          val left   = Json.obj("a" -> Json.obj("x" -> Json.number(1), "y" -> Json.number(2)))
+          val right  = Json.obj("a" -> Json.obj("z" -> Json.number(3)))
           val merged = left.merge(right, MergeStrategy.Shallow)
           assertTrue(
             merged.get("a").get("x").isFailure,
@@ -738,29 +748,29 @@ object JsonSpec extends SchemaBaseSpec {
           )
         },
         test("merge with Concat strategy concatenates arrays") {
-          val left = Json.arr(Json.number(1), Json.number(2))
-          val right = Json.arr(Json.number(3), Json.number(4))
+          val left   = Json.arr(Json.number(1), Json.number(2))
+          val right  = Json.arr(Json.number(3), Json.number(4))
           val merged = left.merge(right, MergeStrategy.Concat)
           assertTrue(merged.elements == Vector(Json.number(1), Json.number(2), Json.number(3), Json.number(4)))
         },
         test("merge non-matching types replaces with right") {
-          val left = Json.number(1)
-          val right = Json.str("hello")
+          val left   = Json.number(1)
+          val right  = Json.str("hello")
           val merged = left.merge(right)
           assertTrue(merged == right)
         }
       ),
       suite("encoding methods")(
         test("encodeToBytes produces valid bytes") {
-          val json = Json.obj("key" -> Json.str("value"))
-          val bytes = json.encodeToBytes
+          val json   = Json.obj("key" -> Json.str("value"))
+          val bytes  = json.encodeToBytes
           val parsed = Json.parse(bytes)
           assertTrue(parsed.isRight, parsed.toOption.get == json)
         },
         test("parse from bytes works") {
           val jsonStr = """{"name":"Alice"}"""
-          val bytes = jsonStr.getBytes("UTF-8")
-          val parsed = Json.parse(bytes)
+          val bytes   = jsonStr.getBytes("UTF-8")
+          val parsed  = Json.parse(bytes)
           assertTrue(parsed.isRight, parsed.toOption.get.get("name").string == Right("Alice"))
         }
       ),
@@ -779,7 +789,7 @@ object JsonSpec extends SchemaBaseSpec {
           )
         },
         test("dropNulls works on arrays") {
-          val json = Json.arr(Json.number(1), Json.Null, Json.number(2), Json.Null)
+          val json    = Json.arr(Json.number(1), Json.Null, Json.number(2), Json.Null)
           val dropped = json.dropNulls
           assertTrue(dropped.elements == Vector(Json.number(1), Json.number(2)))
         },
@@ -793,23 +803,23 @@ object JsonSpec extends SchemaBaseSpec {
       ),
       suite("DynamicOptic advanced operations")(
         test("get with mapValues returns all object values") {
-          val json = Json.obj("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
-          val path = DynamicOptic.mapValues
+          val json      = Json.obj("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
+          val path      = DynamicOptic.mapValues
           val selection = json.get(path)
           assertTrue(selection.all.toOption.get.toSet == Set[Json](Json.number(1), Json.number(2), Json.number(3)))
         },
         test("get with mapKeys returns all object keys as strings") {
-          val json = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
-          val path = DynamicOptic.mapKeys
+          val json      = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
+          val path      = DynamicOptic.mapKeys
           val selection = json.get(path)
           assertTrue(selection.all.toOption.get.toSet == Set[Json](Json.str("a"), Json.str("b")))
         },
         test("modify with mapValues transforms all values") {
-          val json = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
-          val path = DynamicOptic.mapValues
+          val json    = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
+          val path    = DynamicOptic.mapValues
           val updated = json.modify(path) {
             case Json.Number(n) => Json.Number(n * 10)
-            case other => other
+            case other          => other
           }
           assertTrue(
             updated.get("a").number == Right(BigDecimal(10)),
@@ -817,17 +827,17 @@ object JsonSpec extends SchemaBaseSpec {
           )
         },
         test("get with atIndices returns multiple elements") {
-          val json = Json.arr(Json.str("a"), Json.str("b"), Json.str("c"), Json.str("d"))
-          val path = DynamicOptic.root.atIndices(0, 2)
+          val json      = Json.arr(Json.str("a"), Json.str("b"), Json.str("c"), Json.str("d"))
+          val path      = DynamicOptic.root.atIndices(0, 2)
           val selection = json.get(path)
           assertTrue(selection.all == Right(Vector(Json.str("a"), Json.str("c"))))
         },
         test("modify with atIndices transforms specific elements") {
-          val json = Json.arr(Json.number(1), Json.number(2), Json.number(3), Json.number(4))
-          val path = DynamicOptic.root.atIndices(1, 3)
+          val json    = Json.arr(Json.number(1), Json.number(2), Json.number(3), Json.number(4))
+          val path    = DynamicOptic.root.atIndices(1, 3)
           val updated = json.modify(path) {
             case Json.Number(n) => Json.Number(n * 10)
-            case other => other
+            case other          => other
           }
           assertTrue(
             updated(0).single == Right(Json.number(1)),
@@ -840,12 +850,12 @@ object JsonSpec extends SchemaBaseSpec {
       suite("toKV edge cases")(
         test("toKV handles empty object") {
           val json = Json.obj()
-          val kvs = json.toKV
+          val kvs  = json.toKV
           assertTrue(kvs.length == 1, kvs.head._2 == Json.obj())
         },
         test("toKV handles empty array") {
           val json = Json.arr()
-          val kvs = json.toKV
+          val kvs  = json.toKV
           assertTrue(kvs.length == 1, kvs.head._2 == Json.arr())
         },
         test("fromKVUnsafe works correctly") {
@@ -879,24 +889,24 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("collect extracts matching values") {
           val selection = JsonSelection.succeedMany(Vector(Json.number(1), Json.str("a"), Json.number(2)))
-          val numbers = selection.collect { case Json.Number(n) => n }
+          val numbers   = selection.collect { case Json.Number(n) => n }
           assertTrue(numbers == Right(Vector(BigDecimal(1), BigDecimal(2))))
         },
         test("orElse returns alternative on failure") {
-          val failed = JsonSelection.fail(JsonError("error"))
+          val failed   = JsonSelection.fail(JsonError("error"))
           val fallback = JsonSelection.succeed(Json.number(42))
-          val result = failed.orElse(fallback)
+          val result   = failed.orElse(fallback)
           assertTrue(result.single == Right(Json.number(42)))
         },
         test("orElse returns original on success") {
-          val success = JsonSelection.succeed(Json.number(1))
+          val success  = JsonSelection.succeed(Json.number(1))
           val fallback = JsonSelection.succeed(Json.number(2))
-          val result = success.orElse(fallback)
+          val result   = success.orElse(fallback)
           assertTrue(result.single == Right(Json.number(1)))
         },
         test("getOrElse returns values on success") {
           val selection = JsonSelection.succeedMany(Vector(Json.number(1), Json.number(2)))
-          val result = selection.getOrElse(Vector(Json.Null))
+          val result    = selection.getOrElse(Vector(Json.Null))
           assertTrue(result == Vector(Json.number(1), Json.number(2)))
         },
         test("getOrElse returns default on failure") {
@@ -906,9 +916,9 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("map transforms all values") {
           val selection = JsonSelection.succeedMany(Vector(Json.number(1), Json.number(2)))
-          val mapped = selection.map {
+          val mapped    = selection.map {
             case Json.Number(n) => Json.Number(n * 2)
-            case other => other
+            case other          => other
           }
           assertTrue(mapped.all == Right(Vector(Json.number(2), Json.number(4))))
         },
@@ -920,15 +930,15 @@ object JsonSpec extends SchemaBaseSpec {
             )
           )
           // Get all user names using flatMap
-          val path = DynamicOptic.root.field("users").elements.field("name")
+          val path  = DynamicOptic.root.field("users").elements.field("name")
           val names = json.get(path)
           assertTrue(names.size == 2)
         },
         test("filter keeps matching values") {
           val selection = JsonSelection.succeedMany(Vector(Json.number(1), Json.number(2), Json.number(3)))
-          val filtered = selection.filter {
+          val filtered  = selection.filter {
             case Json.Number(n) => n > BigDecimal(1)
-            case _ => false
+            case _              => false
           }
           assertTrue(filtered.all == Right(Vector(Json.number(2), Json.number(3))))
         },
@@ -993,7 +1003,7 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(failed.toVector.isEmpty)
         },
         test("asNumber/asBoolean/asNull type checks") {
-          val numSel = JsonSelection.succeed(Json.number(42))
+          val numSel  = JsonSelection.succeed(Json.number(42))
           val boolSel = JsonSelection.succeed(Json.bool(true))
           val nullSel = JsonSelection.succeed(Json.Null)
           // Type filtering returns empty selection instead of failure for non-matching types
@@ -1009,23 +1019,27 @@ object JsonSpec extends SchemaBaseSpec {
       ),
       suite("DynamicValue conversion edge cases")(
         test("fromDynamicValue handles Variant") {
-          val dv = DynamicValue.Variant("SomeCase", DynamicValue.Primitive(PrimitiveValue.Int(42)))
+          val dv   = DynamicValue.Variant("SomeCase", DynamicValue.Primitive(PrimitiveValue.Int(42)))
           val json = Json.fromDynamicValue(dv)
           assertTrue(json.get("SomeCase").number == Right(BigDecimal(42)))
         },
         test("fromDynamicValue handles Sequence") {
-          val dv = DynamicValue.Sequence(Vector(
-            DynamicValue.Primitive(PrimitiveValue.Int(1)),
-            DynamicValue.Primitive(PrimitiveValue.Int(2))
-          ))
+          val dv = DynamicValue.Sequence(
+            Vector(
+              DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              DynamicValue.Primitive(PrimitiveValue.Int(2))
+            )
+          )
           val json = Json.fromDynamicValue(dv)
           assertTrue(json.elements == Vector(Json.number(1), Json.number(2)))
         },
         test("fromDynamicValue handles Map with string keys") {
-          val dv = DynamicValue.Map(Vector(
-            (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
-            (DynamicValue.Primitive(PrimitiveValue.String("b")), DynamicValue.Primitive(PrimitiveValue.Int(2)))
-          ))
+          val dv = DynamicValue.Map(
+            Vector(
+              (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+              (DynamicValue.Primitive(PrimitiveValue.String("b")), DynamicValue.Primitive(PrimitiveValue.Int(2)))
+            )
+          )
           val json = Json.fromDynamicValue(dv)
           assertTrue(
             json.isObject,
@@ -1034,10 +1048,12 @@ object JsonSpec extends SchemaBaseSpec {
           )
         },
         test("fromDynamicValue handles Map with non-string keys as array of pairs") {
-          val dv = DynamicValue.Map(Vector(
-            (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.String("one"))),
-            (DynamicValue.Primitive(PrimitiveValue.Int(2)), DynamicValue.Primitive(PrimitiveValue.String("two")))
-          ))
+          val dv = DynamicValue.Map(
+            Vector(
+              (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.String("one"))),
+              (DynamicValue.Primitive(PrimitiveValue.Int(2)), DynamicValue.Primitive(PrimitiveValue.String("two")))
+            )
+          )
           val json = Json.fromDynamicValue(dv)
           assertTrue(
             json.isArray,
@@ -1046,7 +1062,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("toDynamicValue converts Long when out of Int range") {
           val json = Json.number(BigDecimal(Long.MaxValue))
-          val dv = json.toDynamicValue
+          val dv   = json.toDynamicValue
           dv match {
             case DynamicValue.Primitive(pv: PrimitiveValue.Long) =>
               assertTrue(pv.value == Long.MaxValue)
@@ -1055,7 +1071,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("toDynamicValue converts BigDecimal for decimals") {
           val json = Json.number(BigDecimal("123.456"))
-          val dv = json.toDynamicValue
+          val dv   = json.toDynamicValue
           dv match {
             case DynamicValue.Primitive(pv: PrimitiveValue.BigDecimal) =>
               assertTrue(pv.value == BigDecimal("123.456"))
@@ -1064,7 +1080,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("toDynamicValue converts arrays") {
           val json = Json.arr(Json.number(1), Json.number(2))
-          val dv = json.toDynamicValue
+          val dv   = json.toDynamicValue
           dv match {
             case DynamicValue.Sequence(elems) =>
               assertTrue(elems.length == 2)
@@ -1073,7 +1089,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("toDynamicValue converts objects") {
           val json = Json.obj("a" -> Json.number(1))
-          val dv = json.toDynamicValue
+          val dv   = json.toDynamicValue
           dv match {
             case DynamicValue.Record(fields) =>
               assertTrue(fields.length == 1, fields.head._1 == "a")
@@ -1091,7 +1107,7 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(error.path.toString.contains("5"))
         },
         test("chained path building") {
-          val error = JsonError("test").atField("users").atIndex(0).atField("name")
+          val error   = JsonError("test").atField("users").atIndex(0).atField("name")
           val pathStr = error.path.toString
           assertTrue(
             pathStr.contains("users"),
@@ -1155,7 +1171,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("transformKeys works on arrays containing objects") {
           val json = Json.arr(
-            Json.obj("snake_case" -> Json.number(1)),
+            Json.obj("snake_case"  -> Json.number(1)),
             Json.obj("another_key" -> Json.number(2))
           )
           val transformed = json.transformKeys((_, k) => k.replace("_", "-"))
@@ -1167,48 +1183,48 @@ object JsonSpec extends SchemaBaseSpec {
       ),
       suite("filter/partition edge cases")(
         test("filter on primitives returns unchanged") {
-          val json = Json.number(42)
+          val json     = Json.number(42)
           val filtered = json.filter((_, _) => true)
           assertTrue(filtered == json)
         },
         test("partition on primitives") {
-          val json = Json.str("hello")
+          val json                    = Json.str("hello")
           val (matching, nonMatching) = json.partition((_, j) => j.isString)
           assertTrue(matching == json, nonMatching == Json.Null)
         }
       ),
       suite("project edge cases")(
         test("project with empty paths returns Null") {
-          val json = Json.obj("a" -> Json.number(1))
+          val json      = Json.obj("a" -> Json.number(1))
           val projected = json.project()
           assertTrue(projected == Json.Null)
         },
         test("project with non-existent paths") {
-          val json = Json.obj("a" -> Json.number(1))
-          val path = DynamicOptic.root.field("nonexistent")
+          val json      = Json.obj("a" -> Json.number(1))
+          val path      = DynamicOptic.root.field("nonexistent")
           val projected = json.project(path)
           assertTrue(projected == Json.Null)
         }
       ),
       suite("AtMapKey operations")(
         test("get with atKey retrieves value by key") {
-          val json = Json.obj("alice" -> Json.number(1), "bob" -> Json.number(2))
-          val path = DynamicOptic.root.atKey("alice")(Schema.string)
+          val json   = Json.obj("alice" -> Json.number(1), "bob" -> Json.number(2))
+          val path   = DynamicOptic.root.atKey("alice")(Schema.string)
           val result = json.get(path)
           assertTrue(result.single == Right(Json.number(1)))
         },
         test("get with atKey returns empty for missing key") {
-          val json = Json.obj("alice" -> Json.number(1))
-          val path = DynamicOptic.root.atKey("missing")(Schema.string)
+          val json   = Json.obj("alice" -> Json.number(1))
+          val path   = DynamicOptic.root.atKey("missing")(Schema.string)
           val result = json.get(path)
           assertTrue(result.toVector.isEmpty)
         },
         test("modify with atKey updates value at key") {
-          val json = Json.obj("alice" -> Json.number(1), "bob" -> Json.number(2))
-          val path = DynamicOptic.root.atKey("alice")(Schema.string)
+          val json    = Json.obj("alice" -> Json.number(1), "bob" -> Json.number(2))
+          val path    = DynamicOptic.root.atKey("alice")(Schema.string)
           val updated = json.modify(path) {
             case Json.Number(n) => Json.Number(n * 10)
-            case other => other
+            case other          => other
           }
           assertTrue(
             updated.get("alice").number == Right(BigDecimal(10)),
@@ -1216,31 +1232,31 @@ object JsonSpec extends SchemaBaseSpec {
           )
         },
         test("modify with atKey does nothing for missing key") {
-          val json = Json.obj("alice" -> Json.number(1))
-          val path = DynamicOptic.root.atKey("missing")(Schema.string)
+          val json    = Json.obj("alice" -> Json.number(1))
+          val path    = DynamicOptic.root.atKey("missing")(Schema.string)
           val updated = json.modify(path)(_ => Json.number(99))
           assertTrue(updated == json)
         }
       ),
       suite("AtMapKeys operations")(
         test("get with atKeys retrieves multiple values") {
-          val json = Json.obj("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
-          val path = DynamicOptic.root.atKeys("a", "c")(Schema.string)
+          val json   = Json.obj("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
+          val path   = DynamicOptic.root.atKeys("a", "c")(Schema.string)
           val result = json.get(path)
           assertTrue(result.all == Right(Vector(Json.number(1), Json.number(3))))
         },
         test("get with atKeys returns only existing keys") {
-          val json = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
-          val path = DynamicOptic.root.atKeys("a", "missing", "b")(Schema.string)
+          val json   = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
+          val path   = DynamicOptic.root.atKeys("a", "missing", "b")(Schema.string)
           val result = json.get(path)
           assertTrue(result.all == Right(Vector(Json.number(1), Json.number(2))))
         },
         test("modify with atKeys updates multiple values") {
-          val json = Json.obj("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
-          val path = DynamicOptic.root.atKeys("a", "c")(Schema.string)
+          val json    = Json.obj("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
+          val path    = DynamicOptic.root.atKeys("a", "c")(Schema.string)
           val updated = json.modify(path) {
             case Json.Number(n) => Json.Number(n * 10)
-            case other => other
+            case other          => other
           }
           assertTrue(
             updated.get("a").number == Right(BigDecimal(10)),
@@ -1249,22 +1265,22 @@ object JsonSpec extends SchemaBaseSpec {
           )
         },
         test("get with atKeys on non-object returns empty") {
-          val json = Json.arr(Json.number(1), Json.number(2))
-          val path = DynamicOptic.root.atKeys("a")(Schema.string)
+          val json   = Json.arr(Json.number(1), Json.number(2))
+          val path   = DynamicOptic.root.atKeys("a")(Schema.string)
           val result = json.get(path)
           assertTrue(result.toVector.isEmpty)
         }
       ),
       suite("Elements delete operations")(
         test("delete with elements removes all array elements") {
-          val json = Json.arr(Json.number(1), Json.number(2), Json.number(3))
-          val path = DynamicOptic.elements
+          val json    = Json.arr(Json.number(1), Json.number(2), Json.number(3))
+          val path    = DynamicOptic.elements
           val deleted = json.delete(path)
           assertTrue(deleted == Json.arr())
         },
         test("delete with elements on non-array returns unchanged") {
-          val json = Json.obj("a" -> Json.number(1))
-          val path = DynamicOptic.elements
+          val json    = Json.obj("a" -> Json.number(1))
+          val path    = DynamicOptic.elements
           val deleted = json.delete(path)
           assertTrue(deleted == json)
         },
@@ -1272,7 +1288,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json = Json.obj(
             "items" -> Json.arr(Json.number(1), Json.number(2), Json.number(3))
           )
-          val path = DynamicOptic.root.field("items").elements
+          val path    = DynamicOptic.root.field("items").elements
           val deleted = json.delete(path)
           assertTrue(deleted == Json.obj("items" -> Json.arr()))
         }
@@ -1282,10 +1298,10 @@ object JsonSpec extends SchemaBaseSpec {
           val json = Json.obj(
             "user" -> Json.obj(
               "name" -> Json.str("Alice"),
-              "age" -> Json.number(30)
+              "age"  -> Json.number(30)
             )
           )
-          val path = DynamicOptic.root.field("user").field("name")
+          val path    = DynamicOptic.root.field("user").field("name")
           val deleted = json.delete(path)
           assertTrue(
             deleted.get("user").get("age").number == Right(BigDecimal(30)),
@@ -1296,7 +1312,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json = Json.obj(
             "items" -> Json.arr(Json.number(1), Json.number(2), Json.number(3))
           )
-          val path = DynamicOptic.root.field("items").at(1)
+          val path    = DynamicOptic.root.field("items").at(1)
           val deleted = json.delete(path)
           assertTrue(
             deleted.get("items").toVector == Vector(Json.arr(Json.number(1), Json.number(3)))
@@ -1311,7 +1327,7 @@ object JsonSpec extends SchemaBaseSpec {
               )
             )
           )
-          val path = DynamicOptic.root.field("a").field("b").field("c")
+          val path    = DynamicOptic.root.field("a").field("b").field("c")
           val deleted = json.delete(path)
           assertTrue(
             deleted.get("a").get("b").get("d").number == Right(BigDecimal(2)),
@@ -1321,26 +1337,26 @@ object JsonSpec extends SchemaBaseSpec {
       ),
       suite("modifyOrFail with Elements and MapValues")(
         test("modifyOrFail with elements succeeds when all match") {
-          val json = Json.arr(Json.number(1), Json.number(2), Json.number(3))
-          val path = DynamicOptic.elements
-          val result = json.modifyOrFail(path) {
-            case Json.Number(n) => Json.Number(n * 2)
+          val json   = Json.arr(Json.number(1), Json.number(2), Json.number(3))
+          val path   = DynamicOptic.elements
+          val result = json.modifyOrFail(path) { case Json.Number(n) =>
+            Json.Number(n * 2)
           }
           assertTrue(result == Right(Json.arr(Json.number(2), Json.number(4), Json.number(6))))
         },
         test("modifyOrFail with elements fails when partial function not defined") {
-          val json = Json.arr(Json.number(1), Json.str("not a number"), Json.number(3))
-          val path = DynamicOptic.elements
-          val result = json.modifyOrFail(path) {
-            case Json.Number(n) => Json.Number(n * 2)
+          val json   = Json.arr(Json.number(1), Json.str("not a number"), Json.number(3))
+          val path   = DynamicOptic.elements
+          val result = json.modifyOrFail(path) { case Json.Number(n) =>
+            Json.Number(n * 2)
           }
           assertTrue(result.isLeft)
         },
         test("modifyOrFail with mapValues succeeds when all match") {
-          val json = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
-          val path = DynamicOptic.mapValues
-          val result = json.modifyOrFail(path) {
-            case Json.Number(n) => Json.Number(n * 10)
+          val json   = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
+          val path   = DynamicOptic.mapValues
+          val result = json.modifyOrFail(path) { case Json.Number(n) =>
+            Json.Number(n * 10)
           }
           assertTrue(
             result.map(_.get("a").number) == Right(Right(BigDecimal(10))),
@@ -1348,10 +1364,10 @@ object JsonSpec extends SchemaBaseSpec {
           )
         },
         test("modifyOrFail with mapValues fails when partial function not defined") {
-          val json = Json.obj("a" -> Json.number(1), "b" -> Json.str("not a number"))
-          val path = DynamicOptic.mapValues
-          val result = json.modifyOrFail(path) {
-            case Json.Number(n) => Json.Number(n * 10)
+          val json   = Json.obj("a" -> Json.number(1), "b" -> Json.str("not a number"))
+          val path   = DynamicOptic.mapValues
+          val result = json.modifyOrFail(path) { case Json.Number(n) =>
+            Json.Number(n * 10)
           }
           assertTrue(result.isLeft)
         },
@@ -1359,35 +1375,35 @@ object JsonSpec extends SchemaBaseSpec {
           val json = Json.obj(
             "items" -> Json.arr(Json.number(1), Json.number(2))
           )
-          val path = DynamicOptic.root.field("items").elements
-          val result = json.modifyOrFail(path) {
-            case Json.Number(n) => Json.Number(n + 100)
+          val path   = DynamicOptic.root.field("items").elements
+          val result = json.modifyOrFail(path) { case Json.Number(n) =>
+            Json.Number(n + 100)
           }
           assertTrue(result == Right(Json.obj("items" -> Json.arr(Json.number(101), Json.number(102)))))
         }
       ),
       suite("insertOrFail edge cases")(
         test("insertOrFail fails for non-existent nested path") {
-          val json = Json.obj()
-          val path = DynamicOptic.root.field("a").field("b")
+          val json   = Json.obj()
+          val path   = DynamicOptic.root.field("a").field("b")
           val result = json.insertOrFail(path, Json.number(42))
           assertTrue(result.isLeft)
         },
         test("insertOrFail at array index extends array") {
-          val json = Json.arr(Json.number(1), Json.number(2))
-          val path = DynamicOptic.root.at(2)
+          val json   = Json.arr(Json.number(1), Json.number(2))
+          val path   = DynamicOptic.root.at(2)
           val result = json.insertOrFail(path, Json.number(3))
           assertTrue(result == Right(Json.arr(Json.number(1), Json.number(2), Json.number(3))))
         },
         test("insertOrFail fails when field already exists") {
-          val json = Json.obj("a" -> Json.number(1))
-          val path = DynamicOptic.root.field("a")
+          val json   = Json.obj("a" -> Json.number(1))
+          val path   = DynamicOptic.root.field("a")
           val result = json.insertOrFail(path, Json.number(99))
           assertTrue(result.isLeft)
         },
         test("insertOrFail succeeds for new field") {
-          val json = Json.obj("a" -> Json.number(1))
-          val path = DynamicOptic.root.field("b")
+          val json   = Json.obj("a" -> Json.number(1))
+          val path   = DynamicOptic.root.field("b")
           val result = json.insertOrFail(path, Json.number(2))
           assertTrue(result == Right(Json.obj("a" -> Json.number(1), "b" -> Json.number(2))))
         }
@@ -1428,23 +1444,23 @@ object JsonSpec extends SchemaBaseSpec {
       ),
       suite("Config-based parse and encode")(
         test("print with custom config") {
-          val json = Json.obj("a" -> Json.number(1))
+          val json   = Json.obj("a" -> Json.number(1))
           val result = json.print
           assertTrue(result.contains("a") && result.contains("1"))
         },
         test("encodeToBytes produces valid output") {
-          val json = Json.obj("name" -> Json.str("test"))
-          val bytes = json.encodeToBytes
+          val json    = Json.obj("name" -> Json.str("test"))
+          val bytes   = json.encodeToBytes
           val decoded = Json.parse(new String(bytes, "UTF-8"))
           assertTrue(decoded == Right(json))
         },
         test("parse handles whitespace correctly") {
-          val input = """  {  "a"  :  1  }  """
+          val input  = """  {  "a"  :  1  }  """
           val result = Json.parse(input)
           assertTrue(result == Right(Json.obj("a" -> Json.number(1))))
         },
         test("parse handles unicode escapes") {
-          val input = "{\"emoji\": \"\\u0048\\u0065\\u006c\\u006c\\u006f\"}"
+          val input  = "{\"emoji\": \"\\u0048\\u0065\\u006c\\u006c\\u006f\"}"
           val result = Json.parse(input)
           assertTrue(result == Right(Json.obj("emoji" -> Json.str("Hello"))))
         }
@@ -1467,40 +1483,43 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(error.getMessage.contains("users") && error.getMessage.contains("0"))
         },
         test("parseUnsafe throws JsonError directly") {
-          val thrown = try {
-            Json.parseUnsafe("invalid json")
-            None
-          } catch {
-            case e: JsonError => Some(e)
-            case _: Throwable => None
-          }
+          val thrown =
+            try {
+              Json.parseUnsafe("invalid json")
+              None
+            } catch {
+              case e: JsonError => Some(e)
+              case _: Throwable => None
+            }
           assertTrue(thrown.isDefined)
         },
         test("JsonSelection.oneUnsafe throws JsonError directly") {
-          val thrown = try {
-            JsonSelection.empty.oneUnsafe
-            None
-          } catch {
-            case e: JsonError => Some(e)
-            case _: Throwable => None
-          }
+          val thrown =
+            try {
+              JsonSelection.empty.oneUnsafe
+              None
+            } catch {
+              case e: JsonError => Some(e)
+              case _: Throwable => None
+            }
           assertTrue(thrown.isDefined)
         },
         test("JsonSelection.firstUnsafe throws JsonError directly") {
-          val thrown = try {
-            JsonSelection.empty.firstUnsafe
-            None
-          } catch {
-            case e: JsonError => Some(e)
-            case _: Throwable => None
-          }
+          val thrown =
+            try {
+              JsonSelection.empty.firstUnsafe
+              None
+            } catch {
+              case e: JsonError => Some(e)
+              case _: Throwable => None
+            }
           assertTrue(thrown.isDefined)
         }
       ),
       suite("JsonError additional methods")(
         test("++ combines error messages") {
-          val error1 = JsonError("first error")
-          val error2 = JsonError("second error")
+          val error1   = JsonError("first error")
+          val error2   = JsonError("second error")
           val combined = error1 ++ error2
           assertTrue(
             combined.message == "first error; second error",
@@ -1509,14 +1528,14 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("fromSchemaError converts SchemaError to JsonError") {
           val schemaError = SchemaError.missingField(Nil, "testField")
-          val jsonError = JsonError.fromSchemaError(schemaError)
+          val jsonError   = JsonError.fromSchemaError(schemaError)
           assertTrue(
             jsonError.message.contains("testField"),
             jsonError.path == DynamicOptic.root
           )
         },
         test("apply with message and path") {
-          val path = DynamicOptic.root.field("users").at(0)
+          val path  = DynamicOptic.root.field("users").at(0)
           val error = JsonError("field missing", path)
           assertTrue(
             error.message == "field missing",
@@ -1529,13 +1548,13 @@ object JsonSpec extends SchemaBaseSpec {
       ),
       suite("Chunk-based encoding and parsing")(
         test("encodeToChunk produces valid Chunk[Byte]") {
-          val json = Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))
+          val json  = Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))
           val chunk = json.encodeToChunk
           assertTrue(chunk.length > 0)
         },
         test("parse from Chunk[Byte] works correctly") {
-          val json = Json.obj("key" -> Json.str("value"))
-          val chunk = json.encodeToChunk
+          val json   = Json.obj("key" -> Json.str("value"))
+          val chunk  = json.encodeToChunk
           val parsed = Json.parse(chunk)
           assertTrue(parsed == Right(json))
         },
@@ -1543,48 +1562,48 @@ object JsonSpec extends SchemaBaseSpec {
           val json = Json.obj(
             "users" -> Json.arr(
               Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30)),
-              Json.obj("name" -> Json.str("Bob"), "age" -> Json.number(25))
+              Json.obj("name" -> Json.str("Bob"), "age"   -> Json.number(25))
             ),
-            "count" -> Json.number(2),
+            "count"  -> Json.number(2),
             "active" -> Json.bool(true)
           )
-          val chunk = json.encodeToChunk
+          val chunk  = json.encodeToChunk
           val parsed = Json.parse(chunk)
           assertTrue(parsed == Right(json))
         },
         test("encodeToChunk with custom WriterConfig") {
-          val json = Json.obj("a" -> Json.number(1))
-          val chunk = json.encodeToChunk(WriterConfig)
+          val json   = Json.obj("a" -> Json.number(1))
+          val chunk  = json.encodeToChunk(WriterConfig)
           val parsed = Json.parse(chunk)
           assertTrue(parsed == Right(json))
         },
         test("parse from Chunk[Byte] with custom ReaderConfig") {
-          val json = Json.obj("a" -> Json.number(1))
-          val chunk = json.encodeToChunk
+          val json   = Json.obj("a" -> Json.number(1))
+          val chunk  = json.encodeToChunk
           val parsed = Json.parse(chunk, ReaderConfig)
           assertTrue(parsed == Right(json))
         },
         test("decode alias works same as parse for Chunk") {
-          val json = Json.obj("test" -> Json.str("value"))
-          val chunk = json.encodeToChunk
+          val json    = Json.obj("test" -> Json.str("value"))
+          val chunk   = json.encodeToChunk
           val decoded = Json.decode(chunk)
           assertTrue(decoded == Right(json))
         },
         test("decode with config alias works same as parse") {
-          val json = Json.obj("test" -> Json.str("value"))
-          val chunk = json.encodeToChunk
+          val json    = Json.obj("test" -> Json.str("value"))
+          val chunk   = json.encodeToChunk
           val decoded = Json.decode(chunk, ReaderConfig)
           assertTrue(decoded == Right(json))
         }
       ),
       suite("MergeStrategy.Custom")(
         test("Custom merge strategy allows user-defined logic") {
-          val left = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
-          val right = Json.obj("a" -> Json.number(10), "c" -> Json.number(3))
+          val left           = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
+          val right          = Json.obj("a" -> Json.number(10), "c" -> Json.number(3))
           val customStrategy = MergeStrategy.Custom { (_, l, r) =>
             (l, r) match {
               case (Json.Number(lv), Json.Number(rv)) => Json.number(lv + rv)
-              case _                                   => r
+              case _                                  => r
             }
           }
           val result = left.merge(right, customStrategy)
@@ -1595,9 +1614,9 @@ object JsonSpec extends SchemaBaseSpec {
           )
         },
         test("Custom merge strategy receives correct path") {
-          var capturedPaths = List.empty[String]
-          val left = Json.obj("outer" -> Json.obj("inner" -> Json.number(1)))
-          val right = Json.obj("outer" -> Json.obj("inner" -> Json.number(2)))
+          var capturedPaths  = List.empty[String]
+          val left           = Json.obj("outer" -> Json.obj("inner" -> Json.number(1)))
+          val right          = Json.obj("outer" -> Json.obj("inner" -> Json.number(2)))
           val customStrategy = MergeStrategy.Custom { (path, _, r) =>
             capturedPaths = capturedPaths :+ path.toString
             r
@@ -1606,12 +1625,12 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(capturedPaths.exists(_.contains("inner")))
         },
         test("Custom merge strategy falls back to user function for non-objects") {
-          val left = Json.arr(Json.number(1))
-          val right = Json.arr(Json.number(2))
+          val left           = Json.arr(Json.number(1))
+          val right          = Json.arr(Json.number(2))
           val customStrategy = MergeStrategy.Custom { (_, l, r) =>
             (l, r) match {
               case (Json.Array(lv), Json.Array(rv)) => Json.arr((lv ++ rv): _*)
-              case _                                 => r
+              case _                                => r
             }
           }
           val result = left.merge(right, customStrategy)

@@ -43,13 +43,13 @@ trait JsonDecoder[A] { self =>
   /**
    * Maps the decoded value using the given function.
    */
-  def map[B](f: A => B): JsonDecoder[B] = 
+  def map[B](f: A => B): JsonDecoder[B] =
     (json: Json) => self.decode(json).map(f)
 
   /**
    * FlatMaps the decoded value using the given function.
    */
-  def flatMap[B](f: A => Either[JsonError, B]): JsonDecoder[B] = 
+  def flatMap[B](f: A => Either[JsonError, B]): JsonDecoder[B] =
     (json: Json) => self.decode(json).flatMap(f)
 
   /**
@@ -72,7 +72,7 @@ object JsonDecoder {
   /**
    * Creates a JsonDecoder from a function.
    */
-  def instance[A](f: Json => Either[JsonError, A]): JsonDecoder[A] = 
+  def instance[A](f: Json => Either[JsonError, A]): JsonDecoder[A] =
     (json: Json) => f(json)
 
   // ─────────────────────────────────────────────────────────────────────────

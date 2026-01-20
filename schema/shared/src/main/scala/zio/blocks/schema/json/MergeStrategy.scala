@@ -10,22 +10,23 @@ sealed trait MergeStrategy
 object MergeStrategy {
 
   /**
-   * Automatically determines the best merge strategy based on the types of values:
-   * - Objects are merged deeply (recursively)
-   * - Arrays are concatenated
-   * - Other values are replaced
+   * Automatically determines the best merge strategy based on the types of
+   * values:
+   *   - Objects are merged deeply (recursively)
+   *   - Arrays are concatenated
+   *   - Other values are replaced
    */
   case object Auto extends MergeStrategy
 
   /**
-   * Recursively merges objects. For non-object values, the right-hand side replaces
-   * the left-hand side. Arrays are concatenated.
+   * Recursively merges objects. For non-object values, the right-hand side
+   * replaces the left-hand side. Arrays are concatenated.
    */
   case object Deep extends MergeStrategy
 
   /**
-   * Performs a shallow merge of objects (only top-level keys). Nested objects are
-   * replaced rather than merged. Arrays are concatenated.
+   * Performs a shallow merge of objects (only top-level keys). Nested objects
+   * are replaced rather than merged. Arrays are concatenated.
    */
   case object Shallow extends MergeStrategy
 
@@ -42,10 +43,12 @@ object MergeStrategy {
 
   /**
    * Custom merge strategy that allows full control over how values are merged.
-   * The function receives the path to the current location, the left value,
-   * and the right value, and returns the merged result.
+   * The function receives the path to the current location, the left value, and
+   * the right value, and returns the merged result.
    *
-   * @param f A function that takes (path, left, right) and returns the merged JSON value
+   * @param f
+   *   A function that takes (path, left, right) and returns the merged JSON
+   *   value
    */
   final case class Custom(f: (DynamicOptic, Json, Json) => Json) extends MergeStrategy
 }

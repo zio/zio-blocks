@@ -27,7 +27,8 @@ final case class JsonError(
   offset: Option[Long] = None,
   line: Option[Int] = None,
   column: Option[Int] = None
-) extends Exception with NoStackTrace {
+) extends Exception
+    with NoStackTrace {
 
   /**
    * Combines this error with another, preserving both error messages.
@@ -87,7 +88,8 @@ object JsonError {
     JsonError(error.message, DynamicOptic.root, None, None, None)
 
   /**
-   * Creates a JsonError from an existing JsonBinaryCodecError for backward compatibility.
+   * Creates a JsonError from an existing JsonBinaryCodecError for backward
+   * compatibility.
    */
   def fromJsonBinaryCodecError(error: JsonBinaryCodecError): JsonError = {
     val path = error.spans.foldRight(DynamicOptic.root) { (node, acc) =>
