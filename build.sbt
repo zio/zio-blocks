@@ -11,7 +11,8 @@ inThisBuild(
     licenses     := List(
       "Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")
     ),
-    developers := List(
+    headerLicense := Some(HeaderLicense.ALv2("2023", "ZIO Blocks Maintainers")),
+    developers    := List(
       Developer(
         "jdegoes",
         "John De Goes",
@@ -65,7 +66,8 @@ lazy val root = project
     scalaNextTests.native,
     benchmarks,
     docs,
-    examples
+    examples,
+    `schema-bson`
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -77,6 +79,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
+  .dependsOn(chunk)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
@@ -174,6 +177,7 @@ lazy val `schema-avro` = project
     })
   )
 
+<<<<<<< HEAD
 lazy val `schema-thrift` = project
   .settings(stdSettings("zio-blocks-schema-thrift"))
   .dependsOn(schema.jvm % "compile->compile;test->test")
@@ -184,6 +188,18 @@ lazy val `schema-thrift` = project
       "org.apache.thrift" % "libthrift"    % "0.19.0",
       "dev.zio"          %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"          %% "zio-test-sbt" % "2.1.24" % Test
+=======
+lazy val `schema-bson` = project
+  .settings(stdSettings("zio-blocks-schema-bson"))
+  .dependsOn(schema.jvm % "compile->compile;test->test", chunk.jvm)
+  .settings(buildInfoSettings("zio.blocks.schema.bson"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.mongodb"    % "bson"         % "4.11.1",
+      "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
+>>>>>>> fc2ca75eb5b5cb1c77c65ae48dc5c4e482f8dadc
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq()
