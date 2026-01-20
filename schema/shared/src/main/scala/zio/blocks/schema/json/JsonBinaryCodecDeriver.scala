@@ -504,6 +504,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 def encodeValue(x: A, out: JsonWriter): Unit = root.discriminate(x).writeVal(out)
+
+                def nullValue: A = null.asInstanceOf[A]
               }
             } else {
               discriminatorKind match {
@@ -569,6 +571,8 @@ class JsonBinaryCodecDeriver private[json] (
 
                     def encodeValue(x: A, out: JsonWriter): Unit =
                       root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+
+                    def nullValue: A = null.asInstanceOf[A]
                   }
                 case DiscriminatorKind.None =>
                   val codecs = Array.newBuilder[JsonBinaryCodec[?]]
@@ -616,6 +620,8 @@ class JsonBinaryCodecDeriver private[json] (
 
                     def encodeValue(x: A, out: JsonWriter): Unit =
                       root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+
+                    def nullValue: A = null.asInstanceOf[A]
                   }
                 case _ =>
                   val map = new StringMap[CaseLeafInfo](variant.cases.length)
@@ -683,6 +689,8 @@ class JsonBinaryCodecDeriver private[json] (
                       caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
                       out.writeObjectEnd()
                     }
+
+                    def nullValue: A = null.asInstanceOf[A]
                   }
               }
             }
@@ -1679,6 +1687,8 @@ class JsonBinaryCodecDeriver private[json] (
               } finally out.pop(usedRegisters)
               out.writeArrayEnd()
             }
+
+            def nullValue: A = null.asInstanceOf[A]
           }
         } else {
           val isRecursive = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
@@ -1842,6 +1852,8 @@ class JsonBinaryCodecDeriver private[json] (
               if (doReject && ((discriminatorField eq null) || !discriminatorField.nameMatch(in, keyLen))) {
                 in.unexpectedKeyError(keyLen)
               } else in.skip()
+
+            def nullValue: A = null.asInstanceOf[A]
           }
         }
       } else record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -1897,6 +1909,8 @@ class JsonBinaryCodecDeriver private[json] (
             }
 
           override def encodeKey(x: A, out: JsonWriter): Unit = wrappedCodec.encodeKey(unwrap(x), out)
+
+          def nullValue: A = null.asInstanceOf[A]
         }
       } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else {

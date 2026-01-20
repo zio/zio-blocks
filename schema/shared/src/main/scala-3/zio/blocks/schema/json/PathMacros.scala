@@ -14,10 +14,9 @@ object PathMacros {
     }
   }
 
-  def jsonInterpolator(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Json] = {
+  def jsonInterpolator(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Json] =
     // Generate: Json.fromInterpolation(sc.parts, args)
     '{
       Json.fromInterpolation($sc.parts, $args)
     }
-  }
 }

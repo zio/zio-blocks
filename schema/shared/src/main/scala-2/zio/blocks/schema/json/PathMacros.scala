@@ -5,7 +5,7 @@ import zio.blocks.schema.DynamicOptic
 
 object PathMacros {
 
-  def pathInterpolator(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[DynamicOptic] = {
+  def pathInterpolator(c: blackbox.Context)(@annotation.unused args: c.Expr[Any]*): c.Expr[DynamicOptic] = {
     import c.universe._
     
     // Access the StringContext parts

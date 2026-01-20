@@ -19,14 +19,12 @@ object JsonDecoder extends JsonDecoderLowPriority {
     }
 }
 
-
-
 trait JsonDecoderLowPriority {
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonDecoder[A] =
     new JsonDecoder[A] {
-       def decode(json: Json): Either[JsonError, A] = {
-         val dv = json.toDynamicValue
-         schema.fromDynamicValue(dv).left.map(e => JsonError.fromSchemaError(e))
-       }
+      def decode(json: Json): Either[JsonError, A] = {
+        val dv = json.toDynamicValue
+        schema.fromDynamicValue(dv).left.map(e => JsonError.fromSchemaError(e))
+      }
     }
 }

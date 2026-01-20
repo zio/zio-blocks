@@ -4,16 +4,23 @@ import zio.blocks.schema.{DynamicOptic, SchemaError}
 import scala.util.control.NoStackTrace
 
 /**
- * Represents an error that occurred during JSON parsing, encoding, or processing.
+ * Represents an error that occurred during JSON parsing, encoding, or
+ * processing.
  *
- * NOTE: This should replace JsonBinaryCodecError and be moved to `zio.block.schema.json`.
+ * NOTE: This should replace JsonBinaryCodecError and be moved to
+ * `zio.block.schema.json`.
  *
- * @param message A human-readable description of the error
- * @param path The location in the JSON structure where the error occurred,
- *             represented as a [[DynamicOptic]]
- * @param offset Optional byte offset in the input where the error occurred
- * @param line Optional 1-indexed line number where the error occurred
- * @param column Optional 1-indexed column number where the error occurred
+ * @param message
+ *   A human-readable description of the error
+ * @param path
+ *   The location in the JSON structure where the error occurred, represented as
+ *   a [[DynamicOptic]]
+ * @param offset
+ *   Optional byte offset in the input where the error occurred
+ * @param line
+ *   Optional 1-indexed line number where the error occurred
+ * @param column
+ *   Optional 1-indexed column number where the error occurred
  */
 final case class JsonError(
   message: String,
@@ -21,7 +28,8 @@ final case class JsonError(
   offset: Option[Long],
   line: Option[Int],
   column: Option[Int]
-) extends Exception with NoStackTrace {
+) extends Exception
+    with NoStackTrace {
 
   override def getMessage: String = {
     val posInfo = (line, column) match {
@@ -42,7 +50,8 @@ final case class JsonError(
 object JsonError {
 
   /**
-   * Creates a JsonError with only a message, using root path and no position info.
+   * Creates a JsonError with only a message, using root path and no position
+   * info.
    */
   def apply(message: String): JsonError =
     JsonError(message, DynamicOptic.root, None, None, None)

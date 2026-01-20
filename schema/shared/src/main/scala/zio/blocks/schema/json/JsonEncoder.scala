@@ -19,7 +19,6 @@ object JsonEncoder extends JsonEncoderLowPriority {
     }
 }
 
-
 trait JsonEncoderLowPriority {
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonEncoder[A] =
     new JsonEncoder[A] {

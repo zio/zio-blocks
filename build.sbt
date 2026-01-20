@@ -120,6 +120,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     )
   )
+  .dependsOn(chunk)
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)

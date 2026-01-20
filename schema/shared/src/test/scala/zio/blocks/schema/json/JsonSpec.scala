@@ -32,7 +32,7 @@ object JsonSpec extends ZIOSpecDefault {
       assertTrue(json.isObject)
     },
     test("get") {
-      val json = Json.Object(Vector("foo" -> Json.Array(Vector(Json.Number("1")))))
+      val json  = Json.Object(Vector("foo" -> Json.Array(Vector(Json.Number("1")))))
       val optic = DynamicOptic.root.field("foo").at(0)
       assertTrue(json.get(optic).one == Right(Json.Number("1")))
     },
@@ -51,37 +51,37 @@ object JsonSpec extends ZIOSpecDefault {
     suite("Navigation")(
       test("get field") {
         val obj: Json = Json.Object("foo" -> Json.String("bar"))
-        val path = DynamicOptic.root.field("foo")
+        val path      = DynamicOptic.root.field("foo")
         assert(obj.get(path).one)(isRight(equalTo(Json.String("bar"))))
       },
       test("get index") {
         val arr: Json = Json.Array(Json.String("foo"), Json.String("bar"))
-        val path = DynamicOptic.root.at(1)
+        val path      = DynamicOptic.root.at(1)
         assert(arr.get(path).one)(isRight(equalTo(Json.String("bar"))))
       }
     ),
     suite("Interpolators")(
       test("path string") {
-         // This tests the macro expansion (runtime or compile time)
-         val path = p"foo.bar"
-         val expected = DynamicOptic.root.field("foo").field("bar")
-         // Since our macro implementation is basic, let's verify what it produces
-         assert(path)(equalTo(expected))
+        // This tests the macro expansion (runtime or compile time)
+        val path     = p"foo.bar"
+        val expected = DynamicOptic.root.field("foo").field("bar")
+        // Since our macro implementation is basic, let's verify what it produces
+        assert(path)(equalTo(expected))
       }
     ),
     suite("Modification")(
       test("modify field") {
         val obj: Json = Json.Object("foo" -> Json.String("bar"))
-        val path = DynamicOptic.root.field("foo")
-        val modified = obj.modify(path, _ => Json.String("baz"))
+        val path      = DynamicOptic.root.field("foo")
+        val modified  = obj.modify(path, _ => Json.String("baz"))
         assert(modified)(equalTo(Json.Object("foo" -> Json.String("baz"))))
       }
     ),
     suite("DynamicValue Interop")(
       test("Round trip") {
         val original = Json.Object("foo" -> Json.String("bar"), "num" -> Json.number(123))
-        val dv = original.toDynamicValue
-        val result = Json.fromDynamicValue(dv)
+        val dv       = original.toDynamicValue
+        val result   = Json.fromDynamicValue(dv)
         assert(result)(equalTo(original))
       }
     )

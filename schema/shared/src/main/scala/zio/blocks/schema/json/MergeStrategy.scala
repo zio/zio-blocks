@@ -15,9 +15,9 @@ object MergeStrategy {
 
   /**
    * Automatically determines merge behavior based on value types:
-   *  - Objects: deep merge (recurse into matching keys)
-   *  - Arrays: concatenate
-   *  - Primitives: right wins
+   *   - Objects: deep merge (recurse into matching keys)
+   *   - Arrays: concatenate
+   *   - Primitives: right wins
    */
   case object Auto extends MergeStrategy
 
@@ -44,7 +44,8 @@ object MergeStrategy {
   /**
    * Custom merge function.
    *
-   * @param f A function receiving path and both values, returning merged result
+   * @param f
+   *   A function receiving path and both values, returning merged result
    */
   final case class Custom(f: (DynamicOptic, Json, Json) => Json) extends MergeStrategy
 }
