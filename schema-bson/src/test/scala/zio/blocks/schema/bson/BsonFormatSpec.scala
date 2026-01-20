@@ -98,12 +98,12 @@ object BsonFormatSpec extends SchemaBaseSpec {
       },
       test("Vector[String]") {
         roundTrip(Vector("A", "B"), 31)
-      },
+      }
     ),
     suite("maps")(
       test("string keys") {
         roundTrip(Map("key" -> 42), 14)
-      },
+      }
 //      test("non-string keys") {
 //        roundTrip(Map(1 -> "one"), 35)
 //      }
@@ -121,15 +121,18 @@ object BsonFormatSpec extends SchemaBaseSpec {
       }
     ),
     suite("dynamic")(
-       test("DynamicValue.Record") {
+      test("DynamicValue.Record") {
         val schema = Schema[DynamicValue]
         val record = DynamicValue.Record(
-          Vector("foo" -> DynamicValue.Primitive(PrimitiveValue.String("s")), "bar" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          Vector(
+            "foo" -> DynamicValue.Primitive(PrimitiveValue.String("s")),
+            "bar" -> DynamicValue.Primitive(PrimitiveValue.Int(1))
+          )
         )
         roundTrip(record, 118)(schema)
       },
       test("DynamicValue.Sequence") {
-        val schema = Schema[DynamicValue]
+        val schema   = Schema[DynamicValue]
         val sequence = DynamicValue.Sequence(
           Vector(DynamicValue.Primitive(PrimitiveValue.String("s")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
         )
