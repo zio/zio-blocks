@@ -16,7 +16,7 @@ In the root `build.sbt`, `zioGolemQuickstartJS` configures only which component 
 
 ### Constructor shape
 
-This quickstart uses a **scalar constructor** (`type AgentInput = String`), so in the REPL you create agents like:
+This quickstart uses a **scalar constructor** (`BaseAgent[String]`), so in the REPL you create agents like:
 
 - `counter-agent("agent-1")`
 
@@ -33,8 +33,7 @@ import golem.BaseAgent
 import scala.concurrent.Future
 
 @agentDefinition("shard-agent", mode = DurabilityMode.Durable)
-trait ShardAgent extends BaseAgent {
-  type AgentInput = (String, Int)
+trait ShardAgent extends BaseAgent[(String, Int)] {
   def ping(): Future[String]
 }
 ```

@@ -27,8 +27,7 @@ object TypedReply {
 
 @agentDefinition()
 @description("A minimal worker agent used for in-Golem agent-to-agent calling examples.")
-trait Worker extends BaseAgent {
-  type AgentInput = (String, Int)
+trait Worker extends BaseAgent[(String, Int)] {
   def reverse(input: String): Future[String]
   def handle(payload: TypedPayload): Future[TypedReply]
 }
@@ -36,8 +35,7 @@ object Worker extends AgentCompanion[Worker]
 
 @agentDefinition(mode = DurabilityMode.Ephemeral)
 @description("A minimal coordinator agent that calls Worker via agent RPC inside Golem.")
-trait Coordinator extends BaseAgent {
-  type AgentInput = String
+trait Coordinator extends BaseAgent[String] {
   def route(shardName: String, shardIndex: Int, input: String): Future[String]
   def routeTyped(shardName: String, shardIndex: Int, payload: TypedPayload): Future[TypedReply]
 }

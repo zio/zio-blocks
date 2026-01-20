@@ -10,7 +10,7 @@ object AgentImplementationMacro {
   def implementationType[Trait](build: => Trait): AgentImplementationType[Trait, Unit] =
     macro AgentImplementationMacroImpl.implementationTypeImpl[Trait]
 
-  def implementationTypeWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
+  def implementationTypeWithCtor[Trait, Ctor](
     build: Ctor => Trait
   ): AgentImplementationType[Trait, Ctor] =
     macro AgentImplementationMacroImpl.implementationTypeWithCtorImpl[Trait, Ctor]
@@ -64,22 +64,16 @@ object AgentImplementationMacroImpl {
     }
 
     val ctorType: Type = {
-      val member = traitType.member(TypeName("AgentInput"))
-      if (member == NoSymbol) typeOf[Unit]
-      else {
-        val sig = member.typeSignatureIn(traitType)
-        sig match {
-          case TypeBounds(_, hi) => hi.dealias
-          case other             => other.dealias
-        }
-      }
+      val baseSymOpt = traitType.baseClasses.find(_.fullName == "golem.BaseAgent")
+      val baseArgs   = baseSymOpt.toList.flatMap(sym => traitType.baseType(sym).typeArgs)
+      baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
     }
 
     val gotCtor = weakTypeOf[Ctor].dealias
     if (!(gotCtor =:= ctorType)) {
       c.abort(
         c.enclosingPosition,
-        s"Constructor function must have input type matching `type AgentInput = $ctorType` on ${traitSymbol.fullName} (found: $gotCtor)"
+        s"Constructor function must have input type matching BaseAgent[$ctorType] on ${traitSymbol.fullName} (found: $gotCtor)"
       )
     }
 

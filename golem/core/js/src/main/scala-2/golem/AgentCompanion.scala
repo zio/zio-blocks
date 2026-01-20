@@ -12,31 +12,31 @@ import scala.language.experimental.macros
  *
  * {{{
  * @agentDefinition("my-agent")
- * trait MyAgent { type AgentInput = Ctor; ... }
+ * trait MyAgent extends BaseAgent[Ctor] { ... }
  *
  * object MyAgent extends AgentCompanion[MyAgent]
  * }}}
  */
 // format: off
-trait AgentCompanion[Trait <: AnyRef { type AgentInput }] extends AgentCompanionBase[Trait] {
-  type AgentInput = Trait#AgentInput
+trait AgentCompanion[Trait <: BaseAgent[_]] extends AgentCompanionBase[Trait] {
+  implicit final val implicitAgentCompanion: AgentCompanion[Trait] = this
 
   def typeName: String =
     macro golem.runtime.macros.AgentCompanionMacro.typeNameImpl
 
-  def agentType: AgentType[Trait, AgentInput] =
+  def agentType: AgentType[Trait, _] =
     macro golem.runtime.macros.AgentCompanionMacro.agentTypeImpl
 
-  def get(input: AgentInput): Future[Trait] =
+  def get[In](input: In): Future[Trait] =
     macro golem.runtime.macros.AgentCompanionMacro.getImpl
 
-  def getRemote(input: AgentInput): Future[RemoteAgent[Trait]] =
+  def getRemote[In](input: In): Future[RemoteAgent[Trait]] =
     macro golem.runtime.macros.AgentCompanionMacro.getRemoteImpl
 
-  def getPhantom(input: AgentInput, phantom: Uuid): Future[Trait] =
+  def getPhantom[In](input: In, phantom: Uuid): Future[Trait] =
     macro golem.runtime.macros.AgentCompanionMacro.getPhantomImpl
 
-  def getRemotePhantom(input: AgentInput, phantom: Uuid): Future[RemoteAgent[Trait]] =
+  def getRemotePhantom[In](input: In, phantom: Uuid): Future[RemoteAgent[Trait]] =
     macro golem.runtime.macros.AgentCompanionMacro.getRemotePhantomImpl
 
   def get(): Future[Trait] =
@@ -74,4 +74,54 @@ trait AgentCompanion[Trait <: AnyRef { type AgentInput }] extends AgentCompanion
 
   def getRemotePhantom[A1, A2, A3](a1: A1, a2: A2, a3: A3, phantom: Uuid): Future[RemoteAgent[Trait]] =
     macro golem.runtime.macros.AgentCompanionMacro.getRemotePhantomTuple3Impl[A1, A2, A3]
+
+  def get[A1, A2, A3, A4](a1: A1, a2: A2, a3: A3, a4: A4): Future[Trait] =
+    macro golem.runtime.macros.AgentCompanionMacro.getTuple4Impl[A1, A2, A3, A4]
+
+  def getRemote[A1, A2, A3, A4](a1: A1, a2: A2, a3: A3, a4: A4): Future[RemoteAgent[Trait]] =
+    macro golem.runtime.macros.AgentCompanionMacro.getRemoteTuple4Impl[A1, A2, A3, A4]
+
+  def getPhantom[A1, A2, A3, A4](a1: A1, a2: A2, a3: A3, a4: A4, phantom: Uuid): Future[Trait] =
+    macro golem.runtime.macros.AgentCompanionMacro.getPhantomTuple4Impl[A1, A2, A3, A4]
+
+  def getRemotePhantom[A1, A2, A3, A4](
+    a1: A1,
+    a2: A2,
+    a3: A3,
+    a4: A4,
+    phantom: Uuid
+  ): Future[RemoteAgent[Trait]] =
+    macro golem.runtime.macros.AgentCompanionMacro.getRemotePhantomTuple4Impl[A1, A2, A3, A4]
+
+  def get[A1, A2, A3, A4, A5](a1: A1, a2: A2, a3: A3, a4: A4, a5: A5): Future[Trait] =
+    macro golem.runtime.macros.AgentCompanionMacro.getTuple5Impl[A1, A2, A3, A4, A5]
+
+  def getRemote[A1, A2, A3, A4, A5](
+    a1: A1,
+    a2: A2,
+    a3: A3,
+    a4: A4,
+    a5: A5
+  ): Future[RemoteAgent[Trait]] =
+    macro golem.runtime.macros.AgentCompanionMacro.getRemoteTuple5Impl[A1, A2, A3, A4, A5]
+
+  def getPhantom[A1, A2, A3, A4, A5](
+    a1: A1,
+    a2: A2,
+    a3: A3,
+    a4: A4,
+    a5: A5,
+    phantom: Uuid
+  ): Future[Trait] =
+    macro golem.runtime.macros.AgentCompanionMacro.getPhantomTuple5Impl[A1, A2, A3, A4, A5]
+
+  def getRemotePhantom[A1, A2, A3, A4, A5](
+    a1: A1,
+    a2: A2,
+    a3: A3,
+    a4: A4,
+    a5: A5,
+    phantom: Uuid
+  ): Future[RemoteAgent[Trait]] =
+    macro golem.runtime.macros.AgentCompanionMacro.getRemotePhantomTuple5Impl[A1, A2, A3, A4, A5]
 }

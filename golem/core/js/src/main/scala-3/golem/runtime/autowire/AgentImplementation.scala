@@ -1,5 +1,7 @@
 package golem.runtime.autowire
 
+import golem.BaseAgent
+
 import golem.runtime.macros.AgentImplementationMacro
 import golem.runtime.macros.AgentNameMacro
 
@@ -48,12 +50,12 @@ private[golem] object AgentImplementation {
 
   /**
    * Registers an agent implementation using constructor input, as defined by
-   * `type AgentInput = ...` on the agent trait.
+   * `BaseAgent[Input]` on the agent trait.
    *
    * The agent mode is taken from `@agentDefinition(mode = ...)` on the trait,
    * or defaults to Durable.
    */
-  inline def register[Trait <: AnyRef { type AgentInput }, Ctor](inline build: Ctor => Trait): AgentDefinition[Trait] =
+  inline def register[Trait <: BaseAgent[?], Ctor](inline build: Ctor => Trait): AgentDefinition[Trait] =
     registerWithCtorInternal[Trait, Ctor](AgentNameMacro.typeName[Trait])(build)
 
   /**
@@ -89,7 +91,7 @@ private[golem] object AgentImplementation {
     registerType(typeName, effectiveMode, implType)
   }
 
-  private inline def registerWithCtorInternal[Trait <: AnyRef { type AgentInput }, Ctor](typeName: String)(
+  private inline def registerWithCtorInternal[Trait <: BaseAgent[?], Ctor](typeName: String)(
     inline build: Ctor => Trait
   ): AgentDefinition[Trait] = {
     val implType     = AgentImplementationMacro.implementationTypeWithCtor[Trait, Ctor](build)

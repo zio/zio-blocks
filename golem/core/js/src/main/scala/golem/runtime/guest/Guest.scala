@@ -1,6 +1,10 @@
 package golem.runtime.guest
 
 import golem.runtime.autowire.AgentRegistry
+import golem.runtime.util.FutureInterop
+
+import scala.concurrent.Future
+import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExportTopLevel
 
@@ -8,7 +12,7 @@ import scala.scalajs.js.annotation.JSExportTopLevel
  * Scala.js implementation of the mandatory Golem JS guest exports.
  *
  * The Scala application code is responsible for registering agent definitions
- * into [[AgentRegistry]] at module initialization time (typically via
+ * into AgentRegistry at module initialization time (typically via
  * `AgentImplementation.register[...]` calls in a small exported value whose
  * initializer runs on module load).
  */
@@ -89,16 +93,16 @@ object Guest {
         case None =>
           js.Promise.reject(invalidType("Invalid agent '" + agentTypeName + "'")).asInstanceOf[js.Promise[Unit]]
         case Some(defnAny) =>
-          val onRejected: js.Function1[Any, js.Thenable[Unit]] =
-            js.Any.fromFunction1((err: Any) =>
-              js.Promise.reject(asAgentError(err, "invalid-input")).asInstanceOf[js.Thenable[Unit]]
-            )
-          defnAny
-            .initializeAny(input)
-            .`then`[Unit](
-              (inst: Any) => { resolved = Resolved(defnAny, inst); () },
-              onRejected
-            )
+          // Avoid calling `.then` directly (Scala 3 scaladoc / TASTy reader can error on it during `doc`).
+          val initPromise = defnAny.initializeAny(input)
+          val initFuture: Future[Unit] =
+            FutureInterop.fromPromise(initPromise).map { inst =>
+              resolved = Resolved(defnAny, inst)
+              ()
+            }.recoverWith { case err =>
+              Future.failed(scala.scalajs.js.JavaScriptException(asAgentError(err, "invalid-input")))
+            }
+          FutureInterop.toPromise(initFuture).asInstanceOf[js.Promise[Unit]]
       }
     }
 

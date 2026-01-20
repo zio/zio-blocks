@@ -321,15 +321,15 @@ object GolemPlugin extends AutoPlugin {
                 // Heuristic: in our examples/quickstart, impl class and its agent trait live in the same package.
                 val traitFqn = fqn(ai.pkg, ai.traitType)
                 val implFqn  = fqn(ai.pkg, ai.implClass)
-                val ctorTpe  = s"$traitFqn#AgentInput"
 
                 ai.ctorTypes match {
                   case Nil =>
                     s"AgentImplementation.register[$traitFqn](new $implFqn())"
                   case tpe :: Nil =>
-                    s"AgentImplementation.register[$traitFqn, $ctorTpe]((in: $ctorTpe) => new $implFqn(in))"
+                    s"AgentImplementation.register[$traitFqn, $tpe]((in: $tpe) => new $implFqn(in))"
                   case many =>
                     val args = many.indices.map(i => s"in._${i + 1}").mkString(", ")
+                    val ctorTpe = s"(${many.mkString(", ")})"
                     s"AgentImplementation.register[$traitFqn, $ctorTpe]((in: $ctorTpe) => new $implFqn($args))"
                 }
               }

@@ -1,6 +1,7 @@
 package golem.runtime.rpc
 
 import golem.data.{DataType, DataValue}
+import golem.BaseAgent
 import golem.runtime.agenttype.AgentMethod
 import golem.runtime.annotations.{DurabilityMode, agentDefinition}
 import golem.runtime.autowire.{AgentImplementation, WitValueBuilder}
@@ -15,7 +16,7 @@ final class AgentClientTypeEndToEndSpec extends AsyncFunSuite {
     scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 
   @agentDefinition("e2e-client-async", mode = DurabilityMode.Durable)
-  trait AsyncEchoAgent {
+  trait AsyncEchoAgent extends BaseAgent[Unit] {
     def echo(in: String): Future[String]
   }
 

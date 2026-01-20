@@ -31,8 +31,6 @@ import scala.scalajs.js.typedarray.Uint8Array
  * )
  * }}}
  *
- * @see
- *   [[docs/snapshot.md]] for detailed usage patterns
  */
 object SnapshotExports {
   private var saveHook: () => Future[Uint8Array] =

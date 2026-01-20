@@ -56,8 +56,7 @@ object Name {
 // Define your agent trait (typeName is optional; when omitted, it is derived from the trait name)
 @agentDefinition(mode = DurabilityMode.Durable)
 @description("A simple name-processing agent")
-trait NameAgent extends BaseAgent {
-  type AgentInput = Unit // or a case class with a Schema
+trait NameAgent extends BaseAgent[Unit] {
 
   @description("Reverse the provided name")
   def reverse(input: Name): Future[Name]
@@ -89,7 +88,7 @@ From another component, connect to a remote agent:
 import golem.runtime.rpc.AgentClient
 import scala.concurrent.Future
 
-val agentType = AgentClient.agentType[NameAgent] // uses @agentDefinition + NameAgent.AgentInput
+val agentType = AgentClient.agentType[NameAgent] // uses @agentDefinition + NameAgent input type
 
 // Connect and invoke
 val result: Future[NameAgent] = AgentClient.connect(agentType, ())
@@ -108,8 +107,7 @@ import golem.{AgentCompanion, BaseAgent, Uuid}
 import scala.concurrent.Future
 
 @agentDefinition(mode = DurabilityMode.Durable)
-trait Shard extends BaseAgent {
-  type AgentInput = (String, Int)
+trait Shard extends BaseAgent[(String, Int)] {
 
   @description("Get a value from the table")
   def get(key: String): Future[Option[String]]

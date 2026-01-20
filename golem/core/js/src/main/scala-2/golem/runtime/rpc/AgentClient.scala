@@ -32,7 +32,7 @@ object AgentClient {
    * Typed agent-type accessor (no user-land casts).
    *
    * Validates at compile-time that `Constructor` matches
-   * `type AgentInput = ...` on the agent trait.
+   * the `BaseAgent[Input]` constructor type on the agent trait.
    */
   def agentTypeWithCtor[Trait, Constructor]: AgentType[Trait, Constructor] =
     macro AgentTypeWithCtorMacro.agentTypeWithCtorImpl[Trait, Constructor]
@@ -52,15 +52,8 @@ private[rpc] object AgentTypeWithCtorMacro {
     }
 
     val expectedCtor: Type = {
-      val member = traitType.member(TypeName("AgentInput"))
-      if (member == NoSymbol) typeOf[Unit]
-      else {
-        val sig = member.typeSignatureIn(traitType)
-        sig match {
-          case TypeBounds(_, hi) => hi.dealias
-          case other             => other.dealias
-        }
-      }
+      val baseSym = typeOf[_root_.golem.BaseAgent[_]].typeSymbol
+      traitType.baseType(baseSym).typeArgs.headOption.getOrElse(typeOf[Unit]).dealias
     }
 
     val gotCtor = weakTypeOf[Constructor].dealias
@@ -68,7 +61,7 @@ private[rpc] object AgentTypeWithCtorMacro {
     if (!(gotCtor =:= expectedCtor)) {
       c.abort(
         c.enclosingPosition,
-        s"AgentClient.agentTypeWithCtor requires: type AgentInput = $expectedCtor (found: $gotCtor)"
+        s"AgentClient.agentTypeWithCtor requires: BaseAgent[$expectedCtor] (found: $gotCtor)"
       )
     }
 

@@ -6,8 +6,7 @@ import golem.{AgentCompanion, BaseAgent}
 import scala.concurrent.Future
 
 @agentDefinition()
-trait CounterAgent extends BaseAgent {
-  final type AgentInput = String
+trait CounterAgent extends BaseAgent[String] {
 
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")

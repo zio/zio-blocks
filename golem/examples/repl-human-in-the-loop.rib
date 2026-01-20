@@ -1,5 +1,5 @@
-let w = approval-workflow("demo");
-let h = human("bob");
+let w = approvalworkflow("demo");
+let h = human("demo");
 
 let started = w.begin();
 let decided = h.decide("demo", "approved");

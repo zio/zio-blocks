@@ -18,8 +18,7 @@ object CreateTaskRequest {
 
 @agentDefinition(typeName = "tasks")
 @description("A simple agent demonstrating JSON API support (Scala equivalent of the Rust/TS JSON template).")
-trait Tasks extends BaseAgent {
-  type AgentInput = String
+trait Tasks extends BaseAgent[String] {
 
   @prompt("Create a new task with the given title")
   @description("Creates a task and returns the complete task object")

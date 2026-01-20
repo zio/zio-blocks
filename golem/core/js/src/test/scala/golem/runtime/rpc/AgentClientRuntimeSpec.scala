@@ -2,6 +2,7 @@ package golem.runtime.rpc
 
 import golem.data.GolemSchema
 import golem.runtime.annotations.{DurabilityMode, agentDefinition}
+import golem.BaseAgent
 import golem.runtime.agenttype.{AgentMethod, AgentType, MethodInvocation}
 import golem.runtime.rpc.AgentClientRuntime.TestHooks
 import golem.runtime.rpc.AgentClientRuntimeSpecFixtures._
@@ -157,7 +158,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
     RpcValueCodec.encodeValue(value)
 
   private def manualBinder(
-    agentType: AgentType[RpcParityAgent, RpcCtor]
+    rpcAgentType: AgentType[RpcParityAgent, RpcCtor]
   ): AgentClientRuntime.ResolvedAgent[RpcParityAgent] => RpcParityAgent =
     resolved =>
       new RpcParityAgent {
@@ -165,17 +166,17 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
           this
 
         override def rpcCall(input: SampleInput): Future[SampleOutput] = {
-          val method = findMethod[RpcParityAgent, SampleInput, SampleOutput](agentType, "rpcCall")
+          val method = findMethod[RpcParityAgent, SampleInput, SampleOutput](rpcAgentType, "rpcCall")
           resolved.call(method, input)
         }
 
         override def multiArgs(message: String, count: Int): Future[Int] = {
-          val method = findMethod[RpcParityAgent, Vector[Any], Int](agentType, "multiArgs")
+          val method = findMethod[RpcParityAgent, Vector[Any], Int](rpcAgentType, "multiArgs")
           resolved.call(method, Vector[Any](message, count))
         }
 
         override def fireAndForget(event: String): Unit = {
-          val method = findMethod[RpcParityAgent, String, Unit](agentType, "fireAndForget")
+          val method = findMethod[RpcParityAgent, String, Unit](rpcAgentType, "fireAndForget")
           resolved.trigger(method, event).failed.foreach { err =>
             js.Dynamic.global.console.error("fire-and-forget trigger failed", err.asInstanceOf[js.Any])
           }
@@ -226,8 +227,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
 
 private object AgentClientRuntimeSpecFixtures {
   @agentDefinition("rpc-parity-agent", mode = DurabilityMode.Durable)
-  trait RpcParityAgent {
-    type AgentInput = RpcCtor
+  trait RpcParityAgent extends BaseAgent[RpcCtor] {
     def `new`(config: RpcCtor): RpcParityAgent
 
     def rpcCall(input: SampleInput): Future[SampleOutput]

@@ -37,15 +37,9 @@ object AgentSdkMacroImpl {
         }
 
     val ctorTpe: Type = {
-      val member = traitTpe.member(TypeName("AgentInput"))
-      if (member == NoSymbol) typeOf[Unit]
-      else {
-        val sig = member.typeSignatureIn(traitTpe)
-        sig match {
-          case TypeBounds(_, hi) => hi.dealias
-          case other             => other.dealias
-        }
-      }
+      val baseSymOpt = traitTpe.baseClasses.find(_.fullName == "golem.BaseAgent")
+      val baseArgs   = baseSymOpt.toList.flatMap(sym => traitTpe.baseType(sym).typeArgs)
+      baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
     }
 
     c.Expr[_root_.golem.AgentApi[Trait]](

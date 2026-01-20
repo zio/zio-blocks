@@ -12,8 +12,7 @@ import scala.concurrent.Future
  * story.
  */
 @agentDefinition(mode = DurabilityMode.Durable)
-trait Shard extends BaseAgent {
-  type AgentInput = (String, Int)
+trait Shard extends BaseAgent[(String, Int)] {
 
   @description("Get a value from the table")
   def get(key: String): Future[Option[String]]

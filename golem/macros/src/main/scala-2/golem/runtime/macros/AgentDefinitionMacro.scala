@@ -189,17 +189,11 @@ object AgentDefinitionMacroImpl {
   private def inferConstructorSchema(c: blackbox.Context)(tpe: c.universe.Type): c.Tree = {
     import c.universe._
 
-    val member = tpe.member(TypeName("AgentInput"))
-    if (member == NoSymbol) q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
-    else {
-      val sig      = member.typeSignatureIn(tpe)
-      val inputTpe = sig match {
-        case TypeBounds(_, hi) => hi.dealias
-        case other             => other.dealias
-      }
-      if (inputTpe =:= typeOf[Unit]) q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
-      else structuredSchemaExpr(c)(inputTpe)
-    }
+    val baseSymOpt = tpe.baseClasses.find(_.fullName == "golem.BaseAgent")
+    val baseArgs   = baseSymOpt.toList.flatMap(sym => tpe.baseType(sym).typeArgs)
+    val inputTpe   = baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
+    if (inputTpe =:= typeOf[Unit]) q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
+    else structuredSchemaExpr(c)(inputTpe)
   }
 
   private def annotationString(

@@ -2,6 +2,7 @@ package golem.runtime
 
 import golem.runtime.autowire.{AgentImplementation, HostPayload, MethodBinding}
 import golem.runtime.Sum
+import golem.BaseAgent
 import golem.runtime.annotations.{DurabilityMode, agentDefinition}
 import golem.runtime.util.FutureInterop
 import org.scalatest.funsuite.AsyncFunSuite
@@ -14,7 +15,7 @@ final class AgentEndToEndSpec extends AsyncFunSuite {
     scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 
   @agentDefinition(mode = DurabilityMode.Durable)
-  trait EchoAgent {
+  trait EchoAgent extends BaseAgent[Unit] {
     def echo(in: String): Future[String]
     def add(in: Sum): Future[Int]
   }

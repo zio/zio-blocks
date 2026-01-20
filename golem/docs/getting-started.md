@@ -101,8 +101,7 @@ import golem.{AgentCompanion, BaseAgent}
 import scala.concurrent.Future
 
 @agentDefinition(typeName = "counter-agent")
-trait CounterAgent extends BaseAgent {
-  final type AgentInput = String
+trait CounterAgent extends BaseAgent[String] {
 
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")
@@ -114,7 +113,7 @@ object CounterAgent extends AgentCompanion[CounterAgent]
 
 ### Custom data types (Schemas)
 
-If you use custom Scala types as **constructor inputs** (`type AgentInput = ...`) or **method parameters/return values**,
+If you use custom Scala types as **constructor inputs** (`BaseAgent[MyInput]`) or **method parameters/return values**,
 the SDK must be able to derive a `golem.data.GolemSchema[T]` for them.
 
 You normally **do not** define `GolemSchema` directly — instead, derive/provide a `zio.blocks.schema.Schema[T]`,
@@ -289,6 +288,12 @@ If your project layout is different, set `golemAgentGuestWasmFile` in `scala/bui
 to point at the desired output file.
 
 ## 6) Deploy + invoke
+
+If you see authentication / login errors (especially when switching between local and remote setups), it can help to reset the local server state:
+
+```bash
+golem-cli server run --clean --local
+```
 
 Build the Scala.js bundle once (optional, but useful to validate your build before running `golem-cli`):
 

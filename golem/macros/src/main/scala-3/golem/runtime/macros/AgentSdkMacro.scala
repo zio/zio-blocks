@@ -48,16 +48,16 @@ object AgentSdkMacro {
       }
     val typeNameExpr = Expr(typeName)
 
-    val ctorTypeRepr =
-      traitSym.typeMembers.find(_.name == "AgentInput") match {
-        case Some(typeSym) =>
-          TypeRepr.of[Trait].memberType(typeSym) match {
-            case TypeBounds(_, hi) => hi
-            case other             => other
-          }
-        case None =>
-          TypeRepr.of[Unit]
-      }
+    val ctorTypeRepr = {
+      val traitRepr = TypeRepr.of[Trait]
+      val baseSym   = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
+      if (baseSym == Symbol.noSymbol) TypeRepr.of[Unit]
+      else
+        traitRepr.baseType(baseSym) match {
+          case AppliedType(_, List(arg)) => arg
+          case _                         => TypeRepr.of[Unit]
+        }
+    }
 
     ctorTypeRepr.asType match {
       case '[ctor] =>

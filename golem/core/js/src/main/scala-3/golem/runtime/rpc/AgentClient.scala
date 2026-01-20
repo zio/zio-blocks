@@ -57,22 +57,20 @@ private object AgentTypeMacro {
       report.errorAndAbort(s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
 
     val expectedCtor: TypeRepr = {
-      traitSymbol.typeMembers.find(_.name == "AgentInput") match {
-        case None =>
-          TypeRepr.of[Unit]
-        case Some(tSym) =>
-          traitRepr.memberType(tSym) match {
-            case TypeBounds(_, hi) => hi
-            case other             => other
-          }
-      }
+      val baseSym = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
+      if (baseSym == Symbol.noSymbol) TypeRepr.of[Unit]
+      else
+        traitRepr.baseType(baseSym) match {
+          case AppliedType(_, List(arg)) => arg
+          case _                         => TypeRepr.of[Unit]
+        }
     }.dealias.widen
 
     val gotCtor = TypeRepr.of[Constructor].dealias.widen
 
     if !(gotCtor =:= expectedCtor) then
       report.errorAndAbort(
-        s"AgentClient.agentTypeWithCtor requires: type AgentInput = ${expectedCtor.show} (found: ${gotCtor.show})"
+        s"AgentClient.agentTypeWithCtor requires: BaseAgent[${expectedCtor.show}] (found: ${gotCtor.show})"
       )
 
     '{ AgentClientMacro.agentType[Trait].asInstanceOf[AgentType[Trait, Constructor]] }

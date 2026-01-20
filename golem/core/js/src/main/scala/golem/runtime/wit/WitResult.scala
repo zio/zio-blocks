@@ -25,8 +25,6 @@ package golem.runtime.wit
  *   The success type
  * @tparam Err
  *   The error type
- * @see
- *   [[docs/result.md]] for complete API documentation
  */
 sealed trait WitResult[+Ok, +Err] { self =>
 
@@ -115,7 +113,7 @@ sealed trait WitResult[+Ok, +Err] { self =>
    *
    * @return
    *   The error value
-   * @throws IllegalStateException
+   * @throws java.lang.IllegalStateException
    *   if this is a success result
    */
   def unwrapErr(): Err =
@@ -131,7 +129,7 @@ sealed trait WitResult[+Ok, +Err] { self =>
    *
    * @return
    *   The success value
-   * @throws The
+   * @throws java.lang.Throwable
    *   error payload (as-is if Throwable, wrapped otherwise)
    */
   def unwrapForWit(): Ok =

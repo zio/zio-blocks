@@ -13,18 +13,19 @@ import scala.concurrent.Future
  * This companion provides a typed way to connect to agent instances from the
  * JVM (primarily useful for local tooling and tests).
  */
-trait AgentCompanion[Trait <: AnyRef] extends AgentCompanionBase[Trait] {
+trait AgentCompanion[Trait <: BaseAgent[?]] extends AgentCompanionBase[Trait] {
+  type Input = AgentCompanion.InputOf[Trait]
 
   /** Golem agent type name, from `@agentDefinition("...")`. */
   transparent inline def typeName: String =
     AgentNameMacro.typeName[Trait]
 
   /** Reflected agent type (schemas + function names). */
-  transparent inline def agentType: AgentType[Trait, ?] =
-    AgentClientMacro.agentType[Trait]
+  transparent inline def agentType: AgentType[Trait, Input] =
+    AgentClientMacro.agentType[Trait].asInstanceOf[AgentType[Trait, Input]]
 
   /** Connect to (or create) an agent instance from constructor input. */
-  transparent inline def get[In](input: In): Future[Trait] =
+  transparent inline def get(input: Input): Future[Trait] =
     Future.successful(JvmAgentClient.connect[Trait](agentType, input))
 
   /** Unit-constructor convenience. */
@@ -53,4 +54,10 @@ trait AgentCompanion[Trait <: AnyRef] extends AgentCompanionBase[Trait] {
     @unused phantom: Uuid
   ): Future[Trait] =
     Future.failed(new UnsupportedOperationException("JvmAgentClient does not support phantom agents yet"))
+}
+
+object AgentCompanion {
+  type InputOf[T] = T match {
+    case BaseAgent[in] => in
+  }
 }

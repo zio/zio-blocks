@@ -94,15 +94,9 @@ object AgentClientMacroImpl {
 
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {
     import c.universe._
-    val member = traitType.member(TypeName("AgentInput"))
-    if (member == NoSymbol) typeOf[Unit]
-    else {
-      val sig = member.typeSignatureIn(traitType)
-      sig match {
-        case TypeBounds(_, hi) => hi.dealias
-        case other             => other.dealias
-      }
-    }
+    val baseSymOpt = traitType.baseClasses.find(_.fullName == "golem.BaseAgent")
+    val baseArgs   = baseSymOpt.toList.flatMap(sym => traitType.baseType(sym).typeArgs)
+    baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
   }
 
   private def buildMethods(c: blackbox.Context)(

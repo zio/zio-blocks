@@ -1,5 +1,6 @@
 package golem.runtime.autowire
 
+import golem.BaseAgent
 import scala.language.experimental.macros
 
 import scala.reflect.macros.blackbox
@@ -50,12 +51,12 @@ private[golem] object AgentImplementation {
 
   /**
    * Registers an agent implementation using constructor input, as defined by
-   * `type AgentInput = ...` on the agent trait.
+   * `BaseAgent[Input]` on the agent trait.
    *
    * The agent mode is taken from `@agentDefinition(mode = ...)` on the trait,
    * or defaults to Durable.
    */
-  def register[Trait <: AnyRef { type AgentInput }, Ctor](build: Ctor => Trait): AgentDefinition[Trait] =
+  def register[Trait <: BaseAgent[_], Ctor](build: Ctor => Trait): AgentDefinition[Trait] =
     macro AgentImplementationMacroFacade.registerFromAnnotationCtorImpl[Trait, Ctor]
 
   /**

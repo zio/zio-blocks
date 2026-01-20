@@ -9,8 +9,7 @@ import scala.concurrent.Future
 @description(
   "A counter agent that installs custom snapshot save/load hooks (Scala equivalent of the Rust/TS snapshotting template)."
 )
-trait SnapshotCounter extends BaseAgent {
-  type AgentInput = String
+trait SnapshotCounter extends BaseAgent[String] {
 
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")

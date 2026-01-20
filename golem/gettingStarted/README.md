@@ -21,3 +21,10 @@ Then you can run this example end-to-end:
 ```bash
 bash golem/gettingStarted/run.sh
 ```
+
+If you see authentication / login errors (especially when switching between local and remote setups),
+reset the local server state:
+
+```bash
+golem-cli server run --clean --local
+```

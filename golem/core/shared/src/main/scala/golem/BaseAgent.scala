@@ -5,7 +5,7 @@ package golem
  *
  * When running inside Golem, these values are provided by the host runtime.
  */
-trait BaseAgent {
+trait BaseAgent[Input] {
   final def agentId: String = BaseAgentPlatform.agentId
 
   final def agentType: String = BaseAgentPlatform.agentType

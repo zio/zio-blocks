@@ -7,8 +7,7 @@ import scala.concurrent.Future
 
 @agentDefinition(typeName = "chat")
 @description("LLM chat with durable history (Scala equivalent of the Rust/TS LLM session template).")
-trait ChatAgent extends BaseAgent {
-  type AgentInput = String
+trait ChatAgent extends BaseAgent[String] {
 
   @description("Ask a question")
   def ask(question: String): Future[String]
@@ -21,8 +20,7 @@ object ChatAgent extends AgentCompanion[ChatAgent]
 
 @agentDefinition(typeName = "research")
 @description("Web search + summarize (Scala equivalent of the Rust/TS websearch summary template).")
-trait ResearchAgent extends BaseAgent {
-  type AgentInput = Unit
+trait ResearchAgent extends BaseAgent[Unit] {
 
   @prompt("What topic do you want to research?")
   @description("Research and summarize a topic")

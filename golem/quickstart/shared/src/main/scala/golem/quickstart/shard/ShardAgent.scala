@@ -6,8 +6,7 @@ import golem.{AgentCompanion, BaseAgent}
 import scala.concurrent.Future
 
 @agentDefinition("shard-agent", mode = DurabilityMode.Durable)
-trait ShardAgent extends BaseAgent {
-  final type AgentInput = (String, Int)
+trait ShardAgent extends BaseAgent[(String, Int)] {
 
   @description("Returns the shard id.")
   def id(): Future[Int]

@@ -56,7 +56,7 @@ object AgentDefinitionMacro {
         methodMetadata(method)
     }
 
-    val constructorSchema = inferConstructorSchema(typeRepr, typeSymbol)
+    val constructorSchema = inferConstructorSchema(typeRepr)
 
     '{
       AgentMetadata(
@@ -256,20 +256,19 @@ object AgentDefinitionMacro {
   private def inferConstructorSchema(using
     Quotes
   )(
-    traitRepr: quotes.reflect.TypeRepr,
-    traitSymbol: quotes.reflect.Symbol
+    traitRepr: quotes.reflect.TypeRepr
   ): Expr[StructuredSchema] = {
     import quotes.reflect.*
-    traitSymbol.typeMembers.find(_.name == "AgentInput") match {
-      case Some(typeSym) =>
-        val tpe = traitRepr.memberType(typeSym) match {
-          case TypeBounds(_, hi) => hi
-          case other             => other
-        }
-        if (tpe =:= TypeRepr.of[Unit]) '{ StructuredSchema.Tuple(Nil) } else structuredSchemaExpr(tpe)
-      case None =>
-        '{ StructuredSchema.Tuple(Nil) }
-    }
+    val baseSym = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
+    if (baseSym == Symbol.noSymbol) '{ StructuredSchema.Tuple(Nil) }
+    else
+      traitRepr.baseType(baseSym) match {
+        case AppliedType(_, List(arg)) =>
+          val tpe = arg.dealias
+          if (tpe =:= TypeRepr.of[Unit]) '{ StructuredSchema.Tuple(Nil) } else structuredSchemaExpr(tpe)
+        case _ =>
+          '{ StructuredSchema.Tuple(Nil) }
+      }
   }
 
   private def annotationString(using

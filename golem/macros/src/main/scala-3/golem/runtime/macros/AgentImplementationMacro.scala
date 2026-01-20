@@ -19,7 +19,7 @@ object AgentImplementationMacro {
   inline def implementationType[Trait](inline build: => Trait): AgentImplementationType[Trait, Unit] =
     ${ implementationTypeImpl[Trait]('build) }
 
-  inline def implementationTypeWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
+  inline def implementationTypeWithCtor[Trait, Ctor](
     inline build: Ctor => Trait
   ): AgentImplementationType[Trait, Ctor] =
     ${ implementationTypeWithCtorImpl[Trait, Ctor]('build) }
@@ -61,7 +61,7 @@ object AgentImplementationMacro {
     }
   }
 
-  private def implementationTypeWithCtorImpl[Trait <: AnyRef { type AgentInput }: Type, Ctor: Type](
+  private def implementationTypeWithCtorImpl[Trait: Type, Ctor: Type](
     buildExpr: Expr[Any]
   )(using Quotes): Expr[AgentImplementationType[Trait, Ctor]] = {
     import quotes.reflect.*
@@ -76,7 +76,7 @@ object AgentImplementationMacro {
     val gotCtor      = TypeRepr.of[Ctor]
     if !(gotCtor =:= expectedCtor) then
       report.errorAndAbort(
-        s"Constructor function must have input type matching `type AgentInput = ${expectedCtor.show}` on ${traitSymbol.fullName} (found: ${gotCtor.show})"
+        s"Constructor function must have input type matching BaseAgent[${expectedCtor.show}] on ${traitSymbol.fullName} (found: ${gotCtor.show})"
       )
 
     val metadataExpr = '{ AgentDefinitionMacro.generate[Trait] }
@@ -109,16 +109,14 @@ object AgentImplementationMacro {
 
   private def agentInputTypeRepr[Trait: Type](using Quotes): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
-    val traitSym = TypeRepr.of[Trait].typeSymbol
-    traitSym.typeMembers.find(_.name == "AgentInput") match {
-      case Some(tSym) =>
-        traitSym.typeRef.memberType(tSym) match {
-          case TypeBounds(_, hi) => hi
-          case other             => other
-        }
-      case None =>
-        TypeRepr.of[Unit]
-    }
+    val traitRepr = TypeRepr.of[Trait]
+    val baseSym   = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
+    if (baseSym == Symbol.noSymbol) TypeRepr.of[Unit]
+    else
+      traitRepr.baseType(baseSym) match {
+        case AppliedType(_, List(arg)) => arg
+        case _                         => TypeRepr.of[Unit]
+      }
   }
 
   private def buildImplementationMethodsExpr[Trait: Type](using

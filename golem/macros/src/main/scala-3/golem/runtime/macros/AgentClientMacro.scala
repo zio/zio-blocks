@@ -25,7 +25,7 @@ object AgentClientMacro {
     if !traitSymbol.flags.is(Flags.Trait) then
       report.errorAndAbort(s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
 
-    val (constructorTpe, constructorTypeExpr) = buildConstructorType(traitRepr, traitSymbol)
+    val (constructorTpe, constructorTypeExpr) = buildConstructorType(traitRepr)
     val agentTypeName                         = agentTypeNameOrDefault(traitSymbol)
 
     val methods = traitSymbol.methodMembers.collect {
@@ -53,12 +53,11 @@ object AgentClientMacro {
   private def buildConstructorType(using
     Quotes
   )(
-    traitRepr: quotes.reflect.TypeRepr,
-    traitSymbol: quotes.reflect.Symbol
+    traitRepr: quotes.reflect.TypeRepr
   ): (quotes.reflect.TypeRepr, Expr[ConstructorType[?]]) = {
     import quotes.reflect.*
 
-    val inputType  = agentInputType(traitRepr, traitSymbol)
+    val inputType  = agentInputType(traitRepr)
     val accessMode =
       if inputType =:= TypeRepr.of[Unit] then MethodParamAccess.NoArgs
       else MethodParamAccess.SingleArg
@@ -113,20 +112,16 @@ object AgentClientMacro {
   private def agentInputType(using
     Quotes
   )(
-    traitRepr: quotes.reflect.TypeRepr,
-    traitSymbol: quotes.reflect.Symbol
+    traitRepr: quotes.reflect.TypeRepr
   ): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
-    traitSymbol.typeMembers.find(_.name == "AgentInput") match {
-      case Some(typeSym) =>
-        // If it's an abstract type with bounds, prefer the upper bound.
-        traitRepr.memberType(typeSym) match {
-          case TypeBounds(_, hi) => hi
-          case other             => other
-        }
-      case None =>
-        TypeRepr.of[Unit]
-    }
+    val baseSym = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
+    if (baseSym == Symbol.noSymbol) TypeRepr.of[Unit]
+    else
+      traitRepr.baseType(baseSym) match {
+        case AppliedType(_, List(arg)) => arg
+        case _                         => TypeRepr.of[Unit]
+      }
   }
 
   private def buildMethod[Trait: Type](using
