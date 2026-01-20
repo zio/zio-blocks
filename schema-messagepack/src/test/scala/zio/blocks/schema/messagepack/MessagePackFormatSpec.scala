@@ -73,10 +73,15 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         decodeError[String](Array.empty[Byte], "Unexpected end of input")
       },
       test("BigInt") {
-        roundTrip(BigInt("9" * 20))
+        roundTrip(BigInt("9" * 20)) &&
+        roundTrip(BigInt("-" + "9" * 20)) &&
+        roundTrip(BigInt(0)) &&
+        roundTrip(BigInt(-1))
       },
       test("BigDecimal") {
-        roundTrip(BigDecimal("9." + "9" * 20 + "E+12345"))
+        roundTrip(BigDecimal("9." + "9" * 20 + "E+12345")) &&
+        roundTrip(BigDecimal("-9." + "9" * 20 + "E+12345")) &&
+        roundTrip(BigDecimal(0))
       },
       test("DayOfWeek") {
         roundTrip(java.time.DayOfWeek.WEDNESDAY)
@@ -220,37 +225,28 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       }
     ),
     suite("sequences")(
-      test("Array[Boolean]") {
-        implicit val arrayOfBooleanSchema: Schema[Array[Boolean]] = Schema.derived
-        roundTrip(Array[Boolean](true, false, true))
-      },
-      test("Array[Byte]") {
-        implicit val arrayOfByteSchema: Schema[Array[Byte]] = Schema.derived
-        roundTrip(Array[Byte](1: Byte, 2: Byte, 3: Byte))
-      },
-      test("Array[Short]") {
-        implicit val arrayOfShortSchema: Schema[Array[Short]] = Schema.derived
-        roundTrip(Array[Short](1: Short, 2: Short, 3: Short))
-      },
-      test("Array[Char]") {
-        implicit val arrayOfCharSchema: Schema[Array[Char]] = Schema.derived
-        roundTrip(Array('1', '2', '3'))
-      },
-      test("Array[Int]") {
-        implicit val arrayOfIntSchema: Schema[Array[Int]] = Schema.derived
-        roundTrip(Array[Int](1, 2, 3))
-      },
-      test("Array[Long]") {
-        implicit val arrayOfLongSchema: Schema[Array[Long]] = Schema.derived
-        roundTrip(Array[Long](1, 2, 3))
-      },
-      test("Array[Float]") {
-        implicit val arrayOfFloatSchema: Schema[Array[Float]] = Schema.derived
-        roundTrip(Array[Float](1.0f, 2.0f, 3.0f))
-      },
-      test("Array[Double]") {
-        implicit val arrayOfDoubleSchema: Schema[Array[Double]] = Schema.derived
-        roundTrip(Array[Double](1.0, 2.0, 3.0))
+      test("primitive arrays") {
+        implicit val arrayOfBooleanSchema: Schema[Array[Boolean]]   = Schema.derived
+        implicit val arrayOfByteSchema: Schema[Array[Byte]]         = Schema.derived
+        implicit val arrayOfShortSchema: Schema[Array[Short]]       = Schema.derived
+        implicit val arrayOfCharSchema: Schema[Array[Char]]         = Schema.derived
+        implicit val arrayOfIntSchema: Schema[Array[Int]]           = Schema.derived
+        implicit val arrayOfLongSchema: Schema[Array[Long]]         = Schema.derived
+        implicit val arrayOfFloatSchema: Schema[Array[Float]]       = Schema.derived
+        implicit val arrayOfDoubleSchema: Schema[Array[Double]]     = Schema.derived
+        implicit val arraySeqOfFloatSchema: Schema[ArraySeq[Float]] = Schema.derived
+        implicit val listOfListSchema: Schema[List[List[Int]]]      = Schema.derived
+
+        roundTrip[Array[Boolean]](Array[Boolean](true, false, true)) &&
+        roundTrip[Array[Byte]](Array[Byte](1: Byte, 2: Byte, 3: Byte)) &&
+        roundTrip[Array[Short]](Array[Short](1: Short, 2: Short, 3: Short)) &&
+        roundTrip[Array[Char]](Array('1', '2', '3')) &&
+        roundTrip[Array[Int]](Array[Int](1, 2, 3)) &&
+        roundTrip[Array[Long]](Array[Long](1, 2, 3)) &&
+        roundTrip[Array[Float]](Array[Float](1.0f, 2.0f, 3.0f)) &&
+        roundTrip[Array[Double]](Array[Double](1.0, 2.0, 3.0)) &&
+        roundTrip[ArraySeq[Float]](ArraySeq(1.0f, 2.0f, 3.0f)) &&
+        roundTrip[List[List[Int]]](List(List(1, 2), List(3, 4, 5), List()))
       },
       test("List[Int]") {
         roundTrip((1 to 100).toList)
@@ -260,10 +256,6 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       },
       test("Vector[Double]") {
         roundTrip(Vector(1.0, 2.0, 3.0))
-      },
-      test("ArraySeq[Float]") {
-        implicit val arraySeqOfFloatSchema: Schema[ArraySeq[Float]] = Schema.derived
-        roundTrip(ArraySeq(1.0f, 2.0f, 3.0f))
       },
       test("List[String]") {
         roundTrip(List("foo", "bar", "baz"))
@@ -279,10 +271,6 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       },
       test("empty list") {
         roundTrip(List.empty[Int])
-      },
-      test("nested lists") {
-        implicit val listOfListSchema: Schema[List[List[Int]]] = Schema.derived
-        roundTrip(List(List(1, 2), List(3, 4, 5), List()))
       }
     ),
     suite("maps")(
@@ -308,7 +296,7 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       },
       test("nested maps") {
         implicit val mapOfMapSchema: Schema[Map[String, Map[String, Int]]] = Schema.derived
-        roundTrip(
+        roundTrip[Map[String, Map[String, Int]]](
           Map(
             "outer1" -> Map("inner1" -> 1, "inner2" -> 2),
             "outer2" -> Map("inner3" -> 3)
@@ -362,8 +350,8 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         )
       },
       test("record with map of lists") {
-        implicit val schema: Schema[Map[String, List[Int]]] = Schema.derived
-        roundTrip(
+        implicit val mapOfListsSchema: Schema[Map[String, List[Int]]] = Schema.derived
+        roundTrip[Map[String, List[Int]]](
           Map(
             "a" -> List(1, 2, 3),
             "b" -> List(4, 5),
@@ -372,8 +360,8 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         )
       },
       test("list of maps") {
-        implicit val schema: Schema[List[Map[String, Int]]] = Schema.derived
-        roundTrip(
+        implicit val listOfMapsSchema: Schema[List[Map[String, Int]]] = Schema.derived
+        roundTrip[List[Map[String, Int]]](
           List(
             Map("x" -> 1, "y" -> 2),
             Map("z" -> 3),
@@ -406,13 +394,16 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       },
       test("NaN and Infinity") {
         // NaN requires special handling because NaN != NaN by IEEE 754
-        val floatCodec      = summon[Schema[Float]].derive(MessagePackFormat.deriver)
+        val floatCodec      = implicitly[Schema[Float]].derive(MessagePackFormat.deriver)
         val encodedFloatNaN = floatCodec.encode(Float.NaN)
         val decodedFloatNaN = floatCodec.decode(encodedFloatNaN)
 
-        val doubleCodec      = summon[Schema[Double]].derive(MessagePackFormat.deriver)
+        val doubleCodec      = implicitly[Schema[Double]].derive(MessagePackFormat.deriver)
         val encodedDoubleNaN = doubleCodec.encode(Double.NaN)
         val decodedDoubleNaN = doubleCodec.decode(encodedDoubleNaN)
+
+        // Use values to suppress unused warnings in Scala 2.13
+        locally((encodedFloatNaN, encodedDoubleNaN, decodedDoubleNaN))
 
         assert(decodedFloatNaN.map(_.isNaN))(isRight(isTrue)) &&
         assert(decodedDoubleNaN.map(_.isNaN))(isRight(isTrue)) &&
@@ -423,6 +414,132 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       },
       test("large collections") {
         roundTrip((1 to 1000).toList)
+      }
+    ),
+    suite("dynamic values")(
+      test("DynamicValue.Primitive - Unit") {
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Unit))
+      },
+      test("DynamicValue.Primitive - Boolean") {
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Boolean(true))) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+      },
+      test("DynamicValue.Primitive - Int") {
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Int(42))) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Int(-42))) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Int(0)))
+      },
+      test("DynamicValue.Primitive - Long") {
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Long(9876543210L))) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Long(-9876543210L)))
+      },
+      test("DynamicValue.Primitive - Double") {
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Double(3.14159))) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Double(-2.71828)))
+      },
+      test("DynamicValue.Primitive - String") {
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.String("hello world"))) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.String("")))
+      },
+      test("DynamicValue.Primitive - BigInt positive and negative") {
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt("12345678901234567890")))) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt("-12345678901234567890")))) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(0)))) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(-1))))
+      },
+      test("DynamicValue.Sequence") {
+        roundTrip[DynamicValue](
+          DynamicValue.Sequence(
+            Vector(
+              DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              DynamicValue.Primitive(PrimitiveValue.Int(2)),
+              DynamicValue.Primitive(PrimitiveValue.Int(3))
+            )
+          )
+        )
+      },
+      test("DynamicValue.Sequence - empty") {
+        roundTrip[DynamicValue](DynamicValue.Sequence(Vector.empty))
+      },
+      test("DynamicValue.Record") {
+        roundTrip[DynamicValue](
+          DynamicValue.Record(
+            Vector(
+              "name"  -> DynamicValue.Primitive(PrimitiveValue.String("test")),
+              "value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+            )
+          )
+        )
+      },
+      test("DynamicValue.Record - empty") {
+        roundTrip[DynamicValue](DynamicValue.Record(Vector.empty))
+      },
+      test("DynamicValue.Variant") {
+        // Variant is encoded as a map with one key, so it decodes as a Record
+        // This is expected behavior since MessagePack doesn't distinguish variants from records
+        val variantValue = DynamicValue.Variant(
+          "SomeCase",
+          DynamicValue.Record(
+            Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(123)))
+          )
+        )
+        val variantCodec   = implicitly[Schema[DynamicValue]].derive(MessagePackFormat.deriver)
+        val variantEncoded = variantCodec.encode(variantValue)
+        // Variant decodes as Record because MessagePack maps don't preserve variant semantics
+        val variantExpected = DynamicValue.Record(
+          Vector(
+            "SomeCase" -> DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(123))))
+          )
+        )
+        assert(variantCodec.decode(variantEncoded))(isRight(equalTo(variantExpected)))
+      },
+      test("DynamicValue.Map") {
+        // DynamicValue.Map is encoded as a MessagePack map, which decodes as Record
+        // This is expected behavior since MessagePack doesn't distinguish maps from records
+        val mapValue = DynamicValue.Map(
+          Vector(
+            DynamicValue.Primitive(PrimitiveValue.String("key1")) -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.String("key2")) -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+          )
+        )
+        val mapCodec   = implicitly[Schema[DynamicValue]].derive(MessagePackFormat.deriver)
+        val mapEncoded = mapCodec.encode(mapValue)
+        // Map with string keys decodes as Record because MessagePack maps don't preserve type info
+        val mapExpected = DynamicValue.Record(
+          Vector(
+            "key1" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            "key2" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+          )
+        )
+        assert(mapCodec.decode(mapEncoded))(isRight(equalTo(mapExpected)))
+      },
+      test("DynamicValue.Map - empty") {
+        // Empty map decodes as empty Record
+        val emptyMapValue    = DynamicValue.Map(Vector.empty)
+        val emptyMapCodec    = implicitly[Schema[DynamicValue]].derive(MessagePackFormat.deriver)
+        val emptyMapEncoded  = emptyMapCodec.encode(emptyMapValue)
+        val emptyMapExpected = DynamicValue.Record(Vector.empty)
+        assert(emptyMapCodec.decode(emptyMapEncoded))(isRight(equalTo(emptyMapExpected)))
+      },
+      test("DynamicValue - nested structure") {
+        roundTrip[DynamicValue](
+          DynamicValue.Record(
+            Vector(
+              "items" -> DynamicValue.Sequence(
+                Vector(
+                  DynamicValue.Record(Vector("id" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))),
+                  DynamicValue.Record(Vector("id" -> DynamicValue.Primitive(PrimitiveValue.Int(2))))
+                )
+              ),
+              "metadata" -> DynamicValue.Record(
+                Vector(
+                  "count" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
+                  "name"  -> DynamicValue.Primitive(PrimitiveValue.String("test"))
+                )
+              )
+            )
+          )
+        )
       }
     ),
     suite("custom codecs")(

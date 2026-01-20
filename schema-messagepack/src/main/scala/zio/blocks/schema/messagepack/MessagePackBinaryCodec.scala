@@ -202,8 +202,20 @@ object MessagePackBinaryCodec {
   /** Value type for unit */
   val unitType = 9
 
-  /** Maximum collection size supported to prevent memory issues */
-  val maxCollectionSize: Int = Integer.MAX_VALUE - 8
+  /**
+   * Maximum collection size supported to prevent memory issues. This is
+   * intentionally set well below Integer.MAX_VALUE to avoid attempting to
+   * allocate extremely large collections that could cause OutOfMemoryError or
+   * denial-of-service conditions.
+   */
+  val maxCollectionSize: Int = 10_000_000
+
+  /**
+   * Maximum binary data size supported to prevent memory issues. This is
+   * intentionally limited to prevent denial-of-service attacks through
+   * malicious input specifying huge binary sizes.
+   */
+  val maxBinarySize: Int = 100_000_000
 }
 
 /**

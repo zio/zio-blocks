@@ -287,7 +287,9 @@ object MessagePackFormat
         private[this] val bigIntCodec = new MessagePackBinaryCodec[BigInt]() {
           def decodeUnsafe(unpacker: MessageUnpacker): BigInt = {
             val len = unpacker.unpackBinaryHeader()
-            val bs  = new Array[Byte](len)
+            if (len > MessagePackBinaryCodec.maxBinarySize)
+              decodeError(s"Binary size $len exceeds maximum allowed size ${MessagePackBinaryCodec.maxBinarySize}")
+            val bs = new Array[Byte](len)
             unpacker.readPayload(bs)
             BigInt(new BigInteger(bs))
           }
@@ -304,7 +306,11 @@ object MessagePackFormat
             unpacker.unpackMapHeader() // Read map header (4 fields)
             // Read mantissa
             unpacker.unpackString() // field name "mantissa"
-            val mantissaLen   = unpacker.unpackBinaryHeader()
+            val mantissaLen = unpacker.unpackBinaryHeader()
+            if (mantissaLen > MessagePackBinaryCodec.maxBinarySize)
+              decodeError(
+                s"Binary size $mantissaLen exceeds maximum allowed size ${MessagePackBinaryCodec.maxBinarySize}"
+              )
             val mantissaBytes = new Array[Byte](mantissaLen)
             unpacker.readPayload(mantissaBytes)
             // Read scale
@@ -934,7 +940,7 @@ object MessagePackFormat
             if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
               val binding                                       = record.recordBinding.asInstanceOf[Binding.Record[A]]
               val fields                                        = record.fields
-              val isRecursive                                   = fields.exists(_.value.isInstanceOf[Reflect.Deferred[?, ?]])
+              val isRecursive                                   = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
               val typeName                                      = record.typeName
               def buildRecordCodec(): MessagePackBinaryCodec[A] = {
                 val len                = fields.length
@@ -990,6 +996,10 @@ object MessagePackFormat
 
                   def decodeUnsafe(unpacker: MessageUnpacker): A = {
                     val mapSize = unpacker.unpackMapHeader()
+                    if (mapSize > MessagePackBinaryCodec.maxCollectionSize)
+                      decodeError(
+                        s"Record map size $mapSize exceeds maximum allowed size ${MessagePackBinaryCodec.maxCollectionSize}"
+                      )
                     val regs    = Registers(usedRegisters)
                     val decoded = new Array[Boolean](numFields)
                     var count   = 0
@@ -1278,11 +1288,21 @@ object MessagePackFormat
             case org.msgpack.value.ValueType.BINARY =>
               // Convert binary to BigInt for representation in DynamicValue
               val len = unpacker.unpackBinaryHeader()
-              val bs  = new Array[Byte](len)
+              if (len > MessagePackBinaryCodec.maxBinarySize)
+                throw new MessagePackBinaryCodecError(
+                  Nil,
+                  s"Binary size $len exceeds maximum allowed size ${MessagePackBinaryCodec.maxBinarySize}"
+                )
+              val bs = new Array[Byte](len)
               unpacker.readPayload(bs)
-              DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(new java.math.BigInteger(1, bs))))
+              DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(new java.math.BigInteger(bs))))
             case org.msgpack.value.ValueType.ARRAY =>
-              val size    = unpacker.unpackArrayHeader()
+              val size = unpacker.unpackArrayHeader()
+              if (size > MessagePackBinaryCodec.maxCollectionSize)
+                throw new MessagePackBinaryCodecError(
+                  Nil,
+                  s"Array size $size exceeds maximum allowed size ${MessagePackBinaryCodec.maxCollectionSize}"
+                )
               val builder = Vector.newBuilder[DynamicValue]
               builder.sizeHint(size)
               var idx = 0
@@ -1292,7 +1312,12 @@ object MessagePackFormat
               }
               DynamicValue.Sequence(builder.result())
             case org.msgpack.value.ValueType.MAP =>
-              val size    = unpacker.unpackMapHeader()
+              val size = unpacker.unpackMapHeader()
+              if (size > MessagePackBinaryCodec.maxCollectionSize)
+                throw new MessagePackBinaryCodecError(
+                  Nil,
+                  s"Map size $size exceeds maximum allowed size ${MessagePackBinaryCodec.maxCollectionSize}"
+                )
               val builder = Vector.newBuilder[(String, DynamicValue)]
               builder.sizeHint(size)
               var idx = 0
