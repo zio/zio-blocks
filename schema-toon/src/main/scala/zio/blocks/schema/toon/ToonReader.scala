@@ -27,8 +27,10 @@ final class ToonReader private[toon] (
   private[toon] var discriminatorField: Option[String]
 ) {
 
-  private[this] var lines: Array[String]       = null
+  private[this] var data: String               = ""
   private[this] var lineIndex: Int             = 0
+  private[this] var lineStart: Int             = 0
+  private[this] var lineEnd: Int               = 0
   private[this] var currentLine: String        = ""
   private[this] var currentDepth: Int          = 0
   private[this] var linePos: Int               = 0
@@ -36,8 +38,9 @@ final class ToonReader private[toon] (
   private[this] var inUse: Boolean             = false
   private[this] var inlineContext: Boolean     = false
 
-  // Mark/rollback support for DiscriminatorKind.None
   private[this] var markedLineIndex: Int      = -1
+  private[this] var markedLineStart: Int      = -1
+  private[this] var markedLineEnd: Int        = -1
   private[this] var markedLinePos: Int        = -1
   private[this] var markedCurrentDepth: Int   = -1
   private[this] var markedCurrentLine: String = null
@@ -79,23 +82,30 @@ final class ToonReader private[toon] (
    */
   private[toon] def endUse(): Unit = {
     inUse = false
-    lines = null
+    data = ""
   }
 
   def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = reset(new String(bytes, offset, length, UTF_8))
 
   def reset(content: String): Unit = {
-    lines = content.split('\n')
+    data = content
+    lineStart = 0
+    lineEnd = data.indexOf('\n')
+    if (lineEnd == -1) lineEnd = data.length
     lineIndex = 0
     inlineContext = false
-    if (lines.length > 0) {
-      currentLine = lines(0)
+    if (data.length > 0) {
+      currentLine = data.substring(lineStart, lineEnd)
       currentDepth = computeDepth(currentLine)
       linePos = currentDepth * indentSize
+    } else {
+      currentLine = ""
+      currentDepth = 0
+      linePos = 0
     }
   }
 
-  def hasMoreLines: Boolean = lineIndex < lines.length
+  def hasMoreLines: Boolean = lineStart <= data.length
 
   def hasMoreContent: Boolean = linePos < currentLine.length
 
@@ -107,49 +117,39 @@ final class ToonReader private[toon] (
 
   def peekTrimmedContent: String = currentLine.substring(linePos).trim
 
-  def advanceLine(): Unit = {
-    lineIndex += 1
-    if (lineIndex < lines.length) {
-      currentLine = lines(lineIndex)
+  def advanceLine(): Unit =
+    if (lineEnd < data.length) {
+      lineStart = lineEnd + 1
+      lineEnd = data.indexOf('\n', lineStart)
+      if (lineEnd == -1) lineEnd = data.length
+      lineIndex += 1
+      currentLine = data.substring(lineStart, lineEnd)
       currentDepth = computeDepth(currentLine)
       linePos = currentDepth * indentSize
     } else {
+      lineStart = data.length + 1
+      lineEnd = data.length
       currentLine = ""
       currentDepth = 0
       linePos = 0
     }
-  }
 
   def skipBlankLines(): Unit =
-    while (lineIndex < lines.length && isWhitespaceOnly(lines(lineIndex))) {
-      lineIndex += 1
-      if (lineIndex < lines.length) {
-        currentLine = lines(lineIndex)
-        currentDepth = computeDepth(currentLine)
-        linePos = currentDepth * indentSize
-      }
+    while (hasMoreLines && isLineBlank(lineStart, lineEnd)) {
+      advanceLine()
     }
 
   def skipBlankLinesInArray(isFirstItem: Boolean): Unit =
-    while (lineIndex < lines.length && isWhitespaceOnly(lines(lineIndex))) {
+    while (hasMoreLines && isLineBlank(lineStart, lineEnd)) {
       if (strict && !isFirstItem)
         decodeError("Blank lines are not allowed inside arrays/tabular blocks in strict mode")
-      lineIndex += 1
-      if (lineIndex < lines.length) {
-        currentLine = lines(lineIndex)
-        currentDepth = computeDepth(currentLine)
-        linePos = currentDepth * indentSize
-      }
+      advanceLine()
     }
 
-  private def isWhitespaceOnly(s: String): Boolean = {
-    val len = s.length
-    var i   = 0
-    while (i < len) {
-      if (!Character.isWhitespace(s.charAt(i))) return false
-      i += 1
-    }
-    true
+  private def isLineBlank(start: Int, end: Int): Boolean = {
+    var i = start
+    while (i < end && data.charAt(i) <= ' ') i += 1
+    i == end
   }
 
   /**
@@ -158,29 +158,27 @@ final class ToonReader private[toon] (
    */
   def setMark(): Unit = {
     markedLineIndex = lineIndex
+    markedLineStart = lineStart
+    markedLineEnd = lineEnd
     markedLinePos = linePos
     markedCurrentDepth = currentDepth
     markedCurrentLine = currentLine
   }
 
-  /**
-   * Rolls back the reader to the previously marked position. Must be called
-   * after `setMark()`.
-   */
   def rollbackToMark(): Unit =
-    if (markedLineIndex >= 0) {
+    if (markedLineStart >= 0) {
       lineIndex = markedLineIndex
+      lineStart = markedLineStart
+      lineEnd = markedLineEnd
       linePos = markedLinePos
       currentDepth = markedCurrentDepth
       currentLine = markedCurrentLine
     }
 
-  /**
-   * Clears the mark without rolling back. Call this after successfully decoding
-   * to allow the reader state to be garbage collected.
-   */
   def resetMark(): Unit = {
     markedLineIndex = -1
+    markedLineStart = -1
+    markedLineEnd = -1
     markedLinePos = -1
     markedCurrentDepth = -1
     markedCurrentLine = null
@@ -208,31 +206,241 @@ final class ToonReader private[toon] (
   }
 
   def readBoolean(): Boolean = {
+    skipWhitespace()
+    if (linePos >= currentLine.length) {
+      if (lineEnd < data.length) {
+        advanceLine()
+        readBoolean()
+      } else fallbackReadBoolean()
+    } else {
+      if (currentLine.startsWith("true", linePos)) {
+        val next = linePos + 4
+        if (isTokenEnd(next)) {
+          linePos = next
+          if (inlineContext) skipTrailingDelimiter() else advanceLine()
+          true
+        } else fallbackReadBoolean()
+      } else if (currentLine.startsWith("false", linePos)) {
+        val next = linePos + 5
+        if (isTokenEnd(next)) {
+          linePos = next
+          if (inlineContext) skipTrailingDelimiter() else advanceLine()
+          false
+        } else fallbackReadBoolean()
+      } else fallbackReadBoolean()
+    }
+  }
+
+  private def fallbackReadBoolean(): Boolean = {
     val value = readPrimitiveToken()
     if (value == "true") true
     else if (value == "false") false
     else decodeError(s"Expected boolean, got: $value")
   }
 
+  private def isTokenEnd(pos: Int): Boolean =
+    pos >= currentLine.length || (inlineContext && currentLine.charAt(pos) == activeDelimiter.char) || currentLine
+      .charAt(pos) <= ' '
+
+  private def skipTrailingDelimiter(): Unit = {
+    skipWhitespace()
+    if (linePos < currentLine.length && currentLine.charAt(linePos) == activeDelimiter.char) {
+      linePos += 1
+    }
+  }
+
   def readByte(): Byte = {
+    skipWhitespace()
+    if (linePos >= currentLine.length) {
+      if (lineEnd < data.length) {
+        advanceLine()
+        readByte()
+      } else fallbackReadByte()
+    } else {
+      var i   = linePos
+      val len = currentLine.length
+      var n   = 0
+      var neg = false
+      if (currentLine.charAt(i) == '-') {
+        neg = true
+        i += 1
+      }
+      val start = i
+      while (i < len && { val c = currentLine.charAt(i); c >= '0' && c <= '9' }) {
+        n = n * 10 + (currentLine.charAt(i) - '0')
+        if (n > 128) return fallbackReadByte()
+        i += 1
+      }
+      if (i == start || (i < len && { val c = currentLine.charAt(i); c == '.' || c == 'e' || c == 'E' }))
+        return fallbackReadByte()
+
+      if (!inlineContext) {
+        var j = i
+        while (j < len && currentLine.charAt(j) == ' ') j += 1
+        if (j < len) return fallbackReadByte()
+      }
+
+      if ((neg && n > 128) || (!neg && n > 127)) return fallbackReadByte()
+
+      linePos = i
+      if (inlineContext) {
+        skipWhitespace()
+        if (linePos < len && currentLine.charAt(linePos) == activeDelimiter.char) linePos += 1
+      } else advanceLine()
+
+      if (neg) (-n).toByte else n.toByte
+    }
+  }
+
+  private def fallbackReadByte(): Byte = {
     val value = readPrimitiveToken()
     try value.toByte
     catch { case _: NumberFormatException => decodeError(s"Expected byte, got: $value") }
   }
 
   def readShort(): Short = {
+    skipWhitespace()
+    if (linePos >= currentLine.length) {
+      if (lineEnd < data.length) {
+        advanceLine()
+        readShort()
+      } else fallbackReadShort()
+    } else {
+      var i   = linePos
+      val len = currentLine.length
+      var n   = 0
+      var neg = false
+      if (currentLine.charAt(i) == '-') {
+        neg = true
+        i += 1
+      }
+      val start = i
+      while (i < len && { val c = currentLine.charAt(i); c >= '0' && c <= '9' }) {
+        n = n * 10 + (currentLine.charAt(i) - '0')
+        if (n > 32768) return fallbackReadShort()
+        i += 1
+      }
+      if (i == start || (i < len && { val c = currentLine.charAt(i); c == '.' || c == 'e' || c == 'E' }))
+        return fallbackReadShort()
+
+      if (!inlineContext) {
+        var j = i
+        while (j < len && currentLine.charAt(j) == ' ') j += 1
+        if (j < len) return fallbackReadShort()
+      }
+
+      if ((neg && n > 32768) || (!neg && n > 32767)) return fallbackReadShort()
+
+      linePos = i
+      if (inlineContext) {
+        skipWhitespace()
+        if (linePos < len && currentLine.charAt(linePos) == activeDelimiter.char) linePos += 1
+      } else advanceLine()
+
+      if (neg) (-n).toShort else n.toShort
+    }
+  }
+
+  private def fallbackReadShort(): Short = {
     val value = readPrimitiveToken()
     try value.toShort
     catch { case _: NumberFormatException => decodeError(s"Expected short, got: $value") }
   }
 
   def readInt(): Int = {
+    skipWhitespace()
+    if (linePos >= currentLine.length) {
+      if (lineEnd < data.length) {
+        advanceLine()
+        readInt()
+      } else fallbackReadInt()
+    } else {
+      var i   = linePos
+      val len = currentLine.length
+      var n   = 0L
+      var neg = false
+      if (currentLine.charAt(i) == '-') {
+        neg = true
+        i += 1
+      }
+      val start = i
+      while (i < len && { val c = currentLine.charAt(i); c >= '0' && c <= '9' }) {
+        n = n * 10 + (currentLine.charAt(i) - '0')
+        if (n > 2147483648L) return fallbackReadInt()
+        i += 1
+      }
+      if (i == start || (i < len && { val c = currentLine.charAt(i); c == '.' || c == 'e' || c == 'E' }))
+        return fallbackReadInt()
+
+      if (!inlineContext) {
+        var j = i
+        while (j < len && currentLine.charAt(j) == ' ') j += 1
+        if (j < len) return fallbackReadInt()
+      }
+
+      if ((neg && n > 2147483648L) || (!neg && n > 2147483647L)) return fallbackReadInt()
+
+      linePos = i
+      if (inlineContext) {
+        skipWhitespace()
+        if (linePos < len && currentLine.charAt(linePos) == activeDelimiter.char) linePos += 1
+      } else advanceLine()
+
+      if (neg) -n.toInt else n.toInt
+    }
+  }
+
+  private def fallbackReadInt(): Int = {
     val value = readPrimitiveToken()
     try value.toInt
     catch { case _: NumberFormatException => decodeError(s"Expected int, got: $value") }
   }
 
   def readLong(): Long = {
+    skipWhitespace()
+    if (linePos >= currentLine.length) {
+      if (lineEnd < data.length) {
+        advanceLine()
+        readLong()
+      } else fallbackReadLong()
+    } else {
+      var i   = linePos
+      val len = currentLine.length
+      var n   = 0L
+      var neg = false
+      if (currentLine.charAt(i) == '-') {
+        neg = true
+        i += 1
+      }
+      val start = i
+      while (i < len && { val c = currentLine.charAt(i); c >= '0' && c <= '9' }) {
+        val d = currentLine.charAt(i) - '0'
+        if (n > 922337203685477580L || (n == 922337203685477580L && d > 8)) return fallbackReadLong()
+        n = n * 10 + d
+        i += 1
+      }
+      if (i == start || (i < len && { val c = currentLine.charAt(i); c == '.' || c == 'e' || c == 'E' }))
+        return fallbackReadLong()
+
+      if (!inlineContext) {
+        var j = i
+        while (j < len && currentLine.charAt(j) == ' ') j += 1
+        if (j < len) return fallbackReadLong()
+      }
+
+      if (!neg && n < 0) return fallbackReadLong() // Overflowed Long.MaxValue
+
+      linePos = i
+      if (inlineContext) {
+        skipWhitespace()
+        if (linePos < len && currentLine.charAt(linePos) == activeDelimiter.char) linePos += 1
+      } else advanceLine()
+
+      if (neg) -n else n
+    }
+  }
+
+  private def fallbackReadLong(): Long = {
     val value = readPrimitiveToken()
     try value.toLong
     catch { case _: NumberFormatException => decodeError(s"Expected long, got: $value") }
@@ -274,8 +482,17 @@ final class ToonReader private[toon] (
     skipWhitespace()
     val colonIdx = findUnquotedColon(currentLine, linePos)
     if (colonIdx < 0) decodeError("Expected key:value, no colon found")
-    val keyPart = currentLine.substring(linePos, colonIdx).trim
-    val key     = if (keyPart.startsWith("\"")) unescapeString(keyPart) else keyPart
+
+    var start = linePos
+    var end   = colonIdx
+    while (start < end && currentLine.charAt(start) == ' ') start += 1
+    while (end > start && currentLine.charAt(end - 1) == ' ') end -= 1
+
+    val key = if (start < end && currentLine.charAt(start) == '"') {
+      unescapeString(currentLine.substring(start, end))
+    } else {
+      currentLine.substring(start, end)
+    }
     linePos = colonIdx + 1
     skipWhitespace()
     key
@@ -285,9 +502,18 @@ final class ToonReader private[toon] (
     skipWhitespace()
     val colonIdx = findUnquotedColon(currentLine, linePos)
     if (colonIdx < 0) decodeError("Expected key:value, no colon found")
-    val keyPart   = currentLine.substring(linePos, colonIdx).trim
-    val wasQuoted = keyPart.startsWith("\"")
-    val key       = if (wasQuoted) unescapeString(keyPart) else keyPart
+
+    var start = linePos
+    var end   = colonIdx
+    while (start < end && currentLine.charAt(start) == ' ') start += 1
+    while (end > start && currentLine.charAt(end - 1) == ' ') end -= 1
+
+    val wasQuoted = start < end && currentLine.charAt(start) == '"'
+    val key       = if (wasQuoted) {
+      unescapeString(currentLine.substring(start, end))
+    } else {
+      currentLine.substring(start, end)
+    }
     linePos = colonIdx + 1
     skipWhitespace()
     (key, wasQuoted)
@@ -297,38 +523,57 @@ final class ToonReader private[toon] (
     skipWhitespace()
     val colonIdx = findUnquotedColon(currentLine, linePos)
     if (colonIdx < 0) decodeError("Expected key:value, no colon found")
-    val keyPart = currentLine.substring(linePos, colonIdx).trim
+
+    var start = linePos
+    var end   = colonIdx
+    while (start < end && currentLine.charAt(start) == ' ') start += 1
+    while (end > start && currentLine.charAt(end - 1) == ' ') end -= 1
+
+    val key = if (start < end && currentLine.charAt(start) == '"') {
+      unescapeString(currentLine.substring(start, end))
+    } else {
+      currentLine.substring(start, end)
+    }
     linePos = colonIdx + 1
     skipWhitespace()
-    if (keyPart.startsWith("\"")) unescapeString(keyPart) else keyPart
+    key
   }
 
   def parseArrayHeader(): ArrayHeader = {
     skipWhitespace()
-    val bracketStart = findUnquotedChar(currentLine, '[', linePos)
+    val content = currentLine.substring(linePos)
+
+    val bracketStart = findUnquotedChar(content, '[')
     if (bracketStart < 0) decodeError("Expected array header with [")
-    val key =
-      if (bracketStart > linePos) {
-        val keyPart = currentLine.substring(linePos, bracketStart).trim
-        if (keyPart.startsWith("\"")) unescapeString(keyPart) else keyPart
-      } else null
-    val bracketEnd = currentLine.indexOf(']', bracketStart)
+
+    val key = if (bracketStart > 0) {
+      val keyPart = content.substring(0, bracketStart).trim
+      if (keyPart.startsWith("\"")) unescapeString(keyPart) else keyPart
+    } else null
+
+    val bracketEnd = content.indexOf(']', bracketStart)
     if (bracketEnd < 0) decodeError("Expected closing ] in array header")
-    val bracketContent        = currentLine.substring(bracketStart + 1, bracketEnd)
-    val (length, delim)       = parseBracketContent(bracketContent)
+
+    val bracketContent  = content.substring(bracketStart + 1, bracketEnd)
+    val (length, delim) = parseBracketContent(bracketContent)
+
     var fields: Array[String] = null
     var afterBracket          = bracketEnd + 1
-    val len                   = currentLine.length - linePos
-    if (afterBracket < len && currentLine.charAt(afterBracket) == '{') {
-      val braceEnd = currentLine.indexOf('}', afterBracket)
+
+    if (afterBracket < content.length && content.charAt(afterBracket) == '{') {
+      val braceEnd = content.indexOf('}', afterBracket)
       if (braceEnd < 0) decodeError("Expected closing } in field list")
-      val fieldsContent = currentLine.substring(afterBracket + 1, braceEnd)
+      val fieldsContent = content.substring(afterBracket + 1, braceEnd)
       fields = parseFieldList(fieldsContent, delim)
       afterBracket = braceEnd + 1
     }
-    if (afterBracket >= len || currentLine.charAt(afterBracket) != ':') decodeError("Expected : after array header")
+
+    if (afterBracket >= content.length || content.charAt(afterBracket) != ':')
+      decodeError("Expected : after array header")
+
     activeDelimiter = delim
     advanceLine()
+
     ArrayHeader(key, length, fields, delim)
   }
 
@@ -360,27 +605,58 @@ final class ToonReader private[toon] (
 
   private def readPrimitiveToken(): String = {
     skipWhitespace()
-    val len = currentLine.length
-    if (linePos >= len) {
-      advanceLine()
-      return if (lineIndex >= lines.length - 1) "" else readPrimitiveToken()
+    if (linePos >= currentLine.length) {
+      if (lineEnd < data.length) {
+        advanceLine()
+        return readPrimitiveToken()
+      } else {
+        advanceLine()
+        return ""
+      }
     }
-    if (linePos + 1 < len && currentLine.charAt(linePos) == '"') {
-      val endQuote = findEndQuote(currentLine, linePos + 1)
+
+    val start = linePos
+    var end   = currentLine.length
+    while (end > start && currentLine.charAt(end - 1) <= ' ') end -= 1
+
+    if (start == end) {
+      advanceLine()
+      return ""
+    }
+
+    if (currentLine.charAt(start) == '"') {
+      val endQuote = findEndQuote(currentLine, start + 1)
       if (endQuote < 0) decodeError("Unterminated string")
-      val quoted = currentLine.substring(linePos, endQuote + 1)
-      linePos = len
+      val quoted = currentLine.substring(start, endQuote + 1)
+      linePos = currentLine.length
       unescapeString(quoted)
     } else {
-      val token = if (inlineContext) {
-        val delimIdx = findDelimiterIndex(currentLine, activeDelimiter, linePos)
-        if (delimIdx >= 0) currentLine.substring(linePos, delimIdx)
-        else currentLine.substring(linePos)
-      } else currentLine.substring(linePos)
-      linePos = len
+      val tokenEnd = if (inlineContext) {
+        val delimIdx = findDelimiterIndex(currentLine, start, end, activeDelimiter)
+        if (delimIdx >= 0) {
+          var tEnd = delimIdx
+          while (tEnd > start && currentLine.charAt(tEnd - 1) <= ' ') tEnd -= 1
+          tEnd
+        } else end
+      } else end
+
+      val token = currentLine.substring(start, tokenEnd)
+      linePos = currentLine.length
       advanceLine()
       token
     }
+  }
+
+  private def findDelimiterIndex(s: String, start: Int, end: Int, delim: Delimiter): Int = {
+    var inQuote = false
+    var i       = start
+    while (i < end) {
+      val c = s.charAt(i)
+      if (c == '"' && !isEscaped(s, i)) inQuote = !inQuote
+      else if (!inQuote && c == delim.char) return i
+      i += 1
+    }
+    -1
   }
 
   private def skipWhitespace(): Unit =
@@ -402,7 +678,7 @@ final class ToonReader private[toon] (
         i = line.length
       }
     }
-    if (strict && indentSize > 0 && spaces % indentSize != 0 && !isWhitespaceOnly(line))
+    if (strict && indentSize > 0 && spaces % indentSize != 0 && line.trim.nonEmpty)
       decodeError(s"Indentation must be multiple of $indentSize spaces")
     if (indentSize > 0) spaces / indentSize else 0
   }
@@ -462,9 +738,9 @@ final class ToonReader private[toon] (
     -1
   }
 
-  private def findUnquotedChar(s: String, target: Char, from: Int): Int = {
+  private def findUnquotedChar(s: String, target: Char): Int = {
     var inQuote = false
-    var i       = from
+    var i       = 0
     while (i < s.length) {
       val c = s.charAt(i)
       if (c == '"' && !isEscaped(s, i)) inQuote = !inQuote
@@ -478,18 +754,6 @@ final class ToonReader private[toon] (
     var i = from
     while (i < s.length) {
       if (s.charAt(i) == '"' && !isEscaped(s, i)) return i
-      i += 1
-    }
-    -1
-  }
-
-  private def findDelimiterIndex(s: String, delim: Delimiter, from: Int): Int = {
-    var inQuote = false
-    var i       = from
-    while (i < s.length) {
-      val c = s.charAt(i)
-      if (c == '"' && !isEscaped(s, i)) inQuote = !inQuote
-      else if (!inQuote && c == delim.char) return i
       i += 1
     }
     -1
@@ -540,7 +804,7 @@ final class ToonReader private[toon] (
   }
 
   private def parseNumber(s: String): Any =
-    if (s.indexOf('.') >= 0 || s.indexOf('e') >= 0 || s.indexOf('E') >= 0) {
+    if (s.contains(".") || s.contains("e") || s.contains("E")) {
       val d = s.toDouble
       if (d == d.toLong && d >= Long.MinValue && d <= Long.MaxValue) d.toLong
       else d
@@ -550,37 +814,27 @@ final class ToonReader private[toon] (
     }
 
   private def unescapeString(s: String): String = {
-    val lastIdx = s.length - 1
-    if (lastIdx >= 1 && s.charAt(lastIdx) != '"') return s
-    val sb = new java.lang.StringBuilder(lastIdx - 1)
-    var i  = 1
-    while (i < lastIdx) {
-      var c = s.charAt(i)
-      i += 1
-      if (c == '\\') {
-        if (i < lastIdx) {
-          (s.charAt(i): @switch) match {
-            case '"' =>
-              c = '"'
-              i += 1
-            case '\\' =>
-              c = '\\'
-              i += 1
-            case 'n' =>
-              c = '\n'
-              i += 1
-            case 'r' =>
-              c = '\r'
-              i += 1
-            case 't' =>
-              c = '\t'
-              i += 1
-            case _ =>
-              if (strict) decodeError(s"Invalid escape: \\${s.charAt(i)}")
-          }
-        } else if (strict) decodeError("Invalid escape: \\")
+    if (!s.startsWith("\"") || !s.endsWith("\"")) return s
+    val inner = s.substring(1, s.length - 1)
+    val sb    = new StringBuilder(inner.length)
+    var i     = 0
+    while (i < inner.length) {
+      val c = inner.charAt(i)
+      if (c == '\\' && i + 1 < inner.length) {
+        (inner.charAt(i + 1): @switch) match {
+          case '"'  => sb.append('"'); i += 2
+          case '\\' => sb.append('\\'); i += 2
+          case 'n'  => sb.append('\n'); i += 2
+          case 'r'  => sb.append('\r'); i += 2
+          case 't'  => sb.append('\t'); i += 2
+          case _    =>
+            if (strict) decodeError(s"Invalid escape: \\${inner.charAt(i + 1)}")
+            else { sb.append(c); i += 1 }
+        }
+      } else {
+        sb.append(c)
+        i += 1
       }
-      sb.append(c)
     }
     sb.toString
   }
