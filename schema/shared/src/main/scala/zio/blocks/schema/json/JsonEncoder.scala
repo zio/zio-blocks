@@ -34,8 +34,10 @@ sealed trait JsonEncoder[A] {
   /**
    * Encodes a value of type `A` into [[Json]].
    *
-   * @param value The value to encode
-   * @return The encoded JSON value
+   * @param value
+   *   The value to encode
+   * @return
+   *   The encoded JSON value
    */
   def encode(value: A): Json
 }
@@ -50,8 +52,8 @@ object JsonEncoder extends JsonEncoderLowPriority {
   /**
    * Higher priority: use an explicitly provided [[JsonBinaryCodec]].
    *
-   * This allows users to provide custom codecs that take precedence
-   * over schema-derived encoders.
+   * This allows users to provide custom codecs that take precedence over
+   * schema-derived encoders.
    */
   implicit def fromCodec[A](implicit codec: JsonBinaryCodec[A]): JsonEncoder[A] =
     new JsonEncoder[A] {
@@ -69,13 +71,12 @@ trait JsonEncoderLowPriority {
   /**
    * Lower priority: derive a codec from an implicit [[Schema]].
    *
-   * This automatically derives an encoder from a Schema definition,
-   * enabling zero-boilerplate JSON encoding for case classes.
+   * This automatically derives an encoder from a Schema definition, enabling
+   * zero-boilerplate JSON encoding for case classes.
    */
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonEncoder[A] =
     new JsonEncoder[A] {
       private lazy val codec: JsonBinaryCodec[A] = schema.derive(JsonBinaryCodecDeriver)
-      def encode(value: A): Json = Json.encodeWith(value, codec)
+      def encode(value: A): Json                 = Json.encodeWith(value, codec)
     }
 }
-

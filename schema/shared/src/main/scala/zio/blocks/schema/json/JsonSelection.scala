@@ -1,10 +1,12 @@
 package zio.blocks.schema.json
 
 /**
- * Represents a selection of JSON values, supporting fluent navigation and transformation.
+ * Represents a selection of JSON values, supporting fluent navigation and
+ * transformation.
  *
- * A [[JsonSelection]] can contain zero, one, or multiple JSON values. It provides
- * methods for navigating, filtering, and transforming JSON structures in a type-safe way.
+ * A [[JsonSelection]] can contain zero, one, or multiple JSON values. It
+ * provides methods for navigating, filtering, and transforming JSON structures
+ * in a type-safe way.
  *
  * ==Examples==
  * {{{
@@ -22,7 +24,8 @@ package zio.blocks.schema.json
  * json("users").toArray         // Array[Json]
  * }}}
  *
- * @param values The selected JSON values
+ * @param values
+ *   The selected JSON values
  */
 final case class JsonSelection(values: Vector[Json]) {
 
@@ -115,8 +118,8 @@ final case class JsonSelection(values: Vector[Json]) {
   // ===========================================================================
 
   /**
-   * Returns the single value in this selection, or an error if the selection
-   * is empty or contains multiple values.
+   * Returns the single value in this selection, or an error if the selection is
+   * empty or contains multiple values.
    */
   def one: Either[JsonError, Json] = values match {
     case Vector(single) => Right(single)
@@ -125,7 +128,8 @@ final case class JsonSelection(values: Vector[Json]) {
   }
 
   /**
-   * Returns the first value in this selection, or an error if the selection is empty.
+   * Returns the first value in this selection, or an error if the selection is
+   * empty.
    */
   def first: Either[JsonError, Json] = values.headOption match {
     case Some(v) => Right(v)
@@ -171,4 +175,3 @@ object JsonSelection {
    */
   val empty: JsonSelection = JsonSelection(Vector.empty)
 }
-

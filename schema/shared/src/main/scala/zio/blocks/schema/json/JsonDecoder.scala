@@ -40,8 +40,10 @@ sealed trait JsonDecoder[A] {
   /**
    * Decodes a [[Json]] value into type `A`.
    *
-   * @param json The JSON value to decode
-   * @return Either a [[JsonError]] on failure, or the decoded value
+   * @param json
+   *   The JSON value to decode
+   * @return
+   *   Either a [[JsonError]] on failure, or the decoded value
    */
   def decode(json: Json): Either[JsonError, A]
 }
@@ -56,8 +58,8 @@ object JsonDecoder extends JsonDecoderLowPriority {
   /**
    * Higher priority: use an explicitly provided [[JsonBinaryCodec]].
    *
-   * This allows users to provide custom codecs that take precedence
-   * over schema-derived decoders.
+   * This allows users to provide custom codecs that take precedence over
+   * schema-derived decoders.
    */
   implicit def fromCodec[A](implicit codec: JsonBinaryCodec[A]): JsonDecoder[A] =
     new JsonDecoder[A] {
@@ -75,13 +77,12 @@ trait JsonDecoderLowPriority {
   /**
    * Lower priority: derive a codec from an implicit [[Schema]].
    *
-   * This automatically derives a decoder from a Schema definition,
-   * enabling zero-boilerplate JSON decoding for case classes.
+   * This automatically derives a decoder from a Schema definition, enabling
+   * zero-boilerplate JSON decoding for case classes.
    */
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonDecoder[A] =
     new JsonDecoder[A] {
-      private lazy val codec: JsonBinaryCodec[A] = schema.derive(JsonBinaryCodecDeriver)
+      private lazy val codec: JsonBinaryCodec[A]   = schema.derive(JsonBinaryCodecDeriver)
       def decode(json: Json): Either[JsonError, A] = json.decodeWith(codec)
     }
 }
-

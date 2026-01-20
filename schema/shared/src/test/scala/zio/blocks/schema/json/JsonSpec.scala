@@ -44,20 +44,20 @@ object JsonSpec extends SchemaBaseSpec {
     ),
     suite("Navigation")(
       test("navigate object by key") {
-        val obj = Json.Object("name" -> Json.String("Bob"), "age" -> Json.number(25))
+        val obj       = Json.Object("name" -> Json.String("Bob"), "age" -> Json.number(25))
         val selection = obj("name")
         assert(selection.values.size)(equalTo(1)) &&
         assert(selection.values.head)(equalTo(Json.String("Bob")))
       },
       test("navigate array by index") {
-        val arr = Json.Array(Vector(Json.number(10), Json.number(20), Json.number(30)))
+        val arr       = Json.Array(Vector(Json.number(10), Json.number(20), Json.number(30)))
         val selection = arr(1)
         assert(selection.values.size)(equalTo(1)) &&
         assert(selection.values.head)(equalTo(Json.number(20)))
       },
       test("navigate with DynamicOptic - simple field") {
-        val json = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
-        val path = DynamicOptic.root.field("name")
+        val json   = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
+        val path   = DynamicOptic.root.field("name")
         val result = json.get(path)
         assert(result.values.size)(equalTo(1)) &&
         assert(result.values.head)(equalTo(Json.String("Alice")))
@@ -65,51 +65,55 @@ object JsonSpec extends SchemaBaseSpec {
       test("navigate with DynamicOptic - nested path") {
         val json = Json.Object(
           "user" -> Json.Object(
-            "name" -> Json.String("Bob"),
+            "name"    -> Json.String("Bob"),
             "address" -> Json.Object(
               "city" -> Json.String("NYC")
             )
           )
         )
-        val path = DynamicOptic.root.field("user").field("address").field("city")
+        val path   = DynamicOptic.root.field("user").field("address").field("city")
         val result = json.get(path)
         assert(result.values.size)(equalTo(1)) &&
         assert(result.values.head)(equalTo(Json.String("NYC")))
       },
       test("navigate with DynamicOptic - array index") {
         val json = Json.Object(
-          "users" -> Json.Array(Vector(
-            Json.Object("name" -> Json.String("Alice")),
-            Json.Object("name" -> Json.String("Bob"))
-          ))
+          "users" -> Json.Array(
+            Vector(
+              Json.Object("name" -> Json.String("Alice")),
+              Json.Object("name" -> Json.String("Bob"))
+            )
+          )
         )
-        val path = DynamicOptic.root.field("users").at(1).field("name")
+        val path   = DynamicOptic.root.field("users").at(1).field("name")
         val result = json.get(path)
         assert(result.values.size)(equalTo(1)) &&
         assert(result.values.head)(equalTo(Json.String("Bob")))
       },
       test("navigate with DynamicOptic - elements") {
-        val json = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3)))
-        val path = DynamicOptic.root.elements
+        val json   = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3)))
+        val path   = DynamicOptic.root.elements
         val result = json.get(path)
         assert(result.values.size)(equalTo(3))
       }
     ),
     suite("Type filtering")(
       test("filter objects") {
-        val json = Json.Array(Vector(
-          Json.Object("a" -> Json.number(1)),
-          Json.number(2),
-          Json.Object("b" -> Json.number(3))
-        ))
+        val json = Json.Array(
+          Vector(
+            Json.Object("a" -> Json.number(1)),
+            Json.number(2),
+            Json.Object("b" -> Json.number(3))
+          )
+        )
         val selection = JsonSelection(json.asInstanceOf[Json.Array].elements)
-        val objects = selection.objects
+        val objects   = selection.objects
         assert(objects.values.size)(equalTo(2))
       },
       test("filter numbers") {
-        val json = Json.Array(Vector(Json.number(1), Json.String("two"), Json.number(3)))
+        val json      = Json.Array(Vector(Json.number(1), Json.String("two"), Json.number(3)))
         val selection = JsonSelection(json.asInstanceOf[Json.Array].elements)
-        val numbers = selection.numbers
+        val numbers   = selection.numbers
         assert(numbers.values.size)(equalTo(2))
       }
     ),
@@ -132,37 +136,37 @@ object JsonSpec extends SchemaBaseSpec {
       },
       test("convert array to DynamicValue") {
         val arr = Json.Array(Vector(Json.number(1), Json.number(2)))
-        val dv = arr.toDynamicValue
+        val dv  = arr.toDynamicValue
         assert(dv)(isSubtype[DynamicValue.Sequence](anything))
       },
       test("convert object to DynamicValue") {
         val obj = Json.Object("name" -> Json.String("Alice"))
-        val dv = obj.toDynamicValue
+        val dv  = obj.toDynamicValue
         assert(dv)(isSubtype[DynamicValue.Record](anything))
       },
       test("round-trip DynamicValue conversion") {
         val original = Json.Object(
-          "name" -> Json.String("Alice"),
-          "age" -> Json.number(30),
+          "name"   -> Json.String("Alice"),
+          "age"    -> Json.number(30),
           "active" -> Json.Boolean(true)
         )
-        val dv = original.toDynamicValue
+        val dv       = original.toDynamicValue
         val restored = Json.fromDynamicValue(dv)
         assert(restored)(equalTo(original))
       }
     ),
     suite("Merge")(
       test("merge objects") {
-        val obj1 = Json.Object("a" -> Json.number(1), "b" -> Json.number(2))
-        val obj2 = Json.Object("b" -> Json.number(3), "c" -> Json.number(4))
-        val merged = obj1.merge(obj2)
+        val obj1     = Json.Object("a" -> Json.number(1), "b" -> Json.number(2))
+        val obj2     = Json.Object("b" -> Json.number(3), "c" -> Json.number(4))
+        val merged   = obj1.merge(obj2)
         val expected = Json.Object("a" -> Json.number(1), "b" -> Json.number(3), "c" -> Json.number(4))
         assert(merged)(equalTo(expected))
       },
       test("merge arrays") {
-        val arr1 = Json.Array(Vector(Json.number(1), Json.number(2)))
-        val arr2 = Json.Array(Vector(Json.number(3), Json.number(4)))
-        val merged = arr1.merge(arr2)
+        val arr1     = Json.Array(Vector(Json.number(1), Json.number(2)))
+        val arr2     = Json.Array(Vector(Json.number(3), Json.number(4)))
+        val merged   = arr1.merge(arr2)
         val expected = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3), Json.number(4)))
         assert(merged)(equalTo(expected))
       }
@@ -187,7 +191,7 @@ object JsonSpec extends SchemaBaseSpec {
         val result = json.transformUp { (_, value) =>
           value match {
             case Json.Number(v) => Json.number(BigDecimal(v) + 1)
-            case other => other
+            case other          => other
           }
         }
         val expected = Json.Object(
@@ -199,12 +203,12 @@ object JsonSpec extends SchemaBaseSpec {
       test("transformKeys - uppercase all keys") {
         val json = Json.Object(
           "name" -> Json.String("Alice"),
-          "age" -> Json.number(30)
+          "age"  -> Json.number(30)
         )
-        val result = json.transformKeys((_, key) => key.toUpperCase)
+        val result   = json.transformKeys((_, key) => key.toUpperCase)
         val expected = Json.Object(
           "NAME" -> Json.String("Alice"),
-          "AGE" -> Json.number(30)
+          "AGE"  -> Json.number(30)
         )
         assert(result)(equalTo(expected))
       },
@@ -214,7 +218,7 @@ object JsonSpec extends SchemaBaseSpec {
           "b" -> Json.String("text"),
           "c" -> Json.number(2)
         )
-        val result = json.filter((_, value) => value.isNumber)
+        val result   = json.filter((_, value) => value.isNumber)
         val expected = Json.Object(
           "a" -> Json.number(1),
           "c" -> Json.number(2)
@@ -222,70 +226,72 @@ object JsonSpec extends SchemaBaseSpec {
         assert(result)(equalTo(expected))
       },
       test("filterNot - remove nulls") {
-        val json = Json.Array(Vector(
-          Json.number(1),
-          Json.Null,
-          Json.number(2),
-          Json.Null
-        ))
-        val result = json.filterNot((_, value) => value.isNull)
+        val json = Json.Array(
+          Vector(
+            Json.number(1),
+            Json.Null,
+            Json.number(2),
+            Json.Null
+          )
+        )
+        val result   = json.filterNot((_, value) => value.isNull)
         val expected = Json.Array(Vector(Json.number(1), Json.number(2)))
         assert(result)(equalTo(expected))
       }
     ),
     suite("Manipulation")(
       test("modify - update field value") {
-        val json = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
-        val path = DynamicOptic.root.field("age")
-        val result = json.modify(path, _ => Json.number(31))
+        val json     = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
+        val path     = DynamicOptic.root.field("age")
+        val result   = json.modify(path, _ => Json.number(31))
         val expected = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(31))
         assert(result)(equalTo(expected))
       },
       test("modify - update array element") {
-        val json = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3)))
-        val path = DynamicOptic.root.at(1)
-        val result = json.modify(path, v => Json.number(BigDecimal(v.numberValue.get) * 10))
+        val json     = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3)))
+        val path     = DynamicOptic.root.at(1)
+        val result   = json.modify(path, v => Json.number(BigDecimal(v.numberValue.get) * 10))
         val expected = Json.Array(Vector(Json.number(1), Json.number(20), Json.number(3)))
         assert(result)(equalTo(expected))
       },
       test("set - replace value at path") {
-        val json = Json.Object("user" -> Json.Object("name" -> Json.String("Alice")))
-        val path = DynamicOptic.root.field("user").field("name")
-        val result = json.set(path, Json.String("Bob"))
+        val json     = Json.Object("user" -> Json.Object("name" -> Json.String("Alice")))
+        val path     = DynamicOptic.root.field("user").field("name")
+        val result   = json.set(path, Json.String("Bob"))
         val expected = Json.Object("user" -> Json.Object("name" -> Json.String("Bob")))
         assert(result)(equalTo(expected))
       },
       test("delete - remove object field") {
-        val json = Json.Object("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
-        val path = DynamicOptic.root.field("b")
-        val result = json.delete(path)
+        val json     = Json.Object("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
+        val path     = DynamicOptic.root.field("b")
+        val result   = json.delete(path)
         val expected = Json.Object("a" -> Json.number(1), "c" -> Json.number(3))
         assert(result)(equalTo(expected))
       },
       test("delete - remove array element") {
-        val json = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3)))
-        val path = DynamicOptic.root.at(1)
-        val result = json.delete(path)
+        val json     = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3)))
+        val path     = DynamicOptic.root.at(1)
+        val result   = json.delete(path)
         val expected = Json.Array(Vector(Json.number(1), Json.number(3)))
         assert(result)(equalTo(expected))
       }
     ),
     suite("Parsing and Encoding")(
       test("parse simple object") {
-        val input = """{"name":"Alice","age":30}"""
-        val result = Json.parse(input)
+        val input    = """{"name":"Alice","age":30}"""
+        val result   = Json.parse(input)
         val expected = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
         assert(result)(isRight(equalTo(expected)))
       },
       test("parse array") {
-        val input = """[1,2,3]"""
-        val result = Json.parse(input)
+        val input    = """[1,2,3]"""
+        val result   = Json.parse(input)
         val expected = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3)))
         assert(result)(isRight(equalTo(expected)))
       },
       test("parse nested structure") {
-        val input = """{"user":{"name":"Bob","tags":["a","b"]}}"""
-        val result = Json.parse(input)
+        val input    = """{"user":{"name":"Bob","tags":["a","b"]}}"""
+        val result   = Json.parse(input)
         val expected = Json.Object(
           "user" -> Json.Object(
             "name" -> Json.String("Bob"),
@@ -295,19 +301,19 @@ object JsonSpec extends SchemaBaseSpec {
         assert(result)(isRight(equalTo(expected)))
       },
       test("encode simple object") {
-        val json = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
+        val json   = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
         val result = Json.encode(json)
         assert(result.replaceAll("\\s", ""))(equalTo("""{"name":"Alice","age":30}"""))
       },
       test("encode and parse round-trip") {
         val original = Json.Object(
-          "name" -> Json.String("Alice"),
-          "age" -> Json.number(30),
+          "name"   -> Json.String("Alice"),
+          "age"    -> Json.number(30),
           "active" -> Json.Boolean(true),
-          "tags" -> Json.Array(Vector(Json.String("a"), Json.String("b")))
+          "tags"   -> Json.Array(Vector(Json.String("a"), Json.String("b")))
         )
         val encoded = Json.encode(original)
-        val parsed = Json.parse(encoded)
+        val parsed  = Json.parse(encoded)
         assert(parsed)(isRight(equalTo(original)))
       }
     ),
@@ -315,9 +321,9 @@ object JsonSpec extends SchemaBaseSpec {
       test("encode primitive types with schema") {
         import zio.blocks.schema.Schema
 
-        val intJson = Json.from(42)
+        val intJson    = Json.from(42)
         val stringJson = Json.from("hello")
-        val boolJson = Json.from(true)
+        val boolJson   = Json.from(true)
 
         assert(intJson)(equalTo(Json.number(42))) &&
         assert(stringJson)(equalTo(Json.String("hello"))) &&
@@ -326,9 +332,9 @@ object JsonSpec extends SchemaBaseSpec {
       test("decode primitive types with schema") {
         import zio.blocks.schema.Schema
 
-        val intResult = Json.number(42).as[Int]
+        val intResult    = Json.number(42).as[Int]
         val stringResult = Json.String("hello").as[String]
-        val boolResult = Json.Boolean(true).as[Boolean]
+        val boolResult   = Json.Boolean(true).as[Boolean]
 
         assert(intResult)(isRight(equalTo(42))) &&
         assert(stringResult)(isRight(equalTo("hello"))) &&
@@ -343,7 +349,7 @@ object JsonSpec extends SchemaBaseSpec {
         }
 
         val person = Person("Alice", 30)
-        val json = Json.from(person)
+        val json   = Json.from(person)
 
         assert(json.isObject)(isTrue)
       },
@@ -357,7 +363,7 @@ object JsonSpec extends SchemaBaseSpec {
 
         val json = Json.Object(
           "name" -> Json.String("Bob"),
-          "age" -> Json.number(25)
+          "age"  -> Json.number(25)
         )
         val result = json.as[Person]
 
@@ -372,8 +378,8 @@ object JsonSpec extends SchemaBaseSpec {
         }
 
         val original = User(1, "Alice", true)
-        val json = Json.from(original)
-        val decoded = json.as[User]
+        val json     = Json.from(original)
+        val decoded  = json.as[User]
 
         assert(decoded)(isRight(equalTo(original)))
       }
@@ -389,7 +395,7 @@ object JsonSpec extends SchemaBaseSpec {
           "m" -> Json.number(3)
         )
         val normalized = json.normalize
-        val expected = Json.Object(
+        val expected   = Json.Object(
           "a" -> Json.number(2),
           "m" -> Json.number(3),
           "z" -> Json.number(1)
@@ -404,7 +410,7 @@ object JsonSpec extends SchemaBaseSpec {
           )
         )
         val normalized = json.normalize
-        val expected = Json.Object(
+        val expected   = Json.Object(
           "outer" -> Json.Object(
             "a" -> Json.number(2),
             "z" -> Json.number(1)
@@ -422,11 +428,11 @@ object JsonSpec extends SchemaBaseSpec {
           "a" -> Json.number(1),
           "b" -> Json.Object("c" -> Json.number(2))
         )
-        val count = json.foldDown(0) { (_, _, acc) => acc + 1 }
+        val count = json.foldDown(0)((_, _, acc) => acc + 1)
         assert(count)(equalTo(4)) // root + a + b + c
       },
       test("provides correct paths") {
-        val json = Json.Object("a" -> Json.number(1))
+        val json  = Json.Object("a" -> Json.number(1))
         val paths = json.foldDown(Vector.empty[DynamicOptic]) { (path, _, acc) =>
           acc :+ path
         }
@@ -439,7 +445,7 @@ object JsonSpec extends SchemaBaseSpec {
           "a" -> Json.number(1),
           "b" -> Json.Object("c" -> Json.number(2))
         )
-        val count = json.foldUp(0) { (_, _, acc) => acc + 1 }
+        val count = json.foldUp(0)((_, _, acc) => acc + 1)
         assert(count)(equalTo(4)) // c + b + a + root
       }
     ),
@@ -457,7 +463,7 @@ object JsonSpec extends SchemaBaseSpec {
         assert(numbers.toVector)(hasSize(equalTo(2)))
       },
       test("returns empty selection when no matches") {
-        val json = Json.Object("a" -> Json.String("hello"))
+        val json    = Json.Object("a" -> Json.String("hello"))
         val numbers = json.query((_, v) => v.isNumber)
         assert(numbers.toVector)(isEmpty)
       }
@@ -503,7 +509,7 @@ object JsonSpec extends SchemaBaseSpec {
       test("assembles nested structure") {
         val kvs = Seq(
           DynamicOptic.root.field("a").field("b") -> Json.number(1),
-          DynamicOptic.root.field("c").at(0) -> Json.number(2)
+          DynamicOptic.root.field("c").at(0)      -> Json.number(2)
         )
         val result = Json.fromKV(kvs)
         assert(result)(isRight(anything))
@@ -513,11 +519,10 @@ object JsonSpec extends SchemaBaseSpec {
           "a" -> Json.Object("b" -> Json.number(1)),
           "c" -> Json.Array(Json.number(2), Json.number(3))
         )
-        val kvs = original.toKV
+        val kvs    = original.toKV
         val result = Json.fromKV(kvs)
         assert(result)(isRight(equalTo(original)))
       }
     )
   )
 }
-
