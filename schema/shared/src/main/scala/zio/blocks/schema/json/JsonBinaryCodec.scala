@@ -17,16 +17,42 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
   def decodeKey(in: JsonReader): A           = decodeValue(in, nullValue)
   def encodeKey(x: A, out: JsonWriter): Unit = encodeValue(x, out)
 
-  def encode(value: A, output: ByteBuffer): Unit = {
+  def encode(value: A, output: ByteBuffer): Unit = encode(value, output, WriterConfig)
+
+  def encode(value: A, output: ByteBuffer, config: WriterConfig): Unit = {
     val writer = new JsonWriter()
-    writer.write(this, value, output, WriterConfig)
+    writer.write(this, value, output, config)
   }
 
-  def decode(input: ByteBuffer): Either[SchemaError, A] = {
-    val reader = new JsonReader(bbuf = input)
+
+  def encode(value: A, output: java.io.OutputStream): Unit = encode(value, output, WriterConfig)
+
+  def encode(value: A, output: java.io.OutputStream, config: WriterConfig): Unit = {
+    val writer = new JsonWriter()
+    writer.write(this, value, output, config)
+  }
+
+  def decode(input: ByteBuffer): Either[SchemaError, A] = decode(input, ReaderConfig)
+
+  def decode(input: ByteBuffer, config: ReaderConfig): Either[SchemaError, A] = {
+    val reader = new JsonReader(bbuf = input, config = config)
     try {
       val res = decodeValue(reader, nullValue)
-      reader.endOfInputOrError()
+      if (config.checkForEndOfInput) reader.endOfInputOrError()
+      Right(res)
+    } catch {
+      case e: JsonError => Left(SchemaError.expectationMismatch(Nil, e.message))
+      case e: Throwable => Left(SchemaError.expectationMismatch(Nil, e.getMessage))
+    }
+  }
+
+  def decode(input: java.io.InputStream): Either[SchemaError, A] = decode(input, ReaderConfig)
+
+  def decode(input: java.io.InputStream, config: ReaderConfig): Either[SchemaError, A] = {
+    val reader = new JsonReader(in = input, config = config)
+    try {
+      val res = decodeValue(reader, nullValue)
+      if (config.checkForEndOfInput) reader.endOfInputOrError()
       Right(res)
     } catch {
       case e: JsonError => Left(SchemaError.expectationMismatch(Nil, e.message))
@@ -36,13 +62,28 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
 
   def decode(bytes: Array[Byte]): Either[SchemaError, A] = decode(ByteBuffer.wrap(bytes))
 
-  def encode(value: A): Array[Byte] = {
+  def decode(bytes: Array[Byte], config: ReaderConfig): Either[SchemaError, A] = decode(ByteBuffer.wrap(bytes), config)
+
+  def decode(json: String): Either[SchemaError, A] = decode(json, ReaderConfig)
+
+  def decode(json: String, config: ReaderConfig): Either[SchemaError, A] = decode(json.getBytes(java.nio.charset.StandardCharsets.UTF_8), config)
+
+  def encode(value: A): Array[Byte] = encode(value, WriterConfig)
+
+  def encode(value: A, config: WriterConfig): Array[Byte] = {
     val buffer = ByteBuffer.allocate(10485760) // 10MB buffer to handle large test cases
-    encode(value, buffer)
+    encode(value, buffer, config)
     buffer.flip()
     val arr = new Array[Byte](buffer.remaining())
     buffer.get(arr)
     arr
+  }
+
+  def encodeToString(value: A): String = encodeToString(value, WriterConfig)
+
+  def encodeToString(value: A, config: WriterConfig): String = {
+    val bytes = encode(value, config)
+    new String(bytes, java.nio.charset.StandardCharsets.UTF_8)
   }
 
   // Helpers for JsonDecoder (stubbed)

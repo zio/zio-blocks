@@ -309,8 +309,8 @@ object SerializationSpec extends SchemaBaseSpec {
         import zio.blocks.schema.json._
         val schema  = Schema[DynamicPatch]
         val codec   = schema.derive(JsonBinaryCodecDeriver)
-        val encoded = codec.encode(patch, WriterConfig)
-        val decoded = codec.decode(encoded, ReaderConfig)
+        val encoded = codec.encode(patch)
+        val decoded = codec.decode(encoded)
         assertTrue(decoded == Right(patch))
       }
     ),
