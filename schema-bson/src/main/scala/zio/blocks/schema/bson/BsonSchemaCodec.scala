@@ -21,26 +21,31 @@ object BsonSchemaCodec {
   type TermMapping = String => String
 
   /**
-   * Strategy for encoding and decoding sum types (sealed traits / enums) in BSON.
+   * Strategy for encoding and decoding sum types (sealed traits / enums) in
+   * BSON.
    */
   sealed trait SumTypeHandling
 
   object SumTypeHandling {
+
     /**
      * Encode each case as a wrapper document keyed by the mapped class name.
      */
     case object WrapperWithClassNameField extends SumTypeHandling
 
     /**
-     * Encode each case as a document containing a discriminator field with the mapped class name.
+     * Encode each case as a document containing a discriminator field with the
+     * mapped class name.
      */
     final case class DiscriminatorField(name: String) extends SumTypeHandling
   }
 
   /**
    * Configuration for the BSON schema codec.
-   * @param sumTypeHandling The handling of sum types.
-   * @param classNameMapping The mapping of class names.
+   * @param sumTypeHandling
+   *   The handling of sum types.
+   * @param classNameMapping
+   *   The mapping of class names.
    */
   class Config private (
     val sumTypeHandling: SumTypeHandling,
@@ -67,25 +72,29 @@ object BsonSchemaCodec {
       )
 
   /**
-   * Derives a BSON encoder for the provided schema using the given configuration.
+   * Derives a BSON encoder for the provided schema using the given
+   * configuration.
    */
   def bsonEncoder[A](schema: Schema[A], config: Config): BsonEncoder[A] =
     BsonSchemaEncoder.schemaEncoder(config)(schema.reflect)
 
   /**
-   * Derives a BSON encoder for the provided schema using the default configuration.
+   * Derives a BSON encoder for the provided schema using the default
+   * configuration.
    */
   def bsonEncoder[A](schema: Schema[A]): BsonEncoder[A] =
     bsonEncoder(schema, Config)
 
   /**
-   * Derives a BSON decoder for the provided schema using the given configuration.
+   * Derives a BSON decoder for the provided schema using the given
+   * configuration.
    */
   def bsonDecoder[A](schema: Schema[A], config: Config): BsonDecoder[A] =
     BsonSchemaDecoder.schemaDecoder(config)(schema.reflect)
 
   /**
-   * Derives a BSON decoder for the provided schema using the default configuration.
+   * Derives a BSON decoder for the provided schema using the default
+   * configuration.
    */
   def bsonDecoder[A](schema: Schema[A]): BsonDecoder[A] =
     bsonDecoder(schema, Config)
@@ -97,7 +106,8 @@ object BsonSchemaCodec {
     BsonCodec(bsonEncoder(schema, config), bsonDecoder(schema, config))
 
   /**
-   * Derives a BSON codec for the provided schema using the default configuration.
+   * Derives a BSON codec for the provided schema using the default
+   * configuration.
    */
   def bsonCodec[A](schema: Schema[A]): BsonCodec[A] =
     bsonCodec(schema, Config)
@@ -276,7 +286,7 @@ object BsonSchemaCodec {
         }
 
         override def toBsonValue(value: Either[A, B]): BsonValue = value match {
-          case Left(value)  => doc("left"  -> value.toBsonValue)
+          case Left(value)  => doc("left" -> value.toBsonValue)
           case Right(value) => doc("right" -> value.toBsonValue)
         }
       }
@@ -372,36 +382,36 @@ object BsonSchemaCodec {
 
     private[bson] def primitiveCodec[A](primitiveType: PrimitiveType[A]): BsonCodec[A] =
       primitiveType match {
-        case PrimitiveType.Unit        => unitCodec.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.String   => BsonCodec.string.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Boolean  => BsonCodec.boolean.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Byte     => BsonCodec.byte.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Short    => BsonCodec.short.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Int      => BsonCodec.int.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Long     => BsonCodec.long.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Float    => BsonCodec.float.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Double   => BsonCodec.double.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Char     => BsonCodec.char.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.BigInt   => BsonCodec.bigInt.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.BigDecimal => BsonCodec.bigDecimal.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.DayOfWeek => BsonCodec.dayOfWeek.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Duration  => BsonCodec.duration.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Instant   => BsonCodec.instant.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.LocalDate => BsonCodec.localDate.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.LocalDateTime => BsonCodec.localDateTime.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.LocalTime => BsonCodec.localTime.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Month => BsonCodec.month.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.MonthDay => BsonCodec.monthDay.asInstanceOf[BsonCodec[A]]
+        case PrimitiveType.Unit              => unitCodec.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.String         => BsonCodec.string.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Boolean        => BsonCodec.boolean.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Byte           => BsonCodec.byte.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Short          => BsonCodec.short.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Int            => BsonCodec.int.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Long           => BsonCodec.long.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Float          => BsonCodec.float.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Double         => BsonCodec.double.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Char           => BsonCodec.char.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.BigInt         => BsonCodec.bigInt.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.BigDecimal     => BsonCodec.bigDecimal.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.DayOfWeek      => BsonCodec.dayOfWeek.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Duration       => BsonCodec.duration.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Instant        => BsonCodec.instant.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.LocalDate      => BsonCodec.localDate.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.LocalDateTime  => BsonCodec.localDateTime.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.LocalTime      => BsonCodec.localTime.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Month          => BsonCodec.month.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.MonthDay       => BsonCodec.monthDay.asInstanceOf[BsonCodec[A]]
         case _: PrimitiveType.OffsetDateTime => BsonCodec.offsetDateTime.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.OffsetTime => BsonCodec.offsetTime.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Period => BsonCodec.period.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Year => BsonCodec.year.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.YearMonth => BsonCodec.yearMonth.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.ZoneId => BsonCodec.zoneId.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.ZoneOffset => BsonCodec.zoneOffset.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.ZonedDateTime => BsonCodec.zonedDateTime.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.UUID => BsonCodec.uuid.asInstanceOf[BsonCodec[A]]
-        case _: PrimitiveType.Currency => BsonCodec.currency.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.OffsetTime     => BsonCodec.offsetTime.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Period         => BsonCodec.period.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Year           => BsonCodec.year.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.YearMonth      => BsonCodec.yearMonth.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.ZoneId         => BsonCodec.zoneId.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.ZoneOffset     => BsonCodec.zoneOffset.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.ZonedDateTime  => BsonCodec.zonedDateTime.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.UUID           => BsonCodec.uuid.asInstanceOf[BsonCodec[A]]
+        case _: PrimitiveType.Currency       => BsonCodec.currency.asInstanceOf[BsonCodec[A]]
       }
   }
 
@@ -412,7 +422,7 @@ object BsonSchemaCodec {
     private[bson] def schemaEncoder[A](config: Config)(schema: Reflect[Binding, A]): BsonEncoder[A] =
       schema.asPrimitive match {
         case Some(primitive) => primitiveCodec(primitive.primitiveType).encoder
-        case _ =>
+        case _               =>
           schema match {
             case deferred: Reflect.Deferred[Binding, A] =>
               lazy val inner = schemaEncoder(config)(deferred.value)
@@ -445,7 +455,7 @@ object BsonSchemaCodec {
           }
       }
 
-    private def wrapperEncoder[A, B](config: Config)(schema: Reflect.Wrapper[Binding, A, B]): BsonEncoder[A] = {
+    private def wrapperEncoder[A, B](config: Config)(schema: Reflect.Wrapper[Binding, A, B]): BsonEncoder[A] =
       if (isObjectId(schema.modifiers)) {
         BsonEncoder.objectId.contramap[A] { value =>
           new ObjectId(schema.binding.unwrap(value).toString)
@@ -454,7 +464,6 @@ object BsonSchemaCodec {
         val inner = schemaEncoder(config)(schema.wrapped)
         inner.contramap[A](schema.binding.unwrap)
       }
-    }
 
     private[bson] def bsonFieldEncoder[A](schema: Reflect[Binding, A]): Option[BsonFieldEncoder[A]] =
       schema.asPrimitive match {
@@ -564,7 +573,9 @@ object BsonSchemaCodec {
             val name = caseName(config)(case_)
             case_.value.asRecord
               .flatMap(_.getDefaultValue)
-              .getOrElse(case_.value.asInstanceOf[Reflect.Record[Binding, Z]].constructor.construct(Registers(0L), 0)) ->
+              .getOrElse(
+                case_.value.asInstanceOf[Reflect.Record[Binding, Z]].constructor.construct(Registers(0L), 0)
+              ) ->
               name
           }
           .toMap
@@ -685,9 +696,9 @@ object BsonSchemaCodec {
 
       private val fields = schema.fields
 
-      private val fieldIndices = fields.indices.filterNot(idx => isTransient(fields(idx))).toArray
+      private val fieldIndices       = fields.indices.filterNot(idx => isTransient(fields(idx))).toArray
       private val nonTransientFields = fieldIndices.map(fields(_))
-      private val allRegisters = recordRegisters(schema)
+      private val allRegisters       = recordRegisters(schema)
 
       private val names: Array[String] =
         nonTransientFields.map(encodedFieldName)
@@ -695,14 +706,14 @@ object BsonSchemaCodec {
       private lazy val encoders: Array[BsonEncoder[Any]] =
         nonTransientFields.map(s => schemaEncoder(config)(s.value).asInstanceOf[BsonEncoder[Any]])
 
-      private val registers = fieldIndices.map(allRegisters).asInstanceOf[Array[Register[Any]]]
-      private val len       = nonTransientFields.length
+      private val registers     = fieldIndices.map(allRegisters).asInstanceOf[Array[Register[Any]]]
+      private val len           = nonTransientFields.length
       private val usedRegisters = Reflect.Record.usedRegisters(allRegisters)
 
       def encode(writer: BsonWriter, value: Z, ctx: BsonEncoder.EncoderContext): Unit =
         if (names.length == 1 && names(0) == ObjectIdTag) {
-          val fieldValue  = fieldValueAt(value, 0, registers(0))
-          val id          = new ObjectId(fieldValue.toString)
+          val fieldValue = fieldValueAt(value, 0, registers(0))
+          val id         = new ObjectId(fieldValue.toString)
           writer.writeObjectId(id)
         } else {
           if (!ctx.inlineNextObject) writer.writeStartDocument()
@@ -786,12 +797,16 @@ object BsonSchemaCodec {
     private[bson] def schemaDecoder[A](config: Config)(schema: Reflect[Binding, A]): BsonDecoder[A] =
       schema.asPrimitive match {
         case Some(primitive) => primitiveCodec(primitive.primitiveType).decoder
-        case None =>
+        case None            =>
           schema match {
             case deferred: Reflect.Deferred[Binding, A] =>
               lazy val inner = schemaDecoder(config)(deferred.value)
               new BsonDecoder[A] {
-                override def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): A =
+                override def decodeUnsafe(
+                  reader: BsonReader,
+                  trace: List[BsonTrace],
+                  ctx: BsonDecoder.BsonDecoderContext
+                ): A =
                   inner.decodeUnsafe(reader, trace, ctx)
 
                 override def decodeMissingUnsafe(trace: List[BsonTrace]): A =
@@ -824,7 +839,7 @@ object BsonSchemaCodec {
           }
       }
 
-    private def wrapperDecoder[A, B](config: Config)(schema: Reflect.Wrapper[Binding, A, B]): BsonDecoder[A] = {
+    private def wrapperDecoder[A, B](config: Config)(schema: Reflect.Wrapper[Binding, A, B]): BsonDecoder[A] =
       if (isObjectId(schema.modifiers)) {
         BsonDecoder.objectId.mapOrFail { oid =>
           schema.binding.wrap(oid.toHexString.asInstanceOf[B]).left.map(identity)
@@ -832,7 +847,6 @@ object BsonSchemaCodec {
       } else {
         schemaDecoder(config)(schema.wrapped).mapOrFail(schema.binding.wrap)
       }
-    }
 
     private[bson] def mapDecoder[K, V, M[_, _]](
       config: Config
@@ -951,12 +965,11 @@ object BsonSchemaCodec {
             caseName(config)(case_) ->
               case_.value.asInstanceOf[Reflect.Record[Binding, Z]].constructor.construct(Registers(0L), 0)
           }.toMap
-        BsonDecoder.string.mapOrFail(
-          s =>
-            caseMap.get(caseNameAliases.getOrElse(s, s)) match {
-              case Some(z) => Right(z)
-              case None    => Left("unrecognized string")
-            }
+        BsonDecoder.string.mapOrFail(s =>
+          caseMap.get(caseNameAliases.getOrElse(s, s)) match {
+            case Some(z) => Right(z)
+            case None    => Left("unrecognized string")
+          }
         )
       } else if (schema.isOption) {
         val inner = schema.optionInnerType.get.asInstanceOf[Reflect[Binding, Any]]
@@ -1070,7 +1083,7 @@ object BsonSchemaCodec {
                   val nextCtx         = BsonDecoder.BsonDecoderContext.default
 
                   getCase(name) match {
-                    case None => throw BsonDecoder.Error(nextTrace, s"Invalid disambiguator $name.")
+                    case None    => throw BsonDecoder.Error(nextTrace, s"Invalid disambiguator $name.")
                     case Some(c) =>
                       schemaDecoder(config)(c.value).fromBsonValueUnsafe(element, nextTrace, nextCtx).asInstanceOf[Z]
                   }
@@ -1151,18 +1164,17 @@ object BsonSchemaCodec {
     }
 
     private def caseClassDecoder[Z](config: Config)(schema: Reflect.Record[Binding, Z]): BsonDecoder[Z] = {
-      val fields     = schema.fields
-      val len: Int   = fields.length
-      val fieldNames = fields.map(encodedFieldName).toArray
-      val spans: Array[BsonTrace] = fieldNames.map(f => BsonTrace.Field(f))
+      val fields                            = schema.fields
+      val len: Int                          = fields.length
+      val fieldNames                        = fields.map(encodedFieldName).toArray
+      val spans: Array[BsonTrace]           = fieldNames.map(f => BsonTrace.Field(f))
       val decoders: Array[BsonDecoder[Any]] =
         fields.map(s => schemaDecoder(config)(s.value).asInstanceOf[BsonDecoder[Any]]).toArray
-      val fieldAliases = fields.flatMap {
-        case field =>
-          val aliases = fieldAliasesFrom(field)
-          aliases.map(_ -> fieldNames.indexOf(encodedFieldName(field))) :+ (field.name -> fieldNames.indexOf(
-            encodedFieldName(field)
-          ))
+      val fieldAliases = fields.flatMap { case field =>
+        val aliases = fieldAliasesFrom(field)
+        aliases.map(_ -> fieldNames.indexOf(encodedFieldName(field))) :+ (field.name -> fieldNames.indexOf(
+          encodedFieldName(field)
+        ))
       }.toMap
       val indexes = HashMap((fieldAliases ++ fieldNames.zipWithIndex).toSeq: _*)
       val noExtra = schema.modifiers.exists {
@@ -1170,16 +1182,16 @@ object BsonSchemaCodec {
         case _: bsonNoExtraFields => true
         case _                    => false
       }
-      val registers = recordRegisters(schema)
-      val defaults  = fields.map(_.value.getDefaultValue.map(_.asInstanceOf[Any])).toArray
-      val optionals = fields.map(field => isOptional(field.value)).toArray
-      val transients = fields.map(isTransient).toArray
+      val registers   = recordRegisters(schema)
+      val defaults    = fields.map(_.value.getDefaultValue.map(_.asInstanceOf[Any])).toArray
+      val optionals   = fields.map(field => isOptional(field.value)).toArray
+      val transients  = fields.map(isTransient).toArray
       val constructor = schema.constructor
 
       new BsonDecoder[Z] {
         def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): Z =
           if (fieldNames.length == 1 && fieldNames(0) == ObjectIdTag) {
-            val id = reader.readObjectId().toHexString
+            val id   = reader.readObjectId().toHexString
             val regs = Registers(constructor.usedRegisters)
             registers(0).set(regs, 0, id)
             constructor.construct(regs, 0)
@@ -1187,9 +1199,9 @@ object BsonSchemaCodec {
             unsafeCall(trace) {
               reader.readStartDocument()
 
-              val nextCtx    = BsonDecoder.BsonDecoderContext.default
-              val regs       = Registers(constructor.usedRegisters)
-              val seen       = Array.fill(len)(false)
+              val nextCtx = BsonDecoder.BsonDecoderContext.default
+              val regs    = Registers(constructor.usedRegisters)
+              val seen    = Array.fill(len)(false)
 
               while (reader.readBsonType() != BsonType.END_OF_DOCUMENT) {
                 val name = reader.readName()
@@ -1211,7 +1223,7 @@ object BsonSchemaCodec {
               while (i < len) {
                 if (!seen(i)) {
                   defaults(i) match {
-                    case Some(defaultValue) => registers(i).set(regs, 0, defaultValue)
+                    case Some(defaultValue)                    => registers(i).set(regs, 0, defaultValue)
                     case None if optionals(i) || transients(i) =>
                       registers(i).set(regs, 0, None)
                     case None =>
@@ -1256,9 +1268,9 @@ object BsonSchemaCodec {
               while (i < len) {
                 if (!seen(i)) {
                   defaults(i) match {
-                    case Some(defaultValue) => registers(i).set(regs, 0, defaultValue)
+                    case Some(defaultValue)                    => registers(i).set(regs, 0, defaultValue)
                     case None if optionals(i) || transients(i) => registers(i).set(regs, 0, None)
-                    case None =>
+                    case None                                  =>
                       registers(i).set(regs, 0, decoders(i).decodeMissingUnsafe(spans(i) :: trace))
                   }
                 }
@@ -1321,13 +1333,13 @@ object BsonSchemaCodec {
       case BsonType.END_OF_DOCUMENT => DynamicValue.Primitive(PrimitiveValue.Unit)
       case BsonType.DOUBLE          => DynamicValue.Primitive(new PrimitiveValue.Double(bsonValue.asDouble().getValue))
       case BsonType.STRING          => DynamicValue.Primitive(new PrimitiveValue.String(bsonValue.asString().getValue))
-      case BsonType.DOCUMENT =>
+      case BsonType.DOCUMENT        =>
         val values = bsonValue
           .asDocument()
           .asScala
           .toSeq
-          .map {
-            case (k, v) => k -> bsonToDynamicValue(v)
+          .map { case (k, v) =>
+            k -> bsonToDynamicValue(v)
           }
 
         DynamicValue.Record(values.toVector)
@@ -1345,7 +1357,7 @@ object BsonSchemaCodec {
             )
           )
         )
-      case BsonType.BOOLEAN => DynamicValue.Primitive(new PrimitiveValue.Boolean(bsonValue.asBoolean().getValue))
+      case BsonType.BOOLEAN   => DynamicValue.Primitive(new PrimitiveValue.Boolean(bsonValue.asBoolean().getValue))
       case BsonType.DATE_TIME =>
         DynamicValue.Primitive(new PrimitiveValue.Instant(Instant.ofEpochMilli(bsonValue.asDateTime().getValue)))
       case BsonType.NULL                  => DynamicValue.Primitive(PrimitiveValue.Unit)
@@ -1354,10 +1366,10 @@ object BsonSchemaCodec {
       case BsonType.JAVASCRIPT            => DynamicValue.Primitive(PrimitiveValue.Unit)
       case BsonType.SYMBOL                => DynamicValue.Primitive(new PrimitiveValue.String(bsonValue.asSymbol().getSymbol))
       case BsonType.JAVASCRIPT_WITH_SCOPE => DynamicValue.Primitive(PrimitiveValue.Unit)
-      case BsonType.INT32 => DynamicValue.Primitive(new PrimitiveValue.Int(bsonValue.asInt32().getValue))
-      case BsonType.TIMESTAMP =>
+      case BsonType.INT32                 => DynamicValue.Primitive(new PrimitiveValue.Int(bsonValue.asInt32().getValue))
+      case BsonType.TIMESTAMP             =>
         DynamicValue.Primitive(new PrimitiveValue.Instant(Instant.ofEpochMilli(bsonValue.asTimestamp().getValue)))
-      case BsonType.INT64 => DynamicValue.Primitive(new PrimitiveValue.Long(bsonValue.asInt64().getValue))
+      case BsonType.INT64      => DynamicValue.Primitive(new PrimitiveValue.Long(bsonValue.asInt64().getValue))
       case BsonType.DECIMAL128 =>
         DynamicValue.Primitive(
           new PrimitiveValue.BigDecimal(bsonValue.asDecimal128().getValue.bigDecimalValue())
@@ -1370,45 +1382,49 @@ object BsonSchemaCodec {
     value match {
       case DynamicValue.Primitive(primitive) =>
         primitive match {
-          case PrimitiveValue.Unit             => BsonNull.VALUE
-          case PrimitiveValue.Boolean(value)   => BsonCodec.boolean.encoder.toBsonValue(value)
-          case PrimitiveValue.Byte(value)      => BsonCodec.byte.encoder.toBsonValue(value)
-          case PrimitiveValue.Short(value)     => BsonCodec.short.encoder.toBsonValue(value)
-          case PrimitiveValue.Int(value)       => BsonCodec.int.encoder.toBsonValue(value)
-          case PrimitiveValue.Long(value)      => BsonCodec.long.encoder.toBsonValue(value)
-          case PrimitiveValue.Float(value)     => BsonCodec.float.encoder.toBsonValue(value)
-          case PrimitiveValue.Double(value)    => BsonCodec.double.encoder.toBsonValue(value)
-          case PrimitiveValue.Char(value)      => BsonCodec.char.encoder.toBsonValue(value)
-          case PrimitiveValue.String(value)    => BsonCodec.string.encoder.toBsonValue(value)
-          case PrimitiveValue.BigInt(value)    => BsonCodec.bigInt.encoder.toBsonValue(value)
-          case PrimitiveValue.BigDecimal(value) => BsonCodec.bigDecimal.encoder.toBsonValue(value)
-          case PrimitiveValue.DayOfWeek(value) => BsonCodec.dayOfWeek.encoder.toBsonValue(value)
-          case PrimitiveValue.Duration(value)  => BsonCodec.duration.encoder.toBsonValue(value)
-          case PrimitiveValue.Instant(value)   => BsonCodec.instant.encoder.toBsonValue(value)
-          case PrimitiveValue.LocalDate(value) => BsonCodec.localDate.encoder.toBsonValue(value)
-          case PrimitiveValue.LocalDateTime(value) => BsonCodec.localDateTime.encoder.toBsonValue(value)
-          case PrimitiveValue.LocalTime(value) => BsonCodec.localTime.encoder.toBsonValue(value)
-          case PrimitiveValue.Month(value)     => BsonCodec.month.encoder.toBsonValue(value)
-          case PrimitiveValue.MonthDay(value)  => BsonCodec.monthDay.encoder.toBsonValue(value)
+          case PrimitiveValue.Unit                  => BsonNull.VALUE
+          case PrimitiveValue.Boolean(value)        => BsonCodec.boolean.encoder.toBsonValue(value)
+          case PrimitiveValue.Byte(value)           => BsonCodec.byte.encoder.toBsonValue(value)
+          case PrimitiveValue.Short(value)          => BsonCodec.short.encoder.toBsonValue(value)
+          case PrimitiveValue.Int(value)            => BsonCodec.int.encoder.toBsonValue(value)
+          case PrimitiveValue.Long(value)           => BsonCodec.long.encoder.toBsonValue(value)
+          case PrimitiveValue.Float(value)          => BsonCodec.float.encoder.toBsonValue(value)
+          case PrimitiveValue.Double(value)         => BsonCodec.double.encoder.toBsonValue(value)
+          case PrimitiveValue.Char(value)           => BsonCodec.char.encoder.toBsonValue(value)
+          case PrimitiveValue.String(value)         => BsonCodec.string.encoder.toBsonValue(value)
+          case PrimitiveValue.BigInt(value)         => BsonCodec.bigInt.encoder.toBsonValue(value)
+          case PrimitiveValue.BigDecimal(value)     => BsonCodec.bigDecimal.encoder.toBsonValue(value)
+          case PrimitiveValue.DayOfWeek(value)      => BsonCodec.dayOfWeek.encoder.toBsonValue(value)
+          case PrimitiveValue.Duration(value)       => BsonCodec.duration.encoder.toBsonValue(value)
+          case PrimitiveValue.Instant(value)        => BsonCodec.instant.encoder.toBsonValue(value)
+          case PrimitiveValue.LocalDate(value)      => BsonCodec.localDate.encoder.toBsonValue(value)
+          case PrimitiveValue.LocalDateTime(value)  => BsonCodec.localDateTime.encoder.toBsonValue(value)
+          case PrimitiveValue.LocalTime(value)      => BsonCodec.localTime.encoder.toBsonValue(value)
+          case PrimitiveValue.Month(value)          => BsonCodec.month.encoder.toBsonValue(value)
+          case PrimitiveValue.MonthDay(value)       => BsonCodec.monthDay.encoder.toBsonValue(value)
           case PrimitiveValue.OffsetDateTime(value) => BsonCodec.offsetDateTime.encoder.toBsonValue(value)
-          case PrimitiveValue.OffsetTime(value) => BsonCodec.offsetTime.encoder.toBsonValue(value)
-          case PrimitiveValue.Period(value)    => BsonCodec.period.encoder.toBsonValue(value)
-          case PrimitiveValue.Year(value)      => BsonCodec.year.encoder.toBsonValue(value)
-          case PrimitiveValue.YearMonth(value) => BsonCodec.yearMonth.encoder.toBsonValue(value)
-          case PrimitiveValue.ZoneId(value)    => BsonCodec.zoneId.encoder.toBsonValue(value)
-          case PrimitiveValue.ZoneOffset(value) => BsonCodec.zoneOffset.encoder.toBsonValue(value)
-          case PrimitiveValue.ZonedDateTime(value) => BsonCodec.zonedDateTime.encoder.toBsonValue(value)
-          case PrimitiveValue.UUID(value)      => BsonCodec.uuid.encoder.toBsonValue(value)
-          case PrimitiveValue.Currency(value)  => BsonCodec.currency.encoder.toBsonValue(value)
+          case PrimitiveValue.OffsetTime(value)     => BsonCodec.offsetTime.encoder.toBsonValue(value)
+          case PrimitiveValue.Period(value)         => BsonCodec.period.encoder.toBsonValue(value)
+          case PrimitiveValue.Year(value)           => BsonCodec.year.encoder.toBsonValue(value)
+          case PrimitiveValue.YearMonth(value)      => BsonCodec.yearMonth.encoder.toBsonValue(value)
+          case PrimitiveValue.ZoneId(value)         => BsonCodec.zoneId.encoder.toBsonValue(value)
+          case PrimitiveValue.ZoneOffset(value)     => BsonCodec.zoneOffset.encoder.toBsonValue(value)
+          case PrimitiveValue.ZonedDateTime(value)  => BsonCodec.zonedDateTime.encoder.toBsonValue(value)
+          case PrimitiveValue.UUID(value)           => BsonCodec.uuid.encoder.toBsonValue(value)
+          case PrimitiveValue.Currency(value)       => BsonCodec.currency.encoder.toBsonValue(value)
         }
       case DynamicValue.Record(fields) =>
-        new BsonDocument(fields.view.map { case (key, value) => element(key, dynamicValueToBson(value)) }.to(Chunk).asJava)
+        new BsonDocument(fields.view.map { case (key, value) =>
+          element(key, dynamicValueToBson(value))
+        }.to(Chunk).asJava)
       case DynamicValue.Sequence(values) =>
         array(values.map(dynamicValueToBson): _*)
       case DynamicValue.Variant(caseName, value) =>
         doc(caseName -> dynamicValueToBson(value))
       case DynamicValue.Map(entries) =>
-        array(entries.map { case (key, value) => doc("_1" -> dynamicValueToBson(key), "_2" -> dynamicValueToBson(value)) }: _*)
+        array(entries.map { case (key, value) =>
+          doc("_1" -> dynamicValueToBson(key), "_2" -> dynamicValueToBson(value))
+        }: _*)
     }
 
   private def isObjectId(modifiers: Seq[Modifier.Reflect]): Boolean =
@@ -1450,12 +1466,11 @@ object BsonSchemaCodec {
       aliases.map(_ -> mappedName)
     }.toMap
 
-  private def caseName[A](config: Config)(case_ : Term[Binding, A, _]): String = {
+  private def caseName[A](config: Config)(case_ : Term[Binding, A, _]): String =
     case_.modifiers.collectFirst { case m: bsonHint => m.name }
       .orElse(case_.modifiers.collectFirst { case m: caseName => m.name })
       .orElse(case_.modifiers.collectFirst { case m: Modifier.rename => m.name })
       .getOrElse(config.classNameMapping(case_.name))
-  }
 
   private def nonTransientCase[A](schema: Reflect.Variant[Binding, A], value: A): Option[Term[Binding, A, _]] = {
     val idx  = schema.discriminator.discriminate(value)
@@ -1470,7 +1485,7 @@ object BsonSchemaCodec {
     variant.typeName.namespace == TypeName.option(TypeName.string).namespace &&
       variant.typeName.name == "Either" && variant.cases.length == 2
 
-  private def recordRegisters(schema: Reflect.Record[Binding, ?]): Array[Register[Any]] = {
+  private def recordRegisters(schema: Reflect.Record[Binding, ?]): Array[Register[Any]] =
     if (!schema.fields.exists(_.value.isInstanceOf[Reflect.Deferred[Binding, ?]])) {
       schema.registers.toArray.asInstanceOf[Array[Register[Any]]]
     } else {
@@ -1479,7 +1494,7 @@ object BsonSchemaCodec {
       schema.fields.zipWithIndex.foreach { case (field, idx) =>
         val primitive = field.value match {
           case _: Reflect.Deferred[Binding, ?] => None
-          case _ => Reflect.unwrapToPrimitiveTypeOption(field.value)
+          case _                               => Reflect.unwrapToPrimitiveTypeOption(field.value)
         }
         primitive match {
           case Some(primitiveType) =>
@@ -1521,5 +1536,4 @@ object BsonSchemaCodec {
       }
       registers.asInstanceOf[Array[Register[Any]]]
     }
-  }
 }

@@ -59,7 +59,7 @@ object BsonSchemaCodecGenericSpec extends zio.blocks.schema.SchemaBaseSpec {
       ),
       roundTripTest("GenericRec[Int]")(
         for {
-          t <- Gen.int
+          t    <- Gen.int
           next <- Gen.option(
                     Gen.int.map { value =>
                       GenericRec(value, None)

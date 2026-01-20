@@ -6,13 +6,13 @@ import zio.blocks.schema.Modifier
 import scala.util.Try
 
 package object bson {
-  val ObjectIdTag: String = "$oid"
+  val ObjectIdTag: String                     = "$oid"
   private[bson] val ObjectIdConfigKey: String = "bson.objectId"
 
   implicit val ObjectIdSchema: Schema[ObjectId] = {
     val stringSchema = Schema[String]
     val typeName     = new TypeName[ObjectId](new Namespace(Seq("org", "bson", "types")), "ObjectId")
-    val binding = new Binding.Wrapper[ObjectId, String](
+    val binding      = new Binding.Wrapper[ObjectId, String](
       value => Try(new ObjectId(value)).toEither.left.map(_.getMessage),
       _.toHexString
     )

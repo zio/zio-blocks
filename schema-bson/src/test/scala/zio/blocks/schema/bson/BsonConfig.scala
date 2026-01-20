@@ -20,7 +20,7 @@ object BsonConfig {
     case class A(s: String) extends WithClassNameTransformOptions
     case class B(s: String) extends WithClassNameTransformOptions
 
-    implicit lazy val schema: Schema[WithClassNameTransformOptions] = Schema.derived
+    implicit lazy val schema: Schema[WithClassNameTransformOptions]   = Schema.derived
     implicit lazy val codec: BsonCodec[WithClassNameTransformOptions] = BsonSchemaCodec.bsonCodec(
       schema,
       BsonSchemaCodec.Config.withClassNameMapping(
@@ -35,7 +35,7 @@ object BsonConfig {
     case class A(s: String) extends WithDiscriminatorOptions
     case class B(s: String) extends WithDiscriminatorOptions
 
-    implicit lazy val schema: Schema[WithDiscriminatorOptions] = Schema.derived
+    implicit lazy val schema: Schema[WithDiscriminatorOptions]   = Schema.derived
     implicit lazy val codec: BsonCodec[WithDiscriminatorOptions] = BsonSchemaCodec.bsonCodec(
       schema,
       BsonSchemaCodec.Config.withSumTypeHandling(
@@ -50,7 +50,7 @@ object BsonConfig {
     case class A(s: String) extends WithoutDiscriminatorOptions
     case class B(s: String) extends WithoutDiscriminatorOptions
 
-    implicit lazy val schema: Schema[WithoutDiscriminatorOptions] = Schema.derived
+    implicit lazy val schema: Schema[WithoutDiscriminatorOptions]   = Schema.derived
     implicit lazy val codec: BsonCodec[WithoutDiscriminatorOptions] = BsonSchemaCodec.bsonCodec(
       schema,
       BsonSchemaCodec.Config.withSumTypeHandling(
