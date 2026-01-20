@@ -169,9 +169,87 @@ sealed trait Json { self =>
    * @return A [[JsonSelection]] containing values at the path
    */
   def get(path: DynamicOptic): JsonSelection = {
-    // TODO: Implement path navigation using DynamicOptic.nodes
-    val _ = path // suppress unused warning
-    JsonSelection.empty
+    import DynamicOptic.Node
+
+    def navigate(current: Vector[Json], nodes: IndexedSeq[Node]): Vector[Json] = {
+      if (nodes.isEmpty) return current
+
+      val node = nodes.head
+      val rest = nodes.tail
+
+      val next = node match {
+        case Node.Field(name) =>
+          current.flatMap {
+            case Json.Object(flds) => flds.collectFirst { case (k, v) if k == name => v }
+            case _ => None
+          }
+
+        case Node.AtIndex(index) =>
+          current.flatMap {
+            case Json.Array(elems) if index >= 0 && index < elems.size => Some(elems(index))
+            case _ => None
+          }
+
+        case Node.Elements =>
+          current.flatMap {
+            case Json.Array(elems) => elems
+            case _ => Vector.empty
+          }
+
+        case Node.AtIndices(indices) =>
+          current.flatMap {
+            case Json.Array(elems) =>
+              indices.flatMap { idx =>
+                if (idx >= 0 && idx < elems.size) Some(elems(idx)) else None
+              }
+            case _ => Vector.empty
+          }
+
+        case Node.MapKeys =>
+          current.flatMap {
+            case Json.Object(flds) => flds.map { case (k, _) => Json.String(k) }
+            case _ => Vector.empty
+          }
+
+        case Node.MapValues =>
+          current.flatMap {
+            case Json.Object(flds) => flds.map(_._2)
+            case _ => Vector.empty
+          }
+
+        case Node.AtMapKey(key) =>
+          // For JSON, map keys are strings, so convert DynamicValue to string
+          val keyStr = key match {
+            case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+            case _ => key.toString
+          }
+          current.flatMap {
+            case Json.Object(flds) => flds.collectFirst { case (k, v) if k == keyStr => v }
+            case _ => None
+          }
+
+        case Node.AtMapKeys(keys) =>
+          val keyStrs = keys.map {
+            case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+            case other => other.toString
+          }
+          current.flatMap {
+            case Json.Object(flds) =>
+              keyStrs.flatMap { keyStr =>
+                flds.collectFirst { case (k, v) if k == keyStr => v }
+              }
+            case _ => Vector.empty
+          }
+
+        case Node.Case(_) | Node.Wrapped =>
+          // Not applicable to JSON (these are for variants/newtypes)
+          current
+      }
+
+      navigate(next, rest)
+    }
+
+    JsonSelection(navigate(Vector(self), path.nodes))
   }
 
   /**
@@ -466,9 +544,21 @@ sealed trait Json { self =>
    * @return The transformed JSON
    */
   def transformUp(f: (DynamicOptic, Json) => Json): Json = {
-    // TODO: Implement bottom-up transformation
-    val _ = f
-    self
+    def go(path: DynamicOptic, json: Json): Json = {
+      val transformed = json match {
+        case Json.Object(flds) =>
+          Json.Object(flds.map { case (k, v) =>
+            k -> go(path.field(k), v)
+          })
+        case Json.Array(elems) =>
+          Json.Array(elems.zipWithIndex.map { case (v, i) =>
+            go(path.at(i), v)
+          })
+        case other => other
+      }
+      f(path, transformed)
+    }
+    go(DynamicOptic.root, self)
   }
 
   /**
@@ -478,9 +568,21 @@ sealed trait Json { self =>
    * @return The transformed JSON
    */
   def transformDown(f: (DynamicOptic, Json) => Json): Json = {
-    // TODO: Implement top-down transformation
-    val _ = f
-    self
+    def go(path: DynamicOptic, json: Json): Json = {
+      val transformed = f(path, json)
+      transformed match {
+        case Json.Object(flds) =>
+          Json.Object(flds.map { case (k, v) =>
+            k -> go(path.field(k), v)
+          })
+        case Json.Array(elems) =>
+          Json.Array(elems.zipWithIndex.map { case (v, i) =>
+            go(path.at(i), v)
+          })
+        case other => other
+      }
+    }
+    go(DynamicOptic.root, self)
   }
 
   /**
@@ -490,9 +592,19 @@ sealed trait Json { self =>
    * @return The transformed JSON
    */
   def transformKeys(f: (DynamicOptic, java.lang.String) => java.lang.String): Json = {
-    // TODO: Implement key transformation
-    val _ = f
-    self
+    def go(path: DynamicOptic, json: Json): Json = json match {
+      case Json.Object(flds) =>
+        Json.Object(flds.map { case (k, v) =>
+          val newKey = f(path, k)
+          newKey -> go(path.field(k), v)
+        })
+      case Json.Array(elems) =>
+        Json.Array(elems.zipWithIndex.map { case (v, i) =>
+          go(path.at(i), v)
+        })
+      case other => other
+    }
+    go(DynamicOptic.root, self)
   }
 
   // ===========================================================================
@@ -509,9 +621,22 @@ sealed trait Json { self =>
    * @return The filtered JSON
    */
   def filterNot(p: (DynamicOptic, Json) => scala.Boolean): Json = {
-    // TODO: Implement filtering
-    val _ = p
-    self
+    def go(path: DynamicOptic, json: Json): Json = json match {
+      case Json.Object(flds) =>
+        Json.Object(flds.flatMap { case (k, v) =>
+          val fieldPath = path.field(k)
+          if (p(fieldPath, v)) None
+          else Some(k -> go(fieldPath, v))
+        })
+      case Json.Array(elems) =>
+        Json.Array(elems.zipWithIndex.flatMap { case (v, i) =>
+          val elemPath = path.at(i)
+          if (p(elemPath, v)) None
+          else Some(go(elemPath, v))
+        })
+      case other => other
+    }
+    go(DynamicOptic.root, self)
   }
 
   /**
