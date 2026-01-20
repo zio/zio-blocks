@@ -263,7 +263,6 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         assertTrue(
           union1 == union2,
           union1.hashCode() == union2.hashCode(),
-          union1.ref
         )
       },
       test("intersection types with same members in different order are equal") {

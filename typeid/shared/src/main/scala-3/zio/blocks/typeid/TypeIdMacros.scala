@@ -118,7 +118,7 @@ object TypeIdMacros {
         ${ ownerExpr },
         ${ typeParamsExpr },
         ${ aliasedExpr },
-        ${ defKindExpr }
+        Nil  // annotations
       )
     }
   }
@@ -246,9 +246,7 @@ object TypeIdMacros {
     val name           = typeSymbol.name
     val ownerExpr      = buildOwner(typeSymbol.owner)
     val typeParamsExpr = buildTypeParams(typeSymbol)
-    val defKindExpr    = buildDefKind(typeSymbol)
 
-    // Get the aliased type
     val aliasedType = tr.translucentSuperType.dealias
     val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType)
 
@@ -258,7 +256,7 @@ object TypeIdMacros {
         ${ ownerExpr },
         ${ typeParamsExpr },
         ${ aliasedExpr },
-        ${ defKindExpr }
+        Nil  // annotations
       )
     }
   }
@@ -289,25 +287,32 @@ object TypeIdMacros {
     val defKindExpr = buildDefKind(typeSymbol)
 
     if (flags.is(Flags.Opaque)) {
-      // Opaque type - extract the actual underlying representation
       val reprExpr = extractOpaqueRepresentation(tpe, typeSymbol)
+      val publicBounds = defKindExpr match {
+        case '{ TypeDefKind.OpaqueType($bounds) } => bounds
+        case _ => '{ zio.blocks.typeid.TypeBounds.Unbounded }
+      }
       '{
         TypeId.opaque[A](
           ${ Expr(name) },
           ${ ownerExpr },
           ${ typeParamsExpr },
           ${ reprExpr },
-          ${ defKindExpr }
+          ${ publicBounds },
+          Nil  // annotations
         )
       }
     } else {
-      // Nominal type (class, trait, object, enum)
+      val parentsExpr = buildBaseTypes(typeSymbol)
       '{
         TypeId.nominal[A](
           ${ Expr(name) },
           ${ ownerExpr },
           ${ typeParamsExpr },
-          ${ defKindExpr }
+          ${ defKindExpr },
+          ${ parentsExpr },
+          None,  // selfType
+          Nil    // annotations
         )
       }
     }
