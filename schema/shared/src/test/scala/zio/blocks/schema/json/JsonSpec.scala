@@ -232,6 +232,43 @@ object JsonSpec extends SchemaBaseSpec {
         val expected = Json.Array(Vector(Json.number(1), Json.number(2)))
         assert(result)(equalTo(expected))
       }
+    ),
+    suite("Manipulation")(
+      test("modify - update field value") {
+        val json = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
+        val path = DynamicOptic.root.field("age")
+        val result = json.modify(path, _ => Json.number(31))
+        val expected = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(31))
+        assert(result)(equalTo(expected))
+      },
+      test("modify - update array element") {
+        val json = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3)))
+        val path = DynamicOptic.root.at(1)
+        val result = json.modify(path, v => Json.number(BigDecimal(v.numberValue.get) * 10))
+        val expected = Json.Array(Vector(Json.number(1), Json.number(20), Json.number(3)))
+        assert(result)(equalTo(expected))
+      },
+      test("set - replace value at path") {
+        val json = Json.Object("user" -> Json.Object("name" -> Json.String("Alice")))
+        val path = DynamicOptic.root.field("user").field("name")
+        val result = json.set(path, Json.String("Bob"))
+        val expected = Json.Object("user" -> Json.Object("name" -> Json.String("Bob")))
+        assert(result)(equalTo(expected))
+      },
+      test("delete - remove object field") {
+        val json = Json.Object("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
+        val path = DynamicOptic.root.field("b")
+        val result = json.delete(path)
+        val expected = Json.Object("a" -> Json.number(1), "c" -> Json.number(3))
+        assert(result)(equalTo(expected))
+      },
+      test("delete - remove array element") {
+        val json = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3)))
+        val path = DynamicOptic.root.at(1)
+        val result = json.delete(path)
+        val expected = Json.Array(Vector(Json.number(1), Json.number(3)))
+        assert(result)(equalTo(expected))
+      }
     )
   )
 }

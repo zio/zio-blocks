@@ -415,9 +415,41 @@ sealed trait Json { self =>
    * @return The modified JSON
    */
   def modify(path: DynamicOptic, f: Json => Json): Json = {
-    // TODO: Implement path-based modification
-    val _ = (path, f)
-    self
+    import DynamicOptic.Node
+
+    def go(current: Json, nodes: IndexedSeq[Node]): Json = {
+      if (nodes.isEmpty) return f(current)
+
+      val node = nodes.head
+      val rest = nodes.tail
+
+      node match {
+        case Node.Field(name) => current match {
+          case Json.Object(flds) =>
+            Json.Object(flds.map { case (k, v) =>
+              if (k == name) k -> go(v, rest)
+              else k -> v
+            })
+          case other => other
+        }
+
+        case Node.AtIndex(index) => current match {
+          case Json.Array(elems) if index >= 0 && index < elems.size =>
+            Json.Array(elems.updated(index, go(elems(index), rest)))
+          case other => other
+        }
+
+        case Node.Elements => current match {
+          case Json.Array(elems) =>
+            Json.Array(elems.map(e => go(e, rest)))
+          case other => other
+        }
+
+        case _ => current // Other node types not supported for modification
+      }
+    }
+
+    go(self, path.nodes)
   }
 
   /**
@@ -430,9 +462,12 @@ sealed trait Json { self =>
    * @return Either an error if the path is invalid, or the modified JSON
    */
   def modifyOrFail(path: DynamicOptic, pf: PartialFunction[Json, Json]): Either[JsonError, Json] = {
-    // TODO: Implement path-based modification with error handling
-    val _ = (path, pf)
-    Right(self)
+    try {
+      Right(modify(path, v => if (pf.isDefinedAt(v)) pf(v) else v))
+    } catch {
+      case e: Exception =>
+        Left(JsonError(e.getMessage, path, None, None, None))
+    }
   }
 
   /**
@@ -450,9 +485,7 @@ sealed trait Json { self =>
    * @return The modified JSON
    */
   def set(path: DynamicOptic, value: Json): Json = {
-    // TODO: Implement path-based set
-    val _ = (path, value)
-    self
+    modify(path, _ => value)
   }
 
   /**
@@ -463,9 +496,12 @@ sealed trait Json { self =>
    * @return Either an error or the modified JSON
    */
   def setOrFail(path: DynamicOptic, value: Json): Either[JsonError, Json] = {
-    // TODO: Implement path-based set with error handling
-    val _ = (path, value)
-    Right(self)
+    try {
+      Right(set(path, value))
+    } catch {
+      case e: Exception =>
+        Left(JsonError(e.getMessage, path, None, None, None))
+    }
   }
 
   /**
@@ -478,9 +514,55 @@ sealed trait Json { self =>
    * @return The modified JSON
    */
   def delete(path: DynamicOptic): Json = {
-    // TODO: Implement path-based deletion
-    val _ = path
-    self
+    import DynamicOptic.Node
+
+    def go(current: Json, nodes: IndexedSeq[Node]): Json = {
+      if (nodes.isEmpty) return Json.Null // Delete by replacing with null
+
+      val node = nodes.head
+      val rest = nodes.tail
+
+      if (rest.isEmpty) {
+        // Last node - perform deletion
+        node match {
+          case Node.Field(name) => current match {
+            case Json.Object(flds) =>
+              Json.Object(flds.filterNot(_._1 == name))
+            case other => other
+          }
+
+          case Node.AtIndex(index) => current match {
+            case Json.Array(elems) if index >= 0 && index < elems.size =>
+              Json.Array(elems.patch(index, Nil, 1))
+            case other => other
+          }
+
+          case _ => current
+        }
+      } else {
+        // Intermediate node - recurse
+        node match {
+          case Node.Field(name) => current match {
+            case Json.Object(flds) =>
+              Json.Object(flds.map { case (k, v) =>
+                if (k == name) k -> go(v, rest)
+                else k -> v
+              })
+            case other => other
+          }
+
+          case Node.AtIndex(index) => current match {
+            case Json.Array(elems) if index >= 0 && index < elems.size =>
+              Json.Array(elems.updated(index, go(elems(index), rest)))
+            case other => other
+          }
+
+          case _ => current
+        }
+      }
+    }
+
+    go(self, path.nodes)
   }
 
   /**
@@ -490,9 +572,12 @@ sealed trait Json { self =>
    * @return Either an error or the modified JSON
    */
   def deleteOrFail(path: DynamicOptic): Either[JsonError, Json] = {
-    // TODO: Implement path-based deletion with error handling
-    val _ = path
-    Right(self)
+    try {
+      Right(delete(path))
+    } catch {
+      case e: Exception =>
+        Left(JsonError(e.getMessage, path, None, None, None))
+    }
   }
 
   /**
