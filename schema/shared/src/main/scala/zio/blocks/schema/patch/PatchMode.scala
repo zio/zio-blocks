@@ -2,6 +2,7 @@ package zio.blocks.schema.patch
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.{Owner, TypeId}
 
 sealed trait PatchMode
 
@@ -23,7 +24,7 @@ object PatchMode {
   implicit lazy val strictSchema: Schema[Strict.type] = new Schema(
     reflect = new Reflect.Record[Binding, Strict.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "PatchMode")), "Strict"),
+      typeId = TypeId.nominal[Strict.type]("Strict", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Package("patch"), Owner.Term("PatchMode"))), Nil),
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Strict.type](Strict),
         deconstructor = new ConstantDeconstructor[Strict.type]
@@ -35,7 +36,7 @@ object PatchMode {
   implicit lazy val lenientSchema: Schema[Lenient.type] = new Schema(
     reflect = new Reflect.Record[Binding, Lenient.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "PatchMode")), "Lenient"),
+      typeId = TypeId.nominal[Lenient.type]("Lenient", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Package("patch"), Owner.Term("PatchMode"))), Nil),
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Lenient.type](Lenient),
         deconstructor = new ConstantDeconstructor[Lenient.type]
@@ -47,7 +48,7 @@ object PatchMode {
   implicit lazy val clobberSchema: Schema[Clobber.type] = new Schema(
     reflect = new Reflect.Record[Binding, Clobber.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch", "PatchMode")), "Clobber"),
+      typeId = TypeId.nominal[Clobber.type]("Clobber", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Package("patch"), Owner.Term("PatchMode"))), Nil),
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Clobber.type](Clobber),
         deconstructor = new ConstantDeconstructor[Clobber.type]
@@ -67,7 +68,7 @@ object PatchMode {
           lenientSchema.reflect.asTerm("Lenient"),
           clobberSchema.reflect.asTerm("Clobber")
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "patch")), "PatchMode"),
+        typeId = TypeId.nominal[PatchMode]("PatchMode", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Package("patch"))), Nil),
         variantBinding = new Binding.Variant(
           discriminator = new Discriminator[PatchMode] {
             def discriminate(a: PatchMode): Int = a match {

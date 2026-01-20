@@ -132,9 +132,9 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def isOption: Boolean = isVariant && {
     val variant = asVariant.get
-    val tn      = typeName
+    val tn      = typeId
     val cases   = variant.cases
-    tn.namespace == Namespace.scala && tn.name == "Option" &&
+    tn.owner == Reflect.scalaOwner && tn.name == "Option" &&
     cases.length == 2 && cases(1).name == "Some"
   }
 
@@ -261,6 +261,9 @@ object Reflect {
       zio.blocks.typeid.Owner.Package("blocks"),
       zio.blocks.typeid.Owner.Package("schema")
     ))
+
+  private[schema] val scalaOwner: zio.blocks.typeid.Owner =
+    zio.blocks.typeid.Owner(List(zio.blocks.typeid.Owner.Package("scala")))
 
   val dynamicValueTypeId: TypeId[DynamicValue] =
     TypeId.nominal[DynamicValue]("DynamicValue", zioBlocksSchemaOwner, Nil)
