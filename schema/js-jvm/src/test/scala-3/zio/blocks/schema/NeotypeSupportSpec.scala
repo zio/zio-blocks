@@ -25,13 +25,52 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
       assert(Planet.name.focus.typeId)(
-        equalTo(TypeId.nominal[Name]("Name", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("NeotypeSupportSpec"))), Nil))
+        equalTo(
+          TypeId.nominal[Name](
+            "Name",
+            Owner(
+              List(
+                Owner.Package("zio"),
+                Owner.Package("blocks"),
+                Owner.Package("schema"),
+                Owner.Term("NeotypeSupportSpec")
+              )
+            ),
+            Nil
+          )
+        )
       ) &&
       assert(Planet.mass.focus.typeId)(
-        equalTo(TypeId.nominal[Kilogram]("Kilogram", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("NeotypeSupportSpec"))), Nil))
+        equalTo(
+          TypeId.nominal[Kilogram](
+            "Kilogram",
+            Owner(
+              List(
+                Owner.Package("zio"),
+                Owner.Package("blocks"),
+                Owner.Package("schema"),
+                Owner.Term("NeotypeSupportSpec")
+              )
+            ),
+            Nil
+          )
+        )
       ) &&
       assert(Planet.radius.focus.typeId)(
-        equalTo(TypeId.nominal[Meter]("Meter", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("NeotypeSupportSpec"))), Nil))
+        equalTo(
+          TypeId.nominal[Meter](
+            "Meter",
+            Owner(
+              List(
+                Owner.Package("zio"),
+                Owner.Package("blocks"),
+                Owner.Package("schema"),
+                Owner.Term("NeotypeSupportSpec")
+              )
+            ),
+            Nil
+          )
+        )
       ) &&
       assert(Planet.distanceFromSun.focus.typeId)(equalTo(TypeId.option.asInstanceOf[TypeId[Option[Meter]]])) &&
       roundTrip[Planet](value, """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""") &&

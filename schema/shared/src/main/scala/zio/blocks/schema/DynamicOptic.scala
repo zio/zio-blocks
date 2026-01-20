@@ -99,7 +99,19 @@ object DynamicOptic {
     implicit lazy val elementsSchema: Schema[Elements.type] = new Schema(
       reflect = new Reflect.Record[Binding, Elements.type](
         fields = Vector.empty,
-        typeId = TypeId.nominal[Elements.type]("Elements", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"), Owner.Term("Node"))), Nil),
+        typeId = TypeId.nominal[Elements.type](
+          "Elements",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("DynamicOptic"),
+              Owner.Term("Node")
+            )
+          ),
+          Nil
+        ),
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor[Elements.type](Elements),
           deconstructor = new ConstantDeconstructor[Elements.type]
@@ -111,7 +123,19 @@ object DynamicOptic {
     implicit lazy val mapKeysSchema: Schema[MapKeys.type] = new Schema(
       reflect = new Reflect.Record[Binding, MapKeys.type](
         fields = Vector.empty,
-        typeId = TypeId.nominal[MapKeys.type]("MapKeys", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"), Owner.Term("Node"))), Nil),
+        typeId = TypeId.nominal[MapKeys.type](
+          "MapKeys",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("DynamicOptic"),
+              Owner.Term("Node")
+            )
+          ),
+          Nil
+        ),
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor[MapKeys.type](MapKeys),
           deconstructor = new ConstantDeconstructor[MapKeys.type]
@@ -123,7 +147,19 @@ object DynamicOptic {
     implicit lazy val mapValuesSchema: Schema[MapValues.type] = new Schema(
       reflect = new Reflect.Record[Binding, MapValues.type](
         fields = Vector.empty,
-        typeId = TypeId.nominal[MapValues.type]("MapValues", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"), Owner.Term("Node"))), Nil),
+        typeId = TypeId.nominal[MapValues.type](
+          "MapValues",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("DynamicOptic"),
+              Owner.Term("Node")
+            )
+          ),
+          Nil
+        ),
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor[MapValues.type](MapValues),
           deconstructor = new ConstantDeconstructor[MapValues.type]
@@ -135,7 +171,19 @@ object DynamicOptic {
     implicit lazy val wrappedSchema: Schema[Wrapped.type] = new Schema(
       reflect = new Reflect.Record[Binding, Wrapped.type](
         fields = Vector.empty,
-        typeId = TypeId.nominal[Wrapped.type]("Wrapped", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"), Owner.Term("Node"))), Nil),
+        typeId = TypeId.nominal[Wrapped.type](
+          "Wrapped",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("DynamicOptic"),
+              Owner.Term("Node")
+            )
+          ),
+          Nil
+        ),
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor[Wrapped.type](Wrapped),
           deconstructor = new ConstantDeconstructor[Wrapped.type]
@@ -150,7 +198,19 @@ object DynamicOptic {
         fields = Vector(
           Schema[String].reflect.asTerm("name")
         ),
-        typeId = TypeId.nominal[Field]("Field", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"), Owner.Term("Node"))), Nil),
+        typeId = TypeId.nominal[Field](
+          "Field",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("DynamicOptic"),
+              Owner.Term("Node")
+            )
+          ),
+          Nil
+        ),
         recordBinding = new Binding.Record(
           constructor = new Constructor[Field] {
             def usedRegisters: RegisterOffset                           = 1
@@ -172,7 +232,19 @@ object DynamicOptic {
         fields = Vector(
           Schema[String].reflect.asTerm("name")
         ),
-        typeId = TypeId.nominal[Case]("Case", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"), Owner.Term("Node"))), Nil),
+        typeId = TypeId.nominal[Case](
+          "Case",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("DynamicOptic"),
+              Owner.Term("Node")
+            )
+          ),
+          Nil
+        ),
         recordBinding = new Binding.Record(
           constructor = new Constructor[Case] {
             def usedRegisters: RegisterOffset                          = 1
@@ -194,7 +266,19 @@ object DynamicOptic {
         fields = Vector(
           Schema[Int].reflect.asTerm("index")
         ),
-        typeId = TypeId.nominal[AtIndex]("AtIndex", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"), Owner.Term("Node"))), Nil),
+        typeId = TypeId.nominal[AtIndex](
+          "AtIndex",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("DynamicOptic"),
+              Owner.Term("Node")
+            )
+          ),
+          Nil
+        ),
         recordBinding = new Binding.Record(
           constructor = new Constructor[AtIndex] {
             def usedRegisters: RegisterOffset                             = 1
@@ -216,7 +300,19 @@ object DynamicOptic {
         fields = Vector(
           Schema[DynamicValue].reflect.asTerm("key")
         ),
-        typeId = TypeId.nominal[AtMapKey]("AtMapKey", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"), Owner.Term("Node"))), Nil),
+        typeId = TypeId.nominal[AtMapKey](
+          "AtMapKey",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("DynamicOptic"),
+              Owner.Term("Node")
+            )
+          ),
+          Nil
+        ),
         recordBinding = new Binding.Record(
           constructor = new Constructor[AtMapKey] {
             def usedRegisters: RegisterOffset                              = 1
@@ -238,7 +334,19 @@ object DynamicOptic {
         fields = Vector(
           Schema[Seq[Int]].reflect.asTerm("index")
         ),
-        typeId = TypeId.nominal[AtIndices]("AtIndices", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"), Owner.Term("Node"))), Nil),
+        typeId = TypeId.nominal[AtIndices](
+          "AtIndices",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("DynamicOptic"),
+              Owner.Term("Node")
+            )
+          ),
+          Nil
+        ),
         recordBinding = new Binding.Record(
           constructor = new Constructor[AtIndices] {
             def usedRegisters: RegisterOffset                               = 1
@@ -260,7 +368,19 @@ object DynamicOptic {
         fields = Vector(
           Schema[Seq[DynamicValue]].reflect.asTerm("keys")
         ),
-        typeId = TypeId.nominal[AtMapKeys]("AtMapKeys", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"), Owner.Term("Node"))), Nil),
+        typeId = TypeId.nominal[AtMapKeys](
+          "AtMapKeys",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("DynamicOptic"),
+              Owner.Term("Node")
+            )
+          ),
+          Nil
+        ),
         recordBinding = new Binding.Record(
           constructor = new Constructor[AtMapKeys] {
             def usedRegisters: RegisterOffset                               = 1
@@ -292,7 +412,13 @@ object DynamicOptic {
           mapValuesSchema.reflect.asTerm("MapValues"),
           wrappedSchema.reflect.asTerm("Wrapped")
         ),
-        typeId = TypeId.nominal[Node]("Node", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"))), Nil),
+        typeId = TypeId.nominal[Node](
+          "Node",
+          Owner(
+            List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DynamicOptic"))
+          ),
+          Nil
+        ),
         variantBinding = new Binding.Variant(
           discriminator = new Discriminator[Node] {
             def discriminate(a: Node): Int = a match {
@@ -383,7 +509,11 @@ object DynamicOptic {
       fields = Vector(
         Schema[IndexedSeq[Node]].reflect.asTerm("nodes")
       ),
-      typeId = TypeId.nominal[DynamicOptic]("DynamicOptic", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))), Nil),
+      typeId = TypeId.nominal[DynamicOptic](
+        "DynamicOptic",
+        Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))),
+        Nil
+      ),
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicOptic] {
           def usedRegisters: RegisterOffset                                  = 1

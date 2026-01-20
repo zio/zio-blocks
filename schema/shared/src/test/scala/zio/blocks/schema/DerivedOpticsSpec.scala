@@ -350,7 +350,15 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
               Schema[String].reflect,
               TypeId.nominal[CustomWrapper](
                 "CustomWrapper",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("DerivedOpticsSpec"), Owner.Term("CustomWrapper"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("DerivedOpticsSpec"),
+                    Owner.Term("CustomWrapper")
+                  )
+                ),
                 Nil
               ),
               None,

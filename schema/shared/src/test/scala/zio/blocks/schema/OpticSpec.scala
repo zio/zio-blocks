@@ -3449,7 +3449,11 @@ object OpticSpecTypes {
 
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
-      typeId = TypeId.nominal[Wrapper]("Wrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("OpticSpec"))), Nil),
+      typeId = TypeId.nominal[Wrapper](
+        "Wrapper",
+        Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("OpticSpec"))),
+        Nil
+      ),
       wrapperPrimitiveType = None,
       wrapperBinding = Binding.Wrapper(
         wrap = Wrapper.apply,

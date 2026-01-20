@@ -948,7 +948,13 @@ object AvroFormatSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Email] = new Schema(
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
-        TypeId.nominal[Email]("Email", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("avro"), Owner.Term("AvroFormatSpec"))), Nil),
+        TypeId.nominal[Email](
+          "Email",
+          Owner(
+            List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("avro"), Owner.Term("AvroFormatSpec"))
+          ),
+          Nil
+        ),
         None,
         new Binding.Wrapper(
           {

@@ -98,7 +98,20 @@ object AvroFormat
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[DynamicValue]] =
-          Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.nominal[DynamicValue]("DynamicValue", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))), Nil), doc, modifiers)))
+          Lazy(
+            deriveCodec(
+              new Reflect.Dynamic(
+                binding,
+                TypeId.nominal[DynamicValue](
+                  "DynamicValue",
+                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))),
+                  Nil
+                ),
+                doc,
+                modifiers
+              )
+            )
+          )
 
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],

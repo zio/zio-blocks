@@ -40,10 +40,10 @@ private[typeid] object TypeIdMacros {
       c.Expr[List[TypeParam]](q"_root_.scala.List(..$params)")
     }
 
-    val symbol    = tpe.typeSymbol
-    val name      = symbol.name.decodedName.toString
-    val owner     = extractOwner(symbol)
-    val params    = extractTypeParams(symbol)
+    val symbol = tpe.typeSymbol
+    val name   = symbol.name.decodedName.toString
+    val owner  = extractOwner(symbol)
+    val params = extractTypeParams(symbol)
 
     val isTypeAlias = symbol.isType && !symbol.isClass && symbol.asType.isAliasType
     val isOpaque    = false
@@ -51,8 +51,8 @@ private[typeid] object TypeIdMacros {
     if (isOpaque) {
       c.abort(c.enclosingPosition, "Opaque types are not supported in Scala 2")
     } else if (isTypeAlias) {
-      val aliasedType  = tpe.dealias
-      val aliasedRepr  = buildTypeRepr(c)(aliasedType)
+      val aliasedType = tpe.dealias
+      val aliasedRepr = buildTypeRepr(c)(aliasedType)
       c.Expr[TypeId[A]](
         q"""_root_.zio.blocks.typeid.TypeId.alias[$tpe](
             $name,

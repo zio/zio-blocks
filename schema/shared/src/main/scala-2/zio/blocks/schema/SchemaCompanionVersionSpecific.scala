@@ -130,7 +130,7 @@ private object SchemaCompanionVersionSpecific {
     val typeIdCache = new mutable.HashMap[Type, Tree]
 
     def typeIdTree(tpe: Type): Tree = {
-      def calculateTypeId(tpe: Type): Tree = {
+      def calculateTypeId(tpe: Type): Tree =
         if (tpe =:= typeOf[java.lang.String]) q"_root_.zio.blocks.typeid.TypeId.string"
         else if (tpe =:= definitions.UnitTpe) q"_root_.zio.blocks.typeid.TypeId.unit"
         else if (tpe =:= definitions.BooleanTpe) q"_root_.zio.blocks.typeid.TypeId.boolean"
@@ -188,13 +188,12 @@ private object SchemaCompanionVersionSpecific {
           }
           // Build type params from the type's type parameters
           val tpeTypeParams = tpe.typeSymbol.asType.typeParams
-          val typeParams = tpeTypeParams.zipWithIndex.map { case (tp, idx) =>
+          val typeParams    = tpeTypeParams.zipWithIndex.map { case (tp, idx) =>
             val tpName = tp.name.toString
             q"_root_.zio.blocks.typeid.TypeParam($tpName, $idx)"
           }
           q"_root_.zio.blocks.typeid.TypeId.nominal[$tpe]($name, _root_.zio.blocks.typeid.Owner(_root_.scala.List(..$segments)), _root_.scala.List(..$typeParams))"
         }
-      }
 
       typeIdCache.getOrElseUpdate(
         tpe,

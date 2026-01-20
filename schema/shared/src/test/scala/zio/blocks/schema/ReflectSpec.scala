@@ -154,7 +154,13 @@ object ReflectSpec extends SchemaBaseSpec {
           typeId = TypeId.long
         )
         val long2 = long1.copy(primitiveType = PrimitiveType.Long(Validation.Numeric.Positive))
-        val long3 = long1.copy(typeId = TypeId.nominal[Long]("Long1", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))), Nil))
+        val long3 = long1.copy(typeId =
+          TypeId.nominal[Long](
+            "Long1",
+            Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))),
+            Nil
+          )
+        )
         val long4 = long1.copy(doc = Doc("text"))
         val long5 = long1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(long1)(equalTo(long1)) &&
@@ -183,9 +189,32 @@ object ReflectSpec extends SchemaBaseSpec {
         assert(int1.typeId)(equalTo(TypeId.int)) &&
         assert(
           int1
-            .typeId(TypeId.nominal[Int]("IntWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil))
+            .typeId(
+              TypeId.nominal[Int](
+                "IntWrapper",
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("ReflectSpec")
+                  )
+                ),
+                Nil
+              )
+            )
             .typeId
-        )(equalTo(TypeId.nominal[Int]("IntWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil)))
+        )(
+          equalTo(
+            TypeId.nominal[Int](
+              "IntWrapper",
+              Owner(
+                List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))
+              ),
+              Nil
+            )
+          )
+        )
       },
       test("updates primitive default value") {
         val int1 = Reflect.int[Binding]
@@ -221,7 +250,13 @@ object ReflectSpec extends SchemaBaseSpec {
     suite("Reflect.Record")(
       test("has consistent equals and hashCode") {
         val record1 = tuple4Reflect
-        val record2 = record1.copy(typeId = TypeId.nominal[(Byte, Short, Int, Long)]("Tuple4", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))), Nil))
+        val record2 = record1.copy(typeId =
+          TypeId.nominal[(Byte, Short, Int, Long)](
+            "Tuple4",
+            Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))),
+            Nil
+          )
+        )
         val record3 = record1.copy(fields = record1.fields.reverse)
         val record4 = record1.copy(doc = Doc("text"))
         val record5 = record1.copy(modifiers = Seq(Modifier.config("key", "value")))
@@ -266,7 +301,7 @@ object ReflectSpec extends SchemaBaseSpec {
         )
       },
       test("gets and updates record type id") {
-        val scalaOwner = Owner(List(Owner.Package("scala")))
+        val scalaOwner       = Owner(List(Owner.Package("scala")))
         val tuple4TypeParams = List(TypeParam("T1", 0), TypeParam("T2", 1), TypeParam("T3", 2), TypeParam("T4", 3))
         assert(tuple4Reflect.typeId)(
           equalTo(
@@ -275,11 +310,30 @@ object ReflectSpec extends SchemaBaseSpec {
         ) &&
         assert(
           tuple4Reflect
-            .typeId(TypeId.nominal[(Byte, Short, Int, Long)]("Tuple4Wrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil))
+            .typeId(
+              TypeId.nominal[(Byte, Short, Int, Long)](
+                "Tuple4Wrapper",
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("ReflectSpec")
+                  )
+                ),
+                Nil
+              )
+            )
             .typeId
         )(
           equalTo(
-            TypeId.nominal[(Byte, Short, Int, Long)]("Tuple4Wrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil)
+            TypeId.nominal[(Byte, Short, Int, Long)](
+              "Tuple4Wrapper",
+              Owner(
+                List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))
+              ),
+              Nil
+            )
           )
         )
       },
@@ -359,7 +413,7 @@ object ReflectSpec extends SchemaBaseSpec {
         assert(eitherReflect.fromDynamicValue(eitherReflect.toDynamicValue(Left(0))))(isRight(equalTo(Left(0))))
       },
       test("gets and updates variant type id") {
-        val scalaUtilOwner = Owner(List(Owner.Package("scala"), Owner.Package("util")))
+        val scalaUtilOwner   = Owner(List(Owner.Package("scala"), Owner.Package("util")))
         val eitherTypeParams = List(TypeParam("A", 0), TypeParam("B", 1))
         assert(eitherReflect.typeId)(
           equalTo(
@@ -368,11 +422,30 @@ object ReflectSpec extends SchemaBaseSpec {
         ) &&
         assert(
           eitherReflect
-            .typeId(TypeId.nominal[Either[Int, Long]]("EitherWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil))
+            .typeId(
+              TypeId.nominal[Either[Int, Long]](
+                "EitherWrapper",
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("ReflectSpec")
+                  )
+                ),
+                Nil
+              )
+            )
             .typeId
         )(
           equalTo(
-            TypeId.nominal[Either[Int, Long]]("EitherWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil)
+            TypeId.nominal[Either[Int, Long]](
+              "EitherWrapper",
+              Owner(
+                List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))
+              ),
+              Nil
+            )
           )
         )
       },
@@ -434,7 +507,9 @@ object ReflectSpec extends SchemaBaseSpec {
         val sequence2 = sequence1.copy(element =
           Primitive(PrimitiveType.Double(Validation.None), TypeId.double, Binding.Primitive.double, Doc("text"))
         )
-        val sequence3 = sequence1.copy(typeId = TypeId.nominal[List[Double]]("List2", Owner(List(Owner.Package("scala"))), List(TypeParam("A", 0))))
+        val sequence3 = sequence1.copy(typeId =
+          TypeId.nominal[List[Double]]("List2", Owner(List(Owner.Package("scala"))), List(TypeParam("A", 0)))
+        )
         val sequence4 = sequence1.copy(doc = Doc("text"))
         val sequence5 = sequence1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(sequence1)(equalTo(sequence1)) &&
@@ -479,11 +554,30 @@ object ReflectSpec extends SchemaBaseSpec {
         ) &&
         assert(
           sequence1
-            .typeId(TypeId.nominal[Vector[Int]]("VectorWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil))
+            .typeId(
+              TypeId.nominal[Vector[Int]](
+                "VectorWrapper",
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("ReflectSpec")
+                  )
+                ),
+                Nil
+              )
+            )
             .typeId
         )(
           equalTo(
-            TypeId.nominal[Vector[Int]]("VectorWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil)
+            TypeId.nominal[Vector[Int]](
+              "VectorWrapper",
+              Owner(
+                List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))
+              ),
+              Nil
+            )
           )
         )
       },
@@ -539,7 +633,13 @@ object ReflectSpec extends SchemaBaseSpec {
         val map3 = map1.copy(value =
           Primitive(PrimitiveType.Float(Validation.None), TypeId.float, Binding.Primitive.float, Doc("text"))
         )
-        val map4 = map1.copy(typeId = TypeId.nominal[Map[Short, Float]]("Map2", Owner(List(Owner.Package("scala"))), List(TypeParam("K", 0), TypeParam("V", 1))))
+        val map4 = map1.copy(typeId =
+          TypeId.nominal[Map[Short, Float]](
+            "Map2",
+            Owner(List(Owner.Package("scala"))),
+            List(TypeParam("K", 0), TypeParam("V", 1))
+          )
+        )
         val map5 = map1.copy(doc = Doc("text"))
         val map6 = map1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(map1)(equalTo(map1)) &&
@@ -571,11 +671,30 @@ object ReflectSpec extends SchemaBaseSpec {
         ) &&
         assert(
           map1
-            .typeId(TypeId.nominal[Map[Int, Long]]("MapWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil))
+            .typeId(
+              TypeId.nominal[Map[Int, Long]](
+                "MapWrapper",
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("ReflectSpec")
+                  )
+                ),
+                Nil
+              )
+            )
             .typeId
         )(
           equalTo(
-            TypeId.nominal[Map[Int, Long]]("MapWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil)
+            TypeId.nominal[Map[Int, Long]](
+              "MapWrapper",
+              Owner(
+                List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))
+              ),
+              Nil
+            )
           )
         )
       },
@@ -655,11 +774,30 @@ object ReflectSpec extends SchemaBaseSpec {
         assert(dynamic1.typeId)(equalTo(Reflect.dynamicValueTypeId)) &&
         assert(
           dynamic1
-            .typeId(TypeId.nominal[DynamicValue]("DynamicWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil))
+            .typeId(
+              TypeId.nominal[DynamicValue](
+                "DynamicWrapper",
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("ReflectSpec")
+                  )
+                ),
+                Nil
+              )
+            )
             .typeId
         )(
           equalTo(
-            TypeId.nominal[DynamicValue]("DynamicWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil)
+            TypeId.nominal[DynamicValue](
+              "DynamicWrapper",
+              Owner(
+                List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))
+              ),
+              Nil
+            )
           )
         )
       },
@@ -698,7 +836,13 @@ object ReflectSpec extends SchemaBaseSpec {
     suite("Reflect.Wrapper")(
       test("has consistent equals and hashCode") {
         val wrapper1 = wrapperReflect
-        val wrapper2 = wrapper1.copy(typeId = TypeId.nominal[Wrapper]("Tuple4", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))), Nil))
+        val wrapper2 = wrapper1.copy(typeId =
+          TypeId.nominal[Wrapper](
+            "Tuple4",
+            Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))),
+            Nil
+          )
+        )
         val wrapper3 = wrapper1.copy(wrapped = Reflect.long[Binding].doc("Long (updated)"))
         val wrapper4 = wrapper1.copy(doc = Doc("text"))
         val wrapper5 = wrapper1.copy(modifiers = Seq(Modifier.config("key", "value")))
@@ -721,7 +865,8 @@ object ReflectSpec extends SchemaBaseSpec {
         )
       },
       test("gets and updates wrapper type id") {
-        val reflectSpecOwner = Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec")))
+        val reflectSpecOwner =
+          Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec")))
         assert(wrapperReflect.typeId)(
           equalTo(TypeId.nominal[Wrapper]("Wrapper", reflectSpecOwner, Nil))
         ) &&
@@ -786,9 +931,32 @@ object ReflectSpec extends SchemaBaseSpec {
         assert(deferred1.typeId)(equalTo(TypeId.year)) &&
         assert(
           deferred1
-            .typeId(TypeId.nominal[Year]("YearWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil))
+            .typeId(
+              TypeId.nominal[Year](
+                "YearWrapper",
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("ReflectSpec")
+                  )
+                ),
+                Nil
+              )
+            )
             .typeId
-        )(equalTo(TypeId.nominal[Year]("YearWrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil)))
+        )(
+          equalTo(
+            TypeId.nominal[Year](
+              "YearWrapper",
+              Owner(
+                List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))
+              ),
+              Nil
+            )
+          )
+        )
       },
       test("gets and updates deferred default value") {
         val deferred1 = Reflect.Deferred[Binding, YearMonth](() => Reflect.yearMonth)
@@ -845,7 +1013,11 @@ object ReflectSpec extends SchemaBaseSpec {
     Schema.derived[Either[Int, Long]].reflect.asVariant.get
   val wrapperReflect: Reflect.Wrapper[Binding, Wrapper, Long] = new Reflect.Wrapper(
     wrapped = Schema[Long].reflect,
-    typeId = TypeId.nominal[Wrapper]("Wrapper", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))), Nil),
+    typeId = TypeId.nominal[Wrapper](
+      "Wrapper",
+      Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("ReflectSpec"))),
+      Nil
+    ),
     wrapperPrimitiveType = None,
     wrapperBinding = Binding.Wrapper(
       wrap = (x: Long) => Right(Wrapper(x)),

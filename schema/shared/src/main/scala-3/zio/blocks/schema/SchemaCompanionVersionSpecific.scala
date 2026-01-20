@@ -216,7 +216,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def typeIdExpr[T: Type](tpe: TypeRepr)(using Quotes): Expr[TypeId[T]] = {
     // infoTpe is used for extracting name/owner, origTpe is used for the TypeId type parameter
-    def calculateTypeIdExpr(infoTpe: TypeRepr, origTpe: TypeRepr): Expr[TypeId[?]] = {
+    def calculateTypeIdExpr(infoTpe: TypeRepr, origTpe: TypeRepr): Expr[TypeId[?]] =
       // First check for built-in types
       if (infoTpe =:= TypeRepr.of[java.lang.String]) '{ TypeId.string }
       else if (infoTpe =:= unitTpe) '{ TypeId.unit }
@@ -251,9 +251,9 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       else {
         // Build Owner and TypeParams for custom types
         var segments: List[Expr[Owner.Segment]] = Nil
-        val tpeTypeSymbol = infoTpe.typeSymbol
-        var name: String = if (tpeTypeSymbol.exists) tpeTypeSymbol.name else "|"
-        var typeParams: Expr[Seq[TypeParam]] = '{ Nil }
+        val tpeTypeSymbol                       = infoTpe.typeSymbol
+        var name: String                        = if (tpeTypeSymbol.exists) tpeTypeSymbol.name else "|"
+        var typeParams: Expr[Seq[TypeParam]]    = '{ Nil }
         if (tpeTypeSymbol.exists) {
           if (isEnumValue(infoTpe)) {
             name = infoTpe.termSymbol.name
@@ -277,11 +277,11 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
           val tpeTypeParams = tpeTypeSymbol.typeMembers.filter(_.isTypeParam)
           typeParams = Varargs(tpeTypeParams.zipWithIndex.map { case (tp, idx) =>
             val tpName = Expr(tp.name)
-            val tpIdx = Expr(idx)
+            val tpIdx  = Expr(idx)
             '{ TypeParam($tpName, $tpIdx) }
           })
         }
-        val nameExpr = Expr(name)
+        val nameExpr     = Expr(name)
         val segmentsExpr = Varargs(segments)
         // Use origTpe for the TypeId type parameter to preserve the original type
         origTpe.asType match {
@@ -289,12 +289,10 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             '{ TypeId.nominal[t]($nameExpr, Owner(List($segmentsExpr*)), List($typeParams*)) }
         }
       }
-    }
 
     typeIdCache
       .getOrElseUpdate(
-        tpe,
-        {
+        tpe, {
           val (infoTpe, origTpe) = tpe match {
             case TypeRef(compTpe, "Type") => (compTpe, tpe) // Use companion for info, original for type param
             case _                        => (tpe, tpe)
@@ -1022,7 +1020,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       val sTpe = opaqueDealias(tpe)
       sTpe.asType match {
         case '[s] =>
-          val schema   = findImplicitOrDeriveSchema[s](sTpe)
+          val schema    = findImplicitOrDeriveSchema[s](sTpe)
           val typeIdVal = typeIdExpr[T](tpe)
           '{ new Schema($schema.reflect.typeId($typeIdVal.asInstanceOf[TypeId[s]])).asInstanceOf[Schema[T]] }
       }
@@ -1030,7 +1028,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       val sTpe = zioPreludeNewtypeDealias(tpe)
       sTpe.asType match {
         case '[s] =>
-          val schema   = findImplicitOrDeriveSchema[s](sTpe)
+          val schema    = findImplicitOrDeriveSchema[s](sTpe)
           val typeIdVal = typeIdExpr[T](tpe)
           '{ new Schema($schema.reflect.typeId($typeIdVal.asInstanceOf[TypeId[s]])).asInstanceOf[Schema[T]] }
       }

@@ -24,7 +24,19 @@ object PatchMode {
   implicit lazy val strictSchema: Schema[Strict.type] = new Schema(
     reflect = new Reflect.Record[Binding, Strict.type](
       fields = Vector.empty,
-      typeId = TypeId.nominal[Strict.type]("Strict", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Package("patch"), Owner.Term("PatchMode"))), Nil),
+      typeId = TypeId.nominal[Strict.type](
+        "Strict",
+        Owner(
+          List(
+            Owner.Package("zio"),
+            Owner.Package("blocks"),
+            Owner.Package("schema"),
+            Owner.Package("patch"),
+            Owner.Term("PatchMode")
+          )
+        ),
+        Nil
+      ),
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Strict.type](Strict),
         deconstructor = new ConstantDeconstructor[Strict.type]
@@ -36,7 +48,19 @@ object PatchMode {
   implicit lazy val lenientSchema: Schema[Lenient.type] = new Schema(
     reflect = new Reflect.Record[Binding, Lenient.type](
       fields = Vector.empty,
-      typeId = TypeId.nominal[Lenient.type]("Lenient", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Package("patch"), Owner.Term("PatchMode"))), Nil),
+      typeId = TypeId.nominal[Lenient.type](
+        "Lenient",
+        Owner(
+          List(
+            Owner.Package("zio"),
+            Owner.Package("blocks"),
+            Owner.Package("schema"),
+            Owner.Package("patch"),
+            Owner.Term("PatchMode")
+          )
+        ),
+        Nil
+      ),
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Lenient.type](Lenient),
         deconstructor = new ConstantDeconstructor[Lenient.type]
@@ -48,7 +72,19 @@ object PatchMode {
   implicit lazy val clobberSchema: Schema[Clobber.type] = new Schema(
     reflect = new Reflect.Record[Binding, Clobber.type](
       fields = Vector.empty,
-      typeId = TypeId.nominal[Clobber.type]("Clobber", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Package("patch"), Owner.Term("PatchMode"))), Nil),
+      typeId = TypeId.nominal[Clobber.type](
+        "Clobber",
+        Owner(
+          List(
+            Owner.Package("zio"),
+            Owner.Package("blocks"),
+            Owner.Package("schema"),
+            Owner.Package("patch"),
+            Owner.Term("PatchMode")
+          )
+        ),
+        Nil
+      ),
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Clobber.type](Clobber),
         deconstructor = new ConstantDeconstructor[Clobber.type]
@@ -68,7 +104,11 @@ object PatchMode {
           lenientSchema.reflect.asTerm("Lenient"),
           clobberSchema.reflect.asTerm("Clobber")
         ),
-        typeId = TypeId.nominal[PatchMode]("PatchMode", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Package("patch"))), Nil),
+        typeId = TypeId.nominal[PatchMode](
+          "PatchMode",
+          Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Package("patch"))),
+          Nil
+        ),
         variantBinding = new Binding.Variant(
           discriminator = new Discriminator[PatchMode] {
             def discriminate(a: PatchMode): Int = a match {

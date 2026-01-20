@@ -162,7 +162,11 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             new Schema[NamedTuple.Empty](
               reflect = Reflect.Record[Binding, NamedTuple.Empty](
                 fields = Vector(),
-                typeId = TypeId.nominal[NamedTuple.Empty]("NamedTuple[]", Owner(List(Owner.Package("scala"), Owner.Term("NamedTuple"))), Nil),
+                typeId = TypeId.nominal[NamedTuple.Empty](
+                  "NamedTuple[]",
+                  Owner(List(Owner.Package("scala"), Owner.Term("NamedTuple"))),
+                  Nil
+                ),
                 recordBinding = null
               )
             )

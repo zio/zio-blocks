@@ -37,7 +37,15 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[Record1](
                 "Record1",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"), Owner.Type("spec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaVersionSpecificSpec"),
+                    Owner.Type("spec")
+                  )
+                ),
                 Nil
               )
             )
@@ -306,7 +314,11 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[Id].reflect.asTerm("id"),
                   Schema.derived[Value].reflect.asTerm("value")
                 ),
-                typeId = TypeId.nominal[Opaque]("Opaque", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))), Nil),
+                typeId = TypeId.nominal[Opaque](
+                  "Opaque",
+                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))),
+                  Nil
+                ),
                 recordBinding = null
               )
             )
@@ -350,13 +362,24 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                     .typeId(
                       TypeId.nominal[InnerValue](
                         "InnerValue",
-                        Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"))),
+                        Owner(
+                          List(
+                            Owner.Package("zio"),
+                            Owner.Package("blocks"),
+                            Owner.Package("schema"),
+                            Owner.Term("SchemaVersionSpecificSpec")
+                          )
+                        ),
                         Nil
                       )
                     )
                     .asTerm("value")
                 ),
-                typeId = TypeId.nominal[InnerOpaque]("InnerOpaque", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))), Nil),
+                typeId = TypeId.nominal[InnerOpaque](
+                  "InnerOpaque",
+                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))),
+                  Nil
+                ),
                 recordBinding = null
               )
             )
@@ -523,7 +546,9 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             schema9.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Double, IArray]]
           )
         assert(schema1.reflect.typeId.name)(equalTo("IArray")) &&
-        assert(schema1.reflect.typeId.owner)(equalTo(Owner(List(Owner.Package("scala"), Owner.Term("IArray$package"))))) &&
+        assert(schema1.reflect.typeId.owner)(
+          equalTo(Owner(List(Owner.Package("scala"), Owner.Term("IArray$package"))))
+        ) &&
         assert(schema2.reflect.typeId.name)(equalTo("IArray")) &&
         assert(schema3.reflect.typeId.name)(equalTo("IArray")) &&
         assert(schema4.reflect.typeId.name)(equalTo("IArray")) &&
@@ -634,7 +659,15 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[Variant1](
                 "Variant1",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"), Owner.Type("spec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaVersionSpecificSpec"),
+                    Owner.Type("spec")
+                  )
+                ),
                 Nil
               )
             )
@@ -691,7 +724,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[Color](
                 "Color",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaVersionSpecificSpec")
+                  )
+                ),
                 Nil
               )
             )
@@ -723,7 +763,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[FruitEnum[?]](
                 "FruitEnum",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaVersionSpecificSpec")
+                  )
+                ),
                 List(TypeParam("T", 0))
               )
             )
@@ -782,13 +829,22 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(123))))(isRight(equalTo(Variant(123)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(true))))(isRight(equalTo(Variant(true)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant("VVV"))))(isRight(equalTo(Variant("VVV")))) &&
-        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("scala.Int", "java.lang.String", "scala.Boolean")))) &&
+        assert(variant.map(_.cases.map(_.name)))(
+          isSome(equalTo(Vector("scala.Int", "java.lang.String", "scala.Boolean")))
+        ) &&
         assert(variant.map(_.typeId))(
           isSome(
             equalTo(
               TypeId.nominal[Variant](
                 "Variant",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("OpaqueTypes$package"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("OpaqueTypes$package")
+                  )
+                ),
                 Nil
               )
             )
@@ -821,7 +877,9 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isSome(equalTo(Seq("scala.Int", "java.lang.String"))) // deduplicates union cases without re-ordering
         ) &&
         assert(record.flatMap(_.fields(2).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("scala.Int", "scala.Boolean", "java.lang.String"))) // deduplicates union cases without re-ordering
+          isSome(
+            equalTo(Seq("scala.Int", "scala.Boolean", "java.lang.String"))
+          ) // deduplicates union cases without re-ordering
         ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))
@@ -843,7 +901,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[LinkedList[Int]](
                 "LinkedList",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaVersionSpecificSpec")
+                  )
+                ),
                 List(TypeParam("T", 0))
               )
             )
@@ -865,7 +930,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[HKEnum[Option]](
                 "HKEnum",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaVersionSpecificSpec")
+                  )
+                ),
                 List(TypeParam("A", 0))
               )
             )
@@ -963,7 +1035,18 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
     implicit val schema: Schema[InnerId] = Schema(
       Reflect.Wrapper(
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
-        typeId = TypeId.nominal[InnerId]("InnerId", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaVersionSpecificSpec"))), Nil),
+        typeId = TypeId.nominal[InnerId](
+          "InnerId",
+          Owner(
+            List(
+              Owner.Package("zio"),
+              Owner.Package("blocks"),
+              Owner.Package("schema"),
+              Owner.Term("SchemaVersionSpecificSpec")
+            )
+          ),
+          Nil
+        ),
         wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
         wrapperBinding = Binding.Wrapper(s => InnerId(s), identity)
       )
@@ -1009,7 +1092,8 @@ object Id {
   implicit val schema: Schema[Id] = Schema(
     Reflect.Wrapper(
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
-      typeId = TypeId.nominal[Id]("Id", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))), Nil),
+      typeId = TypeId
+        .nominal[Id]("Id", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))), Nil),
       wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
       wrapperBinding = Binding.Wrapper(s => Id(s), identity)
     )

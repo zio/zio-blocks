@@ -221,7 +221,15 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record1](
                   "Record-1",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("SchemaSpec"),
+                      Owner.Type("spec")
+                    )
+                  ),
                   Nil
                 ),
                 recordBinding = null,
@@ -271,7 +279,15 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record2[`i-8`, `i-32`]](
                   "Record-2",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("SchemaSpec"),
+                      Owner.Type("spec")
+                    )
+                  ),
                   List(TypeParam("B", 0), TypeParam("I", 1))
                 ),
                 recordBinding = null
@@ -311,7 +327,15 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record3](
                   "Record3",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("SchemaSpec"),
+                      Owner.Type("spec")
+                    )
+                  ),
                   Nil
                 ),
                 recordBinding = null
@@ -361,7 +385,15 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record4](
                   "Record4",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("SchemaSpec"),
+                      Owner.Type("spec")
+                    )
+                  ),
                   Nil
                 ),
                 recordBinding = null
@@ -426,7 +458,15 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record5](
                   "Record5",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("SchemaSpec"),
+                      Owner.Type("spec")
+                    )
+                  ),
                   Nil
                 ),
                 recordBinding = null
@@ -566,7 +606,15 @@ object SchemaSpec extends SchemaBaseSpec {
                 ),
                 typeId = TypeId.nominal[Record7](
                   "Record7",
-                  Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("SchemaSpec"),
+                      Owner.Type("spec")
+                    )
+                  ),
                   Nil
                 ),
                 recordBinding = null
@@ -588,7 +636,15 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[Record8[Option]](
                 "Record8",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaSpec"),
+                    Owner.Type("spec")
+                  )
+                ),
                 List(TypeParam("F", 0))
               )
             )
@@ -949,7 +1005,15 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[`Variant-1`](
                 "Variant-1",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaSpec"),
+                    Owner.Type("spec")
+                  )
+                ),
                 Nil
               )
             )
@@ -1006,7 +1070,15 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[`Variant-2`[String]](
                 "Variant-2",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaSpec"),
+                    Owner.Type("spec")
+                  )
+                ),
                 List(TypeParam("A", 0))
               )
             )
@@ -1056,7 +1128,17 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A2)))(isRight(equalTo(B.A2))) &&
         assert(variant1.map(_.cases.map(_.name)))(isSome(equalTo(Vector("A1", "A2")))) &&
         assert(variant1.map(_.typeId))(
-          isSome(equalTo(TypeId.nominal[A]("A", Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"))), Nil)))
+          isSome(
+            equalTo(
+              TypeId.nominal[A](
+                "A",
+                Owner(
+                  List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"))
+                ),
+                Nil
+              )
+            )
+          )
         ) &&
         assert(Level1_MultiLevel.c.getOption(Case))(isSome(equalTo(Case))) &&
         assert(Level1_MultiLevel.l1_c.getOption(Level1.Case))(isSome(equalTo(Level1.Case))) &&
@@ -1068,7 +1150,15 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[Level1.MultiLevel](
                 "MultiLevel",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Term("Level1"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaSpec"),
+                    Owner.Term("Level1")
+                  )
+                ),
                 Nil
               )
             )
@@ -1107,7 +1197,15 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[`Variant-3`[Option]](
                 "Variant-3",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaSpec"),
+                    Owner.Type("spec")
+                  )
+                ),
                 List(TypeParam("F", 0))
               )
             )
@@ -1133,7 +1231,15 @@ object SchemaSpec extends SchemaBaseSpec {
             equalTo(
               TypeId.nominal[Variant4[String, Int]](
                 "Variant4",
-                Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"), Owner.Type("spec"))),
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaSpec"),
+                    Owner.Type("spec")
+                  )
+                ),
                 List(TypeParam("E", 0), TypeParam("A", 1))
               )
             )

@@ -256,11 +256,13 @@ object Reflect {
   type Bound[A] = Reflect[Binding, A]
 
   private val zioBlocksSchemaOwner: zio.blocks.typeid.Owner =
-    zio.blocks.typeid.Owner(List(
-      zio.blocks.typeid.Owner.Package("zio"),
-      zio.blocks.typeid.Owner.Package("blocks"),
-      zio.blocks.typeid.Owner.Package("schema")
-    ))
+    zio.blocks.typeid.Owner(
+      List(
+        zio.blocks.typeid.Owner.Package("zio"),
+        zio.blocks.typeid.Owner.Package("blocks"),
+        zio.blocks.typeid.Owner.Package("schema")
+      )
+    )
 
   private[schema] val scalaOwner: zio.blocks.typeid.Owner =
     zio.blocks.typeid.Owner(List(zio.blocks.typeid.Owner.Package("scala")))
@@ -1504,7 +1506,11 @@ object Reflect {
   def dynamic[F[_, _]](implicit F: FromBinding[F]): Dynamic[F] = new Dynamic(F.fromBinding(Binding.Dynamic()))
 
   private[this] def some[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Some[A]] =
-    new Record(Vector(new Term("value", element)), TypeId.some.asInstanceOf[TypeId[Some[A]]], F.fromBinding(Binding.Record.some))
+    new Record(
+      Vector(new Term("value", element)),
+      TypeId.some.asInstanceOf[TypeId[Some[A]]],
+      F.fromBinding(Binding.Record.some)
+    )
 
   private[this] def someDouble[F[_, _]](
     element: Reflect[F, Double]
