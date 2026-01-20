@@ -19,7 +19,7 @@ object JsonInterpolatorMacros {
 
     val parts = sc(c).parts
     if (parts.length > 1) {
-      val scExpr = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
+      val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
       val argsExpr = c.Expr[Seq[Any]](q"Seq(..$args)")
       reify {
         JsonInterpolatorRuntime.jsonWithInterpolation(scExpr.splice, argsExpr.splice)
@@ -29,7 +29,7 @@ object JsonInterpolatorMacros {
       JsonInterpolatorRuntime.validateJsonSyntax(jsonStr) match {
         case None =>
           val jsonStrLit = c.Expr[String](Literal(Constant(jsonStr)))
-          reify { Json.parseUnsafe(jsonStrLit.splice) }
+          reify(Json.parseUnsafe(jsonStrLit.splice))
         case Some(error) =>
           c.abort(c.enclosingPosition, s"Invalid JSON literal: $error")
       }
@@ -37,7 +37,7 @@ object JsonInterpolatorMacros {
   }
 
   def pathImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[DynamicOptic] = {
-    val _ = args // suppress unused warning
+    val _     = args // suppress unused warning
     val parts = sc(c).parts
     if (parts.length > 1) {
       c.abort(c.enclosingPosition, "Path interpolator does not support interpolated values")
@@ -56,7 +56,7 @@ object JsonInterpolatorMacros {
       case Apply(_, List(Apply(_, rawParts))) =>
         val parts = rawParts.map {
           case Literal(Constant(part: String)) => part
-          case _ => c.abort(c.enclosingPosition, "Expected string literal parts")
+          case _                               => c.abort(c.enclosingPosition, "Expected string literal parts")
         }
         StringContext(parts: _*)
       case _ =>
@@ -68,8 +68,8 @@ object JsonInterpolatorMacros {
     import c.universe._
 
     var result: Tree = q"_root_.zio.blocks.schema.DynamicOptic.root"
-    var remaining = path.trim
-    var position = 0
+    var remaining    = path.trim
+    var position     = 0
 
     while (remaining.nonEmpty) {
       if (remaining.startsWith(".")) {

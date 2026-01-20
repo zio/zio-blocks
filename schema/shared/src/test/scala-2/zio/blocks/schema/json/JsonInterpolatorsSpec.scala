@@ -30,8 +30,8 @@ object JsonInterpolatorsSpec extends SchemaBaseSpec {
         )
       },
       test("parses primitives") {
-        val jsonStr = json""""hello""""
-        val jsonNum = json"""42"""
+        val jsonStr  = json""""hello""""
+        val jsonNum  = json"""42"""
         val jsonBool = json"""true"""
         val jsonNull = json"""null"""
         assertTrue(
@@ -43,22 +43,22 @@ object JsonInterpolatorsSpec extends SchemaBaseSpec {
       },
       test("supports interpolated string values") {
         val name = "Charlie"
-        val j = json"""{"name": $name}"""
+        val j    = json"""{"name": $name}"""
         assertTrue(j.get("name").string == Right("Charlie"))
       },
       test("supports interpolated numeric values") {
         val age = 25
-        val j = json"""{"age": $age}"""
+        val j   = json"""{"age": $age}"""
         assertTrue(j.get("age").int == Right(25))
       },
       test("supports interpolated boolean values") {
         val active = true
-        val j = json"""{"active": $active}"""
+        val j      = json"""{"active": $active}"""
         assertTrue(j.get("active").boolean == Right(true))
       },
       test("supports interpolated Json values") {
         val inner = Json.obj("x" -> Json.number(1))
-        val j = json"""{"inner": $inner}"""
+        val j     = json"""{"inner": $inner}"""
         assertTrue(j.get("inner").get("x").int == Right(1))
       }
     ),
