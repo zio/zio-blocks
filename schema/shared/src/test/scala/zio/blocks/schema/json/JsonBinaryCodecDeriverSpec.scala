@@ -6,6 +6,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.JavaTimeGen._
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.NameMapper._
+import zio.blocks.typeid.TypeId
 import zio.test._
 import zio.test.Assertion._
 import java.math.MathContext
@@ -3094,7 +3095,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Email] = new Schema(
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
-        TypeName(Namespace(Seq("zio", "blocks", "schema", "json"), Seq("JsonBinaryCodecDeriverSpec")), "Email"),
+        TypeId.derived[Email],
         None,
         new Binding.Wrapper(
           {

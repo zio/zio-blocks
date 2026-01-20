@@ -114,6 +114,26 @@ object TypeName extends TypeNameCompanionVersionSpecific {
   def either[A, B](l: TypeName[A], r: TypeName[B]): TypeName[Either[A, B]] =
     _either.copy(params = Seq(l, r)).asInstanceOf[TypeName[Either[A, B]]]
 
+  def fromTypeId[A](typeId: zio.blocks.typeid.TypeId[A]): TypeName[A] = {
+    val owner     = typeId.owner
+    val namespace = ownerToNamespace(owner)
+    val params = typeId.typeParams.map { param =>
+      TypeName(Namespace(Nil), param.name, Nil)
+    }
+    new TypeName(namespace, typeId.name, params)
+  }
+
+  private def ownerToNamespace(owner: zio.blocks.typeid.Owner): Namespace = {
+    val packages = owner.segments.collect { case zio.blocks.typeid.Owner.Package(name) =>
+      name
+    }
+    val values = owner.segments.collect {
+      case zio.blocks.typeid.Owner.Term(name) => name
+      case zio.blocks.typeid.Owner.Type(name) => name
+    }
+    Namespace(packages, values)
+  }
+
   private[this] val _some       = new TypeName(Namespace.scala, "Some")
   private[this] val _option     = new TypeName(Namespace.scala, "Option")
   private[this] val _list       = new TypeName(Namespace.scalaCollectionImmutable, "List")

@@ -257,22 +257,13 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         )
       },
       test("union types with same members in different order are equal") {
-        val union1 = TypeRepr.Union(
-          List(
-            TypeRepr.Ref(TypeId.derived[String]),
-            TypeRepr.Ref(TypeId.derived[Int])
-          )
-        )
-        val union2 = TypeRepr.Union(
-          List(
-            TypeRepr.Ref(TypeId.derived[Int]),
-            TypeRepr.Ref(TypeId.derived[String])
-          )
-        )
+        val union1 = TypeId.derived[Int | String] 
+        val union2 = TypeId.derived[String | Int]
 
         assertTrue(
           union1 == union2,
-          union1.hashCode() == union2.hashCode()
+          union1.hashCode() == union2.hashCode(),
+          union1.ref
         )
       },
       test("intersection types with same members in different order are equal") {

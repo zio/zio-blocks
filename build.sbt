@@ -99,6 +99,7 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
+  .dependsOn(typeid)
   .settings(stdSettings("zio-blocks-schema"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))
