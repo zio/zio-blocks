@@ -50,6 +50,7 @@ lazy val root = project
     schema.js,
     schema.native,
     `schema-avro`,
+    `schema-bson`,
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-toon`.native,
@@ -171,6 +172,21 @@ lazy val `schema-avro` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     })
+  )
+
+lazy val `schema-bson` = project
+  .settings(stdSettings("zio-blocks-schema-bson"))
+  .dependsOn(schema.jvm % "compile->compile;test->test")
+  .settings(buildInfoSettings("zio.blocks.schema.bson"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.mongodb" % "bson" % "5.6.2",
+      "dev.zio"    %% "zio" % "2.1.24",
+      "dev.zio"    %% "zio-bson" % "1.0.6",
+      "dev.zio"    %% "zio-test" % "2.1.24" % Test,
+      "dev.zio"    %% "zio-test-sbt" % "2.1.24" % Test
+    )
   )
 
 lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)

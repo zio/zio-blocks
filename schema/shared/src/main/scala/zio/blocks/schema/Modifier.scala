@@ -61,3 +61,81 @@ object Modifier {
    */
   @field case class config(key: String, value: String) extends Term with Reflect
 }
+
+package annotation {
+  import scala.annotation.meta.field
+
+  /**
+   * Overrides the default case name used in schema-based serialization.
+   */
+  final case class caseName(name: String) extends Modifier.Term
+
+  /**
+   * Declares additional case names accepted during decoding.
+   */
+  final case class caseNameAliases(aliases: String*) extends Modifier.Term
+
+  /**
+   * Overrides the default field name used in schema-based serialization.
+   */
+  @field final case class fieldName(name: String) extends Modifier.Term
+
+  /**
+   * Declares additional field names accepted during decoding.
+   */
+  @field final case class fieldNameAliases(aliases: String*) extends Modifier.Term
+
+  /**
+   * Marks a field as transient so it is omitted during serialization.
+   */
+  @field final case class transientField() extends Modifier.Term
+
+  /**
+   * Marks a case as transient so it is omitted during serialization.
+   */
+  final case class transientCase() extends Modifier.Term
+
+  /**
+   * Sets the discriminator field name for schema-based sum type encoding.
+   */
+  final case class discriminatorName(tag: String) extends Modifier.Reflect
+
+  /**
+   * Disables discriminators for schema-based sum type encoding.
+   */
+  final class noDiscriminator extends Modifier.Reflect
+
+  /**
+   * Rejects extra fields during decoding.
+   */
+  final class rejectExtraFields extends Modifier.Reflect
+}
+
+package bson {
+  import scala.annotation.meta.field
+
+  /**
+   * Overrides the BSON field name for a case class field.
+   */
+  @field final case class bsonField(name: String) extends Modifier.Term
+
+  /**
+   * Overrides the BSON case name for sum type encoding.
+   */
+  final case class bsonHint(name: String) extends Modifier.Term
+
+  /**
+   * Sets the BSON discriminator field name for sum type encoding.
+   */
+  final case class bsonDiscriminator(name: String) extends Modifier.Reflect
+
+  /**
+   * Rejects extra fields during BSON decoding.
+   */
+  final class bsonNoExtraFields extends Modifier.Reflect
+
+  /**
+   * Excludes a field from BSON serialization and deserialization.
+   */
+  @field final class bsonExclude extends Modifier.Term
+}

@@ -33,7 +33,7 @@ sealed trait Lazy[+A] {
   @inline final def flatten[B](implicit ev: A <:< Lazy[B]): Lazy[B] = flatMap(a => a)
 
   final def force: A = {
-    @annotation.tailrec
+    @scala.annotation.tailrec
     def loop(current: Lazy[Any], stack: List[Cont[Any, Any]]): Any = current match {
       case Defer(thunk) =>
         if (stack.isEmpty) thunk()
