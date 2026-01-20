@@ -3,10 +3,10 @@ package zio.blocks.schema
 import zio.test._
 import zio.test.Assertion._
 
-object DynamicOpticParserSpec extends ZIOSpecDefault {
+object PathInterpolatorSpec extends ZIOSpecDefault {
   import DynamicOptic.Node
 
-  def spec = suite("DynamicOptic path interpolator p\"\"")(
+  def spec = suite("PathInterpolatorSpec")(
     suite("Record field access")(
       test("single field with leading dot") {
         assertTrue(p".foo" == DynamicOptic(Vector(Node.Field("foo"))))
