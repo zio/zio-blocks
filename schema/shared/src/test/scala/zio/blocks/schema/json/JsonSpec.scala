@@ -269,6 +269,47 @@ object JsonSpec extends SchemaBaseSpec {
         val expected = Json.Array(Vector(Json.number(1), Json.number(3)))
         assert(result)(equalTo(expected))
       }
+    ),
+    suite("Parsing and Encoding")(
+      test("parse simple object") {
+        val input = """{"name":"Alice","age":30}"""
+        val result = Json.parse(input)
+        val expected = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
+        assert(result)(isRight(equalTo(expected)))
+      },
+      test("parse array") {
+        val input = """[1,2,3]"""
+        val result = Json.parse(input)
+        val expected = Json.Array(Vector(Json.number(1), Json.number(2), Json.number(3)))
+        assert(result)(isRight(equalTo(expected)))
+      },
+      test("parse nested structure") {
+        val input = """{"user":{"name":"Bob","tags":["a","b"]}}"""
+        val result = Json.parse(input)
+        val expected = Json.Object(
+          "user" -> Json.Object(
+            "name" -> Json.String("Bob"),
+            "tags" -> Json.Array(Vector(Json.String("a"), Json.String("b")))
+          )
+        )
+        assert(result)(isRight(equalTo(expected)))
+      },
+      test("encode simple object") {
+        val json = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
+        val result = Json.encode(json)
+        assert(result.replaceAll("\\s", ""))(equalTo("""{"name":"Alice","age":30}"""))
+      },
+      test("encode and parse round-trip") {
+        val original = Json.Object(
+          "name" -> Json.String("Alice"),
+          "age" -> Json.number(30),
+          "active" -> Json.Boolean(true),
+          "tags" -> Json.Array(Vector(Json.String("a"), Json.String("b")))
+        )
+        val encoded = Json.encode(original)
+        val parsed = Json.parse(encoded)
+        assert(parsed)(isRight(equalTo(original)))
+      }
     )
   )
 }

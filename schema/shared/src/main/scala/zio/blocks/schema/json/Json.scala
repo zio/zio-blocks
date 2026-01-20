@@ -737,6 +737,39 @@ sealed trait Json { self =>
 object Json {
 
   // ===========================================================================
+  // Parsing and Encoding
+  // ===========================================================================
+
+  /**
+   * Parses a JSON string into a Json ADT.
+   *
+   * @param input The JSON string to parse
+   * @return Either a JsonError or the parsed Json value
+   */
+  def parse(input: java.lang.String): Either[JsonError, Json] = {
+    try {
+      Right(jsonCodec.decode(input).fold(
+        err => throw new Exception(err.message),
+        identity
+      ))
+    } catch {
+      case e: Exception =>
+        Left(JsonError(e.getMessage, DynamicOptic.root, None, None, None))
+    }
+  }
+
+  /**
+   * Encodes a Json ADT to a JSON string.
+   *
+   * @param json The Json value to encode
+   * @param config The writer configuration (default: WriterConfig)
+   * @return The JSON string
+   */
+  def encode(json: Json, config: WriterConfig = WriterConfig): java.lang.String = {
+    new java.lang.String(jsonCodec.encode(json, config), java.nio.charset.StandardCharsets.UTF_8)
+  }
+
+  // ===========================================================================
   // ADT Cases
   // ===========================================================================
 
@@ -994,6 +1027,95 @@ object Json {
     case PrimitiveValue.UUID(v)             => String(v.toString)
   }
 
-  // More methods will be added in subsequent edits...
+  // ===========================================================================
+  // JsonBinaryCodec for Json ADT
+  // ===========================================================================
+
+  /**
+   * A JsonBinaryCodec that can parse and encode the Json ADT itself.
+   * This allows us to parse JSON strings into our Json ADT and encode them back.
+   */
+  private[json] lazy val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json] {
+    import zio.blocks.schema.json.{JsonReader, JsonWriter}
+
+    override def nullValue: Json = Null
+
+    override def decodeValue(in: JsonReader, default: Json): Json = {
+      // Read the next token to determine the JSON type
+      val b = in.nextToken()
+
+      if (b == 'n') {
+        in.rollbackToken()
+        in.readNullOrError(default, "expected JSON value")
+        Null
+      } else if (b == 't' || b == 'f') {
+        in.rollbackToken()
+        Boolean(in.readBoolean())
+      } else if (b == '"') {
+        in.rollbackToken()
+        String(in.readString(null))
+      } else if ((b >= '0' && b <= '9') || b == '-') {
+        in.rollbackToken()
+        Number(in.readBigDecimal(null).toString)
+      } else if (b == '[') {
+        // Array
+        if (in.isNextToken(']')) {
+          Array(Vector.empty)
+        } else {
+          in.rollbackToken()
+          val builder = Vector.newBuilder[Json]
+          while ({
+            builder += decodeValue(in, default)
+            in.isNextToken(',')
+          }) ()
+          if (in.isCurrentToken(']')) Array(builder.result())
+          else in.arrayEndOrCommaError()
+        }
+      } else if (b == '{') {
+        // Object
+        if (in.isNextToken('}')) {
+          Object(Vector.empty)
+        } else {
+          in.rollbackToken()
+          val builder = Vector.newBuilder[(java.lang.String, Json)]
+          while ({
+            val key = in.readKeyAsString()
+            val value = decodeValue(in, default)
+            builder += (key -> value)
+            in.isNextToken(',')
+          }) ()
+          if (in.isCurrentToken('}')) Object(builder.result())
+          else in.objectEndOrCommaError()
+        }
+      } else {
+        in.decodeError("expected JSON value")
+      }
+    }
+
+    override def encodeValue(x: Json, out: JsonWriter): Unit = x match {
+      case Null => out.writeNull()
+      case Boolean(v) => out.writeVal(v)
+      case String(v) => out.writeVal(v)
+      case Number(v) => out.writeVal(BigDecimal(v))
+      case Array(elems) =>
+        out.writeArrayStart()
+        var i = 0
+        while (i < elems.length) {
+          encodeValue(elems(i), out)
+          i += 1
+        }
+        out.writeArrayEnd()
+      case Object(flds) =>
+        out.writeObjectStart()
+        var i = 0
+        while (i < flds.length) {
+          val (k, v) = flds(i)
+          out.writeKey(k)
+          encodeValue(v, out)
+          i += 1
+        }
+        out.writeObjectEnd()
+    }
+  }
 }
 
