@@ -177,7 +177,6 @@ lazy val `schema-avro` = project
     })
   )
 
-<<<<<<< HEAD
 lazy val `schema-thrift` = project
   .settings(stdSettings("zio-blocks-schema-thrift"))
   .dependsOn(schema.jvm % "compile->compile;test->test")
@@ -188,7 +187,16 @@ lazy val `schema-thrift` = project
       "org.apache.thrift" % "libthrift"    % "0.19.0",
       "dev.zio"          %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"          %% "zio-test-sbt" % "2.1.24" % Test
-=======
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
+        )
+    })
+  )
+
 lazy val `schema-bson` = project
   .settings(stdSettings("zio-blocks-schema-bson"))
   .dependsOn(schema.jvm % "compile->compile;test->test", chunk.jvm)
@@ -196,10 +204,9 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.mongodb"    % "bson"         % "4.11.1",
-      "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
-      "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
->>>>>>> fc2ca75eb5b5cb1c77c65ae48dc5c4e482f8dadc
+      "org.mongodb" % "bson"         % "4.11.1",
+      "dev.zio"    %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio"    %% "zio-test-sbt" % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq()
