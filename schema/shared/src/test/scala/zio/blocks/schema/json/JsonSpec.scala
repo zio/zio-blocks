@@ -310,6 +310,73 @@ object JsonSpec extends SchemaBaseSpec {
         val parsed = Json.parse(encoded)
         assert(parsed)(isRight(equalTo(original)))
       }
+    ),
+    suite("JsonEncoder/JsonDecoder")(
+      test("encode primitive types with schema") {
+        import zio.blocks.schema.Schema
+
+        val intJson = Json.from(42)
+        val stringJson = Json.from("hello")
+        val boolJson = Json.from(true)
+
+        assert(intJson)(equalTo(Json.number(42))) &&
+        assert(stringJson)(equalTo(Json.String("hello"))) &&
+        assert(boolJson)(equalTo(Json.Boolean(true)))
+      },
+      test("decode primitive types with schema") {
+        import zio.blocks.schema.Schema
+
+        val intResult = Json.number(42).as[Int]
+        val stringResult = Json.String("hello").as[String]
+        val boolResult = Json.Boolean(true).as[Boolean]
+
+        assert(intResult)(isRight(equalTo(42))) &&
+        assert(stringResult)(isRight(equalTo("hello"))) &&
+        assert(boolResult)(isRight(equalTo(true)))
+      },
+      test("encode case class with schema") {
+        import zio.blocks.schema.Schema
+
+        case class Person(name: String, age: Int)
+        object Person {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+
+        val person = Person("Alice", 30)
+        val json = Json.from(person)
+
+        assert(json.isObject)(isTrue)
+      },
+      test("decode case class with schema") {
+        import zio.blocks.schema.Schema
+
+        case class Person(name: String, age: Int)
+        object Person {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+
+        val json = Json.Object(
+          "name" -> Json.String("Bob"),
+          "age" -> Json.number(25)
+        )
+        val result = json.as[Person]
+
+        assert(result)(isRight(equalTo(Person("Bob", 25))))
+      },
+      test("round-trip encode/decode with schema") {
+        import zio.blocks.schema.Schema
+
+        case class User(id: Int, name: String, active: Boolean)
+        object User {
+          implicit val schema: Schema[User] = Schema.derived
+        }
+
+        val original = User(1, "Alice", true)
+        val json = Json.from(original)
+        val decoded = json.as[User]
+
+        assert(decoded)(isRight(equalTo(original)))
+      }
     )
   )
 }

@@ -732,6 +732,60 @@ sealed trait Json { self =>
    */
   def filter(p: (DynamicOptic, Json) => scala.Boolean): Json =
     filterNot((path, json) => !p(path, json))
+
+  // ===========================================================================
+  // Typed Decoding (Json => A)
+  // ===========================================================================
+
+  /**
+   * Decodes this JSON to a typed value.
+   *
+   * Uses implicit [[JsonDecoder]] which prefers explicit codecs over schema derivation.
+   *
+   * {{{
+   * case class Person(name: String, age: Int)
+   * object Person {
+   *   implicit val schema: Schema[Person] = Schema.derived
+   * }
+   *
+   * val json: Json = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
+   * val person: Either[JsonError, Person] = json.as[Person]
+   * }}}
+   *
+   * @tparam A The target type
+   * @return Either an error or the decoded value
+   */
+  def as[A](implicit decoder: JsonDecoder[A]): Either[JsonError, A] = decoder.decode(self)
+
+  /**
+   * Internal: decode using an explicit codec.
+   *
+   * This method is used by [[JsonDecoder]] implementations to decode
+   * JSON values using a specific codec.
+   */
+  private[json] def decodeWith[A](codec: JsonBinaryCodec[A]): Either[JsonError, A] = {
+    try {
+      val jsonString = Json.encode(self)
+      codec.decode(jsonString).left.map { schemaError =>
+        JsonError(
+          message = schemaError.message,
+          path = DynamicOptic.root,
+          offset = None,
+          line = None,
+          column = None
+        )
+      }
+    } catch {
+      case e: Exception =>
+        Left(JsonError(
+          message = s"Failed to decode JSON: ${e.getMessage}",
+          path = DynamicOptic.root,
+          offset = None,
+          line = None,
+          column = None
+        ))
+    }
+  }
 }
 
 object Json {
@@ -1025,6 +1079,57 @@ object Json {
     case PrimitiveValue.ZoneOffset(v)       => String(v.toString)
     case PrimitiveValue.Currency(v)         => String(v.getCurrencyCode)
     case PrimitiveValue.UUID(v)             => String(v.toString)
+  }
+
+  // ===========================================================================
+  // Typed Encoding (A => Json)
+  // ===========================================================================
+
+  /**
+   * Encodes a typed value to JSON.
+   *
+   * Uses implicit [[JsonEncoder]] which prefers explicit codecs over schema derivation.
+   *
+   * {{{
+   * case class Person(name: String, age: Int)
+   * object Person {
+   *   implicit val schema: Schema[Person] = Schema.derived
+   * }
+   *
+   * val person = Person("Alice", 30)
+   * val json: Json = Json.from(person)
+   * }}}
+   *
+   * @param value The value to encode
+   * @return The encoded JSON
+   */
+  def from[A](value: A)(implicit encoder: JsonEncoder[A]): Json = encoder.encode(value)
+
+  /**
+   * Internal: encode using an explicit codec.
+   *
+   * This method is used by [[JsonEncoder]] implementations to encode
+   * values using a specific codec.
+   */
+  private[json] def encodeWith[A](value: A, codec: JsonBinaryCodec[A]): Json = {
+    try {
+      val bytes = codec.encode(value, WriterConfig)
+      val jsonString = new java.lang.String(bytes, java.nio.charset.StandardCharsets.UTF_8)
+      parse(jsonString) match {
+        case Right(json) => json
+        case Left(error) => throw error
+      }
+    } catch {
+      case e: JsonError => throw e
+      case e: Exception =>
+        throw JsonError(
+          message = s"Failed to encode value: ${e.getMessage}",
+          path = DynamicOptic.root,
+          offset = None,
+          line = None,
+          column = None
+        )
+    }
   }
 
   // ===========================================================================
