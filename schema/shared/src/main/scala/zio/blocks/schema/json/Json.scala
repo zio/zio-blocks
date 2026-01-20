@@ -734,6 +734,139 @@ sealed trait Json { self =>
     filterNot((path, json) => !p(path, json))
 
   // ===========================================================================
+  // Normalization
+  // ===========================================================================
+
+  /**
+   * Returns a normalized version of this JSON.
+   *
+   * Normalization includes:
+   *  - Sorting object keys alphabetically
+   *  - Normalizing number representations
+   *
+   * Useful for comparison and hashing.
+   */
+  def normalize: Json = self match {
+    case Json.Object(flds) =>
+      Json.Object(flds.map { case (k, v) => (k, v.normalize) }.sortBy(_._1))
+    case Json.Array(elems) =>
+      Json.Array(elems.map(_.normalize))
+    case Json.Number(v) =>
+      // Normalize number representation
+      try {
+        val bd = BigDecimal(v)
+        Json.Number(bd.toString)
+      } catch {
+        case _: Exception => self
+      }
+    case other => other
+  }
+
+  // ===========================================================================
+  // Folding
+  // ===========================================================================
+
+  /**
+   * Folds over this JSON top-down (parents before children).
+   *
+   * @param z The initial accumulator value
+   * @param f The fold function receiving path, value, and accumulator
+   * @tparam B The accumulator type
+   * @return The final accumulated value
+   */
+  def foldDown[B](z: B)(f: (DynamicOptic, Json, B) => B): B = {
+    def go(path: DynamicOptic, json: Json, acc: B): B = {
+      val newAcc = f(path, json, acc)
+      json match {
+        case Json.Object(flds) =>
+          flds.foldLeft(newAcc) { case (a, (k, v)) =>
+            go(path.field(k), v, a)
+          }
+        case Json.Array(elems) =>
+          elems.zipWithIndex.foldLeft(newAcc) { case (a, (v, i)) =>
+            go(path.at(i), v, a)
+          }
+        case _ => newAcc
+      }
+    }
+    go(DynamicOptic.root, self, z)
+  }
+
+  /**
+   * Folds over this JSON bottom-up (children before parents).
+   *
+   * @param z The initial accumulator value
+   * @param f The fold function receiving path, value, and accumulator
+   * @tparam B The accumulator type
+   * @return The final accumulated value
+   */
+  def foldUp[B](z: B)(f: (DynamicOptic, Json, B) => B): B = {
+    def go(path: DynamicOptic, json: Json, acc: B): B = {
+      val childAcc = json match {
+        case Json.Object(flds) =>
+          flds.foldLeft(acc) { case (a, (k, v)) =>
+            go(path.field(k), v, a)
+          }
+        case Json.Array(elems) =>
+          elems.zipWithIndex.foldLeft(acc) { case (a, (v, i)) =>
+            go(path.at(i), v, a)
+          }
+        case _ => acc
+      }
+      f(path, json, childAcc)
+    }
+    go(DynamicOptic.root, self, z)
+  }
+
+  // ===========================================================================
+  // Querying
+  // ===========================================================================
+
+  /**
+   * Selects all values matching the predicate.
+   *
+   * @param p The predicate receiving path and value
+   * @return A [[JsonSelection]] containing matching values
+   */
+  def query(p: (DynamicOptic, Json) => scala.Boolean): JsonSelection = {
+    val matches = foldDown(Vector.empty[Json]) { (path, json, acc) =>
+      if (p(path, json)) acc :+ json else acc
+    }
+    JsonSelection(matches)
+  }
+
+  // ===========================================================================
+  // KV Representation
+  // ===========================================================================
+
+  /**
+   * Flattens this JSON to a sequence of path-value pairs.
+   *
+   * Only leaf values (primitives, empty arrays, empty objects) are included.
+   *
+   * {{{
+   * Json.parse("""{"a": {"b": 1}, "c": [2, 3]}""").toKV
+   * // Seq(
+   * //   (p"a.b", Json.Number("1")),
+   * //   (p"c[0]", Json.Number("2")),
+   * //   (p"c[1]", Json.Number("3"))
+   * // )
+   * }}}
+   */
+  def toKV: Seq[(DynamicOptic, Json)] = {
+    def isLeaf(json: Json): scala.Boolean = json match {
+      case Json.Object(flds) if flds.isEmpty => true
+      case Json.Array(elems) if elems.isEmpty => true
+      case Json.Object(_) | Json.Array(_) => false
+      case _ => true
+    }
+
+    foldDown(Vector.empty[(DynamicOptic, Json)]) { (path, json, acc) =>
+      if (isLeaf(json)) acc :+ (path -> json) else acc
+    }
+  }
+
+  // ===========================================================================
   // Typed Decoding (Json => A)
   // ===========================================================================
 
@@ -1079,6 +1212,138 @@ object Json {
     case PrimitiveValue.ZoneOffset(v)       => String(v.toString)
     case PrimitiveValue.Currency(v)         => String(v.getCurrencyCode)
     case PrimitiveValue.UUID(v)             => String(v.toString)
+  }
+
+  // ===========================================================================
+  // KV Interop
+  // ===========================================================================
+
+  /**
+   * Assembles JSON from a sequence of path-value pairs.
+   *
+   * {{{
+   * Json.fromKV(Seq(
+   *   DynamicOptic.root.field("a").field("b") -> Json.number(1),
+   *   DynamicOptic.root.field("a").field("c") -> Json.String("x"),
+   *   DynamicOptic.root.field("d").at(0) -> Json.Boolean(true)
+   * ))
+   * // Right({"a": {"b": 1, "c": "x"}, "d": [true]})
+   * }}}
+   *
+   * @param kvs The path-value pairs
+   * @return Either an error (for conflicting paths) or the assembled JSON
+   */
+  def fromKV(kvs: Seq[(DynamicOptic, Json)]): Either[JsonError, Json] = {
+    import DynamicOptic.Node
+
+    def insertAt(json: Json, path: IndexedSeq[Node], value: Json): Either[JsonError, Json] = {
+      if (path.isEmpty) {
+        Right(value)
+      } else {
+        val node = path.head
+        val rest = path.tail
+
+        node match {
+          case Node.Field(name) =>
+            json match {
+              case Json.Object(flds) =>
+                val existing = flds.collectFirst { case (k, v) if k == name => v }
+                existing match {
+                  case Some(v) =>
+                    insertAt(v, rest, value).map { newV =>
+                      Json.Object(flds.map { case (k, oldV) =>
+                        if (k == name) k -> newV else k -> oldV
+                      })
+                    }
+                  case None =>
+                    if (rest.isEmpty) {
+                      Right(Json.Object(flds :+ (name -> value)))
+                    } else {
+                      // Need to create intermediate structure
+                      val intermediate = rest.head match {
+                        case _: Node.Field => Json.Object(Vector.empty)
+                        case _: Node.AtIndex => Json.Array(Vector.empty)
+                        case _ => Json.Null
+                      }
+                      insertAt(intermediate, rest, value).map { newV =>
+                        Json.Object(flds :+ (name -> newV))
+                      }
+                    }
+                }
+              case Json.Null =>
+                if (rest.isEmpty) {
+                  Right(Json.Object(Vector(name -> value)))
+                } else {
+                  val intermediate = rest.head match {
+                    case _: Node.Field => Json.Object(Vector.empty)
+                    case _: Node.AtIndex => Json.Array(Vector.empty)
+                    case _ => Json.Null
+                  }
+                  insertAt(intermediate, rest, value).map { newV =>
+                    Json.Object(Vector(name -> newV))
+                  }
+                }
+              case _ =>
+                Left(JsonError(s"Cannot insert field '$name' into non-object", DynamicOptic(path), None, None, None))
+            }
+
+          case Node.AtIndex(index) =>
+            json match {
+              case Json.Array(elems) =>
+                if (index < 0 || index > elems.size) {
+                  Left(JsonError(s"Array index $index out of bounds", DynamicOptic(path), None, None, None))
+                } else if (index == elems.size) {
+                  // Append
+                  if (rest.isEmpty) {
+                    Right(Json.Array(elems :+ value))
+                  } else {
+                    val intermediate = rest.head match {
+                      case _: Node.Field => Json.Object(Vector.empty)
+                      case _: Node.AtIndex => Json.Array(Vector.empty)
+                      case _ => Json.Null
+                    }
+                    insertAt(intermediate, rest, value).map { newV =>
+                      Json.Array(elems :+ newV)
+                    }
+                  }
+                } else {
+                  // Update existing
+                  insertAt(elems(index), rest, value).map { newV =>
+                    Json.Array(elems.updated(index, newV))
+                  }
+                }
+              case Json.Null =>
+                if (index == 0) {
+                  if (rest.isEmpty) {
+                    Right(Json.Array(Vector(value)))
+                  } else {
+                    val intermediate = rest.head match {
+                      case _: Node.Field => Json.Object(Vector.empty)
+                      case _: Node.AtIndex => Json.Array(Vector.empty)
+                      case _ => Json.Null
+                    }
+                    insertAt(intermediate, rest, value).map { newV =>
+                      Json.Array(Vector(newV))
+                    }
+                  }
+                } else {
+                  Left(JsonError(s"Cannot create array with gap at index $index", DynamicOptic(path), None, None, None))
+                }
+              case _ =>
+                Left(JsonError(s"Cannot insert index $index into non-array", DynamicOptic(path), None, None, None))
+            }
+
+          case _ =>
+            Left(JsonError(s"Unsupported path node: $node", DynamicOptic(path), None, None, None))
+        }
+      }
+    }
+
+    kvs.foldLeft[Either[JsonError, Json]](Right(Json.Null)) { case (acc, (path, value)) =>
+      acc.flatMap { json =>
+        insertAt(json, path.nodes, value)
+      }
+    }
   }
 
   // ===========================================================================

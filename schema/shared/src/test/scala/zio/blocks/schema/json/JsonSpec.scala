@@ -377,6 +377,146 @@ object JsonSpec extends SchemaBaseSpec {
 
         assert(decoded)(isRight(equalTo(original)))
       }
+    ),
+    // ===========================================================================
+    // Normalization Tests
+    // ===========================================================================
+    suite("normalize")(
+      test("sorts object keys") {
+        val json = Json.Object(
+          "z" -> Json.number(1),
+          "a" -> Json.number(2),
+          "m" -> Json.number(3)
+        )
+        val normalized = json.normalize
+        val expected = Json.Object(
+          "a" -> Json.number(2),
+          "m" -> Json.number(3),
+          "z" -> Json.number(1)
+        )
+        assert(normalized)(equalTo(expected))
+      },
+      test("normalizes nested objects") {
+        val json = Json.Object(
+          "outer" -> Json.Object(
+            "z" -> Json.number(1),
+            "a" -> Json.number(2)
+          )
+        )
+        val normalized = json.normalize
+        val expected = Json.Object(
+          "outer" -> Json.Object(
+            "a" -> Json.number(2),
+            "z" -> Json.number(1)
+          )
+        )
+        assert(normalized)(equalTo(expected))
+      }
+    ),
+    // ===========================================================================
+    // Folding Tests
+    // ===========================================================================
+    suite("foldDown")(
+      test("accumulates values top-down") {
+        val json = Json.Object(
+          "a" -> Json.number(1),
+          "b" -> Json.Object("c" -> Json.number(2))
+        )
+        val count = json.foldDown(0) { (_, _, acc) => acc + 1 }
+        assert(count)(equalTo(4)) // root + a + b + c
+      },
+      test("provides correct paths") {
+        val json = Json.Object("a" -> Json.number(1))
+        val paths = json.foldDown(Vector.empty[DynamicOptic]) { (path, _, acc) =>
+          acc :+ path
+        }
+        assert(paths.size)(equalTo(2)) // root + a
+      }
+    ),
+    suite("foldUp")(
+      test("accumulates values bottom-up") {
+        val json = Json.Object(
+          "a" -> Json.number(1),
+          "b" -> Json.Object("c" -> Json.number(2))
+        )
+        val count = json.foldUp(0) { (_, _, acc) => acc + 1 }
+        assert(count)(equalTo(4)) // c + b + a + root
+      }
+    ),
+    // ===========================================================================
+    // Query Tests
+    // ===========================================================================
+    suite("query")(
+      test("finds all matching values") {
+        val json = Json.Object(
+          "a" -> Json.number(1),
+          "b" -> Json.number(2),
+          "c" -> Json.String("hello")
+        )
+        val numbers = json.query((_, v) => v.isNumber)
+        assert(numbers.toVector)(hasSize(equalTo(2)))
+      },
+      test("returns empty selection when no matches") {
+        val json = Json.Object("a" -> Json.String("hello"))
+        val numbers = json.query((_, v) => v.isNumber)
+        assert(numbers.toVector)(isEmpty)
+      }
+    ),
+    // ===========================================================================
+    // KV Tests
+    // ===========================================================================
+    suite("toKV")(
+      test("flattens simple object") {
+        val json = Json.Object(
+          "a" -> Json.number(1),
+          "b" -> Json.String("hello")
+        )
+        val kvs = json.toKV
+        assert(kvs.size)(equalTo(2))
+      },
+      test("flattens nested structure") {
+        val json = Json.Object(
+          "a" -> Json.Object("b" -> Json.number(1)),
+          "c" -> Json.Array(Json.number(2), Json.number(3))
+        )
+        val kvs = json.toKV
+        assert(kvs.size)(equalTo(3)) // a.b, c[0], c[1]
+      },
+      test("includes empty arrays and objects as leaves") {
+        val json = Json.Object(
+          "empty_obj" -> Json.Object.empty,
+          "empty_arr" -> Json.Array.empty
+        )
+        val kvs = json.toKV
+        assert(kvs.size)(equalTo(2))
+      }
+    ),
+    suite("fromKV")(
+      test("assembles simple object") {
+        val kvs = Seq(
+          DynamicOptic.root.field("a") -> Json.number(1),
+          DynamicOptic.root.field("b") -> Json.String("hello")
+        )
+        val result = Json.fromKV(kvs)
+        assert(result)(isRight(anything))
+      },
+      test("assembles nested structure") {
+        val kvs = Seq(
+          DynamicOptic.root.field("a").field("b") -> Json.number(1),
+          DynamicOptic.root.field("c").at(0) -> Json.number(2)
+        )
+        val result = Json.fromKV(kvs)
+        assert(result)(isRight(anything))
+      },
+      test("roundtrips with toKV") {
+        val original = Json.Object(
+          "a" -> Json.Object("b" -> Json.number(1)),
+          "c" -> Json.Array(Json.number(2), Json.number(3))
+        )
+        val kvs = original.toKV
+        val result = Json.fromKV(kvs)
+        assert(result)(isRight(equalTo(original)))
+      }
     )
   )
 }
