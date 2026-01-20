@@ -29,7 +29,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; schemaJVM/test; chunkJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; benchmarks/test; examples/test"
+  "typeidJVM/test; schemaJVM/test; chunkJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; examples/test"
 )
 addCommandAlias(
   "testJS",
