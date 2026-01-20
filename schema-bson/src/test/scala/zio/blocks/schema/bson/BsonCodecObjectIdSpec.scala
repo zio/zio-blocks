@@ -203,11 +203,11 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
     ),
     suite("Config.withNativeObjectId(true)")(
       test("ObjectId with config enabled behaves same as ObjectIdSupport") {
-        val oid          = new ObjectId("507f1f77bcf86cd799439011")
-        val config       = BsonSchemaCodec.Config.withNativeObjectId(true)
-        val codec        = BsonSchemaCodec.bsonCodec(objectIdSchema, config)
-        val bson         = codec.encoder.toBsonValue(oid)
-        val decoded      =
+        val oid     = new ObjectId("507f1f77bcf86cd799439011")
+        val config  = BsonSchemaCodec.Config.withNativeObjectId(true)
+        val codec   = BsonSchemaCodec.bsonCodec(objectIdSchema, config)
+        val bson    = codec.encoder.toBsonValue(oid)
+        val decoded =
           codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(
@@ -230,9 +230,9 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val config   = BsonSchemaCodec.Config
           .withNativeObjectId(true)
           .withIgnoreExtraFields(false)
-        val codec = BsonSchemaCodec.bsonCodec(Customer.schema, config)
-        val bson     = codec.encoder.toBsonValue(customer)
-        val decoded  =
+        val codec   = BsonSchemaCodec.bsonCodec(Customer.schema, config)
+        val bson    = codec.encoder.toBsonValue(customer)
+        val decoded =
           codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == customer)
@@ -242,15 +242,15 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val config   = BsonSchemaCodec.Config
           .withNativeObjectId(true)
           .withSumTypeHandling(BsonSchemaCodec.SumTypeHandling.DiscriminatorField("_type"))
-        val codec = BsonSchemaCodec.bsonCodec(Customer.schema, config)
-        val bson     = codec.encoder.toBsonValue(customer)
-        val decoded  =
+        val codec   = BsonSchemaCodec.bsonCodec(Customer.schema, config)
+        val bson    = codec.encoder.toBsonValue(customer)
+        val decoded =
           codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == customer)
       },
       test("round-trip with config enabled") {
-        val codec  = BsonSchemaCodec.bsonCodec(
+        val codec = BsonSchemaCodec.bsonCodec(
           Customer.schema,
           BsonSchemaCodec.Config.withNativeObjectId(true)
         )
@@ -270,18 +270,18 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
       },
       test("ObjectIdSupport works even with default config") {
         // ObjectIdSupport uses typename detection, which works regardless of config flag
-        val oid     = new ObjectId("507f1f77bcf86cd799439011")
-        val codec   = BsonSchemaCodec.bsonCodec(objectIdSchema) // default config
-        val bson    = codec.encoder.toBsonValue(oid)
+        val oid   = new ObjectId("507f1f77bcf86cd799439011")
+        val codec = BsonSchemaCodec.bsonCodec(objectIdSchema) // default config
+        val bson  = codec.encoder.toBsonValue(oid)
 
         assertTrue(bson.isObjectId) // Still encoded as native ObjectId
       },
       test("typename detection takes precedence over config flag") {
         // Even with config disabled, ObjectIdSupport schema uses typename detection
-        val oid     = new ObjectId("507f1f77bcf86cd799439011")
-        val config  = BsonSchemaCodec.Config.withNativeObjectId(false)
-        val codec   = BsonSchemaCodec.bsonCodec(objectIdSchema, config)
-        val bson    = codec.encoder.toBsonValue(oid)
+        val oid    = new ObjectId("507f1f77bcf86cd799439011")
+        val config = BsonSchemaCodec.Config.withNativeObjectId(false)
+        val codec  = BsonSchemaCodec.bsonCodec(objectIdSchema, config)
+        val bson   = codec.encoder.toBsonValue(oid)
 
         assertTrue(bson.isObjectId) // Still uses native ObjectId due to typename
       }

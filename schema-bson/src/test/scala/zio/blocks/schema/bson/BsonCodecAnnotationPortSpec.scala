@@ -31,7 +31,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       case class A(s: String) extends WithoutDiscriminator
       case class B(s: String) extends WithoutDiscriminator
 
-      val schema: Schema[WithoutDiscriminator] = Schema.derived[WithoutDiscriminator]
+      val schema: Schema[WithoutDiscriminator]   = Schema.derived[WithoutDiscriminator]
       val codec: BsonCodec[WithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
@@ -41,7 +41,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       case class A(s: String) extends WithClassNameTransformOptions
       case class B(s: String) extends WithClassNameTransformOptions
 
-      val schema: Schema[WithClassNameTransformOptions] = Schema.derived[WithClassNameTransformOptions]
+      val schema: Schema[WithClassNameTransformOptions]   = Schema.derived[WithClassNameTransformOptions]
       val codec: BsonCodec[WithClassNameTransformOptions] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withClassNameMapping(_.toLowerCase)
@@ -54,7 +54,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       case class A(s: String) extends WithDiscriminatorOptions
       case class B(s: String) extends WithDiscriminatorOptions
 
-      val schema: Schema[WithDiscriminatorOptions] = Schema.derived[WithDiscriminatorOptions]
+      val schema: Schema[WithDiscriminatorOptions]   = Schema.derived[WithDiscriminatorOptions]
       val codec: BsonCodec[WithDiscriminatorOptions] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(
@@ -69,7 +69,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       case class A(s: String) extends WithoutDiscriminatorOptions
       case class B(s: String) extends WithoutDiscriminatorOptions
 
-      val schema: Schema[WithoutDiscriminatorOptions] = Schema.derived[WithoutDiscriminatorOptions]
+      val schema: Schema[WithoutDiscriminatorOptions]   = Schema.derived[WithoutDiscriminatorOptions]
       val codec: BsonCodec[WithoutDiscriminatorOptions] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(
@@ -84,7 +84,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       case class A(s: String) extends WithDiscriminator
       case class B(s: String) extends WithDiscriminator
 
-      val schema: Schema[WithDiscriminator] = Schema.derived[WithDiscriminator]
+      val schema: Schema[WithDiscriminator]   = Schema.derived[WithDiscriminator]
       val codec: BsonCodec[WithDiscriminator] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(
@@ -103,7 +103,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       @Modifier.rename("bName")
       case object B extends CaseNameEnumLike
 
-      val schema: Schema[CaseNameEnumLike] = Schema.derived[CaseNameEnumLike]
+      val schema: Schema[CaseNameEnumLike]   = Schema.derived[CaseNameEnumLike]
       val codec: BsonCodec[CaseNameEnumLike] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(BsonSchemaCodec.SumTypeHandling.NoDiscriminator)
@@ -119,7 +119,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       @Modifier.rename("bName")
       case class B(s: String) extends CaseNameWithoutDiscriminator
 
-      val schema: Schema[CaseNameWithoutDiscriminator] = Schema.derived[CaseNameWithoutDiscriminator]
+      val schema: Schema[CaseNameWithoutDiscriminator]   = Schema.derived[CaseNameWithoutDiscriminator]
       val codec: BsonCodec[CaseNameWithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
@@ -132,7 +132,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       @Modifier.rename("bName")
       case class B(s: String) extends CaseNameWithDiscriminator
 
-      val schema: Schema[CaseNameWithDiscriminator] = Schema.derived[CaseNameWithDiscriminator]
+      val schema: Schema[CaseNameWithDiscriminator]   = Schema.derived[CaseNameWithDiscriminator]
       val codec: BsonCodec[CaseNameWithDiscriminator] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(
@@ -144,21 +144,21 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
     // 9. FieldName - using @Modifier.rename for field
     case class FieldName(@Modifier.rename("customName") a: String)
     object FieldName {
-      val schema: Schema[FieldName] = Schema.derived[FieldName]
+      val schema: Schema[FieldName]   = Schema.derived[FieldName]
       val codec: BsonCodec[FieldName] = BsonSchemaCodec.bsonCodec(schema)
     }
 
     // 10. AllowExtraFields - default behavior allows extra fields
     case class AllowExtraFields(a: String)
     object AllowExtraFields {
-      val schema: Schema[AllowExtraFields] = Schema.derived[AllowExtraFields]
+      val schema: Schema[AllowExtraFields]   = Schema.derived[AllowExtraFields]
       val codec: BsonCodec[AllowExtraFields] = BsonSchemaCodec.bsonCodec(schema)
     }
 
     // 11. RejectExtraFields - using Config.withIgnoreExtraFields(false)
     case class RejectExtraFields(a: String)
     object RejectExtraFields {
-      val schema: Schema[RejectExtraFields] = Schema.derived[RejectExtraFields]
+      val schema: Schema[RejectExtraFields]   = Schema.derived[RejectExtraFields]
       val codec: BsonCodec[RejectExtraFields] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withIgnoreExtraFields(false)
@@ -168,7 +168,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
     // 12. TransientField - using @Modifier.transient
     case class TransientField(@Modifier.transient a: String = "defaultValue", b: Int)
     object TransientField {
-      val schema: Schema[TransientField] = Schema.derived[TransientField]
+      val schema: Schema[TransientField]   = Schema.derived[TransientField]
       val codec: BsonCodec[TransientField] = BsonSchemaCodec.bsonCodec(schema)
     }
   }
@@ -185,7 +185,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       case class B(b: String) extends NoDiscriminator
       case class C(c: String) extends NoDiscriminator
 
-      val schema: Schema[NoDiscriminator] = Schema.derived[NoDiscriminator]
+      val schema: Schema[NoDiscriminator]   = Schema.derived[NoDiscriminator]
       val codec: BsonCodec[NoDiscriminator] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(BsonSchemaCodec.SumTypeHandling.NoDiscriminator)
@@ -198,7 +198,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       case class A(s: String) extends WithoutDiscriminator
       case class B(s: String) extends WithoutDiscriminator
 
-      val schema: Schema[WithoutDiscriminator] = Schema.derived[WithoutDiscriminator]
+      val schema: Schema[WithoutDiscriminator]   = Schema.derived[WithoutDiscriminator]
       val codec: BsonCodec[WithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
@@ -208,7 +208,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       case class A(s: String) extends WithDiscriminator
       case class B(s: String) extends WithDiscriminator
 
-      val schema: Schema[WithDiscriminator] = Schema.derived[WithDiscriminator]
+      val schema: Schema[WithDiscriminator]   = Schema.derived[WithDiscriminator]
       val codec: BsonCodec[WithDiscriminator] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(
@@ -227,7 +227,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       @Modifier.rename("bName")
       case object B extends CaseNameEnumLike
 
-      val schema: Schema[CaseNameEnumLike] = Schema.derived[CaseNameEnumLike]
+      val schema: Schema[CaseNameEnumLike]   = Schema.derived[CaseNameEnumLike]
       val codec: BsonCodec[CaseNameEnumLike] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(BsonSchemaCodec.SumTypeHandling.NoDiscriminator)
@@ -243,7 +243,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       @Modifier.rename("bName")
       case class B(s: String) extends CaseNameWithoutDiscriminator
 
-      val schema: Schema[CaseNameWithoutDiscriminator] = Schema.derived[CaseNameWithoutDiscriminator]
+      val schema: Schema[CaseNameWithoutDiscriminator]   = Schema.derived[CaseNameWithoutDiscriminator]
       val codec: BsonCodec[CaseNameWithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
@@ -256,7 +256,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       @Modifier.rename("bName")
       case class B(s: String) extends CaseNameWithDiscriminator
 
-      val schema: Schema[CaseNameWithDiscriminator] = Schema.derived[CaseNameWithDiscriminator]
+      val schema: Schema[CaseNameWithDiscriminator]   = Schema.derived[CaseNameWithDiscriminator]
       val codec: BsonCodec[CaseNameWithDiscriminator] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(
@@ -277,7 +277,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       @Modifier.alias("bAlias2")
       case class B(s: String) extends CaseNameAliasesWithoutDiscriminator
 
-      val schema: Schema[CaseNameAliasesWithoutDiscriminator] = Schema.derived[CaseNameAliasesWithoutDiscriminator]
+      val schema: Schema[CaseNameAliasesWithoutDiscriminator]   = Schema.derived[CaseNameAliasesWithoutDiscriminator]
       val codec: BsonCodec[CaseNameAliasesWithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
@@ -293,7 +293,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       @Modifier.alias("bAlias2")
       case class B(s: String) extends CaseNameAliasesWithDiscriminator
 
-      val schema: Schema[CaseNameAliasesWithDiscriminator] = Schema.derived[CaseNameAliasesWithDiscriminator]
+      val schema: Schema[CaseNameAliasesWithDiscriminator]   = Schema.derived[CaseNameAliasesWithDiscriminator]
       val codec: BsonCodec[CaseNameAliasesWithDiscriminator] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(
@@ -305,28 +305,28 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
     // 9. FieldName - using @Modifier.rename for field
     case class FieldName(@Modifier.rename("customName") a: String)
     object FieldName {
-      val schema: Schema[FieldName] = Schema.derived[FieldName]
+      val schema: Schema[FieldName]   = Schema.derived[FieldName]
       val codec: BsonCodec[FieldName] = BsonSchemaCodec.bsonCodec(schema)
     }
 
     // 10. FieldDefaultValue - field with default value
     case class FieldDefaultValue(a: String = "defaultValue")
     object FieldDefaultValue {
-      val schema: Schema[FieldDefaultValue] = Schema.derived[FieldDefaultValue]
+      val schema: Schema[FieldDefaultValue]   = Schema.derived[FieldDefaultValue]
       val codec: BsonCodec[FieldDefaultValue] = BsonSchemaCodec.bsonCodec(schema)
     }
 
     // 11. AllowExtraFields - default behavior
     case class AllowExtraFields(a: String)
     object AllowExtraFields {
-      val schema: Schema[AllowExtraFields] = Schema.derived[AllowExtraFields]
+      val schema: Schema[AllowExtraFields]   = Schema.derived[AllowExtraFields]
       val codec: BsonCodec[AllowExtraFields] = BsonSchemaCodec.bsonCodec(schema)
     }
 
     // 12. RejectExtraFields - using Config.withIgnoreExtraFields(false)
     case class RejectExtraFields(a: String)
     object RejectExtraFields {
-      val schema: Schema[RejectExtraFields] = Schema.derived[RejectExtraFields]
+      val schema: Schema[RejectExtraFields]   = Schema.derived[RejectExtraFields]
       val codec: BsonCodec[RejectExtraFields] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withIgnoreExtraFields(false)
@@ -342,7 +342,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       @Modifier.transient
       case class C(s: String) extends TransientCaseWithoutDiscriminator
 
-      val schema: Schema[TransientCaseWithoutDiscriminator] = Schema.derived[TransientCaseWithoutDiscriminator]
+      val schema: Schema[TransientCaseWithoutDiscriminator]   = Schema.derived[TransientCaseWithoutDiscriminator]
       val codec: BsonCodec[TransientCaseWithoutDiscriminator] = BsonSchemaCodec.bsonCodec(schema)
     }
 
@@ -355,7 +355,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
       @Modifier.transient
       case class C(s: String) extends TransientCaseWithDiscriminator
 
-      val schema: Schema[TransientCaseWithDiscriminator] = Schema.derived[TransientCaseWithDiscriminator]
+      val schema: Schema[TransientCaseWithDiscriminator]   = Schema.derived[TransientCaseWithDiscriminator]
       val codec: BsonCodec[TransientCaseWithDiscriminator] = BsonSchemaCodec.bsonCodec(
         schema,
         BsonSchemaCodec.Config.withSumTypeHandling(
@@ -367,7 +367,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
     // 15. TransientField - using @Modifier.transient on field
     case class TransientField(@Modifier.transient a: String = "defaultValue", b: Int)
     object TransientField {
-      val schema: Schema[TransientField] = Schema.derived[TransientField]
+      val schema: Schema[TransientField]   = Schema.derived[TransientField]
       val codec: BsonCodec[TransientField] = BsonSchemaCodec.bsonCodec(schema)
     }
   }
