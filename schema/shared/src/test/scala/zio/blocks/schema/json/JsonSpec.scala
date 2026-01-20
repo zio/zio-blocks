@@ -319,8 +319,6 @@ object JsonSpec extends SchemaBaseSpec {
     ),
     suite("JsonEncoder/JsonDecoder")(
       test("encode primitive types with schema") {
-        import zio.blocks.schema.Schema
-
         val intJson    = Json.from(42)
         val stringJson = Json.from("hello")
         val boolJson   = Json.from(true)
@@ -330,8 +328,6 @@ object JsonSpec extends SchemaBaseSpec {
         assert(boolJson)(equalTo(Json.Boolean(true)))
       },
       test("decode primitive types with schema") {
-        import zio.blocks.schema.Schema
-
         val intResult    = Json.number(42).as[Int]
         val stringResult = Json.String("hello").as[String]
         val boolResult   = Json.Boolean(true).as[Boolean]
