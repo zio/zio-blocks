@@ -270,6 +270,7 @@ lazy val benchmarks = project
   .dependsOn(schema.jvm % "compile->compile;test->test")
   .dependsOn(chunk.jvm)
   .dependsOn(`schema-avro`)
+  .dependsOn(`schema-messagepack`)
   .dependsOn(`schema-toon`.jvm)
   .enablePlugins(JmhPlugin)
   .settings(

@@ -575,6 +575,95 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
           .derive
         roundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"), codec)
       }
+    ),
+    suite("interop validation")(
+      test("encoded bytes are valid MessagePack - primitives") {
+        // Verify our encoded output can be read by raw msgpack-core
+        val intCodec = implicitly[Schema[Int]].derive(MessagePackFormat.deriver)
+        val encoded  = intCodec.encode(42)
+
+        val unpacker = MessagePack.newDefaultUnpacker(encoded)
+        val rawValue = unpacker.unpackInt()
+        unpacker.close()
+
+        assert(rawValue)(equalTo(42))
+      },
+      test("encoded bytes are valid MessagePack - record structure") {
+        // Verify record encodes as MessagePack map with correct field names
+        val codec   = SimpleRecord.schema.derive(MessagePackFormat.deriver)
+        val record  = SimpleRecord("test", 123)
+        val encoded = codec.encode(record)
+
+        val unpacker = MessagePack.newDefaultUnpacker(encoded)
+        val mapSize  = unpacker.unpackMapHeader()
+
+        // Collect field names
+        val fields = (0 until mapSize).map { _ =>
+          val key = unpacker.unpackString()
+          unpacker.skipValue()
+          key
+        }.toSet
+        unpacker.close()
+
+        assert(mapSize)(equalTo(2)) &&
+        assert(fields)(equalTo(Set("name", "value")))
+      },
+      test("encoded bytes are valid MessagePack - sequence structure") {
+        implicit val listSchema: Schema[List[Int]] = Schema.derived
+        val codec                                  = listSchema.derive(MessagePackFormat.deriver)
+        val list                                   = List(1, 2, 3)
+        val encoded                                = codec.encode(list)
+
+        val unpacker  = MessagePack.newDefaultUnpacker(encoded)
+        val arraySize = unpacker.unpackArrayHeader()
+        val values    = (0 until arraySize).map(_ => unpacker.unpackInt()).toList
+        unpacker.close()
+
+        assert(arraySize)(equalTo(3)) &&
+        assert(values)(equalTo(List(1, 2, 3)))
+      },
+      test("encoded bytes are valid MessagePack - variant structure") {
+        val codec         = Sum1.schema.derive(MessagePackFormat.deriver)
+        val variant: Sum1 = Sum1.C1(42)
+        val encoded       = codec.encode(variant)
+
+        val unpacker = MessagePack.newDefaultUnpacker(encoded)
+        val mapSize  = unpacker.unpackMapHeader()
+        val caseName = unpacker.unpackString()
+        unpacker.close()
+
+        // Variants encode as single-entry map: {"CaseName": value}
+        assert(mapSize)(equalTo(1)) &&
+        assert(caseName)(equalTo("C1"))
+      }
+    ),
+    suite("byte length verification")(
+      test("primitive encoding sizes") {
+        // MessagePack has specific encoding sizes based on value ranges
+        roundTrip((), 1) &&            // nil = 1 byte
+        roundTrip(true, 1) &&          // bool = 1 byte
+        roundTrip(false, 1) &&         // bool = 1 byte
+        roundTrip(1: Byte, 1) &&       // positive fixint = 1 byte
+        roundTrip(127: Byte, 1) &&     // max positive fixint = 1 byte
+        roundTrip(-32: Byte, 1) &&     // negative fixint = 1 byte
+        roundTrip(Byte.MinValue, 2) && // int8 = 2 bytes
+        roundTrip(1, 1) &&             // positive fixint = 1 byte
+        roundTrip(128, 2) &&           // uint8 = 2 bytes
+        roundTrip(Int.MaxValue, 5) &&  // int32 = 5 bytes
+        roundTrip(1L, 1) &&            // positive fixint = 1 byte
+        roundTrip(Long.MaxValue, 9)    // int64 = 9 bytes
+      },
+      test("string encoding sizes") {
+        roundTrip("", 1) &&   // fixstr empty = 1 byte
+        roundTrip("a", 2) &&  // fixstr 1 char = 2 bytes
+        roundTrip("hello", 6) // fixstr 5 chars = 6 bytes
+      },
+      test("record encoding size") {
+        // SimpleRecord with name="x" and value=1
+        // fixmap(2) + fixstr("name") + fixstr("x") + fixstr("value") + fixint(1)
+        // = 1 + 5 + 2 + 6 + 1 = 15 bytes
+        roundTrip(SimpleRecord("x", 1), 15)
+      }
     )
   )
 
