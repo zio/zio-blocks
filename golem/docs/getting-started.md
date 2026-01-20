@@ -222,19 +222,47 @@ scala_dir="$app_root/scala"
 ( cd "$scala_dir" && sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS" >/dev/null )
 
 bundle="$(
-  find "$scala_dir/target" -type f -name 'main.js' -path '*fastopt*' -printf '%T@ %p\n' 2>/dev/null \
-    | sort -nr \
-    | head -n 1 \
-    | cut -d' ' -f2- \
-    || true
+  python3 - <<'PY' "$scala_dir"
+import sys
+from pathlib import Path
+
+scala_dir = Path(sys.argv[1])
+target = scala_dir / "target"
+if not target.exists():
+  print("")
+  raise SystemExit(0)
+
+def newest(pattern: str) -> str:
+  candidates = list(target.rglob(pattern))
+  if not candidates:
+    return ""
+  candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+  return str(candidates[0])
+
+print(newest("*/**/*fastopt*/main.js") or "")
+PY
 )"
 if [[ -z "$bundle" ]]; then
   bundle="$(
-    find "$scala_dir/target" -type f -name 'main.js' -path '*fullopt*' -printf '%T@ %p\n' 2>/dev/null \
-      | sort -nr \
-      | head -n 1 \
-      | cut -d' ' -f2- \
-      || true
+    python3 - <<'PY' "$scala_dir"
+import sys
+from pathlib import Path
+
+scala_dir = Path(sys.argv[1])
+target = scala_dir / "target"
+if not target.exists():
+  print("")
+  raise SystemExit(0)
+
+def newest(pattern: str) -> str:
+  candidates = list(target.rglob(pattern))
+  if not candidates:
+    return ""
+  candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+  return str(candidates[0])
+
+print(newest("*/**/*fullopt*/main.js") or "")
+PY
   )"
 fi
 if [[ -z "$bundle" ]]; then

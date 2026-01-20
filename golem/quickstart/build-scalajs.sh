@@ -46,19 +46,47 @@ if [[ "$tool" == "mill" ]]; then
   ( cd "$repo_root" && mill -i "$GOLEM_MILL_TASK" )
 
   bundle="$(
-    find "$repo_root/out" -type f -name '*fastopt*.js' -printf '%T@ %p\n' 2>/dev/null \
-      | sort -nr \
-      | head -n 1 \
-      | cut -d' ' -f2- \
-      || true
+  python3 - <<'PY' "$repo_root"
+import sys
+from pathlib import Path
+
+repo_root = Path(sys.argv[1])
+out_dir = repo_root / "out"
+if not out_dir.exists():
+  print("")
+  raise SystemExit(0)
+
+def newest(glob_pat: str) -> str:
+  files = list(out_dir.rglob(glob_pat))
+  if not files:
+    return ""
+  files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+  return str(files[0])
+
+print(newest("*fastopt*.js") or "")
+PY
   )"
   if [[ -z "$bundle" ]]; then
     bundle="$(
-      find "$repo_root/out" -type f -name '*fullopt*.js' -printf '%T@ %p\n' 2>/dev/null \
-        | sort -nr \
-        | head -n 1 \
-        | cut -d' ' -f2- \
-        || true
+    python3 - <<'PY' "$repo_root"
+import sys
+from pathlib import Path
+
+repo_root = Path(sys.argv[1])
+out_dir = repo_root / "out"
+if not out_dir.exists():
+  print("")
+  raise SystemExit(0)
+
+def newest(glob_pat: str) -> str:
+  files = list(out_dir.rglob(glob_pat))
+  if not files:
+    return ""
+  files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+  return str(files[0])
+
+print(newest("*fullopt*.js") or "")
+PY
     )"
   fi
   if [[ -z "$bundle" ]]; then
