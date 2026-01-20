@@ -52,7 +52,7 @@ trait DerivedOptics[S] {
 }
 
 object DerivedOptics {
-  private[schema] final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic {
+  final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic {
     def selectDynamic(name: String): Any =
       members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
   }
