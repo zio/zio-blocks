@@ -3,7 +3,6 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.CommonMacroOps
-import zio.blocks.typeid.{Owner, TypeId, TypeParam}
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.language.experimental.macros
@@ -129,44 +128,45 @@ private object SchemaCompanionVersionSpecific {
 
     val typeIdCache = new mutable.HashMap[Type, Tree]
 
+    // infoTpe is used for extracting name/owner, origTpe is used for the TypeId type parameter
     def typeIdTree(tpe: Type): Tree = {
-      def calculateTypeId(tpe: Type): Tree =
-        if (tpe =:= typeOf[java.lang.String]) q"_root_.zio.blocks.typeid.TypeId.string"
-        else if (tpe =:= definitions.UnitTpe) q"_root_.zio.blocks.typeid.TypeId.unit"
-        else if (tpe =:= definitions.BooleanTpe) q"_root_.zio.blocks.typeid.TypeId.boolean"
-        else if (tpe =:= definitions.ByteTpe) q"_root_.zio.blocks.typeid.TypeId.byte"
-        else if (tpe =:= definitions.ShortTpe) q"_root_.zio.blocks.typeid.TypeId.short"
-        else if (tpe =:= definitions.IntTpe) q"_root_.zio.blocks.typeid.TypeId.int"
-        else if (tpe =:= definitions.LongTpe) q"_root_.zio.blocks.typeid.TypeId.long"
-        else if (tpe =:= definitions.FloatTpe) q"_root_.zio.blocks.typeid.TypeId.float"
-        else if (tpe =:= definitions.DoubleTpe) q"_root_.zio.blocks.typeid.TypeId.double"
-        else if (tpe =:= definitions.CharTpe) q"_root_.zio.blocks.typeid.TypeId.char"
-        else if (tpe =:= typeOf[BigInt]) q"_root_.zio.blocks.typeid.TypeId.bigInt"
-        else if (tpe =:= typeOf[BigDecimal]) q"_root_.zio.blocks.typeid.TypeId.bigDecimal"
-        else if (tpe =:= typeOf[java.time.DayOfWeek]) q"_root_.zio.blocks.typeid.TypeId.dayOfWeek"
-        else if (tpe =:= typeOf[java.time.Duration]) q"_root_.zio.blocks.typeid.TypeId.duration"
-        else if (tpe =:= typeOf[java.time.Instant]) q"_root_.zio.blocks.typeid.TypeId.instant"
-        else if (tpe =:= typeOf[java.time.LocalDate]) q"_root_.zio.blocks.typeid.TypeId.localDate"
-        else if (tpe =:= typeOf[java.time.LocalDateTime]) q"_root_.zio.blocks.typeid.TypeId.localDateTime"
-        else if (tpe =:= typeOf[java.time.LocalTime]) q"_root_.zio.blocks.typeid.TypeId.localTime"
-        else if (tpe =:= typeOf[java.time.Month]) q"_root_.zio.blocks.typeid.TypeId.month"
-        else if (tpe =:= typeOf[java.time.MonthDay]) q"_root_.zio.blocks.typeid.TypeId.monthDay"
-        else if (tpe =:= typeOf[java.time.OffsetDateTime]) q"_root_.zio.blocks.typeid.TypeId.offsetDateTime"
-        else if (tpe =:= typeOf[java.time.OffsetTime]) q"_root_.zio.blocks.typeid.TypeId.offsetTime"
-        else if (tpe =:= typeOf[java.time.Period]) q"_root_.zio.blocks.typeid.TypeId.period"
-        else if (tpe =:= typeOf[java.time.Year]) q"_root_.zio.blocks.typeid.TypeId.year"
-        else if (tpe =:= typeOf[java.time.YearMonth]) q"_root_.zio.blocks.typeid.TypeId.yearMonth"
-        else if (tpe =:= typeOf[java.time.ZoneId]) q"_root_.zio.blocks.typeid.TypeId.zoneId"
-        else if (tpe =:= typeOf[java.time.ZoneOffset]) q"_root_.zio.blocks.typeid.TypeId.zoneOffset"
-        else if (tpe =:= typeOf[java.time.ZonedDateTime]) q"_root_.zio.blocks.typeid.TypeId.zonedDateTime"
-        else if (tpe =:= typeOf[java.util.UUID]) q"_root_.zio.blocks.typeid.TypeId.uuid"
-        else if (tpe =:= typeOf[java.util.Currency]) q"_root_.zio.blocks.typeid.TypeId.currency"
+      def calculateTypeId(infoTpe: Type, origTpe: Type): Tree =
+        if (infoTpe =:= typeOf[java.lang.String]) q"_root_.zio.blocks.typeid.TypeId.string"
+        else if (infoTpe =:= definitions.UnitTpe) q"_root_.zio.blocks.typeid.TypeId.unit"
+        else if (infoTpe =:= definitions.BooleanTpe) q"_root_.zio.blocks.typeid.TypeId.boolean"
+        else if (infoTpe =:= definitions.ByteTpe) q"_root_.zio.blocks.typeid.TypeId.byte"
+        else if (infoTpe =:= definitions.ShortTpe) q"_root_.zio.blocks.typeid.TypeId.short"
+        else if (infoTpe =:= definitions.IntTpe) q"_root_.zio.blocks.typeid.TypeId.int"
+        else if (infoTpe =:= definitions.LongTpe) q"_root_.zio.blocks.typeid.TypeId.long"
+        else if (infoTpe =:= definitions.FloatTpe) q"_root_.zio.blocks.typeid.TypeId.float"
+        else if (infoTpe =:= definitions.DoubleTpe) q"_root_.zio.blocks.typeid.TypeId.double"
+        else if (infoTpe =:= definitions.CharTpe) q"_root_.zio.blocks.typeid.TypeId.char"
+        else if (infoTpe =:= typeOf[BigInt]) q"_root_.zio.blocks.typeid.TypeId.bigInt"
+        else if (infoTpe =:= typeOf[BigDecimal]) q"_root_.zio.blocks.typeid.TypeId.bigDecimal"
+        else if (infoTpe =:= typeOf[java.time.DayOfWeek]) q"_root_.zio.blocks.typeid.TypeId.dayOfWeek"
+        else if (infoTpe =:= typeOf[java.time.Duration]) q"_root_.zio.blocks.typeid.TypeId.duration"
+        else if (infoTpe =:= typeOf[java.time.Instant]) q"_root_.zio.blocks.typeid.TypeId.instant"
+        else if (infoTpe =:= typeOf[java.time.LocalDate]) q"_root_.zio.blocks.typeid.TypeId.localDate"
+        else if (infoTpe =:= typeOf[java.time.LocalDateTime]) q"_root_.zio.blocks.typeid.TypeId.localDateTime"
+        else if (infoTpe =:= typeOf[java.time.LocalTime]) q"_root_.zio.blocks.typeid.TypeId.localTime"
+        else if (infoTpe =:= typeOf[java.time.Month]) q"_root_.zio.blocks.typeid.TypeId.month"
+        else if (infoTpe =:= typeOf[java.time.MonthDay]) q"_root_.zio.blocks.typeid.TypeId.monthDay"
+        else if (infoTpe =:= typeOf[java.time.OffsetDateTime]) q"_root_.zio.blocks.typeid.TypeId.offsetDateTime"
+        else if (infoTpe =:= typeOf[java.time.OffsetTime]) q"_root_.zio.blocks.typeid.TypeId.offsetTime"
+        else if (infoTpe =:= typeOf[java.time.Period]) q"_root_.zio.blocks.typeid.TypeId.period"
+        else if (infoTpe =:= typeOf[java.time.Year]) q"_root_.zio.blocks.typeid.TypeId.year"
+        else if (infoTpe =:= typeOf[java.time.YearMonth]) q"_root_.zio.blocks.typeid.TypeId.yearMonth"
+        else if (infoTpe =:= typeOf[java.time.ZoneId]) q"_root_.zio.blocks.typeid.TypeId.zoneId"
+        else if (infoTpe =:= typeOf[java.time.ZoneOffset]) q"_root_.zio.blocks.typeid.TypeId.zoneOffset"
+        else if (infoTpe =:= typeOf[java.time.ZonedDateTime]) q"_root_.zio.blocks.typeid.TypeId.zonedDateTime"
+        else if (infoTpe =:= typeOf[java.util.UUID]) q"_root_.zio.blocks.typeid.TypeId.uuid"
+        else if (infoTpe =:= typeOf[java.util.Currency]) q"_root_.zio.blocks.typeid.TypeId.currency"
         else {
           // Build Owner and TypeParams for custom types
           var segments  = List.empty[Tree]
-          val tpeSymbol = tpe.typeSymbol
+          val tpeSymbol = infoTpe.typeSymbol
           var name      = NameTransformer.decode(tpeSymbol.name.toString)
-          val comp      = companion(tpe)
+          val comp      = companion(infoTpe)
           var owner     =
             if (comp == null) tpeSymbol
             else if (comp == NoSymbol) {
@@ -187,23 +187,39 @@ private object SchemaCompanionVersionSpecific {
             }
           }
           // Build type params from the type's type parameters
-          val tpeTypeParams = tpe.typeSymbol.asType.typeParams
+          val tpeTypeParams = infoTpe.typeSymbol.asType.typeParams
           val typeParams    = tpeTypeParams.zipWithIndex.map { case (tp, idx) =>
             val tpName = tp.name.toString
             q"_root_.zio.blocks.typeid.TypeParam($tpName, $idx)"
           }
-          q"_root_.zio.blocks.typeid.TypeId.nominal[$tpe]($name, _root_.zio.blocks.typeid.Owner(_root_.scala.List(..$segments)), _root_.scala.List(..$typeParams))"
+          // Use origTpe for the TypeId type parameter to preserve the original type
+          q"_root_.zio.blocks.typeid.TypeId.nominal[$origTpe]($name, _root_.zio.blocks.typeid.Owner(_root_.scala.List(..$segments)), _root_.scala.List(..$typeParams))"
         }
 
       typeIdCache.getOrElseUpdate(
         tpe,
         tpe match {
           case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-            // Handle zio-prelude newtype - get TypeId for the newtype companion
-            var tree = calculateTypeId(compTpe)
-            tree
+            // Handle zio-prelude newtype - build TypeId directly from companion object
+            // compTpe is the companion object's type (e.g., Name.type for Name.Type)
+            val compSymbol = compTpe.typeSymbol
+            val name       = NameTransformer.decode(compSymbol.name.toString)
+            var segments   = List.empty[Tree]
+            var owner      = compSymbol.owner
+            while (owner != NoSymbol && owner.owner != NoSymbol) {
+              val ownerName = NameTransformer.decode(owner.name.toString)
+              if (owner.isPackage || owner.isPackageClass) {
+                segments = q"_root_.zio.blocks.typeid.Owner.Package($ownerName)" :: segments
+              } else if (owner.isModule || owner.isModuleClass) {
+                segments = q"_root_.zio.blocks.typeid.Owner.Term($ownerName)" :: segments
+              } else {
+                segments = q"_root_.zio.blocks.typeid.Owner.Type($ownerName)" :: segments
+              }
+              owner = owner.owner
+            }
+            q"_root_.zio.blocks.typeid.TypeId.nominal[$tpe]($name, _root_.zio.blocks.typeid.Owner(_root_.scala.List(..$segments)), _root_.scala.Nil)"
           case _ =>
-            calculateTypeId(tpe)
+            calculateTypeId(tpe, tpe)
         }
       )
     }
@@ -533,9 +549,11 @@ private object SchemaCompanionVersionSpecific {
       } else if (isNonAbstractScalaClass(tpe)) {
         deriveSchemaForNonAbstractScalaClass(tpe)
       } else if (isZioPreludeNewtype(tpe)) {
-        val schema = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
-        val typeId = typeIdTree(tpe)
-        q"new Schema($schema.reflect.typeId($typeId)).asInstanceOf[Schema[$tpe]]"
+        val underlyingTpe = zioPreludeNewtypeDealias(tpe)
+        val schema        = findImplicitOrDeriveSchema(underlyingTpe)
+        val typeId        = typeIdTree(tpe)
+        // Cast TypeId to underlying type since reflect.typeId expects matching type parameter
+        q"new Schema($schema.reflect.typeId($typeId.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$underlyingTpe]])).asInstanceOf[Schema[$tpe]]"
       } else cannotDeriveSchema(tpe)
 
     def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree = {

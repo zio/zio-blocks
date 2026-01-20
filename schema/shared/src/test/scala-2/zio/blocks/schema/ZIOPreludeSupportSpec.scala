@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
-import zio.blocks.typeid.{Owner, TypeId, TypeParam}
+import zio.blocks.typeid.{Owner, TypeId}
 import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._

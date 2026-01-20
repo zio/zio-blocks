@@ -548,10 +548,10 @@ object ReflectSpec extends SchemaBaseSpec {
         )
       },
       test("gets and updates sequence type id") {
-        val sequence1 = Reflect.vector(Reflect.int[Binding])
-        assert(sequence1.typeId)(
-          equalTo(TypeId.vector)
-        ) &&
+        val sequence1                    = Reflect.vector(Reflect.int[Binding])
+        val actualTypeId: TypeId[_]      = sequence1.typeId
+        val expectedTypeId: TypeId[_]    = TypeId.vector
+        assertTrue(actualTypeId == expectedTypeId) &&
         assert(
           sequence1
             .typeId(
@@ -665,10 +665,10 @@ object ReflectSpec extends SchemaBaseSpec {
         )
       },
       test("gets and updates map type id") {
-        val map1 = Reflect.map(Reflect.int[Binding], Reflect.long[Binding])
-        assert(map1.typeId)(
-          equalTo(TypeId.map)
-        ) &&
+        val map1                         = Reflect.map(Reflect.int[Binding], Reflect.long[Binding])
+        val actualMapTypeId: TypeId[_]   = map1.typeId
+        val expectedMapTypeId: TypeId[_] = TypeId.map
+        assertTrue(actualMapTypeId == expectedMapTypeId) &&
         assert(
           map1
             .typeId(

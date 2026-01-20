@@ -209,6 +209,7 @@ object TypeIdSpec extends ZIOSpecDefault {
       },
       test("derives TypeId for custom case class") {
         case class Person(name: String, age: Int)
+        val _ = Person // suppress unused warning
         val id = TypeId.derive[Person]
         assertTrue(id.name == "Person")
       },
