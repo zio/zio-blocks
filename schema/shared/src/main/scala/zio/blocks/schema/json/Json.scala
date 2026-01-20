@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
 
 /**
  * Represents a JSON value.
@@ -295,6 +295,176 @@ sealed trait Json { self =>
       case Json.Object(flds) => flds.map { case (k, v) => s""""$k":$v""" }.mkString("{", ",", "}")
     }
   }
+
+  // ===========================================================================
+  // DynamicValue Conversion
+  // ===========================================================================
+
+  /**
+   * Converts this JSON value to a [[DynamicValue]].
+   *
+   * The conversion is lossless and follows these rules:
+   *  - `Null` → `Primitive(Unit)`
+   *  - `Boolean` → `Primitive(Boolean)`
+   *  - `Number` → `Primitive(BigDecimal)` (preserves precision)
+   *  - `String` → `Primitive(String)`
+   *  - `Array` → `Sequence`
+   *  - `Object` → `Record`
+   *
+   * {{{
+   * val json = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
+   * val dv: DynamicValue = json.toDynamicValue
+   * }}}
+   */
+  def toDynamicValue: DynamicValue = self match {
+    case Json.Null =>
+      DynamicValue.Primitive(PrimitiveValue.Unit)
+    case Json.Boolean(v) =>
+      DynamicValue.Primitive(PrimitiveValue.Boolean(v))
+    case Json.Number(v) =>
+      // Preserve as BigDecimal for maximum precision
+      DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(v)))
+    case Json.String(v) =>
+      DynamicValue.Primitive(PrimitiveValue.String(v))
+    case Json.Array(elems) =>
+      DynamicValue.Sequence(elems.map(_.toDynamicValue))
+    case Json.Object(flds) =>
+      DynamicValue.Record(flds.map { case (k, v) => (k, v.toDynamicValue) })
+  }
+
+  // ===========================================================================
+  // Manipulation & Transformation
+  // ===========================================================================
+
+  /**
+   * Modifies values at the given path using a function.
+   *
+   * {{{
+   * json.modify(p"user.age", age => Json.number(age.numberValue.get.toInt + 1))
+   * }}}
+   *
+   * @param path The path to values to modify
+   * @param f The modification function
+   * @return The modified JSON
+   */
+  def modify(path: DynamicOptic, f: Json => Json): Json = {
+    // TODO: Implement path-based modification
+    val _ = (path, f)
+    self
+  }
+
+  /**
+   * Modifies values at the given path using a partial function.
+   *
+   * Values for which the partial function is not defined are left unchanged.
+   *
+   * @param path The path to values to modify
+   * @param pf The partial modification function
+   * @return Either an error if the path is invalid, or the modified JSON
+   */
+  def modifyOrFail(path: DynamicOptic, pf: PartialFunction[Json, Json]): Either[JsonError, Json] = {
+    // TODO: Implement path-based modification with error handling
+    val _ = (path, pf)
+    Right(self)
+  }
+
+  /**
+   * Sets the value at the given path.
+   *
+   * If the path does not exist, attempts to create intermediate structure.
+   * For array indices, the array must already exist and have sufficient length.
+   *
+   * {{{
+   * json.set(p"user.name", Json.String("Bob"))
+   * }}}
+   *
+   * @param path The path to set
+   * @param value The value to set
+   * @return The modified JSON
+   */
+  def set(path: DynamicOptic, value: Json): Json = {
+    // TODO: Implement path-based set
+    val _ = (path, value)
+    self
+  }
+
+  /**
+   * Sets the value at the given path, returning an error if the path is invalid.
+   *
+   * @param path The path to set
+   * @param value The value to set
+   * @return Either an error or the modified JSON
+   */
+  def setOrFail(path: DynamicOptic, value: Json): Either[JsonError, Json] = {
+    // TODO: Implement path-based set with error handling
+    val _ = (path, value)
+    Right(self)
+  }
+
+  /**
+   * Deletes values at the given path.
+   *
+   * For object fields, removes the key-value pair.
+   * For array elements, removes the element and shifts subsequent elements.
+   *
+   * @param path The path to delete
+   * @return The modified JSON
+   */
+  def delete(path: DynamicOptic): Json = {
+    // TODO: Implement path-based deletion
+    val _ = path
+    self
+  }
+
+  /**
+   * Deletes values at the given path, returning an error if the path is invalid.
+   *
+   * @param path The path to delete
+   * @return Either an error or the modified JSON
+   */
+  def deleteOrFail(path: DynamicOptic): Either[JsonError, Json] = {
+    // TODO: Implement path-based deletion with error handling
+    val _ = path
+    Right(self)
+  }
+
+  /**
+   * Merges this JSON with another using automatic strategy.
+   *
+   * Objects are merged recursively, arrays are concatenated, primitives prefer `other`.
+   *
+   * {{{
+   * val json1 = Json.Object("a" -> Json.number(1), "b" -> Json.number(2))
+   * val json2 = Json.Object("b" -> Json.number(3), "c" -> Json.number(4))
+   * val merged = json1.merge(json2) // {"a": 1, "b": 3, "c": 4}
+   * }}}
+   *
+   * @param other The JSON to merge with
+   * @return The merged JSON
+   */
+  def merge(other: Json): Json = self match {
+    case Json.Object(flds1) => other match {
+      case Json.Object(flds2) =>
+        val keys = (flds1.map(_._1) ++ flds2.map(_._1)).distinct
+        val merged = keys.map { key =>
+          val v1 = flds1.collectFirst { case (k, v) if k == key => v }
+          val v2 = flds2.collectFirst { case (k, v) if k == key => v }
+          (v1, v2) match {
+            case (Some(a), Some(b)) => key -> a.merge(b)
+            case (Some(a), None)    => key -> a
+            case (None, Some(b))    => key -> b
+            case (None, None)       => key -> Json.Null // Should never happen
+          }
+        }
+        Json.Object(merged.toVector)
+      case _ => other
+    }
+    case Json.Array(elems1) => other match {
+      case Json.Array(elems2) => Json.Array(elems1 ++ elems2)
+      case _                  => other
+    }
+    case _ => other
+  }
 }
 
 object Json {
@@ -487,6 +657,75 @@ object Json {
    * Creates a JSON number from a string representation.
    */
   def number(value: java.lang.String): Number = Number(value)
+
+  // ===========================================================================
+  // DynamicValue Conversion
+  // ===========================================================================
+
+  /**
+   * Converts a [[DynamicValue]] to JSON.
+   *
+   * The conversion follows these rules:
+   *  - `Primitive` → JSON primitive (null, boolean, number, string)
+   *  - `Record` → JSON object
+   *  - `Variant` → JSON object with `_type` and `_value` fields
+   *  - `Sequence` → JSON array
+   *  - `Map` → JSON array of objects with `key` and `value` fields
+   *
+   * {{{
+   * val dv = DynamicValue.Record(Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))))
+   * val json: Json = Json.fromDynamicValue(dv)
+   * }}}
+   */
+  def fromDynamicValue(value: DynamicValue): Json = value match {
+    case DynamicValue.Primitive(pv) => fromPrimitiveValue(pv)
+    case DynamicValue.Record(flds) =>
+      Object(flds.map { case (k, v) => (k, fromDynamicValue(v)) })
+    case DynamicValue.Variant(caseName, v) =>
+      Object(Vector("_type" -> String(caseName), "_value" -> fromDynamicValue(v)))
+    case DynamicValue.Sequence(elems) =>
+      Array(elems.map(fromDynamicValue))
+    case DynamicValue.Map(entries) =>
+      Array(entries.map { case (k, v) =>
+        Object(Vector("key" -> fromDynamicValue(k), "value" -> fromDynamicValue(v)))
+      })
+  }
+
+  /**
+   * Converts a [[PrimitiveValue]] to JSON.
+   */
+  private def fromPrimitiveValue(pv: PrimitiveValue): Json = pv match {
+    case PrimitiveValue.Unit                => Null
+    case PrimitiveValue.Boolean(v)          => Boolean(v)
+    case PrimitiveValue.Byte(v)             => number(v.toLong)
+    case PrimitiveValue.Short(v)            => number(v.toLong)
+    case PrimitiveValue.Int(v)              => number(v)
+    case PrimitiveValue.Long(v)             => number(v)
+    case PrimitiveValue.Float(v)            => number(v.toDouble)
+    case PrimitiveValue.Double(v)           => number(v)
+    case PrimitiveValue.BigInt(v)           => number(BigDecimal(v))
+    case PrimitiveValue.BigDecimal(v)       => number(v)
+    case PrimitiveValue.Char(v)             => String(v.toString)
+    case PrimitiveValue.String(v)           => String(v)
+    case PrimitiveValue.Instant(v)          => String(v.toString)
+    case PrimitiveValue.LocalDate(v)        => String(v.toString)
+    case PrimitiveValue.LocalTime(v)        => String(v.toString)
+    case PrimitiveValue.LocalDateTime(v)    => String(v.toString)
+    case PrimitiveValue.OffsetTime(v)       => String(v.toString)
+    case PrimitiveValue.OffsetDateTime(v)   => String(v.toString)
+    case PrimitiveValue.ZonedDateTime(v)    => String(v.toString)
+    case PrimitiveValue.Duration(v)         => String(v.toString)
+    case PrimitiveValue.Period(v)           => String(v.toString)
+    case PrimitiveValue.Year(v)             => String(v.toString)
+    case PrimitiveValue.YearMonth(v)        => String(v.toString)
+    case PrimitiveValue.MonthDay(v)         => String(v.toString)
+    case PrimitiveValue.DayOfWeek(v)        => String(v.toString)
+    case PrimitiveValue.Month(v)            => String(v.toString)
+    case PrimitiveValue.ZoneId(v)           => String(v.toString)
+    case PrimitiveValue.ZoneOffset(v)       => String(v.toString)
+    case PrimitiveValue.Currency(v)         => String(v.getCurrencyCode)
+    case PrimitiveValue.UUID(v)             => String(v.toString)
+  }
 
   // More methods will be added in subsequent edits...
 }
