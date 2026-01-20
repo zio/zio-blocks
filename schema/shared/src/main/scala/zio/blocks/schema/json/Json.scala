@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
 
 import java.io.{Reader, Writer}
@@ -224,6 +225,12 @@ sealed trait Json {
 
   /** Encodes this JSON value to a byte array with the specified config. */
   def encodeToBytes(config: WriterConfig): Array[Byte] = Json.jsonCodec.encode(this, config)
+
+  /** Encodes this JSON value to a Chunk of bytes (UTF-8). */
+  def encodeToChunk: Chunk[Byte] = Chunk.fromArray(encodeToBytes)
+
+  /** Encodes this JSON value to a Chunk of bytes (UTF-8) with configuration. */
+  def encodeToChunk(config: WriterConfig): Chunk[Byte] = Chunk.fromArray(encodeToBytes(config))
 
   /** Encodes this JSON value and writes to the provided Writer. */
   def printTo(writer: Writer): Unit = printTo(writer, WriterConfig)
@@ -612,16 +619,16 @@ object Json {
   def str(value: scala.Predef.String): String = String(value)
 
   /** Creates a JSON number. */
-  def num(value: BigDecimal): Number = Number(value)
+  def number(value: BigDecimal): Number = Number(value)
 
   /** Creates a JSON number from an Int. */
-  def num(value: Int): Number = Number(BigDecimal(value))
+  def number(value: Int): Number = Number(BigDecimal(value))
 
   /** Creates a JSON number from a Long. */
-  def num(value: Long): Number = Number(BigDecimal(value))
+  def number(value: Long): Number = Number(BigDecimal(value))
 
   /** Creates a JSON number from a Double. */
-  def num(value: Double): Number = Number(BigDecimal(value))
+  def number(value: Double): Number = Number(BigDecimal(value))
 
   /** Creates a JSON boolean. */
   def bool(value: scala.Boolean): Boolean = Boolean(value)
@@ -710,6 +717,12 @@ object Json {
     parse(sb.toString, config)
   }
 
+  /** Parses a JSON Chunk of bytes (UTF-8) into a Json value. */
+  def parse(input: Chunk[Byte]): Either[JsonError, Json] = parse(input.toArray)
+
+  /** Parses a JSON Chunk of bytes (UTF-8) with config. */
+  def parse(input: Chunk[Byte], config: ReaderConfig): Either[JsonError, Json] = parse(input.toArray, config)
+
   // Decode aliases
   /** Alias for parse. */
   def decode(input: scala.Predef.String): Either[JsonError, Json] = parse(input)
@@ -731,6 +744,10 @@ object Json {
   def decode(input: Reader): Either[JsonError, Json] = parse(input)
   /** Alias for parse with config. */
   def decode(input: Reader, config: ReaderConfig): Either[JsonError, Json] = parse(input, config)
+  /** Alias for parse Chunk. */
+  def decode(input: Chunk[Byte]): Either[JsonError, Json] = parse(input)
+  /** Alias for parse Chunk with config. */
+  def decode(input: Chunk[Byte], config: ReaderConfig): Either[JsonError, Json] = parse(input, config)
 
   /** Parses a JSON string, throwing JsonError on failure. */
   def parseUnsafe(input: scala.Predef.String): Json = parse(input).fold(e => throw e, identity)

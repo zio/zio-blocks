@@ -35,16 +35,16 @@ import zio.blocks.schema.json.Json
 // Object with named fields
 val person = Json.obj(
   "name" -> Json.str("Alice"),
-  "age" -> Json.num(30),
+  "age" -> Json.number(30),
   "active" -> Json.bool(true)
 )
 
 // Array of values
-val numbers = Json.arr(Json.num(1), Json.num(2), Json.num(3))
+val numbers = Json.arr(Json.number(1), Json.number(2), Json.number(3))
 
 // Primitive values
 val name = Json.str("Bob")
-val count = Json.num(42)
+val count = Json.number(42)
 val flag = Json.bool(false)
 val nothing = Json.Null
 ```
@@ -123,16 +123,16 @@ import zio.blocks.schema.json.Json
 val str = Json.str("hello")
 str.stringValue  // Some("hello")
 
-val num = Json.num(42)
+val num = Json.number(42)
 num.numberValue  // Some(42)
 
 val bool = Json.bool(true)
 bool.booleanValue  // Some(true)
 
-val obj = Json.obj("a" -> Json.num(1))
+val obj = Json.obj("a" -> Json.number(1))
 obj.fields  // Seq(("a", Json.Number(1)))
 
-val arr = Json.arr(Json.num(1), Json.num(2))
+val arr = Json.arr(Json.number(1), Json.number(2))
 arr.elements  // Seq(Json.Number(1), Json.Number(2))
 ```
 
@@ -544,7 +544,7 @@ val intJson = JsonEncoder[Int].encode(42)  // Json.Number(42)
 val strJson = JsonEncoder[String].encode("hello")  // Json.String("hello")
 
 // Decode Json to Scala values
-val intResult = JsonDecoder[Int].decode(Json.num(42))  // Right(42)
+val intResult = JsonDecoder[Int].decode(Json.number(42))  // Right(42)
 val strResult = JsonDecoder[String].decode(Json.str("hello"))  // Right("hello")
 ```
 
@@ -621,7 +621,7 @@ val personUnsafe: Person = json.asUnsafe[Person]
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
 
-val json = Json.obj("name" -> Json.str("Alice"), "age" -> Json.num(30))
+val json = Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))
 
 // Compact output
 val compact = json.print
@@ -651,7 +651,7 @@ val pretty = json.print(WriterConfig.pretty)
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
 
-val json = Json.obj("x" -> Json.num(1))
+val json = Json.obj("x" -> Json.number(1))
 
 // As byte array
 val bytes: Array[Byte] = json.encodeToBytes
@@ -721,7 +721,7 @@ import zio.blocks.schema.json.Json
 
 val values = List(
   Json.str("z"),
-  Json.num(1),
+  Json.number(1),
   Json.Null,
   Json.bool(true)
 )

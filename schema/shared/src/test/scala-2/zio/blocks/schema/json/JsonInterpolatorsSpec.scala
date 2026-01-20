@@ -36,7 +36,7 @@ object JsonInterpolatorsSpec extends SchemaBaseSpec {
         val jsonNull = json"""null"""
         assertTrue(
           jsonStr == Json.str("hello"),
-          jsonNum == Json.num(42),
+          jsonNum == Json.number(42),
           jsonBool == Json.bool(true),
           jsonNull == Json.Null
         )
@@ -57,7 +57,7 @@ object JsonInterpolatorsSpec extends SchemaBaseSpec {
         assertTrue(j.get("active").boolean == Right(true))
       },
       test("supports interpolated Json values") {
-        val inner = Json.obj("x" -> Json.num(1))
+        val inner = Json.obj("x" -> Json.number(1))
         val j = json"""{"inner": $inner}"""
         assertTrue(j.get("inner").get("x").int == Right(1))
       }
