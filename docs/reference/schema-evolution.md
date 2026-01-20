@@ -225,20 +225,30 @@ val reversed: As[Coordinate, Point2D] = convert.reverse
 
 `As` has stricter requirements than `Into` to guarantee round-trip safety:
 
-#### ❌ No Default Values
+#### ❌ No Default Values on Non-Matching Fields
 
-Default values break round-trip because we can't distinguish between explicitly set defaults and omitted values:
+Default values break round-trip when a field with a default exists in one type but not in the other:
 
 ```scala
 case class WithDefault(name: String, age: Int = 25)
-case class NoDefault(name: String, age: Int)
+case class NoDefault(name: String)
 
-// This will NOT compile:
+// This will NOT compile (age has default but doesn't exist in NoDefault):
 As.derived[WithDefault, NoDefault]
 // Error: "Cannot derive As[...]: Default values break round-trip guarantee"
 
 // Use Into instead for one-way conversion:
 Into.derived[NoDefault, WithDefault]  // ✓ Works
+```
+
+However, default values ARE allowed when the field exists in both types:
+
+```scala
+case class PersonA(name: String, age: Int = 25)
+case class PersonB(name: String, age: Int)
+
+// This WILL compile (age exists in both types):
+As.derived[PersonA, PersonB]  // ✓ Works
 ```
 
 #### ✅ Option Fields Are Allowed
@@ -247,7 +257,7 @@ Option fields work because `None` round-trips correctly:
 
 ```scala
 case class TypeA(name: String, nickname: Option[String])
-case class TypeB(name: String, nickname: Option[String])
+case class TypeB(name: String)
 
 As.derived[TypeA, TypeB]  // ✓ Works
 ```

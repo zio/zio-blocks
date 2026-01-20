@@ -115,35 +115,15 @@ object DefaultValueSpec extends ZIOSpecDefault {
             error.contains("Cannot derive") || error.contains("default") || error.contains("no matching field")
           )
         }
-      },
-      test("fails when matching fields both have default values") {
-        // Even when fields match by name, defaults break round-trip guarantee
-        typeCheck {
-          """
-          import zio.blocks.schema.As
-          
-          case class CounterA(name: String, count: Int = 0)
-          case class CounterB(name: String, count: Long = 0L)
-          
-          As.derived[CounterA, CounterB]
-          """
-        }.map { result =>
-          val error = result.swap.getOrElse("")
-          assertTrue(
-            result.isLeft,
-            // Error should explain that default values break round-trip
-            error.contains("Cannot derive") || error.contains("default values") || error.contains("round-trip")
-          )
-        }
       }
     ),
     suite("Nested Types with Default Values")(
-      test("fails when nested type has default values") {
+      test("fails when nested type has default value not in target") {
         typeCheck {
           """
           import zio.blocks.schema.As
           
-          case class AddressA(street: String, zip: String = "00000")
+          case class AddressA(street: String, zip: String = "00000", country: String = "US")
           case class AddressB(street: String, zip: String)
           case class PersonA(name: String, address: AddressA)
           case class PersonB(name: String, address: AddressB)
@@ -194,6 +174,33 @@ object DefaultValueSpec extends ZIOSpecDefault {
           case class MetricsB(count: Long, sum: Long)
           
           As.derived[MetricsA, MetricsB]
+          """
+        }.map(result => assertTrue(result.isRight))
+      },
+      test("succeeds when matching fields both have default values") {
+        typeCheck {
+          """
+          import zio.blocks.schema.As
+          
+          case class CounterA(name: String, count: Int = 0)
+          case class CounterB(name: String, count: Long = 0L)
+          
+          As.derived[CounterA, CounterB]
+          """
+        }.map(result => assertTrue(result.isRight))
+      },
+      test("succeeds when nested type has matching fields with default values") {
+        typeCheck {
+          """
+          import zio.blocks.schema.As
+          
+          case class AddressA(street: String, zip: String = "00000")
+          case class AddressB(street: String, zip: String)
+          case class PersonA(name: String, address: AddressA)
+          case class PersonB(name: String, address: AddressB)
+          
+          implicit val addressAs: As[AddressA, AddressB] = As.derived[AddressA, AddressB]
+          As.derived[PersonA, PersonB]
           """
         }.map(result => assertTrue(result.isRight))
       }

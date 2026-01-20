@@ -86,24 +86,27 @@ private object AsVersionSpecificImpl {
 
     // === Compatibility Checks ===
 
-    def checkNoDefaultValues(info: ProductInfo, direction: String): Unit = {
-      val fieldsWithDefaults = info.fields.filter(_.hasDefault)
+    def checkNoDefaultValues(info: ProductInfo, otherInfo: ProductInfo, direction: String): Unit = {
+      val otherFieldNames    = otherInfo.fields.map(_.name).toSet
+      val fieldsWithDefaults = info.fields.filter(f => f.hasDefault && !otherFieldNames.contains(f.name))
       if (fieldsWithDefaults.nonEmpty) {
         val defaultFieldsStr = fieldsWithDefaults.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
         fail(
           s"""Cannot derive As[$aTpe, $bTpe]: Default values break round-trip guarantee
              |
-             |$direction type has fields with default values: $defaultFieldsStr
+             |$direction type has fields with default values that don't exist in the other type: $defaultFieldsStr
              |
              |Default values break the round-trip guarantee because:
              |  - When converting A → B, we cannot distinguish between explicitly set default values
              |    and fields that were omitted
              |  - When converting B → A, we don't know if a value was originally a default or explicit
              |
+             |Note: Default values are allowed on fields that exist in both types.
+             |
              |Consider:
-             |  - Removing default values from the type definition
+             |  - Removing default values from fields that don't exist in the other type
              |  - Using Into[A, B] instead (one-way conversion allows defaults)
-             |  - Making fields Option types instead of using defaults""".stripMargin
+             |  - Making these fields Option types instead of using defaults""".stripMargin
         )
       }
     }
@@ -601,50 +604,40 @@ private object AsVersionSpecificImpl {
       // Tuple to tuple - no default value checks needed, positional matching
 
       case (true, _, _, true, _, _, _, _) | (_, true, true, _, _, _, _, _) =>
-        // Product to tuple or tuple to product - use positional matching, no field name checks needed
-        // Tuples use positional matching so field names (_1, _2, etc.) don't need to match case class field names
-        // But we still need to check for default values in the product types
-        if (aIsProduct && !aIsTuple) {
+        if (aIsProduct && !aIsTuple && bIsProduct && !bIsTuple) {
           val aInfo = new ProductInfo(aTpe)
-          checkNoDefaultValues(aInfo, "source")
-        }
-        if (bIsProduct && !bIsTuple) {
           val bInfo = new ProductInfo(bTpe)
-          checkNoDefaultValues(bInfo, "target")
+          checkNoDefaultValues(aInfo, bInfo, "source")
+          checkNoDefaultValues(bInfo, aInfo, "target")
+        } else if (aIsProduct && !aIsTuple) {
+          val aInfo = new ProductInfo(aTpe)
+          val bInfo = new ProductInfo(bTpe)
+          checkNoDefaultValues(aInfo, bInfo, "source")
+        } else if (bIsProduct && !bIsTuple) {
+          val aInfo = new ProductInfo(aTpe)
+          val bInfo = new ProductInfo(bTpe)
+          checkNoDefaultValues(bInfo, aInfo, "target")
         }
 
       case (true, true, _, _, _, _, _, _) =>
-        // Case class to case class (non-tuple products)
         val aInfo = new ProductInfo(aTpe)
         val bInfo = new ProductInfo(bTpe)
 
-        // Check no default values
-        checkNoDefaultValues(aInfo, "source")
-        checkNoDefaultValues(bInfo, "target")
+        checkNoDefaultValues(aInfo, bInfo, "source")
+        checkNoDefaultValues(bInfo, aInfo, "target")
 
-        // Check field mapping consistency
         checkFieldMappingConsistency(aInfo, bInfo)
 
       case (true, _, _, _, _, _, _, true) =>
-        // Case class to structural type
         val aInfo = new ProductInfo(aTpe)
         val bInfo = new StructuralInfo(bTpe)
 
-        // Check no default values in source
-        checkNoDefaultValues(aInfo, "source")
-
-        // Check field mapping consistency for structural types
         checkStructuralFieldMappingConsistency(aInfo, bInfo)
 
       case (_, true, _, _, _, _, true, _) =>
-        // Structural type to case class
         val aInfo = new StructuralInfo(aTpe)
         val bInfo = new ProductInfo(bTpe)
 
-        // Check no default values in target
-        checkNoDefaultValues(bInfo, "target")
-
-        // Check field mapping consistency for structural types
         checkStructuralFieldMappingConsistencyReverse(aInfo, bInfo)
 
       case (_, _, _, _, true, true, _, _) =>

@@ -18,8 +18,9 @@ import zio.blocks.schema.SchemaError
  *     Double, etc.)
  *   - Optional fields: Can add optional fields in one direction (becomes None
  *     in reverse)
- *   - Default values: Cannot use default arguments (breaks round-trip
- *     guarantee)
+ *   - Default values: Allowed only on fields that exist in both types. Fields
+ *     with defaults that don't exist in the other type break round-trip
+ *     guarantee.
  *   - Collection types: Can convert between different collection types (may be
  *     lossy for Set/List conversions)
  */
