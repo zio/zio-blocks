@@ -256,6 +256,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         var typeParams: Expr[Seq[TypeParam]]    = '{ Nil }
         if (tpeTypeSymbol.exists) {
           if (isEnumValue(infoTpe)) {
+            // For enum values, find the parent enum class from base types and include it in owner chain
+            val parentEnumOpt = infoTpe.baseClasses.find { bc =>
+              bc != tpeTypeSymbol && bc.flags.is(Flags.Enum) && !bc.flags.is(Flags.Case)
+            }
+            parentEnumOpt.foreach { parentEnum =>
+              val enumClassName = Expr(parentEnum.name)
+              segments = '{ Owner.Type($enumClassName) } :: segments
+            }
             name = infoTpe.termSymbol.name
           } else if (tpeTypeSymbol.flags.is(Flags.Module)) {
             name = name.substring(0, name.length - 1)
@@ -290,14 +298,44 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         }
       }
 
+    // Special handling for NamedTuple types
+    def namedTupleTypeIdExpr(tpe: TypeRepr): Expr[TypeId[?]] = {
+      val tpeTypeArgs = typeArgs(tpe)
+      val nTpe        = tpeTypeArgs.head
+      val nTypeArgs =
+        if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
+        else typeArgs(nTpe)
+      val fieldNames = nTypeArgs.collect { case ConstantType(StringConstant(str)) => str }
+      val nameStr    = "NamedTuple[" + fieldNames.mkString(",") + "]"
+      val nameExpr   = Expr(nameStr)
+      val typeParams = Varargs(fieldNames.zipWithIndex.map { case (fn, idx) =>
+        val fnExpr  = Expr(fn)
+        val idxExpr = Expr(idx)
+        '{ TypeParam($fnExpr, $idxExpr) }
+      })
+      tpe.asType match {
+        case '[t] =>
+          '{
+            TypeId.nominal[t](
+              $nameExpr,
+              Owner(List(Owner.Package("scala"), Owner.Term("NamedTuple"))),
+              List($typeParams*)
+            )
+          }
+      }
+    }
+
     typeIdCache
       .getOrElseUpdate(
         tpe, {
-          val (infoTpe, origTpe) = tpe match {
-            case TypeRef(compTpe, "Type") => (compTpe, tpe) // Use companion for info, original for type param
-            case _                        => (tpe, tpe)
+          if (isNamedTuple(tpe)) namedTupleTypeIdExpr(tpe)
+          else {
+            val (infoTpe, origTpe) = tpe match {
+              case TypeRef(compTpe, "Type") => (compTpe, tpe) // Use companion for info, original for type param
+              case _                        => (tpe, tpe)
+            }
+            calculateTypeIdExpr(infoTpe, origTpe)
           }
-          calculateTypeIdExpr(infoTpe, origTpe)
         }
       )
       .asInstanceOf[Expr[TypeId[T]]]

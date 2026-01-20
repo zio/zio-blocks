@@ -5,7 +5,7 @@ import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema._
 import zio.blocks.schema.avro.AvroTestUtils._
 import zio.blocks.schema.binding.Binding
-import zio.blocks.typeid.{Owner, TypeId, TypeParam}
+import zio.blocks.typeid.{Owner, TypeId}
 import zio.test._
 import java.time._
 import java.util.UUID
