@@ -1776,28 +1776,61 @@ object Json {
    * Internal helper for path interpolation.
    */
   def parsePath(path: java.lang.String): DynamicOptic = {
-    val nodesVector = path
-      .split("(?=[.\\[\\]])")
-      .filter(s => s.nonEmpty && s != "." && s != "]")
-      .flatMap { token =>
-        if (token.startsWith("[")) {
-          val content = token.substring(1)
-          if (content == "*") {
-            Some(DynamicOptic.Node.Elements)
-          } else {
-            try {
-              val idx = content.toInt
-              Some(DynamicOptic.Node.AtIndex(idx))
-            } catch {
-              case _: NumberFormatException => None
-            }
+    // Parse path without regex lookahead (not supported on Scala Native)
+    val tokens = new scala.collection.mutable.ArrayBuffer[java.lang.String]()
+    val sb     = new java.lang.StringBuilder()
+    var i      = 0
+    while (i < path.length) {
+      val c = path.charAt(i)
+      c match {
+        case '.' =>
+          if (sb.length > 0) {
+            tokens += sb.toString
+            sb.setLength(0)
           }
-        } else {
-          val fieldName = if (token.startsWith(".")) token.substring(1) else token
-          Some(DynamicOptic.Node.Field(fieldName))
-        }
+          i += 1
+        case '[' =>
+          if (sb.length > 0) {
+            tokens += sb.toString
+            sb.setLength(0)
+          }
+          // Find matching ]
+          val start = i + 1
+          var end   = start
+          while (end < path.length && path.charAt(end) != ']') end += 1
+          if (end > start) {
+            val bracketToken: java.lang.String = "[" + path.substring(start, end)
+            tokens += bracketToken
+          }
+          i = end + 1
+        case ']' =>
+          i += 1 // Skip stray ]
+        case _ =>
+          sb.append(c)
+          i += 1
       }
-      .toVector
+    }
+    if (sb.length > 0) tokens += sb.toString
+
+    val nodesVector = tokens.flatMap { (token: java.lang.String) =>
+      if (token.startsWith("[")) {
+        val content = token.substring(1)
+        if (content == "*") {
+          Some(DynamicOptic.Node.Elements)
+        } else {
+          try {
+            val idx = content.toInt
+            Some(DynamicOptic.Node.AtIndex(idx))
+          } catch {
+            case _: NumberFormatException => None
+          }
+        }
+      } else if (token.nonEmpty) {
+        Some(DynamicOptic.Node.Field(token))
+      } else {
+        None
+      }
+    }.toVector
     DynamicOptic(nodesVector)
   }
 

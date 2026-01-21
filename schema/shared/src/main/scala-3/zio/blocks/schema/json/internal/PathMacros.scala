@@ -9,8 +9,7 @@ object PathMacros {
     val _ = args
     import quotes.reflect.*
 
-    // Basic implementation: parse static parts if possible, simplistic for now
-    // We access the parts of the StringContext
+    // Access the parts of the StringContext
     sc match {
       case '{ StringContext(${ Varargs(parts) }*) } =>
         val partsConst = parts.map {
@@ -21,7 +20,8 @@ object PathMacros {
         // For now, only handle static string without args
         if (partsConst.size == 1) {
           val pathStr = partsConst.head
-          parsePath(pathStr)
+          // Delegate to runtime parser for consistency across platforms
+          '{ Json.parsePath(${ Expr(pathStr) }) }
         } else {
           report.warning("Dynamic path interpolation not yet fully implemented for Scala 3")
           '{ DynamicOptic.root }
@@ -31,17 +31,23 @@ object PathMacros {
     }
   }
 
-  def jsonInterpolator(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Json] = {
-    val _ = sc
-    val _ = args
-    '{ Json.Null }
-  }
+  def jsonInterpolator(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Json] =
+    sc match {
+      case '{ StringContext(${ Varargs(parts) }*) } =>
+        val partsConst = parts.map {
+          case Expr(str) => str
+          case _         => ""
+        }
 
-  private def parsePath(path: String)(using Quotes): Expr[DynamicOptic] = {
-    // Split by dot and create GenericOptic structure
-    val segments = path.split('.').toList.filter(_.nonEmpty)
-    segments.foldLeft('{ DynamicOptic.root }) { (acc, segment) =>
-      '{ $acc.field(${ Expr(segment) }) }
+        if (partsConst.size == 1) {
+          val jsonStr = partsConst.head
+          '{ Json.parse(${ Expr(jsonStr) }).fold(e => throw e, identity) }
+        } else {
+          // With args, we need runtime assembly
+          val partExprs = Expr.ofSeq(parts)
+          '{ Json.fromInterpolation($partExprs, $args.toSeq) }
+        }
+      case _ =>
+        '{ Json.Null }
     }
-  }
 }
