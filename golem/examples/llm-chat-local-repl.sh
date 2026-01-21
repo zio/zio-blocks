@@ -44,7 +44,13 @@ script_file="$PWD/golem/examples/samples/llm-chat/repl-llm-chat.rib"
 
 # Build Scala.js up-front (no golem-cli needed). This also runs `golemPrepare` automatically,
 # ensuring the base guest runtime wasm is present next to the app manifest.
-( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" >/dev/null )
+build_log="$(mktemp)"
+trap 'rm -f "$build_log"' EXIT
+if ! ( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" ) >"$build_log" 2>&1; then
+  cat "$build_log" >&2
+  echo "[llm-chat-local-repl] sbt failed; see output above." >&2
+  exit 1
+fi
 
 chat_id="demo-$(date +%s)-$RANDOM"
 tmp_script="$(mktemp)"

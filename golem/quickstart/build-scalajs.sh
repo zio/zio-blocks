@@ -94,12 +94,18 @@ PY
     exit 1
   fi
 else
-  ( cd "$repo_root" && sbt -batch -no-colors -Dsbt.supershell=false \
+  build_log="$(mktemp)"
+  trap 'rm -f "$build_log"' EXIT
+  if ! ( cd "$repo_root" && sbt -batch -no-colors -Dsbt.supershell=false \
       "project $sbt_project" \
       "set golemAgentGuestWasmFile := file(\"$agent_wasm\")" \
       "golemEnsureAgentGuestWasm" \
       "compile" \
-      "fastLinkJS" )
+      "fastLinkJS" ) >"$build_log" 2>&1; then
+    cat "$build_log" >&2
+    echo "[scala.js] sbt failed; see output above." >&2
+    exit 1
+  fi
 
   bundle="$(ls -t $bundle_glob 2>/dev/null | head -n1 || true)"
   if [[ -z "$bundle" ]]; then

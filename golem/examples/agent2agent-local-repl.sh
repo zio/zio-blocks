@@ -30,7 +30,13 @@ fi
 app_dir="$PWD/golem/examples"
 script_file="$PWD/golem/examples/samples/agent-to-agent/repl-minimal-agent-to-agent.rib"
 
-( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" >/dev/null )
+build_log="$(mktemp)"
+trap 'rm -f "$build_log"' EXIT
+if ! ( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" ) >"$build_log" 2>&1; then
+  cat "$build_log" >&2
+  echo "[agent2agent-local-repl] sbt failed; see output above." >&2
+  exit 1
+fi
 
 # Use fresh agent ids on each run to avoid "Previous Invocation Failed" poisoning.
 coord_id="demo-$(date +%s)-$RANDOM"

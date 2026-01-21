@@ -246,7 +246,13 @@ component_dir="$PWD"
 app_root="$(cd "$(dirname "$0")" && pwd)"
 scala_dir="$app_root/scala"
 
-( cd "$scala_dir" && sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS" >/dev/null )
+build_log="$(mktemp)"
+trap 'rm -f "$build_log"' EXIT
+if ! ( cd "$scala_dir" && sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS" ) >"$build_log" 2>&1; then
+  cat "$build_log" >&2
+  echo "[scala.js] sbt failed; see output above." >&2
+  exit 1
+fi
 
 bundle="$(
   python3 - <<'PY' "$scala_dir"

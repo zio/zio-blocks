@@ -32,7 +32,13 @@ script_file="$PWD/golem/examples/samples/json-tasks/repl-json-tasks.rib"
 
 # Build Scala.js up-front (no golem-cli needed). This also runs `golemPrepare` automatically,
 # ensuring the base guest runtime wasm is present next to the app manifest.
-( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" >/dev/null )
+build_log="$(mktemp)"
+trap 'rm -f "$build_log"' EXIT
+if ! ( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" ) >"$build_log" 2>&1; then
+  cat "$build_log" >&2
+  echo "[json-tasks-local-repl] sbt failed; see output above." >&2
+  exit 1
+fi
 
 agent_id="demo-$(date +%s)-$RANDOM"
 tmp_script="$(mktemp)"
