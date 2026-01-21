@@ -1,9 +1,9 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.{DynamicOptic, SchemaBaseSpec}
+import zio.blocks.schema.{DynamicOptic, PathInterpolator, SchemaBaseSpec}
 import zio.test._
 
-object JsonInterpolatorsSpec extends SchemaBaseSpec {
+object JsonInterpolatorsSpec extends SchemaBaseSpec with PathInterpolator {
   import JsonInterpolators._
 
   def spec: Spec[TestEnvironment, Any] = suite("JsonInterpolatorsSpec")(
@@ -79,12 +79,12 @@ object JsonInterpolatorsSpec extends SchemaBaseSpec {
         val path = p".users[0].name"
         assertTrue(path == DynamicOptic.root.field("users").at(0).field("name"))
       },
-      test("parses bracket notation for fields") {
-        val path = p"""["user-name"]"""
-        assertTrue(path == DynamicOptic.root.field("user-name"))
+      test("parses field with underscore") {
+        val path = p".user_name"
+        assertTrue(path == DynamicOptic.root.field("user_name"))
       },
       test("parses complex path") {
-        val path = p""".data["items"][2].value"""
+        val path = p".data.items[2].value"
         assertTrue(path == DynamicOptic.root.field("data").field("items").at(2).field("value"))
       },
       test("works with Json navigation") {

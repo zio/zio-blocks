@@ -150,7 +150,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json    = Json.obj("count" -> Json.number(5))
           val path    = DynamicOptic.root.field("count")
           val updated = json.modify(path) {
-            case Json.Number(n) => Json.Number(n * 2)
+            case Json.Number(n) => Json.Number((BigDecimal(n) * 2).toString)
             case other          => other
           }
           assertTrue(updated.get("count").number == Right(BigDecimal(10)))
@@ -159,7 +159,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json   = Json.obj("name" -> Json.str("Alice"))
           val path   = DynamicOptic.root.field("name")
           val result = json.modifyOrFail(path) { case Json.Number(n) =>
-            Json.Number(n * 2) // Won't match string
+            Json.Number((BigDecimal(n) * 2).toString)
           }
           assertTrue(result.isLeft)
         },
@@ -219,7 +219,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json    = Json.arr(Json.number(1), Json.number(2), Json.number(3))
           val path    = DynamicOptic.elements
           val updated = json.modify(path) {
-            case Json.Number(n) => Json.Number(n * 10)
+            case Json.Number(n) => Json.Number((BigDecimal(n) * 10).toString)
             case other          => other
           }
           assertTrue(updated.elements == Vector(Json.number(10), Json.number(20), Json.number(30)))
@@ -397,7 +397,7 @@ object JsonSpec extends SchemaBaseSpec {
           // Double all numbers
           val transformed = json.transformUp { (_, j) =>
             j match {
-              case Json.Number(n) => Json.Number(n * 2)
+              case Json.Number(n) => Json.Number((BigDecimal(n) * 2).toString)
               case other          => other
             }
           }
@@ -433,7 +433,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json     = Json.arr(Json.number(1), Json.number(2), Json.number(3), Json.number(4))
           val filtered = json.filter { (_, j) =>
             j match {
-              case Json.Number(n) => n > BigDecimal(2)
+              case Json.Number(n) => BigDecimal(n) > BigDecimal(2)
               case _              => true
             }
           }
@@ -443,7 +443,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json     = Json.obj("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
           val filtered = json.filter { (_, j) =>
             j match {
-              case Json.Number(n) => n >= BigDecimal(2)
+              case Json.Number(n) => BigDecimal(n) >= BigDecimal(2)
               case _              => true
             }
           }
@@ -496,7 +496,7 @@ object JsonSpec extends SchemaBaseSpec {
           // Sum all numbers
           val sum = json.foldUp(BigDecimal(0)) { (_, j, acc) =>
             j match {
-              case Json.Number(n) => acc + n
+              case Json.Number(n) => acc + BigDecimal(n)
               case _              => acc
             }
           }
@@ -515,7 +515,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json   = Json.arr(Json.number(1), Json.str("oops"), Json.number(3))
           val result = json.foldUpOrFail(BigDecimal(0)) { (_, j, acc) =>
             j match {
-              case Json.Number(n) => Right(acc + n)
+              case Json.Number(n) => Right(acc + BigDecimal(n))
               case Json.String(_) => Left(JsonError("Found a string!"))
               case _              => Right(acc)
             }
@@ -818,7 +818,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json    = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
           val path    = DynamicOptic.mapValues
           val updated = json.modify(path) {
-            case Json.Number(n) => Json.Number(n * 10)
+            case Json.Number(n) => Json.Number((BigDecimal(n) * 10).toString)
             case other          => other
           }
           assertTrue(
@@ -836,7 +836,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json    = Json.arr(Json.number(1), Json.number(2), Json.number(3), Json.number(4))
           val path    = DynamicOptic.root.atIndices(1, 3)
           val updated = json.modify(path) {
-            case Json.Number(n) => Json.Number(n * 10)
+            case Json.Number(n) => Json.Number((BigDecimal(n) * 10).toString)
             case other          => other
           }
           assertTrue(
@@ -890,7 +890,7 @@ object JsonSpec extends SchemaBaseSpec {
         test("collect extracts matching values") {
           val selection = JsonSelection.succeedMany(Vector(Json.number(1), Json.str("a"), Json.number(2)))
           val numbers   = selection.collect { case Json.Number(n) => n }
-          assertTrue(numbers == Right(Vector(BigDecimal(1), BigDecimal(2))))
+          assertTrue(numbers == Right(Vector("1", "2")))
         },
         test("orElse returns alternative on failure") {
           val failed   = JsonSelection.fail(JsonError("error"))
@@ -917,7 +917,7 @@ object JsonSpec extends SchemaBaseSpec {
         test("map transforms all values") {
           val selection = JsonSelection.succeedMany(Vector(Json.number(1), Json.number(2)))
           val mapped    = selection.map {
-            case Json.Number(n) => Json.Number(n * 2)
+            case Json.Number(n) => Json.Number((BigDecimal(n) * 2).toString)
             case other          => other
           }
           assertTrue(mapped.all == Right(Vector(Json.number(2), Json.number(4))))
@@ -937,7 +937,7 @@ object JsonSpec extends SchemaBaseSpec {
         test("filter keeps matching values") {
           val selection = JsonSelection.succeedMany(Vector(Json.number(1), Json.number(2), Json.number(3)))
           val filtered  = selection.filter {
-            case Json.Number(n) => n > BigDecimal(1)
+            case Json.Number(n) => BigDecimal(n) > BigDecimal(1)
             case _              => false
           }
           assertTrue(filtered.all == Right(Vector(Json.number(2), Json.number(3))))
@@ -1144,9 +1144,9 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("Json.num with different types") {
           assertTrue(
-            Json.number(42) == Json.Number(BigDecimal(42)),
-            Json.number(42L) == Json.Number(BigDecimal(42L)),
-            Json.number(3.14) == Json.Number(BigDecimal(3.14))
+            Json.number(42) == Json.Number("42"),
+            Json.number(42L) == Json.Number("42"),
+            Json.number(3.14) == Json.Number("3.14")
           )
         },
         test("Object.empty and Array.empty") {
@@ -1223,7 +1223,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json    = Json.obj("alice" -> Json.number(1), "bob" -> Json.number(2))
           val path    = DynamicOptic.root.atKey("alice")(Schema.string)
           val updated = json.modify(path) {
-            case Json.Number(n) => Json.Number(n * 10)
+            case Json.Number(n) => Json.Number((BigDecimal(n) * 10).toString)
             case other          => other
           }
           assertTrue(
@@ -1255,7 +1255,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json    = Json.obj("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3))
           val path    = DynamicOptic.root.atKeys("a", "c")(Schema.string)
           val updated = json.modify(path) {
-            case Json.Number(n) => Json.Number(n * 10)
+            case Json.Number(n) => Json.Number((BigDecimal(n) * 10).toString)
             case other          => other
           }
           assertTrue(
@@ -1340,7 +1340,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json   = Json.arr(Json.number(1), Json.number(2), Json.number(3))
           val path   = DynamicOptic.elements
           val result = json.modifyOrFail(path) { case Json.Number(n) =>
-            Json.Number(n * 2)
+            Json.Number((BigDecimal(n) * 2).toString)
           }
           assertTrue(result == Right(Json.arr(Json.number(2), Json.number(4), Json.number(6))))
         },
@@ -1348,7 +1348,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json   = Json.arr(Json.number(1), Json.str("not a number"), Json.number(3))
           val path   = DynamicOptic.elements
           val result = json.modifyOrFail(path) { case Json.Number(n) =>
-            Json.Number(n * 2)
+            Json.Number((BigDecimal(n) * 2).toString)
           }
           assertTrue(result.isLeft)
         },
@@ -1356,7 +1356,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json   = Json.obj("a" -> Json.number(1), "b" -> Json.number(2))
           val path   = DynamicOptic.mapValues
           val result = json.modifyOrFail(path) { case Json.Number(n) =>
-            Json.Number(n * 10)
+            Json.Number((BigDecimal(n) * 10).toString)
           }
           assertTrue(
             result.map(_.get("a").number) == Right(Right(BigDecimal(10))),
@@ -1367,7 +1367,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json   = Json.obj("a" -> Json.number(1), "b" -> Json.str("not a number"))
           val path   = DynamicOptic.mapValues
           val result = json.modifyOrFail(path) { case Json.Number(n) =>
-            Json.Number(n * 10)
+            Json.Number((BigDecimal(n) * 10).toString)
           }
           assertTrue(result.isLeft)
         },
@@ -1377,7 +1377,7 @@ object JsonSpec extends SchemaBaseSpec {
           )
           val path   = DynamicOptic.root.field("items").elements
           val result = json.modifyOrFail(path) { case Json.Number(n) =>
-            Json.Number(n + 100)
+            Json.Number((BigDecimal(n) + 100).toString)
           }
           assertTrue(result == Right(Json.obj("items" -> Json.arr(Json.number(101), Json.number(102)))))
         }
@@ -1602,7 +1602,7 @@ object JsonSpec extends SchemaBaseSpec {
           val right          = Json.obj("a" -> Json.number(10), "c" -> Json.number(3))
           val customStrategy = MergeStrategy.Custom { (_, l, r) =>
             (l, r) match {
-              case (Json.Number(lv), Json.Number(rv)) => Json.number(lv + rv)
+              case (Json.Number(lv), Json.Number(rv)) => Json.Number((BigDecimal(lv) + BigDecimal(rv)).toString)
               case _                                  => r
             }
           }

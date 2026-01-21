@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.Schema
 
 import java.time._
@@ -51,21 +52,21 @@ object JsonEncoder {
 
   implicit val booleanEncoder: JsonEncoder[Boolean] = instance(Json.Boolean(_))
 
-  implicit val intEncoder: JsonEncoder[Int] = instance(i => Json.Number(BigDecimal(i)))
+  implicit val intEncoder: JsonEncoder[Int] = instance(i => Json.Number(i.toString))
 
-  implicit val longEncoder: JsonEncoder[Long] = instance(l => Json.Number(BigDecimal(l)))
+  implicit val longEncoder: JsonEncoder[Long] = instance(l => Json.Number(l.toString))
 
-  implicit val floatEncoder: JsonEncoder[Float] = instance(f => Json.Number(BigDecimal(f.toDouble)))
+  implicit val floatEncoder: JsonEncoder[Float] = instance(f => Json.Number(f.toString))
 
-  implicit val doubleEncoder: JsonEncoder[Double] = instance(d => Json.Number(BigDecimal(d)))
+  implicit val doubleEncoder: JsonEncoder[Double] = instance(d => Json.Number(d.toString))
 
-  implicit val bigDecimalEncoder: JsonEncoder[BigDecimal] = instance(Json.Number(_))
+  implicit val bigDecimalEncoder: JsonEncoder[BigDecimal] = instance(bd => Json.Number(bd.toString))
 
-  implicit val bigIntEncoder: JsonEncoder[BigInt] = instance(bi => Json.Number(BigDecimal(bi)))
+  implicit val bigIntEncoder: JsonEncoder[BigInt] = instance(bi => Json.Number(bi.toString))
 
-  implicit val byteEncoder: JsonEncoder[Byte] = instance(b => Json.Number(BigDecimal(b.toInt)))
+  implicit val byteEncoder: JsonEncoder[Byte] = instance(b => Json.Number(b.toString))
 
-  implicit val shortEncoder: JsonEncoder[Short] = instance(s => Json.Number(BigDecimal(s.toInt)))
+  implicit val shortEncoder: JsonEncoder[Short] = instance(s => Json.Number(s.toString))
 
   implicit val charEncoder: JsonEncoder[Char] = instance(c => Json.String(c.toString))
 
@@ -103,7 +104,7 @@ object JsonEncoder {
   }
 
   implicit def mapEncoder[V](implicit valueEncoder: JsonEncoder[V]): JsonEncoder[Map[String, V]] = instance { map =>
-    Json.Object(map.map { case (k, v) => (k, valueEncoder.encode(v)) }.toVector)
+    Json.Object(Chunk.from(map.map { case (k, v) => (k, valueEncoder.encode(v)) }))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -133,8 +134,8 @@ object JsonEncoder {
     leftEncoder: JsonEncoder[L],
     rightEncoder: JsonEncoder[R]
   ): JsonEncoder[Either[L, R]] = instance {
-    case Left(l)  => Json.Object(Vector(("Left", leftEncoder.encode(l))))
-    case Right(r) => Json.Object(Vector(("Right", rightEncoder.encode(r))))
+    case Left(l)  => Json.Object(Chunk(("Left", leftEncoder.encode(l))))
+    case Right(r) => Json.Object(Chunk(("Right", rightEncoder.encode(r))))
   }
 
   // ─────────────────────────────────────────────────────────────────────────

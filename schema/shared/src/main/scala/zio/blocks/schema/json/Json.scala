@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
 
 import java.io.{Reader, Writer}
@@ -14,9 +14,9 @@ import scala.collection.immutable.VectorBuilder
  * possible cases: Object, Array, String, Number, Boolean, and Null.
  *
  * Key design decisions:
- *   - Objects use `Vector[(String, Json)]` to preserve insertion order
+ *   - Objects use `Chunk[(String, Json)]` to preserve insertion order
  *   - Object equality is order-independent (keys are compared as sets)
- *   - Numbers use `BigDecimal` to preserve precision
+ *   - Numbers use `String` to preserve exact representation
  *   - All navigation methods return `JsonSelection` for fluent chaining
  */
 sealed trait Json {
@@ -438,7 +438,7 @@ object Json {
    * Represents a JSON object with ordered key-value pairs. Equality is
    * order-independent (compared as sorted key-value pairs).
    */
-  final case class Object(value: Vector[(scala.Predef.String, Json)]) extends Json {
+  final case class Object(value: Chunk[(scala.Predef.String, Json)]) extends Json {
     override def isObject: scala.Boolean                  = true
     override def asObject: JsonSelection                  = JsonSelection.succeed(this)
     override def fields: Seq[(scala.Predef.String, Json)] = value
@@ -513,9 +513,9 @@ object Json {
   }
 
   object Object {
-    val empty: Object = Object(Vector.empty)
+    val empty: Object = Object(Chunk.empty)
 
-    def apply(fields: (scala.Predef.String, Json)*): Object = new Object(fields.toVector)
+    def apply(fields: (scala.Predef.String, Json)*): Object = new Object(Chunk.from(fields))
   }
 
   /**
@@ -581,17 +581,22 @@ object Json {
   }
 
   /**
-   * Represents a JSON number using BigDecimal for precision.
+   * Represents a JSON number stored as a String to preserve exact
+   * representation.
    */
-  final case class Number(value: BigDecimal) extends Json {
+  final case class Number(value: scala.Predef.String) extends Json {
     override def isNumber: scala.Boolean         = true
     override def asNumber: JsonSelection         = JsonSelection.succeed(this)
-    override def numberValue: Option[BigDecimal] = Some(value)
+    override def numberValue: Option[BigDecimal] = scala.util.Try(BigDecimal(value)).toOption
     override def typeIndex: Int                  = 2
 
+    /** Returns the underlying BigDecimal value. */
+    def toBigDecimal: BigDecimal = BigDecimal(value)
+
     override def compare(that: Json): Int = that match {
-      case thatNum: Number => value.compare(thatNum.value)
-      case _               => typeIndex - that.typeIndex
+      case thatNum: Number =>
+        scala.util.Try(BigDecimal(value).compare(BigDecimal(thatNum.value))).getOrElse(value.compareTo(thatNum.value))
+      case _ => typeIndex - that.typeIndex
     }
   }
 
@@ -629,7 +634,7 @@ object Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Creates a JSON object from key-value pairs. */
-  def obj(fields: (scala.Predef.String, Json)*): Object = Object(fields.toVector)
+  def obj(fields: (scala.Predef.String, Json)*): Object = Object(Chunk.from(fields))
 
   /** Creates a JSON array from elements. */
   def arr(elements: Json*): Array = Array(elements.toVector)
@@ -638,16 +643,16 @@ object Json {
   def str(value: scala.Predef.String): String = String(value)
 
   /** Creates a JSON number. */
-  def number(value: BigDecimal): Number = Number(value)
+  def number(value: BigDecimal): Number = Number(value.toString)
 
   /** Creates a JSON number from an Int. */
-  def number(value: Int): Number = Number(BigDecimal(value))
+  def number(value: Int): Number = Number(value.toString)
 
   /** Creates a JSON number from a Long. */
-  def number(value: Long): Number = Number(BigDecimal(value))
+  def number(value: Long): Number = Number(value.toString)
 
   /** Creates a JSON number from a Double. */
-  def number(value: Double): Number = Number(BigDecimal(value))
+  def number(value: Double): Number = Number(value.toString)
 
   /** Creates a JSON boolean. */
   def bool(value: scala.Boolean): Boolean = Boolean(value)
@@ -793,9 +798,9 @@ object Json {
   def fromDynamicValue(dv: DynamicValue): Json = dv match {
     case DynamicValue.Primitive(pv)  => fromPrimitiveValue(pv)
     case DynamicValue.Record(fields) =>
-      Object(fields.map { case (k, v) => (k, fromDynamicValue(v)) })
+      Object(Chunk.from(fields.map { case (k, v) => (k, fromDynamicValue(v)) }))
     case DynamicValue.Variant(caseName, value) =>
-      Object(Vector((caseName, fromDynamicValue(value))))
+      Object(Chunk((caseName, fromDynamicValue(value))))
     case DynamicValue.Sequence(elements) =>
       Array(elements.map(fromDynamicValue))
     case DynamicValue.Map(entries) =>
@@ -805,13 +810,13 @@ object Json {
         case _                                                     => false
       }
       if (allStringKeys) {
-        Object(entries.map {
+        Object(Chunk.from(entries.map {
           case (DynamicValue.Primitive(k: PrimitiveValue.String), v) => (k.value, fromDynamicValue(v))
           case _                                                     => throw new IllegalStateException("Expected string key")
-        })
+        }))
       } else {
         Array(entries.map { case (k, v) =>
-          Object(Vector(("key", fromDynamicValue(k)), ("value", fromDynamicValue(v))))
+          Object(Chunk(("key", fromDynamicValue(k)), ("value", fromDynamicValue(v))))
         })
       }
   }
@@ -819,16 +824,16 @@ object Json {
   private def fromPrimitiveValue(pv: PrimitiveValue): Json = pv match {
     case PrimitiveValue.Unit              => Null
     case v: PrimitiveValue.Boolean        => Boolean(v.value)
-    case v: PrimitiveValue.Byte           => Number(BigDecimal(v.value.toInt))
-    case v: PrimitiveValue.Short          => Number(BigDecimal(v.value.toInt))
-    case v: PrimitiveValue.Int            => Number(BigDecimal(v.value))
-    case v: PrimitiveValue.Long           => Number(BigDecimal(v.value))
-    case v: PrimitiveValue.Float          => Number(BigDecimal(v.value.toDouble))
-    case v: PrimitiveValue.Double         => Number(BigDecimal(v.value))
+    case v: PrimitiveValue.Byte           => Number(v.value.toString)
+    case v: PrimitiveValue.Short          => Number(v.value.toString)
+    case v: PrimitiveValue.Int            => Number(v.value.toString)
+    case v: PrimitiveValue.Long           => Number(v.value.toString)
+    case v: PrimitiveValue.Float          => Number(v.value.toString)
+    case v: PrimitiveValue.Double         => Number(v.value.toString)
     case v: PrimitiveValue.Char           => String(v.value.toString)
     case v: PrimitiveValue.String         => String(v.value)
-    case v: PrimitiveValue.BigInt         => Number(BigDecimal(v.value))
-    case v: PrimitiveValue.BigDecimal     => Number(v.value)
+    case v: PrimitiveValue.BigInt         => Number(v.value.toString)
+    case v: PrimitiveValue.BigDecimal     => Number(v.value.toString)
     case v: PrimitiveValue.DayOfWeek      => String(v.value.toString)
     case v: PrimitiveValue.Duration       => String(v.value.toString)
     case v: PrimitiveValue.Instant        => String(v.value.toString)
@@ -855,17 +860,18 @@ object Json {
     case Boolean(v) => DynamicValue.Primitive(new PrimitiveValue.Boolean(v))
     case Number(v)  =>
       // Try to preserve Int/Long if possible
-      val longValue = v.bigDecimal.longValue
-      if (v == BigDecimal(longValue)) {
+      val bd        = BigDecimal(v)
+      val longValue = bd.bigDecimal.longValue
+      if (bd == BigDecimal(longValue)) {
         val intValue = longValue.toInt
         if (longValue == intValue) DynamicValue.Primitive(new PrimitiveValue.Int(intValue))
         else DynamicValue.Primitive(new PrimitiveValue.Long(longValue))
       } else {
-        DynamicValue.Primitive(new PrimitiveValue.BigDecimal(v))
+        DynamicValue.Primitive(new PrimitiveValue.BigDecimal(bd))
       }
     case String(v) => DynamicValue.Primitive(new PrimitiveValue.String(v))
     case Array(v)  => DynamicValue.Sequence(v.map(toDynamicValue))
-    case Object(v) => DynamicValue.Record(v.map { case (k, v) => (k, toDynamicValue(v)) })
+    case Object(v) => DynamicValue.Record(v.map { case (k, v) => (k, toDynamicValue(v)) }.toVector)
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -928,14 +934,14 @@ object Json {
             case (None, None)         => throw new IllegalStateException("Key should exist in at least one map")
           }
         }
-        Object(merged.toVector)
+        Object(Chunk.from(merged))
       case _ =>
         f(path, left, right)
     }
 
   private def mergeObjects(
-    left: Vector[(scala.Predef.String, Json)],
-    right: Vector[(scala.Predef.String, Json)],
+    left: Chunk[(scala.Predef.String, Json)],
+    right: Chunk[(scala.Predef.String, Json)],
     deep: scala.Boolean
   ): Object = {
     val leftMap  = left.toMap
@@ -954,7 +960,7 @@ object Json {
         case (None, None)        => throw new IllegalStateException("Key should exist in at least one map")
       }
     }
-    Object(merged.toVector)
+    Object(Chunk.from(merged))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1295,10 +1301,10 @@ object Json {
               }
             case Null =>
               val newValue = go(if (idx + 1 < nodes.length) inferContainer(nodes(idx + 1)) else Null, idx + 1)
-              Object(Vector((name, newValue)))
+              Object(Chunk((name, newValue)))
             case _ =>
               val newValue = go(if (idx + 1 < nodes.length) inferContainer(nodes(idx + 1)) else Null, idx + 1)
-              Object(Vector((name, newValue)))
+              Object(Chunk((name, newValue)))
           }
 
         case DynamicOptic.Node.AtIndex(index) =>
@@ -1668,7 +1674,7 @@ object Json {
           json match {
             case obj: Object =>
               val results =
-                obj.value.foldLeft[Either[JsonError, Vector[(scala.Predef.String, Json)]]](Right(Vector.empty)) {
+                obj.value.foldLeft[Either[JsonError, Chunk[(scala.Predef.String, Json)]]](Right(Chunk.empty)) {
                   case (Left(err), _)       => Left(err)
                   case (Right(acc), (k, v)) =>
                     modifyAtPathOrFailRecursive(v, nodes, idx + 1, pf).map(newV => acc :+ (k, newV))
@@ -1940,7 +1946,7 @@ object Json {
         Boolean(in.readBoolean())
       } else if (b >= '0' && b <= '9' || b == '-') {
         in.rollbackToken()
-        Number(in.readBigDecimal(null))
+        Number(in.readBigDecimal(null).toString)
       } else if (b == '[') {
         if (in.isNextToken(']')) Array.empty
         else {
@@ -1957,7 +1963,7 @@ object Json {
         if (in.isNextToken('}')) Object.empty
         else {
           in.rollbackToken()
-          val builder = new VectorBuilder[(scala.Predef.String, Json)]
+          val builder = ChunkBuilder.make[(scala.Predef.String, Json)]()
           while ({
             builder.addOne((in.readKeyAsString(), decodeValue(in, default)))
             in.isNextToken(',')
@@ -1974,7 +1980,7 @@ object Json {
     override def encodeValue(x: Json, out: JsonWriter): Unit = x match {
       case Null       => out.writeNull()
       case Boolean(v) => out.writeVal(v)
-      case Number(v)  => out.writeVal(v)
+      case Number(v)  => out.writeVal(BigDecimal(v))
       case String(v)  => out.writeVal(v)
       case Array(v)   =>
         out.writeArrayStart()
