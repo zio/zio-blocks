@@ -268,11 +268,7 @@ lazy val examples = project
   )
 
 lazy val benchmarks = project
-  .settings(stdSettings("zio-blocks-benchmarks", Seq(Scala3, Scala213)))
-  .settings(
-    crossScalaVersions := Seq("3.7.4"),
-    scalaVersion       := "3.7.4"
-  )
+  .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
   .dependsOn(schema.jvm % "compile->compile;test->test")
   .dependsOn(chunk.jvm)
   .dependsOn(`schema-avro`)
