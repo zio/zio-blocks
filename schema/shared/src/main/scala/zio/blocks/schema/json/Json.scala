@@ -355,15 +355,7 @@ sealed trait Json { self =>
   // Custom implementations would cause infinite recursion with pattern matching
 
   override def toString: String =
-    // TODO: Implement proper JSON encoding
-    this match {
-      case Json.Null         => "null"
-      case Json.Boolean(v)   => v.toString
-      case Json.Number(v)    => v
-      case Json.String(v)    => s""""$v""""
-      case Json.Array(elems) => elems.mkString("[", ",", "]")
-      case Json.Object(flds) => flds.map { case (k, v) => s""""$k":$v""" }.mkString("{", ",", "}")
-    }
+    Json.encode(this)
 
   // ===========================================================================
   // DynamicValue Conversion
