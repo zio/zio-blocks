@@ -13,8 +13,8 @@ private[toon] final class MapCodecBuilder(
     map: Reflect.Map[F, Key, Value, Map],
     binding: Binding.Map[Map, Key, Value]
   ): ToonBinaryCodec[Map[Key, Value]] = {
-    val keyCodec   = deriveCodec(map.key).asInstanceOf[ToonBinaryCodec[Key]]
-    val valueCodec = deriveCodec(map.value).asInstanceOf[ToonBinaryCodec[Value]]
+    val keyCodec   = deriveCodec(map.key)
+    val valueCodec = deriveCodec(map.value)
     new ToonBinaryCodec[Map[Key, Value]]() {
       private[this] val deconstructor = binding.deconstructor
       private[this] val constructor   = binding.constructor
@@ -22,13 +22,15 @@ private[toon] final class MapCodecBuilder(
       private[this] val vCodec        = valueCodec
 
       def decodeValue(in: ToonReader, default: Map[Key, Value]): Map[Key, Value] = {
+        val startDepth =
+          if (in.isFirstLine) in.getDepth
+          else in.getDepth + 1
         in.skipBlankLines()
         if (!in.hasMoreContent || in.peekTrimmedContent.isEmpty) {
           in.advanceLine()
           in.skipBlankLines()
         }
-        val builder    = constructor.newObjectBuilder[Key, Value](8)
-        val startDepth = in.getDepth
+        val builder = constructor.newObjectBuilder[Key, Value](8)
         while (in.hasMoreLines) {
           in.skipBlankLines()
           if (!in.hasMoreLines || in.getDepth < startDepth) {

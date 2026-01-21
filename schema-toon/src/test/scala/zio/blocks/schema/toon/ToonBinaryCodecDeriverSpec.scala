@@ -717,7 +717,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           codec
         )
       },
-      test("default value field with withRequireCollectionFields") {
+      test("default value field with withRequireDefaultValueFields true") {
         val codec = deriveCodec[ServerConfig](_.withRequireDefaultValueFields(true))
         decode(
           """host: localhost
@@ -741,13 +741,38 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             |  role: admin
             |  status: active
             |count: 42""".stripMargin
-        )
-      },
-      test("map field alongside other fields with empty map") {
+        ) &&
         roundTrip(
           RecordWithMapField("test", Map.empty, 42),
           """name: test
             |count: 42""".stripMargin
+        )
+      },
+      test("map field alongside other fields with withTransientEmptyCollection false") {
+        roundTrip(
+          RecordWithMapField("test", Map.empty, 42),
+          """name: test
+            |metadata:
+            |count: 42""".stripMargin,
+          deriveCodec[RecordWithMapField](_.withTransientEmptyCollection(false))
+        )
+      },
+      test("map field alongside other fields with withRequireCollectionFields true") {
+        val codec = deriveCodec[RecordWithMapField](_.withRequireCollectionFields(true))
+        decode(
+          """name: test
+            |metadata:
+            |  role: admin
+            |  status: active
+            |count: 42""".stripMargin,
+          RecordWithMapField("test", Map("role" -> "admin", "status" -> "active"), 42),
+          codec
+        ) &&
+        decodeError[RecordWithMapField](
+          """name: test
+            |count: 42""".stripMargin,
+          "Missing required field: metadata at: .",
+          codec
         )
       },
       test("record with custom codecs of different field mapping") {

@@ -22,11 +22,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encode(Nums(List(1, 2, 3)), "nums[3]: 1,2,3")
       },
       test("encodes empty arrays") {
-        encode(
-          Items(List.empty),
-          "items[0]:",
-          deriveCodec[Items](_.withTransientEmptyCollection(false))
-        )
+        encode(Items(List.empty), "items[0]:", deriveCodec[Items](_.withTransientEmptyCollection(false)))
       },
       test("encodes empty string in single-item array") {
         encode(Items(List("")), "items[1]: \"\"")
@@ -393,18 +389,14 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("parses root-level array of objects with tab delimiter") {
         decodeDynamic(
           "[2\t]{id}:\n  1\n  2",
-          DynamicValue.Sequence(
-            Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
-          ),
+          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
           ReaderConfig.withDelimiter(Delimiter.Tab)
         )
       },
       test("parses root-level array of objects with pipe delimiter") {
         decodeDynamic(
           "[2|]{id}:\n  1\n  2",
-          DynamicValue.Sequence(
-            Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
-          ),
+          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
           ReaderConfig.withDelimiter(Delimiter.Pipe)
         )
       },
@@ -547,13 +539,10 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic("true", dynamicBoolean(true))
       },
       test("parses false") {
-        decodeDynamic(
-          "false",
-          dynamicBoolean(false)
-        )
+        decodeDynamic("false", dynamicBoolean(false))
       },
       test("parses null") {
-        decodeDynamic("null", DynamicValue.Primitive(PrimitiveValue.Unit))
+        decodeDynamic("null", dynamicUnit)
       },
       test("parses string with emoji and spaces") {
         decodeDynamic("hello 👋 world", dynamicStr("hello 👋 world"))
@@ -1259,7 +1248,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encode(BigDecimal(1.0 / 3), "0.3333333333333333")
       },
       test("encodes null") {
-        encodeDynamic(DynamicValue.Primitive(PrimitiveValue.Unit), "null")
+        encodeDynamic(dynamicUnit, "null")
       }
     ),
     suite("encode objects")(
@@ -1732,9 +1721,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "data.meta.items[2]: a,b",
           record(
             "data" -> record(
-              "meta" -> record(
-                "items" -> DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b")))
-              )
+              "meta" -> record("items" -> DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))))
             )
           ),
           ReaderConfig.withExpandPaths(PathExpansion.Safe)
@@ -1851,11 +1838,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         )
       },
       test("parses empty arrays") {
-        decode(
-          "items[0]:",
-          Items(List.empty),
-          deriveCodec[Items](_.withTransientEmptyCollection(false))
-        )
+        decode("items[0]:", Items(List.empty), deriveCodec[Items](_.withTransientEmptyCollection(false)))
       },
       test("parses single-item array with empty string") {
         decodeDynamic("items[1]: \"\"", record("items" -> DynamicValue.Sequence(Vector(dynamicStr("")))))
@@ -1912,11 +1895,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
             "items" -> DynamicValue.Sequence(
               Vector(
                 record("id" -> dynamicInt(1), "name" -> dynamicStr("First")),
-                record(
-                  "id"    -> dynamicInt(2),
-                  "name"  -> dynamicStr("Second"),
-                  "extra" -> dynamicBoolean(true)
-                )
+                record("id" -> dynamicInt(2), "name" -> dynamicStr("Second"), "extra" -> dynamicBoolean(true))
               )
             )
           )
@@ -1925,9 +1904,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("parses list arrays with empty items") {
         decodeDynamic(
           "items[3]:\n  - first\n  - second\n  -",
-          record(
-            "items" -> DynamicValue.Sequence(Vector(dynamicStr("first"), dynamicStr("second"), record()))
-          )
+          record("items" -> DynamicValue.Sequence(Vector(dynamicStr("first"), dynamicStr("second"), record())))
         )
       },
       test("parses list arrays with deeply nested objects") {
@@ -2144,9 +2121,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "\"x-items\"[2]:\n  - id: 1\n  - id: 2",
           record(
-            "x-items" -> DynamicValue.Sequence(
-              Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
-            )
+            "x-items" -> DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2))))
           )
         )
       }
@@ -2165,10 +2140,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           record(
             "items" -> DynamicValue.Sequence(
               Vector(
-                record(
-                  "id"    -> dynamicInt(1),
-                  "value" -> DynamicValue.Primitive(PrimitiveValue.Unit)
-                ),
+                record("id" -> dynamicInt(1), "value" -> dynamicUnit),
                 record("id" -> dynamicInt(2), "value" -> dynamicStr("test"))
               )
             )
@@ -2308,10 +2280,8 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "items[1]:\n  - a\n\nb: 2",
           record(
-            "items" -> DynamicValue.Sequence(
-              Vector(DynamicValue.Primitive(PrimitiveValue.String("a")))
-            ),
-            "b" -> dynamicInt(2)
+            "items" -> DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.String("a")))),
+            "b"     -> dynamicInt(2)
           )
         )
       },
@@ -2373,9 +2343,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encodeDynamic(
           record(
             "data" -> record(
-              "meta" -> record(
-                "items" -> DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y")))
-              )
+              "meta" -> record("items" -> DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"))))
             )
           ),
           "data.meta.items[2]: x,y",
