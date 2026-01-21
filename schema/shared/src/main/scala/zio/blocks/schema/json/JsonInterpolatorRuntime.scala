@@ -11,7 +11,7 @@ object JsonInterpolatorRuntime {
     if (pi.hasNext) {
       sb.append(pi.next())
       while (ai.hasNext) {
-        val arg = ai.next()
+        val arg     = ai.next()
         val jsonArg = arg match {
           case j: Json       => j
           case s: String     => Json.String(s)
