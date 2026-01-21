@@ -1930,16 +1930,10 @@ class JsonBinaryCodecDeriver private[json] (
   }
 
   private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean =
-    !requireOptionFields && reflect.isVariant && {
-      val variant  = reflect.asVariant.get
-      val typeName = reflect.typeName
-      val cases    = variant.cases
-      typeName.namespace == Namespace.scala && typeName.name == "Option" &&
-      cases.length == 2 && cases(1).name == "Some"
-    }
+    !requireOptionFields && reflect.isOption
 
   private[this] def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
-    !requireCollectionFields && (reflect.isSequence || reflect.isMap)
+    !requireCollectionFields && reflect.isCollection
 
   private[this] def defaultValue[F[_, _], A](fieldReflect: Reflect[F, A]): Option[() => ?] =
     if (requireDefaultValueFields) None
