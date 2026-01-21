@@ -135,6 +135,9 @@ cp -r "$wit_dir/deps/config" "$agent_wit_root/deps/"
 # AI WIT packages are not part of the golem v1.4.1 WIT tarball; we vendor the stable definitions we need.
 cp -r "$repo_root/golem/tools/wit-ai/golem-llm" "$agent_wit_root/deps/"
 cp -r "$repo_root/golem/tools/wit-ai/golem-web-search" "$agent_wit_root/deps/"
+cp -r "$repo_root/golem/tools/wit-ai/golem-embed" "$agent_wit_root/deps/"
+cp -r "$repo_root/golem/tools/wit-ai/golem-graph" "$agent_wit_root/deps/"
+cp -r "$repo_root/golem/tools/wit-ai/golem-video-generation" "$agent_wit_root/deps/"
 
 echo "[agent-guest] Generating wrapper crate with wasm-rquickjs..." >&2
 rm -rf "$wrapper_dir"
