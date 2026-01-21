@@ -522,11 +522,48 @@ object MigrationAction {
     nodes: IndexedSeq[DynamicOptic.Node]
   )(transform: DynamicValue => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] = {
     if (nodes.isEmpty) {
+      // We're at the target, apply the transformation
       transform(value)
     } else {
-      // For now, we only support root-level operations
-      // TODO: implement deep navigation
-      transform(value)
+      // Navigate deeper
+      val head = nodes.head
+      val tail = nodes.tail
+
+      head match {
+        case DynamicOptic.Node.Field(fieldName) =>
+          value match {
+            case DynamicValue.Record(fields) =>
+              // Find the field and recursively navigate
+              fields.indexWhere(_._1 == fieldName) match {
+                case -1 =>
+                  Left(MigrationError.fieldNotFound(DynamicOptic(nodes), fieldName))
+                case idx =>
+                  val (name, fieldValue) = fields(idx)
+                  navigateAndTransform(fieldValue, tail)(transform).map { transformed =>
+                    DynamicValue.Record(fields.updated(idx, (name, transformed)))
+                  }
+              }
+            case _ =>
+              Left(MigrationError.typeMismatch(DynamicOptic(nodes), "Record", value.getClass.getSimpleName))
+          }
+
+        case DynamicOptic.Node.AtIndex(index) =>
+          value match {
+            case DynamicValue.Sequence(elements) =>
+              if (index < 0 || index >= elements.length) {
+                Left(MigrationError.invalidPath(DynamicOptic(nodes), s"Index $index out of bounds"))
+              } else {
+                navigateAndTransform(elements(index), tail)(transform).map { transformed =>
+                  DynamicValue.Sequence(elements.updated(index, transformed))
+                }
+              }
+            case _ =>
+              Left(MigrationError.typeMismatch(DynamicOptic(nodes), "Sequence", value.getClass.getSimpleName))
+          }
+
+        case _ =>
+          Left(MigrationError.invalidPath(DynamicOptic(nodes), s"Unsupported node type: $head"))
+      }
     }
   }
 }

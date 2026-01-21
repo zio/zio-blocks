@@ -61,20 +61,25 @@
 
 ## Implementation Stages
 
-### Stage 1: Core Architecture (Status: Not Started)
+### Stage 1: Core Architecture (Status: ✅ COMPLETE!)
 **Goal:** Implement core types and basic functionality
 **Files:**
-- `Migration.scala` - Typed migration API
-- `DynamicMigration.scala` - Untyped core
-- `MigrationAction.scala` - All action types (15+ actions)
-- `MigrationError.scala` - Comprehensive error types
-- `SchemaExpr.scala` - Selector expressions
+- ✅ `Migration.scala` - Typed migration API (125 lines)
+- ✅ `DynamicMigration.scala` - Untyped core (127 lines)
+- ✅ `MigrationAction.scala` - 14 action types (533 lines)
+- ✅ `MigrationError.scala` - Comprehensive error types (105 lines)
+- ✅ `SchemaExpr.scala` - Value expressions (150 lines)
+- ✅ `MigrationBuilder.scala` - Basic builder (151 lines)
+
+**Total: 1,191 lines**
 
 **Success Criteria:**
-- [ ] All core types compile
-- [ ] Basic migrations work (add/remove/rename fields)
-- [ ] Reversibility works
-- [ ] Composition works (`++` operator)
+- [x] All core types compile ✅
+- [x] Basic migrations work (add/remove/rename fields) ✅
+- [x] Reversibility works ✅
+- [x] Composition works (`++` operator) ✅
+
+**Commit:** 6175e1b1 - "feat: add core migration types"
 
 ### Stage 2: MigrationBuilder DSL (Status: Not Started)
 **Goal:** Implement type-safe builder with macros

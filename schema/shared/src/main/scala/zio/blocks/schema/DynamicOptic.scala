@@ -12,6 +12,12 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def field(name: String): DynamicOptic = new DynamicOptic(nodes :+ Node.Field(name))
 
+  // Convenience operator for field access
+  def /(name: String): DynamicOptic = field(name)
+
+  // Convenience operator for index access
+  def /(index: Int): DynamicOptic = at(index)
+
   def caseOf(name: String): DynamicOptic = new DynamicOptic(nodes :+ Node.Case(name))
 
   def at(index: Int): DynamicOptic = new DynamicOptic(nodes :+ Node.AtIndex(index))

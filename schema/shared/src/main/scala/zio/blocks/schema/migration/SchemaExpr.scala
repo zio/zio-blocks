@@ -136,15 +136,18 @@ object SchemaExpr {
 
   // Helper constructors
   def literal(value: DynamicValue): SchemaExpr = Literal(value)
-  
-  def literalString(s: String): SchemaExpr = 
+
+  def literalString(s: String): SchemaExpr =
     Literal(DynamicValue.Primitive(PrimitiveValue.String(s)))
-  
-  def literalInt(i: Int): SchemaExpr = 
+
+  def literalInt(i: Int): SchemaExpr =
     Literal(DynamicValue.Primitive(PrimitiveValue.Int(i)))
-  
+
+  def literalBool(b: scala.Boolean): SchemaExpr =
+    Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(b)))
+
   def getField(path: DynamicOptic): SchemaExpr = GetField(path)
-  
+
   def concat(parts: SchemaExpr*): SchemaExpr = Concat(parts.toVector)
 }
 
