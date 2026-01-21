@@ -298,7 +298,7 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-bson"     % "1.0.5" exclude("dev.zio", "zio-schema_3"),
+      "dev.zio" %% "zio-bson"     % "1.0.5" exclude ("dev.zio", "zio-schema_3"),
       "dev.zio" %% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
     )
