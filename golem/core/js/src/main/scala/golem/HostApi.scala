@@ -1,6 +1,7 @@
 package golem
 
 import golem.runtime.rpc.host.AgentHostApi
+import golem.Uuid
 
 import zio.blocks.schema.Schema
 import zio.blocks.schema.json.{JsonBinaryCodec, JsonBinaryCodecDeriver}
@@ -101,6 +102,201 @@ object HostApi {
   def setIdempotenceMode(flag: Boolean): Unit =
     AgentHostApi.setIdempotenceMode(flag)
 
+  // ----- Agent management / registry ------------------------------------------------------
+
+  type ComponentVersion      = AgentHostApi.ComponentVersion
+  type ComponentIdLiteral    = AgentHostApi.ComponentIdLiteral
+  type AgentIdLiteral        = AgentHostApi.AgentIdLiteral
+  type AgentMetadata         = AgentHostApi.AgentMetadata
+  type AgentStatus           = AgentHostApi.AgentStatus
+  type UpdateMode            = AgentHostApi.UpdateMode
+  type RevertAgentTarget      = AgentHostApi.RevertAgentTarget
+  type RegisteredAgentType   = AgentHostApi.RegisteredAgentType
+  type AgentTypeDescriptor   = AgentHostApi.AgentTypeDescriptor
+  type FilterComparator      = AgentHostApi.FilterComparator
+  type StringFilterComparator = AgentHostApi.StringFilterComparator
+  type AgentPropertyFilter   = AgentHostApi.AgentPropertyFilter
+  type AgentNameFilter       = AgentHostApi.AgentNameFilter
+  type AgentStatusFilter     = AgentHostApi.AgentStatusFilter
+  type AgentVersionFilter    = AgentHostApi.AgentVersionFilter
+  type AgentCreatedAtFilter  = AgentHostApi.AgentCreatedAtFilter
+  type AgentEnvFilter        = AgentHostApi.AgentEnvFilter
+  type AgentConfigVarsFilter = AgentHostApi.AgentConfigVarsFilter
+  type AgentAllFilter        = AgentHostApi.AgentAllFilter
+  type AgentAnyFilter        = AgentHostApi.AgentAnyFilter
+  type ForkResult            = AgentHostApi.ForkResult
+  type ForkResultTag         = AgentHostApi.ForkResultTag
+  type ForkResultTagged      = AgentHostApi.ForkResultTagged
+  type GetAgentsHandle       = AgentHostApi.GetAgentsHandle
+  type GetPromiseResultHandle = AgentHostApi.GetPromiseResultHandle
+  type PromiseResult         = AgentHostApi.PromiseResult
+  type Pollable              = AgentHostApi.Pollable
+  type UuidLiteral           = AgentHostApi.UuidLiteral
+  type AgentIdParts          = AgentHostApi.AgentIdParts
+
+  def registeredAgentType(typeName: String): Option[RegisteredAgentType] =
+    AgentHostApi.registeredAgentType(typeName)
+
+  def getAllAgentTypes(): List[RegisteredAgentType] =
+    AgentHostApi.getAllAgentTypes()
+
+  def makeAgentId(agentTypeName: String, payload: js.Dynamic, phantom: Option[Uuid]): Either[String, String] =
+    AgentHostApi.makeAgentId(agentTypeName, payload, phantom)
+
+  def parseAgentId(agentId: String): Either[String, AgentIdParts] =
+    AgentHostApi.parseAgentId(agentId)
+
+  def resolveComponentId(componentReference: String): Option[ComponentIdLiteral] =
+    AgentHostApi.resolveComponentId(componentReference)
+
+  def resolveAgentId(componentReference: String, agentName: String): Option[AgentIdLiteral] =
+    AgentHostApi.resolveAgentId(componentReference, agentName)
+
+  def resolveAgentIdStrict(componentReference: String, agentName: String): Option[AgentIdLiteral] =
+    AgentHostApi.resolveAgentIdStrict(componentReference, agentName)
+
+  def getSelfMetadata(): AgentMetadata =
+    AgentHostApi.getSelfMetadata()
+
+  def getAgentMetadata(agentId: AgentIdLiteral): Option[AgentMetadata] =
+    AgentHostApi.getAgentMetadata(agentId)
+
+  def getAgents(componentId: ComponentIdLiteral, filter: Option[AgentAnyFilter], precise: Boolean): GetAgentsHandle =
+    AgentHostApi.getAgents(componentId, filter, precise)
+
+  def nextAgentBatch(handle: GetAgentsHandle): Option[List[AgentMetadata]] =
+    AgentHostApi.nextAgentBatch(handle)
+
+  def generateIdempotencyKey(): Uuid =
+    fromUuidLiteral(AgentHostApi.generateIdempotencyKey())
+
+  def updateAgent(agentId: AgentIdLiteral, targetVersion: BigInt, mode: UpdateMode): Unit =
+    AgentHostApi.updateAgent(agentId, toJsBigInt(targetVersion), mode)
+
+  def updateAgentRaw(agentId: AgentIdLiteral, targetVersion: ComponentVersion, mode: UpdateMode): Unit =
+    AgentHostApi.updateAgent(agentId, targetVersion, mode)
+
+  def forkAgent(sourceAgentId: AgentIdLiteral, targetAgentId: AgentIdLiteral, cutOff: OplogIndex): Unit =
+    AgentHostApi.forkAgent(sourceAgentId, targetAgentId, toJsBigInt(cutOff))
+
+  def revertAgent(agentId: AgentIdLiteral, target: RevertAgentTarget): Unit =
+    AgentHostApi.revertAgent(agentId, target)
+
+  def fork(): ForkResult =
+    AgentHostApi.fork()
+
+  object AgentStatus {
+    val Running: AgentStatus     = AgentHostApi.AgentStatus.Running
+    val Idle: AgentStatus        = AgentHostApi.AgentStatus.Idle
+    val Suspended: AgentStatus   = AgentHostApi.AgentStatus.Suspended
+    val Interrupted: AgentStatus = AgentHostApi.AgentStatus.Interrupted
+    val Retrying: AgentStatus    = AgentHostApi.AgentStatus.Retrying
+    val Failed: AgentStatus      = AgentHostApi.AgentStatus.Failed
+    val Exited: AgentStatus      = AgentHostApi.AgentStatus.Exited
+  }
+
+  object UpdateMode {
+    val Automatic: UpdateMode    = AgentHostApi.UpdateMode.Automatic
+    val SnapshotBased: UpdateMode = AgentHostApi.UpdateMode.SnapshotBased
+  }
+
+  object FilterComparator {
+    val Equal: FilterComparator        = AgentHostApi.FilterComparator.Equal
+    val NotEqual: FilterComparator     = AgentHostApi.FilterComparator.NotEqual
+    val GreaterEqual: FilterComparator = AgentHostApi.FilterComparator.GreaterEqual
+    val Greater: FilterComparator      = AgentHostApi.FilterComparator.Greater
+    val LessEqual: FilterComparator    = AgentHostApi.FilterComparator.LessEqual
+    val Less: FilterComparator         = AgentHostApi.FilterComparator.Less
+  }
+
+  object StringFilterComparator {
+    val Equal: StringFilterComparator      = AgentHostApi.StringFilterComparator.Equal
+    val NotEqual: StringFilterComparator   = AgentHostApi.StringFilterComparator.NotEqual
+    val Like: StringFilterComparator       = AgentHostApi.StringFilterComparator.Like
+    val NotLike: StringFilterComparator    = AgentHostApi.StringFilterComparator.NotLike
+    val StartsWith: StringFilterComparator = AgentHostApi.StringFilterComparator.StartsWith
+  }
+
+  object AgentNameFilter {
+    def apply(comparator: StringFilterComparator, value: String): AgentNameFilter =
+      AgentHostApi.AgentNameFilter(comparator, value)
+  }
+
+  object AgentStatusFilter {
+    def apply(comparator: FilterComparator, value: AgentStatus): AgentStatusFilter =
+      AgentHostApi.AgentStatusFilter(comparator, value)
+  }
+
+  object AgentVersionFilter {
+    def apply(comparator: FilterComparator, value: BigInt): AgentVersionFilter =
+      AgentHostApi.AgentVersionFilter(comparator, toJsBigInt(value))
+  }
+
+  object AgentCreatedAtFilter {
+    def apply(comparator: FilterComparator, value: BigInt): AgentCreatedAtFilter =
+      AgentHostApi.AgentCreatedAtFilter(comparator, toJsBigInt(value))
+  }
+
+  object AgentEnvFilter {
+    def apply(name: String, comparator: StringFilterComparator, value: String): AgentEnvFilter =
+      AgentHostApi.AgentEnvFilter(name, comparator, value)
+  }
+
+  object AgentConfigVarsFilter {
+    def apply(name: String, comparator: StringFilterComparator, value: String): AgentConfigVarsFilter =
+      AgentHostApi.AgentConfigVarsFilter(name, comparator, value)
+  }
+
+  object AgentPropertyFilter {
+    def name(filter: AgentNameFilter): AgentPropertyFilter =
+      AgentHostApi.AgentPropertyFilter.name(filter)
+    def status(filter: AgentStatusFilter): AgentPropertyFilter =
+      AgentHostApi.AgentPropertyFilter.status(filter)
+    def version(filter: AgentVersionFilter): AgentPropertyFilter =
+      AgentHostApi.AgentPropertyFilter.version(filter)
+    def createdAt(filter: AgentCreatedAtFilter): AgentPropertyFilter =
+      AgentHostApi.AgentPropertyFilter.createdAt(filter)
+    def env(filter: AgentEnvFilter): AgentPropertyFilter =
+      AgentHostApi.AgentPropertyFilter.env(filter)
+    def wasiConfigVars(filter: AgentConfigVarsFilter): AgentPropertyFilter =
+      AgentHostApi.AgentPropertyFilter.wasiConfigVars(filter)
+  }
+
+  object AgentAllFilter {
+    def apply(filters: List[AgentPropertyFilter]): AgentAllFilter =
+      AgentHostApi.AgentAllFilter(filters)
+  }
+
+  object AgentAnyFilter {
+    def apply(filters: List[AgentAllFilter]): AgentAnyFilter =
+      AgentHostApi.AgentAnyFilter(filters)
+  }
+
+  object RevertAgentTarget {
+    def ToLastSnapshot: RevertAgentTarget =
+      AgentHostApi.RevertAgentTarget.ToLastSnapshot
+    def ToVersion(version: BigInt): RevertAgentTarget =
+      AgentHostApi.RevertAgentTarget.ToVersion(toJsBigInt(version))
+    def ToOplogIndex(index: OplogIndex): RevertAgentTarget =
+      AgentHostApi.RevertAgentTarget.ToOplogIndex(toJsBigInt(index))
+  }
+
+  object ForkResultTag {
+    def apply(result: ForkResult): ForkResultTag =
+      AgentHostApi.ForkResultTag(result)
+  }
+
+  object ForkResultTagged {
+    def asTagged(result: ForkResult): ForkResultTagged =
+      AgentHostApi.ForkResultTagged.asTagged(result)
+    def outdated(oplogIdx: OplogIndex, retryAfterMs: BigInt, outdatedSince: BigInt): ForkResultTagged =
+      AgentHostApi.ForkResultTagged.outdated(
+        toJsBigInt(oplogIdx),
+        toJsBigInt(retryAfterMs),
+        toJsBigInt(outdatedSince)
+      )
+  }
+
   // ----- Promises --------------------------------------------------------------------------
 
   type PromiseId = AgentHostApi.PromiseIdLiteral
@@ -193,6 +389,12 @@ object HostApi {
 
   private def fromJsBigInt(value: js.BigInt): BigInt =
     BigInt(value.toString)
+
+  private def fromUuidLiteral(uuid: UuidLiteral): Uuid =
+    Uuid(
+      highBits = BigInt(uuid.highBits.toString),
+      lowBits = BigInt(uuid.lowBits.toString)
+    )
 
   private def awaitPromiseImpl(promiseId: PromiseId, initialDelayMs: Int): Future[Uint8Array] = {
     val p        = Promise[Uint8Array]()
