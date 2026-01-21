@@ -28,7 +28,7 @@ object MigrationAction {
   ) extends MigrationAction {
     def reverse: MigrationAction = {
       // Logic for reverse rename requires finding the parent and renaming 'to' back to 'leaf name of at'.
-      // This is dynamic. 
+      // This is dynamic.
       // But typically Rename(from, to) implies 'at' points to valid path.
       // If 'at' ends in field 'A', we rename to 'B'.
       // Reverse is at '.../B' rename to 'A'.
@@ -42,7 +42,7 @@ object MigrationAction {
       else {
         import zio.blocks.schema.DynamicOptic.Node
         nodes.last match {
-          case Node.Field(name) => 
+          case Node.Field(name) =>
             val newNodes = nodes.init :+ Node.Field(to)
             Rename(new DynamicOptic(newNodes), name)
           case _ => this // Rename only makes sense on Fields (or Cases)
@@ -55,7 +55,7 @@ object MigrationAction {
     at: DynamicOptic,
     transform: SchemaExpr[_, _]
   ) extends MigrationAction {
-    def reverse: MigrationAction = {
+    def reverse: MigrationAction =
       // TransformValue requires an inverse transform?
       // Issue says "Best-Effort Semantic Inverse... m.apply(a) == Right(b) => m.reverse.apply(b) == Right(a)"
       // But we only store 'transform'.
@@ -77,13 +77,13 @@ object MigrationAction {
       // If I return 'this', then apply(b) would run the same transform, which is wrong.
       // Maybe for now I'll leave it as identity or specific Error, or assume the user API handles this?
       // "In this design: ... implementations ... (invertibility)".
-      // Ah, maybe the Action needs to hold both? 
+      // Ah, maybe the Action needs to hold both?
       // But the case class definition in pure data doesn't have it.
-      // Maybe I should add it? 
+      // Maybe I should add it?
       // "case class TransformValue(at: DynamicOptic, transform: SchemaExpr[?])"
       // It matches the issue.
       // Maybe the "Pure" reverse isn't possible for arbitrary expression?
-      // But `DynamicMigration` needs `reverse`. 
+      // But `DynamicMigration` needs `reverse`.
       // I'll add `inverse: SchemaExpr[_, _]` to the case class?
       // The issue description lists `TransformValue` WITHOUT inverse.
       // But it lists `DynamicMigration.reverse`.
@@ -111,7 +111,6 @@ object MigrationAction {
       // I'll stick to the issue spec strictly first. If strict adherence makes it impossible, I'll modify.
       // "case class TransformValue(at: DynamicOptic, transform: SchemaExpr[?])"
       // I'll implement `reverse` as `TransformValue(at, transform)` for now and comment.
-    }
   }
 
   final case class Mandate(
@@ -124,21 +123,22 @@ object MigrationAction {
   final case class Optionalize(
     at: DynamicOptic
   ) extends MigrationAction {
-     // Optionalize reverse should be Mandate.
-     // But Mandate requires a `default`.
-     // Where do we get the default? 
-     // Issue says: "case class DropField(..., defaultForReverse: ...)"
-     // For Optionalize, reverse is Mandate.
-     // "Constraints... SchemaExpr.DefaultValue... is stored for reverse migrations"
-     // So Optionalize should probably store the default mechanism?
-     // But the case class in issue is `Optionalize(at: DynamicOptic)`.
-     // Maybe it implies we don't know the default, so reverse will fail if value is missing?
-     // Or `Mandate` with a special "Fail if missing" default?
-     // Or maybe pure reverse doesn't guarantee success (Best effort).
-     // I'll use `Mandate(at, SchemaExpr.Literal(null/None, ...))` or similar?
-     // I'll leave it as `Mandate` with a "No Default" marker if possible, or `SchemaExpr` of some sort.
-     // I'll use `SchemaExpr` placeholder for now.
-    def reverse: MigrationAction = Mandate(at, zio.blocks.schema.SchemaExpr.Literal((), zio.blocks.schema.Schema.unit)) // Dummy
+    // Optionalize reverse should be Mandate.
+    // But Mandate requires a `default`.
+    // Where do we get the default?
+    // Issue says: "case class DropField(..., defaultForReverse: ...)"
+    // For Optionalize, reverse is Mandate.
+    // "Constraints... SchemaExpr.DefaultValue... is stored for reverse migrations"
+    // So Optionalize should probably store the default mechanism?
+    // But the case class in issue is `Optionalize(at: DynamicOptic)`.
+    // Maybe it implies we don't know the default, so reverse will fail if value is missing?
+    // Or `Mandate` with a special "Fail if missing" default?
+    // Or maybe pure reverse doesn't guarantee success (Best effort).
+    // I'll use `Mandate(at, SchemaExpr.Literal(null/None, ...))` or similar?
+    // I'll leave it as `Mandate` with a "No Default" marker if possible, or `SchemaExpr` of some sort.
+    // I'll use `SchemaExpr` placeholder for now.
+    def reverse: MigrationAction =
+      Mandate(at, zio.blocks.schema.SchemaExpr.Literal((), zio.blocks.schema.Schema.unit)) // Dummy
   }
 
   final case class Join(
@@ -146,12 +146,12 @@ object MigrationAction {
     sourcePaths: Vector[DynamicOptic],
     combiner: SchemaExpr[_, _]
   ) extends MigrationAction {
-     // Reverse of Join is Split?
-     // Join combines many paths into one `at`.
-     // Split takes `at` and splits into many paths.
-     // We need `splitter` which is `SchemaExpr`.
-     // Again, we lack the inverse expression.
-     def reverse: MigrationAction = Split(at, sourcePaths, combiner) // Placeholder
+    // Reverse of Join is Split?
+    // Join combines many paths into one `at`.
+    // Split takes `at` and splits into many paths.
+    // We need `splitter` which is `SchemaExpr`.
+    // Again, we lack the inverse expression.
+    def reverse: MigrationAction = Split(at, sourcePaths, combiner) // Placeholder
   }
 
   final case class Split(

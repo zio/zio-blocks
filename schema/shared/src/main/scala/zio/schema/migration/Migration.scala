@@ -7,6 +7,7 @@ final case class Migration[A, B](
   sourceSchema: Schema[A],
   targetSchema: Schema[B]
 ) {
+
   /** Apply migration to transform A to B */
   def apply(value: A): Either[MigrationError, B] = {
     // 1. A -> DynamicValue
@@ -38,14 +39,14 @@ final case class Migration[A, B](
       targetSchema,
       sourceSchema
     )
-    
+
   def assertValid: Either[String, Unit] = Right(()) // Placeholder for full validation
 }
 
 object Migration {
   def newBuilder[A, B](implicit schemaA: Schema[A], schemaB: Schema[B]): MigrationBuilder[A, B] =
     new MigrationBuilder(schemaA, schemaB, Vector.empty)
-    
+
   def identity[A](implicit schema: Schema[A]): Migration[A, A] =
     Migration(DynamicMigration(Vector.empty), schema, schema)
 }
