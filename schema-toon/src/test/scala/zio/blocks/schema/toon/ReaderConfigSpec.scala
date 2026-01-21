@@ -23,9 +23,7 @@ object ReaderConfigSpec extends SchemaBaseSpec {
       assert(ReaderConfig.withDiscriminatorField(Some("type")).discriminatorField)(isSome(equalTo("type")))
     },
     test("throw exception in case for unsupported values of params") {
-      assert(Try(ReaderConfig.withIndent(-1)).toEither)(
-        isLeft(hasError("'indent' should be not less than 0"))
-      )
+      assert(Try(ReaderConfig.withIndent(-1)).toEither)(isLeft(hasError("'indent' should be not less than 0")))
     }
   )
 }
