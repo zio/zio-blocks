@@ -91,7 +91,6 @@ object TypeIdMacros {
         val aliasName      = sym.name.decodedName.toString
         val ownerExpr      = buildOwner(c)(sym.owner)
         val typeParamsExpr = buildTypeParams(c)(sym)
-        val defKindExpr    = buildDefKind(c)(sym)
 
         // Get the aliased (underlying) type
         val aliasedType = tpe.dealias
@@ -103,8 +102,7 @@ object TypeIdMacros {
               $aliasName,
               $ownerExpr,
               $typeParamsExpr,
-              $aliasedExpr,
-              $defKindExpr
+              $aliasedExpr
             )
           """
         )

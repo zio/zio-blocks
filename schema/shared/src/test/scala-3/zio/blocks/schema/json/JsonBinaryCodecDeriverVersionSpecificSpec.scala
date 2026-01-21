@@ -72,11 +72,11 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
 
         implicit val schema: Schema[Value] = Schema.derived
 
-        roundTrip[Value](1, """{"Int":1}""") &&
-        roundTrip[Value](true, """{"Boolean":true}""") &&
-        roundTrip[Value]("VVV", """{"String":"VVV"}""") &&
-        roundTrip[Value]((1, true), """{"Tuple2":[1,true]}""") &&
-        roundTrip[Value](List(1, 2, 3), """{"collection.immutable.List":[1,2,3]}""") &&
+        roundTrip[Value](1, """{"scala.Int":1}""") &&
+        roundTrip[Value](true, """{"scala.Boolean":true}""") &&
+        roundTrip[Value]("VVV", """{"java.lang.String":"VVV"}""") &&
+        roundTrip[Value]((1, true), """{"scala.Tuple2":[1,true]}""") &&
+        roundTrip[Value](List(1, 2, 3), """{"scala.collection.immutable.List":[1,2,3]}""") &&
         roundTrip[Value]((), """{"Unit":{}}""")
       },
       test("union type without discriminator") {

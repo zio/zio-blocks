@@ -3,6 +3,7 @@ package zio.blocks.schema
 import neotype._
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.JsonTestUtils._
+import zio.blocks.typeid.{Owner, TypeId}
 import zio.test.Assertion._
 import zio.test._
 
@@ -22,21 +23,19 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
-        equalTo(TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name"))
+      assert(Planet.name.focus.typeId)(
+        equalTo(TypeId.nominal[Name]("Name", Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec")))
       ) &&
-      assert(Planet.mass.focus.typeName)(
-        equalTo(TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram"))
-      ) &&
-      assert(Planet.radius.focus.typeName)(
-        equalTo(TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter"))
-      ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
+      assert(Planet.mass.focus.typeId)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
+          TypeId.nominal[Kilogram]("Kilogram", Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec"))
         )
+      ) &&
+      assert(Planet.radius.focus.typeId)(
+        equalTo(TypeId.nominal[Meter]("Meter", Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec")))
+      ) &&
+      assert(Planet.distanceFromSun.focus.typeId)(
+        equalTo(TypeId.derived[Option[Meter]])
       ) &&
       roundTrip[Planet](value, """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""") &&
       decodeError[Planet](
@@ -85,33 +84,17 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-          )
-        )
+      assert(schema1.reflect.typeId)(
+        equalTo(TypeId.derived[Option[Name]])
       ) &&
-      assert(schema2.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
-          )
-        )
+      assert(schema2.reflect.typeId)(
+        equalTo(TypeId.derived[Option[Kilogram]])
       ) &&
-      assert(schema3.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
-        )
+      assert(schema3.reflect.typeId)(
+        equalTo(TypeId.derived[Option[Meter]])
       ) &&
-      assert(schema4.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId")
-          )
-        )
+      assert(schema4.reflect.typeId)(
+        equalTo(TypeId.derived[Option[EmojiDataId]])
       )
     },
     test("derive schemas for collections with newtypes and subtypes") {
@@ -127,34 +110,17 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
-        equalTo(
-          TypeName.list(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-          )
-        )
+      assert(schema1.reflect.typeId)(
+        equalTo(TypeId.derived[List[Name]])
       ) &&
-      assert(schema2.reflect.typeName)(
-        equalTo(
-          TypeName.vector(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
-          )
-        )
+      assert(schema2.reflect.typeId)(
+        equalTo(TypeId.derived[Vector[Kilogram]])
       ) &&
-      assert(schema3.reflect.typeName)(
-        equalTo(
-          TypeName.set(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
-        )
+      assert(schema3.reflect.typeId)(
+        equalTo(TypeId.derived[Set[Meter]])
       ) &&
-      assert(schema4.reflect.typeName)(
-        equalTo(
-          TypeName.map(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId"),
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-          )
-        )
+      assert(schema4.reflect.typeId)(
+        equalTo(TypeId.derived[Map[EmojiDataId, Name]])
       )
     },
     test("derive schemas for cases classes and collections with newtypes for primitives") {

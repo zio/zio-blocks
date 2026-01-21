@@ -118,7 +118,7 @@ object TypeIdMacros {
         ${ ownerExpr },
         ${ typeParamsExpr },
         ${ aliasedExpr },
-        Nil  // annotations
+        Nil // annotations
       )
     }
   }
@@ -166,12 +166,13 @@ object TypeIdMacros {
   private def searchOrDerive[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
     import quotes.reflect.*
 
-    // Check if this is a user-defined type alias first
     val currentTpe = TypeRepr.of[A]
     currentTpe match {
+      // Opaque types must be derived directly - implicit search finds the underlying type's TypeId due to subtyping
+      case tr: TypeRef if tr.typeSymbol.flags.is(Flags.Opaque) =>
+        deriveNew[A]
       case tr: TypeRef if tr.typeSymbol.isAliasType =>
         if (isUserDefinedAlias(tr)) {
-          // This is a user-defined type alias - derive it directly without searching for implicits
           deriveNew[A]
         } else {
           searchForImplicits[A]
@@ -256,7 +257,7 @@ object TypeIdMacros {
         ${ ownerExpr },
         ${ typeParamsExpr },
         ${ aliasedExpr },
-        Nil  // annotations
+        Nil // annotations
       )
     }
   }
@@ -287,10 +288,10 @@ object TypeIdMacros {
     val defKindExpr = buildDefKind(typeSymbol)
 
     if (flags.is(Flags.Opaque)) {
-      val reprExpr = extractOpaqueRepresentation(tpe, typeSymbol)
+      val reprExpr     = extractOpaqueRepresentation(tpe, typeSymbol)
       val publicBounds = defKindExpr match {
         case '{ TypeDefKind.OpaqueType($bounds) } => bounds
-        case _ => '{ zio.blocks.typeid.TypeBounds.Unbounded }
+        case _                                    => '{ zio.blocks.typeid.TypeBounds.Unbounded }
       }
       '{
         TypeId.opaque[A](
@@ -299,7 +300,7 @@ object TypeIdMacros {
           ${ typeParamsExpr },
           ${ reprExpr },
           ${ publicBounds },
-          Nil  // annotations
+          Nil // annotations
         )
       }
     } else {
@@ -311,8 +312,8 @@ object TypeIdMacros {
           ${ typeParamsExpr },
           ${ defKindExpr },
           ${ parentsExpr },
-          None,  // selfType
-          Nil    // annotations
+          None, // selfType
+          Nil   // annotations
         )
       }
     }

@@ -395,9 +395,11 @@ class JsonBinaryCodecDeriver private[json] (
   type Map[_, _]
   type TC[_]
 
-  private[this] val recursiveRecordCache = new ThreadLocal[java.util.HashMap[zio.blocks.typeid.TypeId[?], Array[FieldInfo]]] {
-    override def initialValue: java.util.HashMap[zio.blocks.typeid.TypeId[?], Array[FieldInfo]] = new java.util.HashMap
-  }
+  private[this] val recursiveRecordCache =
+    new ThreadLocal[java.util.HashMap[zio.blocks.typeid.TypeId[?], Array[FieldInfo]]] {
+      override def initialValue: java.util.HashMap[zio.blocks.typeid.TypeId[?], Array[FieldInfo]] =
+        new java.util.HashMap
+    }
   private[this] val discriminatorFields = new ThreadLocal[List[DiscriminatorFieldInfo]] {
     override def initialValue: List[DiscriminatorFieldInfo] = Nil
   }

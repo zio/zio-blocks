@@ -43,11 +43,11 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         val ageId   = TypeId.derived[OpaqueTypes.Age]
 
         assertTrue(
-          emailId.opaqueRepresentation.exists {
+          emailId.representation.exists {
             case TypeRepr.Ref(typeId) => typeId.name == "String"
             case _                    => false
           },
-          ageId.opaqueRepresentation.exists {
+          ageId.representation.exists {
             case TypeRepr.Ref(typeId) => typeId.name == "Int"
             case _                    => false
           }
@@ -142,7 +142,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         val unionId = TypeId.derived[StringOrInt]
 
         assertTrue(
-          unionId.aliasedType.exists {
+          unionId.aliasedTo.exists {
             case TypeRepr.Union(types) =>
               types.length == 2 &&
               types.exists {
@@ -164,7 +164,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         val intersectionId = TypeId.derived[AAndB]
 
         assertTrue(
-          intersectionId.aliasedType.exists {
+          intersectionId.aliasedTo.exists {
             case TypeRepr.Intersection(types) =>
               types.length == 2 &&
               types.exists {
@@ -257,12 +257,12 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         )
       },
       test("union types with same members in different order are equal") {
-        val union1 = TypeId.derived[Int | String] 
+        val union1 = TypeId.derived[Int | String]
         val union2 = TypeId.derived[String | Int]
 
         assertTrue(
           union1 == union2,
-          union1.hashCode() == union2.hashCode(),
+          union1.hashCode() == union2.hashCode()
         )
       },
       test("intersection types with same members in different order are equal") {
@@ -284,6 +284,55 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         assertTrue(
           intersection1 == intersection2,
           intersection1.hashCode() == intersection2.hashCode()
+        )
+      },
+      test("union toString preserves declaration order") {
+        type StringOrInt = String | Int
+        type IntOrString = Int | String
+        val stringOrInt = TypeId.derived[StringOrInt]
+        val intOrString = TypeId.derived[IntOrString]
+
+        // The TypeIds are different (different names: StringOrInt vs IntOrString)
+        assertTrue(stringOrInt != intOrString)
+
+        // But their aliasedTo Union types should be equal (order-independent)
+        val union1 = stringOrInt.aliasedTo.get
+        val union2 = intOrString.aliasedTo.get
+
+        assertTrue(
+          union1 == union2, // Unions are order-independent
+          union1.toString.contains("String") && union1.toString.contains("Int"),
+          union2.toString.contains("Int") && union2.toString.contains("String")
+        )
+      },
+      test("intersection toString preserves declaration order") {
+        trait L
+        trait M
+
+        val intersection1 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(TypeId.derived[L]),
+            TypeRepr.Ref(TypeId.derived[M])
+          )
+        )
+        val intersection2 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(TypeId.derived[M]),
+            TypeRepr.Ref(TypeId.derived[L])
+          )
+        )
+
+        // Intersections are order-independent in equality
+        assertTrue(intersection1 == intersection2)
+
+        // But toString preserves the original declaration order
+        val repr1 = intersection1.toString
+        val repr2 = intersection2.toString
+
+        assertTrue(
+          repr1.contains("L") && repr1.contains("M"),
+          repr2.contains("M") && repr2.contains("L"),
+          intersection1 == intersection2
         )
       }
     ),
@@ -325,7 +374,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
 
         // The representation can be accessed to know the underlying type
         assertTrue(
-          emailId.opaqueRepresentation.exists {
+          emailId.representation.exists {
             case TypeRepr.Ref(id) => id.name == "String"
             case _                => false
           }
@@ -338,7 +387,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
 
         assertTrue(
           ctxFuncId.isAlias,
-          ctxFuncId.aliasedType.exists {
+          ctxFuncId.aliasedTo.exists {
             case TypeRepr.ContextFunction(params, result) =>
               params.length == 1 &&
               (params.head match {

@@ -133,6 +133,72 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def isZioPreludeNewtype(tpe: TypeRepr): Boolean = CommonMacroOps.isZioPreludeNewtype(tpe)
 
+  private def buildTypeIdForZioPreludeNewtype[T: Type](tpe: TypeRepr)(using Quotes): Expr[zio.blocks.typeid.TypeId[T]] =
+    tpe match {
+      case TypeRef(compTpe, "Type") =>
+        val companionSym = compTpe.typeSymbol
+        val newtypeName  = companionSym.name.stripSuffix("$")
+        val ownerExpr    = buildOwner(companionSym.owner)
+        '{ zio.blocks.typeid.TypeId.nominal[T](${ Expr(newtypeName) }, $ownerExpr) }
+      case _ =>
+        fail(s"Cannot build TypeId for zio-prelude newtype: ${tpe.show}. Expected TypeRef(compTpe, \"Type\").")
+    }
+
+  private def isNeotypeNewtype(tpe: TypeRepr): Boolean = tpe match {
+    case TypeRef(compTpe, "Type") =>
+      compTpe.baseClasses.exists { cls =>
+        val fn = cls.fullName
+        fn == "neotype.Newtype" || fn == "neotype.Subtype"
+      }
+    case _ => false
+  }
+
+  private def neotypeNewtypeDealias(tpe: TypeRepr): TypeRepr = tpe match {
+    case TypeRef(compTpe, _) =>
+      compTpe.baseClasses.find { cls =>
+        val fn = cls.fullName
+        fn == "neotype.Newtype" || fn == "neotype.Subtype"
+      } match {
+        case Some(cls) =>
+          val bt = compTpe.baseType(cls)
+          bt.typeArgs.headOption.map(_.dealias).getOrElse(cannotDealiasNeotypeNewtype(tpe))
+        case _ => cannotDealiasNeotypeNewtype(tpe)
+      }
+    case _ => cannotDealiasNeotypeNewtype(tpe)
+  }
+
+  private def cannotDealiasNeotypeNewtype(tpe: TypeRepr): Nothing =
+    fail(s"Cannot dealias neotype newtype: ${tpe.show}.")
+
+  private def buildTypeIdForNeotypeNewtype[T: Type](tpe: TypeRepr)(using Quotes): Expr[zio.blocks.typeid.TypeId[T]] =
+    tpe match {
+      case TypeRef(compTpe, "Type") =>
+        val companionSym = compTpe.typeSymbol
+        val newtypeName  = companionSym.name.stripSuffix("$")
+        val ownerExpr    = buildOwner(companionSym.owner)
+        '{ zio.blocks.typeid.TypeId.nominal[T](${ Expr(newtypeName) }, $ownerExpr) }
+      case _ =>
+        fail(s"Cannot build TypeId for neotype newtype: ${tpe.show}. Expected TypeRef(compTpe, \"Type\").")
+    }
+
+  private def buildOwner(sym: Symbol)(using Quotes): Expr[zio.blocks.typeid.Owner] = {
+    def loop(s: Symbol, acc: List[Expr[zio.blocks.typeid.Owner.Segment]]): List[Expr[zio.blocks.typeid.Owner.Segment]] =
+      if (s.isNoSymbol || s == defn.RootPackage || s == defn.RootClass || s == defn.EmptyPackageClass) {
+        acc
+      } else if (s.isPackageDef) {
+        loop(s.owner, '{ zio.blocks.typeid.Owner.Package(${ Expr(s.name) }) } :: acc)
+      } else if (s.isClassDef && s.flags.is(Flags.Module)) {
+        loop(s.owner, '{ zio.blocks.typeid.Owner.Term(${ Expr(s.name.stripSuffix("$")) }) } :: acc)
+      } else if (s.isClassDef) {
+        loop(s.owner, '{ zio.blocks.typeid.Owner.Type(${ Expr(s.name) }) } :: acc)
+      } else {
+        loop(s.owner, acc)
+      }
+
+    val segments = loop(sym, Nil)
+    '{ zio.blocks.typeid.Owner(${ Expr.ofList(segments) }) }
+  }
+
   private def zioPreludeNewtypeDealias(tpe: TypeRepr): TypeRepr = CommonMacroOps.zioPreludeNewtypeDealias(tpe)
 
   private def isTypeRef(tpe: TypeRepr): Boolean = CommonMacroOps.isTypeRef(tpe)
@@ -205,17 +271,63 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             isNonRecursive(opaqueDealias(tpe), nestedTpes_)
           } else if (isZioPreludeNewtype(tpe)) {
             isNonRecursive(zioPreludeNewtypeDealias(tpe), nestedTpes_)
+          } else if (isNeotypeNewtype(tpe)) {
+            isNonRecursive(neotypeNewtypeDealias(tpe), nestedTpes_)
           } else if (isTypeRef(tpe)) {
             isNonRecursive(typeRefDealias(tpe), nestedTpes_)
           } else false
         }
     )
 
-  private val typeNameCache = new mutable.HashMap[TypeRepr, TypeName[?]]
+  private val fullTermNameCache = new mutable.HashMap[TypeRepr, Array[String]]
 
-  private def typeName[T: Type](tpe: TypeRepr): TypeName[T] = CommonMacroOps.typeName(typeNameCache, tpe)
+  private def toFullTermName(tpe: TypeRepr): Array[String] = {
+    def calculate(tpe: TypeRepr): Array[String] =
+      if (tpe =:= TypeRepr.of[java.lang.String]) Array("java", "lang", "String")
+      else {
+        var packages: List[String] = Nil
+        var values: List[String]   = Nil
+        var name: String           = null
+        val isUnionTpe             = isUnion(tpe)
+        if (isUnionTpe) name = "|"
+        else {
+          val tpeTypeSymbol = tpe.typeSymbol
+          name = tpeTypeSymbol.name
+          if (isEnumValue(tpe)) {
+            values = name :: values
+            name = tpe.termSymbol.name
+          } else if (tpeTypeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
+          var owner = tpeTypeSymbol.owner
+          while (owner != defn.RootClass) {
+            val ownerName = owner.name
+            if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
+            else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
+            else values = ownerName :: values
+            owner = owner.owner
+          }
+        }
+        val result = new Array[String](packages.size + values.size + 1)
+        var idx    = 0
+        packages.foreach { p =>
+          result(idx) = p
+          idx += 1
+        }
+        values.foreach { v =>
+          result(idx) = v
+          idx += 1
+        }
+        result(idx) = name
+        result
+      }
 
-  private def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = CommonMacroOps.toExpr(tpeName)
+    fullTermNameCache.getOrElseUpdate(
+      tpe,
+      calculate(tpe match {
+        case TypeRef(compTpe, "Type") => compTpe
+        case _                        => tpe
+      })
+    )
+  }
 
   private def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
     if (isEnumValue(tpe)) tpe.termSymbol
@@ -784,7 +896,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
           val typeInfo =
             if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
             else new ClassInfo[tt](tTpe)
-          val fields  = typeInfo.fields[tt](Array.empty[String])
+          val fields = typeInfo.fields[tt](Array.empty[String])
           '{
             new Schema(
               reflect = new Reflect.Record[Binding, tt](
@@ -824,7 +936,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         else if (vTpe =:= charTpe) '{ Schema.optionChar }
         else if (vTpe =:= shortTpe) '{ Schema.optionShort }
         else if (vTpe =:= unitTpe) '{ Schema.optionUnit }
-        else if (vTpe <:< anyRefTpe && !isOpaque(vTpe) && !isZioPreludeNewtype(vTpe)) {
+        else if (vTpe <:< anyRefTpe && !isOpaque(vTpe) && !isZioPreludeNewtype(vTpe) && !isNeotypeNewtype(vTpe)) {
           vTpe.asType match {
             case '[vt] =>
               val schema = findImplicitOrDeriveSchema[vt & AnyRef](vTpe)
@@ -885,19 +997,32 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       }
     } else if (isNonAbstractScalaClass(tpe)) {
       deriveSchemaForNonAbstractScalaClass(tpe)
+    } else if (isZioPreludeNewtype(tpe)) {
+      val sTpe       = zioPreludeNewtypeDealias(tpe)
+      val newtypeIdT = buildTypeIdForZioPreludeNewtype[T](tpe)
+      sTpe.asType match {
+        case '[s] =>
+          val schema     = findImplicitOrDeriveSchema[s](sTpe)
+          val newtypeIdS = '{ $newtypeIdT.asInstanceOf[zio.blocks.typeid.TypeId[s]] }
+          '{ new Schema($schema.reflect.typeId($newtypeIdS)).asInstanceOf[Schema[T]] }
+      }
+    } else if (isNeotypeNewtype(tpe)) {
+      val sTpe       = neotypeNewtypeDealias(tpe)
+      val newtypeIdT = buildTypeIdForNeotypeNewtype[T](tpe)
+      sTpe.asType match {
+        case '[s] =>
+          val schema     = findImplicitOrDeriveSchema[s](sTpe)
+          val newtypeIdS = '{ $newtypeIdT.asInstanceOf[zio.blocks.typeid.TypeId[s]] }
+          '{ new Schema($schema.reflect.typeId($newtypeIdS)).asInstanceOf[Schema[T]] }
+      }
     } else if (isOpaque(tpe)) {
       val sTpe = opaqueDealias(tpe)
       sTpe.asType match {
         case '[s] =>
-          val schema = findImplicitOrDeriveSchema[s](sTpe)
-          '{ $schema.asInstanceOf[Schema[T]] }
-      }
-    } else if (isZioPreludeNewtype(tpe)) {
-      val sTpe = zioPreludeNewtypeDealias(tpe)
-      sTpe.asType match {
-        case '[s] =>
-          val schema = findImplicitOrDeriveSchema[s](sTpe)
-          '{ $schema.asInstanceOf[Schema[T]] }
+          val schema    = findImplicitOrDeriveSchema[s](sTpe)
+          val opaqueIdT = '{ zio.blocks.typeid.TypeId.derived[T] }
+          val opaqueIdS = '{ $opaqueIdT.asInstanceOf[zio.blocks.typeid.TypeId[s]] }
+          '{ new Schema($schema.reflect.typeId($opaqueIdS)).asInstanceOf[Schema[T]] }
       }
     } else if (isTypeRef(tpe)) {
       val sTpe = typeRefDealias(tpe)
@@ -905,7 +1030,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     } else cannotDeriveSchema(tpe)
   }.asInstanceOf[Expr[Schema[T]]]
 
-  private def deriveSchemaForEnumOrModuleValue[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
+  private def deriveSchemaForEnumOrModuleValue[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] =
     '{
       new Schema(
         reflect = new Reflect.Record[Binding, T](
@@ -925,7 +1050,6 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         )
       )
     }
-  }
 
   private def deriveSchemaForNonAbstractScalaClass[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
     val classInfo = new ClassInfo(tpe)
@@ -965,7 +1089,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       if (isUnion(tpe)) allUnionTypes(tpe)
       else directSubTypes(tpe)
     if (subtypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
-    val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
+    val fullTermNames         = subtypes.map(toFullTermName)
     val maxCommonPrefixLength = {
       val minFullTermName = fullTermNames.min
       val maxFullTermName = fullTermNames.max

@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.{Owner, TypeId}
 import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._
@@ -21,26 +22,24 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
+      assert(Planet.name.focus.typeId)(
         equalTo(
-          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
+          TypeId.nominal[Name]("Name", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
         )
       ) &&
-      assert(Planet.mass.focus.typeName)(
+      assert(Planet.mass.focus.typeId)(
         equalTo(
-          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
+          TypeId.nominal[Kilogram]("Kilogram", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
         )
       ) &&
-      assert(Planet.radius.focus.typeName)(
+      assert(Planet.radius.focus.typeId)(
         equalTo(
-          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          TypeId.nominal[Meter]("Meter", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
         )
       ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
+      assert(Planet.distanceFromSun.focus.typeId)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-          )
+          TypeId.derived[Option[Meter]]
         )
       )
     },
@@ -57,36 +56,17 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
-          )
-        )
+      assert(schema1.reflect.typeId)(
+        equalTo(TypeId.derived[Option[Name]])
       ) &&
-      assert(schema2.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
-          )
-        )
+      assert(schema2.reflect.typeId)(
+        equalTo(TypeId.derived[Option[Kilogram]])
       ) &&
-      assert(schema3.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-          )
-        )
+      assert(schema3.reflect.typeId)(
+        equalTo(TypeId.derived[Option[Meter]])
       ) &&
-      assert(schema4.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[EmojiDataId](
-              Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")),
-              "EmojiDataId"
-            )
-          )
-        )
+      assert(schema4.reflect.typeId)(
+        equalTo(TypeId.derived[Option[EmojiDataId]])
       )
     },
     test("derive schemas for collections with newtypes and subtypes") {
@@ -102,37 +82,17 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
-        equalTo(
-          TypeName.list(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
-          )
-        )
+      assert(schema1.reflect.typeId)(
+        equalTo(TypeId.derived[List[Name]])
       ) &&
-      assert(schema2.reflect.typeName)(
-        equalTo(
-          TypeName.vector(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
-          )
-        )
+      assert(schema2.reflect.typeId)(
+        equalTo(TypeId.derived[Vector[Kilogram]])
       ) &&
-      assert(schema3.reflect.typeName)(
-        equalTo(
-          TypeName.set(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-          )
-        )
+      assert(schema3.reflect.typeId)(
+        equalTo(TypeId.derived[Set[Meter]])
       ) &&
-      assert(schema4.reflect.typeName)(
-        equalTo(
-          TypeName.map(
-            TypeName[EmojiDataId](
-              Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")),
-              "EmojiDataId"
-            ),
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
-          )
-        )
+      assert(schema4.reflect.typeId)(
+        equalTo(TypeId.derived[Map[EmojiDataId, Name]])
       )
     },
     test("derive schemas for cases classes and generic tuples with newtypes") {

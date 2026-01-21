@@ -93,7 +93,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
           id.name == "Int",
           id.owner == Owner.scala,
           id.arity == 0,
-          id.isNominal
+          !id.isAlias && !id.isOpaque
         )
       },
       test("derives TypeId for String") {
@@ -102,7 +102,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
           id.name == "String",
           id.owner == Owner.javaLang,
           id.arity == 0,
-          id.isNominal
+          !id.isAlias && !id.isOpaque
         )
       },
       test("derives TypeId for Boolean") {
@@ -235,7 +235,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         assertTrue(
           id.name == "SimpleClass",
           id.arity == 0,
-          id.isNominal
+          !id.isAlias && !id.isOpaque
         )
       },
       test("derives TypeId for generic case class") {
@@ -265,7 +265,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         val id = TypeId.derived[SimpleSealed]
         assertTrue(
           id.name == "SimpleSealed",
-          id.isNominal
+          !id.isAlias && !id.isOpaque
         )
       },
       test("derives TypeId for case class extending sealed trait") {
@@ -302,14 +302,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         val id = TypeId.derived[SimpleTrait]
         assertTrue(
           id.name == "SimpleTrait",
-          id.isNominal
+          !id.isAlias && !id.isOpaque
         )
       },
       test("derives TypeId for abstract class") {
         val id = TypeId.derived[AbstractClass]
         assertTrue(
           id.name == "AbstractClass",
-          id.isNominal
+          !id.isAlias && !id.isOpaque
         )
       }
     ),
@@ -459,8 +459,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
       test("derived TypeId matches Nominal extractor") {
         val id      = TypeId.derived[Int]
         val matches = id match {
-          case TypeId.Nominal(name, _, _) => name == "Int"
-          case _                          => false
+          case TypeId.Nominal(name, _, _, _, _) => name == "Int"
+          case _                                => false
         }
         assertTrue(matches)
       }
@@ -600,7 +600,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         val ageId = TypeId.derived[TypeAliases.Age]
 
         assertTrue(
-          ageId.aliasedType.exists {
+          ageId.aliasedTo.exists {
             case TypeRepr.Ref(typeId) => typeId.name == "Int"
             case _                    => false
           }
@@ -611,8 +611,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
 
         // Generic type aliases may be represented as TypeLambda or Applied depending on Scala version
         assertTrue(
-          mapId.aliasedType.isDefined,
-          mapId.aliasedType.exists {
+          mapId.aliasedTo.isDefined,
+          mapId.aliasedTo.exists {
             case TypeRepr.Applied(TypeRepr.Ref(typeId), _)                         => typeId.name == "Map"
             case TypeRepr.TypeLambda(_, TypeRepr.Applied(TypeRepr.Ref(typeId), _)) => typeId.name == "Map"
             case _                                                                 => false

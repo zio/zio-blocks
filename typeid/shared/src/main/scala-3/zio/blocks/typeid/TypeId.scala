@@ -1,5 +1,7 @@
 package zio.blocks.typeid
 
+import scala.annotation.tailrec
+
 /**
  * Represents the identity of a type or type constructor.
  *
@@ -36,15 +38,15 @@ sealed trait TypeId[A <: AnyKind] {
     if (owner.isRoot) name
     else s"${owner.asString}.$name"
 
-  final def isProperType: Boolean = arity == 0
+  final def isProperType: Boolean      = arity == 0
   final def isTypeConstructor: Boolean = arity > 0
 
-  final def isClass: Boolean = defKind.isInstanceOf[TypeDefKind.Class]
-  final def isTrait: Boolean = defKind.isInstanceOf[TypeDefKind.Trait]
-  final def isObject: Boolean = defKind == TypeDefKind.Object
-  final def isEnum: Boolean = defKind.isInstanceOf[TypeDefKind.Enum]
-  final def isAlias: Boolean = defKind == TypeDefKind.TypeAlias
-  final def isOpaque: Boolean = defKind.isInstanceOf[TypeDefKind.OpaqueType]
+  final def isClass: Boolean    = defKind.isInstanceOf[TypeDefKind.Class]
+  final def isTrait: Boolean    = defKind.isInstanceOf[TypeDefKind.Trait]
+  final def isObject: Boolean   = defKind == TypeDefKind.Object
+  final def isEnum: Boolean     = defKind.isInstanceOf[TypeDefKind.Enum]
+  final def isAlias: Boolean    = defKind == TypeDefKind.TypeAlias
+  final def isOpaque: Boolean   = defKind.isInstanceOf[TypeDefKind.OpaqueType]
   final def isAbstract: Boolean = defKind == TypeDefKind.AbstractType
 
   final def isSealed: Boolean = defKind match {
@@ -142,9 +144,10 @@ sealed trait TypeId[A <: AnyKind] {
 
   override def toString: String = {
     val paramStr = if (typeParams.isEmpty) "" else typeParams.map(_.name).mkString("[", ", ", "]")
-    val kindStr = if (aliasedTo.isDefined) "alias"
-    else if (representation.isDefined) "opaque"
-    else "nominal"
+    val kindStr  =
+      if (aliasedTo.isDefined) "alias"
+      else if (representation.isDefined) "opaque"
+      else "nominal"
     s"TypeId.$kindStr($fullName$paramStr)"
   }
 }
@@ -270,9 +273,10 @@ object TypeId {
   // ========== Normalization and Equality ==========
 
   /**
-   * Normalizes a TypeId by following type alias chains. Aliases are resolved
-   * to their underlying type, while nominal and opaque types remain unchanged.
+   * Normalizes a TypeId by following type alias chains. Aliases are resolved to
+   * their underlying type, while nominal and opaque types remain unchanged.
    */
+  @tailrec
   def normalize(id: TypeId[?]): TypeId[?] = id.aliasedTo match {
     case Some(TypeRepr.Ref(aliased)) => normalize(aliased)
     case _                           => id
@@ -385,9 +389,10 @@ object TypeId {
   // Allow accessing private owner constants from within zio.blocks.typeid package
   private[typeid] object Owner {
     val scala: zio.blocks.typeid.Owner                    = zio.blocks.typeid.Owner.fromPackagePath("scala")
-    val scalaCollectionImmutable: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("scala.collection.immutable")
-    val javaLang: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
-    val javaTime: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.time")
-    val javaUtil: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.util")
+    val scalaCollectionImmutable: zio.blocks.typeid.Owner =
+      zio.blocks.typeid.Owner.fromPackagePath("scala.collection.immutable")
+    val javaLang: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
+    val javaTime: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.time")
+    val javaUtil: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.util")
   }
 }

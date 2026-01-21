@@ -10,154 +10,79 @@ import scala.language.experimental.macros
  *   - The owner (package/class/object where it's defined)
  *   - Type parameters (for type constructors)
  *   - Classification (nominal, alias, or opaque)
+ *   - Parent types and self type
+ *   - Annotations
  *
  * The phantom type parameter `A` ensures type safety when working with TypeId
  * values. In Scala 2, use existential types like `List[_]` or `Map[_, _]` for
  * type constructors.
  *
- * TypeId wraps a TypeRef which contains the actual type identity information.
- * Two TypeIds are considered equal if they refer to the same underlying type,
- * with type aliases being transparent (an alias equals its underlying type),
- * while opaque types maintain nominal identity.
- *
  * @tparam A
  *   The type (or type constructor) this TypeId represents
  */
-final case class TypeId[A](ref: TypeRef) {
+sealed trait TypeId[A] {
+  def name: String
+  def owner: Owner
+  def typeParams: List[TypeParam]
+  def defKind: TypeDefKind
+  def parents: List[TypeRepr]
+  def selfType: Option[TypeRepr]
+  def aliasedTo: Option[TypeRepr]
+  def representation: Option[TypeRepr]
+  def annotations: List[Annotation]
 
-  /** The simple name of the type. */
-  def name: String = ref.name
+  final def arity: Int = typeParams.size
 
-  /** The owner of this type (package, object, class, etc.). */
-  def owner: Owner = ref.owner
+  final def fullName: String =
+    if (owner.isRoot) name
+    else s"${owner.asString}.$name"
 
-  /**
-   * The type parameters of this type (empty for proper types, non-empty for
-   * type constructors).
-   */
-  def typeParams: List[TypeParam] = ref.typeParams
+  final def isProperType: Boolean = arity == 0
+  final def isTypeConstructor: Boolean = arity > 0
 
-  /** The arity of this type (number of type parameters). */
-  def arity: Int = ref.arity
+  final def isClass: Boolean = defKind.isInstanceOf[TypeDefKind.Class]
+  final def isTrait: Boolean = defKind.isInstanceOf[TypeDefKind.Trait]
+  final def isObject: Boolean = defKind == TypeDefKind.Object
+  final def isEnum: Boolean = defKind.isInstanceOf[TypeDefKind.Enum]
+  final def isAlias: Boolean = defKind == TypeDefKind.TypeAlias
+  final def isOpaque: Boolean = defKind.isInstanceOf[TypeDefKind.OpaqueType]
+  final def isAbstract: Boolean = defKind == TypeDefKind.AbstractType
 
-  /** The fully qualified name of this type. */
-  def fullName: String = ref.fullName
-
-  /** The kind of type definition (class, trait, object, enum, etc.). */
-  def defKind: TypeDefKind = ref.defKind
-
-  /** Returns true if this TypeId represents a nominal type. */
-  def isNominal: Boolean = ref.isInstanceOf[TypeRef.Nominal]
-
-  /** Returns true if this TypeId represents a type alias. */
-  def isAlias: Boolean = ref.isInstanceOf[TypeRef.Alias]
-
-  /** Returns true if this TypeId represents an opaque type. */
-  def isOpaque: Boolean = ref.isInstanceOf[TypeRef.Opaque]
-
-  /** Returns true if this TypeId represents a class (case or regular). */
-  def isClass: Boolean = defKind.isInstanceOf[TypeDefKind.Class]
-
-  /** Returns true if this TypeId represents a case class. */
-  def isCaseClass: Boolean = defKind match {
-    case TypeDefKind.Class(_, _, isCase, _, _) => isCase
-    case _                                     => false
-  }
-
-  /** Returns true if this TypeId represents a trait. */
-  def isTrait: Boolean = defKind.isInstanceOf[TypeDefKind.Trait]
-
-  /** Returns true if this TypeId represents a sealed trait. */
-  def isSealedTrait: Boolean = defKind match {
+  final def isSealed: Boolean = defKind match {
     case TypeDefKind.Trait(isSealed, _, _) => isSealed
     case _                                 => false
   }
 
-  /** Returns true if this TypeId represents an object. */
-  def isObject: Boolean = defKind.isInstanceOf[TypeDefKind.Object]
+  final def isCaseClass: Boolean = defKind match {
+    case TypeDefKind.Class(_, _, isCase, _, _) => isCase
+    case _                                     => false
+  }
 
-  /** Returns true if this TypeId represents a Scala 3 enum. */
-  def isEnum: Boolean = defKind.isInstanceOf[TypeDefKind.Enum]
+  final def isValueClass: Boolean = defKind match {
+    case TypeDefKind.Class(_, _, _, isValue, _) => isValue
+    case _                                      => false
+  }
 
-  /** If this is an enum, returns the enum cases; otherwise empty list. */
-  def enumCases: List[EnumCaseInfo] = defKind match {
+  final def enumCases: List[EnumCaseInfo] = defKind match {
     case TypeDefKind.Enum(cases, _) => cases
     case _                          => Nil
   }
 
-  /**
-   * If this is a sealed trait, returns known subtypes; otherwise empty list.
-   */
-  def knownSubtypes: List[TypeRepr] = defKind match {
+  final def knownSubtypes: List[TypeRepr] = defKind match {
     case TypeDefKind.Trait(_, subtypes, _) => subtypes
     case _                                 => Nil
   }
 
-  /** Returns the parent types (superclasses/supertraits) of this type. */
-  def parents: List[TypeRepr] = defKind.baseTypes
-
-  /**
-    * Checks if this type is a subtype of another type.
-    *
-    * This method checks the type hierarchy using the extracted parent types. It
-    * handles:
-    *   - Direct subtype relationships (class extends trait)
-    *   - Sealed trait subtypes
-    *   - Transitive inheritance
-    *
-    * Note: This is a best-effort check based on compile-time extracted
-    * information. For complex cases involving type parameters or implicit
-    * conversions, the check may return false even when a true subtype
-    * relationship exists at runtime.
-    *
-    * @param other
-    *   The potential supertype to check against
-    * @return
-    *   true if this type is a subtype of other
-    */
   def isSubtypeOf(other: TypeId[_]): Boolean = {
-    // A type is a subtype of itself
     if (TypeId.structurallyEqual(this, other)) return true
 
-    // Check if other appears in our parent types (transitive)
     TypeId.checkParents(this.parents, other, Set(this.fullName))
   }
 
-  /**
-    * Checks if this type is a supertype of another type.
-    *
-    * @param other
-    *   The potential subtype to check against
-    * @return
-    *   true if this type is a supertype of other
-    */
   def isSupertypeOf(other: TypeId[_]): Boolean = other.isSubtypeOf(this)
 
-  /**
-    * Checks if this type is equivalent to another type (mutually subtypes).
-    *
-    * @param other
-    *   The type to compare with
-    * @return
-    *   true if both types are subtypes of each other
-    */
   def isEquivalentTo(other: TypeId[_]): Boolean =
     this.isSubtypeOf(other) && other.isSubtypeOf(this)
-
-  /** If this is a type alias, returns the aliased type; otherwise None. */
-  def aliasedType: Option[TypeRepr] = ref match {
-    case a: TypeRef.Alias => Some(a.aliased)
-    case _                => None
-  }
-
-  /**
-   * If this is an opaque type, returns the underlying representation; otherwise
-   * None.
-   */
-  def opaqueRepresentation: Option[TypeRepr] = ref match {
-    case o: TypeRef.Opaque => Some(o.representation)
-    case _                 => None
-  }
 
   override def equals(other: Any): Boolean = other match {
     case that: TypeId[_] => TypeId.structurallyEqual(this, that)
@@ -168,129 +93,150 @@ final case class TypeId[A](ref: TypeRef) {
 
   override def toString: String = {
     val paramStr = if (typeParams.isEmpty) "" else typeParams.map(_.name).mkString("[", ", ", "]")
-    val kindStr  = ref match {
-      case _: TypeRef.Nominal => "nominal"
-      case _: TypeRef.Alias   => "alias"
-      case _: TypeRef.Opaque  => "opaque"
-    }
+    val kindStr = if (aliasedTo.isDefined) "alias"
+    else if (representation.isDefined) "opaque"
+    else "nominal"
     s"TypeId.$kindStr($fullName$paramStr)"
   }
 }
 
 object TypeId {
 
-  // Macro derivation
+  private final case class Impl[A](
+    name: String,
+    owner: Owner,
+    typeParams: List[TypeParam],
+    defKind: TypeDefKind,
+    parents: List[TypeRepr],
+    selfType: Option[TypeRepr],
+    aliasedTo: Option[TypeRepr],
+    representation: Option[TypeRepr],
+    annotations: List[Annotation]
+  ) extends TypeId[A]
 
-  /** Derives a TypeId for any type or type constructor using macros. */
-  def derived[A]: TypeId[A] = macro TypeIdMacros.derivedImpl[A]
-
-  // Factory methods
-
-  /** Creates a TypeId for a nominal type (class, trait, object). */
   def nominal[A](
     name: String,
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
-    defKind: TypeDefKind = TypeDefKind.Unknown
-  ): TypeId[A] =
-    TypeId(TypeRef.Nominal(name, owner, typeParams, defKind))
+    defKind: TypeDefKind = TypeDefKind.Unknown,
+    parents: List[TypeRepr] = Nil,
+    selfType: Option[TypeRepr] = None,
+    annotations: List[Annotation] = Nil
+  ): TypeId[A] = Impl[A](
+    name,
+    owner,
+    typeParams,
+    defKind,
+    parents,
+    selfType,
+    None,
+    None,
+    annotations
+  )
 
-  /** Creates a TypeId for a type alias. */
   def alias[A](
     name: String,
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
     aliased: TypeRepr,
-    defKind: TypeDefKind = TypeDefKind.TypeAlias
-  ): TypeId[A] =
-    TypeId(TypeRef.Alias(name, owner, typeParams, aliased, defKind))
+    annotations: List[Annotation] = Nil
+  ): TypeId[A] = Impl[A](
+    name,
+    owner,
+    typeParams,
+    TypeDefKind.TypeAlias,
+    Nil,
+    None,
+    Some(aliased),
+    None,
+    annotations
+  )
 
-  /** Creates a TypeId for an opaque type. */
   def opaque[A](
     name: String,
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
     representation: TypeRepr,
-    defKind: TypeDefKind = TypeDefKind.OpaqueType()
-  ): TypeId[A] =
-    TypeId(TypeRef.Opaque(name, owner, typeParams, representation, defKind))
-
-  // Pattern matching extractors
+    publicBounds: TypeBounds = TypeBounds.Unbounded,
+    annotations: List[Annotation] = Nil
+  ): TypeId[A] = Impl[A](
+    name,
+    owner,
+    typeParams,
+    TypeDefKind.OpaqueType(publicBounds),
+    Nil,
+    None,
+    None,
+    Some(representation),
+    annotations
+  )
 
   object Nominal {
-    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam])] = id.ref match {
-      case TypeRef.Nominal(name, owner, typeParams, _) => Some((name, owner, typeParams))
-      case _                                           => None
-    }
+    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeDefKind, List[TypeRepr])] =
+      if (id.aliasedTo.isEmpty && id.representation.isEmpty)
+        Some((id.name, id.owner, id.typeParams, id.defKind, id.parents))
+      else None
   }
 
   object Alias {
-    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id.ref match {
-      case TypeRef.Alias(name, owner, typeParams, aliased, _) => Some((name, owner, typeParams, aliased))
-      case _                                                  => None
-    }
+    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] =
+      id.aliasedTo.map(a => (id.name, id.owner, id.typeParams, a))
   }
 
   object Opaque {
-    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id.ref match {
-      case TypeRef.Opaque(name, owner, typeParams, representation, _) => Some((name, owner, typeParams, representation))
-      case _                                                          => None
-    }
+    def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr, TypeBounds)] =
+      (id.defKind, id.representation) match {
+        case (TypeDefKind.OpaqueType(bounds), Some(repr)) =>
+          Some((id.name, id.owner, id.typeParams, repr, bounds))
+        case _ => None
+      }
   }
 
-  // Normalization and structural equality
-
-  /**
-   * Normalizes a TypeRef by following type alias chains. Aliases are resolved
-   * to their underlying type, while nominal and opaque types remain unchanged.
-   */
-  def normalize(ref: TypeRef): TypeRef = ref match {
-    case TypeRef.Alias(_, _, _, TypeRepr.Ref(id), _) => normalize(id.ref)
-    case other                                       => other
+  object Sealed {
+    def unapply(id: TypeId[_]): Option[(String, List[TypeRepr])] =
+      id.defKind match {
+        case TypeDefKind.Trait(true, subtypes, _) => Some((id.name, subtypes))
+        case _                                    => None
+      }
   }
 
-  /**
-   * Compares two TypeIds for structural equality. Type aliases are transparent:
-   * TypeId.of[Age] == TypeId.of[Int] where type Age = Int. Opaque types
-   * maintain nominal identity.
-   */
+  object Enum {
+    def unapply(id: TypeId[_]): Option[(String, Owner, List[EnumCaseInfo])] =
+      id.defKind match {
+        case TypeDefKind.Enum(cases, _) => Some((id.name, id.owner, cases))
+        case _                          => None
+      }
+  }
+
+  def derived[A]: TypeId[A] = macro TypeIdMacros.derivedImpl[A]
+
+  def normalize(id: TypeId[_]): TypeId[_] = id.aliasedTo match {
+    case Some(TypeRepr.Ref(aliased)) => normalize(aliased)
+    case _                           => id
+  }
+
   def structurallyEqual(a: TypeId[_], b: TypeId[_]): Boolean = {
-    val normA = normalize(a.ref)
-    val normB = normalize(b.ref)
+    val normA = normalize(a)
+    val normB = normalize(b)
 
-    (normA, normB) match {
-      // Opaque types only equal if they have the same fullName (nominal identity)
-      case (oa: TypeRef.Opaque, ob: TypeRef.Opaque) =>
-        oa.fullName == ob.fullName && oa.typeParams == ob.typeParams
-      // Opaque type is never equal to non-opaque
-      case (_: TypeRef.Opaque, _) => false
-      case (_, _: TypeRef.Opaque) => false
-      // For nominal types and resolved aliases, compare by fullName and typeParams
-      case _ =>
-        normA.fullName == normB.fullName && normA.typeParams == normB.typeParams
+    if (normA.isOpaque && normB.isOpaque) {
+      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams
+    } else if (normA.isOpaque || normB.isOpaque) {
+      false
+    } else {
+      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams
     }
   }
 
-  /**
-    * Computes a hash code for a TypeId that is consistent with structural
-    * equality.
-    */
   def structuralHash(id: TypeId[_]): Int = {
-    val norm = normalize(id.ref)
-    norm match {
-      case o: TypeRef.Opaque =>
-        // Include "opaque" marker to distinguish from nominal with same name
-        ("opaque", o.fullName, o.typeParams).hashCode()
-      case _ =>
-        (norm.fullName, norm.typeParams).hashCode()
+    val norm = normalize(id)
+    if (norm.isOpaque) {
+      ("opaque", norm.fullName, norm.typeParams).hashCode()
+    } else {
+      (norm.fullName, norm.typeParams).hashCode()
     }
   }
 
-  // Subtyping helpers (private)
-
-  /**
-    * Recursively checks if any parent type matches the target TypeId.
-    */
   private def checkParents(parents: List[TypeRepr], target: TypeId[_], visited: Set[String]): Boolean =
     parents.exists { parent =>
       parent match {
@@ -306,9 +252,6 @@ object TypeId {
       }
     }
 
-  // Predefined implicit TypeIds for common types
-
-  // Primitives
   implicit val unit: TypeId[Unit]             = nominal[Unit]("Unit", Owner.scala)
   implicit val boolean: TypeId[Boolean]       = nominal[Boolean]("Boolean", Owner.scala)
   implicit val byte: TypeId[Byte]             = nominal[Byte]("Byte", Owner.scala)
@@ -322,7 +265,6 @@ object TypeId {
   implicit val bigInt: TypeId[BigInt]         = nominal[BigInt]("BigInt", Owner.scala)
   implicit val bigDecimal: TypeId[BigDecimal] = nominal[BigDecimal]("BigDecimal", Owner.scala)
 
-  // Type constructors - use existential types for Scala 2 compatibility
   implicit val option: TypeId[Option[_]] = nominal[Option[_]]("Option", Owner.scala, List(TypeParam.A))
   implicit val some: TypeId[Some[_]]     = nominal[Some[_]]("Some", Owner.scala, List(TypeParam.A))
   implicit val none: TypeId[None.type]   = nominal[None.type]("None", Owner.scala)
@@ -335,7 +277,6 @@ object TypeId {
   implicit val either: TypeId[Either[_, _]] =
     nominal[Either[_, _]]("Either", Owner.scala, List(TypeParam.A, TypeParam.B))
 
-  // Java time types
   implicit val dayOfWeek: TypeId[java.time.DayOfWeek]         = nominal[java.time.DayOfWeek]("DayOfWeek", Owner.javaTime)
   implicit val duration: TypeId[java.time.Duration]           = nominal[java.time.Duration]("Duration", Owner.javaTime)
   implicit val instant: TypeId[java.time.Instant]             = nominal[java.time.Instant]("Instant", Owner.javaTime)
@@ -356,7 +297,14 @@ object TypeId {
   implicit val zonedDateTime: TypeId[java.time.ZonedDateTime] =
     nominal[java.time.ZonedDateTime]("ZonedDateTime", Owner.javaTime)
 
-  // Java util types
   implicit val currency: TypeId[java.util.Currency] = nominal[java.util.Currency]("Currency", Owner.javaUtil)
   implicit val uuid: TypeId[java.util.UUID]         = nominal[java.util.UUID]("UUID", Owner.javaUtil)
+
+  private[typeid] object Owner {
+    val scala: zio.blocks.typeid.Owner                    = zio.blocks.typeid.Owner.fromPackagePath("scala")
+    val scalaCollectionImmutable: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("scala.collection.immutable")
+    val javaLang: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
+    val javaTime: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.time")
+    val javaUtil: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.util")
+  }
 }

@@ -84,7 +84,7 @@ object TypeIdSpec extends ZIOSpecDefault {
           id.owner == Owner.javaLang,
           id.typeParams.isEmpty,
           id.arity == 0,
-          id.isNominal,
+          !id.isAlias && !id.isOpaque,
           !id.isAlias,
           !id.isOpaque,
           id.fullName == "java.lang.String"
@@ -99,7 +99,7 @@ object TypeIdSpec extends ZIOSpecDefault {
         assertTrue(
           id.name == "Age",
           id.isAlias,
-          id.aliasedType.isDefined
+          id.aliasedTo.isDefined
         )
       },
       test("opaque creates opaque TypeId") {
@@ -111,7 +111,7 @@ object TypeIdSpec extends ZIOSpecDefault {
         assertTrue(
           id.name == "Email",
           id.isOpaque,
-          id.opaqueRepresentation.isDefined
+          id.representation.isDefined
         )
       },
       test("type constructors have correct arity") {
@@ -127,7 +127,7 @@ object TypeIdSpec extends ZIOSpecDefault {
     suite("TypeId extractors")(
       test("Nominal extractor works") {
         TypeId.int match {
-          case TypeId.Nominal(name, owner, params) =>
+          case TypeId.Nominal(name, owner, params, _, _) =>
             assertTrue(name == "Int", owner == Owner.scala, params.isEmpty)
           case _ =>
             assertTrue(false)
@@ -145,7 +145,7 @@ object TypeIdSpec extends ZIOSpecDefault {
       test("Opaque extractor works") {
         val opaqueId = TypeId.opaque[String]("Email", Owner.Root / "myapp", Nil, TypeRepr.Ref(TypeId.string))
         opaqueId match {
-          case TypeId.Opaque(name, owner, params, repr) =>
+          case TypeId.Opaque(name, _, _, repr, _) =>
             assertTrue(name == "Email", repr == TypeRepr.Ref(TypeId.string))
           case _ =>
             assertTrue(false)

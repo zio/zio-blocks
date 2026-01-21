@@ -84,23 +84,25 @@ final case class DerivationBuilder[TC[_], A](
         case (acc, _) => acc
       }
 
-    def prependCombinedModifiers[A0](modifiers: Seq[Modifier.Reflect], path: DynamicOptic, typeId: zio.blocks.typeid.TypeId[A0]) = {
+    def prependCombinedModifiers[A0](
+      modifiers: Seq[Modifier.Reflect],
+      path: DynamicOptic,
+      typeId: zio.blocks.typeid.TypeId[A0]
+    ) =
       (modifierReflectByOpticMap.get(path), modifierReflectByTypeMap.get(typeId)) match {
         case (Some(modifiers1), Some(modifiers2)) => (modifiers1 ++ modifiers2) ++ modifiers
         case (Some(modifiers1), _)                => modifiers1 ++ modifiers
         case (_, Some(modifiers2))                => modifiers2 ++ modifiers
         case _                                    => modifiers
       }
-    }
 
-    def combineModifiers[A0](path: DynamicOptic, typeId: zio.blocks.typeid.TypeId[A0]) = {
+    def combineModifiers[A0](path: DynamicOptic, typeId: zio.blocks.typeid.TypeId[A0]) =
       (modifierTermByOpticMap.get(path), modifierTermByTypeMap.get(typeId)) match {
         case (Some(modifiers1), Some(modifiers2)) => modifiers1 ++ modifiers2
         case (Some(modifiers1), _)                => modifiers1
         case (_, Some(modifiers2))                => modifiers2
         case _                                    => Seq.empty
       }
-    }
 
     def getCustomInstance[A0](path: DynamicOptic, typeId: zio.blocks.typeid.TypeId[A0]): Option[Lazy[TC[A0]]] =
       instanceByOpticMap
