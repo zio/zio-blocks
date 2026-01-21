@@ -24,9 +24,11 @@ final case class RemoteAgent[Trait](
   def call[In, Out](method: AgentMethod[Trait, In, Out], input: In): Future[Out] =
     resolved.await(method, input)
 
-  def trigger[In, Out](method: AgentMethod[Trait, In, Out], input: In): Future[Unit] =
+  /** Fire-and-forget invocation; always returns Future[Unit] regardless of method return type. */
+  def trigger[In](method: AgentMethod[Trait, In, _], input: In): Future[Unit] =
     resolved.trigger(method, input)
 
-  def schedule[In, Out](method: AgentMethod[Trait, In, Out], datetime: Datetime, input: In): Future[Unit] =
+  /** Scheduled fire-and-forget; always returns Future[Unit] regardless of method return type. */
+  def schedule[In](method: AgentMethod[Trait, In, _], datetime: Datetime, input: In): Future[Unit] =
     resolved.schedule(method, datetime, input)
 }

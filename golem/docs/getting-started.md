@@ -135,6 +135,7 @@ remote.flatMap(_.rpc.schedule_increment(Datetime.afterSeconds(5)))
 Notes:
 
 - Works in Scala 2.13 and Scala 3.
+- `trigger_*` / `schedule_*` always return `Future[Unit]` by design.
 - `remote.api.increment()` still performs the “normal” call style, while
   `remote.rpc.call_increment()` always invokes the await path.
 

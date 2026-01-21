@@ -10,8 +10,8 @@ import scala.scalajs.js
  * Scala-3-only ergonomic RPC surface that resembles Rust/TS SDKs:
  *
  *   - `remote.api.foo(...)` -> await (normal trait call)
- *   - `remote.rpc.trigger_foo(...)` -> trigger
- *   - `remote.rpc.schedule_foo(ts, ...)` -> schedule
+ *   - `remote.rpc.trigger_foo(...)` -> trigger (always Future[Unit])
+ *   - `remote.rpc.schedule_foo(ts, ...)` -> schedule (always Future[Unit])
  *   - `remote.rpc.call_foo(...)` -> await (always invoke-and-await, even if the
  *     trait method is `Unit`)
  *
