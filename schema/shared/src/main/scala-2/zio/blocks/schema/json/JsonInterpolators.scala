@@ -19,10 +19,10 @@ object JsonInterpolatorMacro {
       case _ => c.abort(c.enclosingPosition, "Invalid use of json interpolator")
     }
 
-    // For now, we just delegate to runtime. 
+    // For now, we just delegate to runtime.
     // A full macro would parse the JSON at compile time to validate it.
     // Given the constraints, we'll use the runtime implementation but ensure it compiles.
-    
+
     c.Expr[Json](q"zio.blocks.schema.json.JsonInterpolatorRuntime.interpolate(Seq(..$parts), Seq(..$args))")
   }
 }
