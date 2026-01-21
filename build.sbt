@@ -76,6 +76,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
+  .dependsOn(chunk)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
