@@ -95,6 +95,8 @@ final class ToonReader private[toon] (
     }
   }
 
+  def isFirstLine: Boolean = lineIndex == 0
+
   def hasMoreLines: Boolean = lineIndex < lines.length
 
   def hasMoreContent: Boolean = linePos < currentLine.length
