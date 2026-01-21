@@ -59,9 +59,9 @@ trait GolemAutoRegister extends ScalaModule {
    *
    * Default assumes a project structure like:
    * - build.sc (mill root)
-   * - app/wasm/agent_guest.wasm (golem manifest expects this)
+   * - app/golem-temp/agent_guest.wasm (golem manifest expects this)
    */
-  def golemAgentGuestWasmFile: T[os.Path] = T { millSourcePath / "app" / "wasm" / "agent_guest.wasm" }
+  def golemAgentGuestWasmFile: T[os.Path] = T { millSourcePath / "app" / "golem-temp" / "agent_guest.wasm" }
 
   /** Ensures the base guest runtime wasm exists; writes the embedded resource if missing. */
   def golemEnsureAgentGuestWasm: T[PathRef] = T {

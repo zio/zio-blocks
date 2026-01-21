@@ -12,7 +12,7 @@ set -euo pipefail
 # 2) creates a minimal WIT package for `golem:agent` including snapshot exports
 # 3) runs `wasm-rquickjs generate-wrapper-crate` and patches it to load user JS via `@composition` (`get-script`)
 # 4) builds the component with `cargo component`
-# 5) copies it into `golem/quickstart/wasm/agent_guest.wasm` and `golem/examples/wasm/agent_guest.wasm`
+# 5) updates embedded plugin resources (used by sbt/mill plugins).
 #
 # Requirements:
 # - `curl`, `tar`
@@ -204,8 +204,6 @@ echo "[agent-guest] Built: $out_wasm" >&2
 sha256sum "$out_wasm" >&2
 
 echo "[agent-guest] Installing into repo app runtimes..." >&2
-install -m 0644 "$out_wasm" "$repo_root/golem/quickstart/wasm/agent_guest.wasm"
-install -m 0644 "$out_wasm" "$repo_root/golem/examples/wasm/agent_guest.wasm"
 install -m 0644 "$out_wasm" "$repo_root/golem/quickstart/js/wasm/agent_guest.wasm"
 install -m 0644 "$out_wasm" "$repo_root/golem/examples/js/wasm/agent_guest.wasm"
 

@@ -14,6 +14,17 @@ read -r -a flags <<<"$GOLEM_CLI_FLAGS"
 echo "[gettingStarted/run.sh] Building Scala.js (compile + fastLinkJS)..." >&2
 ( cd scala && sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS" )
 
+# Ensure the base guest wasm is available at the app-root path expected by golem.yaml.
+if [[ ! -f "$PWD/golem-temp/agent_guest.wasm" ]]; then
+  if [[ -f "$PWD/wasm/agent_guest.wasm" ]]; then
+    mkdir -p "$PWD/golem-temp"
+    cp "$PWD/wasm/agent_guest.wasm" "$PWD/golem-temp/agent_guest.wasm"
+  else
+    echo "[gettingStarted/run.sh] error: missing golem-temp/agent_guest.wasm (base guest runtime)" >&2
+    exit 1
+  fi
+fi
+
 echo "[gettingStarted/run.sh] Deploying app..." >&2
 ( env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$PWD/golem.yaml" deploy )
 

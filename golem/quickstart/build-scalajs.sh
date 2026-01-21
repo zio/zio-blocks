@@ -16,7 +16,7 @@ repo_root="$(cd "$app_dir/../.." && pwd)"
 tool="${GOLEM_SCALA_BUILD_TOOL:-sbt}"
 
 component_dir="$PWD"
-agent_wasm="$app_dir/wasm/agent_guest.wasm"
+agent_wasm="$app_dir/golem-temp/agent_guest.wasm"
 
 case "$component" in
   scala:quickstart-counter)

@@ -13,7 +13,7 @@ fi
 app_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$app_dir/../.." && pwd)"
 component_dir="$PWD"
-agent_wasm="$app_dir/wasm/agent_guest.wasm"
+agent_wasm="$app_dir/golem-temp/agent_guest.wasm"
 
 tool="${GOLEM_SCALA_BUILD_TOOL:-sbt}"
 

@@ -199,11 +199,12 @@ object Llm {
       case Left(err)    => throw new IllegalStateException(s"LLM error ${err.code.tag}: ${err.message}")
     }
 
-  def stream(events: Vector[Event], config: Config): ChatStream =
+  def stream(events: Vector[Event], config: Config): ChatStream = {
     {
       ensureLlmEnvConfigured()
       new ChatStream(LlmModule.stream(toJsEvents(events), toJsConfig(config)).asInstanceOf[js.Dynamic])
     }
+  }
 
   // ----- Private interop ------------------------------------------------------------------
 

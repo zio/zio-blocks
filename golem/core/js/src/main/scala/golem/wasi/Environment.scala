@@ -2,7 +2,6 @@ package golem.wasi
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
-import scala.scalajs.js.JSConverters._
 
 /**
  * Scala.js facade for `wasi:cli/environment@0.2.3`.
@@ -18,5 +17,7 @@ object Environment {
     EnvModule
 
   def getEnvironment(): Map[String, String] =
-    EnvModule.getEnvironment().toSeq.map { case (k, v) => k -> v }.toMap
+    EnvModule.getEnvironment().toSeq.map { kv =>
+      kv._1 -> kv._2
+    }.toMap
 }

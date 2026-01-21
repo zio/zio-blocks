@@ -33,7 +33,7 @@ script_file="$PWD/golem/quickstart/script-test.rib"
 agent_id="agent-$(date +%s)"
 
 # Build Scala.js up-front (no golem-cli needed). This runs `golemPrepare` automatically and ensures
-# `golem/quickstart/wasm/agent_guest.wasm` exists before golem-cli parses the app manifest.
+# `golem/quickstart/golem-temp/agent_guest.wasm` exists before golem-cli parses the app manifest.
 build_log="$(mktemp)"
 trap 'rm -f "$build_log"' EXIT
 if ! ( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemQuickstartJS/fastLinkJS" ) >"$build_log" 2>&1; then

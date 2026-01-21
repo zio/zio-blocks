@@ -205,7 +205,7 @@ componentTemplates:
       - src
       targets:
       - src/scala.js
-    - injectToPrebuiltQuickjs: ../../wasm/agent_guest.wasm
+    - injectToPrebuiltQuickjs: ../../golem-temp/agent_guest.wasm
       module: src/scala.js
       moduleWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm
       into: ../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
@@ -214,7 +214,7 @@ componentTemplates:
     - composeAgentWrapper: ../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
       withAgent: ../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
       to: ../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
-    sourceWit: ../../wasm/agent_guest.wasm
+    sourceWit: ../../golem-temp/agent_guest.wasm
     generatedWit: ../../golem-temp/agents/{{ component_name | to_snake_case }}/wit-generated
     componentWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
     linkedWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.wasm
@@ -316,7 +316,7 @@ chmod +x build-scalajs.sh
 ## 5) Provide the base guest runtime WASM (`agent_guest.wasm`)
 
 The `zio-golem-sbt` plugin ships a compatible `agent_guest.wasm` embedded as a resource and will ensure it exists at
-`wasm/agent_guest.wasm` automatically during normal builds (compile/link), if the file is missing.
+`golem-temp/agent_guest.wasm` automatically during normal builds (compile/link), if the file is missing.
 
 If your project layout is different, set `golemAgentGuestWasmFile` in `scala/build.sbt`
 to point at the desired output file.
