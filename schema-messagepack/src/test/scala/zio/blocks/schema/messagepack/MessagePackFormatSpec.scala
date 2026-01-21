@@ -12,8 +12,6 @@ import scala.collection.immutable.ArraySeq
 
 object MessagePackFormatSpec extends ZIOSpecDefault {
 
-
-
   case class Record1(bl: Boolean, b: Byte, sh: Short, i: Int, l: Long, f: Float, d: Double, c: Char, s: String)
   object Record1 {
     implicit val schema: Schema[Record1] = Schema.derived
