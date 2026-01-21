@@ -6,6 +6,13 @@ import zio.blocks.schema.Schema
 import zio.blocks.schema.messagepack.{MessagePackBinaryCodec, MessagePackFormat}
 import scala.compiletime.uninitialized
 
+/**
+ * JMH benchmark for MessagePack encoding and decoding of nested records.
+ *
+ * Measures the performance of serializing and deserializing deeply nested
+ * record structures (Level1 through Level5) using ZIO Blocks MessagePack codec.
+ * This tests the codec's handling of recursive data structures.
+ */
 class MessagePackNestedRecordsBenchmark extends BaseBenchmark {
   import MessagePackNestedRecordsDomain._
 
@@ -37,10 +44,20 @@ class MessagePackNestedRecordsBenchmark extends BaseBenchmark {
 }
 
 object MessagePackNestedRecordsDomain {
+
+  /** Innermost nested record with primitive fields and a list. */
   case class Level5(id: Long, name: String, age: Int, address: String, childrenAges: List[Int])
+
+  /** Fourth nesting level containing Level5. */
   case class Level4(level5: Level5)
+
+  /** Third nesting level containing Level4. */
   case class Level3(level4: Level4)
+
+  /** Second nesting level containing Level3. */
   case class Level2(level3: Level3)
+
+  /** Outermost nested record containing Level2. */
   case class Level1(level2: Level2)
 
   implicit val level5Schema: Schema[Level5] = Schema.derived

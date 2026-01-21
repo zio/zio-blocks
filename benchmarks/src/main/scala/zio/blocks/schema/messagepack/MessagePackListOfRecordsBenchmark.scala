@@ -6,6 +6,13 @@ import zio.blocks.schema.Schema
 import zio.blocks.schema.messagepack.{MessagePackBinaryCodec, MessagePackFormat}
 import scala.compiletime.uninitialized
 
+/**
+ * JMH benchmark for MessagePack encoding and decoding of lists of records.
+ *
+ * Measures the performance of serializing and deserializing lists of Person
+ * records with various sizes (1 to 10,000 records) using ZIO Blocks MessagePack
+ * codec.
+ */
 class MessagePackListOfRecordsBenchmark extends BaseBenchmark {
   import MessagePackListOfRecordsDomain._
 
@@ -31,6 +38,21 @@ class MessagePackListOfRecordsBenchmark extends BaseBenchmark {
 }
 
 object MessagePackListOfRecordsDomain {
+
+  /**
+   * Sample person record for benchmark testing.
+   *
+   * @param id
+   *   Unique identifier
+   * @param name
+   *   Person's name
+   * @param age
+   *   Person's age
+   * @param address
+   *   Person's address
+   * @param childrenAges
+   *   List of children's ages
+   */
   case class Person(id: Long, name: String, age: Int, address: String, childrenAges: List[Int])
 
   implicit val schema: Schema[Person] = Schema.derived
