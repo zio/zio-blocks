@@ -228,6 +228,41 @@ env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes repl org:component --disable-strea
 
 The same approach applies: the `scala.js` template can invoke `mill` instead of `sbt` to produce the JS module.
 
+## Host API surface (Scala.js)
+
+The Scala SDK exposes host APIs in two layers:
+
+1) **Typed Scala wrapper**: `golem.HostApi` (idiomatic Scala helpers over `golem:api/host@1.3.0`).
+2) **Raw host modules** (forward‑compatible, mirrors JS/WIT surface):
+   - `golem.host.OplogApi` → `golem:api/oplog@1.3.0`
+   - `golem.host.ContextApi` → `golem:api/context@1.3.0`
+   - `golem.host.DurabilityApi` → `golem:durability/durability@1.3.0`
+   - `golem.host.Rdbms` → `golem:rdbms/*@0.0.1`
+
+Example (typed `HostApi`):
+
+```scala
+import golem.HostApi
+
+val begin = HostApi.markBeginOperation()
+// ... do work ...
+HostApi.markEndOperation(begin)
+```
+
+Example (raw module access):
+
+```scala
+import golem.host.{ContextApi, Rdbms}
+
+val span = ContextApi.startSpan("my-span")
+val pg   = Rdbms.postgresRaw // raw JS/WIT module (use provider-specific API)
+```
+
+Notes:
+
+- Raw modules intentionally return `Any` to avoid leaking `scala.scalajs.js.*` in public APIs.
+- If you need structured helpers, prefer `HostApi` where available; raw modules provide parity with TS/Rust when helpers are not yet wrapped.
+
 ## Dependencies
 
 - **`zio-blocks-schema`** - Derivation of data types and WIT-compatible codecs
