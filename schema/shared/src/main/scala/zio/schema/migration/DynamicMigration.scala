@@ -33,7 +33,7 @@ object DynamicMigration {
       case MigrationAction.Rename(at, to) =>
         renameAt(value, at, to)
 
-      case MigrationAction.TransformValue(at, transform) =>
+      case MigrationAction.TransformValue(at, transform, _) =>
         transformAt(value, at, transform)
 
       case MigrationAction.Mandate(at, _) =>
@@ -50,7 +50,7 @@ object DynamicMigration {
       case MigrationAction.Optionalize(at) =>
         transformAtSimple(value, at, v => Right(DynamicValue.Variant("Some", v)))
 
-      case MigrationAction.Join(at, sourcePaths, combiner) =>
+      case MigrationAction.Join(at, sourcePaths, combiner, _) =>
         val sourceValues = sourcePaths.map(p => getAt(value, p.nodes))
         sourceValues.find(_.isLeft) match {
           case Some(Left(e)) => Left(e)
@@ -64,7 +64,7 @@ object DynamicMigration {
             }
         }
 
-      case MigrationAction.Split(at, targetPaths, splitter) =>
+      case MigrationAction.Split(at, targetPaths, splitter, _) =>
         getAt(value, at.nodes).flatMap {
           case None        => Left(EvaluationError(at, "Split source missing"))
           case Some(input) =>
@@ -395,11 +395,10 @@ object DynamicMigration {
     new zio.blocks.schema.Schema(
       new zio.blocks.schema.Reflect.Wrapper(
         zio.blocks.schema.Schema.vector(MigrationAction.schema).reflect,
-        zio.blocks.schema
-          .TypeName(zio.blocks.schema.Namespace(List("zio", "schema", "migration"), Nil), "DynamicMigration", Nil),
+        zio.blocks.schema.TypeName(zio.blocks.schema.Namespace(List("zio", "schema", "migration")), "DynamicMigration"),
         None,
         new zio.blocks.schema.binding.Binding.Wrapper(
-          (v: Vector[MigrationAction]) => Right(DynamicMigration(v)),
+          (actions: Vector[MigrationAction]) => Right(DynamicMigration(actions)),
           (m: DynamicMigration) => m.actions
         )
       )

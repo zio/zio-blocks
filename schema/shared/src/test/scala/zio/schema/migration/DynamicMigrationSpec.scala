@@ -150,6 +150,8 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         .newBuilder[PersonV1, PersonV2]
         .addField(_.age, SchemaExpr.Literal(18, Schema.int))
         .build
+        .toOption
+        .get
 
       val start  = PersonV1("Bob")
       val _      = start
@@ -257,6 +259,8 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         .newBuilder[Box, Box]
         .optionalize(_.items.each)
         .build
+        .toOption
+        .get
 
       val start    = Box(Seq("a"))
       val _        = start

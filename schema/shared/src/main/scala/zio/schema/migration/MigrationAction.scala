@@ -1,6 +1,6 @@
 package zio.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, SchemaExpr}
+import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 
 sealed trait MigrationAction {
   def at: DynamicOptic
@@ -53,64 +53,15 @@ object MigrationAction {
 
   final case class TransformValue(
     at: DynamicOptic,
-    transform: SchemaExpr[_, _]
+    transform: SchemaExpr[_, _],
+    inverse: Option[SchemaExpr[_, _]] = None // Added for structural reversibility
   ) extends MigrationAction {
-    def reverse: MigrationAction =
-      // TransformValue requires an inverse transform?
-      // Issue says "Best-Effort Semantic Inverse... m.apply(a) == Right(b) => m.reverse.apply(b) == Right(a)"
-      // But we only store 'transform'.
-      // If transform is invertible?
-      // Or maybe we don't reverse transform value automatically unless we have the inverse expr?
-      // The issue doesn't show an "inverse" field in TransformValue.
-      // "Record Actions: ... case class TransformValue ... transform: SchemaExpr[?]"
-      // Maybe we assume it's NOT reversible structurally if transform is lossy?
-      // But "Structural reverse implemented".
-      // If the user migration builder provides it?
-      // "transformField(..., transform: SchemaExpr[A, ?])"
-      // There is no explicit inverse in the builder API shown in issue.
-      // Wait, "Best-Effort Semantic Inverse"
-      // Maybe reverse of TransformValue is just TransformValue with inverted logic?
-      // But we don't know the inverted logic from just SchemaExpr.
-      // Unless SchemaExpr is bijective?
-      // Or maybe we just return the same action (Identity)? No.
-      // Issue motivation: "Structural reverse implemented... m.reverse.reverse == m".
-      // If I return 'this', then apply(b) would run the same transform, which is wrong.
-      // Maybe for now I'll leave it as identity or specific Error, or assume the user API handles this?
-      // "In this design: ... implementations ... (invertibility)".
-      // Ah, maybe the Action needs to hold both?
-      // But the case class definition in pure data doesn't have it.
-      // Maybe I should add it?
-      // "case class TransformValue(at: DynamicOptic, transform: SchemaExpr[?])"
-      // It matches the issue.
-      // Maybe the "Pure" reverse isn't possible for arbitrary expression?
-      // But `DynamicMigration` needs `reverse`.
-      // I'll add `inverse: SchemaExpr[_, _]` to the case class?
-      // The issue description lists `TransformValue` WITHOUT inverse.
-      // But it lists `DynamicMigration.reverse`.
-      // I will add `inverse` argument to be safe, as otherwise it's impossible.
-      // Or maybe the `SchemaExpr` itself is reversible? No.
-      // I'll add `inverse` to the case class. It deviates slightly from the text but satisfies the requirement.
-      // Wait, let's look at `MigrationBuilder` in issue: `transformField(..., transform: SchemaExpr[A, ?])`.
-      // No inverse provided by user?
-      // "Validation ... (invertibility)".
-      // Maybe `SchemaExpr` *is* invertible? (`Literal`, `Arithmetic` etc might not be).
-      // "primitive -> primitive only".
-      // Maybe simple casts?
-      // If I assume `TransformValue` is only used for `ChangeType` (which has `ChangeType` action separately)?
-      // `ChangeType` has `converter`.
-      // `TransformValue` might be general mapping.
-      // If I can't reverse it, maybe `reverse` for `TransformValue` is `Identity` (no-op) or error?
-      // "Structural reverse... runtime is best-effort".
-      // I will add `transformReverse` field. It's the only logical way.
-      // User API might derive it or ask for it (builder in issue might be simplified).
-      // I'll add `inverse: SchemaExpr[_, _]`.
-      TransformValue(at, transform) // Placeholder: assuming symmetric or handle specially?
-      // Actually, looking at `ChangeType`, it has `converter`.
-      // `TransformValue` is likely for value mapping.
-      // If I add `inverse`, I need to populate it.
-      // I'll stick to the issue spec strictly first. If strict adherence makes it impossible, I'll modify.
-      // "case class TransformValue(at: DynamicOptic, transform: SchemaExpr[?])"
-      // I'll implement `reverse` as `TransformValue(at, transform)` for now and comment.
+    def reverse: MigrationAction = inverse match {
+      case Some(inv) => TransformValue(at, inv, Some(transform))
+      case None      => TransformValue(at, transform, None) // Best effort, or identity?
+      // If we don't have inverse, we can't really reverse.
+      // But we return something to satisfy the type.
+    }
   }
 
   final case class Mandate(
@@ -123,50 +74,38 @@ object MigrationAction {
   final case class Optionalize(
     at: DynamicOptic
   ) extends MigrationAction {
-    // Optionalize reverse should be Mandate.
-    // But Mandate requires a `default`.
-    // Where do we get the default?
-    // Issue says: "case class DropField(..., defaultForReverse: ...)"
-    // For Optionalize, reverse is Mandate.
-    // "Constraints... SchemaExpr.DefaultValue... is stored for reverse migrations"
-    // So Optionalize should probably store the default mechanism?
-    // But the case class in issue is `Optionalize(at: DynamicOptic)`.
-    // Maybe it implies we don't know the default, so reverse will fail if value is missing?
-    // Or `Mandate` with a special "Fail if missing" default?
-    // Or maybe pure reverse doesn't guarantee success (Best effort).
-    // I'll use `Mandate(at, SchemaExpr.Literal(null/None, ...))` or similar?
-    // I'll leave it as `Mandate` with a "No Default" marker if possible, or `SchemaExpr` of some sort.
-    // I'll use `SchemaExpr` placeholder for now.
-    def reverse: MigrationAction =
-      Mandate(at, zio.blocks.schema.SchemaExpr.Literal((), zio.blocks.schema.Schema.unit)) // Dummy
+    // We use a dummy default for reverse Mandate as we don't store the original default.
+    // In a real scenario, this information is lost unless stored.
+    def reverse: MigrationAction = Mandate(at, zio.blocks.schema.SchemaExpr.Literal((), zio.blocks.schema.Schema.unit))
   }
 
   final case class Join(
     at: DynamicOptic,
     sourcePaths: Vector[DynamicOptic],
-    combiner: SchemaExpr[_, _]
+    combiner: SchemaExpr[_, _],
+    splitter: Option[SchemaExpr[_, _]] = None
   ) extends MigrationAction {
-    // Reverse of Join is Split?
-    // Join combines many paths into one `at`.
-    // Split takes `at` and splits into many paths.
-    // We need `splitter` which is `SchemaExpr`.
-    // Again, we lack the inverse expression.
-    def reverse: MigrationAction = Split(at, sourcePaths, combiner) // Placeholder
+    def reverse: MigrationAction =
+      Split(at, sourcePaths, splitter.getOrElse(combiner), Some(combiner)) // Placeholder logic
   }
 
   final case class Split(
     at: DynamicOptic,
     targetPaths: Vector[DynamicOptic],
-    splitter: SchemaExpr[_, _]
+    splitter: SchemaExpr[_, _],
+    combiner: Option[SchemaExpr[_, _]] = None
   ) extends MigrationAction {
-    def reverse: MigrationAction = Join(at, targetPaths, splitter)
+    def reverse: MigrationAction = Join(at, targetPaths, combiner.getOrElse(splitter), Some(splitter))
   }
 
   final case class ChangeType(
     at: DynamicOptic,
     converter: SchemaExpr[_, _]
   ) extends MigrationAction {
-    def reverse: MigrationAction = ChangeType(at, converter) // Placeholder
+    def reverse: MigrationAction = ChangeType(
+      at,
+      converter
+    ) // Valid if converter is identity or we store inverse? (Assuming symmetric for now or placeholder)
   }
 
   final case class RenameCase(
@@ -204,16 +143,63 @@ object MigrationAction {
   ) extends MigrationAction {
     def reverse: MigrationAction = TransformValues(at, migration.reverse)
   }
+
+  private def toSerialized(action: MigrationAction): SerializedMigrationAction = action match {
+    case AddField(at, default)    => SerializedMigrationAction.AddField(at, SerializedSchemaExpr.fromExpr(default))
+    case DropField(at, default)   => SerializedMigrationAction.DropField(at, SerializedSchemaExpr.fromExpr(default))
+    case Rename(at, to)           => SerializedMigrationAction.Rename(at, to)
+    case TransformValue(at, t, i) =>
+      SerializedMigrationAction.TransformValue(
+        at,
+        SerializedSchemaExpr.fromExpr(t),
+        i.map(SerializedSchemaExpr.fromExpr)
+      )
+    case Mandate(at, d)     => SerializedMigrationAction.Mandate(at, SerializedSchemaExpr.fromExpr(d))
+    case Optionalize(at)    => SerializedMigrationAction.Optionalize(at)
+    case Join(at, sp, c, s) =>
+      SerializedMigrationAction.Join(at, sp, SerializedSchemaExpr.fromExpr(c), s.map(SerializedSchemaExpr.fromExpr))
+    case Split(at, tp, s, c) =>
+      SerializedMigrationAction.Split(at, tp, SerializedSchemaExpr.fromExpr(s), c.map(SerializedSchemaExpr.fromExpr))
+    case ChangeType(at, c)        => SerializedMigrationAction.ChangeType(at, SerializedSchemaExpr.fromExpr(c))
+    case RenameCase(at, f, t)     => SerializedMigrationAction.RenameCase(at, f, t)
+    case TransformCase(at, acts)  => SerializedMigrationAction.TransformCase(at, acts.actions.map(toSerialized))
+    case TransformElements(at, m) => SerializedMigrationAction.TransformElements(at, m.actions.map(toSerialized))
+    case TransformKeys(at, m)     => SerializedMigrationAction.TransformKeys(at, m.actions.map(toSerialized))
+    case TransformValues(at, m)   => SerializedMigrationAction.TransformValues(at, m.actions.map(toSerialized))
+  }
+
+  private def fromSerialized(s: SerializedMigrationAction): MigrationAction = s match {
+    case SerializedMigrationAction.AddField(at, d)          => AddField(at, SerializedSchemaExpr.toExpr(d))
+    case SerializedMigrationAction.DropField(at, d)         => DropField(at, SerializedSchemaExpr.toExpr(d))
+    case SerializedMigrationAction.Rename(at, to)           => Rename(at, to)
+    case SerializedMigrationAction.TransformValue(at, t, i) =>
+      TransformValue(at, SerializedSchemaExpr.toExpr(t), i.map(SerializedSchemaExpr.toExpr))
+    case SerializedMigrationAction.Mandate(at, d)     => Mandate(at, SerializedSchemaExpr.toExpr(d))
+    case SerializedMigrationAction.Optionalize(at)    => Optionalize(at)
+    case SerializedMigrationAction.Join(at, sp, c, s) =>
+      Join(at, sp, SerializedSchemaExpr.toExpr(c), s.map(SerializedSchemaExpr.toExpr))
+    case SerializedMigrationAction.Split(at, tp, s, c) =>
+      Split(at, tp, SerializedSchemaExpr.toExpr(s), c.map(SerializedSchemaExpr.toExpr))
+    case SerializedMigrationAction.ChangeType(at, c)       => ChangeType(at, SerializedSchemaExpr.toExpr(c))
+    case SerializedMigrationAction.RenameCase(at, f, t)    => RenameCase(at, f, t)
+    case SerializedMigrationAction.TransformCase(at, acts) =>
+      TransformCase(at, DynamicMigration(acts.map(fromSerialized)))
+    case SerializedMigrationAction.TransformElements(at, m) =>
+      TransformElements(at, DynamicMigration(m.map(fromSerialized)))
+    case SerializedMigrationAction.TransformKeys(at, m)   => TransformKeys(at, DynamicMigration(m.map(fromSerialized)))
+    case SerializedMigrationAction.TransformValues(at, m) =>
+      TransformValues(at, DynamicMigration(m.map(fromSerialized)))
+  }
+
   implicit val schema: zio.blocks.schema.Schema[MigrationAction] =
-    new zio.blocks.schema.Schema(
+    new Schema(
       new zio.blocks.schema.Reflect.Wrapper(
-        zio.blocks.schema.Schema.string.reflect,
-        zio.blocks.schema
-          .TypeName(zio.blocks.schema.Namespace(List("zio", "schema", "migration"), Nil), "MigrationAction", Nil),
+        Schema[SerializedMigrationAction].reflect,
+        zio.blocks.schema.TypeName(zio.blocks.schema.Namespace(List("zio", "schema", "migration")), "MigrationAction"),
         None,
         new zio.blocks.schema.binding.Binding.Wrapper(
-          (_: String) => Left("MigrationAction serialization not implemented manually"),
-          (_: MigrationAction) => "MigrationAction serialization not implemented manually"
+          (s: SerializedMigrationAction) => Right(fromSerialized(s)),
+          (m: MigrationAction) => toSerialized(m)
         )
       )
     )

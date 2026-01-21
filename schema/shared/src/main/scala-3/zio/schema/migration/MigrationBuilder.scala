@@ -11,8 +11,10 @@ class MigrationBuilder[A, B](
   def withAction(action: MigrationAction): MigrationBuilder[A, B] =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
 
-  def build: Migration[A, B] =
-    Migration(DynamicMigration(actions), sourceSchema, targetSchema)
+  def build: Either[String, Migration[A, B]] =
+    MigrationValidator.validate(sourceSchema, targetSchema, DynamicMigration(actions)).map { _ =>
+      Migration(DynamicMigration(actions), sourceSchema, targetSchema)
+    }
 
   inline def addField(inline target: B => Any, inline default: SchemaExpr[A, ?]): MigrationBuilder[A, B] =
     ${ MigrationMacros.addFieldImpl[A, B]('this, 'target, 'default) }
