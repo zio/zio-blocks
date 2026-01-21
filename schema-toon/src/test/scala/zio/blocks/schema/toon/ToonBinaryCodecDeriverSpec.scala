@@ -326,6 +326,8 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(BigDecimal("0.0"), "0") &&
         roundTrip(BigDecimal("126.09999999999999001"), "126.09999999999999001") &&
         roundTrip(BigDecimal("0.0287500000000000000000"), "0.02875") &&
+        roundTrip(BigDecimal("1e20"), "100000000000000000000") &&
+        roundTrip(BigDecimal("1E-10"), "0.0000000001") &&
         roundTrip(BigDecimal("-1." + "1" * 3 + "E+1234"), "-1111" + "0" * 1231) &&
         // FIXME: throws java.nio.BufferOverflowException
         // encode(BigDecimal("1." + "1" * 30 + "E+123456789"), "1." + "1" * 30 + "E+123456789") &&

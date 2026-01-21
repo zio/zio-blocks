@@ -1250,15 +1250,13 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encode(BigDecimal("1e-6"), "0.000001")
       },
       test("encodes large number") {
-        // 1e20 represented as decimal
-        encode(BigDecimal("100000000000000000000"), "100000000000000000000")
+        encode(BigDecimal("1e+20"), "100000000000000000000")
       },
       test("encodes MAX_SAFE_INTEGER") {
         encode(9007199254740991L, "9007199254740991")
       },
       test("encodes repeating decimal with full precision") {
-        // Result of 1/3 in JavaScript: 0.3333333333333333
-        encode(BigDecimal("0.3333333333333333"), "0.3333333333333333")
+        encode(BigDecimal(1.0 / 3), "0.3333333333333333")
       },
       test("encodes null") {
         encodeDynamic(DynamicValue.Primitive(PrimitiveValue.Unit), "null")
