@@ -14,7 +14,7 @@ object RemoteAgentOpsMacro {
       c.abort(c.enclosingPosition, s"RemoteAgentOps.rpc target must be a trait, found: ${traitSym.fullName}")
     }
 
-    val remoteRef = q"${c.prefix}.remote"
+    val remoteRef   = q"${c.prefix}.remote"
     val resolvedRef = q"$remoteRef.resolved"
 
     val futureSym = typeOf[Future[_]].typeSymbol
@@ -62,10 +62,10 @@ object RemoteAgentOpsMacro {
     val methodDefs: List[DefDef] =
       traitTpe.decls.collect {
         case m: MethodSymbol if m.isAbstract && m.isMethod && m.name.toString != "new" =>
-          val methodNameStr               = m.name.toString
-          val baseParamss                 = m.paramLists.map(_.map(mkParamValDef))
-          val baseParams                  = m.paramLists.flatten
-          val inType: Type =
+          val methodNameStr = m.name.toString
+          val baseParamss   = m.paramLists.map(_.map(mkParamValDef))
+          val baseParams    = m.paramLists.flatten
+          val inType: Type  =
             baseParams match {
               case Nil        => typeOf[Unit]
               case one :: Nil => one.typeSignature
@@ -105,9 +105,10 @@ object RemoteAgentOpsMacro {
               q"{ val method = $methodLookup0; $resolvedRef.trigger(method, $inValue.asInstanceOf[$inType]) }"
             )
 
-          val datetimeParam = ValDef(Modifiers(Flag.PARAM), TermName("datetime"), TypeTree(typeOf[_root_.golem.Datetime]), EmptyTree)
-          val schedParamss  = datetimeParam :: baseParamss.flatten
-          val schedDef =
+          val datetimeParam =
+            ValDef(Modifiers(Flag.PARAM), TermName("datetime"), TypeTree(typeOf[_root_.golem.Datetime]), EmptyTree)
+          val schedParamss = datetimeParam :: baseParamss.flatten
+          val schedDef     =
             mkMethodDef(
               schedName,
               List(schedParamss),

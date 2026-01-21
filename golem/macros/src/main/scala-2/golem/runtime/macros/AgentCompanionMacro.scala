@@ -380,7 +380,7 @@ object AgentCompanionMacro {
   ](c: blackbox.Context)(a1: c.Expr[A1], a2: c.Expr[A2], a3: c.Expr[A3], a4: c.Expr[A4], a5: c.Expr[A5]): c.Tree = {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
-    val expected =
+    val expected   =
       appliedType(
         typeOf[Tuple5[_, _, _, _, _]].typeConstructor,
         List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3], weakTypeOf[A4], weakTypeOf[A5])
@@ -402,7 +402,7 @@ object AgentCompanionMacro {
   ](c: blackbox.Context)(a1: c.Expr[A1], a2: c.Expr[A2], a3: c.Expr[A3], a4: c.Expr[A4], a5: c.Expr[A5]): c.Tree = {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
-    val expected =
+    val expected   =
       appliedType(
         typeOf[Tuple5[_, _, _, _, _]].typeConstructor,
         List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3], weakTypeOf[A4], weakTypeOf[A5])
@@ -431,7 +431,7 @@ object AgentCompanionMacro {
   ): c.Tree = {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
-    val expected =
+    val expected   =
       appliedType(
         typeOf[Tuple5[_, _, _, _, _]].typeConstructor,
         List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3], weakTypeOf[A4], weakTypeOf[A5])
@@ -460,7 +460,7 @@ object AgentCompanionMacro {
   ): c.Tree = {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
-    val expected =
+    val expected   =
       appliedType(
         typeOf[Tuple5[_, _, _, _, _]].typeConstructor,
         List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3], weakTypeOf[A4], weakTypeOf[A5])

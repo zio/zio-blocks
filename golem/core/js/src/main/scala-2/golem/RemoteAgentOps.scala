@@ -12,6 +12,6 @@ import scala.language.experimental.macros
  */
 object RemoteAgentOps {
   implicit class Ops[Trait](private val remote: RemoteAgent[Trait]) extends AnyVal {
-    def rpc = macro golem.runtime.macros.RemoteAgentOpsMacro.rpcImpl[Trait]
+    def rpc: Any = macro golem.runtime.macros.RemoteAgentOpsMacro.rpcImpl[Trait]
   }
 }

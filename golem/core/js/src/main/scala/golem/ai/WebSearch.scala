@@ -13,25 +13,25 @@ object WebSearch {
 
   sealed trait SafeSearchLevel extends Product with Serializable { def tag: String }
   object SafeSearchLevel {
-    case object Off    extends SafeSearchLevel { val tag: String = "off" }
+    case object Off    extends SafeSearchLevel { val tag: String = "off"    }
     case object Medium extends SafeSearchLevel { val tag: String = "medium" }
-    case object High   extends SafeSearchLevel { val tag: String = "high" }
+    case object High   extends SafeSearchLevel { val tag: String = "high"   }
 
     def fromTag(tag: String): SafeSearchLevel =
       tag match {
         case "off"    => Off
         case "medium" => Medium
         case "high"   => High
-        case _         => Off
+        case _        => Off
       }
   }
 
   sealed trait TimeRange extends Product with Serializable { def tag: String }
   object TimeRange {
-    case object Day   extends TimeRange { val tag: String = "day" }
-    case object Week  extends TimeRange { val tag: String = "week" }
+    case object Day   extends TimeRange { val tag: String = "day"   }
+    case object Week  extends TimeRange { val tag: String = "week"  }
     case object Month extends TimeRange { val tag: String = "month" }
-    case object Year  extends TimeRange { val tag: String = "year" }
+    case object Year  extends TimeRange { val tag: String = "year"  }
 
     def fromTag(tag: String): TimeRange =
       tag match {
@@ -39,16 +39,16 @@ object WebSearch {
         case "week"  => Week
         case "month" => Month
         case "year"  => Year
-        case _        => Day
+        case _       => Day
       }
   }
 
   sealed trait SearchError extends Product with Serializable
   object SearchError {
-    case object InvalidQuery                                  extends SearchError
-    final case class RateLimited(limit: Int)                 extends SearchError
-    final case class UnsupportedFeature(message: String)     extends SearchError
-    final case class BackendError(message: String)           extends SearchError
+    case object InvalidQuery                             extends SearchError
+    final case class RateLimited(limit: Int)             extends SearchError
+    final case class UnsupportedFeature(message: String) extends SearchError
+    final case class BackendError(message: String)       extends SearchError
   }
 
   final case class ImageResult(url: String, description: Option[String])
@@ -210,29 +210,31 @@ object WebSearch {
   }
 
   private def fromJsSearchOnce(value: js.Dynamic): (List[SearchResult], Option[SearchMetadata]) = {
-    val tuple = value.asInstanceOf[js.Array[js.Dynamic]]
+    val tuple   = value.asInstanceOf[js.Array[js.Dynamic]]
     val results = tuple.headOption.map(fromJsResults).getOrElse(Nil)
-    val meta = tuple.lift(1).flatMap(optionDynamic).map(fromJsMetadata)
+    val meta    = tuple.lift(1).flatMap(optionDynamic).map(fromJsMetadata)
     (results, meta)
   }
 
   private def fromJsError(value: js.Dynamic): SearchError = {
     val tag = tagOf(value)
     tag match {
-      case "invalid-query"     => SearchError.InvalidQuery
-      case "rate-limited"      => SearchError.RateLimited(toInt(valOf(value)))
+      case "invalid-query"       => SearchError.InvalidQuery
+      case "rate-limited"        => SearchError.RateLimited(toInt(valOf(value)))
       case "unsupported-feature" => SearchError.UnsupportedFeature(String.valueOf(valOf(value)))
-      case "backend-error"     => SearchError.BackendError(String.valueOf(valOf(value)))
-      case _                    => SearchError.BackendError(String.valueOf(valOf(value)))
+      case "backend-error"       => SearchError.BackendError(String.valueOf(valOf(value)))
+      case _                     => SearchError.BackendError(String.valueOf(valOf(value)))
     }
   }
 
-  private def decodeResult[A](raw: js.Dynamic)(ok: js.Dynamic => A, err: js.Dynamic => SearchError): Either[SearchError, A] = {
+  private def decodeResult[A](
+    raw: js.Dynamic
+  )(ok: js.Dynamic => A, err: js.Dynamic => SearchError): Either[SearchError, A] = {
     val tag = tagOf(raw)
     tag match {
       case "ok" | "success" => Right(ok(valOf(raw)))
       case "err" | "error"  => Left(err(valOf(raw)))
-      case _                 => Right(ok(raw))
+      case _                => Right(ok(raw))
     }
   }
 
@@ -248,8 +250,7 @@ object WebSearch {
     else dyn
   }
 
-
-  private def optionDynamic(value: js.Any): Option[js.Dynamic] = {
+  private def optionDynamic(value: js.Any): Option[js.Dynamic] =
     if (value == null || js.isUndefined(value)) None
     else {
       val dyn = value.asInstanceOf[js.Dynamic]
@@ -258,11 +259,10 @@ object WebSearch {
         tag.toString match {
           case "some" => Some(dyn.selectDynamic("val").asInstanceOf[js.Dynamic])
           case "none" => None
-          case _       => Some(dyn)
+          case _      => Some(dyn)
         }
       } else Some(dyn)
     }
-  }
 
   private def asArray(value: js.Any): js.Array[js.Dynamic] =
     value.asInstanceOf[js.Array[js.Dynamic]]
@@ -275,16 +275,16 @@ object WebSearch {
 
   private def renderError(err: SearchError): String =
     err match {
-      case SearchError.InvalidQuery              => "Invalid query"
-      case SearchError.RateLimited(limit)        => s"Rate limited (limit=$limit)"
-      case SearchError.UnsupportedFeature(msg)   => s"Unsupported feature: $msg"
-      case SearchError.BackendError(msg)         => s"Backend error: $msg"
+      case SearchError.InvalidQuery            => "Invalid query"
+      case SearchError.RateLimited(limit)      => s"Rate limited (limit=$limit)"
+      case SearchError.UnsupportedFeature(msg) => s"Unsupported feature: $msg"
+      case SearchError.BackendError(msg)       => s"Backend error: $msg"
     }
 
   @js.native
   @JSImport("golem:web-search/web-search@1.0.0", JSImport.Namespace)
   private object WebSearchModule extends js.Object {
     def startSearch(params: js.Dictionary[js.Any]): js.Dynamic = js.native
-    def searchOnce(params: js.Dictionary[js.Any]): js.Dynamic = js.native
+    def searchOnce(params: js.Dictionary[js.Any]): js.Dynamic  = js.native
   }
 }

@@ -1,7 +1,7 @@
 package golem.ai
 
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSImport}
+import scala.scalajs.js.annotation.JSImport
 
 /**
  * Scala.js wrapper for `golem:embed/embed@1.0.0`.
@@ -11,14 +11,14 @@ import scala.scalajs.js.annotation.{JSImport}
 object Embed {
   sealed trait TaskType extends Product with Serializable { def tag: String }
   object TaskType {
-    case object RetrievalQuery      extends TaskType { val tag: String = "retrieval-query" }
-    case object RetrievalDocument   extends TaskType { val tag: String = "retrieval-document" }
-    case object SemanticSimilarity  extends TaskType { val tag: String = "semantic-similarity" }
-    case object Classification      extends TaskType { val tag: String = "classification" }
-    case object Clustering          extends TaskType { val tag: String = "clustering" }
-    case object QuestionAnswering   extends TaskType { val tag: String = "question-answering" }
-    case object FactVerification    extends TaskType { val tag: String = "fact-verification" }
-    case object CodeRetrieval       extends TaskType { val tag: String = "code-retrieval" }
+    case object RetrievalQuery     extends TaskType { val tag: String = "retrieval-query"     }
+    case object RetrievalDocument  extends TaskType { val tag: String = "retrieval-document"  }
+    case object SemanticSimilarity extends TaskType { val tag: String = "semantic-similarity" }
+    case object Classification     extends TaskType { val tag: String = "classification"      }
+    case object Clustering         extends TaskType { val tag: String = "clustering"          }
+    case object QuestionAnswering  extends TaskType { val tag: String = "question-answering"  }
+    case object FactVerification   extends TaskType { val tag: String = "fact-verification"   }
+    case object CodeRetrieval      extends TaskType { val tag: String = "code-retrieval"      }
 
     def fromTag(tag: String): TaskType =
       tag match {
@@ -30,32 +30,32 @@ object Embed {
         case "question-answering"  => QuestionAnswering
         case "fact-verification"   => FactVerification
         case "code-retrieval"      => CodeRetrieval
-        case _                      => RetrievalQuery
+        case _                     => RetrievalQuery
       }
   }
 
   sealed trait OutputFormat extends Product with Serializable { def tag: String }
   object OutputFormat {
     case object FloatArray extends OutputFormat { val tag: String = "float-array" }
-    case object Binary     extends OutputFormat { val tag: String = "binary" }
-    case object Base64     extends OutputFormat { val tag: String = "base64" }
+    case object Binary     extends OutputFormat { val tag: String = "binary"      }
+    case object Base64     extends OutputFormat { val tag: String = "base64"      }
 
     def fromTag(tag: String): OutputFormat =
       tag match {
         case "float-array" => FloatArray
         case "binary"      => Binary
         case "base64"      => Base64
-        case _              => FloatArray
+        case _             => FloatArray
       }
   }
 
   sealed trait OutputDtype extends Product with Serializable { def tag: String }
   object OutputDtype {
     case object FloatArray extends OutputDtype { val tag: String = "float-array" }
-    case object Int8       extends OutputDtype { val tag: String = "int8" }
-    case object UInt8      extends OutputDtype { val tag: String = "uint8" }
-    case object Binary     extends OutputDtype { val tag: String = "binary" }
-    case object UBinary    extends OutputDtype { val tag: String = "ubinary" }
+    case object Int8       extends OutputDtype { val tag: String = "int8"        }
+    case object UInt8      extends OutputDtype { val tag: String = "uint8"       }
+    case object Binary     extends OutputDtype { val tag: String = "binary"      }
+    case object UBinary    extends OutputDtype { val tag: String = "ubinary"     }
 
     def fromTag(tag: String): OutputDtype =
       tag match {
@@ -64,31 +64,31 @@ object Embed {
         case "uint8"       => UInt8
         case "binary"      => Binary
         case "ubinary"     => UBinary
-        case _              => FloatArray
+        case _             => FloatArray
       }
   }
 
   sealed trait ErrorCode extends Product with Serializable { def tag: String }
   object ErrorCode {
-    case object InvalidRequest      extends ErrorCode { val tag: String = "invalid-request" }
-    case object ModelNotFound       extends ErrorCode { val tag: String = "model-not-found" }
-    case object Unsupported         extends ErrorCode { val tag: String = "unsupported" }
+    case object InvalidRequest       extends ErrorCode { val tag: String = "invalid-request"       }
+    case object ModelNotFound        extends ErrorCode { val tag: String = "model-not-found"       }
+    case object Unsupported          extends ErrorCode { val tag: String = "unsupported"           }
     case object AuthenticationFailed extends ErrorCode { val tag: String = "authentication-failed" }
-    case object ProviderError       extends ErrorCode { val tag: String = "provider-error" }
-    case object RateLimitExceeded   extends ErrorCode { val tag: String = "rate-limit-exceeded" }
-    case object InternalError       extends ErrorCode { val tag: String = "internal-error" }
-    case object Unknown             extends ErrorCode { val tag: String = "unknown" }
+    case object ProviderError        extends ErrorCode { val tag: String = "provider-error"        }
+    case object RateLimitExceeded    extends ErrorCode { val tag: String = "rate-limit-exceeded"   }
+    case object InternalError        extends ErrorCode { val tag: String = "internal-error"        }
+    case object Unknown              extends ErrorCode { val tag: String = "unknown"               }
 
     def fromTag(tag: String): ErrorCode =
       tag match {
-        case "invalid-request"      => InvalidRequest
-        case "model-not-found"      => ModelNotFound
-        case "unsupported"          => Unsupported
+        case "invalid-request"       => InvalidRequest
+        case "model-not-found"       => ModelNotFound
+        case "unsupported"           => Unsupported
         case "authentication-failed" => AuthenticationFailed
-        case "provider-error"       => ProviderError
-        case "rate-limit-exceeded"  => RateLimitExceeded
-        case "internal-error"       => InternalError
-        case "unknown"              => Unknown
+        case "provider-error"        => ProviderError
+        case "rate-limit-exceeded"   => RateLimitExceeded
+        case "internal-error"        => InternalError
+        case "unknown"               => Unknown
         case _                       => Unknown
       }
   }
@@ -97,7 +97,7 @@ object Embed {
 
   sealed trait ContentPart extends Product with Serializable
   object ContentPart {
-    final case class Text(value: String)  extends ContentPart
+    final case class Text(value: String)    extends ContentPart
     final case class Image(value: ImageUrl) extends ContentPart
   }
 
@@ -182,13 +182,13 @@ object Embed {
 
   private def toJsConfig(config: Config): JObj =
     js.Dictionary[js.Any](
-      "model"          -> config.model.fold[js.Any](js.undefined)(identity),
-      "task-type"      -> config.taskType.fold[js.Any](js.undefined)(_.tag),
-      "dimensions"     -> config.dimensions.fold[js.Any](js.undefined)(identity),
-      "truncation"     -> config.truncation.fold[js.Any](js.undefined)(identity),
-      "output-format"  -> config.outputFormat.fold[js.Any](js.undefined)(_.tag),
-      "output-dtype"   -> config.outputDtype.fold[js.Any](js.undefined)(_.tag),
-      "user"           -> config.user.fold[js.Any](js.undefined)(identity),
+      "model"            -> config.model.fold[js.Any](js.undefined)(identity),
+      "task-type"        -> config.taskType.fold[js.Any](js.undefined)(_.tag),
+      "dimensions"       -> config.dimensions.fold[js.Any](js.undefined)(identity),
+      "truncation"       -> config.truncation.fold[js.Any](js.undefined)(identity),
+      "output-format"    -> config.outputFormat.fold[js.Any](js.undefined)(_.tag),
+      "output-dtype"     -> config.outputDtype.fold[js.Any](js.undefined)(_.tag),
+      "user"             -> config.user.fold[js.Any](js.undefined)(identity),
       "provider-options" -> js.Array(config.providerOptions.map(toJsKv): _*)
     )
 
@@ -277,7 +277,7 @@ object Embed {
     tag match {
       case "ok" | "success" => Right(ok(valOf(raw)))
       case "err" | "error"  => Left(err(valOf(raw)))
-      case _                 => Right(ok(raw))
+      case _                => Right(ok(raw))
     }
   }
 
@@ -296,7 +296,7 @@ object Embed {
   private def asArray(value: js.Any): js.Array[js.Dynamic] =
     value.asInstanceOf[js.Array[js.Dynamic]]
 
-  private def optionDynamic(value: js.Any): Option[js.Dynamic] = {
+  private def optionDynamic(value: js.Any): Option[js.Dynamic] =
     if (value == null || js.isUndefined(value)) None
     else {
       val dyn = value.asInstanceOf[js.Dynamic]
@@ -305,11 +305,10 @@ object Embed {
         tag.toString match {
           case "some" => Some(dyn.selectDynamic("val").asInstanceOf[js.Dynamic])
           case "none" => None
-          case _       => Some(dyn)
+          case _      => Some(dyn)
         }
       } else Some(dyn)
     }
-  }
 
   private def toInt(value: js.Any): Int =
     value.toString.toInt

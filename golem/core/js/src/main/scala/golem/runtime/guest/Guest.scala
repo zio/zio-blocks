@@ -86,14 +86,17 @@ object Guest {
           js.Promise.reject(invalidType("Invalid agent '" + agentTypeName + "'")).asInstanceOf[js.Promise[Unit]]
         case Some(defnAny) =>
           // Avoid calling `.then` directly (Scala 3 scaladoc / TASTy reader can error on it during `doc`).
-          val initPromise = defnAny.initializeAny(input)
+          val initPromise              = defnAny.initializeAny(input)
           val initFuture: Future[Unit] =
-            FutureInterop.fromPromise(initPromise).map { inst =>
-              resolved = Resolved(defnAny, inst)
-              ()
-            }.recoverWith { case err =>
-              Future.failed(scala.scalajs.js.JavaScriptException(asAgentError(err, "invalid-input")))
-            }
+            FutureInterop
+              .fromPromise(initPromise)
+              .map { inst =>
+                resolved = Resolved(defnAny, inst)
+                ()
+              }
+              .recoverWith { case err =>
+                Future.failed(scala.scalajs.js.JavaScriptException(asAgentError(err, "invalid-input")))
+              }
           FutureInterop.toPromise(initFuture).asInstanceOf[js.Promise[Unit]]
       }
     }

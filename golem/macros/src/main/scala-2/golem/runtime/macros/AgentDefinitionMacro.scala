@@ -42,7 +42,7 @@ object AgentDefinitionMacroImpl {
         .getOrElse("")
 
     val agentTypeName: String = {
-      val trimmed = rawTypeName.trim
+      val trimmed  = rawTypeName.trim
       val resolved =
         if (trimmed.nonEmpty) trimmed
         else {

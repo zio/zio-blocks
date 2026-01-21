@@ -1,7 +1,7 @@
 package golem.ai
 
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSImport}
+import scala.scalajs.js.annotation.JSImport
 import scala.scalajs.js.typedarray.Uint8Array
 
 /**
@@ -14,12 +14,12 @@ object VideoGeneration {
 
   sealed trait VideoError extends Product with Serializable { def tag: String }
   object VideoError {
-    final case class InvalidInput(message: String)        extends VideoError { val tag: String = "invalid-input" }
-    final case class UnsupportedFeature(message: String)  extends VideoError { val tag: String = "unsupported-feature" }
-    case object QuotaExceeded                             extends VideoError { val tag: String = "quota-exceeded" }
-    final case class GenerationFailed(message: String)    extends VideoError { val tag: String = "generation-failed" }
-    case object Cancelled                                 extends VideoError { val tag: String = "cancelled" }
-    final case class InternalError(message: String)       extends VideoError { val tag: String = "internal-error" }
+    final case class InvalidInput(message: String)       extends VideoError { val tag: String = "invalid-input"       }
+    final case class UnsupportedFeature(message: String) extends VideoError { val tag: String = "unsupported-feature" }
+    case object QuotaExceeded                            extends VideoError { val tag: String = "quota-exceeded"      }
+    final case class GenerationFailed(message: String)   extends VideoError { val tag: String = "generation-failed"   }
+    case object Cancelled                                extends VideoError { val tag: String = "cancelled"           }
+    final case class InternalError(message: String)      extends VideoError { val tag: String = "internal-error"      }
   }
 
   sealed trait MediaInput extends Product with Serializable
@@ -34,7 +34,7 @@ object VideoGeneration {
   sealed trait ImageRole extends Product with Serializable { def tag: String }
   object ImageRole {
     case object First extends ImageRole { val tag: String = "first" }
-    case object Last  extends ImageRole { val tag: String = "last" }
+    case object Last  extends ImageRole { val tag: String = "last"  }
 
     def fromTag(tag: String): ImageRole = if (tag == "last") Last else First
   }
@@ -45,8 +45,8 @@ object VideoGeneration {
 
   sealed trait MediaData extends Product with Serializable
   object MediaData {
-    final case class Url(value: String)      extends MediaData
-    final case class Bytes(value: RawBytes)  extends MediaData
+    final case class Url(value: String)     extends MediaData
+    final case class Bytes(value: RawBytes) extends MediaData
   }
 
   final case class RawBytes(bytes: Array[Byte], mimeType: String)
@@ -93,24 +93,24 @@ object VideoGeneration {
 
   sealed trait AspectRatio extends Product with Serializable { def tag: String }
   object AspectRatio {
-    case object Square    extends AspectRatio { val tag: String = "square" }
-    case object Portrait  extends AspectRatio { val tag: String = "portrait" }
+    case object Square    extends AspectRatio { val tag: String = "square"    }
+    case object Portrait  extends AspectRatio { val tag: String = "portrait"  }
     case object Landscape extends AspectRatio { val tag: String = "landscape" }
-    case object Cinema    extends AspectRatio { val tag: String = "cinema" }
+    case object Cinema    extends AspectRatio { val tag: String = "cinema"    }
 
     def fromTag(tag: String): AspectRatio =
       tag match {
         case "portrait"  => Portrait
         case "landscape" => Landscape
         case "cinema"    => Cinema
-        case _            => Square
+        case _           => Square
       }
   }
 
   sealed trait Resolution extends Product with Serializable { def tag: String }
   object Resolution {
-    case object Sd  extends Resolution { val tag: String = "sd" }
-    case object Hd  extends Resolution { val tag: String = "hd" }
+    case object Sd  extends Resolution { val tag: String = "sd"  }
+    case object Hd  extends Resolution { val tag: String = "hd"  }
     case object Fhd extends Resolution { val tag: String = "fhd" }
     case object Uhd extends Resolution { val tag: String = "uhd" }
 
@@ -119,7 +119,7 @@ object VideoGeneration {
         case "hd"  => Hd
         case "fhd" => Fhd
         case "uhd" => Uhd
-        case _      => Sd
+        case _     => Sd
       }
   }
 
@@ -138,10 +138,10 @@ object VideoGeneration {
 
   sealed trait JobStatus extends Product with Serializable { def tag: String }
   object JobStatus {
-    case object Pending                     extends JobStatus { val tag: String = "pending" }
-    case object Running                     extends JobStatus { val tag: String = "running" }
-    case object Succeeded                   extends JobStatus { val tag: String = "succeeded" }
-    final case class Failed(message: String) extends JobStatus { val tag: String = "failed" }
+    case object Pending                      extends JobStatus { val tag: String = "pending"   }
+    case object Running                      extends JobStatus { val tag: String = "running"   }
+    case object Succeeded                    extends JobStatus { val tag: String = "succeeded" }
+    final case class Failed(message: String) extends JobStatus { val tag: String = "failed"    }
   }
 
   final case class VideoResult(status: JobStatus, videos: Option[List[Video]])
@@ -166,13 +166,13 @@ object VideoGeneration {
 
   sealed trait SingleImageEffects extends Product with Serializable { def tag: String }
   object SingleImageEffects {
-    case object Bloombloom    extends SingleImageEffects { val tag: String = "bloombloom" }
-    case object Dizzydizzy    extends SingleImageEffects { val tag: String = "dizzydizzy" }
-    case object Fuzzyfuzzy    extends SingleImageEffects { val tag: String = "fuzzyfuzzy" }
-    case object Squish        extends SingleImageEffects { val tag: String = "squish" }
-    case object Expansion     extends SingleImageEffects { val tag: String = "expansion" }
-    case object AnimeFigure   extends SingleImageEffects { val tag: String = "anime-figure" }
-    case object Rocketrocket  extends SingleImageEffects { val tag: String = "rocketrocket" }
+    case object Bloombloom   extends SingleImageEffects { val tag: String = "bloombloom"   }
+    case object Dizzydizzy   extends SingleImageEffects { val tag: String = "dizzydizzy"   }
+    case object Fuzzyfuzzy   extends SingleImageEffects { val tag: String = "fuzzyfuzzy"   }
+    case object Squish       extends SingleImageEffects { val tag: String = "squish"       }
+    case object Expansion    extends SingleImageEffects { val tag: String = "expansion"    }
+    case object AnimeFigure  extends SingleImageEffects { val tag: String = "anime-figure" }
+    case object Rocketrocket extends SingleImageEffects { val tag: String = "rocketrocket" }
 
     def fromTag(tag: String): SingleImageEffects =
       tag match {
@@ -182,21 +182,21 @@ object VideoGeneration {
         case "expansion"    => Expansion
         case "anime-figure" => AnimeFigure
         case "rocketrocket" => Rocketrocket
-        case _               => Bloombloom
+        case _              => Bloombloom
       }
   }
 
   sealed trait DualImageEffects extends Product with Serializable { def tag: String }
   object DualImageEffects {
-    case object Hug          extends DualImageEffects { val tag: String = "hug" }
-    case object Kiss         extends DualImageEffects { val tag: String = "kiss" }
+    case object Hug          extends DualImageEffects { val tag: String = "hug"           }
+    case object Kiss         extends DualImageEffects { val tag: String = "kiss"          }
     case object HeartGesture extends DualImageEffects { val tag: String = "heart-gesture" }
 
     def fromTag(tag: String): DualImageEffects =
       tag match {
         case "kiss"          => Kiss
         case "heart-gesture" => HeartGesture
-        case _                => Hug
+        case _               => Hug
       }
   }
 
@@ -210,8 +210,8 @@ object VideoGeneration {
 
   sealed trait LipSyncVideo extends Product with Serializable
   object LipSyncVideo {
-    final case class Video(value: BaseVideo)  extends LipSyncVideo
-    final case class VideoId(value: String)   extends LipSyncVideo
+    final case class Video(value: BaseVideo) extends LipSyncVideo
+    final case class VideoId(value: String)  extends LipSyncVideo
   }
 
   // ----- Advanced options -----------------------------------------------------------------
@@ -241,7 +241,10 @@ object VideoGeneration {
   // ----- Public API -----------------------------------------------------------------------
 
   def generateResult(input: MediaInput, config: GenerationConfig): Either[VideoError, String] =
-    decodeResult(VideoModule.generate(toJsMediaInput(input), toJsGenerationConfig(config)))(_.toString, fromJsVideoError)
+    decodeResult(VideoModule.generate(toJsMediaInput(input), toJsGenerationConfig(config)))(
+      _.toString,
+      fromJsVideoError
+    )
 
   def generate(input: MediaInput, config: GenerationConfig): String =
     generateResult(input, config) match {
@@ -269,7 +272,10 @@ object VideoGeneration {
 
   object LipSync {
     def generateLipSyncResult(video: LipSyncVideo, audio: AudioSource): Either[VideoError, String] =
-      decodeResult(LipSyncModule.generateLipSync(toJsLipSyncVideo(video), toJsAudioSource(audio)))(_.toString, fromJsVideoError)
+      decodeResult(LipSyncModule.generateLipSync(toJsLipSyncVideo(video), toJsAudioSource(audio)))(
+        _.toString,
+        fromJsVideoError
+      )
 
     def generateLipSync(video: LipSyncVideo, audio: AudioSource): String =
       generateLipSyncResult(video, audio) match {
@@ -278,7 +284,10 @@ object VideoGeneration {
       }
 
     def listVoicesResult(language: Option[String]): Either[VideoError, List[VoiceInfo]] =
-      decodeResult(LipSyncModule.listVoices(language.fold[js.Any](js.undefined)(identity)))(fromJsVoiceList, fromJsVideoError)
+      decodeResult(LipSyncModule.listVoices(language.fold[js.Any](js.undefined)(identity)))(
+        fromJsVoiceList,
+        fromJsVideoError
+      )
 
     def listVoices(language: Option[String]): List[VoiceInfo] =
       listVoicesResult(language) match {
@@ -307,7 +316,10 @@ object VideoGeneration {
       }
 
     def generateVideoEffectsResult(options: GenerateVideoEffectsOptions): Either[VideoError, String] =
-      decodeResult(AdvancedModule.generateVideoEffects(toJsGenerateVideoEffectsOptions(options)))(_.toString, fromJsVideoError)
+      decodeResult(AdvancedModule.generateVideoEffects(toJsGenerateVideoEffectsOptions(options)))(
+        _.toString,
+        fromJsVideoError
+      )
 
     def generateVideoEffects(options: GenerateVideoEffectsOptions): String =
       generateVideoEffectsResult(options) match {
@@ -316,7 +328,10 @@ object VideoGeneration {
       }
 
     def multiImageGenerationResult(options: MultiImageGenerationOptions): Either[VideoError, String] =
-      decodeResult(AdvancedModule.multiImageGeneration(toJsMultiImageGenerationOptions(options)))(_.toString, fromJsVideoError)
+      decodeResult(AdvancedModule.multiImageGeneration(toJsMultiImageGenerationOptions(options)))(
+        _.toString,
+        fromJsVideoError
+      )
 
     def multiImageGeneration(options: MultiImageGenerationOptions): String =
       multiImageGenerationResult(options) match {
@@ -407,21 +422,21 @@ object VideoGeneration {
 
   private def toJsGenerationConfig(cfg: GenerationConfig): JObj =
     js.Dictionary[js.Any](
-      "negative-prompt" -> cfg.negativePrompt.fold[js.Any](js.undefined)(identity),
-      "seed"            -> cfg.seed.fold[js.Any](js.undefined)(toJsBigInt),
-      "scheduler"       -> cfg.scheduler.fold[js.Any](js.undefined)(identity),
-      "guidance-scale"  -> cfg.guidanceScale.fold[js.Any](js.undefined)(identity),
-      "aspect-ratio"    -> cfg.aspectRatio.fold[js.Any](js.undefined)(_.tag),
+      "negative-prompt"  -> cfg.negativePrompt.fold[js.Any](js.undefined)(identity),
+      "seed"             -> cfg.seed.fold[js.Any](js.undefined)(toJsBigInt),
+      "scheduler"        -> cfg.scheduler.fold[js.Any](js.undefined)(identity),
+      "guidance-scale"   -> cfg.guidanceScale.fold[js.Any](js.undefined)(identity),
+      "aspect-ratio"     -> cfg.aspectRatio.fold[js.Any](js.undefined)(_.tag),
       "duration-seconds" -> cfg.durationSeconds.fold[js.Any](js.undefined)(identity),
-      "resolution"      -> cfg.resolution.fold[js.Any](js.undefined)(_.tag),
-      "model"           -> cfg.model.fold[js.Any](js.undefined)(identity),
-      "enable-audio"    -> cfg.enableAudio.fold[js.Any](js.undefined)(identity),
-      "enhance-prompt"  -> cfg.enhancePrompt.fold[js.Any](js.undefined)(identity),
+      "resolution"       -> cfg.resolution.fold[js.Any](js.undefined)(_.tag),
+      "model"            -> cfg.model.fold[js.Any](js.undefined)(identity),
+      "enable-audio"     -> cfg.enableAudio.fold[js.Any](js.undefined)(identity),
+      "enhance-prompt"   -> cfg.enhancePrompt.fold[js.Any](js.undefined)(identity),
       "provider-options" -> cfg.providerOptions.fold[js.Any](js.undefined)(opts => js.Array(opts.map(toJsKv): _*)),
-      "lastframe"       -> cfg.lastframe.fold[js.Any](js.undefined)(toJsInputImage),
-      "static-mask"     -> cfg.staticMask.fold[js.Any](js.undefined)(toJsStaticMask),
-      "dynamic-mask"    -> cfg.dynamicMask.fold[js.Any](js.undefined)(toJsDynamicMask),
-      "camera-control"  -> cfg.cameraControl.fold[js.Any](js.undefined)(toJsCameraMovement)
+      "lastframe"        -> cfg.lastframe.fold[js.Any](js.undefined)(toJsInputImage),
+      "static-mask"      -> cfg.staticMask.fold[js.Any](js.undefined)(toJsStaticMask),
+      "dynamic-mask"     -> cfg.dynamicMask.fold[js.Any](js.undefined)(toJsDynamicMask),
+      "camera-control"   -> cfg.cameraControl.fold[js.Any](js.undefined)(toJsCameraMovement)
     )
 
   private def toJsKv(kv: Kv): JObj =
@@ -467,10 +482,10 @@ object VideoGeneration {
 
   private def toJsExtendVideoOptions(options: ExtendVideoOptions): JObj =
     js.Dictionary[js.Any](
-      "video-id"       -> options.videoId,
-      "prompt"         -> options.prompt.fold[js.Any](js.undefined)(identity),
-      "negative-prompt" -> options.negativePrompt.fold[js.Any](js.undefined)(identity),
-      "cfg-scale"      -> options.cfgScale.fold[js.Any](js.undefined)(identity),
+      "video-id"         -> options.videoId,
+      "prompt"           -> options.prompt.fold[js.Any](js.undefined)(identity),
+      "negative-prompt"  -> options.negativePrompt.fold[js.Any](js.undefined)(identity),
+      "cfg-scale"        -> options.cfgScale.fold[js.Any](js.undefined)(identity),
       "provider-options" -> options.providerOptions.fold[js.Any](js.undefined)(opts => js.Array(opts.map(toJsKv): _*))
     )
 
@@ -491,7 +506,7 @@ object VideoGeneration {
     )
 
   private def fromJsVideoResult(raw: js.Dynamic): VideoResult = {
-    val obj = raw.asInstanceOf[JObj]
+    val obj    = raw.asInstanceOf[JObj]
     val status = optionDynamic(obj.getOrElse("status", null)).map(fromJsJobStatus).getOrElse(JobStatus.Pending)
     val videos = optionDynamic(obj.getOrElse("videos", null)).map(asArray).map(_.toList.map(fromJsVideo))
     VideoResult(status, videos)
@@ -514,11 +529,11 @@ object VideoGeneration {
   private def fromJsJobStatus(raw: js.Dynamic): JobStatus = {
     val tag = tagOf(raw)
     tag match {
-      case "pending"    => JobStatus.Pending
-      case "running"    => JobStatus.Running
-      case "succeeded"  => JobStatus.Succeeded
-      case "failed"     => JobStatus.Failed(valOf(raw).toString)
-      case _             => JobStatus.Pending
+      case "pending"   => JobStatus.Pending
+      case "running"   => JobStatus.Running
+      case "succeeded" => JobStatus.Succeeded
+      case "failed"    => JobStatus.Failed(valOf(raw).toString)
+      case _           => JobStatus.Pending
     }
   }
 
@@ -536,7 +551,7 @@ object VideoGeneration {
   }
 
   private def fromJsVideoError(raw: js.Dynamic): VideoError = {
-    val tag = tagOf(raw)
+    val tag   = tagOf(raw)
     val value = valOf(raw)
     tag match {
       case "invalid-input"       => VideoError.InvalidInput(value.toString)
@@ -545,16 +560,18 @@ object VideoGeneration {
       case "generation-failed"   => VideoError.GenerationFailed(value.toString)
       case "cancelled"           => VideoError.Cancelled
       case "internal-error"      => VideoError.InternalError(value.toString)
-      case _                      => VideoError.InternalError(value.toString)
+      case _                     => VideoError.InternalError(value.toString)
     }
   }
 
-  private def decodeResult[A](raw: js.Dynamic)(ok: js.Dynamic => A, err: js.Dynamic => VideoError): Either[VideoError, A] = {
+  private def decodeResult[A](
+    raw: js.Dynamic
+  )(ok: js.Dynamic => A, err: js.Dynamic => VideoError): Either[VideoError, A] = {
     val tag = tagOf(raw)
     tag match {
       case "ok" | "success" => Right(ok(valOf(raw)))
       case "err" | "error"  => Left(err(valOf(raw)))
-      case _                 => Right(ok(raw))
+      case _                => Right(ok(raw))
     }
   }
 
@@ -573,7 +590,7 @@ object VideoGeneration {
   private def asArray(value: js.Any): js.Array[js.Dynamic] =
     value.asInstanceOf[js.Array[js.Dynamic]]
 
-  private def optionDynamic(value: js.Any): Option[js.Dynamic] = {
+  private def optionDynamic(value: js.Any): Option[js.Dynamic] =
     if (value == null || js.isUndefined(value)) None
     else {
       val dyn = value.asInstanceOf[js.Dynamic]
@@ -582,11 +599,10 @@ object VideoGeneration {
         tag.toString match {
           case "some" => Some(dyn.selectDynamic("val").asInstanceOf[js.Dynamic])
           case "none" => None
-          case _       => Some(dyn)
+          case _      => Some(dyn)
         }
       } else Some(dyn)
     }
-  }
 
   private def toUint8Array(bytes: Array[Byte]): Uint8Array = {
     val array = new Uint8Array(bytes.length)
@@ -608,22 +624,22 @@ object VideoGeneration {
   @JSImport("golem:video-generation/video-generation@1.0.0", JSImport.Namespace)
   private object VideoModule extends js.Object {
     def generate(input: js.Dictionary[js.Any], config: js.Dictionary[js.Any]): js.Dynamic = js.native
-    def poll(jobId: String): js.Dynamic = js.native
-    def cancel(jobId: String): js.Dynamic = js.native
+    def poll(jobId: String): js.Dynamic                                                   = js.native
+    def cancel(jobId: String): js.Dynamic                                                 = js.native
   }
 
   @js.native
   @JSImport("golem:video-generation/lip-sync@1.0.0", JSImport.Namespace)
   private object LipSyncModule extends js.Object {
     def generateLipSync(video: js.Dictionary[js.Any], audio: js.Dictionary[js.Any]): js.Dynamic = js.native
-    def listVoices(language: js.Any): js.Dynamic = js.native
+    def listVoices(language: js.Any): js.Dynamic                                                = js.native
   }
 
   @js.native
   @JSImport("golem:video-generation/advanced@1.0.0", JSImport.Namespace)
   private object AdvancedModule extends js.Object {
-    def extendVideo(options: js.Dictionary[js.Any]): js.Dynamic = js.native
-    def upscaleVideo(input: js.Dictionary[js.Any]): js.Dynamic = js.native
+    def extendVideo(options: js.Dictionary[js.Any]): js.Dynamic          = js.native
+    def upscaleVideo(input: js.Dictionary[js.Any]): js.Dynamic           = js.native
     def generateVideoEffects(options: js.Dictionary[js.Any]): js.Dynamic = js.native
     def multiImageGeneration(options: js.Dictionary[js.Any]): js.Dynamic = js.native
   }

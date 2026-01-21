@@ -30,7 +30,6 @@ import scala.scalajs.js.typedarray.Uint8Array
  *   load = bytes => { restoreState(bytes); Future.successful(()) }
  * )
  * }}}
- *
  */
 object SnapshotExports {
   private var saveHook: () => Future[Uint8Array] =

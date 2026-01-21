@@ -116,7 +116,8 @@ object GolemPlugin extends AutoPlugin {
                 // If project is a nested build dir (e.g. .../examples/js), prefer sibling ../app
                 projectRoot.getParentFile / "app" / "golem-temp" / "agent_guest.wasm",
                 // getting-started layout: build root is `scala/`, app is sibling in parent
-                if (projectRoot.getName == "scala") projectRoot.getParentFile / "app" / "golem-temp" / "agent_guest.wasm"
+                if (projectRoot.getName == "scala")
+                  projectRoot.getParentFile / "app" / "golem-temp" / "agent_guest.wasm"
                 else null,
                 // build-local fallback (keeps writes inside the build root)
                 buildRoot / "app" / "golem-temp" / "agent_guest.wasm"
@@ -328,7 +329,7 @@ object GolemPlugin extends AutoPlugin {
                   case tpe :: Nil =>
                     s"AgentImplementation.register[$traitFqn, $tpe]((in: $tpe) => new $implFqn(in))"
                   case many =>
-                    val args = many.indices.map(i => s"in._${i + 1}").mkString(", ")
+                    val args    = many.indices.map(i => s"in._${i + 1}").mkString(", ")
                     val ctorTpe = s"(${many.mkString(", ")})"
                     s"AgentImplementation.register[$traitFqn, $ctorTpe]((in: $ctorTpe) => new $implFqn($args))"
                 }

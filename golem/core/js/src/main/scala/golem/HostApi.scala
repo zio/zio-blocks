@@ -104,35 +104,35 @@ object HostApi {
 
   // ----- Agent management / registry ------------------------------------------------------
 
-  type ComponentVersion      = AgentHostApi.ComponentVersion
-  type ComponentIdLiteral    = AgentHostApi.ComponentIdLiteral
-  type AgentIdLiteral        = AgentHostApi.AgentIdLiteral
-  type AgentMetadata         = AgentHostApi.AgentMetadata
-  type AgentStatus           = AgentHostApi.AgentStatus
-  type UpdateMode            = AgentHostApi.UpdateMode
+  type ComponentVersion       = AgentHostApi.ComponentVersion
+  type ComponentIdLiteral     = AgentHostApi.ComponentIdLiteral
+  type AgentIdLiteral         = AgentHostApi.AgentIdLiteral
+  type AgentMetadata          = AgentHostApi.AgentMetadata
+  type AgentStatus            = AgentHostApi.AgentStatus
+  type UpdateMode             = AgentHostApi.UpdateMode
   type RevertAgentTarget      = AgentHostApi.RevertAgentTarget
-  type RegisteredAgentType   = AgentHostApi.RegisteredAgentType
-  type AgentTypeDescriptor   = AgentHostApi.AgentTypeDescriptor
-  type FilterComparator      = AgentHostApi.FilterComparator
+  type RegisteredAgentType    = AgentHostApi.RegisteredAgentType
+  type AgentTypeDescriptor    = AgentHostApi.AgentTypeDescriptor
+  type FilterComparator       = AgentHostApi.FilterComparator
   type StringFilterComparator = AgentHostApi.StringFilterComparator
-  type AgentPropertyFilter   = AgentHostApi.AgentPropertyFilter
-  type AgentNameFilter       = AgentHostApi.AgentNameFilter
-  type AgentStatusFilter     = AgentHostApi.AgentStatusFilter
-  type AgentVersionFilter    = AgentHostApi.AgentVersionFilter
-  type AgentCreatedAtFilter  = AgentHostApi.AgentCreatedAtFilter
-  type AgentEnvFilter        = AgentHostApi.AgentEnvFilter
-  type AgentConfigVarsFilter = AgentHostApi.AgentConfigVarsFilter
-  type AgentAllFilter        = AgentHostApi.AgentAllFilter
-  type AgentAnyFilter        = AgentHostApi.AgentAnyFilter
-  type ForkResult            = AgentHostApi.ForkResult
-  type ForkResultTag         = AgentHostApi.ForkResultTag
-  type ForkResultTagged      = AgentHostApi.ForkResultTagged
-  type GetAgentsHandle       = AgentHostApi.GetAgentsHandle
+  type AgentPropertyFilter    = AgentHostApi.AgentPropertyFilter
+  type AgentNameFilter        = AgentHostApi.AgentNameFilter
+  type AgentStatusFilter      = AgentHostApi.AgentStatusFilter
+  type AgentVersionFilter     = AgentHostApi.AgentVersionFilter
+  type AgentCreatedAtFilter   = AgentHostApi.AgentCreatedAtFilter
+  type AgentEnvFilter         = AgentHostApi.AgentEnvFilter
+  type AgentConfigVarsFilter  = AgentHostApi.AgentConfigVarsFilter
+  type AgentAllFilter         = AgentHostApi.AgentAllFilter
+  type AgentAnyFilter         = AgentHostApi.AgentAnyFilter
+  type ForkResult             = AgentHostApi.ForkResult
+  type ForkResultTag          = AgentHostApi.ForkResultTag
+  type ForkResultTagged       = AgentHostApi.ForkResultTagged
+  type GetAgentsHandle        = AgentHostApi.GetAgentsHandle
   type GetPromiseResultHandle = AgentHostApi.GetPromiseResultHandle
-  type PromiseResult         = AgentHostApi.PromiseResult
-  type Pollable              = AgentHostApi.Pollable
-  type UuidLiteral           = AgentHostApi.UuidLiteral
-  type AgentIdParts          = AgentHostApi.AgentIdParts
+  type PromiseResult          = AgentHostApi.PromiseResult
+  type Pollable               = AgentHostApi.Pollable
+  type UuidLiteral            = AgentHostApi.UuidLiteral
+  type AgentIdParts           = AgentHostApi.AgentIdParts
 
   def registeredAgentType(typeName: String): Option[RegisteredAgentType] =
     AgentHostApi.registeredAgentType(typeName)
@@ -196,7 +196,7 @@ object HostApi {
   }
 
   object UpdateMode {
-    val Automatic: UpdateMode    = AgentHostApi.UpdateMode.Automatic
+    val Automatic: UpdateMode     = AgentHostApi.UpdateMode.Automatic
     val SnapshotBased: UpdateMode = AgentHostApi.UpdateMode.SnapshotBased
   }
 

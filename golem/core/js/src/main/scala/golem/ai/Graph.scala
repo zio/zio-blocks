@@ -1,7 +1,7 @@
 package golem.ai
 
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSImport}
+import scala.scalajs.js.annotation.JSImport
 import scala.scalajs.js.typedarray.Uint8Array
 import scala.scalajs.js.JavaScriptException
 
@@ -15,27 +15,27 @@ object Graph {
 
   sealed trait PropertyValue extends Product with Serializable
   object PropertyValue {
-    case object NullValue                                   extends PropertyValue
-    final case class BooleanValue(value: Boolean)           extends PropertyValue
-    final case class Int8Value(value: Byte)                 extends PropertyValue
-    final case class Int16Value(value: Short)               extends PropertyValue
-    final case class Int32Value(value: Int)                 extends PropertyValue
-    final case class Int64Value(value: Long)                extends PropertyValue
-    final case class UInt8Value(value: Int)                 extends PropertyValue
-    final case class UInt16Value(value: Int)                extends PropertyValue
-    final case class UInt32Value(value: Long)               extends PropertyValue
-    final case class UInt64Value(value: BigInt)             extends PropertyValue
-    final case class Float32Value(value: Float)             extends PropertyValue
-    final case class Float64Value(value: Double)            extends PropertyValue
-    final case class StringValue(value: String)             extends PropertyValue
-    final case class Bytes(value: Array[Byte])              extends PropertyValue
-    final case class DateValue(value: Date)                 extends PropertyValue
-    final case class TimeValue(value: Time)                 extends PropertyValue
-    final case class DatetimeValue(value: Datetime)         extends PropertyValue
-    final case class DurationValue(value: Duration)         extends PropertyValue
-    final case class PointValue(value: Point)               extends PropertyValue
-    final case class LinestringValue(value: Linestring)     extends PropertyValue
-    final case class PolygonValue(value: Polygon)           extends PropertyValue
+    case object NullValue                               extends PropertyValue
+    final case class BooleanValue(value: Boolean)       extends PropertyValue
+    final case class Int8Value(value: Byte)             extends PropertyValue
+    final case class Int16Value(value: Short)           extends PropertyValue
+    final case class Int32Value(value: Int)             extends PropertyValue
+    final case class Int64Value(value: Long)            extends PropertyValue
+    final case class UInt8Value(value: Int)             extends PropertyValue
+    final case class UInt16Value(value: Int)            extends PropertyValue
+    final case class UInt32Value(value: Long)           extends PropertyValue
+    final case class UInt64Value(value: BigInt)         extends PropertyValue
+    final case class Float32Value(value: Float)         extends PropertyValue
+    final case class Float64Value(value: Double)        extends PropertyValue
+    final case class StringValue(value: String)         extends PropertyValue
+    final case class Bytes(value: Array[Byte])          extends PropertyValue
+    final case class DateValue(value: Date)             extends PropertyValue
+    final case class TimeValue(value: Time)             extends PropertyValue
+    final case class DatetimeValue(value: Datetime)     extends PropertyValue
+    final case class DurationValue(value: Duration)     extends PropertyValue
+    final case class PointValue(value: Point)           extends PropertyValue
+    final case class LinestringValue(value: Linestring) extends PropertyValue
+    final case class PolygonValue(value: Polygon)       extends PropertyValue
   }
 
   final case class Date(year: Int, month: Int, day: Int)
@@ -76,45 +76,45 @@ object Graph {
   object Direction {
     case object Outgoing extends Direction { val tag: String = "outgoing" }
     case object Incoming extends Direction { val tag: String = "incoming" }
-    case object Both     extends Direction { val tag: String = "both" }
+    case object Both     extends Direction { val tag: String = "both"     }
 
     def fromTag(tag: String): Direction =
       tag match {
         case "incoming" => Incoming
         case "both"     => Both
-        case _           => Outgoing
+        case _          => Outgoing
       }
   }
 
   sealed trait ComparisonOperator extends Product with Serializable { def tag: String }
   object ComparisonOperator {
-    case object Equal               extends ComparisonOperator { val tag: String = "equal" }
-    case object NotEqual            extends ComparisonOperator { val tag: String = "not-equal" }
-    case object LessThan            extends ComparisonOperator { val tag: String = "less-than" }
-    case object LessThanOrEqual     extends ComparisonOperator { val tag: String = "less-than-or-equal" }
-    case object GreaterThan         extends ComparisonOperator { val tag: String = "greater-than" }
-    case object GreaterThanOrEqual  extends ComparisonOperator { val tag: String = "greater-than-or-equal" }
-    case object Contains            extends ComparisonOperator { val tag: String = "contains" }
-    case object StartsWith          extends ComparisonOperator { val tag: String = "starts-with" }
-    case object EndsWith            extends ComparisonOperator { val tag: String = "ends-with" }
-    case object RegexMatch          extends ComparisonOperator { val tag: String = "regex-match" }
-    case object InList              extends ComparisonOperator { val tag: String = "in-list" }
-    case object NotInList           extends ComparisonOperator { val tag: String = "not-in-list" }
+    case object Equal              extends ComparisonOperator { val tag: String = "equal"                 }
+    case object NotEqual           extends ComparisonOperator { val tag: String = "not-equal"             }
+    case object LessThan           extends ComparisonOperator { val tag: String = "less-than"             }
+    case object LessThanOrEqual    extends ComparisonOperator { val tag: String = "less-than-or-equal"    }
+    case object GreaterThan        extends ComparisonOperator { val tag: String = "greater-than"          }
+    case object GreaterThanOrEqual extends ComparisonOperator { val tag: String = "greater-than-or-equal" }
+    case object Contains           extends ComparisonOperator { val tag: String = "contains"              }
+    case object StartsWith         extends ComparisonOperator { val tag: String = "starts-with"           }
+    case object EndsWith           extends ComparisonOperator { val tag: String = "ends-with"             }
+    case object RegexMatch         extends ComparisonOperator { val tag: String = "regex-match"           }
+    case object InList             extends ComparisonOperator { val tag: String = "in-list"               }
+    case object NotInList          extends ComparisonOperator { val tag: String = "not-in-list"           }
 
     def fromTag(tag: String): ComparisonOperator =
       tag match {
-        case "not-equal"           => NotEqual
-        case "less-than"           => LessThan
-        case "less-than-or-equal"  => LessThanOrEqual
-        case "greater-than"        => GreaterThan
+        case "not-equal"             => NotEqual
+        case "less-than"             => LessThan
+        case "less-than-or-equal"    => LessThanOrEqual
+        case "greater-than"          => GreaterThan
         case "greater-than-or-equal" => GreaterThanOrEqual
-        case "contains"            => Contains
-        case "starts-with"         => StartsWith
-        case "ends-with"           => EndsWith
-        case "regex-match"         => RegexMatch
-        case "in-list"             => InList
-        case "not-in-list"         => NotInList
-        case _                      => Equal
+        case "contains"              => Contains
+        case "starts-with"           => StartsWith
+        case "ends-with"             => EndsWith
+        case "regex-match"           => RegexMatch
+        case "in-list"               => InList
+        case "not-in-list"           => NotInList
+        case _                       => Equal
       }
   }
 
@@ -132,11 +132,11 @@ object Graph {
 
   sealed trait QueryResult extends Product with Serializable
   object QueryResult {
-    final case class Vertices(values: List[Vertex])                 extends QueryResult
-    final case class Edges(values: List[Edge])                      extends QueryResult
-    final case class Paths(values: List[Path])                      extends QueryResult
-    final case class Values(values: List[PropertyValue])            extends QueryResult
-    final case class Maps(values: List[PropertyMap])                extends QueryResult
+    final case class Vertices(values: List[Vertex])      extends QueryResult
+    final case class Edges(values: List[Edge])           extends QueryResult
+    final case class Paths(values: List[Path])           extends QueryResult
+    final case class Values(values: List[PropertyValue]) extends QueryResult
+    final case class Maps(values: List[PropertyMap])     extends QueryResult
   }
 
   type QueryParameters = List[(String, PropertyValue)]
@@ -245,24 +245,34 @@ object Graph {
 
   sealed trait GraphError extends Product with Serializable { def tag: String }
   object GraphError {
-    final case class UnsupportedOperation(message: String) extends GraphError { val tag: String = "unsupported-operation" }
+    final case class UnsupportedOperation(message: String) extends GraphError {
+      val tag: String = "unsupported-operation"
+    }
     final case class ConnectionFailed(message: String)     extends GraphError { val tag: String = "connection-failed" }
-    final case class AuthenticationFailed(message: String) extends GraphError { val tag: String = "authentication-failed" }
-    final case class AuthorizationFailed(message: String)  extends GraphError { val tag: String = "authorization-failed" }
-    final case class ElementNotFound(id: ElementId)        extends GraphError { val tag: String = "element-not-found" }
-    final case class DuplicateElement(id: ElementId)       extends GraphError { val tag: String = "duplicate-element" }
-    final case class SchemaViolation(message: String)      extends GraphError { val tag: String = "schema-violation" }
-    final case class ConstraintViolation(message: String)  extends GraphError { val tag: String = "constraint-violation" }
-    final case class InvalidPropertyType(message: String)  extends GraphError { val tag: String = "invalid-property-type" }
-    final case class InvalidQuery(message: String)         extends GraphError { val tag: String = "invalid-query" }
-    final case class TransactionFailed(message: String)    extends GraphError { val tag: String = "transaction-failed" }
-    case object TransactionConflict                        extends GraphError { val tag: String = "transaction-conflict" }
-    case object TransactionTimeout                         extends GraphError { val tag: String = "transaction-timeout" }
-    case object DeadlockDetected                           extends GraphError { val tag: String = "deadlock-detected" }
-    case object Timeout                                    extends GraphError { val tag: String = "timeout" }
-    final case class ResourceExhausted(message: String)    extends GraphError { val tag: String = "resource-exhausted" }
-    final case class InternalError(message: String)        extends GraphError { val tag: String = "internal-error" }
-    final case class ServiceUnavailable(message: String)   extends GraphError { val tag: String = "service-unavailable" }
+    final case class AuthenticationFailed(message: String) extends GraphError {
+      val tag: String = "authentication-failed"
+    }
+    final case class AuthorizationFailed(message: String) extends GraphError {
+      val tag: String = "authorization-failed"
+    }
+    final case class ElementNotFound(id: ElementId)       extends GraphError { val tag: String = "element-not-found" }
+    final case class DuplicateElement(id: ElementId)      extends GraphError { val tag: String = "duplicate-element" }
+    final case class SchemaViolation(message: String)     extends GraphError { val tag: String = "schema-violation"  }
+    final case class ConstraintViolation(message: String) extends GraphError {
+      val tag: String = "constraint-violation"
+    }
+    final case class InvalidPropertyType(message: String) extends GraphError {
+      val tag: String = "invalid-property-type"
+    }
+    final case class InvalidQuery(message: String)       extends GraphError { val tag: String = "invalid-query"        }
+    final case class TransactionFailed(message: String)  extends GraphError { val tag: String = "transaction-failed"   }
+    case object TransactionConflict                      extends GraphError { val tag: String = "transaction-conflict" }
+    case object TransactionTimeout                       extends GraphError { val tag: String = "transaction-timeout"  }
+    case object DeadlockDetected                         extends GraphError { val tag: String = "deadlock-detected"    }
+    case object Timeout                                  extends GraphError { val tag: String = "timeout"              }
+    final case class ResourceExhausted(message: String)  extends GraphError { val tag: String = "resource-exhausted"   }
+    final case class InternalError(message: String)      extends GraphError { val tag: String = "internal-error"       }
+    final case class ServiceUnavailable(message: String) extends GraphError { val tag: String = "service-unavailable"  }
   }
 
   // ----- Connection ------------------------------------------------------------------------
@@ -388,41 +398,41 @@ object Graph {
 
   sealed trait PropertyType extends Product with Serializable { def tag: String }
   object PropertyType {
-    case object BooleanType  extends PropertyType { val tag: String = "boolean" }
-    case object Int32Type    extends PropertyType { val tag: String = "int32" }
-    case object Int64Type    extends PropertyType { val tag: String = "int64" }
+    case object BooleanType  extends PropertyType { val tag: String = "boolean"      }
+    case object Int32Type    extends PropertyType { val tag: String = "int32"        }
+    case object Int64Type    extends PropertyType { val tag: String = "int64"        }
     case object Float32Type  extends PropertyType { val tag: String = "float32-type" }
     case object Float64Type  extends PropertyType { val tag: String = "float64-type" }
-    case object StringType   extends PropertyType { val tag: String = "string-type" }
-    case object Bytes        extends PropertyType { val tag: String = "bytes" }
-    case object DateType     extends PropertyType { val tag: String = "date" }
-    case object DatetimeType extends PropertyType { val tag: String = "datetime" }
-    case object PointType    extends PropertyType { val tag: String = "point" }
-    case object ListType     extends PropertyType { val tag: String = "list-type" }
-    case object MapType      extends PropertyType { val tag: String = "map-type" }
+    case object StringType   extends PropertyType { val tag: String = "string-type"  }
+    case object Bytes        extends PropertyType { val tag: String = "bytes"        }
+    case object DateType     extends PropertyType { val tag: String = "date"         }
+    case object DatetimeType extends PropertyType { val tag: String = "datetime"     }
+    case object PointType    extends PropertyType { val tag: String = "point"        }
+    case object ListType     extends PropertyType { val tag: String = "list-type"    }
+    case object MapType      extends PropertyType { val tag: String = "map-type"     }
 
     def fromTag(tag: String): PropertyType =
       tag match {
-        case "int32"       => Int32Type
-        case "int64"       => Int64Type
+        case "int32"        => Int32Type
+        case "int64"        => Int64Type
         case "float32-type" => Float32Type
         case "float64-type" => Float64Type
-        case "string-type" => StringType
-        case "bytes"       => Bytes
-        case "date"        => DateType
-        case "datetime"    => DatetimeType
-        case "point"       => PointType
-        case "list-type"   => ListType
-        case "map-type"    => MapType
+        case "string-type"  => StringType
+        case "bytes"        => Bytes
+        case "date"         => DateType
+        case "datetime"     => DatetimeType
+        case "point"        => PointType
+        case "list-type"    => ListType
+        case "map-type"     => MapType
         case _              => BooleanType
       }
   }
 
   sealed trait IndexType extends Product with Serializable { def tag: String }
   object IndexType {
-    case object Exact      extends IndexType { val tag: String = "exact" }
-    case object Range      extends IndexType { val tag: String = "range" }
-    case object Text       extends IndexType { val tag: String = "text" }
+    case object Exact      extends IndexType { val tag: String = "exact"      }
+    case object Range      extends IndexType { val tag: String = "range"      }
+    case object Text       extends IndexType { val tag: String = "text"       }
     case object Geospatial extends IndexType { val tag: String = "geospatial" }
 
     def fromTag(tag: String): IndexType =
@@ -430,7 +440,7 @@ object Graph {
         case "range"      => Range
         case "text"       => Text
         case "geospatial" => Geospatial
-        case _             => Exact
+        case _            => Exact
       }
   }
 
@@ -465,7 +475,7 @@ object Graph {
   sealed trait ContainerType extends Product with Serializable { def tag: String }
   object ContainerType {
     case object VertexContainer extends ContainerType { val tag: String = "vertex-container" }
-    case object EdgeContainer   extends ContainerType { val tag: String = "edge-container" }
+    case object EdgeContainer   extends ContainerType { val tag: String = "edge-container"   }
 
     def fromTag(tag: String): ContainerType = if (tag == "edge-container") EdgeContainer else VertexContainer
   }
@@ -581,28 +591,28 @@ object Graph {
     val tag = tagOf(raw)
     val v   = valOf(raw)
     tag match {
-      case "null-value"      => PropertyValue.NullValue
-      case "boolean"         => PropertyValue.BooleanValue(v.asInstanceOf[Boolean])
-      case "int8"            => PropertyValue.Int8Value(v.toString.toInt.toByte)
-      case "int16"           => PropertyValue.Int16Value(v.toString.toInt.toShort)
-      case "int32"           => PropertyValue.Int32Value(v.toString.toInt)
-      case "int64"           => PropertyValue.Int64Value(fromJsBigInt(v).toLong)
-      case "uint8"           => PropertyValue.UInt8Value(v.toString.toInt)
-      case "uint16"          => PropertyValue.UInt16Value(v.toString.toInt)
-      case "uint32"          => PropertyValue.UInt32Value(v.toString.toLong)
-      case "uint64"          => PropertyValue.UInt64Value(fromJsBigInt(v))
-      case "float32-value"   => PropertyValue.Float32Value(v.toString.toFloat)
-      case "float64-value"   => PropertyValue.Float64Value(v.toString.toDouble)
-      case "string-value"    => PropertyValue.StringValue(v.toString)
-      case "bytes"           => PropertyValue.Bytes(fromJsByteArray(v))
-      case "date"            => PropertyValue.DateValue(fromJsDate(v))
-      case "time"            => PropertyValue.TimeValue(fromJsTime(v))
-      case "datetime"        => PropertyValue.DatetimeValue(fromJsDatetime(v))
-      case "duration"        => PropertyValue.DurationValue(fromJsDuration(v))
-      case "point"           => PropertyValue.PointValue(fromJsPoint(v))
-      case "linestring"      => PropertyValue.LinestringValue(fromJsLinestring(v))
-      case "polygon"         => PropertyValue.PolygonValue(fromJsPolygon(v))
-      case _                  => PropertyValue.StringValue(v.toString)
+      case "null-value"    => PropertyValue.NullValue
+      case "boolean"       => PropertyValue.BooleanValue(v.asInstanceOf[Boolean])
+      case "int8"          => PropertyValue.Int8Value(v.toString.toInt.toByte)
+      case "int16"         => PropertyValue.Int16Value(v.toString.toInt.toShort)
+      case "int32"         => PropertyValue.Int32Value(v.toString.toInt)
+      case "int64"         => PropertyValue.Int64Value(fromJsBigInt(v).toLong)
+      case "uint8"         => PropertyValue.UInt8Value(v.toString.toInt)
+      case "uint16"        => PropertyValue.UInt16Value(v.toString.toInt)
+      case "uint32"        => PropertyValue.UInt32Value(v.toString.toLong)
+      case "uint64"        => PropertyValue.UInt64Value(fromJsBigInt(v))
+      case "float32-value" => PropertyValue.Float32Value(v.toString.toFloat)
+      case "float64-value" => PropertyValue.Float64Value(v.toString.toDouble)
+      case "string-value"  => PropertyValue.StringValue(v.toString)
+      case "bytes"         => PropertyValue.Bytes(fromJsByteArray(v))
+      case "date"          => PropertyValue.DateValue(fromJsDate(v))
+      case "time"          => PropertyValue.TimeValue(fromJsTime(v))
+      case "datetime"      => PropertyValue.DatetimeValue(fromJsDatetime(v))
+      case "duration"      => PropertyValue.DurationValue(fromJsDuration(v))
+      case "point"         => PropertyValue.PointValue(fromJsPoint(v))
+      case "linestring"    => PropertyValue.LinestringValue(fromJsLinestring(v))
+      case "polygon"       => PropertyValue.PolygonValue(fromJsPolygon(v))
+      case _               => PropertyValue.StringValue(v.toString)
     }
   }
 
@@ -697,9 +707,9 @@ object Graph {
     )
 
   private def fromJsPolygon(raw: js.Dynamic): Polygon = {
-    val obj = raw.asInstanceOf[JObj]
+    val obj      = raw.asInstanceOf[JObj]
     val exterior = asArray(obj.getOrElse("exterior", js.Array())).toList.map(fromJsPoint)
-    val holes = obj.get("holes").map { value =>
+    val holes    = obj.get("holes").map { value =>
       asArray(value).toList.map(inner => asArray(inner).toList.map(fromJsPoint))
     }
     Polygon(exterior, holes)
@@ -721,7 +731,7 @@ object Graph {
     tag match {
       case "int64" => ElementId.Int64(fromJsBigInt(v).toLong)
       case "uuid"  => ElementId.Uuid(v.toString)
-      case _        => ElementId.StringValue(v.toString)
+      case _       => ElementId.StringValue(v.toString)
     }
   }
 
@@ -797,7 +807,8 @@ object Graph {
   private def fromJsQueryExecutionResult(raw: js.Dynamic): QueryExecutionResult = {
     val obj = raw.asInstanceOf[JObj]
     QueryExecutionResult(
-      queryResultValue = fromJsQueryResult(obj.getOrElse("query-result-value", js.Dictionary()).asInstanceOf[js.Dynamic]),
+      queryResultValue =
+        fromJsQueryResult(obj.getOrElse("query-result-value", js.Dictionary()).asInstanceOf[js.Dynamic]),
       executionTimeMs = obj.get("execution-time-ms").map(_.toString.toInt),
       rowsAffected = obj.get("rows-affected").map(_.toString.toInt),
       explanation = obj.get("explanation").map(_.toString),
@@ -816,7 +827,7 @@ object Graph {
       case "maps"     =>
         val maps = asArray(v).toList.map(fromJsPropertyMap)
         QueryResult.Maps(maps)
-      case _          => QueryResult.Values(Nil)
+      case _ => QueryResult.Values(Nil)
     }
   }
 
@@ -837,24 +848,24 @@ object Graph {
 
   private def toJsCreateEdgeOptions(options: CreateEdgeOptions): JObj =
     js.Dictionary[js.Any](
-      "edge-type"  -> options.edgeType,
+      "edge-type"   -> options.edgeType,
       "from-vertex" -> toJsElementId(options.fromVertex),
-      "to-vertex"  -> toJsElementId(options.toVertex),
-      "properties" -> options.properties.fold[js.Any](js.undefined)(toJsPropertyMap)
+      "to-vertex"   -> toJsElementId(options.toVertex),
+      "properties"  -> options.properties.fold[js.Any](js.undefined)(toJsPropertyMap)
     )
 
   private def toJsCreateMissingEdgeOptions(options: CreateMissingEdgeOptions): JObj =
     js.Dictionary[js.Any](
-      "edge-type"  -> options.edgeType,
+      "edge-type"   -> options.edgeType,
       "from-vertex" -> toJsElementId(options.fromVertex),
-      "to-vertex"  -> toJsElementId(options.toVertex)
+      "to-vertex"   -> toJsElementId(options.toVertex)
     )
 
   private def toJsUpdateEdgeOptions(options: UpdateEdgeOptions): JObj =
     js.Dictionary[js.Any](
-      "id"                 -> toJsElementId(options.id),
-      "properties"         -> toJsPropertyMap(options.properties),
-      "partial"            -> options.partial.fold[js.Any](js.undefined)(identity),
+      "id"                  -> toJsElementId(options.id),
+      "properties"          -> toJsPropertyMap(options.properties),
+      "partial"             -> options.partial.fold[js.Any](js.undefined)(identity),
       "create-missing-with" -> options.createMissingWith.fold[js.Any](js.undefined)(toJsCreateMissingEdgeOptions)
     )
 
@@ -878,27 +889,29 @@ object Graph {
 
   private def toJsGetAdjacentVerticesOptions(options: GetAdjacentVerticesOptions): JObj =
     js.Dictionary[js.Any](
-      "vertex-id" -> toJsElementId(options.vertexId),
-      "direction" -> options.direction.tag,
+      "vertex-id"  -> toJsElementId(options.vertexId),
+      "direction"  -> options.direction.tag,
       "edge-types" -> options.edgeTypes.fold[js.Any](js.undefined)(xs => js.Array(xs: _*)),
       "limit"      -> options.limit.fold[js.Any](js.undefined)(identity)
     )
 
   private def toJsGetConnectedEdgesOptions(options: GetConnectedEdgesOptions): JObj =
     js.Dictionary[js.Any](
-      "vertex-id" -> toJsElementId(options.vertexId),
-      "direction" -> options.direction.tag,
+      "vertex-id"  -> toJsElementId(options.vertexId),
+      "direction"  -> options.direction.tag,
       "edge-types" -> options.edgeTypes.fold[js.Any](js.undefined)(xs => js.Array(xs: _*)),
       "limit"      -> options.limit.fold[js.Any](js.undefined)(identity)
     )
 
   private def toJsPathOptions(options: PathOptions): JObj =
     js.Dictionary[js.Any](
-      "max-depth"     -> options.maxDepth.fold[js.Any](js.undefined)(identity),
-      "edge-types"    -> options.edgeTypes.fold[js.Any](js.undefined)(xs => js.Array(xs: _*)),
-      "vertex-types"  -> options.vertexTypes.fold[js.Any](js.undefined)(xs => js.Array(xs: _*)),
-      "vertex-filters" -> options.vertexFilters.fold[js.Any](js.undefined)(fs => js.Array(fs.map(toJsFilterCondition): _*)),
-      "edge-filters"   -> options.edgeFilters.fold[js.Any](js.undefined)(fs => js.Array(fs.map(toJsFilterCondition): _*))
+      "max-depth"      -> options.maxDepth.fold[js.Any](js.undefined)(identity),
+      "edge-types"     -> options.edgeTypes.fold[js.Any](js.undefined)(xs => js.Array(xs: _*)),
+      "vertex-types"   -> options.vertexTypes.fold[js.Any](js.undefined)(xs => js.Array(xs: _*)),
+      "vertex-filters" -> options.vertexFilters.fold[js.Any](js.undefined)(fs =>
+        js.Array(fs.map(toJsFilterCondition): _*)
+      ),
+      "edge-filters" -> options.edgeFilters.fold[js.Any](js.undefined)(fs => js.Array(fs.map(toJsFilterCondition): _*))
     )
 
   private def toJsFindShortestPathOptions(options: FindShortestPathOptions): JObj =
@@ -925,10 +938,10 @@ object Graph {
 
   private def toJsGetNeighborhoodOptions(options: GetNeighborhoodOptions): JObj =
     js.Dictionary[js.Any](
-      "center"     -> toJsElementId(options.center),
-      "depth"      -> options.depth,
-      "direction"  -> options.direction.tag,
-      "edge-types" -> options.edgeTypes.fold[js.Any](js.undefined)(xs => js.Array(xs: _*)),
+      "center"       -> toJsElementId(options.center),
+      "depth"        -> options.depth,
+      "direction"    -> options.direction.tag,
+      "edge-types"   -> options.edgeTypes.fold[js.Any](js.undefined)(xs => js.Array(xs: _*)),
       "max-vertices" -> options.maxVertices.fold[js.Any](js.undefined)(identity)
     )
 
@@ -982,10 +995,10 @@ object Graph {
 
   private def toJsPropertyDefinition(defn: PropertyDefinition): JObj =
     js.Dictionary[js.Any](
-      "name"         -> defn.name,
+      "name"          -> defn.name,
       "property-type" -> defn.propertyType.tag,
-      "required"     -> defn.required,
-      "unique"       -> defn.unique,
+      "required"      -> defn.required,
+      "unique"        -> defn.unique,
       "default-value" -> defn.defaultValue.fold[js.Any](js.undefined)(toJsPropertyValue)
     )
 
@@ -1021,11 +1034,11 @@ object Graph {
 
   private def toJsEdgeLabelSchema(schema: EdgeLabelSchema): JObj =
     js.Dictionary[js.Any](
-      "label"        -> schema.label,
-      "properties"   -> js.Array(schema.properties.map(toJsPropertyDefinition): _*),
-      "from-labels"  -> schema.fromLabels.fold[js.Any](js.undefined)(ls => js.Array(ls: _*)),
-      "to-labels"    -> schema.toLabels.fold[js.Any](js.undefined)(ls => js.Array(ls: _*)),
-      "container"    -> schema.container.fold[js.Any](js.undefined)(identity)
+      "label"       -> schema.label,
+      "properties"  -> js.Array(schema.properties.map(toJsPropertyDefinition): _*),
+      "from-labels" -> schema.fromLabels.fold[js.Any](js.undefined)(ls => js.Array(ls: _*)),
+      "to-labels"   -> schema.toLabels.fold[js.Any](js.undefined)(ls => js.Array(ls: _*)),
+      "container"   -> schema.container.fold[js.Any](js.undefined)(identity)
     )
 
   private def fromJsEdgeLabelSchema(raw: js.Dynamic): EdgeLabelSchema = {
@@ -1072,7 +1085,7 @@ object Graph {
 
   private def toJsEdgeTypeDefinition(defn: EdgeTypeDefinition): JObj =
     js.Dictionary[js.Any](
-      "collection"      -> defn.collection,
+      "collection"       -> defn.collection,
       "from-collections" -> js.Array(defn.fromCollections: _*),
       "to-collections"   -> js.Array(defn.toCollections: _*)
     )
@@ -1123,7 +1136,7 @@ object Graph {
       case "resource-exhausted"    => GraphError.ResourceExhausted(v.toString)
       case "internal-error"        => GraphError.InternalError(v.toString)
       case "service-unavailable"   => GraphError.ServiceUnavailable(v.toString)
-      case _                        => GraphError.InternalError(v.toString)
+      case _                       => GraphError.InternalError(v.toString)
     }
   }
 
@@ -1133,16 +1146,18 @@ object Graph {
     } catch {
       case JavaScriptException(value) =>
         Left(fromJsGraphError(value.asInstanceOf[js.Dynamic]))
-      case other =>
+      case other: Throwable =>
         Left(GraphError.InternalError(other.toString))
     }
 
-  private def decodeResult[A](raw: js.Dynamic)(ok: js.Dynamic => A, err: js.Dynamic => GraphError): Either[GraphError, A] = {
+  private def decodeResult[A](
+    raw: js.Dynamic
+  )(ok: js.Dynamic => A, err: js.Dynamic => GraphError): Either[GraphError, A] = {
     val tag = tagOf(raw)
     tag match {
       case "ok" | "success" => Right(ok(valOf(raw)))
       case "err" | "error"  => Left(err(valOf(raw)))
-      case _                 => Right(ok(raw))
+      case _                => Right(ok(raw))
     }
   }
 
@@ -1158,7 +1173,7 @@ object Graph {
     else dyn
   }
 
-  private def optionDynamic(value: js.Any): Option[js.Dynamic] = {
+  private def optionDynamic(value: js.Any): Option[js.Dynamic] =
     if (value == null || js.isUndefined(value)) None
     else {
       val dyn = value.asInstanceOf[js.Dynamic]
@@ -1167,11 +1182,10 @@ object Graph {
         tag.toString match {
           case "some" => Some(dyn.selectDynamic("val").asInstanceOf[js.Dynamic])
           case "none" => None
-          case _       => Some(dyn)
+          case _      => Some(dyn)
         }
       } else Some(dyn)
     }
-  }
 
   private def asArray(value: js.Any): js.Array[js.Dynamic] =
     value.asInstanceOf[js.Array[js.Dynamic]]

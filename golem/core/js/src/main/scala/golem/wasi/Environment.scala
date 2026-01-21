@@ -17,7 +17,11 @@ object Environment {
     EnvModule
 
   def getEnvironment(): Map[String, String] =
-    EnvModule.getEnvironment().toSeq.map { kv =>
-      kv._1 -> kv._2
-    }.toMap
+    EnvModule
+      .getEnvironment()
+      .toSeq
+      .map { kv =>
+        kv._1 -> kv._2
+      }
+      .toMap
 }

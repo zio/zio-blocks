@@ -15,10 +15,10 @@ object Llm {
 
   sealed trait Role extends Product with Serializable { def tag: String }
   object Role {
-    case object User      extends Role { val tag: String = "user" }
+    case object User      extends Role { val tag: String = "user"      }
     case object Assistant extends Role { val tag: String = "assistant" }
-    case object System    extends Role { val tag: String = "system" }
-    case object Tool      extends Role { val tag: String = "tool" }
+    case object System    extends Role { val tag: String = "system"    }
+    case object Tool      extends Role { val tag: String = "tool"      }
 
     def fromTag(tag: String): Role =
       tag match {
@@ -26,18 +26,18 @@ object Llm {
         case "assistant" => Assistant
         case "system"    => System
         case "tool"      => Tool
-        case _            => User
+        case _           => User
       }
   }
 
   sealed trait ErrorCode extends Product with Serializable { def tag: String }
   object ErrorCode {
-    case object InvalidRequest       extends ErrorCode { val tag: String = "invalid-request" }
+    case object InvalidRequest       extends ErrorCode { val tag: String = "invalid-request"       }
     case object AuthenticationFailed extends ErrorCode { val tag: String = "authentication-failed" }
-    case object RateLimitExceeded    extends ErrorCode { val tag: String = "rate-limit-exceeded" }
-    case object InternalError        extends ErrorCode { val tag: String = "internal-error" }
-    case object Unsupported          extends ErrorCode { val tag: String = "unsupported" }
-    case object Unknown              extends ErrorCode { val tag: String = "unknown" }
+    case object RateLimitExceeded    extends ErrorCode { val tag: String = "rate-limit-exceeded"   }
+    case object InternalError        extends ErrorCode { val tag: String = "internal-error"        }
+    case object Unsupported          extends ErrorCode { val tag: String = "unsupported"           }
+    case object Unknown              extends ErrorCode { val tag: String = "unknown"               }
 
     def fromTag(tag: String): ErrorCode =
       tag match {
@@ -47,18 +47,18 @@ object Llm {
         case "internal-error"        => InternalError
         case "unsupported"           => Unsupported
         case "unknown"               => Unknown
-        case _                        => Unknown
+        case _                       => Unknown
       }
   }
 
   sealed trait FinishReason extends Product with Serializable { def tag: String }
   object FinishReason {
-    case object Stop          extends FinishReason { val tag: String = "stop" }
-    case object Length        extends FinishReason { val tag: String = "length" }
-    case object ToolCalls     extends FinishReason { val tag: String = "tool-calls" }
+    case object Stop          extends FinishReason { val tag: String = "stop"           }
+    case object Length        extends FinishReason { val tag: String = "length"         }
+    case object ToolCalls     extends FinishReason { val tag: String = "tool-calls"     }
     case object ContentFilter extends FinishReason { val tag: String = "content-filter" }
-    case object Error         extends FinishReason { val tag: String = "error" }
-    case object Other         extends FinishReason { val tag: String = "other" }
+    case object Error         extends FinishReason { val tag: String = "error"          }
+    case object Other         extends FinishReason { val tag: String = "other"          }
 
     def fromTag(tag: String): FinishReason =
       tag match {
@@ -67,13 +67,13 @@ object Llm {
         case "tool-calls"     => ToolCalls
         case "content-filter" => ContentFilter
         case "error"          => Error
-        case _                 => Other
+        case _                => Other
       }
   }
 
   sealed trait ImageDetail extends Product with Serializable { def tag: String }
   object ImageDetail {
-    case object Low  extends ImageDetail { val tag: String = "low" }
+    case object Low  extends ImageDetail { val tag: String = "low"  }
     case object High extends ImageDetail { val tag: String = "high" }
     case object Auto extends ImageDetail { val tag: String = "auto" }
 
@@ -82,7 +82,7 @@ object Llm {
         case "low"  => Low
         case "high" => High
         case "auto" => Auto
-        case _       => Auto
+        case _      => Auto
       }
   }
 
@@ -97,14 +97,14 @@ object Llm {
 
   sealed trait ContentPart extends Product with Serializable
   object ContentPart {
-    final case class Text(value: String)               extends ContentPart
-    final case class Image(value: ImageReference)      extends ContentPart
+    final case class Text(value: String)          extends ContentPart
+    final case class Image(value: ImageReference) extends ContentPart
   }
 
   final case class Message(role: Role, name: Option[String], content: List[ContentPart])
   object Message {
-    def system(text: String): Message                      = Message(Role.System, None, List(ContentPart.Text(text)))
-    def user(text: String): Message                        = Message(Role.User, None, List(ContentPart.Text(text)))
+    def system(text: String): Message                                 = Message(Role.System, None, List(ContentPart.Text(text)))
+    def user(text: String): Message                                   = Message(Role.User, None, List(ContentPart.Text(text)))
     def assistant(text: String, name: Option[String] = None): Message =
       Message(Role.Assistant, name, List(ContentPart.Text(text)))
   }
@@ -153,12 +153,12 @@ object Llm {
 
   sealed trait Event extends Product with Serializable
   object Event {
-    final case class MessageEvent(message: Message)           extends Event
-    final case class ResponseEvent(response: Response)        extends Event
+    final case class MessageEvent(message: Message)              extends Event
+    final case class ResponseEvent(response: Response)           extends Event
     final case class ToolResultsEvent(results: List[ToolResult]) extends Event
 
-    def message(m: Message): Event         = MessageEvent(m)
-    def response(r: Response): Event       = ResponseEvent(r)
+    def message(m: Message): Event               = MessageEvent(m)
+    def response(r: Response): Event             = ResponseEvent(r)
     def toolResults(rs: List[ToolResult]): Event = ToolResultsEvent(rs)
   }
 
@@ -166,7 +166,7 @@ object Llm {
 
   sealed trait StreamEvent extends Product with Serializable
   object StreamEvent {
-    final case class Delta(value: StreamDelta)        extends StreamEvent
+    final case class Delta(value: StreamDelta)          extends StreamEvent
     final case class Finish(metadata: ResponseMetadata) extends StreamEvent
   }
 
@@ -200,10 +200,8 @@ object Llm {
     }
 
   def stream(events: Vector[Event], config: Config): ChatStream = {
-    {
-      ensureLlmEnvConfigured()
-      new ChatStream(LlmModule.stream(toJsEvents(events), toJsConfig(config)).asInstanceOf[js.Dynamic])
-    }
+    ensureLlmEnvConfigured()
+    new ChatStream(LlmModule.stream(toJsEvents(events), toJsConfig(config)).asInstanceOf[js.Dynamic])
   }
 
   // ----- Private interop ------------------------------------------------------------------
@@ -225,10 +223,10 @@ object Llm {
     List("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION")
 
   private def ensureLlmEnvConfigured(): Unit = {
-    val env       = Environment.getEnvironment()
-    val hasSimple = llmProviderEnvKeys.exists(env.contains)
+    val env        = Environment.getEnvironment()
+    val hasSimple  = llmProviderEnvKeys.exists(env.contains)
     val hasBedrock = bedrockEnvKeys.forall(env.contains)
-    val hasOllama = env.contains("GOLEM_OLLAMA_BASE_URL")
+    val hasOllama  = env.contains("GOLEM_OLLAMA_BASE_URL")
 
     if (!hasSimple && !hasBedrock && !hasOllama) {
       val expected =
@@ -258,7 +256,7 @@ object Llm {
 
   private def toJsContentPart(p: ContentPart): JObj =
     p match {
-      case ContentPart.Text(t) => js.Dictionary[js.Any]("tag" -> "text", "val" -> t)
+      case ContentPart.Text(t)    => js.Dictionary[js.Any]("tag" -> "text", "val" -> t)
       case ContentPart.Image(img) =>
         js.Dictionary[js.Any]("tag" -> "image", "val" -> toJsImageReference(img))
     }
@@ -286,8 +284,8 @@ object Llm {
 
   private def toJsToolDefinition(t: ToolDefinition): JObj =
     js.Dictionary[js.Any](
-      "name"             -> t.name,
-      "description"      -> t.description.fold[js.Any](js.undefined)(identity),
+      "name"              -> t.name,
+      "description"       -> t.description.fold[js.Any](js.undefined)(identity),
       "parameters-schema" -> t.parametersSchema
     )
 
@@ -316,18 +314,18 @@ object Llm {
 
   private def toJsToolSuccess(value: ToolSuccess): JObj =
     js.Dictionary[js.Any](
-      "id"               -> value.id,
-      "name"             -> value.name,
-      "result-json"      -> value.resultJson,
+      "id"                -> value.id,
+      "name"              -> value.name,
+      "result-json"       -> value.resultJson,
       "execution-time-ms" -> value.executionTimeMs.fold[js.Any](js.undefined)(identity)
     )
 
   private def toJsToolFailure(value: ToolFailure): JObj =
     js.Dictionary[js.Any](
-      "id"           -> value.id,
-      "name"         -> value.name,
+      "id"            -> value.id,
+      "name"          -> value.name,
       "error-message" -> value.errorMessage,
-      "error-code"   -> value.errorCode.fold[js.Any](js.undefined)(identity)
+      "error-code"    -> value.errorCode.fold[js.Any](js.undefined)(identity)
     )
 
   private def toJsUsage(usage: Usage): JObj =
@@ -339,21 +337,21 @@ object Llm {
 
   private def toJsMetadata(meta: ResponseMetadata): JObj =
     js.Dictionary[js.Any](
-      "finish-reason"         -> meta.finishReason.fold[js.Any](js.undefined)(_.tag),
-      "usage"                 -> meta.usage.fold[js.Any](js.undefined)(toJsUsage),
-      "provider-id"           -> meta.providerId.fold[js.Any](js.undefined)(identity),
-      "timestamp"             -> meta.timestamp.fold[js.Any](js.undefined)(identity),
+      "finish-reason"          -> meta.finishReason.fold[js.Any](js.undefined)(_.tag),
+      "usage"                  -> meta.usage.fold[js.Any](js.undefined)(toJsUsage),
+      "provider-id"            -> meta.providerId.fold[js.Any](js.undefined)(identity),
+      "timestamp"              -> meta.timestamp.fold[js.Any](js.undefined)(identity),
       "provider-metadata-json" -> meta.providerMetadataJson.fold[js.Any](js.undefined)(identity)
     )
 
   private def toJsConfig(config: Config): JObj =
     js.Dictionary[js.Any](
-      "model"           -> config.model,
-      "temperature"     -> config.temperature.fold[js.Any](js.undefined)(identity),
-      "max-tokens"      -> config.maxTokens.fold[js.Any](js.undefined)(identity),
-      "stop-sequences"  -> config.stopSequences.fold[js.Any](js.undefined)(ss => js.Array(ss: _*)),
-      "tools"           -> config.tools.fold[js.Any](js.undefined)(t => js.Array(t.map(toJsToolDefinition): _*)),
-      "tool-choice"     -> config.toolChoice.fold[js.Any](js.undefined)(identity),
+      "model"            -> config.model,
+      "temperature"      -> config.temperature.fold[js.Any](js.undefined)(identity),
+      "max-tokens"       -> config.maxTokens.fold[js.Any](js.undefined)(identity),
+      "stop-sequences"   -> config.stopSequences.fold[js.Any](js.undefined)(ss => js.Array(ss: _*)),
+      "tools"            -> config.tools.fold[js.Any](js.undefined)(t => js.Array(t.map(toJsToolDefinition): _*)),
+      "tool-choice"      -> config.toolChoice.fold[js.Any](js.undefined)(identity),
       "provider-options" -> config.providerOptions.fold[js.Any](js.undefined)(opts => js.Array(opts.map(toJsKv): _*))
     )
 
@@ -365,9 +363,11 @@ object Llm {
     val id       = obj.getOrElse("id", "").toString
     val content  = obj.get("content").map(asArray).getOrElse(js.Array()).toList.map(fromJsContentPart)
     val toolList = obj.get("tool-calls").map(asArray).getOrElse(js.Array()).toList.map(fromJsToolCall)
-    val metadata = optionDynamic(obj.getOrElse("metadata", null)).map(fromJsMetadata).getOrElse(
-      ResponseMetadata(None, None, None, None, None)
-    )
+    val metadata = optionDynamic(obj.getOrElse("metadata", null))
+      .map(fromJsMetadata)
+      .getOrElse(
+        ResponseMetadata(None, None, None, None, None)
+      )
     Response(id, content, toolList, metadata)
   }
 
@@ -408,7 +408,7 @@ object Llm {
   }
 
   private def fromJsMetadata(o: js.Dynamic): ResponseMetadata = {
-    val obj = o.asInstanceOf[JObj]
+    val obj    = o.asInstanceOf[JObj]
     val finish = optionDynamic(obj.getOrElse("finish-reason", null)).map(_.toString).map(FinishReason.fromTag)
     val usage  = optionDynamic(obj.getOrElse("usage", null)).map(fromJsUsage)
     ResponseMetadata(
@@ -445,27 +445,26 @@ object Llm {
   }
 
   private def fromJsStreamDelta(o: js.Dynamic): StreamDelta = {
-    val obj = o.asInstanceOf[JObj]
-    val content = optionDynamic(obj.getOrElse("content", null)).map(asArray).map(_.toList.map(fromJsContentPart))
+    val obj       = o.asInstanceOf[JObj]
+    val content   = optionDynamic(obj.getOrElse("content", null)).map(asArray).map(_.toList.map(fromJsContentPart))
     val toolCalls = optionDynamic(obj.getOrElse("tool-calls", null)).map(asArray).map(_.toList.map(fromJsToolCall))
     StreamDelta(content, toolCalls)
   }
 
-  private def decodeStreamChunk(raw: js.Dynamic): Option[List[Either[Error, StreamEvent]]] = {
+  private def decodeStreamChunk(raw: js.Dynamic): Option[List[Either[Error, StreamEvent]]] =
     optionDynamic(raw).map { value =>
       val arr = value.asInstanceOf[js.Array[js.Dynamic]]
       arr.toList.map { item =>
         decodeResult(item)(fromJsStreamEvent, fromJsError)
       }
     }
-  }
 
   private def decodeResult[A](raw: js.Dynamic)(ok: js.Dynamic => A, err: js.Dynamic => Error): Either[Error, A] = {
     val tag = tagOf(raw)
     tag match {
       case "ok" | "success" => Right(ok(valOf(raw)))
       case "err" | "error"  => Left(err(valOf(raw)))
-      case _                 => Right(ok(raw))
+      case _                => Right(ok(raw))
     }
   }
 
@@ -484,7 +483,7 @@ object Llm {
   private def asArray(value: js.Any): js.Array[js.Dynamic] =
     value.asInstanceOf[js.Array[js.Dynamic]]
 
-  private def optionDynamic(value: js.Any): Option[js.Dynamic] = {
+  private def optionDynamic(value: js.Any): Option[js.Dynamic] =
     if (value == null || js.isUndefined(value)) None
     else {
       val dyn = value.asInstanceOf[js.Dynamic]
@@ -493,18 +492,17 @@ object Llm {
         tag.toString match {
           case "some" => Some(dyn.selectDynamic("val").asInstanceOf[js.Dynamic])
           case "none" => None
-          case _       => Some(dyn)
+          case _      => Some(dyn)
         }
       } else Some(dyn)
     }
-  }
 
   private def toInt(value: js.Any): Int =
     value.toString.toInt
 
   private def toByteArray(value: Option[js.Any]): Array[Byte] =
     value match {
-      case None => Array.emptyByteArray
+      case None                   => Array.emptyByteArray
       case Some(arr: js.Array[_]) =>
         arr.map(_.toString.toInt.toByte).toArray
       case Some(typed: Uint8Array) =>
