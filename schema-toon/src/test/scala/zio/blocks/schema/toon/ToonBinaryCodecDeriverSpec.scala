@@ -624,10 +624,12 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("known fields work with rejectExtraFields true") {
-        val codec = deriveCodec[SimplePerson](_.withRejectExtraFields(true))
-        val toon  = """name: Bob
-                      |age: 30""".stripMargin
-        decode(toon, SimplePerson("Bob", 30), codec)
+        decode(
+          """name: Bob
+            |age: 30""".stripMargin,
+          SimplePerson("Bob", 30),
+          deriveCodec[SimplePerson](_.withRejectExtraFields(true))
+        )
       },
       test("user profile with address") {
         roundTrip(
@@ -646,20 +648,87 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             |  zip: "12345"""".stripMargin
         )
       },
-      test("order with line items") {
+      test("collection field alongside other fields") {
         roundTrip(
           Order("ORD-001", List("Widget", "Gadget"), BigDecimal("99.99")),
           """orderId: ORD-001
             |items[2]: Widget,Gadget
             |total: 99.99""".stripMargin
+        ) &&
+        roundTrip(
+          Order("ORD-001", List.empty, BigDecimal("99.99")),
+          """orderId: ORD-001
+            |total: 99.99""".stripMargin
         )
       },
-      test("config with nested options") {
+      test("collection field alongside other fields with withTransientEmptyCollection false") {
+        roundTrip(
+          Order("ORD-001", List.empty, BigDecimal("99.99")),
+          """orderId: ORD-001
+            |items[0]:
+            |total: 99.99""".stripMargin,
+          deriveCodec[Order](_.withTransientEmptyCollection(false))
+        )
+      },
+      test("collection field alongside other fields with withRequireCollectionFields true") {
+        decode(
+          """orderId: ORD-001
+            |items[0]:
+            |total: 99.99""".stripMargin,
+          Order("ORD-001", List.empty, BigDecimal("99.99")),
+          deriveCodec[Order](_.withRequireCollectionFields(true))
+        ) &&
+        decodeError[Order](
+          """orderId: ORD-001
+            |total: 99.99""".stripMargin,
+          "Missing required field: items at: .",
+          deriveCodec[Order](_.withRequireCollectionFields(true))
+        )
+      },
+      test("default value field") {
+        roundTrip(
+          ServerConfig("localhost", 80, Some(true)),
+          """host: localhost
+            |ssl: true""".stripMargin
+        ) &&
         roundTrip(
           ServerConfig("localhost", 8080, Some(true)),
           """host: localhost
             |port: 8080
             |ssl: true""".stripMargin
+        )
+      },
+      test("default value field with withTransientDefaultValue false") {
+        val codec = deriveCodec[ServerConfig](_.withTransientDefaultValue(false))
+        roundTrip(
+          ServerConfig("localhost", 80, Some(true)),
+          """host: localhost
+            |port: 80
+            |ssl: true""".stripMargin,
+          codec
+        ) &&
+        roundTrip(
+          ServerConfig("localhost", 8080, Some(true)),
+          """host: localhost
+            |port: 8080
+            |ssl: true""".stripMargin,
+          codec
+        )
+      },
+      test("default value field with withRequireCollectionFields") {
+        val codec = deriveCodec[ServerConfig](_.withRequireDefaultValueFields(true))
+        decode(
+          """host: localhost
+            |port: 8080
+            |ssl: true""".stripMargin,
+          ServerConfig("localhost", 8080, Some(true)),
+          codec
+        ) &&
+        decodeError[ServerConfig](
+          """host: localhost
+            |ssl: true""".stripMargin,
+          "Missing required field: port at: .",
+          codec
         )
       },
       test("map field alongside other fields") {
@@ -831,8 +900,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(StringList(List("hello", "world")), "xs[2]: hello,world")
       },
       test("list with many elements") {
-        val nums = (1 to 10).toList
-        roundTrip(IntList(nums), s"xs[10]: ${nums.mkString(",")}")
+        roundTrip(IntList((1 to 10).toList), s"xs[10]: 1,2,3,4,5,6,7,8,9,10")
       },
       test("list with single element") {
         roundTrip(IntList(List(42)), "xs[1]: 42")
@@ -842,12 +910,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("ArrayFormat.Tabular encodes record arrays in tabular format") {
         roundTrip(
-          PersonList(
-            List(
-              SimplePerson("Alice", 25),
-              SimplePerson("Bob", 30)
-            )
-          ),
+          PersonList(List(SimplePerson("Alice", 25), SimplePerson("Bob", 30))),
           """people[2]{name,age}:
             |  Alice,25
             |  Bob,30""".stripMargin,
@@ -856,12 +919,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("ArrayFormat.Tabular with custom delimiter") {
         roundTrip(
-          PersonList(
-            List(
-              SimplePerson("Alice", 25),
-              SimplePerson("Bob", 30)
-            )
-          ),
+          PersonList(List(SimplePerson("Alice", 25), SimplePerson("Bob", 30))),
           """people[2|]{name|age}:
             |  Alice|25
             |  Bob|30""".stripMargin,
@@ -1005,31 +1063,38 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("leading zeros decode as string, not number") {
-        // "05" should be treated as a string, not the number 5
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("value: 05", record("value" -> dynamicStr("05")), config)
+        decodeDynamic(
+          "value: 05",
+          record("value" -> dynamicStr("05")),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       },
       test("multiple leading zeros decode as string") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("value: 007", record("value" -> dynamicStr("007")), config)
+        decodeDynamic(
+          "value: 007",
+          record("value" -> dynamicStr("007")),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       },
       test("negative with leading zero decodes as string") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("value: -05", record("value" -> dynamicStr("-05")), config)
+        decodeDynamic(
+          "value: -05",
+          record("value" -> dynamicStr("-05")),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       },
       test("single zero is a valid number") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("value: 0", record("value" -> dynamicInt(0)), config)
+        decodeDynamic(
+          "value: 0",
+          record("value" -> dynamicInt(0)),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       },
       test("zero with decimal is a valid number") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
         decodeDynamic(
           "value: 0.5",
-          record(
-            "value" -> zio.blocks.schema.DynamicValue
-              .Primitive(zio.blocks.schema.PrimitiveValue.BigDecimal(BigDecimal("0.5")))
-          ),
-          config
+          record("value" -> DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("0.5")))),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
       }
     )
@@ -1142,7 +1207,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Order] = Schema.derived
   }
 
-  case class ServerConfig(host: String, port: Int, ssl: Option[Boolean])
+  case class ServerConfig(host: String, port: Int = 80, ssl: Option[Boolean])
 
   object ServerConfig {
     implicit val schema: Schema[ServerConfig] = Schema.derived
