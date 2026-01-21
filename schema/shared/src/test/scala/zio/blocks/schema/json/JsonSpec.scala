@@ -95,6 +95,130 @@ object JsonSpec extends SchemaBaseSpec {
         val path   = DynamicOptic.root.elements
         val result = json.get(path)
         assert(result.values.size)(equalTo(3))
+      },
+      test("navigate with DynamicOptic - deep nested path (5 levels)") {
+        val json = Json.Object(
+          "company" -> Json.Object(
+            "departments" -> Json.Array(
+              Vector(
+                Json.Object(
+                  "name"  -> Json.String("Engineering"),
+                  "teams" -> Json.Array(
+                    Vector(
+                      Json.Object(
+                        "name"    -> Json.String("Backend"),
+                        "members" -> Json.Array(
+                          Vector(
+                            Json.Object(
+                              "name"    -> Json.String("Alice"),
+                              "contact" -> Json.Object(
+                                "email" -> Json.String("alice@example.com")
+                              )
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+        // Navigate: company.departments[0].teams[0].members[0].contact.email (6 levels)
+        val path = DynamicOptic.root
+          .field("company")
+          .field("departments")
+          .at(0)
+          .field("teams")
+          .at(0)
+          .field("members")
+          .at(0)
+          .field("contact")
+          .field("email")
+        val result = json.get(path)
+        assert(result.values.size)(equalTo(1)) &&
+        assert(result.values.head)(equalTo(Json.String("alice@example.com")))
+      },
+      test("navigate with DynamicOptic - deep nested with multiple arrays") {
+        val json = Json.Object(
+          "data" -> Json.Array(
+            Vector(
+              Json.Object(
+                "items" -> Json.Array(
+                  Vector(
+                    Json.Object(
+                      "values" -> Json.Array(
+                        Vector(
+                          Json.number(42)
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+        // Navigate: data[0].items[0].values[0] (4 levels with 3 array accesses)
+        val path = DynamicOptic.root
+          .field("data")
+          .at(0)
+          .field("items")
+          .at(0)
+          .field("values")
+          .at(0)
+        val result = json.get(path)
+        assert(result.values.size)(equalTo(1)) &&
+        assert(result.values.head)(equalTo(Json.number(42)))
+      }
+    ),
+    suite("Navigation edge cases")(
+      test("navigate to non-existent field returns empty") {
+        val json   = Json.Object("name" -> Json.String("Alice"))
+        val result = json("age")
+        assert(result.values.isEmpty)(isTrue)
+      },
+      test("navigate to out-of-bounds array index returns empty") {
+        val json   = Json.Array(Vector(Json.number(1), Json.number(2)))
+        val result = json(5)
+        assert(result.values.isEmpty)(isTrue)
+      },
+      test("navigate with field on array returns empty") {
+        val json   = Json.Array(Vector(Json.number(1)))
+        val result = json("field")
+        assert(result.values.isEmpty)(isTrue)
+      },
+      test("navigate with index on object returns empty") {
+        val json   = Json.Object("name" -> Json.String("Alice"))
+        val result = json(0)
+        assert(result.values.isEmpty)(isTrue)
+      },
+      test("navigate with index on non-array returns empty") {
+        val json   = Json.String("hello")
+        val result = json(0)
+        assert(result.values.isEmpty)(isTrue)
+      },
+      test("navigate with field on non-object returns empty") {
+        val json   = Json.number(42)
+        val result = json("field")
+        assert(result.values.isEmpty)(isTrue)
+      },
+      test("navigate to nested non-existent path returns empty") {
+        val json = Json.Object(
+          "user" -> Json.Object(
+            "name" -> Json.String("Bob")
+          )
+        )
+        val path   = DynamicOptic.root.field("user").field("age").field("value")
+        val result = json.get(path)
+        assert(result.values.isEmpty)(isTrue)
+      },
+      test("navigate with wildcard on empty array returns empty") {
+        val json   = Json.Array(Vector.empty)
+        val path   = DynamicOptic.root.elements
+        val result = json.get(path)
+        assert(result.values.isEmpty)(isTrue)
       }
     ),
     suite("Type filtering")(
@@ -144,7 +268,7 @@ object JsonSpec extends SchemaBaseSpec {
         val dv  = obj.toDynamicValue
         assert(dv)(isSubtype[DynamicValue.Record](anything))
       },
-      test("round-trip DynamicValue conversion") {
+      test("round-trip DynamicValue conversion - simple object") {
         val original = Json.Object(
           "name"   -> Json.String("Alice"),
           "age"    -> Json.number(30),
@@ -153,6 +277,75 @@ object JsonSpec extends SchemaBaseSpec {
         val dv       = original.toDynamicValue
         val restored = Json.fromDynamicValue(dv)
         assert(restored)(equalTo(original))
+      },
+      test("round-trip DynamicValue conversion - nested object") {
+        val original = Json.Object(
+          "user" -> Json.Object(
+            "name"    -> Json.String("Bob"),
+            "address" -> Json.Object(
+              "city"    -> Json.String("NYC"),
+              "zipcode" -> Json.number(10001)
+            )
+          )
+        )
+        val dv       = original.toDynamicValue
+        val restored = Json.fromDynamicValue(dv)
+        assert(restored)(equalTo(original))
+      },
+      test("round-trip DynamicValue conversion - array") {
+        val original = Json.Array(
+          Vector(
+            Json.number(1),
+            Json.String("two"),
+            Json.Boolean(true),
+            Json.Null
+          )
+        )
+        val dv       = original.toDynamicValue
+        val restored = Json.fromDynamicValue(dv)
+        assert(restored)(equalTo(original))
+      },
+      test("round-trip DynamicValue conversion - complex nested structure") {
+        val original = Json.Object(
+          "users" -> Json.Array(
+            Vector(
+              Json.Object(
+                "name"  -> Json.String("Alice"),
+                "roles" -> Json.Array(Vector(Json.String("admin"), Json.String("user")))
+              ),
+              Json.Object(
+                "name"  -> Json.String("Bob"),
+                "roles" -> Json.Array(Vector(Json.String("user")))
+              )
+            )
+          ),
+          "count" -> Json.number(2)
+        )
+        val dv       = original.toDynamicValue
+        val restored = Json.fromDynamicValue(dv)
+        assert(restored)(equalTo(original))
+      },
+      test("round-trip DynamicValue conversion - all primitive types") {
+        val original = Json.Object(
+          "null"    -> Json.Null,
+          "boolean" -> Json.Boolean(false),
+          "number"  -> Json.number(3.14),
+          "string"  -> Json.String("test")
+        )
+        val dv       = original.toDynamicValue
+        val restored = Json.fromDynamicValue(dv)
+        assert(restored)(equalTo(original))
+      },
+      test("DynamicValue to Json - reverse direction") {
+        val dv = DynamicValue.Record(
+          Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Charlie")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(25)))
+          )
+        )
+        val json     = Json.fromDynamicValue(dv)
+        val restored = json.toDynamicValue
+        assert(restored)(equalTo(dv))
       }
     ),
     suite("Merge")(
@@ -518,6 +711,131 @@ object JsonSpec extends SchemaBaseSpec {
         val kvs    = original.toKV
         val result = Json.fromKV(kvs)
         assert(result)(isRight(equalTo(original)))
+      }
+    ),
+    suite("Comparison and Ordering")(
+      test("compare null values") {
+        val result = Json.Null.compare(Json.Null)
+        assert(result)(equalTo(0))
+      },
+      test("compare boolean values") {
+        val t = Json.Boolean(true)
+        val f = Json.Boolean(false)
+        assert(t.compare(f))(isGreaterThan(0)) &&
+        assert(f.compare(t))(isLessThan(0)) &&
+        assert(t.compare(t))(equalTo(0))
+      },
+      test("compare number values") {
+        val n1 = Json.number(10)
+        val n2 = Json.number(20)
+        val n3 = Json.number(10)
+        assert(n1.compare(n2))(isLessThan(0)) &&
+        assert(n2.compare(n1))(isGreaterThan(0)) &&
+        assert(n1.compare(n3))(equalTo(0))
+      },
+      test("compare string values") {
+        val s1 = Json.String("apple")
+        val s2 = Json.String("banana")
+        val s3 = Json.String("apple")
+        assert(s1.compare(s2))(isLessThan(0)) &&
+        assert(s2.compare(s1))(isGreaterThan(0)) &&
+        assert(s1.compare(s3))(equalTo(0))
+      },
+      test("compare array values") {
+        val a1 = Json.Array(Vector(Json.number(1), Json.number(2)))
+        val a2 = Json.Array(Vector(Json.number(1), Json.number(3)))
+        val a3 = Json.Array(Vector(Json.number(1)))
+        val a4 = Json.Array(Vector(Json.number(1), Json.number(2)))
+        assert(a1.compare(a2))(isLessThan(0)) &&
+        assert(a2.compare(a1))(isGreaterThan(0)) &&
+        assert(a1.compare(a3))(isGreaterThan(0)) &&
+        assert(a1.compare(a4))(equalTo(0))
+      },
+      test("compare object values") {
+        val o1 = Json.Object("a" -> Json.number(1), "b" -> Json.number(2))
+        val o2 = Json.Object("a" -> Json.number(1), "b" -> Json.number(3))
+        val o3 = Json.Object("a" -> Json.number(1))
+        val o4 = Json.Object("a" -> Json.number(1), "b" -> Json.number(2))
+        assert(o1.compare(o2))(isLessThan(0)) &&
+        assert(o2.compare(o1))(isGreaterThan(0)) &&
+        assert(o1.compare(o3))(isGreaterThan(0)) &&
+        assert(o1.compare(o4))(equalTo(0))
+      },
+      test("type ordering: Null < Boolean < Number < String < Array < Object") {
+        val nul  = Json.Null
+        val bool = Json.Boolean(true)
+        val num  = Json.number(42)
+        val str  = Json.String("test")
+        val arr  = Json.Array(Vector.empty)
+        val obj  = Json.Object(Vector.empty)
+
+        assert(nul.compare(bool))(isLessThan(0)) &&
+        assert(bool.compare(num))(isLessThan(0)) &&
+        assert(num.compare(str))(isLessThan(0)) &&
+        assert(str.compare(arr))(isLessThan(0)) &&
+        assert(arr.compare(obj))(isLessThan(0))
+      },
+      test("equals and hashCode consistency") {
+        val j1 = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
+        val j2 = Json.Object("name" -> Json.String("Alice"), "age" -> Json.number(30))
+        val j3 = Json.Object("name" -> Json.String("Bob"), "age" -> Json.number(30))
+
+        assert(j1 == j2)(isTrue) &&
+        assert(j1.hashCode == j2.hashCode)(isTrue) &&
+        assert(j1 == j3)(isFalse)
+      },
+      test("ordering with sorted collections") {
+        val values = Vector(
+          Json.number(3),
+          Json.number(1),
+          Json.number(2)
+        )
+        val sorted = values.sortWith((a, b) => a.compare(b) < 0)
+        assert(sorted)(equalTo(Vector(Json.number(1), Json.number(2), Json.number(3))))
+      }
+    ),
+    suite("Number precision")(
+      test("preserve large numbers") {
+        val large = Json.number(Long.MaxValue)
+        assert(large.asInstanceOf[Json.Number].toLong)(isSome(equalTo(Long.MaxValue)))
+      },
+      test("preserve precise decimals") {
+        val precise = Json.number(BigDecimal("3.141592653589793238462643383279"))
+        assert(precise.numberValue)(isSome(equalTo("3.141592653589793238462643383279")))
+      },
+      test("preserve scientific notation") {
+        val scientific = Json.number(BigDecimal("1.23e10"))
+        assert(scientific.isNumber)(isTrue)
+      },
+      test("handle very small decimals") {
+        val small = Json.number(BigDecimal("0.000000000000000001"))
+        assert(small.isNumber)(isTrue)
+      }
+    ),
+    suite("Normalization")(
+      test("normalize sorts keys and normalizes nested structures") {
+        val json = Json.Object(
+          "z" -> Json.number(1),
+          "a" -> Json.Object(
+            "y" -> Json.number(2),
+            "b" -> Json.number(3)
+          )
+        )
+        val normalized = json.normalize
+        val obj        = normalized.asInstanceOf[Json.Object]
+        // After normalization, keys should be sorted
+        assert(obj.fields.map(_._1))(equalTo(Vector("a", "z")))
+      },
+      test("normalize handles nested arrays") {
+        val json = Json.Object(
+          "data" -> Json.Array(
+            Vector(
+              Json.Object("b" -> Json.number(2), "a" -> Json.number(1))
+            )
+          )
+        )
+        val normalized = json.normalize
+        assert(normalized.isObject)(isTrue)
       }
     )
   )
