@@ -293,9 +293,9 @@ lazy val benchmarks = project
       )
 
       val scala3Only = Seq(
-        "com.vitthalmirji" %% "toon4s-core" % "0.5.0",
+        "com.vitthalmirji"    %% "toon4s-core" % "0.5.0",
         "com.sksamuel.avro4s" %% "avro4s-core" % "5.0.14",
-        "io.github.arainko" %% "chanterelle" % "0.1.2"
+        "io.github.arainko"   %% "chanterelle" % "0.1.2"
       )
 
       CrossVersion.partialVersion(scalaVersion.value) match {
