@@ -28,7 +28,7 @@ if [[ "$is_cloud" -eq 0 ]]; then
 fi
 
 app_dir="$PWD/golem/examples"
-script_file="$PWD/golem/examples/repl-json-tasks.rib"
+script_file="$PWD/golem/examples/samples/json-tasks/repl-json-tasks.rib"
 
 # Build Scala.js up-front (no golem-cli needed). This also runs `golemPrepare` automatically,
 # ensuring the base guest runtime wasm is present next to the app manifest.

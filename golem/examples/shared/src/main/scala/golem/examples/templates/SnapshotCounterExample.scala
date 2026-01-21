@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "snapshot_counter")
+@agentDefinition(typeName = "snapshot-counter")
 @description(
   "A counter agent that installs custom snapshot save/load hooks (Scala equivalent of the Rust/TS snapshotting template)."
 )
