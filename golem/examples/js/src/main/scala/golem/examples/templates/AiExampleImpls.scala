@@ -23,7 +23,11 @@ final class ChatAgentImpl(private val chatName: String) extends ChatAgent {
 
   override def history(): Future[List[String]] =
     Future.successful {
-      events.toList.map(_.tag)
+      events.toList.map {
+        case _: Llm.Event.MessageEvent    => "message"
+        case _: Llm.Event.ResponseEvent   => "response"
+        case _: Llm.Event.ToolResultsEvent => "tool-results"
+      }
     }
 }
 
@@ -63,7 +67,7 @@ final class ResearchAgentImpl() extends ResearchAgent {
         WebSearch.SearchParams(
           query = topic,
           language = Some("lang_en"),
-          safeSearch = Some("off"),
+          safeSearch = Some(WebSearch.SafeSearchLevel.Off),
           maxResults = Some(10),
           advancedAnswer = Some(true)
         )
