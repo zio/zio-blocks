@@ -9,13 +9,16 @@ private[golem] object AgentRegistry {
   /**
    * Registers an agent definition.
    *
-   * If a definition with the same type name already exists, it is replaced.
-   *
-   * @param definition
-   *   The agent definition to register
+   * @throws IllegalArgumentException
+   *   if a definition with the same type name already exists
    */
   def register[A](definition: AgentDefinition[A]): Unit =
     synchronized {
+      if (definitions.contains(definition.typeName)) {
+        throw new IllegalArgumentException(
+          s"Duplicate agent typeName registered: '${definition.typeName}'. Each agentDefinition typeName must be unique."
+        )
+      }
       definitions.update(definition.typeName, definition.asInstanceOf[AgentDefinition[Any]])
     }
 
