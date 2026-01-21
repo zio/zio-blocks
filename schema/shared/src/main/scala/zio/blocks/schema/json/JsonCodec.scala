@@ -9,20 +9,22 @@ import scala.collection.immutable.ListMap
 
 trait JsonDecoder[A] {
   def decode(json: Json): Either[JsonError, A]
-  
+
   def map[B](f: A => B): JsonDecoder[B] = (json: Json) => decode(json).map(f)
-  
+
   def flatMap[B](f: A => JsonDecoder[B]): JsonDecoder[B] = (json: Json) => decode(json).flatMap(a => f(a).decode(json))
 }
 
 trait JsonDecoderLowPriority {
+
   /**
-   * Low-priority implicit: derive decoder from Schema.
-   * This will be used only if no explicit decoder is found.
+   * Low-priority implicit: derive decoder from Schema. This will be used only
+   * if no explicit decoder is found.
    */
-  @annotation.nowarn("msg=never used")
-  implicit def fromSchema[A](implicit _schema: Schema[A]): JsonDecoder[A] = 
+  implicit def fromSchema[A](implicit _schema: Schema[A]): JsonDecoder[A] = {
+    val _ = _schema // Silence unused parameter warning
     JsonDecoder.from(_ => Left(JsonError("Schema-based decoding not yet implemented")))
+  }
 }
 
 object JsonDecoder extends JsonDecoderLowPriority {
@@ -47,8 +49,8 @@ object JsonDecoder extends JsonDecoderLowPriority {
   }
 
   implicit val int: JsonDecoder[Int] = from {
-    case Json.Number(s) => 
-      try Right(s.toInt) 
+    case Json.Number(s) =>
+      try Right(s.toInt)
       catch { case _: NumberFormatException => Left(JsonError("Expected Int")) }
     case _ => Left(JsonError("Expected Int"))
   }
@@ -59,14 +61,14 @@ object JsonDecoder extends JsonDecoderLowPriority {
       catch { case _: NumberFormatException => Left(JsonError("Expected Long")) }
     case _ => Left(JsonError("Expected Long"))
   }
-  
+
   implicit val double: JsonDecoder[Double] = from {
     case Json.Number(s) =>
       try Right(s.toDouble)
       catch { case _: NumberFormatException => Left(JsonError("Expected Double")) }
     case _ => Left(JsonError("Expected Double"))
   }
-  
+
   implicit val float: JsonDecoder[Float] = from {
     case Json.Number(s) =>
       try Right(s.toFloat)
@@ -104,9 +106,9 @@ object JsonDecoder extends JsonDecoderLowPriority {
       }
     case _ => Left(JsonError("Expected Array"))
   }
-  
+
   implicit def list[A](implicit decoder: JsonDecoder[A]): JsonDecoder[List[A]] = seq[A].map(_.toList)
-  
+
   implicit def vector[A](implicit decoder: JsonDecoder[A]): JsonDecoder[Vector[A]] = seq[A].map(_.toVector)
 
   implicit def map[A](implicit decoder: JsonDecoder[A]): JsonDecoder[Map[String, A]] = from {
@@ -125,23 +127,25 @@ object JsonDecoder extends JsonDecoderLowPriority {
 
 trait JsonEncoder[A] {
   def encode(value: A): Json
-  
+
   def contramap[B](f: B => A): JsonEncoder[B] = (value: B) => encode(f(value))
 }
 
 trait JsonEncoderLowPriority {
+
   /**
-   * Low-priority implicit: derive encoder from Schema.
-   * This will be used only if no explicit encoder is found.
+   * Low-priority implicit: derive encoder from Schema. This will be used only
+   * if no explicit encoder is found.
    */
-  @annotation.nowarn("msg=never used")
-  implicit def fromSchema[A](implicit _schema: Schema[A]): JsonEncoder[A] = 
+  implicit def fromSchema[A](implicit _schema: Schema[A]): JsonEncoder[A] = {
+    val _ = _schema // Silence unused parameter warning
     JsonEncoder.from(_ => Json.Null) // Stub: Schema-based encoding not yet implemented
+  }
 }
 
 object JsonEncoder extends JsonEncoderLowPriority {
   def apply[A](implicit encoder: JsonEncoder[A]): JsonEncoder[A] = encoder
-  
+
   def from[A](f: A => Json): JsonEncoder[A] = (value: A) => f(value)
 
   // ===========================================================================
@@ -151,19 +155,19 @@ object JsonEncoder extends JsonEncoderLowPriority {
   implicit val json: JsonEncoder[Json] = from(identity)
 
   implicit val string: JsonEncoder[String] = from(Json.String(_))
-  
+
   implicit val boolean: JsonEncoder[Boolean] = from(Json.Boolean(_))
-  
+
   implicit val int: JsonEncoder[Int] = from(n => Json.Number(n.toString))
-  
+
   implicit val long: JsonEncoder[Long] = from(n => Json.Number(n.toString))
-  
+
   implicit val double: JsonEncoder[Double] = from(n => Json.Number(n.toString))
-  
+
   implicit val float: JsonEncoder[Float] = from(n => Json.Number(n.toString))
-  
+
   implicit val bigInt: JsonEncoder[BigInt] = from(n => Json.Number(n.toString))
-  
+
   implicit val bigDecimal: JsonEncoder[BigDecimal] = from(n => Json.Number(n.toString))
 
   // ===========================================================================
@@ -178,9 +182,9 @@ object JsonEncoder extends JsonEncoderLowPriority {
   implicit def seq[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Seq[A]] = from { seq =>
     Json.Array(seq.map(encoder.encode).toVector)
   }
-  
+
   implicit def list[A](implicit encoder: JsonEncoder[A]): JsonEncoder[List[A]] = seq[A].contramap(identity)
-  
+
   implicit def vector[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Vector[A]] = seq[A].contramap(identity)
 
   implicit def map[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Map[String, A]] = from { map =>

@@ -3,22 +3,24 @@ package zio.blocks.schema.json
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
 import zio.blocks.schema.DynamicOptic.Node
 import scala.math.Ordering
+import zio.blocks.schema.json.{JsonBinaryCodec, JsonReader, JsonWriter}
 
 /**
  * Represents a JSON value.
  *
  * The JSON data model consists of:
- *  - '''Objects''': Unordered collections of key-value pairs
- *  - '''Arrays''': Ordered sequences of values
- *  - '''Strings''': Unicode text
- *  - '''Numbers''': Numeric values (stored as strings for precision)
- *  - '''Booleans''': `true` or `false`
- *  - '''Null''': The null value
+ *   - '''Objects''': Unordered collections of key-value pairs
+ *   - '''Arrays''': Ordered sequences of values
+ *   - '''Strings''': Unicode text
+ *   - '''Numbers''': Numeric values (stored as strings for precision)
+ *   - '''Booleans''': `true` or `false`
+ *   - '''Null''': The null value
  */
 sealed trait Json { self =>
 
   /**
-   * Type index for ordering: Null=0, Boolean=1, Number=2, String=3, Array=4, Object=5
+   * Type index for ordering: Null=0, Boolean=1, Number=2, String=3, Array=4,
+   * Object=5
    */
   def typeIndex: Int
 
@@ -66,32 +68,30 @@ sealed trait Json { self =>
   // ===========================================================================
 
   /**
-   * If this is an object, returns its fields as key-value pairs.
-   * Otherwise returns an empty sequence.
+   * If this is an object, returns its fields as key-value pairs. Otherwise
+   * returns an empty sequence.
    */
   def fields: Seq[(String, Json)] = Seq.empty
 
   /**
-   * If this is an array, returns its elements.
-   * Otherwise returns an empty sequence.
+   * If this is an array, returns its elements. Otherwise returns an empty
+   * sequence.
    */
   def elements: Seq[Json] = Seq.empty
 
   /**
-   * If this is a string, returns its value.
-   * Otherwise returns `None`.
+   * If this is a string, returns its value. Otherwise returns `None`.
    */
   def stringValue: Option[String] = None
 
   /**
-   * If this is a number, returns its string representation.
-   * Otherwise returns `None`.
+   * If this is a number, returns its string representation. Otherwise returns
+   * `None`.
    */
   def numberValue: Option[String] = None
 
   /**
-   * If this is a boolean, returns its value.
-   * Otherwise returns `None`.
+   * If this is a boolean, returns its value. Otherwise returns `None`.
    */
   def booleanValue: Option[scala.Boolean] = None
 
@@ -141,7 +141,7 @@ sealed trait Json { self =>
   /**
    * Modifies the value at the given path.
    */
-  def modify(path: DynamicOptic, f: Json => Json): Json = {
+  def modify(path: DynamicOptic, f: Json => Json): Json =
     if (path.nodes.isEmpty) f(self)
     else {
       val head = path.nodes.head
@@ -161,7 +161,6 @@ sealed trait Json { self =>
         case _ => self
       }
     }
-  }
 
   /**
    * Sets the value at the given path.
@@ -171,14 +170,13 @@ sealed trait Json { self =>
   /**
    * Deletes the value at the given path.
    */
-  def delete(path: DynamicOptic): Json = {
+  def delete(path: DynamicOptic): Json =
     if (path.nodes.isEmpty) self
     else {
       val parentPath = new DynamicOptic(path.nodes.init)
       val targetNode = path.nodes.last
       modify(parentPath, _.deleteNode(targetNode))
     }
-  }
 
   private def deleteNode(node: DynamicOptic.Node): Json = (self, node) match {
     case (Json.Object(fields), Node.Field(name)) =>
@@ -227,12 +225,12 @@ sealed trait Json { self =>
   // ===========================================================================
 
   override def toString: String = self match {
-    case Json.Null           => "null"
-    case Json.Boolean(v)     => v.toString
-    case Json.Number(v)      => v
-    case Json.String(v)      => "\"" + v + "\""
-    case Json.Array(elems)   => elems.mkString("[", ",", "]")
-    case Json.Object(flds)   => flds.map { case (k, v) => "\"" + k + "\":" + v }.mkString("{", ",", "}")
+    case Json.Null         => "null"
+    case Json.Boolean(v)   => v.toString
+    case Json.Number(v)    => v
+    case Json.String(v)    => "\"" + v + "\""
+    case Json.Array(elems) => elems.mkString("[", ",", "]")
+    case Json.Object(flds) => flds.map { case (k, v) => "\"" + k + "\":" + v }.mkString("{", ",", "}")
   }
 }
 
@@ -252,7 +250,7 @@ object Json {
    */
   case object Null extends Json {
     override def isNull: scala.Boolean = true
-    override def typeIndex: Int = 0
+    override def typeIndex: Int        = 0
 
     override def compare(that: Json): Int = that match {
       case Null => 0
@@ -263,12 +261,13 @@ object Json {
   /**
    * A JSON boolean.
    *
-   * @param value The boolean value
+   * @param value
+   *   The boolean value
    */
   final case class Boolean(value: scala.Boolean) extends Json {
-    override def isBoolean: scala.Boolean              = true
-    override def booleanValue: Option[scala.Boolean]   = Some(value)
-    override def typeIndex: Int = 1
+    override def isBoolean: scala.Boolean            = true
+    override def booleanValue: Option[scala.Boolean] = Some(value)
+    override def typeIndex: Int                      = 1
 
     override def compare(that: Json): Int = that match {
       case Boolean(thatValue) => value.compare(thatValue)
@@ -284,14 +283,16 @@ object Json {
   /**
    * A JSON number.
    *
-   * Stored as a string to preserve exact representation (precision, trailing zeros, etc.).
+   * Stored as a string to preserve exact representation (precision, trailing
+   * zeros, etc.).
    *
-   * @param value The number as a string (should be valid JSON number syntax)
+   * @param value
+   *   The number as a string (should be valid JSON number syntax)
    */
   final case class Number(value: java.lang.String) extends Json {
-    override def isNumber: scala.Boolean                = true
-    override def numberValue: Option[java.lang.String]  = Some(value)
-    override def typeIndex: Int = 2
+    override def isNumber: scala.Boolean               = true
+    override def numberValue: Option[java.lang.String] = Some(value)
+    override def typeIndex: Int                        = 2
 
     override def compare(that: Json): Int = that match {
       case Number(thatValue) => BigDecimal(value).compare(BigDecimal(thatValue))
@@ -332,12 +333,13 @@ object Json {
   /**
    * A JSON string.
    *
-   * @param value The string value (unescaped)
+   * @param value
+   *   The string value (unescaped)
    */
   final case class String(value: java.lang.String) extends Json {
-    override def isString: scala.Boolean                 = true
-    override def stringValue: Option[java.lang.String]   = Some(value)
-    override def typeIndex: Int = 3
+    override def isString: scala.Boolean               = true
+    override def stringValue: Option[java.lang.String] = Some(value)
+    override def typeIndex: Int                        = 3
 
     override def compare(that: Json): Int = that match {
       case String(thatValue) => value.compareTo(thatValue)
@@ -348,12 +350,13 @@ object Json {
   /**
    * A JSON array: an ordered sequence of values.
    *
-   * @param elements The array elements
+   * @param elements
+   *   The array elements
    */
   final case class Array(elems: Vector[Json]) extends Json {
-    override def isArray: scala.Boolean  = true
-    override def elements: Seq[Json]     = elems
-    override def typeIndex: Int = 4
+    override def isArray: scala.Boolean = true
+    override def elements: Seq[Json]    = elems
+    override def typeIndex: Int         = 4
 
     override def equals(that: Any): scala.Boolean = that match {
       case Array(thatElems) =>
@@ -404,15 +407,17 @@ object Json {
   /**
    * A JSON object: an unordered collection of key-value pairs.
    *
-   * Equality and comparison are order-independent: `{"a":1, "b":2}` equals `{"b":2, "a":1}`.
+   * Equality and comparison are order-independent: `{"a":1, "b":2}` equals
+   * `{"b":2, "a":1}`.
    *
-   * @param flds The key-value pairs. Keys should be unique; if duplicates
-   *             are present, behavior of accessors is undefined.
+   * @param flds
+   *   The key-value pairs. Keys should be unique; if duplicates are present,
+   *   behavior of accessors is undefined.
    */
   final case class Object(flds: Vector[(java.lang.String, Json)]) extends Json {
-    override def isObject: scala.Boolean                         = true
-    override def fields: Seq[(java.lang.String, Json)]           = flds
-    override def typeIndex: Int = 5
+    override def isObject: scala.Boolean               = true
+    override def fields: Seq[(java.lang.String, Json)] = flds
+    override def typeIndex: Int                        = 5
 
     /**
      * Cached sorted fields for order-independent comparison.
@@ -422,8 +427,8 @@ object Json {
     override def equals(that: Any): scala.Boolean = that match {
       case thatObj: Object =>
         if (flds.length != thatObj.flds.length) return false
-        val xs = sortedFields
-        val ys = thatObj.sortedFields
+        val xs  = sortedFields
+        val ys  = thatObj.sortedFields
         val len = xs.length
         var idx = 0
         while (idx < len) {
@@ -527,19 +532,19 @@ object Json {
   def fromDynamicValue(dv: DynamicValue): Json = dv match {
     case DynamicValue.Primitive(pv) =>
       pv match {
-        case PrimitiveValue.Unit         => Json.Null
-        case PrimitiveValue.Boolean(b)   => Json.Boolean(b)
-        case PrimitiveValue.Byte(b)      => Json.Number(b.toString)
-        case PrimitiveValue.Short(s)     => Json.Number(s.toString)
-        case PrimitiveValue.Int(i)       => Json.Number(i.toString)
-        case PrimitiveValue.Long(l)      => Json.Number(l.toString)
-        case PrimitiveValue.Float(f)     => Json.Number(f.toString)
-        case PrimitiveValue.Double(d)    => Json.Number(d.toString)
-        case PrimitiveValue.BigInt(bi)   => Json.Number(bi.toString)
+        case PrimitiveValue.Unit           => Json.Null
+        case PrimitiveValue.Boolean(b)     => Json.Boolean(b)
+        case PrimitiveValue.Byte(b)        => Json.Number(b.toString)
+        case PrimitiveValue.Short(s)       => Json.Number(s.toString)
+        case PrimitiveValue.Int(i)         => Json.Number(i.toString)
+        case PrimitiveValue.Long(l)        => Json.Number(l.toString)
+        case PrimitiveValue.Float(f)       => Json.Number(f.toString)
+        case PrimitiveValue.Double(d)      => Json.Number(d.toString)
+        case PrimitiveValue.BigInt(bi)     => Json.Number(bi.toString)
         case PrimitiveValue.BigDecimal(bd) => Json.Number(bd.toString)
-        case PrimitiveValue.String(s)    => Json.String(s)
-        case PrimitiveValue.Char(c)      => Json.String(c.toString)
-        case other                       => Json.String(other.toString)
+        case PrimitiveValue.String(s)      => Json.String(s)
+        case PrimitiveValue.Char(c)        => Json.String(c.toString)
+        case other                         => Json.String(other.toString)
 
       }
     case DynamicValue.Record(fields) =>
@@ -550,12 +555,12 @@ object Json {
       // Convert map entries to JSON object if keys are strings, otherwise to array of pairs
       val allKeysAreStrings = entries.forall {
         case (DynamicValue.Primitive(PrimitiveValue.String(_)), _) => true
-        case _ => false
+        case _                                                     => false
       }
       if (allKeysAreStrings) {
         val fields = entries.map {
           case (DynamicValue.Primitive(PrimitiveValue.String(k)), v) => (k, fromDynamicValue(v))
-          case _ => throw new IllegalStateException("Unexpected non-string key")
+          case _                                                     => throw new IllegalStateException("Unexpected non-string key")
         }
         Json.Object(fields)
       } else {
@@ -568,6 +573,83 @@ object Json {
       // Represent variant as object with single field
       Json.Object(Vector((caseName, fromDynamicValue(value))))
   }
+
+  // ===========================================================================
+  // Codec & Parsing
+  // ===========================================================================
+
+  implicit val codec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json] {
+    def decodeValue(in: JsonReader, default: Json): Json = {
+      val b = in.nextToken()
+      if (b == '"') {
+        in.rollbackToken()
+        Json.String(in.readString(null))
+      } else if (b == 'f' || b == 't') {
+        in.rollbackToken()
+        Json.Boolean(in.readBoolean())
+      } else if (b >= '0' && b <= '9' || b == '-') {
+        in.rollbackToken()
+        val bd = in.readBigDecimal(null)
+        Json.Number(bd.toString)
+      } else if (b == '[') {
+        if (in.isNextToken(']')) Json.Array(Vector.empty)
+        else {
+          in.rollbackToken()
+          val builder = new scala.collection.immutable.VectorBuilder[Json]
+          while ({
+            builder.addOne(decodeValue(in, default))
+            in.isNextToken(',')
+          }) ()
+          if (in.isCurrentToken(']')) Json.Array(builder.result())
+          else in.arrayEndOrCommaError()
+        }
+      } else if (b == '{') {
+        if (in.isNextToken('}')) Json.Object(Vector.empty)
+        else {
+          in.rollbackToken()
+          val builder = new scala.collection.immutable.VectorBuilder[(java.lang.String, Json)]
+          while ({
+            builder.addOne((in.readKeyAsString(), decodeValue(in, default)))
+            in.isNextToken(',')
+          }) ()
+          if (in.isCurrentToken('}')) Json.Object(builder.result())
+          else in.objectEndOrCommaError()
+        }
+      } else {
+        in.rollbackToken()
+        in.readNullOrError(Json.Null, "expected JSON value")
+      }
+    }
+
+    def encodeValue(x: Json, out: JsonWriter): Unit = x match {
+      case Json.Null       => out.writeNull()
+      case Json.Boolean(b) => out.writeVal(b)
+      case Json.Number(s)  => out.writeVal(BigDecimal(s))
+      case Json.String(s)  => out.writeVal(s)
+      case Json.Array(xs)  =>
+        out.writeArrayStart()
+        xs.foreach(encodeValue(_, out))
+        out.writeArrayEnd()
+      case Json.Object(xs) =>
+        out.writeObjectStart()
+        xs.foreach { case (k, v) =>
+          out.writeKey(k)
+          encodeValue(v, out)
+        }
+        out.writeObjectEnd()
+    }
+  }
+
+  /**
+   * Parses a string into a JSON value.
+   */
+  def parse(s: java.lang.String): Either[JsonError, Json] =
+    codec.decode(s).left.map(e => JsonError(e.getMessage))
+
+  /**
+   * Encodes a JSON value into a string.
+   */
+  def encode(json: Json): java.lang.String = codec.encodeToString(json)
 
   // ===========================================================================
   // Ordering

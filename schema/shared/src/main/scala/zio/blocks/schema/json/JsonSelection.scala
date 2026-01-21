@@ -84,12 +84,12 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   // Type Filters
   // ===========================================================================
 
-  def objects: JsonSelection = filter(_.isObject)
-  def arrays: JsonSelection  = filter(_.isArray)
-  def strings: JsonSelection = filter(_.isString)
-  def numbers: JsonSelection = filter(_.isNumber)
+  def objects: JsonSelection  = filter(_.isObject)
+  def arrays: JsonSelection   = filter(_.isArray)
+  def strings: JsonSelection  = filter(_.isString)
+  def numbers: JsonSelection  = filter(_.isNumber)
   def booleans: JsonSelection = filter(_.isBoolean)
-  def nulls: JsonSelection   = filter(_.isNull)
+  def nulls: JsonSelection    = filter(_.isNull)
 
   // ===========================================================================
   // State Checks
@@ -111,9 +111,12 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   def ++(other: JsonSelection): JsonSelection =
     (toEither, other.toEither) match {
       case (Right(a), Right(b)) => JsonSelection(Right(a ++ b))
-      case (Left(a), Left(b))   => JsonSelection(Left(SchemaError.expectationMismatch(List.empty[DynamicOptic.Node], s"${a.message}; ${b.message}"))) // Combine errors roughly
-      case (Left(a), _)         => JsonSelection(Left(a))
-      case (_, Left(b))         => JsonSelection(Left(b))
+      case (Left(a), Left(b))   =>
+        JsonSelection(
+          Left(SchemaError.expectationMismatch(List.empty[DynamicOptic.Node], s"${a.message}; ${b.message}"))
+        ) // Combine errors roughly
+      case (Left(a), _) => JsonSelection(Left(a))
+      case (_, Left(b)) => JsonSelection(Left(b))
     }
 
   // ===========================================================================
@@ -134,8 +137,12 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   def one: Either[SchemaError, Json] =
     toEither.flatMap {
       case Vector(one) => Right(one)
-      case Vector()    => Left(SchemaError.expectationMismatch(List.empty[DynamicOptic.Node], "Expected exactly one element, found none"))
-      case _           => Left(SchemaError.expectationMismatch(List.empty[DynamicOptic.Node], "Expected exactly one element, found multiple"))
+      case Vector()    =>
+        Left(SchemaError.expectationMismatch(List.empty[DynamicOptic.Node], "Expected exactly one element, found none"))
+      case _ =>
+        Left(
+          SchemaError.expectationMismatch(List.empty[DynamicOptic.Node], "Expected exactly one element, found multiple")
+        )
     }
 
   /**
@@ -144,7 +151,10 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
   def first: Either[SchemaError, Json] =
     toEither.flatMap {
       case head +: _ => Right(head)
-      case _         => Left(SchemaError.expectationMismatch(List.empty[DynamicOptic.Node], "Expected at least one element, found none"))
+      case _         =>
+        Left(
+          SchemaError.expectationMismatch(List.empty[DynamicOptic.Node], "Expected at least one element, found none")
+        )
     }
 
   /**
@@ -154,7 +164,7 @@ final case class JsonSelection(toEither: Either[SchemaError, Vector[Json]]) { se
 }
 
 object JsonSelection {
-  def empty: JsonSelection = JsonSelection(Right(Vector.empty))
+  def empty: JsonSelection             = JsonSelection(Right(Vector.empty))
   def apply(json: Json): JsonSelection = JsonSelection(Right(Vector(json)))
 
   /**
