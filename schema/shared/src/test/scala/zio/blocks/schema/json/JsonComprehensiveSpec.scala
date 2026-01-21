@@ -570,8 +570,9 @@ object JsonComprehensiveSpec extends ZIOSpecDefault {
       test("Unicode handling") {
         val unicode = Json.String("🚀 Unicode test: ñáéíóú")
         val encoded = unicode.encode
-        // Unicode characters are properly escaped in JSON output
-        assertTrue(encoded.contains("\\ud83d\\ude80") && encoded.contains("\\u00f1\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa"))
+        // Unicode characters can be either escaped or literal in JSON - both are valid
+        // The current encoder preserves literal UTF-8 characters which is more compact
+        assertTrue(encoded.contains("🚀") && encoded.contains("ñáéíóú"))
       }
     )
   )

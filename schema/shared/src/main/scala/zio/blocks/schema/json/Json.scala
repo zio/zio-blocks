@@ -1427,7 +1427,7 @@ object Json {
       // Platform-specific implementation - will be overridden in platform modules
       out.writeVal(x.encode)
 
-    def nullValue: Json = Json.Null
+    override def nullValue: Json = Json.Null
 
     override def decodeKey(in: JsonReader): Json           = decodeValue(in, nullValue)
     override def encodeKey(x: Json, out: JsonWriter): Unit = encodeValue(x, out)

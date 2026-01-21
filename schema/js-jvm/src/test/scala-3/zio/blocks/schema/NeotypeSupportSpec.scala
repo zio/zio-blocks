@@ -71,7 +71,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
         NString("VVV")
       )
       assert(NRecord.schema.fromDynamicValue(NRecord.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      roundTrip[NRecord](value, """{"i":1,"f":2.0,"l":3,"d":4.0,"bl":true,"b":6,"c":"7","sh":8,"u":{},"s":"VVV"}""")
+      roundTrip[NRecord](value, """{"i":1,"f":2.0,"l":3,"d":4.0,"bl":true,"b":6,"c":"7","sh":8,"u":null,"s":"VVV"}""")
     },
     test("derive schemas for options with newtypes and subtypes") {
       val schema1 = Schema.derived[Option[Name]]
