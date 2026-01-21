@@ -14,13 +14,13 @@ object MigrationValidator {
     migration.actions.foldLeft[Either[String, Map[Vector[String], String]]](Right(sourcePaths)) { (acc, action) =>
       acc.flatMap(paths => simulateAction(paths, action))
     } match {
-      case Left(error) => Left(error)
+      case Left(error)        => Left(error)
       case Right(resultPaths) =>
         // 3. Compare Result vs Target
         // We compare key sets (structural equality) and simplified value types if possible
         val missing = targetPaths.keySet -- resultPaths.keySet
-        val extra = resultPaths.keySet -- targetPaths.keySet
-        
+        val extra   = resultPaths.keySet -- targetPaths.keySet
+
         if (missing.isEmpty && extra.isEmpty) Right(())
         else {
           val errorMsg = new StringBuilder("Migration result does not match target schema.\n")
@@ -36,18 +36,14 @@ object MigrationValidator {
 
   private def extractPaths(reflect: Reflect.Bound[_]): PathMap = {
     def go(r: Reflect.Bound[_], currentPath: Vector[String]): PathMap = r match {
-      case r: Reflect.Record[_, _] =>
+      case r: Reflect.Record[zio.blocks.schema.binding.Binding @unchecked, _] =>
         r.fields.zipWithIndex.foldLeft(Map.empty[Vector[String], String]) { case (acc, (field, _)) =>
           acc ++ go(field.value.asInstanceOf[Reflect.Bound[_]], currentPath :+ field.name)
         }
-      case r: Reflect.Primitive[_, _] =>
+      case r: Reflect.Primitive[zio.blocks.schema.binding.Binding @unchecked, _] =>
         Map(currentPath -> r.typeName.name) // Leaf
-      case r: Reflect.Sequence[_, _, _] =>
-         // Add explicit "each" node for sequences? Or just stop?
-         // DynamicOptic usually uses "each" or index.
-         // Let's assume structural paths don't recurse deeply into Seq unless targeted?
-         // For now, treat as leaf named "Seq"
-         Map(currentPath -> "Seq")
+      case r: Reflect.Sequence[zio.blocks.schema.binding.Binding @unchecked, _, _] =>
+        Map(currentPath -> "Seq")
       case _ => Map(currentPath -> "Unknown")
     }
     go(reflect, Vector.empty)
@@ -67,21 +63,23 @@ object MigrationValidator {
     case MigrationAction.Rename(at, to) =>
       val oldPath = at.nodes.collect { case zio.blocks.schema.DynamicOptic.Node.Field(n) => n }.toVector
       if (paths.contains(oldPath)) {
-        val newPath = oldPath.init :+ to
+        val newPath  = oldPath.init :+ to
         val typeInfo = paths(oldPath)
         if (paths.contains(newPath)) Left(s"Rename target already exists: ${newPath.mkString(".")}")
         else Right(paths - oldPath + (newPath -> typeInfo))
       } else Left(s"Cannot rename missing field: ${oldPath.mkString(".")}")
 
     // Other actions (ChangeType, Optionalize) update the Value (Type String), not the Key Set (mostly)
-    // For Optionalize, we might want to track Option wrapper? 
+    // For Optionalize, we might want to track Option wrapper?
     // For this audit, Structural/Path existence is key.
-    
+
     // Join: Removes source paths, adds target path
     case MigrationAction.Join(at, sources, _, _) =>
-      val targetPath = at.nodes.collect { case zio.blocks.schema.DynamicOptic.Node.Field(n) => n }.toVector
-      val sourcePathsVector = sources.map(_.nodes.collect { case zio.blocks.schema.DynamicOptic.Node.Field(n) => n }.toVector)
-      
+      val targetPath        = at.nodes.collect { case zio.blocks.schema.DynamicOptic.Node.Field(n) => n }.toVector
+      val sourcePathsVector = sources.map(_.nodes.collect { case zio.blocks.schema.DynamicOptic.Node.Field(n) =>
+        n
+      }.toVector)
+
       val (found, missing) = sourcePathsVector.partition(paths.contains)
       if (missing.nonEmpty) Left(s"Join sources missing: ${missing.map(_.mkString(".")).mkString(", ")}")
       else {
@@ -91,15 +89,17 @@ object MigrationValidator {
 
     // Split: Removes source path, adds target paths
     case MigrationAction.Split(at, targets, _, _) =>
-       val sourcePath = at.nodes.collect { case zio.blocks.schema.DynamicOptic.Node.Field(n) => n }.toVector
-       val targetPathsVector = targets.map(_.nodes.collect { case zio.blocks.schema.DynamicOptic.Node.Field(n) => n }.toVector)
+      val sourcePath        = at.nodes.collect { case zio.blocks.schema.DynamicOptic.Node.Field(n) => n }.toVector
+      val targetPathsVector = targets.map(_.nodes.collect { case zio.blocks.schema.DynamicOptic.Node.Field(n) =>
+        n
+      }.toVector)
 
-       if (!paths.contains(sourcePath)) Left(s"Split source missing: ${sourcePath.mkString(".")}")
-       else {
-         val withoutSource = paths - sourcePath
-         Right(withoutSource ++ targetPathsVector.map(_ -> "Derived"))
-       }
-       
+      if (!paths.contains(sourcePath)) Left(s"Split source missing: ${sourcePath.mkString(".")}")
+      else {
+        val withoutSource = paths - sourcePath
+        Right(withoutSource ++ targetPathsVector.map(_ -> "Derived"))
+      }
+
     case _ => Right(paths) // Changes types/values but not structure
   }
 }

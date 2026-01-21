@@ -17,7 +17,206 @@ object SerializedSchemaExpr {
       extends SerializedSchemaExpr
   // Add StringConcat, etc. if needed. Stick to primitive-to-primitive subset first.
 
-  implicit lazy val schema: Schema[SerializedSchemaExpr] = Schema.derived
+  implicit lazy val schema: Schema[SerializedSchemaExpr] = {
+    import zio.blocks.schema.binding._
+    import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+
+    lazy val literalSchema: Schema[Literal] = new Schema(
+      reflect = new Reflect.Record[Binding, Literal](
+        fields = Vector(Schema[DynamicValue].reflect.asTerm("value")),
+        typeName = TypeName(Namespace(List("zio", "schema", "migration")), "Literal"),
+        recordBinding = new Binding.Record(
+          constructor = new Constructor[Literal] {
+            def usedRegisters: RegisterOffset                             = 1
+            def construct(in: Registers, offset: RegisterOffset): Literal =
+              Literal(in.getObject(offset).asInstanceOf[DynamicValue])
+          },
+          deconstructor = new Deconstructor[Literal] {
+            def usedRegisters: RegisterOffset                                          = 1
+            def deconstruct(out: Registers, offset: RegisterOffset, in: Literal): Unit =
+              out.setObject(offset, in.value)
+          }
+        ),
+        modifiers = Vector.empty
+      )
+    )
+
+    lazy val accessDynamicSchema: Schema[AccessDynamic] = new Schema(
+      reflect = new Reflect.Record[Binding, AccessDynamic](
+        fields = Vector(Schema[DynamicOptic].reflect.asTerm("path")),
+        typeName = TypeName(Namespace(List("zio", "schema", "migration")), "AccessDynamic"),
+        recordBinding = new Binding.Record(
+          constructor = new Constructor[AccessDynamic] {
+            def usedRegisters: RegisterOffset                                   = 1
+            def construct(in: Registers, offset: RegisterOffset): AccessDynamic =
+              AccessDynamic(in.getObject(offset).asInstanceOf[DynamicOptic])
+          },
+          deconstructor = new Deconstructor[AccessDynamic] {
+            def usedRegisters: RegisterOffset                                                = 1
+            def deconstruct(out: Registers, offset: RegisterOffset, in: AccessDynamic): Unit =
+              out.setObject(offset, in.path)
+          }
+        ),
+        modifiers = Vector.empty
+      )
+    )
+
+    lazy val logicalSchema: Schema[Logical] = new Schema(
+      reflect = new Reflect.Record[Binding, Logical](
+        fields = Vector(
+          schema.reflect.asTerm("left"),
+          schema.reflect.asTerm("right"),
+          Schema[String].reflect.asTerm("op")
+        ),
+        typeName = TypeName(Namespace(List("zio", "schema", "migration")), "Logical"),
+        recordBinding = new Binding.Record(
+          constructor = new Constructor[Logical] {
+            // Safe bet: explicit RegisterOffset(objects = 3)
+            override def usedRegisters: RegisterOffset = RegisterOffset(objects = 3)
+
+            def construct(in: Registers, offset: RegisterOffset): Logical =
+              Logical(
+                in.getObject(offset).asInstanceOf[SerializedSchemaExpr],
+                in.getObject(offset + 1).asInstanceOf[SerializedSchemaExpr],
+                in.getObject(offset + 2).asInstanceOf[String]
+              )
+          },
+          deconstructor = new Deconstructor[Logical] {
+            override def usedRegisters: RegisterOffset                                 = RegisterOffset(objects = 3)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: Logical): Unit = {
+              out.setObject(offset, in.left)
+              out.setObject(offset + 1, in.right)
+              out.setObject(offset + 2, in.op)
+            }
+          }
+        ),
+        modifiers = Vector.empty
+      )
+    )
+
+    lazy val relationalSchema: Schema[Relational] = new Schema(
+      reflect = new Reflect.Record[Binding, Relational](
+        fields = Vector(
+          schema.reflect.asTerm("left"),
+          schema.reflect.asTerm("right"),
+          Schema[String].reflect.asTerm("op")
+        ),
+        typeName = TypeName(Namespace(List("zio", "schema", "migration")), "Relational"),
+        recordBinding = new Binding.Record(
+          constructor = new Constructor[Relational] {
+            override def usedRegisters: RegisterOffset                       = RegisterOffset(objects = 3)
+            def construct(in: Registers, offset: RegisterOffset): Relational =
+              Relational(
+                in.getObject(offset).asInstanceOf[SerializedSchemaExpr],
+                in.getObject(offset + 1).asInstanceOf[SerializedSchemaExpr],
+                in.getObject(offset + 2).asInstanceOf[String]
+              )
+          },
+          deconstructor = new Deconstructor[Relational] {
+            override def usedRegisters: RegisterOffset                                    = RegisterOffset(objects = 3)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: Relational): Unit = {
+              out.setObject(offset, in.left)
+              out.setObject(offset + 1, in.right)
+              out.setObject(offset + 2, in.op)
+            }
+          }
+        ),
+        modifiers = Vector.empty
+      )
+    )
+
+    lazy val arithmeticSchema: Schema[Arithmetic] = new Schema(
+      reflect = new Reflect.Record[Binding, Arithmetic](
+        fields = Vector(
+          schema.reflect.asTerm("left"),
+          schema.reflect.asTerm("right"),
+          Schema[String].reflect.asTerm("op")
+        ),
+        typeName = TypeName(Namespace(List("zio", "schema", "migration")), "Arithmetic"),
+        recordBinding = new Binding.Record(
+          constructor = new Constructor[Arithmetic] {
+            override def usedRegisters: RegisterOffset                       = RegisterOffset(objects = 3)
+            def construct(in: Registers, offset: RegisterOffset): Arithmetic =
+              Arithmetic(
+                in.getObject(offset).asInstanceOf[SerializedSchemaExpr],
+                in.getObject(offset + 1).asInstanceOf[SerializedSchemaExpr],
+                in.getObject(offset + 2).asInstanceOf[String]
+              )
+          },
+          deconstructor = new Deconstructor[Arithmetic] {
+            override def usedRegisters: RegisterOffset                                    = RegisterOffset(objects = 3)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: Arithmetic): Unit = {
+              out.setObject(offset, in.left)
+              out.setObject(offset + 1, in.right)
+              out.setObject(offset + 2, in.op)
+            }
+          }
+        ),
+        modifiers = Vector.empty
+      )
+    )
+
+    lazy val notSchema: Schema[Not] = new Schema(
+      reflect = new Reflect.Record[Binding, Not](
+        fields = Vector(schema.reflect.asTerm("expr")),
+        typeName = TypeName(Namespace(List("zio", "schema", "migration")), "Not"),
+        recordBinding = new Binding.Record(
+          constructor = new Constructor[Not] {
+            override def usedRegisters: RegisterOffset                = RegisterOffset(objects = 1)
+            def construct(in: Registers, offset: RegisterOffset): Not =
+              Not(in.getObject(offset).asInstanceOf[SerializedSchemaExpr])
+          },
+          deconstructor = new Deconstructor[Not] {
+            override def usedRegisters: RegisterOffset                             = RegisterOffset(objects = 1)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: Not): Unit =
+              out.setObject(offset, in.expr)
+          }
+        ),
+        modifiers = Vector.empty
+      )
+    )
+
+    new Schema(
+      reflect = new Reflect.Variant[Binding, SerializedSchemaExpr](
+        cases = Vector(
+          literalSchema.reflect.asTerm("Literal"),
+          accessDynamicSchema.reflect.asTerm("AccessDynamic"),
+          logicalSchema.reflect.asTerm("Logical"),
+          relationalSchema.reflect.asTerm("Relational"),
+          arithmeticSchema.reflect.asTerm("Arithmetic"),
+          notSchema.reflect.asTerm("Not")
+        ),
+        typeName = TypeName(Namespace(List("zio", "schema", "migration")), "SerializedSchemaExpr"),
+        variantBinding = new Binding.Variant(
+          discriminator = new Discriminator[SerializedSchemaExpr] {
+            def discriminate(a: SerializedSchemaExpr): Int = a match {
+              case _: Literal       => 0
+              case _: AccessDynamic => 1
+              case _: Logical       => 2
+              case _: Relational    => 3
+              case _: Arithmetic    => 4
+              case _: Not           => 5
+            }
+          },
+          matchers = Matchers(
+            new Matcher[Literal]       { def downcastOrNull(a: Any) = a match { case x: Literal => x; case _ => null } },
+            new Matcher[AccessDynamic] {
+              def downcastOrNull(a: Any) = a match { case x: AccessDynamic => x; case _ => null }
+            },
+            new Matcher[Logical]    { def downcastOrNull(a: Any) = a match { case x: Logical => x; case _ => null } },
+            new Matcher[Relational] {
+              def downcastOrNull(a: Any) = a match { case x: Relational => x; case _ => null }
+            },
+            new Matcher[Arithmetic] {
+              def downcastOrNull(a: Any) = a match { case x: Arithmetic => x; case _ => null }
+            },
+            new Matcher[Not] { def downcastOrNull(a: Any) = a match { case x: Not => x; case _ => null } }
+          )
+        ),
+        modifiers = Vector.empty
+      )
+    )
+  }
 
   def fromExpr(expr: SchemaExpr[_, _]): SerializedSchemaExpr = expr match {
     case SchemaExpr.Literal(v, s)   => Literal(s.asInstanceOf[Schema[Any]].toDynamicValue(v))

@@ -150,11 +150,12 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         .newBuilder[PersonV1, PersonV2]
         .addField(_.age, SchemaExpr.Literal(18, Schema.int))
         .build
-        .toOption
-        .get
+        //.toOption
+        //.get
 
       val start  = PersonV1("Bob")
       val _      = start
+      val _      = s2 // Silence unused warning
       val result = m(start)
 
       assert(result)(isRight(equalTo(PersonV2("Bob", 18))))
@@ -252,15 +253,15 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       )
     },
     test("Advanced selectors in Builder") {
-      case class Box(items: Seq[String])
+      case class Box(items: Seq[String]) { val _ = items }
       implicit val s: Schema[Box] = Schema.derived[Box]
 
       val m = Migration
         .newBuilder[Box, Box]
         .optionalize(_.items.each)
         .build
-        .toOption
-        .get
+        //.toOption
+        //.get
 
       val start    = Box(Seq("a"))
       val _        = start
