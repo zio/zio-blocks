@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
  * values of that type.
  */
 final case class Schema[A](reflect: Reflect.Bound[A]) {
-  private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
+  private[this] val cache: ConcurrentHashMap[codec.Format, Any] = new ConcurrentHashMap
 
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
@@ -58,7 +58,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def get[B](optic: Optic[A, B]): Option[Reflect.Bound[B]] = reflect.get(optic)
 
-  def get(dynamic: DynamicOptic): Option[Reflect.Bound[?]] = reflect.get(dynamic)
+  def get(dynamic: DynamicOptic): Option[Reflect.Bound[_]] = reflect.get(dynamic)
 
   def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
 
@@ -90,7 +90,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       Schema[B].reflect,
       reflect.typeName,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
+      new Binding.Wrapper(x => Right(wrap(x)), unwrap)
     )
   )
 }
@@ -99,117 +99,77 @@ object Schema extends SchemaCompanionVersionSpecific {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
-
   implicit val unit: Schema[Unit] = new Schema(Reflect.unit[Binding])
-
   implicit val boolean: Schema[Boolean] = new Schema(Reflect.boolean[Binding])
-
   implicit val byte: Schema[Byte] = new Schema(Reflect.byte[Binding])
-
   implicit val short: Schema[Short] = new Schema(Reflect.short[Binding])
-
   implicit val int: Schema[Int] = new Schema(Reflect.int[Binding])
-
   implicit val long: Schema[Long] = new Schema(Reflect.long[Binding])
-
   implicit val float: Schema[Float] = new Schema(Reflect.float[Binding])
-
   implicit val double: Schema[Double] = new Schema(Reflect.double[Binding])
-
   implicit val char: Schema[Char] = new Schema(Reflect.char[Binding])
-
   implicit val string: Schema[String] = new Schema(Reflect.string[Binding])
-
   implicit val bigInt: Schema[BigInt] = new Schema(Reflect.bigInt[Binding])
-
   implicit val bigDecimal: Schema[BigDecimal] = new Schema(Reflect.bigDecimal[Binding])
 
   implicit val dayOfWeek: Schema[java.time.DayOfWeek] = new Schema(Reflect.dayOfWeek[Binding])
-
   implicit val duration: Schema[java.time.Duration] = new Schema(Reflect.duration[Binding])
-
   implicit val instant: Schema[java.time.Instant] = new Schema(Reflect.instant[Binding])
-
   implicit val localDate: Schema[java.time.LocalDate] = new Schema(Reflect.localDate[Binding])
-
   implicit val localDateTime: Schema[java.time.LocalDateTime] = new Schema(Reflect.localDateTime[Binding])
-
   implicit val localTime: Schema[java.time.LocalTime] = new Schema(Reflect.localTime[Binding])
-
   implicit val month: Schema[java.time.Month] = new Schema(Reflect.month[Binding])
-
   implicit val monthDay: Schema[java.time.MonthDay] = new Schema(Reflect.monthDay[Binding])
-
   implicit val offsetDateTime: Schema[java.time.OffsetDateTime] = new Schema(Reflect.offsetDateTime[Binding])
-
   implicit val offsetTime: Schema[java.time.OffsetTime] = new Schema(Reflect.offsetTime[Binding])
-
   implicit val period: Schema[java.time.Period] = new Schema(Reflect.period[Binding])
-
   implicit val year: Schema[java.time.Year] = new Schema(Reflect.year[Binding])
-
   implicit val yearMonth: Schema[java.time.YearMonth] = new Schema(Reflect.yearMonth[Binding])
-
   implicit val zoneId: Schema[java.time.ZoneId] = new Schema(Reflect.zoneId[Binding])
-
   implicit val zoneOffset: Schema[java.time.ZoneOffset] = new Schema(Reflect.zoneOffset[Binding])
-
   implicit val zonedDateTime: Schema[java.time.ZonedDateTime] = new Schema(Reflect.zonedDateTime[Binding])
 
   implicit val currency: Schema[java.util.Currency] = new Schema(Reflect.currency[Binding])
-
   implicit val uuid: Schema[java.util.UUID] = new Schema(Reflect.uuid[Binding])
 
   implicit def option[A <: AnyRef](implicit element: Schema[A]): Schema[Option[A]] =
     new Schema(Reflect.option(element.reflect))
 
   implicit val optionDouble: Schema[Option[Double]] = new Schema(Reflect.optionDouble(Schema[Double].reflect))
-
   implicit val optionLong: Schema[Option[Long]] = new Schema(Reflect.optionLong(Schema[Long].reflect))
-
   implicit val optionFloat: Schema[Option[Float]] = new Schema(Reflect.optionFloat(Schema[Float].reflect))
-
   implicit val optionInt: Schema[Option[Int]] = new Schema(Reflect.optionInt(Schema[Int].reflect))
-
   implicit val optionChar: Schema[Option[Char]] = new Schema(Reflect.optionChar(Schema[Char].reflect))
-
   implicit val optionShort: Schema[Option[Short]] = new Schema(Reflect.optionShort(Schema[Short].reflect))
-
   implicit val optionBoolean: Schema[Option[Boolean]] = new Schema(Reflect.optionBoolean(Schema[Boolean].reflect))
-
   implicit val optionByte: Schema[Option[Byte]] = new Schema(Reflect.optionByte(Schema[Byte].reflect))
-
   implicit val optionUnit: Schema[Option[Unit]] = new Schema(Reflect.optionUnit(Schema[Unit].reflect))
 
   implicit def set[A](implicit element: Schema[A]): Schema[Set[A]] = new Schema(Reflect.set(element.reflect))
-
   implicit def list[A](implicit element: Schema[A]): Schema[List[A]] = new Schema(Reflect.list(element.reflect))
-
   implicit def vector[A](implicit element: Schema[A]): Schema[Vector[A]] = new Schema(Reflect.vector(element.reflect))
-
   implicit def indexedSeq[A](implicit element: Schema[A]): Schema[IndexedSeq[A]] =
     new Schema(Reflect.indexedSeq(element.reflect))
-
   implicit def seq[A](implicit element: Schema[A]): Schema[Seq[A]] = new Schema(Reflect.seq(element.reflect))
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
 
-  // --- Halkan waa structural schemas (Issue #682) ---
+  // --- Structural Schemas (Issue #682) ---
 
-  def struct[A](name: String, fields: Field[A, ?]*): Schema[A] =
-    new Schema(Reflect.struct[Binding, A](name, fields.map(_.reflect).toIndexedSeq))
+  def struct[A](name: String, fields: Field[A, _]*): Schema[A] =
+    new Schema(new Reflect.Structure[Binding, A](name, fields.map(_.reflect).toIndexedSeq))
 
-  def enum[A](name: String, cases: Case[A, ?]*): Schema[A] =
-    new Schema(Reflect.enum[Binding, A](name, cases.map(_.reflect).toIndexedSeq))
+  def `enum`[A](name: String, cases: Case[A, _]*): Schema[A] =
+    new Schema(new Reflect.Enumeration[Binding, A](name, cases.map(_.reflect).toIndexedSeq))
 
   final case class Field[A, B](name: String, schema: Schema[B], get: A => B, set: (A, B) => A) {
-    def reflect: Reflect.Field[Binding, A, B] = 
-      Reflect.Field(name, schema.reflect, get, set)
+    def reflect: Reflect.Field[Binding, A, B] =
+      new Reflect.Field(name, schema.reflect, get, set)
   }
 
   final case class Case[A, B](name: String, schema: Schema[B], unsafeCast: A => B, construct: B => A) {
-    def reflect: Reflect.Case[Binding, A, B] = 
-      Reflect.Case(name, schema.reflect, unsafeCast, construct)
+    def reflect: Reflect.Case[Binding, A, B] =
+      new Reflect.Case(name, schema.reflect, unsafeCast, construct)
   }
 }
