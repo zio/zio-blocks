@@ -3,6 +3,7 @@ package golem.ai
 import scala.scalajs.js
 import scala.scalajs.js.annotation.{JSImport, JSName}
 import scala.scalajs.js.typedarray.Uint8Array
+import golem.wasi.Environment
 
 /**
  * Scala.js wrapper for `golem:llm/llm@1.0.0`.
@@ -187,6 +188,7 @@ object Llm {
   // ----- Public API -----------------------------------------------------------------------
 
   def sendResult(events: Vector[Event], config: Config): Either[Error, Response] = {
+    ensureLlmEnvConfigured()
     val raw = LlmModule.send(toJsEvents(events), toJsConfig(config))
     decodeResult(raw)(fromJsResponse, fromJsError)
   }
@@ -198,7 +200,10 @@ object Llm {
     }
 
   def stream(events: Vector[Event], config: Config): ChatStream =
-    new ChatStream(LlmModule.stream(toJsEvents(events), toJsConfig(config)).asInstanceOf[js.Dynamic])
+    {
+      ensureLlmEnvConfigured()
+      new ChatStream(LlmModule.stream(toJsEvents(events), toJsConfig(config)).asInstanceOf[js.Dynamic])
+    }
 
   // ----- Private interop ------------------------------------------------------------------
 
@@ -206,6 +211,32 @@ object Llm {
 
   private def toJsEvents(events: Vector[Event]): js.Array[JObj] =
     js.Array(events.map(toJsEvent): _*)
+
+  private val llmProviderEnvKeys: List[String] =
+    List(
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "OPENROUTER_API_KEY",
+      "XAI_API_KEY"
+    )
+
+  private val bedrockEnvKeys: List[String] =
+    List("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION")
+
+  private def ensureLlmEnvConfigured(): Unit = {
+    val env       = Environment.getEnvironment()
+    val hasSimple = llmProviderEnvKeys.exists(env.contains)
+    val hasBedrock = bedrockEnvKeys.forall(env.contains)
+    val hasOllama = env.contains("GOLEM_OLLAMA_BASE_URL")
+
+    if (!hasSimple && !hasBedrock && !hasOllama) {
+      val expected =
+        (llmProviderEnvKeys ++ bedrockEnvKeys ++ List("GOLEM_OLLAMA_BASE_URL")).distinct.sorted.mkString(", ")
+      throw new IllegalStateException(
+        s"LLM provider not configured. Set one of: $expected"
+      )
+    }
+  }
 
   private def toJsEvent(ev: Event): JObj =
     ev match {
