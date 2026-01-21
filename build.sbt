@@ -101,7 +101,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC45" % Test,
+      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC41" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.24"     % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -272,33 +272,23 @@ lazy val benchmarks = project
   .dependsOn(schema.jvm % "compile->compile;test->test")
   .dependsOn(chunk.jvm)
   .dependsOn(`schema-avro`)
+  .dependsOn(`schema-toon`.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
-    Compile / skip := true,
-    Test / skip    := true,
-    libraryDependencies ++= {
-      val common = Seq(
-        "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.8",
-        "dev.zio"                               %% "zio-json"              % "0.7.45",
-        "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
-        "dev.zio"                               %% "zio-schema-json"       % "1.7.5",
-        "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
-        "dev.optics"                            %% "monocle-core"          % "3.3.0",
-        "dev.optics"                            %% "monocle-macro"         % "3.3.0",
-        "dev.zio"                               %% "zio-test"              % "2.1.24",
-        "dev.zio"                               %% "zio-test-sbt"          % "2.1.24" % Test
-      )
-
-      val scala3Only = Seq(
-        "com.sksamuel.avro4s" %% "avro4s-core" % "5.0.14",
-        "io.github.arainko"   %% "chanterelle" % "0.1.2"
-      )
-
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((3, _)) => common ++ scala3Only
-        case _            => common
-      }
-    },
+    libraryDependencies ++= Seq(
+      "com.vitthalmirji"                      %% "toon4s-core"           % "0.5.0",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.8",
+      "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.14",
+      "dev.zio"                               %% "zio-json"              % "0.7.45",
+      "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
+      "dev.zio"                               %% "zio-schema-json"       % "1.7.5",
+      "io.github.arainko"                     %% "chanterelle"           % "0.1.2",
+      "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
+      "dev.optics"                            %% "monocle-core"          % "3.3.0",
+      "dev.optics"                            %% "monocle-macro"         % "3.3.0",
+      "dev.zio"                               %% "zio-test"              % "2.1.24",
+      "dev.zio"                               %% "zio-test-sbt"          % "2.1.24" % Test
+    ),
     assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
       case x if x.endsWith("module-info.class") => MergeStrategy.discard

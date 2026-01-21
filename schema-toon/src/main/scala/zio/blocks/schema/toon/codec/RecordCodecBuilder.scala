@@ -44,40 +44,16 @@ private[toon] final class RecordCodecBuilder(
         else fieldReflect.asDynamic.get.dynamicBinding
       }.asInstanceOf[BindingInstance[ToonBinaryCodec, _, A]].binding.defaultValue
 
-  private def stripArrayNotation(key: String): (String, Boolean) = {
-    val bracketIdx = if (key.startsWith("\"")) {
-      val closeQuoteIdx = key.indexOf('"', 1)
-      if (closeQuoteIdx > 0) key.indexOf('[', closeQuoteIdx + 1)
-      else key.indexOf('[')
-    } else {
-      key.indexOf('[')
-    }
-    if (bracketIdx > 0) {
-      (stripQuotes(key.substring(0, bracketIdx)), true)
-    } else {
-      (stripQuotes(key), false)
-    }
-  }
+  private def stripQuotes(s: String, from: Int, to: Int): String =
+    if (to - from >= 2 && s.charAt(from) == '"' && s.charAt(to - 1) == '"') s.substring(from + 1, to - 1)
+    else s.substring(from, to)
 
-  private def stripQuotes(s: String): String =
-    if (s.startsWith("\"") && s.endsWith("\"") && s.length >= 2)
-      s.substring(1, s.length - 1)
-    else s
-
-  def build[F[_, _], A](
-    record: Reflect.Record[F, A],
-    binding: Binding.Record[A]
-  ): ToonBinaryCodec[A] = {
+  def build[F[_, _], A](record: Reflect.Record[F, A], binding: Binding.Record[A]): ToonBinaryCodec[A] = {
     val fields = record.fields
     val len    = fields.length
-
-    if (len == 0) {
-      buildEmptyRecordCodec(binding)
-    } else if (len == 1 && fields(0).value.isMap) {
-      buildSingleMapFieldCodec(record, binding)
-    } else {
-      buildGeneralRecordCodec(record, binding)
-    }
+    if (len == 0) { buildEmptyRecordCodec(binding) }
+    else if (len == 1 && fields(0).value.isMap) buildSingleMapFieldCodec(record, binding)
+    else buildGeneralRecordCodec(record, binding)
   }
 
   private def buildEmptyRecordCodec[A](binding: Binding.Record[A]): ToonBinaryCodec[A] =
@@ -98,7 +74,6 @@ private[toon] final class RecordCodecBuilder(
   ): ToonBinaryCodec[A] = {
     val mapField = record.fields(0)
     val mapCodec = deriveCodec(mapField.value).asInstanceOf[ToonBinaryCodec[AnyRef]]
-
     new ToonBinaryCodec[A]() {
       private[this] val mCodec        = mapCodec
       private[this] val deconstructor = binding.deconstructor
@@ -142,7 +117,6 @@ private[toon] final class RecordCodecBuilder(
     val typeName     = record.typeName
     var infos        = if (isRecursive) recursiveRecordCache.get.get(typeName) else null
     val deriveCodecs = infos eq null
-
     if (deriveCodecs) {
       infos = new Array[ToonFieldInfo](len)
       var idx = 0
@@ -161,7 +135,6 @@ private[toon] final class RecordCodecBuilder(
       if (isRecursive) recursiveRecordCache.get.put(typeName, infos)
       discriminatorFields.set(null :: discriminatorFields.get)
     }
-
     var offset   = 0L
     val fieldMap = new java.util.HashMap[String, ToonFieldInfo]()
     var idx      = 0
@@ -187,9 +160,7 @@ private[toon] final class RecordCodecBuilder(
       idx += 1
     }
     if (deriveCodecs) discriminatorFields.set(discriminatorFields.get.tail)
-
     val finalOffset = offset
-
     new ToonBinaryCodec[A]() {
       private[this] val deconstructor       = binding.deconstructor
       private[this] val constructor         = binding.constructor
@@ -205,64 +176,56 @@ private[toon] final class RecordCodecBuilder(
       def decodeValue(in: ToonReader, default: A): A = {
         in.skipBlankLines()
         val fieldLen = fieldInfos.length
-        if (fieldLen > 0 && usedRegisters == 0) {
-          usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
-        }
-
+        if (fieldLen > 0 && usedRegisters == 0) usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
         val regs    = Registers(usedRegisters)
         val missing = new Array[Boolean](fieldLen)
         java.util.Arrays.fill(missing, true)
-
         if (!in.hasMoreContent || in.peekTrimmedContent.isEmpty) {
           in.advanceLine()
           in.skipBlankLines()
         }
-
         val startDepth = in.getDepth
-
         while (in.hasMoreLines) {
           in.skipBlankLines()
           if (!in.hasMoreLines) {
-            return setMissingAndConstruct(missing, regs, in)
+            return setMissingAndConstruct(in, missing, regs)
           }
-
           val currentDepth = in.getDepth
           if (currentDepth < startDepth) {
-            return setMissingAndConstruct(missing, regs, in)
+            return setMissingAndConstruct(in, missing, regs)
           }
-
           if (in.isListItem && currentDepth <= startDepth) {
-            return setMissingAndConstruct(missing, regs, in)
+            return setMissingAndConstruct(in, missing, regs)
           }
-
-          if (!in.hasMoreContent || in.peekTrimmedContent.isEmpty) {
-            in.advanceLine()
-          } else {
-            val rawKey         = in.readKeyWithArrayNotation()
-            val (key, isArray) = stripArrayNotation(rawKey)
-            val fieldInfo      = fieldIndex.get(key)
+          if (!in.hasMoreContent || in.peekTrimmedContent.isEmpty) in.advanceLine()
+          else {
+            val rawKey  = in.readKeyWithArrayNotation()
+            var isArray = false
+            val key     = {
+              val bracketIdx =
+                if (rawKey.startsWith("\"")) {
+                  val closeQuoteIdx = rawKey.indexOf('"', 1)
+                  if (closeQuoteIdx > 0) rawKey.indexOf('[', closeQuoteIdx + 1)
+                  else rawKey.indexOf('[')
+                } else rawKey.indexOf('[')
+              if (bracketIdx > 0) {
+                isArray = true
+                stripQuotes(rawKey, 0, bracketIdx)
+              } else stripQuotes(rawKey, 0, rawKey.length)
+            }
+            val fieldInfo = fieldIndex.get(key)
             if (fieldInfo ne null) {
               missing(fieldInfo.idx) = false
               try {
-                if (isArray) {
-                  fieldInfo.readArrayFieldValue(in, regs, 0, rawKey)
-                } else {
-                  fieldInfo.readValue(in, regs, 0)
-                }
+                if (isArray) fieldInfo.readArrayFieldValue(in, regs, 0, rawKey)
+                else fieldInfo.readValue(in, regs, 0)
               } catch {
-                case error if NonFatal(error) =>
-                  throw new ToonBinaryCodecError(
-                    new ::(fieldInfo.span, Nil),
-                    error.getMessage
-                  )
+                case err if NonFatal(err) => in.decodeError(fieldInfo.span, err)
               }
-            } else {
-              skipOrReject(in, key)
-            }
+            } else skipOrReject(in, key)
           }
         }
-
-        setMissingAndConstruct(missing, regs, in)
+        setMissingAndConstruct(in, missing, regs)
       }
 
       private def skipOrReject(in: ToonReader, key: String): Unit =
@@ -270,12 +233,10 @@ private[toon] final class RecordCodecBuilder(
           in.decodeError(s"Unexpected field: $key")
         } else in.advanceLine()
 
-      private def setMissingAndConstruct(missing: Array[Boolean], regs: Registers, in: ToonReader): A = {
+      private def setMissingAndConstruct(in: ToonReader, missing: Array[Boolean], regs: Registers) = {
         var idx = 0
         while (idx < missing.length) {
-          if (missing(idx)) {
-            fieldInfos(idx).setMissingValueOrError(in, regs, 0)
-          }
+          if (missing(idx)) fieldInfos(idx).setMissingValueOrError(in, regs, 0)
           idx += 1
         }
         constructor.construct(regs, 0)
@@ -283,24 +244,18 @@ private[toon] final class RecordCodecBuilder(
 
       def encodeValue(x: A, out: ToonWriter): Unit = {
         val fieldLen = fieldInfos.length
-        if (fieldLen > 0 && usedRegisters == 0) {
-          usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
-        }
-
+        if (fieldLen > 0 && usedRegisters == 0) usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
         val regs = Registers(usedRegisters)
         deconstructor.deconstruct(regs, 0, x)
-
         if (discriminatorField ne null) {
           out.writeKey(discriminatorField.name)
           out.writeString(discriminatorField.value)
           out.newLine()
         }
-
         val inListItem   = out.isInListItemContext
         var firstWritten = false
         var depthAdded   = false
-
-        var idx = 0
+        var idx          = 0
         while (idx < fieldLen) {
           val fieldInfo = fieldInfos(idx)
           if (fieldInfo.nonTransient) {
@@ -308,20 +263,15 @@ private[toon] final class RecordCodecBuilder(
               out.incrementDepth()
               depthAdded = true
             }
-
             if (skipDefaultValue && fieldInfo.hasDefault) fieldInfo.writeDefaultValue(out, regs, 0)
             else if (skipNone && fieldInfo.isOptional) fieldInfo.writeOptional(out, regs, 0)
             else if (skipEmptyCollection && fieldInfo.isCollection) fieldInfo.writeCollection(out, regs, 0)
             else fieldInfo.writeRequired(out, regs, 0)
-
             firstWritten = true
           }
           idx += 1
         }
-
-        if (depthAdded) {
-          out.decrementDepth()
-        }
+        if (depthAdded) out.decrementDepth()
       }
 
       override def encodeAsField(fieldName: String, x: A, out: ToonWriter): Unit = {
@@ -353,21 +303,12 @@ private[toon] final class RecordCodecBuilder(
       }
 
       override def encodeTabularRow(x: A, out: ToonWriter, delimiter: Delimiter): Unit = {
+        out.ensureIndent()
+        out.enterInlineContext()
         val fieldLen = fieldInfos.length
-        if (fieldLen > 0 && usedRegisters == 0) {
-          usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
-        }
-
+        if (fieldLen > 0 && usedRegisters == 0) usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
         val regs = Registers(usedRegisters)
         deconstructor.deconstruct(regs, 0, x)
-
-        var spaces = 0
-        while (spaces < out.getDepth * out.indentSize) {
-          out.writeChar(' ')
-          spaces += 1
-        }
-
-        out.enterInlineContext()
         var idx   = 0
         var first = true
         while (idx < fieldLen) {
@@ -382,16 +323,12 @@ private[toon] final class RecordCodecBuilder(
         out.exitInlineContext()
       }
 
-      override def decodeTabularRow(values: Array[String], fieldNames: Array[String], rowIndex: Int): A = {
+      override def decodeTabularRow(in: ToonReader, values: Array[String], fieldNames: Array[String]): A = {
         val fieldLen = fieldInfos.length
-        if (fieldLen > 0 && usedRegisters == 0) {
-          usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
-        }
-
+        if (fieldLen > 0 && usedRegisters == 0) usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
         val regs    = Registers(usedRegisters)
         val missing = new Array[Boolean](fieldLen)
         java.util.Arrays.fill(missing, true)
-
         var valueIdx = 0
         while (valueIdx < fieldNames.length && valueIdx < values.length) {
           val fieldName = fieldNames(valueIdx)
@@ -399,42 +336,27 @@ private[toon] final class RecordCodecBuilder(
           if (fieldInfo ne null) {
             missing(fieldInfo.idx) = false
             val rawValue = values(valueIdx).trim
-            val value    = if (rawValue.startsWith("\"") && rawValue.endsWith("\"") && rawValue.length >= 2) {
-              unescapeQuoted(rawValue)
-            } else rawValue
-            try {
-              fieldInfo.readTabularValue(value, regs, 0)
-            } catch {
-              case error if NonFatal(error) =>
-                throw new ToonBinaryCodecError(
-                  new ::(DynamicOptic.Node.AtIndex(rowIndex), new ::(fieldInfo.span, Nil)),
-                  error.getMessage
-                )
+            val value    =
+              if (rawValue.startsWith("\"") && rawValue.endsWith("\"") && rawValue.length >= 2) unescapeQuoted(rawValue)
+              else rawValue
+            try fieldInfo.readTabularValue(value, regs, 0)
+            catch {
+              case error if NonFatal(error) => in.decodeError(fieldInfo.span, error)
             }
           }
           valueIdx += 1
         }
-
         var idx = 0
         while (idx < missing.length) {
           if (missing(idx)) {
             val fieldInfo = fieldInfos(idx)
-            if (fieldInfo.hasDefault) {
-              fieldInfo.setDefaultValue(regs, 0)
-            } else if (fieldInfo.isOptional) {
-              fieldInfo.setOptionalNone(regs, 0)
-            } else if (fieldInfo.isCollection) {
-              fieldInfo.setEmptyCollection(regs, 0)
-            } else {
-              throw new ToonBinaryCodecError(
-                new ::(DynamicOptic.Node.AtIndex(rowIndex), Nil),
-                s"Missing required field in tabular row: ${fieldInfo.name}"
-              )
-            }
+            if (fieldInfo.hasDefault) fieldInfo.setDefaultValue(regs, 0)
+            else if (fieldInfo.isOptional) fieldInfo.setOptionalNone(regs, 0)
+            else if (fieldInfo.isCollection) fieldInfo.setEmptyCollection(regs, 0)
+            else in.decodeError(s"Missing required field in tabular row: ${fieldInfo.name}")
           }
           idx += 1
         }
-
         constructor.construct(regs, 0)
       }
     }

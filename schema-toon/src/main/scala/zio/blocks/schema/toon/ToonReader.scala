@@ -1,5 +1,6 @@
 package zio.blocks.schema.toon
 
+import zio.blocks.schema.DynamicOptic
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.annotation.switch
@@ -81,9 +82,10 @@ final class ToonReader private[toon] (
     lines = null
   }
 
-  def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = {
-    val content = new String(bytes, offset, length, UTF_8)
-    lines = content.split("\n", -1)
+  def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = reset(new String(bytes, offset, length, UTF_8))
+
+  def reset(content: String): Unit = {
+    lines = content.split('\n')
     lineIndex = 0
     inlineContext = false
     if (lines.length > 0) {
@@ -92,6 +94,8 @@ final class ToonReader private[toon] (
       linePos = currentDepth * indentSize
     }
   }
+
+  def isFirstLine: Boolean = lineIndex == 0
 
   def hasMoreLines: Boolean = lineIndex < lines.length
 
@@ -119,7 +123,7 @@ final class ToonReader private[toon] (
   }
 
   def skipBlankLines(): Unit =
-    while (lineIndex < lines.length && lines(lineIndex).trim.isEmpty) {
+    while (lineIndex < lines.length && isWhitespaceOnly(lines(lineIndex))) {
       lineIndex += 1
       if (lineIndex < lines.length) {
         currentLine = lines(lineIndex)
@@ -129,7 +133,7 @@ final class ToonReader private[toon] (
     }
 
   def skipBlankLinesInArray(isFirstItem: Boolean): Unit =
-    while (lineIndex < lines.length && lines(lineIndex).trim.isEmpty) {
+    while (lineIndex < lines.length && isWhitespaceOnly(lines(lineIndex))) {
       if (strict && !isFirstItem)
         decodeError("Blank lines are not allowed inside arrays/tabular blocks in strict mode")
       lineIndex += 1
@@ -139,6 +143,16 @@ final class ToonReader private[toon] (
         linePos = currentDepth * indentSize
       }
     }
+
+  private def isWhitespaceOnly(s: String): Boolean = {
+    val len = s.length
+    var i   = 0
+    while (i < len) {
+      if (!Character.isWhitespace(s.charAt(i))) return false
+      i += 1
+    }
+    true
+  }
 
   /**
    * Sets a mark at the current position. The reader can later be rolled back to
@@ -202,6 +216,18 @@ final class ToonReader private[toon] (
     else decodeError(s"Expected boolean, got: $value")
   }
 
+  def readByte(): Byte = {
+    val value = readPrimitiveToken()
+    try value.toByte
+    catch { case _: NumberFormatException => decodeError(s"Expected byte, got: $value") }
+  }
+
+  def readShort(): Short = {
+    val value = readPrimitiveToken()
+    try value.toShort
+    catch { case _: NumberFormatException => decodeError(s"Expected short, got: $value") }
+  }
+
   def readInt(): Int = {
     val value = readPrimitiveToken()
     try value.toInt
@@ -217,17 +243,19 @@ final class ToonReader private[toon] (
   def readFloat(): Float = {
     val value = readPrimitiveToken()
     if (value == "null") Float.NaN
-    else
+    else {
       try value.toFloat
       catch { case _: NumberFormatException => decodeError(s"Expected float, got: $value") }
+    }
   }
 
   def readDouble(): Double = {
     val value = readPrimitiveToken()
     if (value == "null") Double.NaN
-    else
+    else {
       try value.toDouble
       catch { case _: NumberFormatException => decodeError(s"Expected double, got: $value") }
+    }
   }
 
   def readBigDecimal(): BigDecimal = {
@@ -248,7 +276,6 @@ final class ToonReader private[toon] (
     skipWhitespace()
     val colonIdx = findUnquotedColon(currentLine, linePos)
     if (colonIdx < 0) decodeError("Expected key:value, no colon found")
-
     val keyPart = currentLine.substring(linePos, colonIdx).trim
     val key     = if (keyPart.startsWith("\"")) unescapeString(keyPart) else keyPart
     linePos = colonIdx + 1
@@ -260,7 +287,6 @@ final class ToonReader private[toon] (
     skipWhitespace()
     val colonIdx = findUnquotedColon(currentLine, linePos)
     if (colonIdx < 0) decodeError("Expected key:value, no colon found")
-
     val keyPart   = currentLine.substring(linePos, colonIdx).trim
     val wasQuoted = keyPart.startsWith("\"")
     val key       = if (wasQuoted) unescapeString(keyPart) else keyPart
@@ -273,48 +299,39 @@ final class ToonReader private[toon] (
     skipWhitespace()
     val colonIdx = findUnquotedColon(currentLine, linePos)
     if (colonIdx < 0) decodeError("Expected key:value, no colon found")
-
     val keyPart = currentLine.substring(linePos, colonIdx).trim
     linePos = colonIdx + 1
     skipWhitespace()
     if (keyPart.startsWith("\"")) unescapeString(keyPart) else keyPart
   }
 
-  def parseArrayHeader(): ArrayHeader = {
+  def parseArrayHeader(isInline: Boolean = false): ArrayHeader = {
     skipWhitespace()
-    val content = currentLine.substring(linePos)
-
-    val bracketStart = findUnquotedChar(content, '[')
+    val bracketStart = findUnquotedChar(currentLine, '[', linePos)
     if (bracketStart < 0) decodeError("Expected array header with [")
-
-    val key = if (bracketStart > 0) {
-      val keyPart = content.substring(0, bracketStart).trim
-      if (keyPart.startsWith("\"")) unescapeString(keyPart) else keyPart
-    } else null
-
-    val bracketEnd = content.indexOf(']', bracketStart)
+    val key =
+      if (bracketStart > linePos) {
+        val keyPart = currentLine.substring(linePos, bracketStart).trim
+        if (keyPart.startsWith("\"")) unescapeString(keyPart) else keyPart
+      } else null
+    val bracketEnd = currentLine.indexOf(']', bracketStart)
     if (bracketEnd < 0) decodeError("Expected closing ] in array header")
-
-    val bracketContent  = content.substring(bracketStart + 1, bracketEnd)
-    val (length, delim) = parseBracketContent(bracketContent)
-
+    val bracketContent        = currentLine.substring(bracketStart + 1, bracketEnd)
+    val (length, delim)       = parseBracketContent(bracketContent)
     var fields: Array[String] = null
     var afterBracket          = bracketEnd + 1
-
-    if (afterBracket < content.length && content.charAt(afterBracket) == '{') {
-      val braceEnd = content.indexOf('}', afterBracket)
+    val len                   = currentLine.length - linePos
+    if (afterBracket < len && currentLine.charAt(afterBracket) == '{') {
+      val braceEnd = currentLine.indexOf('}', afterBracket)
       if (braceEnd < 0) decodeError("Expected closing } in field list")
-      val fieldsContent = content.substring(afterBracket + 1, braceEnd)
+      val fieldsContent = currentLine.substring(afterBracket + 1, braceEnd)
       fields = parseFieldList(fieldsContent, delim)
       afterBracket = braceEnd + 1
     }
-
-    if (afterBracket >= content.length || content.charAt(afterBracket) != ':')
-      decodeError("Expected : after array header")
-
+    if (afterBracket >= len || currentLine.charAt(afterBracket) != ':') decodeError("Expected : after array header")
     activeDelimiter = delim
-    advanceLine()
-
+    if (isInline) linePos = afterBracket + 1
+    else advanceLine()
     ArrayHeader(key, length, fields, delim)
   }
 
@@ -334,42 +351,36 @@ final class ToonReader private[toon] (
     else if (looksLikeNumber(token)) parseNumber(token)
     else token
 
-  def decodeError(msg: String): Nothing =
-    throw new ToonBinaryCodecError(Nil, s"Line ${lineIndex + 1}: $msg")
+  def decodeError(msg: String): Nothing = throw new ToonBinaryCodecError(Nil, msg)
+
+  def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
+    case e: ToonBinaryCodecError =>
+      e.spans = new ::(span, e.spans)
+      throw e
+    case _ =>
+      throw new ToonBinaryCodecError(new ::(span, Nil), error.getMessage)
+  }
 
   private def readPrimitiveToken(): String = {
     skipWhitespace()
-    if (linePos >= currentLine.length) {
-      if (lineIndex >= lines.length - 1) {
-        advanceLine()
-        return ""
-      }
+    val len = currentLine.length
+    if (linePos >= len) {
       advanceLine()
-      return readPrimitiveToken()
+      return if (lineIndex >= lines.length - 1) "" else readPrimitiveToken()
     }
-
-    val remaining = currentLine.substring(linePos)
-    val trimmed   = remaining.trim
-
-    if (trimmed.isEmpty) {
-      advanceLine()
-      return ""
-    }
-
-    if (trimmed.startsWith("\"")) {
-      val endQuote = findEndQuote(trimmed, 1)
+    if (linePos + 1 < len && currentLine.charAt(linePos) == '"') {
+      val endQuote = findEndQuote(currentLine, linePos + 1)
       if (endQuote < 0) decodeError("Unterminated string")
-      val quoted = trimmed.substring(0, endQuote + 1)
-      linePos = currentLine.length
+      val quoted = currentLine.substring(linePos, endQuote + 1)
+      linePos = len
       unescapeString(quoted)
     } else {
       val token = if (inlineContext) {
-        val delimIdx = findDelimiterIndex(trimmed, activeDelimiter)
-        if (delimIdx >= 0) trimmed.substring(0, delimIdx).trim else trimmed
-      } else {
-        trimmed
-      }
-      linePos = currentLine.length
+        val delimIdx = findDelimiterIndex(currentLine, activeDelimiter, linePos)
+        if (delimIdx >= 0) currentLine.substring(linePos, delimIdx)
+        else currentLine.substring(linePos)
+      } else currentLine.substring(linePos)
+      linePos = len
       advanceLine()
       token
     }
@@ -394,7 +405,7 @@ final class ToonReader private[toon] (
         i = line.length
       }
     }
-    if (strict && indentSize > 0 && spaces % indentSize != 0 && line.trim.nonEmpty)
+    if (strict && indentSize > 0 && spaces % indentSize != 0 && !isWhitespaceOnly(line))
       decodeError(s"Indentation must be multiple of $indentSize spaces")
     if (indentSize > 0) spaces / indentSize else 0
   }
@@ -454,9 +465,9 @@ final class ToonReader private[toon] (
     -1
   }
 
-  private def findUnquotedChar(s: String, target: Char): Int = {
+  private def findUnquotedChar(s: String, target: Char, from: Int): Int = {
     var inQuote = false
-    var i       = 0
+    var i       = from
     while (i < s.length) {
       val c = s.charAt(i)
       if (c == '"' && !isEscaped(s, i)) inQuote = !inQuote
@@ -475,9 +486,9 @@ final class ToonReader private[toon] (
     -1
   }
 
-  private def findDelimiterIndex(s: String, delim: Delimiter): Int = {
+  private def findDelimiterIndex(s: String, delim: Delimiter, from: Int): Int = {
     var inQuote = false
-    var i       = 0
+    var i       = from
     while (i < s.length) {
       val c = s.charAt(i)
       if (c == '"' && !isEscaped(s, i)) inQuote = !inQuote
@@ -532,7 +543,7 @@ final class ToonReader private[toon] (
   }
 
   private def parseNumber(s: String): Any =
-    if (s.contains(".") || s.contains("e") || s.contains("E")) {
+    if (s.indexOf('.') >= 0 || s.indexOf('e') >= 0 || s.indexOf('E') >= 0) {
       val d = s.toDouble
       if (d == d.toLong && d >= Long.MinValue && d <= Long.MaxValue) d.toLong
       else d
@@ -542,27 +553,37 @@ final class ToonReader private[toon] (
     }
 
   private def unescapeString(s: String): String = {
-    if (!s.startsWith("\"") || !s.endsWith("\"")) return s
-    val inner = s.substring(1, s.length - 1)
-    val sb    = new StringBuilder(inner.length)
-    var i     = 0
-    while (i < inner.length) {
-      val c = inner.charAt(i)
-      if (c == '\\' && i + 1 < inner.length) {
-        (inner.charAt(i + 1): @switch) match {
-          case '"'  => sb.append('"'); i += 2
-          case '\\' => sb.append('\\'); i += 2
-          case 'n'  => sb.append('\n'); i += 2
-          case 'r'  => sb.append('\r'); i += 2
-          case 't'  => sb.append('\t'); i += 2
-          case _    =>
-            if (strict) decodeError(s"Invalid escape: \\${inner.charAt(i + 1)}")
-            else { sb.append(c); i += 1 }
-        }
-      } else {
-        sb.append(c)
-        i += 1
+    val lastIdx = s.length - 1
+    if (lastIdx >= 1 && s.charAt(lastIdx) != '"') return s
+    val sb = new java.lang.StringBuilder(lastIdx - 1)
+    var i  = 1
+    while (i < lastIdx) {
+      var c = s.charAt(i)
+      i += 1
+      if (c == '\\') {
+        if (i < lastIdx) {
+          (s.charAt(i): @switch) match {
+            case '"' =>
+              c = '"'
+              i += 1
+            case '\\' =>
+              c = '\\'
+              i += 1
+            case 'n' =>
+              c = '\n'
+              i += 1
+            case 'r' =>
+              c = '\r'
+              i += 1
+            case 't' =>
+              c = '\t'
+              i += 1
+            case _ =>
+              if (strict) decodeError(s"Invalid escape: \\${s.charAt(i)}")
+          }
+        } else if (strict) decodeError("Invalid escape: \\")
       }
+      sb.append(c)
     }
     sb.toString
   }

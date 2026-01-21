@@ -1,6 +1,6 @@
 package zio.blocks.schema.toon
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema._
 import zio.test.Assertion._
 import zio.test._
 import java.nio.ByteBuffer
@@ -78,37 +78,34 @@ object ToonTestUtils {
     assert(codec.decode(toon, readerConfig))(isRight(equalTo(expectedValue)))
   }
 
-  def record(fields: (String, zio.blocks.schema.DynamicValue)*): zio.blocks.schema.DynamicValue.Record =
-    zio.blocks.schema.DynamicValue.Record(fields.toVector)
+  def record(fields: (String, DynamicValue)*): DynamicValue.Record = DynamicValue.Record(fields.toVector)
 
-  def dynamicInt(v: Int): zio.blocks.schema.DynamicValue =
-    zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Int(v))
+  def dynamicUnit: DynamicValue = DynamicValue.Primitive(PrimitiveValue.Unit)
 
-  def dynamicStr(v: String): zio.blocks.schema.DynamicValue =
-    zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.String(v))
+  def dynamicBoolean(v: Boolean): DynamicValue = DynamicValue.Primitive(PrimitiveValue.Boolean(v))
+
+  def dynamicInt(v: Int): DynamicValue = DynamicValue.Primitive(PrimitiveValue.Int(v))
+
+  def dynamicStr(v: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(v))
 
   def decodeDynamic(
     toon: String,
-    expected: zio.blocks.schema.DynamicValue,
-    readerConfig: ReaderConfig
+    expected: DynamicValue,
+    readerConfig: ReaderConfig = ReaderConfig
   ): TestResult = {
     val codec = ToonBinaryCodec.dynamicValueCodec
     assert(codec.decode(toon, readerConfig))(isRight(equalTo(expected)))
   }
 
-  def decodeDynamicError(
-    toon: String,
-    error: String,
-    readerConfig: ReaderConfig
-  ): TestResult = {
+  def decodeDynamicError(toon: String, error: String, readerConfig: ReaderConfig = ReaderConfig): TestResult = {
     val codec = ToonBinaryCodec.dynamicValueCodec
     assert(codec.decode(toon, readerConfig))(isLeft(hasError(error)))
   }
 
   def encodeDynamic(
-    value: zio.blocks.schema.DynamicValue,
+    value: DynamicValue,
     expectedToon: String,
-    writerConfig: WriterConfig
+    writerConfig: WriterConfig = WriterConfig
   ): TestResult = {
     val codec  = ToonBinaryCodec.dynamicValueCodec
     val result = codec.encodeToString(value, writerConfig)
@@ -213,7 +210,7 @@ object ToonTestUtils {
   }
 
   def hasError(message: String): Assertion[Throwable] =
-    hasField[Throwable, String]("getMessage", _.getMessage, containsString(message))
+    hasField[Throwable, String]("getMessage", _.getMessage, equalTo(message))
 
   private[this] def readerConfig = ReaderConfig
 
@@ -222,8 +219,8 @@ object ToonTestUtils {
   private[this] def getOrDeriveCodec[A](schema: Schema[A]): ToonBinaryCodec[A] =
     codecs.computeIfAbsent(schema, _.derive(ToonBinaryCodecDeriver)).asInstanceOf[ToonBinaryCodec[A]]
 
-  def deriveCodec[A](schema: Schema[A], deriver: ToonBinaryCodecDeriver): ToonBinaryCodec[A] =
-    schema.derive(deriver)
+  def deriveCodec[A: Schema](deriverModifier: ToonBinaryCodecDeriver => ToonBinaryCodecDeriver): ToonBinaryCodec[A] =
+    Schema[A].derive(deriverModifier(ToonBinaryCodecDeriver))
 
   private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)
 
@@ -236,7 +233,6 @@ object ToonTestUtils {
   private[this] val maxBufSize = 4096
 
   object ToonDynamicValueGen {
-    import zio.blocks.schema.{DynamicValue, PrimitiveValue}
     import DynamicValue._
 
     private val genSafeKey: Gen[Any, String] =
