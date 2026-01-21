@@ -109,6 +109,26 @@ object SchemaExpr {
     private[this] val toDynamicValue: B => DynamicValue = optic.focus.toDynamicValue
   }
 
+  final case class AccessDynamic[A, B](path: DynamicOptic) extends SchemaExpr[A, B] {
+    def eval(input: A): Either[OpticCheck, Seq[B]] =
+      Left(OpticCheck(::(OpticCheck.WrappingError(DynamicOptic(Vector.empty), DynamicOptic(Vector.empty), "AccessDynamic cannot be evaluated on typed input without a Schema"), Nil)))
+
+    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
+      Left(OpticCheck(::(OpticCheck.WrappingError(DynamicOptic(Vector.empty), DynamicOptic(Vector.empty), "AccessDynamic requires custom interpretation on DynamicValue"), Nil)))
+  }
+
+  final case class DefaultValue[S, A](schema: Schema[A]) extends SchemaExpr[S, A] {
+     def eval(input: S): Either[OpticCheck, Seq[A]] = 
+       schema.getDefaultValue.fold[Either[OpticCheck, Seq[A]]](
+         Left(OpticCheck(::(OpticCheck.WrappingError(DynamicOptic(Vector.empty), DynamicOptic(Vector.empty), "No default value"), Nil)))
+       )(v => Right(List(v)))
+
+     def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] =
+       schema.getDefaultValue.fold[Either[OpticCheck, Seq[DynamicValue]]](
+         Left(OpticCheck(::(OpticCheck.WrappingError(DynamicOptic(Vector.empty), DynamicOptic(Vector.empty), "No default value"), Nil)))
+       )(v => Right(List(schema.toDynamicValue(v))))
+  }
+
   sealed trait UnaryOp[A, +B] extends SchemaExpr[A, B] {
     def expr: SchemaExpr[A, B]
   }
