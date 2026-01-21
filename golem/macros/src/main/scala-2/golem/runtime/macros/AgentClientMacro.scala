@@ -86,10 +86,20 @@ object AgentClientMacroImpl {
         c.abort(c.enclosingPosition, s"Missing @agentDefinition(...) on agent trait: ${symbol.fullName}")
       case Some(ann) =>
         extractTypeName(ann.tree.children.tail) match {
-          case Some(s) if s.trim.nonEmpty => s
+          case Some(s) if s.trim.nonEmpty => validateTypeName(c)(s)
           case _                          => defaultTypeNameFromTrait(symbol)
         }
     }
+  }
+
+  private def validateTypeName(c: blackbox.Context)(value: String): String = {
+    if (value.contains("_")) {
+      c.abort(
+        c.enclosingPosition,
+        s"Invalid agentDefinition typeName '$value': use kebab-case (e.g. 'counter-agent') and avoid underscores."
+      )
+    }
+    value
   }
 
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {

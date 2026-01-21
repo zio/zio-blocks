@@ -22,7 +22,7 @@ object AgentSdkMacroImpl {
     }
 
     val agentDefinitionType = typeOf[_root_.golem.runtime.annotations.agentDefinition]
-    val typeName: String    =
+    val rawTypeName: String =
       traitSym.annotations.collectFirst {
         case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
           ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
@@ -35,6 +35,7 @@ object AgentSdkMacroImpl {
             c.abort(c.enclosingPosition, s"Missing @agentDefinition(...) on agent trait: ${traitSym.fullName}")
           defaultTypeNameFromTrait(traitSym)
         }
+    val typeName: String = validateTypeName(c)(rawTypeName)
 
     val ctorTpe: Type = {
       val baseSymOpt = traitTpe.baseClasses.find(_.fullName == "golem.BaseAgent")
@@ -54,5 +55,15 @@ object AgentSdkMacroImpl {
       }
       """
     )
+  }
+
+  private def validateTypeName(c: blackbox.Context)(value: String): String = {
+    if (value.contains("_")) {
+      c.abort(
+        c.enclosingPosition,
+        s"Invalid agentDefinition typeName '$value': use kebab-case (e.g. 'counter-agent') and avoid underscores."
+      )
+    }
+    value
   }
 }

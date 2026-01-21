@@ -103,10 +103,20 @@ object AgentClientMacro {
         report.errorAndAbort(s"Missing @agentDefinition(...) on agent trait: ${traitSymbol.fullName}")
       case Some(args) =>
         extractTypeName(args) match {
-          case Some(value) if value.trim.nonEmpty => value
+          case Some(value) if value.trim.nonEmpty => validateTypeName(value)
           case _                                  => defaultTypeNameFromTrait(traitSymbol)
         }
     }
+  }
+
+  private def validateTypeName(using Quotes)(value: String): String = {
+    import quotes.reflect.*
+    if (value.contains("_")) {
+      report.errorAndAbort(
+        s"Invalid agentDefinition typeName '$value': use kebab-case (e.g. 'counter-agent') and avoid underscores."
+      )
+    }
+    value
   }
 
   private def agentInputType(using

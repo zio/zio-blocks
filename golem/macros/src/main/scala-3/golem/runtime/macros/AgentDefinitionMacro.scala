@@ -40,7 +40,7 @@ object AgentDefinitionMacro {
       }
 
     val agentTypeName =
-      agentDefinitionTypeName(typeSymbol).getOrElse {
+      agentDefinitionTypeName(typeSymbol).map(validateTypeName).getOrElse {
         if !hasAgentDefinition then
           report.errorAndAbort(s"Missing @agentDefinition(...) on agent trait: ${typeSymbol.fullName}")
         defaultTypeNameFromTrait(typeSymbol)
@@ -89,6 +89,16 @@ object AgentDefinitionMacro {
           case NamedArg("typeName", Literal(StringConstant(value))) => value
         }
     }.flatten.map(_.trim).filter(_.nonEmpty)
+  }
+
+  private def validateTypeName(using Quotes)(value: String): String = {
+    import quotes.reflect.*
+    if (value.contains("_")) {
+      report.errorAndAbort(
+        s"Invalid agentDefinition typeName '$value': use kebab-case (e.g. 'counter-agent') and avoid underscores."
+      )
+    }
+    value
   }
 
   private def agentDefinitionMode(using

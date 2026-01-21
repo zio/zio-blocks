@@ -108,7 +108,7 @@ object AgentClientRuntime {
       val encoded                     = RpcValueCodec.encodeArgs(input)
       val result: Either[String, Out] = for {
         params <- encoded
-        raw    <- client.rpc.invokeAndAwait(normalizeFunctionName(method.functionName), params)
+        raw    <- client.rpc.invokeAndAwait(method.functionName, params)
         value  <- {
           implicit val outSchema: GolemSchema[Out] = method.outputSchema
           RpcValueCodec.decodeValue[Out](raw)
@@ -123,7 +123,7 @@ object AgentClientRuntime {
 
       val result: Either[String, Unit] = for {
         params <- RpcValueCodec.encodeArgs(input)
-        _      <- client.rpc.trigger(normalizeFunctionName(method.functionName), params)
+        _      <- client.rpc.trigger(method.functionName, params)
       } yield ()
 
       FutureInterop.fromEither(result)
@@ -138,21 +138,10 @@ object AgentClientRuntime {
 
       val result: Either[String, Unit] = for {
         params <- RpcValueCodec.encodeArgs(input)
-        _      <- client.rpc.scheduleInvocation(datetime, normalizeFunctionName(method.functionName), params)
+        _      <- client.rpc.scheduleInvocation(datetime, method.functionName, params)
       } yield ()
 
       FutureInterop.fromEither(result)
-    }
-
-    private def normalizeFunctionName(functionName: String): String = {
-      val marker = ".{"
-      val idx    = functionName.indexOf(marker)
-      if (idx < 0) functionName
-      else {
-        val agentType = functionName.substring(0, idx).replace('_', '-')
-        val suffix    = functionName.substring(idx)
-        agentType + suffix
-      }
     }
   }
 

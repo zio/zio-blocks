@@ -81,15 +81,7 @@ object Guest {
     if (!js.isUndefined(resolved)) {
       js.Promise.reject(customError("Agent is already initialized in this container")).asInstanceOf[js.Promise[Unit]]
     } else {
-      // Temporary compatibility: external tools (RIB / some invocation APIs) currently use kebab-case,
-      // but Scala code may use underscores. Try the runtime name first, then fall back to code name.
-      val defnOpt =
-        AgentRegistry.get(agentTypeName).orElse {
-          if (agentTypeName.indexOf('-') >= 0) AgentRegistry.get(agentTypeName.replace('-', '_'))
-          else None
-        }
-
-      defnOpt match {
+      AgentRegistry.get(agentTypeName) match {
         case None =>
           js.Promise.reject(invalidType("Invalid agent '" + agentTypeName + "'")).asInstanceOf[js.Promise[Unit]]
         case Some(defnAny) =>
