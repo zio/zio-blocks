@@ -1,6 +1,7 @@
 package zio.blocks.schema.toon
 
 import zio.blocks.schema.toon.ToonTestUtils._
+import zio.blocks.schema.toon.NameMapper._
 import zio.blocks.schema._
 import zio.test._
 import zio.test.TestAspect.jvmOnly
@@ -587,25 +588,45 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             |last: 2""".stripMargin
         )
       },
+      test("record with required optional field") {
+        val codec = deriveCodec[Record4](_.withRequireOptionFields(true))
+        roundTrip(
+          Record4((), Some("VVV")),
+          """hidden: null
+            |optKey: VVV""".stripMargin,
+          codec
+        ) &&
+        decodeError[Record4]("hidden: null", "Missing required field: optKey at: .", codec)
+      },
+      test("record with non-transient optional encodes null values in objects") {
+        roundTrip(
+          Record4((), None),
+          """hidden: null
+            |optKey: null""".stripMargin,
+          deriveCodec[Record4](_.withTransientNone(false))
+        )
+      },
       test("extra fields are ignored by default") {
-        val toon = """name: Alice
-                     |age: 25
-                     |unknownField: ignored""".stripMargin
-        decode(toon, SimplePerson("Alice", 25))
+        decode(
+          """name: Alice
+            |age: 25
+            |unknownField: ignored""".stripMargin,
+          SimplePerson("Alice", 25)
+        )
       },
       test("extra fields cause error when rejectExtraFields is true") {
-        val deriver = ToonBinaryCodecDeriver.withRejectExtraFields(true)
-        val codec   = deriveCodec(SimplePerson.schema, deriver)
-        val toon    = """name: Alice
-                        |age: 25
-                        |unknownField: ignored""".stripMargin
-        decodeError(toon, "Unexpected field: unknownField at: .", codec)
+        decodeError(
+          """name: Alice
+            |age: 25
+            |unknownField: ignored""".stripMargin,
+          "Unexpected field: unknownField at: .",
+          deriveCodec[SimplePerson](_.withRejectExtraFields(true))
+        )
       },
       test("known fields work with rejectExtraFields true") {
-        val deriver = ToonBinaryCodecDeriver.withRejectExtraFields(true)
-        val codec   = deriveCodec(SimplePerson.schema, deriver)
-        val toon    = """name: Bob
-                        |age: 30""".stripMargin
+        val codec = deriveCodec[SimplePerson](_.withRejectExtraFields(true))
+        val toon  = """name: Bob
+                      |age: 30""".stripMargin
         decode(toon, SimplePerson("Bob", 30), codec)
       },
       test("user profile with address") {
@@ -657,6 +678,79 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           """name: test
             |count: 42""".stripMargin
         )
+      },
+      test("record with custom codecs of different field mapping") {
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """camelCase: 1
+            |PascalCase: 2
+            |snake_case: 3
+            |"kebab-case": 4
+            |camel1: 5
+            |Pascal1: 6
+            |snake_1: 7
+            |"kebab-1": 8""".stripMargin
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """CAMELCASE: 1
+            |PASCALCASE: 2
+            |SNAKE_CASE: 3
+            |"KEBAB-CASE": 4
+            |CAMEL1: 5
+            |PASCAL1: 6
+            |SNAKE_1: 7
+            |"KEBAB-1": 8""".stripMargin,
+          deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(Custom(_.toUpperCase)))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """camel_case: 1
+            |pascal_case: 2
+            |snake_case: 3
+            |kebab_case: 4
+            |camel1: 5
+            |pascal1: 6
+            |snake_1: 7
+            |kebab_1: 8""".stripMargin,
+          deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(SnakeCase))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """"camel-case": 1
+            |"pascal-case": 2
+            |"snake-case": 3
+            |"kebab-case": 4
+            |camel1: 5
+            |pascal1: 6
+            |"snake-1": 7
+            |"kebab-1": 8""".stripMargin,
+          deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(KebabCase))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """CamelCase: 1
+            |PascalCase: 2
+            |SnakeCase: 3
+            |KebabCase: 4
+            |Camel1: 5
+            |Pascal1: 6
+            |Snake1: 7
+            |Kebab1: 8""".stripMargin,
+          deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(PascalCase))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """camelCase: 1
+            |pascalCase: 2
+            |snakeCase: 3
+            |kebabCase: 4
+            |camel1: 5
+            |pascal1: 6
+            |snake1: 7
+            |kebab1: 8""".stripMargin,
+          deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(CamelCase))
+        )
       }
     ),
     suite("variants")(
@@ -664,6 +758,25 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip[TrafficLight](TrafficLight.Green, "Green") &&
         roundTrip[TrafficLight](TrafficLight.Yellow, "Yellow") &&
         roundTrip[TrafficLight](TrafficLight.Red, "Red")
+      },
+      test("case object enumeration with case key renaming using case name mapper") {
+        roundTrip[TrafficLight](
+          TrafficLight.Green,
+          """GREEN""",
+          deriveCodec[TrafficLight](_.withCaseNameMapper(NameMapper.Custom(_.toUpperCase)))
+        ) &&
+        roundTrip[TrafficLight](
+          TrafficLight.Yellow,
+          """yellow""",
+          deriveCodec[TrafficLight](_.withCaseNameMapper(NameMapper.SnakeCase))
+        )
+      },
+      test("case object enumeration with toggled off string representation for values") {
+        roundTrip[TrafficLight](
+          TrafficLight.Green,
+          """Green:""",
+          deriveCodec[TrafficLight](_.withEnumValuesAsStrings(false))
+        )
       },
       test("option") {
         roundTrip(Option(42), "42") &&
@@ -684,30 +797,26 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("field discriminator roundtrips correctly") {
-        val deriver = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type"))
-        val codec   = deriveCodec(Pet.schema, deriver)
         roundTrip[Pet](
           Pet.Dog("Buddy", "Labrador"),
           """type: Dog
             |name: Buddy
             |breed: Labrador""".stripMargin,
-          codec
+          deriveCodec[Pet](_.withDiscriminatorKind(DiscriminatorKind.Field("type")))
         )
       },
       test("None discriminator roundtrips correctly") {
-        val deriver = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
-        val codec   = deriveCodec(Pet.schema, deriver)
         roundTrip[Pet](
           Pet.Dog("Buddy", "Labrador"),
           """name: Buddy
             |breed: Labrador""".stripMargin,
-          codec
+          deriveCodec[Pet](_.withDiscriminatorKind(DiscriminatorKind.None))
         ) &&
         roundTrip[Pet](
           Pet.Cat("Whiskers", 9),
           """name: Whiskers
             |lives: 9""".stripMargin,
-          codec
+          deriveCodec[Pet](_.withDiscriminatorKind(DiscriminatorKind.None))
         )
       }
     ),
@@ -732,8 +841,6 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(IntList(List(1, 2, 3)), "xs[3]: 1,2,3")
       },
       test("ArrayFormat.Tabular encodes record arrays in tabular format") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(PersonList.schema, deriver)
         roundTrip(
           PersonList(
             List(
@@ -744,12 +851,10 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           """people[2]{name,age}:
             |  Alice,25
             |  Bob,30""".stripMargin,
-          codec
+          deriveCodec[PersonList](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("ArrayFormat.Tabular with custom delimiter") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Pipe)
-        val codec   = deriveCodec(PersonList.schema, deriver)
         roundTrip(
           PersonList(
             List(
@@ -760,25 +865,25 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           """people[2|]{name|age}:
             |  Alice|25
             |  Bob|30""".stripMargin,
-          codec
+          deriveCodec[PersonList](_.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Pipe))
         )
       },
       test("ArrayFormat.List forces list format even for primitives") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(IntList.schema, deriver)
         roundTrip(
           IntList(List(1, 2, 3)),
           """xs[3]:
             |  - 1
             |  - 2
             |  - 3""".stripMargin,
-          codec
+          deriveCodec[IntList](_.withArrayFormat(ArrayFormat.List))
         )
       },
       test("withDelimiter affects inline arrays") {
-        val deriver = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec   = deriveCodec(IntList.schema, deriver)
-        roundTrip(IntList(List(1, 2, 3)), """xs[3|]: 1|2|3""", codec)
+        roundTrip(
+          IntList(List(1, 2, 3)),
+          """xs[3|]: 1|2|3""",
+          deriveCodec[IntList](_.withDelimiter(Delimiter.Pipe))
+        )
       }
     ),
     suite("maps")(
@@ -1059,5 +1164,20 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
   object RecordWithMapField {
     implicit val schema: Schema[RecordWithMapField] = Schema.derived
+  }
+
+  case class CamelPascalSnakeKebabCases(
+    camelCase: Int,
+    PascalCase: Int,
+    snake_case: Int,
+    `kebab-case`: Int,
+    camel1: Int,
+    Pascal1: Int,
+    snake_1: Int,
+    `kebab-1`: Int
+  )
+
+  object CamelPascalSnakeKebabCases {
+    implicit val schema: Schema[CamelPascalSnakeKebabCases] = Schema.derived
   }
 }
