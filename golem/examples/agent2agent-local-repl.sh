@@ -38,24 +38,13 @@ if ! ( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExampl
   exit 1
 fi
 
-# Use fresh agent ids on each run to avoid "Previous Invocation Failed" poisoning.
-coord_id="demo-$(date +%s)-$RANDOM"
-shard_name="demo-$(date +%s)-$RANDOM"
-tmp_script="$(mktemp)"
-trap 'rm -f "$tmp_script"' EXIT
-sed \
-  -e "s/coordinator(\"demo\")/coordinator(\"$coord_id\")/" \
-  -e "s/\\.route(\"demo\", 42/\\.route(\"$shard_name\", 42/" \
-  -e "s/\\.route-typed(\"demo\", 42/\\.route-typed(\"$shard_name\", 42/" \
-  "$script_file" > "$tmp_script"
-
 out="$(
   cd "$app_dir"
   env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
   if [[ -n "${REPL_TIMEOUT_SECS:-}" ]]; then
-    timeout "$REPL_TIMEOUT_SECS" env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$tmp_script" --disable-stream < /dev/null 2>&1
+    timeout "$REPL_TIMEOUT_SECS" env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$script_file" --disable-stream < /dev/null 2>&1
   else
-    env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$tmp_script" --disable-stream < /dev/null 2>&1
+    env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$script_file" --disable-stream < /dev/null 2>&1
   fi
 )"
 
@@ -69,7 +58,7 @@ if echo "$out" | grep -F -q 'CustomError(' || \
   exit 1
 fi
 echo "$out"
-echo "$out" | grep -F -q "${shard_name}:42:olleh"
+echo "$out" | grep -F -q "demo:42:olleh"
 echo "$out" | grep -F -q 'cba'
 
 

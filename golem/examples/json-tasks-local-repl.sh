@@ -40,16 +40,11 @@ if ! ( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExampl
   exit 1
 fi
 
-agent_id="demo-$(date +%s)-$RANDOM"
-tmp_script="$(mktemp)"
-trap 'rm -f "$tmp_script"' EXIT
-sed -e "s/\"demo\"/\"$agent_id\"/g" "$script_file" > "$tmp_script"
-
 out="$(
   cd "$app_dir"
   env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
   env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" \
-    repl scala:examples --script-file "$tmp_script" --disable-stream < /dev/null 2>&1
+    repl scala:examples --script-file "$script_file" --disable-stream < /dev/null 2>&1
 )"
 
 if echo "$out" | grep -F -q 'CustomError(' || \
