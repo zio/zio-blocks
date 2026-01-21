@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
 import zio.blocks.schema.DynamicOptic.Node
 import scala.math.Ordering
 
@@ -189,6 +189,39 @@ sealed trait Json { self =>
     case _ => self
   }
 
+  /**
+   * Decodes this JSON value to a value of type `A`.
+   */
+  def as[A](implicit decoder: JsonDecoder[A]): Either[JsonError, A] = decoder.decode(self)
+
+  // ===========================================================================
+  // DynamicValue Conversion
+  // ===========================================================================
+
+  /**
+   * Converts this JSON value to a [[DynamicValue]].
+   */
+  def toDynamicValue: DynamicValue = self match {
+    case Json.Null =>
+      DynamicValue.Primitive(PrimitiveValue.Unit)
+    case Json.Boolean(b) =>
+      DynamicValue.Primitive(PrimitiveValue.Boolean(b))
+    case Json.Number(s) =>
+      // Use BigDecimal to preserve precision
+      try {
+        DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(s)))
+      } catch {
+        case _: NumberFormatException =>
+          DynamicValue.Primitive(PrimitiveValue.String(s))
+      }
+    case Json.String(s) =>
+      DynamicValue.Primitive(PrimitiveValue.String(s))
+    case Json.Array(elems) =>
+      DynamicValue.Sequence(elems.map(_.toDynamicValue))
+    case Json.Object(fields) =>
+      DynamicValue.Record(fields.map { case (k, v) => (k, v.toDynamicValue) })
+  }
+
   // ===========================================================================
   // Standard Methods
   // ===========================================================================
@@ -204,6 +237,11 @@ sealed trait Json { self =>
 }
 
 object Json {
+
+  /**
+   * Encodes a value of type `A` to JSON.
+   */
+  def from[A](value: A)(implicit encoder: JsonEncoder[A]): Json = encoder.encode(value)
 
   // ===========================================================================
   // ADT Cases
@@ -478,6 +516,58 @@ object Json {
    * Creates a JSON number from a `Byte`.
    */
   def number(n: Byte): Number = Number(n.toString)
+
+  // ===========================================================================
+  // DynamicValue Conversion
+  // ===========================================================================
+
+  /**
+   * Converts a [[DynamicValue]] to a JSON value.
+   */
+  def fromDynamicValue(dv: DynamicValue): Json = dv match {
+    case DynamicValue.Primitive(pv) =>
+      pv match {
+        case PrimitiveValue.Unit         => Json.Null
+        case PrimitiveValue.Boolean(b)   => Json.Boolean(b)
+        case PrimitiveValue.Byte(b)      => Json.Number(b.toString)
+        case PrimitiveValue.Short(s)     => Json.Number(s.toString)
+        case PrimitiveValue.Int(i)       => Json.Number(i.toString)
+        case PrimitiveValue.Long(l)      => Json.Number(l.toString)
+        case PrimitiveValue.Float(f)     => Json.Number(f.toString)
+        case PrimitiveValue.Double(d)    => Json.Number(d.toString)
+        case PrimitiveValue.BigInt(bi)   => Json.Number(bi.toString)
+        case PrimitiveValue.BigDecimal(bd) => Json.Number(bd.toString)
+        case PrimitiveValue.String(s)    => Json.String(s)
+        case PrimitiveValue.Char(c)      => Json.String(c.toString)
+        case other                       => Json.String(other.toString)
+
+      }
+    case DynamicValue.Record(fields) =>
+      Json.Object(fields.map { case (k, v) => (k, fromDynamicValue(v)) })
+    case DynamicValue.Sequence(elements) =>
+      Json.Array(elements.map(fromDynamicValue))
+    case DynamicValue.Map(entries) =>
+      // Convert map entries to JSON object if keys are strings, otherwise to array of pairs
+      val allKeysAreStrings = entries.forall {
+        case (DynamicValue.Primitive(PrimitiveValue.String(_)), _) => true
+        case _ => false
+      }
+      if (allKeysAreStrings) {
+        val fields = entries.map {
+          case (DynamicValue.Primitive(PrimitiveValue.String(k)), v) => (k, fromDynamicValue(v))
+          case _ => throw new IllegalStateException("Unexpected non-string key")
+        }
+        Json.Object(fields)
+      } else {
+        // Represent as array of [key, value] pairs
+        Json.Array(entries.map { case (k, v) =>
+          Json.Array(Vector(fromDynamicValue(k), fromDynamicValue(v)))
+        })
+      }
+    case DynamicValue.Variant(caseName, value) =>
+      // Represent variant as object with single field
+      Json.Object(Vector((caseName, fromDynamicValue(value))))
+  }
 
   // ===========================================================================
   // Ordering
