@@ -1,7 +1,7 @@
 package zio.schema.migration
 
 import scala.reflect.macros.blackbox
-import zio.blocks.schema.{DynamicOptic, SchemaExpr}
+import zio.blocks.schema.SchemaExpr
 
 class MigrationMacros(val c: blackbox.Context) {
   import c.universe._
@@ -26,48 +26,42 @@ class MigrationMacros(val c: blackbox.Context) {
   }
 
   def transformValueImpl[A, B, S, T](path: c.Expr[A => S], expr: c.Expr[SchemaExpr[S, T]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], sTag: WeakTypeTag[S], tTag: WeakTypeTag[T]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, sTag, tTag)
     val builder = c.prefix
     val opticVal = extractPath(path.tree)
     c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.TransformValue($opticVal, $expr.asInstanceOf[zio.blocks.schema.SchemaExpr[Any, Any]]))")
   }
 
   def mandateImpl[A, B, S](path: c.Expr[A => Option[S]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], sTag: WeakTypeTag[S]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, sTag)
     val builder = c.prefix
     val opticVal = extractPath(path.tree)
     c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.Mandate($opticVal, zio.blocks.schema.SchemaExpr.Literal((), zio.blocks.schema.Schema.unit)))")
-    // Mandate expects 2 args now: Mandate(at, default)
-    // DynamicMigration checks 'Mandate(at, _)' so default is ignored currently?
-    // But MigrationAction.Mandate requires it.
-    // I'll provide a dummy default or assume user provides it?
-    // The macro `mandateImpl` signature in `MigrationBuilder` should probably take a default?
-    // Issue: "mandate(path, default = ...)"
-    // My Builder signature in Scala 3 was `inline def mandate[S](inline path: A => Option[S])`.
-    // It didn't take a default.
-    // I should probably add default to the Builder API.
-    // For now I'll use a placeholder default if I can't change Builder signature easily without checking.
-    // Actually, `mandate` usually implies "fail if missing" or "use this default".
-    // I'll stick to a placeholder for now to match Scala 3 signature.
   }
 
   def optionalizeImpl[A, B, S](path: c.Expr[A => S])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], sTag: WeakTypeTag[S]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, sTag)
     val builder = c.prefix
     val opticVal = extractPath(path.tree)
     c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.Optionalize($opticVal))")
   }
 
   def transformElementsImpl[A, B, S, T](path: c.Expr[A => Seq[S]], migration: c.Expr[Migration[S, T]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], sTag: WeakTypeTag[S], tTag: WeakTypeTag[T]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, sTag, tTag)
     val builder = c.prefix
     val opticVal = extractPath(path.tree)
     c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.TransformElements($opticVal, $migration.dynamicMigration))")
   }
 
   def transformKeysImpl[A, B, K, V, K2](path: c.Expr[A => Map[K, V]], migration: c.Expr[Migration[K, K2]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], kTag: WeakTypeTag[K], vTag: WeakTypeTag[V], k2Tag: WeakTypeTag[K2]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, kTag, vTag, k2Tag)
     val builder = c.prefix
     val opticVal = extractPath(path.tree)
     c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.TransformKeys($opticVal, $migration.dynamicMigration))")
   }
 
   def transformValuesImpl[A, B, K, V, V2](path: c.Expr[A => Map[K, V]], migration: c.Expr[Migration[V, V2]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], kTag: WeakTypeTag[K], vTag: WeakTypeTag[V], v2Tag: WeakTypeTag[V2]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, kTag, vTag, v2Tag)
     val builder = c.prefix
     val opticVal = extractPath(path.tree)
     c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.TransformValues($opticVal, $migration.dynamicMigration))")
@@ -79,7 +73,15 @@ class MigrationMacros(val c: blackbox.Context) {
     c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.RenameCase($opticVal, $from, $to))")
   }
 
+  def transformCaseImpl[A, B, S, T](path: c.Expr[A => S], migration: c.Expr[Migration[S, T]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], sTag: WeakTypeTag[S], tTag: WeakTypeTag[T]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, sTag, tTag)
+    val builder = c.prefix
+    val opticVal = extractPath(path.tree)
+    c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.TransformCase($opticVal, $migration.dynamicMigration))")
+  }
+
   def changeTypeImpl[A, B, S](path: c.Expr[A => S], converter: c.Expr[SchemaExpr[S, _]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], sTag: WeakTypeTag[S]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, sTag)
     val builder = c.prefix
     val opticVal = extractPath(path.tree)
     c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.ChangeType($opticVal, $converter.asInstanceOf[zio.blocks.schema.SchemaExpr[Any, Any]]))")
@@ -100,7 +102,7 @@ class MigrationMacros(val c: blackbox.Context) {
   }
 
   private def extractPath(tree: Tree): Tree = {
-    import zio.blocks.schema.DynamicOptic
+    // Removed unused import: import zio.blocks.schema.DynamicOptic
     
     def loop(t: Tree, acc: List[Tree]): List[Tree] = t match {
       // Handle "each": x.items.each
@@ -118,6 +120,9 @@ class MigrationMacros(val c: blackbox.Context) {
          val typeName = tpe.toString // Simplistic extraction
          val node = q"zio.blocks.schema.DynamicOptic.Node.Case($typeName)"
          loop(qual, node :: acc)
+
+      // Handle implicit wrappers (e.g. extension methods converted to implicit class calls)
+      case Apply(_, List(arg)) => loop(arg, acc)
 
       case Ident(_) => acc // Param
       case Annotated(q"new scala.unchecked()", expr) => loop(expr, acc)

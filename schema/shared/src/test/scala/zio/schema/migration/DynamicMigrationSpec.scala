@@ -11,8 +11,11 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
   implicit val personV1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
 
-  extension [A](self: Seq[A]) {
-    def each: A = ???
+  implicit class SeqOps[A](self: Seq[A]) {
+    def each: A = {
+      val _ = self
+      ???
+    }
   }
 
   def spec = suite("DynamicMigrationSpec")(
@@ -140,7 +143,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       )
     },
     test("MigrationBuilder constructs valid migration") {
-      implicit val s1: Schema[PersonV1] = Schema.derived[PersonV1]
+      // implicit val s1: Schema[PersonV1] = Schema.derived[PersonV1] // Ambiguous with object level implicit
       implicit val s2: Schema[PersonV2] = Schema.derived[PersonV2]
 
       val m = Migration
@@ -149,6 +152,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         .build
 
       val start  = PersonV1("Bob")
+      val _      = start
       val result = m(start)
 
       assert(result)(isRight(equalTo(PersonV2("Bob", 18))))
@@ -255,7 +259,9 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         .build
 
       val start    = Box(Seq("a"))
+      val _        = start
       val dynStart = s.toDynamicValue(start)
+      val _        = dynStart
       val resIdx   = m.dynamicMigration(dynStart)
 
       assert(resIdx)(

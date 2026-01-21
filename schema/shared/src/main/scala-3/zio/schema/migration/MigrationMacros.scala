@@ -227,7 +227,11 @@ object MigrationMacros {
               case _ => report.errorAndAbort("'when' requires type param")
             }
           } else {
-            report.errorAndAbort(s"Unsupported method call '$name' (raw: ${rawFun.show})")
+            // Attempt to unwrap implicit conversions / wrappers
+            args match {
+              case List(arg) => loop(arg, acc)
+              case _         => report.errorAndAbort(s"Unsupported method call '$name' (raw: ${rawFun.show})")
+            }
           }
 
         case Ident(_) => acc // Base of lambda parameter

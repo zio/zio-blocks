@@ -391,5 +391,17 @@ object DynamicMigration {
         case _ => Left(EvaluationError(DynamicOptic(Vector(head)), s"Cannot get at $head"))
       }
     }
-  implicit val schema: zio.blocks.schema.Schema[DynamicMigration] = zio.blocks.schema.DeriveSchema.gen[DynamicMigration]
+  implicit val schema: zio.blocks.schema.Schema[DynamicMigration] =
+    new zio.blocks.schema.Schema(
+      new zio.blocks.schema.Reflect.Wrapper(
+        zio.blocks.schema.Schema.vector(MigrationAction.schema).reflect,
+        zio.blocks.schema
+          .TypeName(zio.blocks.schema.Namespace(List("zio", "schema", "migration"), Nil), "DynamicMigration", Nil),
+        None,
+        new zio.blocks.schema.binding.Binding.Wrapper(
+          (v: Vector[MigrationAction]) => Right(DynamicMigration(v)),
+          (m: DynamicMigration) => m.actions
+        )
+      )
+    )
 }

@@ -204,5 +204,17 @@ object MigrationAction {
   ) extends MigrationAction {
     def reverse: MigrationAction = TransformValues(at, migration.reverse)
   }
-  implicit val schema: zio.blocks.schema.Schema[MigrationAction] = zio.blocks.schema.DeriveSchema.gen[MigrationAction]
+  implicit val schema: zio.blocks.schema.Schema[MigrationAction] =
+    new zio.blocks.schema.Schema(
+      new zio.blocks.schema.Reflect.Wrapper(
+        zio.blocks.schema.Schema.string.reflect,
+        zio.blocks.schema
+          .TypeName(zio.blocks.schema.Namespace(List("zio", "schema", "migration"), Nil), "MigrationAction", Nil),
+        None,
+        new zio.blocks.schema.binding.Binding.Wrapper(
+          (_: String) => Left("MigrationAction serialization not implemented manually"),
+          (_: MigrationAction) => "MigrationAction serialization not implemented manually"
+        )
+      )
+    )
 }
