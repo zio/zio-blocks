@@ -25,3 +25,12 @@ Sample scripts and their RIB sources:
 | Human-in-the-loop | `samples/human-in-the-loop/repl-human-in-the-loop.rib` | `hitl-local-repl.sh` |
 | LLM chat | `samples/llm-chat/repl-llm-chat.rib` | `llm-chat-local-repl.sh` |
 | Websearch summary | `samples/websearch-summary/repl-websearch-summary.rib` | `websearch-summary-local-repl.sh` |
+
+LLM chat prerequisites:
+
+- Set `RUN_LLM_EXAMPLES=1`.
+- Use a non-builtin local server (set `FORCE_AI_ON_LOCAL=1`) or run in cloud mode:
+  `GOLEM_CLI_FLAGS="--cloud -p <profile>"`.
+- Configure one provider env var:
+  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`,
+  `GOLEM_OLLAMA_BASE_URL`, or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` + `AWS_REGION`.

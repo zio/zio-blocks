@@ -28,6 +28,38 @@ if [[ "$is_cloud" -eq 0 && "${FORCE_AI_ON_LOCAL:-}" != "1" ]]; then
   exit 0
 fi
 
+required_any=(
+  "ANTHROPIC_API_KEY"
+  "OPENAI_API_KEY"
+  "OPENROUTER_API_KEY"
+  "XAI_API_KEY"
+  "GOLEM_OLLAMA_BASE_URL"
+)
+bedrock_keys=("AWS_ACCESS_KEY_ID" "AWS_SECRET_ACCESS_KEY" "AWS_REGION")
+
+has_any=0
+for key in "${required_any[@]}"; do
+  [[ -n "${!key:-}" ]] && has_any=1
+done
+
+has_bedrock=1
+for key in "${bedrock_keys[@]}"; do
+  [[ -z "${!key:-}" ]] && has_bedrock=0
+done
+
+if [[ "$has_any" -eq 0 && "$has_bedrock" -eq 0 ]]; then
+  echo "[llm-chat-local-repl] error: no LLM provider env vars found." >&2
+  echo "[llm-chat-local-repl] Set one of:" >&2
+  echo "  - ANTHROPIC_API_KEY" >&2
+  echo "  - OPENAI_API_KEY" >&2
+  echo "  - OPENROUTER_API_KEY" >&2
+  echo "  - XAI_API_KEY" >&2
+  echo "  - GOLEM_OLLAMA_BASE_URL (defaults to http://localhost:11434)" >&2
+  echo "  - or AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY + AWS_REGION (Bedrock)" >&2
+  echo "[llm-chat-local-repl] If running locally, ensure your server has golem:llm providers configured." >&2
+  exit 1
+fi
+
 if [[ "$is_cloud" -eq 0 ]]; then
   host="${GOLEM_ROUTER_HOST:-127.0.0.1}"
   port="${GOLEM_ROUTER_PORT:-9881}"
@@ -69,6 +101,7 @@ if echo "$out" | grep -F -q 'CustomError(' || \
    echo "$out" | grep -F -q 'Exception during call' || \
    echo "$out" | grep -F -q '[ERROR'; then
   echo "[llm-chat-local-repl] ERROR: repl output contains an error:" >&2
+  echo "[llm-chat-local-repl] Hint: check your LLM provider env vars and server configuration." >&2
   echo "$out" >&2
   exit 1
 fi
