@@ -148,7 +148,7 @@ object Example {
 
 ## Documentation
 
-- **[Getting started](docs/getting-started.md)** - Minimal end-to-end project setup (Scala.js + golem-cli)
+- **[Getting started](gettingStarted/README.md)** - Minimal end-to-end project setup (Scala.js + golem-cli)
 - **[Snapshot helpers](docs/snapshot.md)** - State persistence helpers
 - **[Multimodal helpers](docs/multimodal.md)** - Text/binary segment schemas with constraints
 - **[Transaction helpers](docs/transactions.md)** - Infallible and fallible transaction patterns
