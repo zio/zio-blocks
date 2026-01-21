@@ -918,22 +918,20 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     ),
     suite("sequences")(
       test("primitive values") {
+        roundTrip(List(1, 2, 3), "[3]: 1,2,3") &&
         roundTrip(IntList(List(1, 2, 3)), "xs[3]: 1,2,3")
       },
       test("empty sequence") {
+        roundTrip[List[Int]](Nil, "[0]:") &&
         roundTrip(IntList(Nil), "")
       },
       test("string values") {
+        roundTrip(List("hello", "world"), "[2]: hello,world") &&
         roundTrip(StringList(List("hello", "world")), "xs[2]: hello,world")
       },
       test("list with many elements") {
-        roundTrip(IntList((1 to 10).toList), s"xs[10]: 1,2,3,4,5,6,7,8,9,10")
-      },
-      test("list with single element") {
-        roundTrip(IntList(List(42)), "xs[1]: 42")
-      },
-      test("inline array format for primitives") {
-        roundTrip(IntList(List(1, 2, 3)), "xs[3]: 1,2,3")
+        roundTrip((1 to 10).toList, "[10]: 1,2,3,4,5,6,7,8,9,10") &&
+        roundTrip(IntList((1 to 10).toList), "xs[10]: 1,2,3,4,5,6,7,8,9,10")
       },
       test("ArrayFormat.Tabular encodes record arrays in tabular format") {
         roundTrip(
