@@ -194,4 +194,22 @@ object Schema extends SchemaCompanionVersionSpecific {
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
+
+  // --- Halkan waa structural schemas (Issue #682) ---
+
+  def struct[A](name: String, fields: Field[A, ?]*): Schema[A] =
+    new Schema(Reflect.struct[Binding, A](name, fields.map(_.reflect).toIndexedSeq))
+
+  def enum[A](name: String, cases: Case[A, ?]*): Schema[A] =
+    new Schema(Reflect.enum[Binding, A](name, cases.map(_.reflect).toIndexedSeq))
+
+  final case class Field[A, B](name: String, schema: Schema[B], get: A => B, set: (A, B) => A) {
+    def reflect: Reflect.Field[Binding, A, B] = 
+      Reflect.Field(name, schema.reflect, get, set)
+  }
+
+  final case class Case[A, B](name: String, schema: Schema[B], unsafeCast: A => B, construct: B => A) {
+    def reflect: Reflect.Case[Binding, A, B] = 
+      Reflect.Case(name, schema.reflect, unsafeCast, construct)
+  }
 }
