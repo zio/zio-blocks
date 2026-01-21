@@ -2,14 +2,9 @@ package zio.blocks.schema.messagepack
 
 import org.msgpack.core.{MessagePacker, MessageUnpacker}
 import zio.blocks.schema._
-import zio.blocks.schema.binding.Binding
-import zio.blocks.schema.messagepack.MessagePackTestUtils._
-
-import zio.blocks.schema.Schema
-import zio.blocks.schema.Schema._
-import zio.blocks.schema.DynamicValue
 
 import zio.test._
+import zio.blocks.schema.messagepack.MessagePackTestUtils._
 
 import java.time._
 import java.util.{Currency, UUID}
@@ -17,8 +12,7 @@ import scala.collection.immutable.ArraySeq
 
 object MessagePackFormatSpec extends ZIOSpecDefault {
 
-  // Test case classes
-  implicit val eitherStringIntSchema: Schema[Either[String, Int]] = Schema.derived[Either[String, Int]]
+
 
   case class Record1(bl: Boolean, b: Byte, sh: Short, i: Int, l: Long, f: Float, d: Double, c: Char, s: String)
   object Record1 {
@@ -66,10 +60,12 @@ object MessagePackFormatSpec extends ZIOSpecDefault {
     private val emailRegex = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$".r
 
     def apply(value: String): Email    = new Email(value)
-    implicit val schema: Schema[Email] = Schema.derived[Email].wrap[String](
-      email => if (emailRegex.matches(email)) Right(new Email(email)) else Left(s"Invalid email: $email"),
-      email => email.value
-    )
+    implicit val schema: Schema[Email] = Schema
+      .derived[Email]
+      .wrap[String](
+        email => if (emailRegex.matches(email)) Right(new Email(email)) else Left(s"Invalid email: $email"),
+        email => email.value
+      )
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("MessagePackFormatSpec")(

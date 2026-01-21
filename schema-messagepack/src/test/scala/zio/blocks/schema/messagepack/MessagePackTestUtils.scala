@@ -38,4 +38,6 @@ object MessagePackTestUtils {
       case Right(v)    => assertTrue(false) ?? s"Expected error but got $v"
     }
   }
+
+  implicit lazy val eitherStringIntSchema: Schema[Either[String, Int]] = Schema.derived[Either[String, Int]]
 }
