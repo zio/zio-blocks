@@ -135,13 +135,10 @@ final class MigrationBuilder[A, B](
   // ===== Build Methods =====
 
   /**
-   * Build the migration with full validation.
-   *
-   * This is the ONLY build method we expose (no buildPartial).
-   * @jdegoes
-   *   specifically requested this.
+   * Internal method called by the macro after validation. Do not call directly -
+   * use build() instead.
    */
-  def build: Migration[A, B] =
+  def buildUnchecked: Migration[A, B] =
     Migration(
       DynamicMigration(actions),
       sourceSchema,

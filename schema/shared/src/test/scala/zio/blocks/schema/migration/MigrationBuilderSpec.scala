@@ -26,7 +26,7 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
         val migration = MigrationBuilder(personV1Schema, personV2Schema)
           .addFieldWithDefault("country", "USA")
           .renameField("name", "fullName")
-          .build
+          .buildUnchecked
 
         val person = PersonV1("Alice", 30)
         val result = migration.apply(person)
@@ -40,7 +40,7 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       test("build migration with dropField") {
         val migration = MigrationBuilder(personV2Schema, personV3Schema)
           .dropField("age")
-          .build
+          .buildUnchecked
 
         val person = PersonV2("Bob", 25, "Canada")
         val result = migration.apply(person)
@@ -54,7 +54,7 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
         val migration = MigrationBuilder(personV1Schema, personV2Schema)
           .renameField("name", "fullName")
           .addFieldWithDefault("country", "USA")
-          .build
+          .buildUnchecked
 
         val person = PersonV1("Charlie", 35)
         val result = migration.apply(person)
@@ -68,7 +68,7 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       test("build migration with renameCase") {
         val migration = MigrationBuilder(personV1Schema, personV2Schema)
           .renameCase("OldCase", "NewCase")
-          .build
+          .buildUnchecked
 
         // Just verify it builds successfully
         assertTrue(migration.dynamicMigration.actions.length == 1)
@@ -80,11 +80,11 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
         val migration1 = MigrationBuilder(personV1Schema, personV2Schema)
           .renameField("name", "fullName")
           .addFieldWithDefault("country", "USA")
-          .build
+          .buildUnchecked
 
         val migration2 = MigrationBuilder(personV2Schema, personV3Schema)
           .dropField("age")
-          .build
+          .buildUnchecked
 
         val composed = migration1 ++ migration2
 
@@ -100,11 +100,11 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
         val migration1 = MigrationBuilder(personV1Schema, personV2Schema)
           .renameField("name", "fullName")
           .addFieldWithDefault("country", "USA")
-          .build
+          .buildUnchecked
 
         val migration2 = MigrationBuilder(personV2Schema, personV3Schema)
           .dropField("age")
-          .build
+          .buildUnchecked
 
         val composed = migration1.andThen(migration2)
 
