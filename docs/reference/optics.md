@@ -1077,8 +1077,6 @@ The following table summarizes the composition rules for combining different opt
 | **`Optional`**      | `Optional`  | `Optional`  | `Optional`     | `Traversal`     |
 | **`Traversal`**     | `Traversal` | `Traversal` | `Traversal`    | `Traversal`     |
 
-[//]: # (The abstract return type `Optic[S, B]` lets the runtime determine the most specific type while the compiler ensures type safety.)
-
 1. As the table demonstrates, `Traversal` is the most general optic type, as composing with it always results in a `Traversal`. This behavior occurs because `Traversal` focuses on zero or more elements, and once you have that level of generality, you cannot return to a more specific optic type. This is the **absorption property** encoded in the type system.
 
 2. Using `Optic#apply` instead of the `apply` methods on companion objects allows for a more natural DSL-like syntax for composing optics. For example, instead of writing `Lens(Person.address, Address.postalCode)`, we can write `Person.address(Address.postalCode)`, which reads naturally as "address's postal code".
