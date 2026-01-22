@@ -4,7 +4,7 @@ title: "Schema Evolution"
 sidebar_label: "Schema Evolution"
 ---
 
-Schema evolution is a common challenge in distributed systems where data structures change over time. ZIO Blocks provides two type classes—`Into` and `As`—that enable type-safe, compile-time verified transformations between different versions of your data types.
+Schema evolution is a common challenge in distributed systems where data structures change over time. ZIO Blocks provides two complementary approaches for handling schema evolution: automatic type class-based conversions (`Into` and `As`) and declarative migrations (`Migration`).
 
 ## Overview
 
@@ -18,10 +18,13 @@ When your application evolves, you often need to:
 
 ZIO Blocks handles these transformations with:
 
-| Type Class | Direction | Use Case |
-|------------|-----------|----------|
-| `Into[A, B]` | One-way (A → B) | Migrations, API responses, data import |
+| Approach | Direction | Use Case |
+|----------|-----------|----------|
+| `Into[A, B]` | One-way (A → B) | Automatic conversions, API responses, data import |
 | `As[A, B]` | Bidirectional (A ↔ B) | Round-trip serialization, data sync |
+| `Migration[A, B]` | Bidirectional (A ↔ B) | Serializable, versionable, introspectable migrations |
+
+> **Note**: For declarative, serializable migrations with runtime introspection, see [Schema Migration](migration.md).
 
 ## Into[A, B] - One-Way Conversion
 

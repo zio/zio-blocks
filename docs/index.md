@@ -120,3 +120,12 @@ val updated = Person.age.replace(person, 42)
 
 println(s"Original age: ${person.age}, Updated age: ${updated.age}")
 ```
+
+## Documentation
+
+- **[Schema](reference/schema.md)** - Core schema definitions and derivation
+- **[Schema Evolution](reference/schema-evolution.md)** - Automatic type class-based conversions with `Into` and `As`
+- **[Schema Migration](reference/migration.md)** - Declarative, serializable migrations for evolving schemas
+- **[Optics](reference/optics.md)** - Type-safe data access and modification
+- **[JSON](reference/json.md)** - JSON serialization and deserialization
+- **[Reflect](reference/reflect.md)** - Runtime reflection and introspection
