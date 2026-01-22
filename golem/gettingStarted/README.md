@@ -358,20 +358,8 @@ Deploy from the project root:
 env -u ARGV0 golem-cli --local --yes --app-manifest-path "$PWD/golem.yaml" deploy
 ```
 
-Create `repl-counter.rib` in the project root.
-
-Use a fresh agent id each time you run the script; the default durability mode is **Durable**, so reusing the same id will
-keep incrementing the existing counter.
-
-```bash
-agent_id="demo-$(date +%s)"
-cat > repl-counter.rib <<EOF
-let c = counter-agent("$agent_id");
-let a = c.increment();
-let b = c.increment();
-{ a: a, b: b }
-EOF
-```
+Use the checked-in `repl-counter.rib` in the project root. If you want a fresh agent id each run (the default durability mode
+is **Durable**, so reusing the same id keeps incrementing the existing counter), edit the file before invoking the repl.
 
 Then run it non-interactively (recommended for automation):
 

@@ -43,7 +43,7 @@ if [[ "$tool" == "mill" ]]; then
   fi
 
   # Ensure base guest runtime wasm exists (and is up-to-date) before golem-cli inject step runs.
-  # This must happen during the build step, because golem-cli may not read/write app/wasm itself.
+  # This must happen during the build step, because golem-cli may not read/write golem-temp itself.
   ( cd "$repo_root" && mill -i "$GOLEM_MILL_TASK" )
 
   bundle="$(

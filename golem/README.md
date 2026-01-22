@@ -210,6 +210,20 @@ The Scala sbt/Mill plugins are **build adapters**: they generate the Scala.js bu
 
 **`golem-cli` is the driver** for scaffolding/build/deploy/invoke/repl (this matches how golem apps are intended to be operated).
 
+### Base guest runtime (agent_guest.wasm)
+
+The QuickJS guest runtime (`agent_guest.wasm`) is an SDK artifact, not a user project file. The sbt/Mill plugins embed a known-good copy and automatically write it to `golem-temp/agent_guest.wasm` when you compile or link Scala.js.
+
+To regenerate the base runtime (when upgrading Golem/WIT versions):
+
+```bash
+./golem/tools/generate-agent-guest-wasm.sh v1.4.1
+```
+
+That script stages a deterministic WIT package using `golem/tools/agent-wit/agent.wit` plus its dependencies, then runs `wasm-rquickjs generate-wrapper-crate` (with `--js-modules 'user=@composition'`) and `cargo component build`. This mirrors the TypeScript flow: wrapper crate → component build → compose in golem-cli.
+
+The base WIT definition is owned by the SDK (`golem/tools/agent-wit/agent.wit`), so user projects do not need a local "base WIT directory".
+
 ### sbt (example)
 
 In a Golem app manifest (`golem.yaml`), define a Scala template (e.g. `template: scala.js`) whose first build step
