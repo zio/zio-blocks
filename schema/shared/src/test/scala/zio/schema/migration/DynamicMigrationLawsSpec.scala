@@ -47,6 +47,28 @@ object DynamicMigrationLawsSpec extends ZIOSpecDefault {
       check(genMigration) { m =>
         assert(DynamicMigration(Vector.empty) ++ m)(equalTo(m))
       }
+    },
+    test("Structural Reverse: m.reverse.reverse == m") {
+      check(genMigration) { m =>
+        assert(m.reverse.reverse)(equalTo(m))
+      }
+    },
+    test("Semantic Inverse: m.reverse.apply(m.apply(a)) returns original for reversible actions") {
+      // Test with a simple reversible migration: Optionalize then Mandate
+      val start = DynamicValue.Record(Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))))
+      val path  = DynamicOptic(Vector(DynamicOptic.Node.Field("name")))
+
+      // Optionalize wraps in Some
+      val optionalize = DynamicMigration(Vector(MigrationAction.Optionalize(path)))
+
+      val result = for {
+        optionalized <- optionalize(start)
+        restored     <- optionalize.reverse(optionalized)
+      } yield restored
+
+      // Note: Mandate loses information about original value, so reverse is best-effort
+      // For Optionalize, reverse is Mandate with unit default, which unwraps Some
+      assert(result)(isRight(equalTo(start)))
     }
   )
 }

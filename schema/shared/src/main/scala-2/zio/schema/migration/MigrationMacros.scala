@@ -101,6 +101,35 @@ class MigrationMacros(val c: blackbox.Context) {
     c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.Split($atOptic, Vector(..$targetOptics), $splitter.asInstanceOf[zio.blocks.schema.SchemaExpr[Any, Any]]))")
   }
 
+  def transformFieldImpl[A, B, S, T](from: c.Expr[A => S], to: c.Expr[B => T], transform: c.Expr[SchemaExpr[S, T]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], sTag: WeakTypeTag[S], tTag: WeakTypeTag[T]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, sTag, tTag, to)
+    val builder = c.prefix
+    val fromOptic = extractPath(from.tree)
+    // TransformField = Rename + TransformValue conceptually, but we use TransformValue with path
+    c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.TransformValue($fromOptic, $transform.asInstanceOf[zio.blocks.schema.SchemaExpr[Any, Any]]))")
+  }
+
+  def mandateFieldImpl[A, B, S](source: c.Expr[A => Option[S]], target: c.Expr[B => S], default: c.Expr[SchemaExpr[A, S]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], sTag: WeakTypeTag[S]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, sTag, target)
+    val builder = c.prefix
+    val opticVal = extractPath(source.tree)
+    c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.Mandate($opticVal, $default.asInstanceOf[zio.blocks.schema.SchemaExpr[Any, Any]]))")
+  }
+
+  def optionalizeFieldImpl[A, B, S](source: c.Expr[A => S], target: c.Expr[B => Option[S]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], sTag: WeakTypeTag[S]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, sTag, target)
+    val builder = c.prefix
+    val opticVal = extractPath(source.tree)
+    c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.Optionalize($opticVal))")
+  }
+
+  def changeFieldTypeImpl[A, B, S, T](source: c.Expr[A => S], target: c.Expr[B => T], converter: c.Expr[SchemaExpr[S, T]])(implicit aTag: WeakTypeTag[A], bTag: WeakTypeTag[B], sTag: WeakTypeTag[S], tTag: WeakTypeTag[T]): c.Expr[MigrationBuilder[A, B]] = {
+    val _ = (aTag, bTag, sTag, tTag, target)
+    val builder = c.prefix
+    val opticVal = extractPath(source.tree)
+    c.Expr[MigrationBuilder[A, B]](q"$builder.withAction(zio.schema.migration.MigrationAction.ChangeType($opticVal, $converter.asInstanceOf[zio.blocks.schema.SchemaExpr[Any, Any]]))")
+  }
+
   private def extractPath(tree: Tree): Tree = {
     // Removed unused import: import zio.blocks.schema.DynamicOptic
     

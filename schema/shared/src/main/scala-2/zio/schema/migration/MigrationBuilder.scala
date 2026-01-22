@@ -12,7 +12,14 @@ class MigrationBuilder[A, B](
   def withAction(action: MigrationAction): MigrationBuilder[A, B] =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
 
-  def build: Migration[A, B] =
+  /** Build migration with full validation */
+  def build: Either[String, Migration[A, B]] =
+    MigrationValidator.validate(sourceSchema, targetSchema, DynamicMigration(actions)).map { _ =>
+      Migration(DynamicMigration(actions), sourceSchema, targetSchema)
+    }
+
+  /** Build migration without validation (partial/unchecked) */
+  def buildPartial: Migration[A, B] =
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
 
   def addField(target: B => Any, default: SchemaExpr[A, _]): MigrationBuilder[A, B] =
@@ -24,9 +31,22 @@ class MigrationBuilder[A, B](
   def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] =
     macro MigrationMacros.renameFieldImpl[A, B]
 
+  def transformField[S, T](from: A => S, to: B => T, transform: SchemaExpr[S, T]): MigrationBuilder[A, B] =
+    macro MigrationMacros.transformFieldImpl[A, B, S, T]
+
   def transformValue[S, T](path: A => S, expr: SchemaExpr[S, T]): MigrationBuilder[A, B] =
     macro MigrationMacros.transformValueImpl[A, B, S, T]
 
+  def mandateField[S](source: A => Option[S], target: B => S, default: SchemaExpr[A, S]): MigrationBuilder[A, B] =
+    macro MigrationMacros.mandateFieldImpl[A, B, S]
+
+  def optionalizeField[S](source: A => S, target: B => Option[S]): MigrationBuilder[A, B] =
+    macro MigrationMacros.optionalizeFieldImpl[A, B, S]
+
+  def changeFieldType[S, T](source: A => S, target: B => T, converter: SchemaExpr[S, T]): MigrationBuilder[A, B] =
+    macro MigrationMacros.changeFieldTypeImpl[A, B, S, T]
+
+  // Legacy single-path methods for backward compatibility
   def mandate[S](path: A => Option[S]): MigrationBuilder[A, B] =
     macro MigrationMacros.mandateImpl[A, B, S]
 

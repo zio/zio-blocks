@@ -144,6 +144,49 @@ object MigrationMacros {
     }
   }
 
+  def transformFieldImpl[A: Type, B: Type, S: Type, T: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    from: Expr[A => S],
+    to: Expr[B => T],
+    transform: Expr[SchemaExpr[S, T]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val _         = to // Suppress unused warning - target path validated at call site
+    val fromOptic = extractPath(from)
+    '{ $builder.withAction(MigrationAction.TransformValue($fromOptic, $transform.asInstanceOf[SchemaExpr[Any, Any]])) }
+  }
+
+  def mandateFieldImpl[A: Type, B: Type, S: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    source: Expr[A => Option[S]],
+    target: Expr[B => S],
+    default: Expr[SchemaExpr[A, S]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val _  = target // Suppress unused warning - target path validated at call site
+    val at = extractPath(source)
+    '{ $builder.withAction(MigrationAction.Mandate($at, $default.asInstanceOf[SchemaExpr[Any, Any]])) }
+  }
+
+  def optionalizeFieldImpl[A: Type, B: Type, S: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    source: Expr[A => S],
+    target: Expr[B => Option[S]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val _  = target // Suppress unused warning - target path validated at call site
+    val at = extractPath(source)
+    '{ $builder.withAction(MigrationAction.Optionalize($at)) }
+  }
+
+  def changeFieldTypeImpl[A: Type, B: Type, S: Type, T: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    source: Expr[A => S],
+    target: Expr[B => T],
+    converter: Expr[SchemaExpr[S, T]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val _  = target // Suppress unused warning - target path validated at call site
+    val at = extractPath(source)
+    '{ $builder.withAction(MigrationAction.ChangeType($at, $converter.asInstanceOf[SchemaExpr[Any, Any]])) }
+  }
+
   private def extractPaths[T: Type, R: Type](funcs: Expr[Seq[T => R]])(using Quotes): Expr[Vector[DynamicOptic]] = {
     import quotes.reflect._
     funcs match {

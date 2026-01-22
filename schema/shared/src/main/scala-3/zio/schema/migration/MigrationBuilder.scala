@@ -11,10 +11,15 @@ class MigrationBuilder[A, B](
   def withAction(action: MigrationAction): MigrationBuilder[A, B] =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
 
+  /** Build migration with full validation */
   def build: Either[String, Migration[A, B]] =
     MigrationValidator.validate(sourceSchema, targetSchema, DynamicMigration(actions)).map { _ =>
       Migration(DynamicMigration(actions), sourceSchema, targetSchema)
     }
+
+  /** Build migration without validation (partial/unchecked) */
+  def buildPartial: Migration[A, B] =
+    Migration(DynamicMigration(actions), sourceSchema, targetSchema)
 
   inline def addField(inline target: B => Any, inline default: SchemaExpr[A, ?]): MigrationBuilder[A, B] =
     ${ MigrationMacros.addFieldImpl[A, B]('this, 'target, 'default) }
@@ -28,9 +33,34 @@ class MigrationBuilder[A, B](
   inline def renameField(inline from: A => Any, inline to: B => Any): MigrationBuilder[A, B] =
     ${ MigrationMacros.renameFieldImpl[A, B]('this, 'from, 'to) }
 
+  inline def transformField[S, T](
+    inline from: A => S,
+    inline to: B => T,
+    inline transform: SchemaExpr[S, T]
+  ): MigrationBuilder[A, B] =
+    ${ MigrationMacros.transformFieldImpl[A, B, S, T]('this, 'from, 'to, 'transform) }
+
   inline def transformValue[S, T](inline path: A => S, inline expr: SchemaExpr[S, T]): MigrationBuilder[A, B] =
     ${ MigrationMacros.transformValueImpl[A, B, S, T]('this, 'path, 'expr) }
 
+  inline def mandateField[S](
+    inline source: A => Option[S],
+    inline target: B => S,
+    inline default: SchemaExpr[A, S]
+  ): MigrationBuilder[A, B] =
+    ${ MigrationMacros.mandateFieldImpl[A, B, S]('this, 'source, 'target, 'default) }
+
+  inline def optionalizeField[S](inline source: A => S, inline target: B => Option[S]): MigrationBuilder[A, B] =
+    ${ MigrationMacros.optionalizeFieldImpl[A, B, S]('this, 'source, 'target) }
+
+  inline def changeFieldType[S, T](
+    inline source: A => S,
+    inline target: B => T,
+    inline converter: SchemaExpr[S, T]
+  ): MigrationBuilder[A, B] =
+    ${ MigrationMacros.changeFieldTypeImpl[A, B, S, T]('this, 'source, 'target, 'converter) }
+
+  // Legacy single-path methods for backward compatibility
   inline def mandate[S](inline path: A => Option[S]): MigrationBuilder[A, B] =
     ${ MigrationMacros.mandateImpl[A, B, S]('this, 'path) }
 

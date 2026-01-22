@@ -43,7 +43,9 @@ object SerializedMigrationAction {
     import zio.blocks.schema.binding._
     import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
-    // Helper to get recursive reference
+    // Use Reflect.Deferred to break circular initialization for recursive Vector references
+    def deferVectorSelf: Reflect.Bound[Vector[SerializedMigrationAction]] =
+      new Reflect.Deferred[binding.Binding, Vector[SerializedMigrationAction]](() => Schema.vector(schema).reflect)
 
     lazy val addFieldSchema = new Schema(
       reflect = new Reflect.Record[Binding, AddField](
@@ -327,7 +329,7 @@ object SerializedMigrationAction {
       reflect = new Reflect.Record[Binding, TransformCase](
         fields = Vector(
           Schema[DynamicOptic].reflect.asTerm("at"),
-          Schema[Vector[SerializedMigrationAction]].reflect.asTerm("actions")
+          deferVectorSelf.asTerm("actions")
         ),
         typeName = TypeName(Namespace(List("zio", "schema", "migration")), "TransformCase"),
         recordBinding = new Binding.Record(
@@ -355,7 +357,7 @@ object SerializedMigrationAction {
       reflect = new Reflect.Record[Binding, TransformElements](
         fields = Vector(
           Schema[DynamicOptic].reflect.asTerm("at"),
-          Schema[Vector[SerializedMigrationAction]].reflect.asTerm("migration")
+          deferVectorSelf.asTerm("migration")
         ),
         typeName = TypeName(Namespace(List("zio", "schema", "migration")), "TransformElements"),
         recordBinding = new Binding.Record(
@@ -383,7 +385,7 @@ object SerializedMigrationAction {
       reflect = new Reflect.Record[Binding, TransformKeys](
         fields = Vector(
           Schema[DynamicOptic].reflect.asTerm("at"),
-          Schema[Vector[SerializedMigrationAction]].reflect.asTerm("migration")
+          deferVectorSelf.asTerm("migration")
         ),
         typeName = TypeName(Namespace(List("zio", "schema", "migration")), "TransformKeys"),
         recordBinding = new Binding.Record(
@@ -411,7 +413,7 @@ object SerializedMigrationAction {
       reflect = new Reflect.Record[Binding, TransformValues](
         fields = Vector(
           Schema[DynamicOptic].reflect.asTerm("at"),
-          Schema[Vector[SerializedMigrationAction]].reflect.asTerm("migration")
+          deferVectorSelf.asTerm("migration")
         ),
         typeName = TypeName(Namespace(List("zio", "schema", "migration")), "TransformValues"),
         recordBinding = new Binding.Record(

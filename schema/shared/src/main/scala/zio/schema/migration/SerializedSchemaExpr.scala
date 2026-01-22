@@ -61,11 +61,15 @@ object SerializedSchemaExpr {
       )
     )
 
+    // Use Reflect.Deferred to break circular initialization
+    def deferSelf: Reflect.Bound[SerializedSchemaExpr] =
+      new Reflect.Deferred[binding.Binding, SerializedSchemaExpr](() => schema.reflect)
+
     lazy val logicalSchema: Schema[Logical] = new Schema(
       reflect = new Reflect.Record[Binding, Logical](
         fields = Vector(
-          schema.reflect.asTerm("left"),
-          schema.reflect.asTerm("right"),
+          deferSelf.asTerm("left"),
+          deferSelf.asTerm("right"),
           Schema[String].reflect.asTerm("op")
         ),
         typeName = TypeName(Namespace(List("zio", "schema", "migration")), "Logical"),
@@ -97,8 +101,8 @@ object SerializedSchemaExpr {
     lazy val relationalSchema: Schema[Relational] = new Schema(
       reflect = new Reflect.Record[Binding, Relational](
         fields = Vector(
-          schema.reflect.asTerm("left"),
-          schema.reflect.asTerm("right"),
+          deferSelf.asTerm("left"),
+          deferSelf.asTerm("right"),
           Schema[String].reflect.asTerm("op")
         ),
         typeName = TypeName(Namespace(List("zio", "schema", "migration")), "Relational"),
@@ -128,8 +132,8 @@ object SerializedSchemaExpr {
     lazy val arithmeticSchema: Schema[Arithmetic] = new Schema(
       reflect = new Reflect.Record[Binding, Arithmetic](
         fields = Vector(
-          schema.reflect.asTerm("left"),
-          schema.reflect.asTerm("right"),
+          deferSelf.asTerm("left"),
+          deferSelf.asTerm("right"),
           Schema[String].reflect.asTerm("op")
         ),
         typeName = TypeName(Namespace(List("zio", "schema", "migration")), "Arithmetic"),
@@ -158,7 +162,7 @@ object SerializedSchemaExpr {
 
     lazy val notSchema: Schema[Not] = new Schema(
       reflect = new Reflect.Record[Binding, Not](
-        fields = Vector(schema.reflect.asTerm("expr")),
+        fields = Vector(deferSelf.asTerm("expr")),
         typeName = TypeName(Namespace(List("zio", "schema", "migration")), "Not"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[Not] {
