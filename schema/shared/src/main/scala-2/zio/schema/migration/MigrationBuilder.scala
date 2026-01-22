@@ -8,7 +8,7 @@ class MigrationBuilder[A, B](
   val targetSchema: Schema[B],
   val actions: Vector[MigrationAction]
 ) {
-  
+
   def withAction(action: MigrationAction): MigrationBuilder[A, B] =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
 
