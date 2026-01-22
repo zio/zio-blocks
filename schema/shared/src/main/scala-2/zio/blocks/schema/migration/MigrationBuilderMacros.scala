@@ -323,56 +323,56 @@ object MigrationBuilderSyntax {
      *
      * Example: builder.addField(_.country, "USA")
      */
-    def addField[F](selector: B => F, defaultValue: String): MigrationBuilder[A, B] = macro
-      MigrationBuilderSelectorMacros.addFieldStringImpl[A, B, F]
+    def addField[F](selector: B => F, defaultValue: String): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.addFieldStringImpl[A, B, F]
 
     /**
      * Add a field using a selector and int default value.
      *
      * Example: builder.addField(_.age, 0)
      */
-    def addField[F](selector: B => F, defaultValue: Int): MigrationBuilder[A, B] = macro
-      MigrationBuilderSelectorMacros.addFieldIntImpl[A, B, F]
+    def addField[F](selector: B => F, defaultValue: Int): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.addFieldIntImpl[A, B, F]
 
     /**
      * Add a field using a selector and boolean default value.
      *
      * Example: builder.addField(_.active, true)
      */
-    def addField[F](selector: B => F, defaultValue: Boolean): MigrationBuilder[A, B] = macro
-      MigrationBuilderSelectorMacros.addFieldBoolImpl[A, B, F]
+    def addField[F](selector: B => F, defaultValue: Boolean): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.addFieldBoolImpl[A, B, F]
 
     /**
      * Drop a field using a selector.
      *
      * Example: builder.dropField(_.oldField)
      */
-    def dropField[F](selector: A => F): MigrationBuilder[A, B] = macro
-      MigrationBuilderSelectorMacros.dropFieldImpl[A, B, F]
+    def dropField[F](selector: A => F): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.dropFieldImpl[A, B, F]
 
     /**
      * Rename a field using two selectors.
      *
      * Example: builder.renameField(_.name, _.fullName)
      */
-    def renameField[F1, F2](from: A => F1, to: B => F2): MigrationBuilder[A, B] = macro
-      MigrationBuilderSelectorMacros.renameFieldImpl[A, B, F1, F2]
+    def renameField[F1, F2](from: A => F1, to: B => F2): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.renameFieldImpl[A, B, F1, F2]
 
     /**
      * Make an optional field mandatory with a default value.
      *
      * Example: builder.mandateField(_.email, "default@example.com")
      */
-    def mandateField[F](selector: A => F, defaultValue: String): MigrationBuilder[A, B] = macro
-      MigrationBuilderSelectorMacros.mandateFieldImpl[A, B, F]
+    def mandateField[F](selector: A => F, defaultValue: String): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.mandateFieldImpl[A, B, F]
 
     /**
      * Make a mandatory field optional.
      *
      * Example: builder.optionalizeField(_.middleName)
      */
-    def optionalizeField[F](selector: A => F): MigrationBuilder[A, B] = macro
-      MigrationBuilderSelectorMacros.optionalizeFieldImpl[A, B, F]
+    def optionalizeField[F](selector: A => F): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.optionalizeFieldImpl[A, B, F]
   }
 }
 
