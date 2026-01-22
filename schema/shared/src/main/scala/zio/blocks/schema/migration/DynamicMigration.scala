@@ -3,36 +3,35 @@ package zio.blocks.schema.migration
 import zio.blocks.schema.DynamicValue
 
 /**
- * A DynamicMigration is a pure, serializable representation of a schema migration.
- * 
+ * A DynamicMigration is a pure, serializable representation of a schema
+ * migration.
+ *
  * It operates on DynamicValue and consists of a sequence of MigrationActions.
- * 
+ *
  * Key properties:
- * - Fully serializable (no functions, no closures)
- * - Composable (can chain migrations with ++)
- * - Reversible (has a structural inverse)
- * - Introspectable (can inspect the actions)
+ *   - Fully serializable (no functions, no closures)
+ *   - Composable (can chain migrations with ++)
+ *   - Reversible (has a structural inverse)
+ *   - Introspectable (can inspect the actions)
  */
 final case class DynamicMigration(actions: Vector[MigrationAction]) {
-  
-  /**
-   * Apply this migration to a DynamicValue.
-   * Actions are applied sequentially from left to right.
-   */
-  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-    actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
-      case (Right(v), action) => action.apply(v)
-      case (left @ Left(_), _) => left
-    }
-  }
 
   /**
-   * Compose this migration with another migration sequentially.
-   * The result applies this migration first, then the other.
+   * Apply this migration to a DynamicValue. Actions are applied sequentially
+   * from left to right.
    */
-  def ++(that: DynamicMigration): DynamicMigration = {
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
+      case (Right(v), action)  => action.apply(v)
+      case (left @ Left(_), _) => left
+    }
+
+  /**
+   * Compose this migration with another migration sequentially. The result
+   * applies this migration first, then the other.
+   */
+  def ++(that: DynamicMigration): DynamicMigration =
     DynamicMigration(this.actions ++ that.actions)
-  }
 
   /**
    * Alias for ++
@@ -41,22 +40,22 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
 
   /**
    * Return the structural reverse of this migration.
-   * 
+   *
    * The reverse migration:
-   * - Reverses the order of actions
-   * - Reverses each individual action
-   * 
-   * Note: This is a structural reverse, not necessarily a perfect semantic inverse.
-   * Some transformations (like type conversions) may not be perfectly reversible.
+   *   - Reverses the order of actions
+   *   - Reverses each individual action
+   *
+   * Note: This is a structural reverse, not necessarily a perfect semantic
+   * inverse. Some transformations (like type conversions) may not be perfectly
+   * reversible.
    */
-  def reverse: DynamicMigration = {
+  def reverse: DynamicMigration =
     DynamicMigration(actions.reverse.map(_.reverse))
-  }
 
   /**
    * Get a human-readable description of this migration.
    */
-  def describe: String = {
+  def describe: String =
     if (actions.isEmpty) {
       "Empty migration (identity)"
     } else {
@@ -92,7 +91,6 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
       }
       descriptions.mkString("\n")
     }
-  }
 
   /**
    * Check if this migration is empty (identity).
@@ -106,7 +104,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
 }
 
 object DynamicMigration {
-  
+
   /**
    * Create an empty migration (identity).
    */
@@ -115,13 +113,12 @@ object DynamicMigration {
   /**
    * Create a migration from a single action.
    */
-  def single(action: MigrationAction): DynamicMigration = 
+  def single(action: MigrationAction): DynamicMigration =
     DynamicMigration(Vector(action))
 
   /**
    * Create a migration from multiple actions.
    */
-  def fromActions(actions: MigrationAction*): DynamicMigration = 
+  def fromActions(actions: MigrationAction*): DynamicMigration =
     DynamicMigration(actions.toVector)
 }
-

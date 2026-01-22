@@ -5,11 +5,11 @@ import scala.util.control.NoStackTrace
 
 /**
  * Represents errors that can occur during schema migration.
- * 
+ *
  * All errors include path information via DynamicOptic to help with debugging.
  */
 final case class MigrationError(errors: ::[MigrationError.Single]) extends Exception with NoStackTrace {
-  def ++(other: MigrationError): MigrationError = 
+  def ++(other: MigrationError): MigrationError =
     MigrationError(new ::(errors.head, errors.tail ++ other.errors))
 
   override def getMessage: String = message
@@ -26,9 +26,9 @@ final case class MigrationError(errors: ::[MigrationError.Single]) extends Excep
 }
 
 object MigrationError {
-  
+
   // Helper to create single-error instances
-  private def single(error: Single): MigrationError = 
+  private def single(error: Single): MigrationError =
     new MigrationError(new ::(error, Nil))
 
   def fieldNotFound(at: DynamicOptic, fieldName: String): MigrationError =
@@ -72,7 +72,7 @@ object MigrationError {
   }
 
   case class TypeMismatch(source: DynamicOptic, expected: String, actual: String) extends Single {
-    override def message: String = 
+    override def message: String =
       s"Type mismatch at: $source - expected $expected but got $actual"
   }
 
@@ -89,12 +89,12 @@ object MigrationError {
   }
 
   case class MandatoryFieldMissing(source: DynamicOptic, fieldName: String) extends Single {
-    override def message: String = 
+    override def message: String =
       s"Mandatory field '$fieldName' is missing at: $source"
   }
 
   case class IncompatibleSchemas(reason: String) extends Single {
-    override def message: String = s"Incompatible schemas: $reason"
+    override def message: String      = s"Incompatible schemas: $reason"
     override def source: DynamicOptic = DynamicOptic.root
   }
 
@@ -102,4 +102,3 @@ object MigrationError {
     override def message: String = s"Validation failed at: $source - $reason"
   }
 }
-

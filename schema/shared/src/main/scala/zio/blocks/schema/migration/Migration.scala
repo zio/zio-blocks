@@ -4,31 +4,31 @@ import zio.blocks.schema.{Schema, DynamicOptic}
 
 /**
  * A typed migration from schema A to schema B.
- * 
+ *
  * This is the user-facing API that wraps DynamicMigration with type safety.
- * 
+ *
  * Key features:
- * - Type-safe: ensures source and target schemas match
- * - Composable: can chain migrations with ++
- * - Reversible: has a structural inverse
- * - Introspectable: can inspect the underlying actions
- * 
- * Note: The schemas A and B are typically structural types representing
- * old versions of data, not runtime case classes.
+ *   - Type-safe: ensures source and target schemas match
+ *   - Composable: can chain migrations with ++
+ *   - Reversible: has a structural inverse
+ *   - Introspectable: can inspect the underlying actions
+ *
+ * Note: The schemas A and B are typically structural types representing old
+ * versions of data, not runtime case classes.
  */
 final case class Migration[A, B](
   dynamicMigration: DynamicMigration,
   sourceSchema: Schema[A],
   targetSchema: Schema[B]
 ) {
-  
+
   /**
    * Apply this migration to transform a value of type A to type B.
    */
   def apply(value: A): Either[MigrationError, B] = {
     // Convert A to DynamicValue
     val dynamicValue = sourceSchema.toDynamicValue(value)
-    
+
     // Apply the dynamic migration
     dynamicMigration.apply(dynamicValue).flatMap { result =>
       // Convert back to B
@@ -42,16 +42,15 @@ final case class Migration[A, B](
   }
 
   /**
-   * Compose this migration with another migration sequentially.
-   * The result applies this migration first, then the other.
+   * Compose this migration with another migration sequentially. The result
+   * applies this migration first, then the other.
    */
-  def ++[C](that: Migration[B, C]): Migration[A, C] = {
+  def ++[C](that: Migration[B, C]): Migration[A, C] =
     Migration(
       this.dynamicMigration ++ that.dynamicMigration,
       this.sourceSchema,
       that.targetSchema
     )
-  }
 
   /**
    * Alias for ++
@@ -60,16 +59,16 @@ final case class Migration[A, B](
 
   /**
    * Return the structural reverse of this migration.
-   * 
-   * Note: This is a structural reverse, not necessarily a perfect semantic inverse.
+   *
+   * Note: This is a structural reverse, not necessarily a perfect semantic
+   * inverse.
    */
-  def reverse: Migration[B, A] = {
+  def reverse: Migration[B, A] =
     Migration(
       dynamicMigration.reverse,
       targetSchema,
       sourceSchema
     )
-  }
 
   /**
    * Get a human-readable description of this migration.
@@ -88,17 +87,16 @@ final case class Migration[A, B](
 }
 
 object Migration {
-  
+
   /**
    * Create an identity migration (no-op).
    */
-  def identity[A](schema: Schema[A]): Migration[A, A] = {
+  def identity[A](schema: Schema[A]): Migration[A, A] =
     Migration(DynamicMigration.identity, schema, schema)
-  }
 
   /**
    * Create a new migration builder.
-   * 
+   *
    * Example:
    * {{{
    * val migration = Migration.builder[PersonV0, PersonV1]
@@ -110,9 +108,8 @@ object Migration {
   def builder[A, B](implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
-  ): MigrationBuilder[A, B] = {
+  ): MigrationBuilder[A, B] =
     new MigrationBuilder[A, B](sourceSchema, targetSchema, Vector.empty)
-  }
 
   /**
    * Alternative syntax for creating a builder.
@@ -122,4 +119,3 @@ object Migration {
     targetSchema: Schema[B]
   ): MigrationBuilder[A, B] = builder[A, B]
 }
-

@@ -4,79 +4,77 @@ import scala.quoted._
 import zio.blocks.schema.DynamicOptic
 
 /**
- * Scala 3 extension methods for MigrationBuilder that use macros
- * to extract field names and paths from lambda expressions.
- * 
- * This provides a type-safe, IDE-friendly API:
- *   builder.addField(_.country, "USA")
- *   builder.renameField(_.name, _.fullName)
- *   builder.dropField(_.oldField)
- *   builder.atPath(_.address).addField(_.zip, "00000")
+ * Scala 3 extension methods for MigrationBuilder that use macros to extract
+ * field names and paths from lambda expressions.
+ *
+ * This provides a type-safe, IDE-friendly API: builder.addField(_.country,
+ * "USA") builder.renameField(_.name, _.fullName) builder.dropField(_.oldField)
+ * builder.atPath(_.address).addField(_.zip, "00000")
  */
 extension [A, B](builder: MigrationBuilder[A, B]) {
 
   /**
    * Add a field using a selector and string default value.
-   * 
+   *
    * Example: builder.addField(_.country, "USA")
    */
-  inline def addField[F](inline selector: B => F, defaultValue: String): MigrationBuilder[A, B] = 
+  inline def addField[F](inline selector: B => F, defaultValue: String): MigrationBuilder[A, B] =
     ${ addFieldStringImpl('builder, 'selector, 'defaultValue) }
 
   /**
    * Add a field using a selector and int default value.
-   * 
+   *
    * Example: builder.addField(_.age, 0)
    */
-  inline def addField[F](inline selector: B => F, defaultValue: Int): MigrationBuilder[A, B] = 
+  inline def addField[F](inline selector: B => F, defaultValue: Int): MigrationBuilder[A, B] =
     ${ addFieldIntImpl('builder, 'selector, 'defaultValue) }
 
   /**
    * Add a field using a selector and boolean default value.
-   * 
+   *
    * Example: builder.addField(_.active, true)
    */
-  inline def addField[F](inline selector: B => F, defaultValue: Boolean): MigrationBuilder[A, B] = 
+  inline def addField[F](inline selector: B => F, defaultValue: Boolean): MigrationBuilder[A, B] =
     ${ addFieldBoolImpl('builder, 'selector, 'defaultValue) }
 
   /**
    * Drop a field using a selector.
-   * 
+   *
    * Example: builder.dropField(_.oldField)
    */
-  inline def dropField[F](inline selector: A => F): MigrationBuilder[A, B] = 
+  inline def dropField[F](inline selector: A => F): MigrationBuilder[A, B] =
     ${ dropFieldImpl('builder, 'selector) }
 
   /**
    * Rename a field using two selectors.
-   * 
+   *
    * Example: builder.renameField(_.name, _.fullName)
    */
-  inline def renameField[F1, F2](inline from: A => F1, inline to: B => F2): MigrationBuilder[A, B] = 
+  inline def renameField[F1, F2](inline from: A => F1, inline to: B => F2): MigrationBuilder[A, B] =
     ${ renameFieldImpl('builder, 'from, 'to) }
 
   /**
    * Make an optional field mandatory with a default value.
-   * 
+   *
    * Example: builder.mandateField(_.email, "default@example.com")
    */
-  inline def mandateField[F](inline selector: A => F, defaultValue: String): MigrationBuilder[A, B] = 
+  inline def mandateField[F](inline selector: A => F, defaultValue: String): MigrationBuilder[A, B] =
     ${ mandateFieldImpl('builder, 'selector, 'defaultValue) }
 
   /**
    * Make a mandatory field optional.
-   * 
+   *
    * Example: builder.optionalizeField(_.middleName)
    */
-  inline def optionalizeField[F](inline selector: A => F): MigrationBuilder[A, B] = 
+  inline def optionalizeField[F](inline selector: A => F): MigrationBuilder[A, B] =
     ${ optionalizeFieldImpl('builder, 'selector) }
 
   /**
    * Navigate to a nested path and apply operations there.
-   * 
+   *
    * Example: builder.atPath(_.address).addField(_.zip, "00000")
    */
-  inline def atPath[F](inline selector: A => F): MigrationBuilderAtPath[A, B] = 
+  inline def atPath[F](inline selector: A => F): MigrationBuilderAtPath[A, B] =
     ${ atPathImpl('builder, 'selector) }
 }
 
@@ -87,7 +85,7 @@ final class MigrationBuilderAtPath[A, B](
   val builder: MigrationBuilder[A, B],
   val path: DynamicOptic
 ) {
-  
+
   /**
    * Add a field at the current path.
    */
@@ -196,7 +194,7 @@ private def renameFieldImpl[A: Type, B: Type, F1: Type, F2: Type](
   to: Expr[B => F2]
 )(using Quotes): Expr[MigrationBuilder[A, B]] = {
   val fromName = MigrationBuilderMacros.extractFieldName(from)
-  val toName = MigrationBuilderMacros.extractFieldName(to)
+  val toName   = MigrationBuilderMacros.extractFieldName(to)
   '{
     val action = MigrationAction.Rename(
       DynamicOptic.root,
@@ -246,4 +244,3 @@ private def atPathImpl[A: Type, B: Type, F: Type](
     new MigrationBuilderAtPath($builder, $path)
   }
 }
-

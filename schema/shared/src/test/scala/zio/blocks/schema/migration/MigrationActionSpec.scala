@@ -7,16 +7,16 @@ import zio.test.Assertion._
 
 /**
  * Comprehensive tests for individual MigrationAction types.
- * 
+ *
  * Tests each of the 14 action types in detail:
- * - AddField, DropField, Rename, TransformValue
- * - Mandate, Optionalize, ChangeType
- * - Join, Split
- * - RenameCase, TransformCase
- * - TransformElements, TransformKeys, TransformValues
+ *   - AddField, DropField, Rename, TransformValue
+ *   - Mandate, Optionalize, ChangeType
+ *   - Join, Split
+ *   - RenameCase, TransformCase
+ *   - TransformElements, TransformKeys, TransformValues
  */
 object MigrationActionSpec extends SchemaBaseSpec {
-  
+
   def spec: Spec[TestEnvironment, Any] = suite("MigrationActionSpec")(
     addFieldTests,
     dropFieldTests,
@@ -38,9 +38,11 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val addFieldTests = suite("AddField")(
     test("add field with string default") {
-      val record = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
+        )
+      )
 
       val action = MigrationAction.AddField(
         DynamicOptic.root,
@@ -49,20 +51,24 @@ object MigrationActionSpec extends SchemaBaseSpec {
       )
 
       val result = action.apply(record)
-      
+
       assert(result)(isRight(anything)) &&
       assert(result.map(_.asInstanceOf[DynamicValue.Record].fields.size))(isRight(equalTo(2)))
     },
-    
+
     test("add field to nested record") {
-      val address = DynamicValue.Record(Vector(
-        "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main"))
-      ))
-      
-      val person = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
-        "address" -> address
-      ))
+      val address = DynamicValue.Record(
+        Vector(
+          "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main"))
+        )
+      )
+
+      val person = DynamicValue.Record(
+        Vector(
+          "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
+          "address" -> address
+        )
+      )
 
       val action = MigrationAction.AddField(
         DynamicOptic.root / "address",
@@ -71,14 +77,16 @@ object MigrationActionSpec extends SchemaBaseSpec {
       )
 
       val result = action.apply(person)
-      
+
       assert(result)(isRight(anything))
     },
-    
+
     test("add field fails when field already exists") {
-      val record = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Charlie"))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Charlie"))
+        )
+      )
 
       val action = MigrationAction.AddField(
         DynamicOptic.root,
@@ -87,10 +95,10 @@ object MigrationActionSpec extends SchemaBaseSpec {
       )
 
       val result = action.apply(record)
-      
+
       assert(result)(isLeft(anything))
     },
-    
+
     test("add field reverse is drop field") {
       val action = MigrationAction.AddField(
         DynamicOptic.root,
@@ -99,7 +107,7 @@ object MigrationActionSpec extends SchemaBaseSpec {
       )
 
       val reverse = action.reverse
-      
+
       assert(reverse)(isSubtype[MigrationAction.DropField](anything))
     }
   )
@@ -108,10 +116,12 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val dropFieldTests = suite("DropField")(
     test("drop existing field") {
-      val record = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Diana")),
-        "age" -> DynamicValue.Primitive(PrimitiveValue.Int(28))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Diana")),
+          "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(28))
+        )
+      )
 
       val action = MigrationAction.DropField(
         DynamicOptic.root,
@@ -120,22 +130,26 @@ object MigrationActionSpec extends SchemaBaseSpec {
       )
 
       val result = action.apply(record)
-      
+
       assert(result)(isRight(anything)) &&
       assert(result.map(_.asInstanceOf[DynamicValue.Record].fields.size))(isRight(equalTo(1)))
     },
-    
+
     test("drop field from nested record") {
-      val address = DynamicValue.Record(Vector(
-        "street" -> DynamicValue.Primitive(PrimitiveValue.String("456 Oak")),
-        "city" -> DynamicValue.Primitive(PrimitiveValue.String("LA")),
-        "zip" -> DynamicValue.Primitive(PrimitiveValue.String("90001"))
-      ))
-      
-      val person = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Eve")),
-        "address" -> address
-      ))
+      val address = DynamicValue.Record(
+        Vector(
+          "street" -> DynamicValue.Primitive(PrimitiveValue.String("456 Oak")),
+          "city"   -> DynamicValue.Primitive(PrimitiveValue.String("LA")),
+          "zip"    -> DynamicValue.Primitive(PrimitiveValue.String("90001"))
+        )
+      )
+
+      val person = DynamicValue.Record(
+        Vector(
+          "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Eve")),
+          "address" -> address
+        )
+      )
 
       val action = MigrationAction.DropField(
         DynamicOptic.root / "address",
@@ -144,14 +158,16 @@ object MigrationActionSpec extends SchemaBaseSpec {
       )
 
       val result = action.apply(person)
-      
+
       assert(result)(isRight(anything))
     },
-    
+
     test("drop field fails when field doesn't exist") {
-      val record = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Frank"))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Frank"))
+        )
+      )
 
       val action = MigrationAction.DropField(
         DynamicOptic.root,
@@ -160,7 +176,7 @@ object MigrationActionSpec extends SchemaBaseSpec {
       )
 
       val result = action.apply(record)
-      
+
       assert(result)(isLeft(anything))
     }
   )
@@ -169,9 +185,11 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val renameTests = suite("Rename")(
     test("rename field at root level") {
-      val record = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Grace"))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Grace"))
+        )
+      )
 
       val action = MigrationAction.Rename(
         DynamicOptic.root,
@@ -180,7 +198,7 @@ object MigrationActionSpec extends SchemaBaseSpec {
       )
 
       val result = action.apply(record)
-      
+
       assert(result)(isRight(anything))
     }
   )
@@ -189,10 +207,12 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val transformValueTests = suite("TransformValue")(
     test("transform field value with literal") {
-      val record = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
-        "status" -> DynamicValue.Primitive(PrimitiveValue.String("pending"))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "name"   -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+          "status" -> DynamicValue.Primitive(PrimitiveValue.String("pending"))
+        )
+      )
 
       val action = MigrationAction.TransformValue(
         DynamicOptic.root,
@@ -206,19 +226,23 @@ object MigrationActionSpec extends SchemaBaseSpec {
     },
 
     test("transform nested field value") {
-      val address = DynamicValue.Record(Vector(
-        "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 main st"))
-      ))
+      val address = DynamicValue.Record(
+        Vector(
+          "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 main st"))
+        )
+      )
 
-      val person = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-        "address" -> address
-      ))
+      val person = DynamicValue.Record(
+        Vector(
+          "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+          "address" -> address
+        )
+      )
 
       val action = MigrationAction.TransformValue(
         DynamicOptic.root / "address",
         "street",
-        SE.literalString("123 Main St")  // Capitalize
+        SE.literalString("123 Main St") // Capitalize
       )
 
       val result = action.apply(person)
@@ -231,10 +255,12 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val mandateTests = suite("Mandate")(
     test("mandate optional field with Some value") {
-      val record = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
-        "email" -> DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.String("bob@test.com")))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "name"  -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
+          "email" -> DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.String("bob@test.com")))
+        )
+      )
 
       val action = MigrationAction.Mandate(
         DynamicOptic.root,
@@ -248,10 +274,12 @@ object MigrationActionSpec extends SchemaBaseSpec {
     },
 
     test("mandate optional field with None value uses default") {
-      val record = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Charlie")),
-        "email" -> DynamicValue.Variant("None", DynamicValue.Record(Vector.empty))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "name"  -> DynamicValue.Primitive(PrimitiveValue.String("Charlie")),
+          "email" -> DynamicValue.Variant("None", DynamicValue.Record(Vector.empty))
+        )
+      )
 
       val action = MigrationAction.Mandate(
         DynamicOptic.root,
@@ -281,10 +309,12 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val optionalizeTests = suite("Optionalize")(
     test("optionalize mandatory field") {
-      val record = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Diana")),
-        "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Diana")),
+          "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+        )
+      )
 
       val action = MigrationAction.Optionalize(
         DynamicOptic.root,
@@ -297,15 +327,19 @@ object MigrationActionSpec extends SchemaBaseSpec {
     },
 
     test("optionalize nested field") {
-      val address = DynamicValue.Record(Vector(
-        "street" -> DynamicValue.Primitive(PrimitiveValue.String("789 Elm")),
-        "zip" -> DynamicValue.Primitive(PrimitiveValue.String("12345"))
-      ))
+      val address = DynamicValue.Record(
+        Vector(
+          "street" -> DynamicValue.Primitive(PrimitiveValue.String("789 Elm")),
+          "zip"    -> DynamicValue.Primitive(PrimitiveValue.String("12345"))
+        )
+      )
 
-      val person = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Eve")),
-        "address" -> address
-      ))
+      val person = DynamicValue.Record(
+        Vector(
+          "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Eve")),
+          "address" -> address
+        )
+      )
 
       val action = MigrationAction.Optionalize(
         DynamicOptic.root / "address",
@@ -322,10 +356,12 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val changeTypeTests = suite("ChangeType")(
     test("change type with literal conversion") {
-      val record = DynamicValue.Record(Vector(
-        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Frank")),
-        "age" -> DynamicValue.Primitive(PrimitiveValue.Int(25))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Frank")),
+          "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
+        )
+      )
 
       // Convert age to string "25"
       val action = MigrationAction.ChangeType(
@@ -344,10 +380,12 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val joinTests = suite("Join")(
     test("join two fields into one") {
-      val record = DynamicValue.Record(Vector(
-        "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("Grace")),
-        "lastName" -> DynamicValue.Primitive(PrimitiveValue.String("Hopper"))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("Grace")),
+          "lastName"  -> DynamicValue.Primitive(PrimitiveValue.String("Hopper"))
+        )
+      )
 
       val action = MigrationAction.Join(
         DynamicOptic.root,
@@ -370,19 +408,25 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val splitTests = suite("Split")(
     test("split one field into multiple") {
-      val record = DynamicValue.Record(Vector(
-        "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("Henry Ford"))
-      ))
+      val record = DynamicValue.Record(
+        Vector(
+          "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("Henry Ford"))
+        )
+      )
 
       // Note: Split takes a single SchemaExpr that should produce a record with the target fields
       val action = MigrationAction.Split(
         DynamicOptic.root,
         "fullName",
         Vector("firstName", "lastName"),
-        SE.literal(DynamicValue.Record(Vector(
-          "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("Henry")),
-          "lastName" -> DynamicValue.Primitive(PrimitiveValue.String("Ford"))
-        )))
+        SE.literal(
+          DynamicValue.Record(
+            Vector(
+              "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("Henry")),
+              "lastName"  -> DynamicValue.Primitive(PrimitiveValue.String("Ford"))
+            )
+          )
+        )
       )
 
       val result = action.apply(record)
@@ -427,9 +471,11 @@ object MigrationActionSpec extends SchemaBaseSpec {
     test("transform variant case value") {
       val variant = DynamicValue.Variant(
         "User",
-        DynamicValue.Record(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Iris"))
-        ))
+        DynamicValue.Record(
+          Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Iris"))
+          )
+        )
       )
 
       val action = MigrationAction.TransformCase(
@@ -454,16 +500,18 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val transformElementsTests = suite("TransformElements")(
     test("transform sequence elements") {
-      val sequence = DynamicValue.Sequence(Vector(
-        DynamicValue.Primitive(PrimitiveValue.Int(1)),
-        DynamicValue.Primitive(PrimitiveValue.Int(2)),
-        DynamicValue.Primitive(PrimitiveValue.Int(3))
-      ))
+      val sequence = DynamicValue.Sequence(
+        Vector(
+          DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          DynamicValue.Primitive(PrimitiveValue.Int(2)),
+          DynamicValue.Primitive(PrimitiveValue.Int(3))
+        )
+      )
 
       // Transform each element by doubling it (conceptually)
       val action = MigrationAction.TransformElements(
         DynamicOptic.root,
-        SE.literalInt(99)  // Replace each element with 99
+        SE.literalInt(99) // Replace each element with 99
       )
 
       val result = action.apply(sequence)
@@ -476,10 +524,12 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val transformKeysTests = suite("TransformKeys")(
     test("transform map keys") {
-      val map = DynamicValue.Map(Vector(
-        (DynamicValue.Primitive(PrimitiveValue.String("key1")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
-        (DynamicValue.Primitive(PrimitiveValue.String("key2")), DynamicValue.Primitive(PrimitiveValue.Int(2)))
-      ))
+      val map = DynamicValue.Map(
+        Vector(
+          (DynamicValue.Primitive(PrimitiveValue.String("key1")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          (DynamicValue.Primitive(PrimitiveValue.String("key2")), DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        )
+      )
 
       val action = MigrationAction.TransformKeys(
         DynamicOptic.root,
@@ -496,10 +546,12 @@ object MigrationActionSpec extends SchemaBaseSpec {
 
   val transformValuesTests = suite("TransformValues")(
     test("transform map values") {
-      val map = DynamicValue.Map(Vector(
-        (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
-        (DynamicValue.Primitive(PrimitiveValue.String("b")), DynamicValue.Primitive(PrimitiveValue.Int(2)))
-      ))
+      val map = DynamicValue.Map(
+        Vector(
+          (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          (DynamicValue.Primitive(PrimitiveValue.String("b")), DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        )
+      )
 
       val action = MigrationAction.TransformValues(
         DynamicOptic.root,
@@ -512,4 +564,3 @@ object MigrationActionSpec extends SchemaBaseSpec {
     }
   )
 }
-
