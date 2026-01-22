@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.DynamicValue
+import zio.blocks.schema.{DynamicValue, SchemaError}
 
 /**
  * A DynamicMigration is a pure, serializable representation of a schema
@@ -20,8 +20,8 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
    * Apply this migration to a DynamicValue. Actions are applied sequentially
    * from left to right.
    */
-  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-    actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
+  def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
+    actions.foldLeft[Either[SchemaError, DynamicValue]](Right(value)) {
       case (Right(v), action)  => action.apply(v)
       case (left @ Left(_), _) => left
     }

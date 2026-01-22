@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicValue, DynamicOptic}
+import zio.blocks.schema.{DynamicValue, DynamicOptic, SchemaError}
 
 /**
  * Represents a single migration action that can be applied to a DynamicValue.
@@ -22,7 +22,7 @@ sealed trait MigrationAction {
   /**
    * Apply this action to a DynamicValue.
    */
-  def apply(value: DynamicValue): Either[MigrationError, DynamicValue]
+  def apply(value: DynamicValue): Either[SchemaError, DynamicValue]
 
   /**
    * Return the structural reverse of this action. The reverse may not be a
@@ -44,13 +44,13 @@ object MigrationAction {
     default: SchemaExpr
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Record(fields) =>
             // Check if field already exists
             if (fields.exists(_._1 == fieldName)) {
-              Left(MigrationError.fieldAlreadyExists(at, fieldName))
+              Left(SchemaError.fieldAlreadyExists(at, fieldName))
             } else {
               // Evaluate default value
               default.apply(value).map { defaultValue =>
@@ -58,7 +58,7 @@ object MigrationAction {
               }
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Record", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Record", target.getClass.getSimpleName))
         }
       }
 
@@ -75,18 +75,18 @@ object MigrationAction {
     defaultForReverse: Option[SchemaExpr]
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Record(fields) =>
             val filtered = fields.filterNot(_._1 == fieldName)
             if (filtered.length == fields.length) {
-              Left(MigrationError.fieldNotFound(at, fieldName))
+              Left(SchemaError.missingField(at, fieldName))
             } else {
               Right(DynamicValue.Record(filtered))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Record", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Record", target.getClass.getSimpleName))
         }
       }
 
@@ -103,7 +103,7 @@ object MigrationAction {
     to: String
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Record(fields) =>
@@ -112,12 +112,12 @@ object MigrationAction {
               case other                              => other
             }
             if (renamed == fields) {
-              Left(MigrationError.fieldNotFound(at, from))
+              Left(SchemaError.missingField(at, from))
             } else {
               Right(DynamicValue.Record(renamed))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Record", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Record", target.getClass.getSimpleName))
         }
       }
 
@@ -133,7 +133,7 @@ object MigrationAction {
     transform: SchemaExpr
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Record(fields) =>
@@ -146,10 +146,10 @@ object MigrationAction {
                   })
                 }
               case None =>
-                Left(MigrationError.fieldNotFound(at, fieldName))
+                Left(SchemaError.missingField(at, fieldName))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Record", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Record", target.getClass.getSimpleName))
         }
       }
 
@@ -168,7 +168,7 @@ object MigrationAction {
     default: SchemaExpr
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Record(fields) =>
@@ -191,10 +191,10 @@ object MigrationAction {
                 // Field is already mandatory
                 Right(target)
               case None =>
-                Left(MigrationError.fieldNotFound(at, fieldName))
+                Left(SchemaError.missingField(at, fieldName))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Record", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Record", target.getClass.getSimpleName))
         }
       }
 
@@ -209,7 +209,7 @@ object MigrationAction {
     fieldName: String
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Record(fields) =>
@@ -221,10 +221,10 @@ object MigrationAction {
                   case other               => other
                 }))
               case None =>
-                Left(MigrationError.fieldNotFound(at, fieldName))
+                Left(SchemaError.missingField(at, fieldName))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Record", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Record", target.getClass.getSimpleName))
         }
       }
 
@@ -241,7 +241,7 @@ object MigrationAction {
     converter: SchemaExpr
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Record(fields) =>
@@ -254,10 +254,10 @@ object MigrationAction {
                   })
                 }
               case None =>
-                Left(MigrationError.fieldNotFound(at, fieldName))
+                Left(SchemaError.missingField(at, fieldName))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Record", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Record", target.getClass.getSimpleName))
         }
       }
 
@@ -277,14 +277,14 @@ object MigrationAction {
     combiner: SchemaExpr
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Record(fields) =>
             // Check all source fields exist
             val missingFields = sourceFields.filterNot(f => fields.exists(_._1 == f))
             if (missingFields.nonEmpty) {
-              Left(MigrationError.fieldNotFound(at, missingFields.head))
+              Left(SchemaError.missingField(at, missingFields.head))
             } else {
               // Apply combiner to get new value
               combiner.apply(target).flatMap { combinedValue =>
@@ -294,7 +294,7 @@ object MigrationAction {
               }
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Record", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Record", target.getClass.getSimpleName))
         }
       }
 
@@ -315,7 +315,7 @@ object MigrationAction {
     splitter: SchemaExpr
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Record(fields) =>
@@ -328,13 +328,13 @@ object MigrationAction {
                     val filtered = fields.filterNot(_._1 == sourceField)
                     Right(DynamicValue.Record(filtered ++ splitFields))
                   case _ =>
-                    Left(MigrationError.transformFailed(at, "Splitter must return a Record"))
+                    Left(SchemaError.transformFailed(at, "Splitter must return a Record"))
                 }
               case None =>
-                Left(MigrationError.fieldNotFound(at, sourceField))
+                Left(SchemaError.missingField(at, sourceField))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Record", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Record", target.getClass.getSimpleName))
         }
       }
 
@@ -351,7 +351,7 @@ object MigrationAction {
     to: String
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Variant(caseName, caseValue) if caseName == from =>
@@ -360,7 +360,7 @@ object MigrationAction {
             // Not the case we're renaming, leave it as-is
             Right(target)
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Variant", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Variant", target.getClass.getSimpleName))
         }
       }
 
@@ -377,13 +377,13 @@ object MigrationAction {
     actions: Vector[MigrationAction]
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Variant(name, caseValue) if name == caseName =>
             // Apply all actions to the case value
             actions
-              .foldLeft[Either[MigrationError, DynamicValue]](Right(caseValue)) {
+              .foldLeft[Either[SchemaError, DynamicValue]](Right(caseValue)) {
                 case (Right(v), action) => action.apply(v)
                 case (left, _)          => left
               }
@@ -392,7 +392,7 @@ object MigrationAction {
             // Not the case we're transforming
             Right(target)
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Variant", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Variant", target.getClass.getSimpleName))
         }
       }
 
@@ -408,7 +408,7 @@ object MigrationAction {
     transform: SchemaExpr
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Sequence(elements) =>
@@ -422,7 +422,7 @@ object MigrationAction {
               Right(DynamicValue.Sequence(newElements))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Sequence", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Sequence", target.getClass.getSimpleName))
         }
       }
 
@@ -439,7 +439,7 @@ object MigrationAction {
     transform: SchemaExpr
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Map(entries) =>
@@ -455,7 +455,7 @@ object MigrationAction {
               Right(DynamicValue.Map(newEntries))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Map", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Map", target.getClass.getSimpleName))
         }
       }
 
@@ -472,7 +472,7 @@ object MigrationAction {
     transform: SchemaExpr
   ) extends MigrationAction {
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
       navigateAndTransform(value, at.nodes) { target =>
         target match {
           case DynamicValue.Map(entries) =>
@@ -488,7 +488,7 @@ object MigrationAction {
               Right(DynamicValue.Map(newEntries))
             }
           case _ =>
-            Left(MigrationError.typeMismatch(at, "Map", target.getClass.getSimpleName))
+            Left(SchemaError.typeMismatch(at, "Map", target.getClass.getSimpleName))
         }
       }
 
@@ -501,7 +501,7 @@ object MigrationAction {
   private def navigateAndTransform(
     value: DynamicValue,
     nodes: IndexedSeq[DynamicOptic.Node]
-  )(transform: DynamicValue => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] =
+  )(transform: DynamicValue => Either[SchemaError, DynamicValue]): Either[SchemaError, DynamicValue] =
     if (nodes.isEmpty) {
       // We're at the target, apply the transformation
       transform(value)
@@ -517,7 +517,7 @@ object MigrationAction {
               // Find the field and recursively navigate
               fields.indexWhere(_._1 == fieldName) match {
                 case -1 =>
-                  Left(MigrationError.fieldNotFound(DynamicOptic(nodes), fieldName))
+                  Left(SchemaError.missingField(DynamicOptic(nodes), fieldName))
                 case idx =>
                   val (name, fieldValue) = fields(idx)
                   navigateAndTransform(fieldValue, tail)(transform).map { transformed =>
@@ -525,25 +525,25 @@ object MigrationAction {
                   }
               }
             case _ =>
-              Left(MigrationError.typeMismatch(DynamicOptic(nodes), "Record", value.getClass.getSimpleName))
+              Left(SchemaError.typeMismatch(DynamicOptic(nodes), "Record", value.getClass.getSimpleName))
           }
 
         case DynamicOptic.Node.AtIndex(index) =>
           value match {
             case DynamicValue.Sequence(elements) =>
               if (index < 0 || index >= elements.length) {
-                Left(MigrationError.invalidPath(DynamicOptic(nodes), s"Index $index out of bounds"))
+                Left(SchemaError.invalidPath(DynamicOptic(nodes), s"Index $index out of bounds"))
               } else {
                 navigateAndTransform(elements(index), tail)(transform).map { transformed =>
                   DynamicValue.Sequence(elements.updated(index, transformed))
                 }
               }
             case _ =>
-              Left(MigrationError.typeMismatch(DynamicOptic(nodes), "Sequence", value.getClass.getSimpleName))
+              Left(SchemaError.typeMismatch(DynamicOptic(nodes), "Sequence", value.getClass.getSimpleName))
           }
 
         case _ =>
-          Left(MigrationError.invalidPath(DynamicOptic(nodes), s"Unsupported node type: $head"))
+          Left(SchemaError.invalidPath(DynamicOptic(nodes), s"Unsupported node type: $head"))
       }
     }
 }

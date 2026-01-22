@@ -41,11 +41,36 @@ object SchemaError {
   def missingField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
     new SchemaError(new ::(new MissingField(toDynamicOptic(trace), fieldName), Nil))
 
+  def missingField(at: DynamicOptic, fieldName: String): SchemaError =
+    new SchemaError(new ::(new MissingField(at, fieldName), Nil))
+
   def duplicatedField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
     new SchemaError(new ::(new DuplicatedField(toDynamicOptic(trace), fieldName), Nil))
 
   def unknownCase(trace: List[DynamicOptic.Node], caseName: String): SchemaError =
     new SchemaError(new ::(new UnknownCase(toDynamicOptic(trace), caseName), Nil))
+
+  // Migration-specific error constructors
+  def fieldAlreadyExists(at: DynamicOptic, fieldName: String): SchemaError =
+    new SchemaError(new ::(new FieldAlreadyExists(at, fieldName), Nil))
+
+  def typeMismatch(at: DynamicOptic, expected: String, actual: String): SchemaError =
+    new SchemaError(new ::(new TypeMismatch(at, expected, actual), Nil))
+
+  def transformFailed(at: DynamicOptic, reason: String): SchemaError =
+    new SchemaError(new ::(new TransformFailed(at, reason), Nil))
+
+  def invalidPath(at: DynamicOptic, reason: String): SchemaError =
+    new SchemaError(new ::(new InvalidPath(at, reason), Nil))
+
+  def mandatoryFieldMissing(at: DynamicOptic, fieldName: String): SchemaError =
+    new SchemaError(new ::(new MandatoryFieldMissing(at, fieldName), Nil))
+
+  def incompatibleSchemas(reason: String): SchemaError =
+    new SchemaError(new ::(new IncompatibleSchemas(reason), Nil))
+
+  def validationFailed(at: DynamicOptic, reason: String): SchemaError =
+    new SchemaError(new ::(new ValidationFailed(at, reason), Nil))
 
   private[this] def toDynamicOptic(trace: List[DynamicOptic.Node]): DynamicOptic = {
     val nodes = trace.toArray
@@ -108,5 +133,41 @@ object SchemaError {
 
   case class UnknownCase(source: DynamicOptic, caseName: String) extends Single {
     override def message: String = s"Unknown case '$caseName' at: $source"
+  }
+
+  /** Sub-trait for migration-specific errors */
+  sealed trait MigrationError extends Single {
+    def source: DynamicOptic
+  }
+
+  case class FieldAlreadyExists(source: DynamicOptic, fieldName: String) extends MigrationError {
+    override def message: String = s"Field '$fieldName' already exists at: $source"
+  }
+
+  case class TypeMismatch(source: DynamicOptic, expected: String, actual: String) extends MigrationError {
+    override def message: String =
+      s"Type mismatch at: $source - expected $expected but got $actual"
+  }
+
+  case class TransformFailed(source: DynamicOptic, reason: String) extends MigrationError {
+    override def message: String = s"Transform failed at: $source - $reason"
+  }
+
+  case class InvalidPath(source: DynamicOptic, reason: String) extends MigrationError {
+    override def message: String = s"Invalid path at: $source - $reason"
+  }
+
+  case class MandatoryFieldMissing(source: DynamicOptic, fieldName: String) extends MigrationError {
+    override def message: String =
+      s"Mandatory field '$fieldName' is missing at: $source"
+  }
+
+  case class IncompatibleSchemas(reason: String) extends MigrationError {
+    override def message: String      = s"Incompatible schemas: $reason"
+    override def source: DynamicOptic = DynamicOptic.root
+  }
+
+  case class ValidationFailed(source: DynamicOptic, reason: String) extends MigrationError {
+    override def message: String = s"Validation failed at: $source - $reason"
   }
 }

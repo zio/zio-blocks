@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{Schema, DynamicOptic}
+import zio.blocks.schema.{Schema, SchemaError, DynamicOptic}
 
 /**
  * A typed migration from schema A to schema B.
@@ -25,7 +25,7 @@ final case class Migration[A, B](
   /**
    * Apply this migration to transform a value of type A to type B.
    */
-  def apply(value: A): Either[MigrationError, B] = {
+  def apply(value: A): Either[SchemaError, B] = {
     // Convert A to DynamicValue
     val dynamicValue = sourceSchema.toDynamicValue(value)
 
@@ -33,7 +33,7 @@ final case class Migration[A, B](
     dynamicMigration.apply(dynamicValue).flatMap { result =>
       // Convert back to B
       targetSchema.fromDynamicValue(result).left.map { schemaError =>
-        MigrationError.validationFailed(
+        SchemaError.validationFailed(
           DynamicOptic.root,
           s"Failed to convert result to target schema: ${schemaError.message}"
         )

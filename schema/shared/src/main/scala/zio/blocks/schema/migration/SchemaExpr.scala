@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicValue, DynamicOptic, PrimitiveValue}
+import zio.blocks.schema.{DynamicValue, DynamicOptic, PrimitiveValue, SchemaError}
 
 /**
  * Represents pure, serializable expressions for value transformations in
@@ -20,7 +20,7 @@ sealed trait SchemaExpr {
    * Apply this expression to a DynamicValue context. Returns the computed value
    * or an error.
    */
-  def apply(context: DynamicValue): Either[MigrationError, DynamicValue]
+  def apply(context: DynamicValue): Either[SchemaError, DynamicValue]
 }
 
 object SchemaExpr {
@@ -29,7 +29,7 @@ object SchemaExpr {
    * A literal constant value.
    */
   case class Literal(value: DynamicValue) extends SchemaExpr {
-    def apply(context: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(context: DynamicValue): Either[SchemaError, DynamicValue] =
       Right(value)
   }
 
@@ -38,9 +38,9 @@ object SchemaExpr {
    * field schema and calls schema.defaultValue.
    */
   case object DefaultValue extends SchemaExpr {
-    def apply(context: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(context: DynamicValue): Either[SchemaError, DynamicValue] =
       Left(
-        MigrationError.transformFailed(
+        SchemaError.transformFailed(
           DynamicOptic.root,
           "DefaultValue must be resolved at compile time"
         )
@@ -51,9 +51,9 @@ object SchemaExpr {
    * Access a field from the context value.
    */
   case class GetField(path: DynamicOptic) extends SchemaExpr {
-    def apply(context: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def apply(context: DynamicValue): Either[SchemaError, DynamicValue] = {
       // Navigate through the path to get the value
-      def navigate(value: DynamicValue, nodes: IndexedSeq[DynamicOptic.Node]): Either[MigrationError, DynamicValue] =
+      def navigate(value: DynamicValue, nodes: IndexedSeq[DynamicOptic.Node]): Either[SchemaError, DynamicValue] =
         if (nodes.isEmpty) Right(value)
         else {
           nodes.head match {
@@ -62,12 +62,12 @@ object SchemaExpr {
                 case DynamicValue.Record(fields) =>
                   fields.find(_._1 == name) match {
                     case Some((_, fieldValue)) => navigate(fieldValue, nodes.tail)
-                    case None                  => Left(MigrationError.fieldNotFound(path, name))
+                    case None                  => Left(SchemaError.missingField(path, name))
                   }
-                case _ => Left(MigrationError.typeMismatch(path, "Record", value.getClass.getSimpleName))
+                case _ => Left(SchemaError.typeMismatch(path, "Record", value.getClass.getSimpleName))
               }
             case _ =>
-              Left(MigrationError.invalidPath(path, s"Unsupported node type: ${nodes.head}"))
+              Left(SchemaError.invalidPath(path, s"Unsupported node type: ${nodes.head}"))
           }
         }
       navigate(context, path.nodes)
@@ -78,7 +78,7 @@ object SchemaExpr {
    * String concatenation of multiple expressions.
    */
   case class Concat(parts: Vector[SchemaExpr]) extends SchemaExpr {
-    def apply(context: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def apply(context: DynamicValue): Either[SchemaError, DynamicValue] = {
       val results = parts.map(_.apply(context))
       val errors  = results.collect { case Left(err) => err }
 
@@ -99,14 +99,14 @@ object SchemaExpr {
    * etc.
    */
   case class ConvertPrimitive(expr: SchemaExpr, targetType: String) extends SchemaExpr {
-    def apply(context: DynamicValue): Either[MigrationError, DynamicValue] =
+    def apply(context: DynamicValue): Either[SchemaError, DynamicValue] =
       expr.apply(context).flatMap { value =>
         value match {
           case DynamicValue.Primitive(prim) =>
             convertPrimitive(prim, targetType)
           case _ =>
             Left(
-              MigrationError.typeMismatch(
+              SchemaError.typeMismatch(
                 DynamicOptic.root,
                 "Primitive",
                 value.getClass.getSimpleName
@@ -115,7 +115,7 @@ object SchemaExpr {
         }
       }
 
-    private def convertPrimitive(prim: PrimitiveValue, target: String): Either[MigrationError, DynamicValue] =
+    private def convertPrimitive(prim: PrimitiveValue, target: String): Either[SchemaError, DynamicValue] =
       // Basic primitive conversions
       (prim, target) match {
         case (PrimitiveValue.Int(i), "String") =>
@@ -123,7 +123,7 @@ object SchemaExpr {
         case (PrimitiveValue.String(s), "Int") =>
           s.toIntOption match {
             case Some(i) => Right(DynamicValue.Primitive(PrimitiveValue.Int(i)))
-            case None    => Left(MigrationError.transformFailed(DynamicOptic.root, s"Cannot convert '$s' to Int"))
+            case None    => Left(SchemaError.transformFailed(DynamicOptic.root, s"Cannot convert '$s' to Int"))
           }
         case (PrimitiveValue.Long(l), "String") =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(l.toString)))
@@ -131,7 +131,7 @@ object SchemaExpr {
           Right(DynamicValue.Primitive(PrimitiveValue.String(b.toString)))
         case _ =>
           Left(
-            MigrationError.transformFailed(
+            SchemaError.transformFailed(
               DynamicOptic.root,
               s"Unsupported conversion from ${prim.getClass.getSimpleName} to $target"
             )
