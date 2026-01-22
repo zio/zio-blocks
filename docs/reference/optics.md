@@ -19,7 +19,7 @@ Optic[S, A]
       └───── Source: The "big thing" containing the focus
 ```
 
-The `S` is the source type from which data accessed or modified. The `A` is the focus type or the target type of the optic.
+The `S` is the source type from which data is accessed or modified. The `A` is the focus type or the target type of the optic.
 
 The terminology comes from physical optics — like using a magnifying glass to focus on a small part of something larger.
 
@@ -199,7 +199,7 @@ The key operations of a prism are summarized in the table below:
 | `replaceOption` | `(S, A) => Option[S]`             | Replaces if value matches subtype, otherwise `None`            |
 | `replaceOrFail` | `(S, A) => Either[OpticCheck, S]` | Replaces with detailed error info on type mismatch             |
 
-Before discussing about these operations, let's explore how we can create prisms. Similar to the lenses, we have two approaches: manual construction and automatic macro-based derivation.
+Before discussing these operations, let's explore how we can create prisms. Similar to lenses, we have two approaches: manual construction and automatic macro-based derivation.
 
 ### Manual Prism Construction
 
@@ -713,7 +713,7 @@ Order.firstItemSku.getOption(order)    // => Some("SKU-A")
 
 #### Key-based Access with `.atKey(key)`
 
-To access values at specific key, we can use `.atKey(key)` syntax in `optic` macro:
+To access values at a specific key, we can use `.atKey(key)` syntax in `optic` macro:
 
 ```scala mdoc:silent
 import zio.blocks.schema._
@@ -1052,4 +1052,530 @@ Team.allMembers.modifyOrFail(team, _.toUpperCase)
 val emptyTeam = Team("Empty", Nil, Map.empty)
 Team.allMembers.modifyOrFail(emptyTeam, _.toUpperCase)
 // => Left(OpticCheck(List(EmptySequence(...))))
+```
+
+## Composing Optics
+
+All optics can be composed together to create more complex access paths. All optics that extend the base `Optic` trait support composition via the `apply` method, which takes another optic as an argument and returns a new optic representing the combined access path:
+```scala
+trait Optic[S, A] {
+  def apply[B](that: Lens[A, B]): Optic[S, B]
+  def apply[B <: A](that: Prism[A, B]): Optic[S, B]
+  def apply[B](that: Optional[A, B]): Optic[S, B]
+  def apply[B](that: Traversal[A, B]): Traversal[S, B]
+}
+```
+
+All optics (`Lens`, `Prism`, `Optional`, `Traversal`) implement the above `apply` methods to support composition with other optics. Additionally, they have `apply` overloads on their companion objects that take two optics as arguments and return the composed optic.
+
+The following table summarizes the composition rules for combining different optic types:
+
+| `this` ↓ / `that` → | **`Lens`**  | **`Prism`** | **`Optional`** | **`Traversal`** |
+|---------------------|-------------|-------------|----------------|-----------------|
+| **`Lens`**          | `Lens`      | `Optional`  | `Optional`     | `Traversal`     |
+| **`Prism`**         | `Optional`  | `Prism`     | `Optional`     | `Traversal`     |
+| **`Optional`**      | `Optional`  | `Optional`  | `Optional`     | `Traversal`     |
+| **`Traversal`**     | `Traversal` | `Traversal` | `Traversal`    | `Traversal`     |
+
+[//]: # (The abstract return type `Optic[S, B]` lets the runtime determine the most specific type while the compiler ensures type safety.)
+
+1. As the table demonstrates, `Traversal` is the most general optic type, as composing with it always results in a `Traversal`. This behavior occurs because `Traversal` focuses on zero or more elements, and once you have that level of generality, you cannot return to a more specific optic type. This is the **absorption property** encoded in the type system.
+
+2. Using `Optic#apply` instead of the `apply` methods on companion objects allows for a more natural DSL-like syntax for composing optics. For example, instead of writing `Lens(Person.address, Address.postalCode)`, we can write `Person.address(Address.postalCode)`, which reads naturally as "address's postal code".
+
+3. `Optional` is an absorbing optic for `Lens` and `Prism`—once you have partiality in your access path, composing with total optics (`Lens`) or other partial optics (`Prism`, `Optional`) preserves that partiality. `Traversal` is the most general optic, as composing with it always results in a `Traversal`.
+
+### Examples
+
+In this section, we explore the composition of `Lens` with other optics. The composition of other optics follows similar patterns.
+
+#### Composing a Lens with Another Lens
+
+We can chain two lenses to focus deeper into nested structures using the following composition operators:
+
+```scala
+object Lens {
+  def apply[S, T, A](
+    first : Lens[S, T],   // S => T
+    second: Lens[T, A]    // T => A
+  ): Lens[S, A] = ???     // S => A
+}
+```
+
+This method takes two lenses: the first from `S` to `T`, and the second from `T` to `A`, and returns a new lens from `S` to `A`.
+
+For example, if we have a `Person` case class that contains an `Address` and we want to create a lens to access the `street` field of the `Address` within `Person`, we can do so as follows:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Address(street: String, city: String)
+object Address extends CompanionOptics[Address] { 
+  implicit val schema: Schema[Address] = Schema.derived 
+  
+  val street: Lens[Address, String] =
+    Lens[Address, String](
+      Schema[Address].reflect.asRecord.get,
+      Schema[String].reflect.asTerm("street")
+    )
+    
+  val city: Lens[Address, String] =
+    Lens[Address, String](
+      Schema[Address].reflect.asRecord.get,
+      Schema[String].reflect.asTerm("city")
+    )
+}
+case class Person(name: String, age: Int, address: Address)
+object Person {
+  import zio.blocks.schema._
+  implicit val schema: Schema[Person] = Schema.derived[Person]
+
+  val address: Lens[Person, Address] =
+    Lens[Person, Address](
+      Schema[Person].reflect.asRecord.get,
+      Schema[Address].reflect.asTerm("address")
+    )
+    
+  val street: Lens[Person, String] = 
+    Lens[Person, Address, String](
+      Person.address, // Lens from Person to Address
+      Address.street  // Lens from Address to String (street field)
+    )
+}
+```
+
+To make the DSL more convenient, we can use the `Lens#apply` method:
+
+```scala
+object Person {
+  val street: Lens[Person, String] = Person.address(Address.street)
+}
+```
+
+The `optic` macro (or its alias `$`) provides a more concise way to derive composed lenses. By extending `CompanionOptics[T]` and using selector syntax, you can derive the same lenses with significantly less boilerplate:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Address(street: String, city: String)
+object Address extends CompanionOptics[Address] 
+case class Person(name: String, age: Int, address: Address)
+object Person extends CompanionOptics[Person] {
+  implicit val schema: Schema[Person] = Schema.derived
+
+  // Simple field lens
+  val address: Lens[Person, Address] = optic(_.address)
+  
+  // Composed lens - directly access nested field via path syntax
+  val street: Lens[Person, String] = optic(_.address.street)
+  val city  : Lens[Person, String] = optic(_.address.city)
+}
+```
+
+The `optic` macro inspects the selector path and automatically composes the necessary lenses. The path `_.address.street` is expanded into a composition of `Person → Address` and `Address → String` lenses.
+
+#### Composing a Lens with a Prism
+
+When you compose a `Lens` with a `Prism`, the result is an `Optional`. This makes sense because a `Lens` always succeeds (fields always exist in records), whereas a `Prism` may fail (a value may not match the particular case being targeted). Therefore, the composition may fail, which is exactly what `Optional` represents:
+
+```scala
+sealed trait Lens[S, A] extends Optic[S, A] {
+  def apply[B <: A](that: Prism[A, B]): Optional[S, B]
+}
+```
+
+Consider a scenario where you have a record containing a field whose type is a sealed trait (sum type), and you want to focus on a specific case of that sum type.
+
+For instance, suppose we have an `Employee` case class that contains a `ContactInfo` field, where `ContactInfo` is a sealed trait with different cases:
+
+```scala mdoc:silent
+import zio.blocks.schema._
+
+sealed trait ContactInfo
+
+object ContactInfo {
+  case class Email(address: String) extends ContactInfo
+
+  object Email {
+    implicit val schema: Schema[Email] = Schema.derived[Email]
+    
+    val address: Lens[Email, String] =
+      Lens[Email, String](
+        Schema[Email].reflect.asRecord.get,
+        Schema[String].reflect.asTerm("address")
+      )
+  }
+
+  case class Phone(number: String) extends ContactInfo
+
+  object Phone {
+    implicit val schema: Schema[Phone] = Schema.derived[Phone]
+  }
+
+  case object NoContact extends ContactInfo
+
+  implicit val schema: Schema[ContactInfo] = Schema.derived[ContactInfo]
+
+  // Prism to focus on the Email case
+  lazy val email: Prism[ContactInfo, Email] =
+    Prism[ContactInfo, Email](
+      Schema[ContactInfo].reflect.asVariant.get,
+      Schema[Email].reflect.asTerm("Email")
+    )
+
+  // Prism to focus on the Phone case
+  lazy val phone: Prism[ContactInfo, Phone] =
+    Prism[ContactInfo, Phone](
+      Schema[ContactInfo].reflect.asVariant.get,
+      Schema[Phone].reflect.asTerm("Phone")
+    )
+}
+
+case class Employee(name: String, contact: ContactInfo)
+
+object Employee {
+  implicit val schema: Schema[Employee] = Schema.derived[Employee]
+
+  // Lens to focus on the contact field
+  val contact: Lens[Employee, ContactInfo] =
+    Lens[Employee, ContactInfo](
+      Schema[Employee].reflect.asRecord.get,
+      Schema[ContactInfo].reflect.asTerm("contact")
+    )
+
+  // Compose Lens with Prism to get an Optional
+  // This focuses on the email address, but only if contact is an Email
+  val contactEmail: Optional[Employee, ContactInfo.Email] =
+    Employee.contact(ContactInfo.email)
+  
+  val emailAddress: Optional[Employee, String] =
+    Employee.contactEmail(ContactInfo.Email.address)
+}
+```
+
+The `Employee.contactEmail` is an `Optional[Employee, ContactInfo.Email]` that allows you to access or modify the email contact of an employee, but only if their contact information is indeed an `Email`. If the contact information is a `Phone` or `NoContact`, the operations will fail gracefully, returning `None`:
+
+```scala mdoc:silent
+val employee1 = Employee("Alice", ContactInfo.Email("alice@example.com"))
+// getOption returns Some when the contact is an Email
+Employee.contactEmail.getOption(employee1) // => Some(Email("alice@example.com"))
+
+// replace only succeeds if the contact is already an Email
+Employee.contactEmail.replaceOption(employee1, ContactInfo.Email("newalice@example.com"))
+// => Some(Employee("Alice", Email("newalice@example.com")))
+
+val employee2 = Employee("Bob", ContactInfo.Phone("555-1234"))
+// getOption returns None when the contact is NOT an Email
+Employee.contactEmail.getOption(employee2) // => None
+
+Employee.contactEmail.replaceOption(employee2, ContactInfo.Email("bob@example.com"))
+// => None (Bob's contact is a Phone, not an Email)
+```
+
+You can further compose this `Optional` to reach deeper into the structure:
+
+```scala mdoc:compile-only
+// Now you can get/set the email address string directly
+Employee.emailAddress.getOption(employee1)
+// => Some("alice@example.com")
+
+Employee.emailAddress.getOption(employee2)
+// => None
+```
+
+The `optic` macro supports case selection using the `.when[T]` syntax, which makes composing lenses with prisms much more concise:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema._
+
+sealed trait ContactInfo
+
+object ContactInfo extends CompanionOptics[ContactInfo] {
+  case class  Email(address: String) extends ContactInfo
+  case class  Phone(number: String)  extends ContactInfo
+  case object NoContact              extends ContactInfo
+
+  implicit val schema: Schema[ContactInfo] = Schema.derived
+
+  // Derive prisms using the optic macro with .when[T] syntax
+  val email: Prism[ContactInfo, Email] = optic(_.when[Email])
+  val phone: Prism[ContactInfo, Phone] = optic(_.when[Phone])
+}
+
+case class Employee(name: String, contact: ContactInfo)
+
+object Employee extends CompanionOptics[Employee] {
+  implicit val schema: Schema[Employee] = Schema.derived
+
+  // Simple field lens
+  val contact: Lens[Employee, ContactInfo] = optic(_.contact)
+
+  // Compose Lens with Prism using path syntax - result is an Optional
+  val contactEmail: Optional[Employee, ContactInfo.Email] = 
+    optic(_.contact.when[ContactInfo.Email])
+  
+  // Chain even deeper to get the email address string
+  val emailAddress: Optional[Employee, String] = 
+    optic(_.contact.when[ContactInfo.Email].address)
+    
+  // Similarly for phone
+  val phoneNumber: Optional[Employee, String] = 
+    optic(_.contact.when[ContactInfo.Phone].number)
+}
+```
+
+The path `_.contact.when[Email].address` is automatically composed into a `Lens → Prism → Lens` chain, producing an `Optional[Employee, String]` optic.
+
+#### Composing a Lens with an Optional
+
+When you compose a `Lens` with an `Optional`, the result is also an `Optional`. This follows naturally: a `Lens` always succeeds, and an `Optional` may fail; therefore, the composition may fail.
+
+Building on our previous example, suppose we have a `Company` that contains an `Employee`:
+
+```scala mdoc:silent
+case class Company(name: String, ceo: Employee)
+object Company {
+  implicit val schema: Schema[Company] = Schema.derived[Company]
+
+  // Lens to focus on the CEO
+  val ceo: Lens[Company, Employee] =
+    Lens[Company, Employee](
+      Schema[Company].reflect.asRecord.get,
+      Schema[Employee].reflect.asTerm("ceo")
+    )
+
+  // Compose Lens with Optional to get another Optional
+  // This chains: Company -> ceo (Lens) -> contactEmail (Optional)
+  val ceoEmailContact: Optional[Company, ContactInfo.Email] =
+    Company.ceo(Employee.contactEmail)
+
+  // Further composition to get the email address string
+  val ceoEmailAddress: Optional[Company, String] =
+    Company.ceo(Employee.emailAddress)
+}
+```
+
+Now you can work with the CEO's email contact through the company:
+
+```scala mdoc:compile-only
+val techCorp = Company("TechCorp", Employee("Alice", ContactInfo.Email("alice@tech.com")))
+val retailCo = Company("RetailCo", Employee("Bob", ContactInfo.Phone("555-9999")))
+
+// Get the CEO's email contact
+Company.ceoEmailContact.getOption(techCorp)
+// => Some(Email("alice@tech.com"))
+
+Company.ceoEmailContact.getOption(retailCo)
+// => None (Bob's contact is a Phone)
+
+// Get the CEO's email address string
+Company.ceoEmailAddress.getOption(techCorp)
+// => Some("alice@tech.com")
+
+// Update the CEO's email address
+Company.ceoEmailAddress.replaceOption(techCorp, "ceo@tech.com")
+// => Some(Company("TechCorp", Employee("Alice", Email("ceo@tech.com"))))
+
+Company.ceoEmailAddress.replaceOption(retailCo, "bob@retail.com")
+// => None (cannot replace because Bob does not have an Email contact)
+```
+
+This composition pattern is powerful for navigating through complex nested structures where some paths may not be valid for all values.
+
+With the `optic` macro, you can express the entire path in a single selector expression:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Company(name: String, ceo: Employee)
+object Company extends CompanionOptics[Company] {
+  implicit val schema: Schema[Company] = Schema.derived
+
+  // Simple field lens
+  val ceo: Lens[Company, Employee] = optic(_.ceo)
+
+  // Compose through multiple levels using path syntax
+  // Lens (ceo) + Lens (contact) + Prism (when[Email]) = Optional
+  val ceoEmailContact: Optional[Company, ContactInfo.Email] =
+    optic(_.ceo.contact.when[ContactInfo.Email])
+
+  // Go even deeper to the email address string
+  val ceoEmailAddress: Optional[Company, String] =
+    optic(_.ceo.contact.when[ContactInfo.Email].address)
+    
+  // Similarly for phone number
+  val ceoPhoneNumber: Optional[Company, String] =
+    optic(_.ceo.contact.when[ContactInfo.Phone].number)
+}
+```
+
+The macro automatically determines the correct output type based on the composition rules: since the path includes a `.when[Email]` prism selector, the result is an `Optional`.
+
+#### Composing a Lens with a Traversal
+
+When you compose a `Lens` with a `Traversal`, the result is a `Traversal`. This combination allows you to:
+
+- First zoom into a specific field of a record (via the `Lens`)
+- Then iterate over all elements in a collection at that field (via the `Traversal`)
+
+If you have a record containing a collection field and you want to operate on all elements of that collection, you can use this composition.
+
+For example, let's create a `Department` that has a list of employees, and we want to access all employee names:
+
+```scala mdoc:compile-only
+case class Department(name: String, employees: List[Employee])
+object Department {
+  implicit val schema: Schema[Department] = Schema.derived[Department]
+
+  // Lens to focus on the employees list
+  val employees: Lens[Department, List[Employee]] =
+    Lens[Department, List[Employee]](
+      Schema[Department].reflect.asRecord.get,
+      Schema[List[Employee]].reflect.asTerm("employees")
+    )
+
+  // Traversal to iterate over all elements in the list
+  val eachEmployee: Traversal[List[Employee], Employee] =
+    Traversal.listValues(Schema[Employee].reflect)
+
+  // Compose Lens with Traversal
+  // This focuses on all employees in the department
+  val allEmployees: Traversal[Department, Employee] =
+    Department.employees(Department.eachEmployee)
+}
+```
+
+With this `Traversal`, you can fold over all employees or modify them:
+
+```scala
+val engineering = Department(
+  "Engineering",
+  List(
+    Employee("Alice", ContactInfo.Email("alice@company.com")),
+    Employee("Bob", ContactInfo.Phone("555-1234")),
+    Employee("Charlie", ContactInfo.Email("charlie@company.com"))
+  )
+)
+
+// Fold to collect all employee names
+Department.allEmployees.fold(engineering)(List.empty[String], (acc, emp) => acc :+ emp.name)
+// => List("Alice", "Bob", "Charlie")
+
+// Modify all employees (e.g., update their contact to NoContact)
+Department.allEmployees.modify(engineering, emp => emp.copy(contact = ContactInfo.NoContact))
+// => Department("Engineering", List(
+//      Employee("Alice", NoContact),
+//      Employee("Bob", NoContact),
+//      Employee("Charlie", NoContact)
+//    ))
+```
+
+You can chain further to go even deeper. For example, to access all employee names in a department:
+
+```scala
+object Employee {
+  val name: Lens[Employee, String] =
+    Lens[Employee, String](
+      Schema[Employee].reflect.asRecord.get,
+      Schema[String].reflect.asTerm("name")
+    )
+}
+
+object Department {
+  // Chain: Department -> employees (Lens) -> each (Traversal) -> name (Lens)
+  // Result type: Traversal[Department, String]
+  val allEmployeeNames: Traversal[Department, String] =
+    Department.allEmployees(Employee.name)
+}
+
+// Fold to get all names
+Department.allEmployeeNames.fold(engineering)(List.empty[String], (acc, name) => acc :+ name)
+// => List("Alice", "Bob", "Charlie")
+
+// Modify all names (e.g., convert them to uppercase)
+Department.allEmployeeNames.modify(engineering, _.toUpperCase)
+// => Department("Engineering", List(
+//      Employee("ALICE", ...),
+//      Employee("BOB", ...),
+//      Employee("CHARLIE", ...)
+//    ))
+```
+
+You can even compose a `Traversal` with a `Prism` to filter elements. For example, to retrieve only the email addresses from employees who have email contacts:
+
+```scala
+object Department {
+  // Chain: Department -> allEmployees (Traversal) -> contactEmail (Optional)
+  // Traversal + Optional = Traversal
+  val allEmailContacts: Traversal[Department, ContactInfo.Email] =
+    Department.allEmployees(Employee.contactEmail)
+
+  // Further chain to get email address strings
+  val allEmailAddresses: Traversal[Department, String] =
+    Department.allEmailContacts(ContactInfo.Email.address)
+}
+
+// This only folds over employees who have Email contacts
+Department.allEmailAddresses.fold(engineering)(List.empty[String], (acc, addr) => acc :+ addr)
+// => List("alice@company.com", "charlie@company.com")
+// Note: Bob is skipped because he has a Phone contact
+```
+
+This example demonstrates the power of optics composition: you can build complex data access paths by combining simple, reusable building blocks, and the type system ensures the resulting optic has the correct semantics (always succeeding, potentially failing, or iterating over multiple values).
+
+The `optic` macro supports collection traversal using the `.each` syntax. This allows you to express traversals over lists, vectors, and other sequences in a concise path expression:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Department(name: String, employees: List[Employee])
+object Department extends CompanionOptics[Department] {
+  implicit val schema: Schema[Department] = Schema.derived
+
+  // Lens to the employees list
+  val employees: Lens[Department, List[Employee]] = optic(_.employees)
+
+  // Traversal over all employees using .each syntax
+  val allEmployees: Traversal[Department, Employee] = optic(_.employees.each)
+
+  // Chain deeper: Lens + Traversal + Lens = Traversal
+  val allEmployeeNames: Traversal[Department, String] = optic(_.employees.each.name)
+  
+  // Lens + Traversal + Lens + Prism = Traversal
+  val allEmailContacts: Traversal[Department, ContactInfo.Email] = 
+    optic(_.employees.each.contact.when[ContactInfo.Email])
+
+  // Go even deeper to get email address strings
+  val allEmailAddresses: Traversal[Department, String] = 
+    optic(_.employees.each.contact.when[ContactInfo.Email].address)
+}
+```
+
+The path `_.employees.each.contact.when[Email].address` composes:
+1. `employees` — a `Lens` to the `List`
+2. `.each` — a `Traversal` over list elements
+3. `contact` — a `Lens` to `ContactInfo`
+4. `.when[Email]` — a `Prism` to the `Email` case
+5. `address` — a `Lens` to the `String`
+
+The result is a `Traversal[Department, String]` that focuses on all email addresses in the department.
+
+For maps, the macro provides `.eachKey` and `.eachValue` for traversing keys and values, respectively:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Inventory(items: Map[String, Int])
+object Inventory extends CompanionOptics[Inventory] {
+  implicit val schema: Schema[Inventory] = Schema.derived
+
+  // Lens to the items map
+  val items: Lens[Inventory, Map[String, Int]] = optic(_.items)
+
+  // Traversal over all keys
+  val allItemNames: Traversal[Inventory, String] = optic(_.items.eachKey)
+  
+  // Traversal over all values
+  val allQuantities: Traversal[Inventory, Int] = optic(_.items.eachValue)
+}
 ```
