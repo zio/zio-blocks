@@ -149,3 +149,21 @@ final class MigrationBuilder[A, B](
   }
 }
 
+object MigrationBuilder {
+
+  /**
+   * Create a new migration builder.
+   *
+   * Example:
+   * {{{
+   * val migration = MigrationBuilder(PersonV1.schema, PersonV2.schema)
+   *   .addFieldWithDefault("country", "USA")
+   *   .renameField("name", "fullName")
+   *   .build
+   * }}}
+   */
+  def apply[A, B](sourceSchema: Schema[A], targetSchema: Schema[B]): MigrationBuilder[A, B] = {
+    new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
+  }
+}
+
