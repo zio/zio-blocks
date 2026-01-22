@@ -73,6 +73,31 @@ sealed trait TypeId[A] {
     case _                                 => Nil
   }
 
+  final def isTuple: Boolean = {
+    val norm = TypeId.normalize(this)
+    norm.owner == Owner.fromPackagePath("scala") && norm.name.startsWith("Tuple")
+  }
+
+  final def isProduct: Boolean = {
+    val norm = TypeId.normalize(this)
+    norm.owner == Owner.fromPackagePath("scala") && norm.name.startsWith("Product")
+  }
+
+  final def isSum: Boolean = {
+    val norm = TypeId.normalize(this)
+    norm.owner == Owner.fromPackagePath("scala") && (norm.name == "Either" || norm.name == "Option")
+  }
+
+  final def isEither: Boolean = {
+    val norm = TypeId.normalize(this)
+    norm.owner == Owner.fromPackagePath("scala.util") && norm.name == "Either"
+  }
+
+  final def isOption: Boolean = {
+    val norm = TypeId.normalize(this)
+    norm.owner == Owner.fromPackagePath("scala") && norm.name == "Option"
+  }
+
   def isSubtypeOf(other: TypeId[_]): Boolean = {
     if (TypeId.structurallyEqual(this, other)) return true
 
@@ -211,8 +236,9 @@ object TypeId {
   def derived[A]: TypeId[A] = macro TypeIdMacros.derivedImpl[A]
 
   def normalize(id: TypeId[_]): TypeId[_] = id.aliasedTo match {
-    case Some(TypeRepr.Ref(aliased)) => normalize(aliased)
-    case _                           => id
+    case Some(TypeRepr.Ref(aliased))                      => normalize(aliased)
+    case Some(TypeRepr.Applied(TypeRepr.Ref(aliased), _)) => normalize(aliased)
+    case _                                                => id
   }
 
   def structurallyEqual(a: TypeId[_], b: TypeId[_]): Boolean = {

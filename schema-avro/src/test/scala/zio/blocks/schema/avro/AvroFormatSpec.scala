@@ -6,6 +6,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.avro.AvroTestUtils._
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.{Owner, TypeId}
 import zio.test._
 import java.time._
 import java.util.UUID
@@ -264,7 +265,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         val codec = Record1.schema
           .deriving(AvroFormat.deriver)
           .instance(
-            TypeName.int,
+            TypeId.int,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
@@ -367,7 +368,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         val codec = Record2.schema
           .deriving(AvroFormat.deriver)
           .instance(
-            TypeName.int,
+            TypeId.int,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
@@ -404,7 +405,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         val codec = Record2.schema
           .deriving(AvroFormat.deriver)
           .instance(
-            Record1.schema.reflect.typeName,
+            Record1.schema.reflect.typeId,
             new AvroBinaryCodec[Record1]() {
               private val codec = Record1.schema.derive(AvroFormat)
 
@@ -950,7 +951,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Email] = new Schema(
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
-        TypeName(Namespace(Seq("zio", "blocks", "avro"), Seq("AvroFormatSpec")), "Email"),
+        TypeId.nominal[Email]("Email", Owner.fromPackagePath("zio.blocks.avro").term("AvroFormatSpec")),
         None,
         new Binding.Wrapper(
           {

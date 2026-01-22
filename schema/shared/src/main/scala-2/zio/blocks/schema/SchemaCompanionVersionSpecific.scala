@@ -54,31 +54,40 @@ private object SchemaCompanionVersionSpecific {
     def isCollection(tpe: Type): Boolean =
       tpe <:< typeOf[Iterable[?]] || tpe <:< typeOf[Iterator[?]] || tpe <:< typeOf[Array[?]]
 
-    def isZioPreludeNewtype(tpe: Type): Boolean = tpe match {
-      case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-        compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
-      case _ => false
+    def isZioPreludeNewtype(tpe: Type): Boolean = {
+      def check(t: Type): Boolean = t match {
+        case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
+          compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
+        case _ => false
+      }
+      check(tpe) || check(tpe.dealias)
     }
 
-    def zioPreludeNewtypeDealias(tpe: Type): Type = tpe match {
-      case TypeRef(compTpe, _, _) =>
-        compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
-          case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
-          case _         => cannotDealiasZioPreludeNewtype(tpe)
-        }
-      case _ => cannotDealiasZioPreludeNewtype(tpe)
+    def zioPreludeNewtypeDealias(tpe: Type): Type = {
+      val effectiveTpe = tpe.dealias
+      effectiveTpe match {
+        case TypeRef(compTpe, _, _) =>
+          compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
+            case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
+            case _         => cannotDealiasZioPreludeNewtype(tpe)
+          }
+        case _ => cannotDealiasZioPreludeNewtype(tpe)
+      }
     }
 
     def cannotDealiasZioPreludeNewtype(tpe: Type): Nothing = fail(s"Cannot dealias zio-prelude newtype '$tpe'.")
 
-    def buildTypeIdForZioPreludeNewtype(tpe: Type): Tree = tpe match {
-      case TypeRef(compTpe, _, Nil) =>
-        val companionSym = compTpe.typeSymbol
-        val newtypeName  = companionSym.name.decodedName.toString.stripSuffix("$")
-        val ownerTree    = buildOwner(companionSym.owner)
-        q"_root_.zio.blocks.typeid.TypeId.nominal[$tpe]($newtypeName, $ownerTree)"
-      case _ =>
-        fail(s"Cannot build TypeId for zio-prelude newtype '$tpe'. Expected TypeRef(compTpe, \"Type\", Nil).")
+    def buildTypeIdForZioPreludeNewtype(tpe: Type): Tree = {
+      val effectiveTpe = tpe.dealias
+      effectiveTpe match {
+        case TypeRef(compTpe, _, Nil) =>
+          val companionSym = compTpe.typeSymbol
+          val newtypeName  = companionSym.name.decodedName.toString.stripSuffix("$")
+          val ownerTree    = buildOwner(companionSym.owner)
+          q"_root_.zio.blocks.typeid.TypeId.nominal[$tpe]($newtypeName, $ownerTree)"
+        case _ =>
+          fail(s"Cannot build TypeId for zio-prelude newtype '$tpe'. Expected TypeRef(compTpe, \"Type\", Nil).")
+      }
     }
 
     def buildOwner(sym: Symbol): Tree = {
@@ -107,9 +116,28 @@ private object SchemaCompanionVersionSpecific {
 
     def dealiasOnDemand(tpe: Type): Type =
       if (isZioPreludeNewtype(tpe)) zioPreludeNewtypeDealias(tpe)
+      else if (isTypeAlias(tpe)) tpe.dealias
       else tpe
 
-    def companion(tpe: Type): Symbol = CommonMacroOps.companion(c)(tpe)
+    def isTypeAlias(tpe: Type): Boolean = {
+      val dealiased = tpe.dealias
+      tpe.toString != dealiased.toString && !isZioPreludeNewtype(tpe)
+    }
+
+    def companion(tpe: Type): Symbol = {
+      val comp = tpe.typeSymbol.companion
+      if (comp.isModule) comp
+      else {
+        val ownerChainOf = (s: Symbol) => Iterator.iterate(s)(_.owner).takeWhile(_ != NoSymbol).toArray.reverseIterator
+        val path         = ownerChainOf(tpe.typeSymbol)
+          .zipAll(ownerChainOf(enclosingOwner), NoSymbol, NoSymbol)
+          .dropWhile(x => x._1 == x._2)
+          .takeWhile(x => x._1 != NoSymbol)
+          .map(x => x._1.name.toTermName)
+        if (path.isEmpty) NoSymbol
+        else c.typecheck(path.foldLeft[Tree](Ident(path.next()))(Select(_, _)), silent = true).symbol
+      }
+    }
 
     def primaryConstructor(tpe: Type): MethodSymbol = tpe.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
@@ -519,13 +547,27 @@ private object SchemaCompanionVersionSpecific {
         }
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         deriveSchemaForSealedTraitOrAbstractClass(tpe)
-      } else if (isNonAbstractScalaClass(tpe)) {
-        deriveSchemaForNonAbstractScalaClass(tpe)
       } else if (isZioPreludeNewtype(tpe)) {
         val sTpe        = zioPreludeNewtypeDealias(tpe)
         val schema      = findImplicitOrDeriveSchema(sTpe)
         val newtypeId   = buildTypeIdForZioPreludeNewtype(tpe)
         q"new Schema($schema.reflect.typeId($newtypeId.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$sTpe]])).asInstanceOf[Schema[$tpe]]"
+      } else if (isTypeAlias(tpe)) {
+        val sTpe = tpe.dealias
+        // Register the original type first to prevent circular implicit lookup
+        val name = TermName("s" + schemaRefs.size)
+        val ref  = Ident(name)
+        schemaRefs.update(tpe, ref)
+        // Also register the dealiased type to prevent finding the schema we're defining
+        schemaRefs.update(sTpe, ref)
+        val underlyingSchema = deriveSchema(sTpe)
+        val schemaTpe        = tq"_root_.zio.blocks.schema.Schema[$tpe]"
+        schemaDefs.addOne {
+          q"implicit val $name: $schemaTpe = new Schema($underlyingSchema.reflect.typeId(_root_.zio.blocks.typeid.TypeId.derived[$tpe].asInstanceOf[_root_.zio.blocks.typeid.TypeId[$sTpe]])).asInstanceOf[Schema[$tpe]]"
+        }
+        ref
+      } else if (isNonAbstractScalaClass(tpe)) {
+        deriveSchemaForNonAbstractScalaClass(tpe)
       } else cannotDeriveSchema(tpe)
 
     def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree = {
@@ -631,9 +673,10 @@ private object SchemaCompanionVersionSpecific {
       str.toString
     }
 
-    def cannotDeriveSchema(tpe: Type): Nothing = fail(s"Cannot derive schema for '$tpe'.")
+    def cannotDeriveSchema(tpe: Type): Nothing = fail(s"Cannot derive schema for '$tpe'. Symbol: ${tpe.typeSymbol}, isTypeAlias: ${isTypeAlias(tpe)}, isZioPreludeNewtype: ${isZioPreludeNewtype(tpe)}")
 
-    val schema      = deriveSchema(weakTypeOf[A].dealias)
+    val tpeA = weakTypeOf[A]
+    val schema      = deriveSchema(tpeA)
     val schemaBlock =
       q"""{
             import _root_.zio.blocks.schema._

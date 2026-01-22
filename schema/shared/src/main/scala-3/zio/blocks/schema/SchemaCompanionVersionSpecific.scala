@@ -1026,7 +1026,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       }
     } else if (isTypeRef(tpe)) {
       val sTpe = typeRefDealias(tpe)
-      sTpe.asType match { case '[s] => deriveSchema[s](sTpe) }
+      sTpe.asType match {
+        case '[s] =>
+          val schema  = findImplicitOrDeriveSchema[s](sTpe)
+          val aliasId = '{ zio.blocks.typeid.TypeId.derived[T].asInstanceOf[zio.blocks.typeid.TypeId[s]] }
+          '{ new Schema($schema.reflect.typeId($aliasId)).asInstanceOf[Schema[T]] }
+      }
     } else cannotDeriveSchema(tpe)
   }.asInstanceOf[Expr[Schema[T]]]
 
@@ -1212,8 +1217,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private def cannotDeriveSchema(tpe: TypeRepr): Nothing = fail(s"Cannot derive schema for '${tpe.show}'.")
 
   def derived[A: Type]: Expr[Schema[A]] = {
-    val aTpe        = TypeRepr.of[A].dealias
-    val schema      = aTpe.asType match { case '[a] => deriveSchema[a](aTpe) }
+    val aTpe        = TypeRepr.of[A]
+    val schema      = deriveSchema[A](aTpe)
     val schemaBlock = Block(schemaDefs.toList, schema.asTerm).asExpr.asInstanceOf[Expr[Schema[A]]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock

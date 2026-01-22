@@ -167,9 +167,10 @@ object TypeIdMacros {
       case "Set"     => q"_root_.zio.blocks.typeid.TypeId.set"
       case "Vector"  => q"_root_.zio.blocks.typeid.TypeId.vector"
       case _         =>
-        // Create a nominal type reference
-        val ownerExpr = buildOwner(c)(sym.owner)
-        q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, _root_.scala.Nil)"
+        // Create a nominal type reference with type parameters
+        val ownerExpr      = buildOwner(c)(sym.owner)
+        val typeParamsExpr = if (sym.isType) buildTypeParams(c)(sym) else q"_root_.scala.Nil"
+        q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, $typeParamsExpr)"
     }
     q"_root_.zio.blocks.typeid.TypeRepr.Ref($typeIdExpr)"
   }

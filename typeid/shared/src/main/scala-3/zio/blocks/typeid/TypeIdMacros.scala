@@ -270,22 +270,33 @@ object TypeIdMacros {
     import quotes.reflect.*
 
     val typeSymbol = tpe.typeSymbol
+    val termSymbol = tpe.termSymbol
 
-    // Extract the simple name, stripping $ suffix for modules/objects
-    val rawName = typeSymbol.name
-    val name    = if (typeSymbol.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
+    // Check if this is an enum case value (like TrafficLight.Red)
+    // For enum values, termSymbol has the Enum flag and contains the case name
+    val isEnumValue = !termSymbol.isNoSymbol && termSymbol.flags.is(Flags.Enum)
 
-    // Build the owner path
-    val ownerExpr = buildOwner(typeSymbol.owner)
+    // Extract the simple name
+    val (name, ownerSymbol) = if (isEnumValue) {
+      // For enum cases, use the term symbol's name (e.g., "Red")
+      // The owner is the parent enum (e.g., TrafficLight)
+      (termSymbol.name, termSymbol.owner)
+    } else {
+      // For regular types, use the type symbol's name
+      val rawName = typeSymbol.name
+      val nm      = if (typeSymbol.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
+      (nm, typeSymbol.owner)
+    }
 
-    // Extract type parameters
+    val ownerExpr = buildOwner(ownerSymbol)
+
     val typeParamsExpr = buildTypeParams(typeSymbol)
 
-    // Determine if this is an opaque or nominal type
     val flags = typeSymbol.flags
 
-    // Build the TypeDefKind
-    val defKindExpr = buildDefKind(typeSymbol)
+    val defKindExpr =
+      if (isEnumValue) buildEnumCaseDefKindFromTermSymbol(termSymbol)
+      else buildDefKind(typeSymbol)
 
     if (flags.is(Flags.Opaque)) {
       val reprExpr     = extractOpaqueRepresentation(tpe, typeSymbol)
@@ -850,6 +861,26 @@ object TypeIdMacros {
       caseSym.primaryConstructor.paramSymss.flatten.isEmpty
 
     // Build parent enum TypeRepr
+    val parentTypeRepr = buildTypeReprFromTypeRepr(parentSym.typeRef)
+
+    '{ TypeDefKind.EnumCase($parentTypeRepr, ${ Expr(ordinal) }, ${ Expr(isObjectCase) }) }
+  }
+
+  private def buildEnumCaseDefKindFromTermSymbol(using
+    Quotes
+  )(
+    termSym: quotes.reflect.Symbol
+  ): Expr[TypeDefKind] = {
+    import quotes.reflect.*
+
+    val parentSym = termSym.owner
+
+    val siblings = parentSym.children.filter(_.flags.is(Flags.Case))
+    val ordinal  = siblings.indexOf(termSym)
+
+    val isObjectCase = termSym.flags.is(Flags.Module) ||
+      termSym.primaryConstructor.paramSymss.flatten.isEmpty
+
     val parentTypeRepr = buildTypeReprFromTypeRepr(parentSym.typeRef)
 
     '{ TypeDefKind.EnumCase($parentTypeRepr, ${ Expr(ordinal) }, ${ Expr(isObjectCase) }) }

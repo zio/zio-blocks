@@ -76,6 +76,36 @@ sealed trait TypeId[A <: AnyKind] {
     case _                                 => Nil
   }
 
+  /** Checks if the normalized type is a Scala Tuple */
+  final def isTuple: Boolean = {
+    val norm = TypeId.normalize(this)
+    norm.owner == Owner.fromPackagePath("scala") && norm.name.startsWith("Tuple")
+  }
+
+  /** Checks if the normalized type is a Scala Product */
+  final def isProduct: Boolean = {
+    val norm = TypeId.normalize(this)
+    norm.owner == Owner.fromPackagePath("scala") && norm.name.startsWith("Product")
+  }
+
+  /** Checks if the normalized type is a Scala sum type (Either or Option) */
+  final def isSum: Boolean = {
+    val norm = TypeId.normalize(this)
+    norm.owner == Owner.fromPackagePath("scala") && (norm.name == "Either" || norm.name == "Option")
+  }
+
+  /** Checks if the normalized type is scala.util.Either */
+  final def isEither: Boolean = {
+    val norm = TypeId.normalize(this)
+    norm.owner == Owner.fromPackagePath("scala.util") && norm.name == "Either"
+  }
+
+  /** Checks if the normalized type is scala.Option */
+  final def isOption: Boolean = {
+    val norm = TypeId.normalize(this)
+    norm.owner == Owner.fromPackagePath("scala") && norm.name == "Option"
+  }
+
   /**
    * Checks if this type is a subtype of another type.
    *
@@ -278,8 +308,9 @@ object TypeId {
    */
   @tailrec
   def normalize(id: TypeId[?]): TypeId[?] = id.aliasedTo match {
-    case Some(TypeRepr.Ref(aliased)) => normalize(aliased)
-    case _                           => id
+    case Some(TypeRepr.Ref(aliased))                      => normalize(aliased)
+    case Some(TypeRepr.Applied(TypeRepr.Ref(aliased), _)) => normalize(aliased)
+    case _                                                => id
   }
 
   /**
