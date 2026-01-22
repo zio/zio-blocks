@@ -223,6 +223,15 @@ object SchemaExpr {
           case _: ArithmeticOperator.Add.type      => for { x <- xs; y <- ys } yield n.plus(x, y)
           case _: ArithmeticOperator.Subtract.type => for { x <- xs; y <- ys } yield n.minus(x, y)
           case _: ArithmeticOperator.Multiply.type => for { x <- xs; y <- ys } yield n.times(x, y)
+          case _: ArithmeticOperator.Divide.type   =>
+            for { x <- xs; y <- ys } yield {
+              // Use Fractional for division if available, otherwise integer division via Integral
+              n match {
+                case frac: Fractional[A] => frac.div(x, y)
+                case int: Integral[A]    => int.quot(x, y)
+                case _                   => n.times(x, n.fromInt(0)) // Fallback (shouldn't happen)
+              }
+            }
         }
       }
 
@@ -256,6 +265,15 @@ object SchemaExpr {
           case _: ArithmeticOperator.Add.type      => for { x <- xValues; y <- yValues } yield toDynamicValue(n.plus(x, y))
           case _: ArithmeticOperator.Subtract.type => for { x <- xValues; y <- yValues } yield toDynamicValue(n.minus(x, y))
           case _: ArithmeticOperator.Multiply.type => for { x <- xValues; y <- yValues } yield toDynamicValue(n.times(x, y))
+          case _: ArithmeticOperator.Divide.type   =>
+            for { x <- xValues; y <- yValues } yield {
+              val result = n match {
+                case frac: Fractional[A] => frac.div(x, y)
+                case int: Integral[A]    => int.quot(x, y)
+                case _                   => n.times(x, n.fromInt(0)) // Fallback
+              }
+              toDynamicValue(result)
+            }
         }
       }
 
@@ -268,6 +286,7 @@ object SchemaExpr {
     case object Add      extends ArithmeticOperator
     case object Subtract extends ArithmeticOperator
     case object Multiply extends ArithmeticOperator
+    case object Divide   extends ArithmeticOperator
   }
 
   final case class StringConcat[A](left: SchemaExpr[A, String], right: SchemaExpr[A, String])

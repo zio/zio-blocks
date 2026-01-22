@@ -563,10 +563,41 @@ object MigrationAction {
       }
     }
 
-    def reverse: MigrationAction =
-      // Reverse is best-effort - for now, return identity (no-op)
-      // Could be enhanced with inverse expressions in future phases
-      this
+    def reverse: MigrationAction = {
+      // Pattern match on transform to find reversible operations
+      val inverseTransform = transform match {
+        // ✅ LOSSLESS: Arithmetic Add/Subtract
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num)
+
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num)
+
+        // ✅ LOSSLESS: Arithmetic Multiply/Divide
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num)
+
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num)
+
+        // ✅ LOSSLESS: Boolean Not (self-inverse)
+        case SchemaExpr.Not(expr) =>
+          SchemaExpr.Not(expr)
+
+        // ⚠️ LOSSY: String case conversions (loses original casing)
+        case SchemaExpr.StringUppercase(expr) =>
+          SchemaExpr.StringLowercase(expr)
+
+        case SchemaExpr.StringLowercase(expr) =>
+          SchemaExpr.StringUppercase(expr)
+
+        // ❌ IRREVERSIBLE: Default to identity for operations that cannot be reversed
+        // (StringLength, Relational, Logical, StringRegexMatch, etc.)
+        case _ => transform
+      }
+
+      TransformValue(at, inverseTransform)
+    }
   }
 
   /**
@@ -1199,7 +1230,40 @@ object MigrationAction {
       }
     }
 
-    def reverse: MigrationAction = this
+    def reverse: MigrationAction = {
+      // Use same pattern matching as TransformValue
+      val inverseTransform = transform match {
+        // ✅ LOSSLESS: Arithmetic Add/Subtract
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num)
+
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num)
+
+        // ✅ LOSSLESS: Arithmetic Multiply/Divide
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num)
+
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num)
+
+        // ✅ LOSSLESS: Boolean Not (self-inverse)
+        case SchemaExpr.Not(expr) =>
+          SchemaExpr.Not(expr)
+
+        // ⚠️ LOSSY: String case conversions
+        case SchemaExpr.StringUppercase(expr) =>
+          SchemaExpr.StringLowercase(expr)
+
+        case SchemaExpr.StringLowercase(expr) =>
+          SchemaExpr.StringUppercase(expr)
+
+        // ❌ IRREVERSIBLE: Default to identity
+        case _ => transform
+      }
+
+      TransformElements(at, inverseTransform)
+    }
   }
 
   /**
@@ -1301,7 +1365,40 @@ object MigrationAction {
       }
     }
 
-    def reverse: MigrationAction = this
+    def reverse: MigrationAction = {
+      // Use same pattern matching as TransformValue
+      val inverseTransform = transform match {
+        // ✅ LOSSLESS: Arithmetic Add/Subtract
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num)
+
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num)
+
+        // ✅ LOSSLESS: Arithmetic Multiply/Divide
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num)
+
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num)
+
+        // ✅ LOSSLESS: Boolean Not (self-inverse)
+        case SchemaExpr.Not(expr) =>
+          SchemaExpr.Not(expr)
+
+        // ⚠️ LOSSY: String case conversions
+        case SchemaExpr.StringUppercase(expr) =>
+          SchemaExpr.StringLowercase(expr)
+
+        case SchemaExpr.StringLowercase(expr) =>
+          SchemaExpr.StringUppercase(expr)
+
+        // ❌ IRREVERSIBLE: Default to identity
+        case _ => transform
+      }
+
+      TransformKeys(at, inverseTransform)
+    }
   }
 
   /**
@@ -1403,7 +1500,40 @@ object MigrationAction {
       }
     }
 
-    def reverse: MigrationAction = this
+    def reverse: MigrationAction = {
+      // Use same pattern matching as TransformValue
+      val inverseTransform = transform match {
+        // ✅ LOSSLESS: Arithmetic Add/Subtract
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num)
+
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num)
+
+        // ✅ LOSSLESS: Arithmetic Multiply/Divide
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num)
+
+        case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num) =>
+          SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num)
+
+        // ✅ LOSSLESS: Boolean Not (self-inverse)
+        case SchemaExpr.Not(expr) =>
+          SchemaExpr.Not(expr)
+
+        // ⚠️ LOSSY: String case conversions
+        case SchemaExpr.StringUppercase(expr) =>
+          SchemaExpr.StringLowercase(expr)
+
+        case SchemaExpr.StringLowercase(expr) =>
+          SchemaExpr.StringUppercase(expr)
+
+        // ❌ IRREVERSIBLE: Default to identity
+        case _ => transform
+      }
+
+      TransformValues(at, inverseTransform)
+    }
   }
 
   /**
