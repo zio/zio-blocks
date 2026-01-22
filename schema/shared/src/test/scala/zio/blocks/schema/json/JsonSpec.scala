@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Schema, SchemaBaseSpec, SchemaError}
+import zio.blocks.schema._
 import zio.test._
 
 object JsonSpec extends SchemaBaseSpec {
@@ -65,6 +65,16 @@ object JsonSpec extends SchemaBaseSpec {
         }
       ),
       suite("navigation")(
+        test("works with p interpolator") {
+          val j = Json.obj(
+            "users" -> Json.arr(
+              Json.obj("name" -> Json.str("Alice")),
+              Json.obj("name" -> Json.str("Bob"))
+            )
+          )
+          val path = p".users[1].name"
+          assertTrue(j.get(path).string == Right("Bob"))
+        },
         test("get retrieves field from object") {
           val json = Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))
           assertTrue(
