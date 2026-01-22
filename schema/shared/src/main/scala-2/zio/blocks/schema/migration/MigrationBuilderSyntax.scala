@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration
 
 import scala.language.experimental.macros
-import zio.blocks.schema.{Schema, DynamicOptic, DynamicValue}
+import zio.blocks.schema.DynamicOptic
 
 /**
  * Scala 2 implicit class for MigrationBuilder that uses macros to extract field
@@ -20,64 +20,56 @@ object MigrationBuilderSyntax {
      *
      * Example: builder.addField(_.country, "USA")
      */
-    def addField[F](selector: B => F, defaultValue: String): MigrationBuilder[A, B] =
-      macro MigrationBuilderSyntaxMacros.addFieldStringImpl[A, B, F]
+    def addField[F](selector: B => F, defaultValue: String): MigrationBuilder[A, B] = macro MigrationBuilderSyntaxMacros.addFieldStringImpl[A, B, F]
 
     /**
      * Add a field using a selector and int default value.
      *
      * Example: builder.addField(_.age, 0)
      */
-    def addFieldInt[F](selector: B => F, defaultValue: Int): MigrationBuilder[A, B] =
-      macro MigrationBuilderSyntaxMacros.addFieldIntImpl[A, B, F]
+    def addFieldInt[F](selector: B => F, defaultValue: Int): MigrationBuilder[A, B] = macro MigrationBuilderSyntaxMacros.addFieldIntImpl[A, B, F]
 
     /**
      * Add a field using a selector and boolean default value.
      *
      * Example: builder.addField(_.active, true)
      */
-    def addFieldBool[F](selector: B => F, defaultValue: Boolean): MigrationBuilder[A, B] =
-      macro MigrationBuilderSyntaxMacros.addFieldBoolImpl[A, B, F]
+    def addFieldBool[F](selector: B => F, defaultValue: Boolean): MigrationBuilder[A, B] = macro MigrationBuilderSyntaxMacros.addFieldBoolImpl[A, B, F]
 
     /**
      * Drop a field using a selector.
      *
      * Example: builder.dropField(_.oldField)
      */
-    def dropField[F](selector: A => F): MigrationBuilder[A, B] =
-      macro MigrationBuilderSyntaxMacros.dropFieldImpl[A, B, F]
+    def dropField[F](selector: A => F): MigrationBuilder[A, B] = macro MigrationBuilderSyntaxMacros.dropFieldImpl[A, B, F]
 
     /**
      * Rename a field using two selectors.
      *
      * Example: builder.renameField(_.name, _.fullName)
      */
-    def renameField[F1, F2](from: A => F1, to: B => F2): MigrationBuilder[A, B] =
-      macro MigrationBuilderSyntaxMacros.renameFieldImpl[A, B, F1, F2]
+    def renameField[F1, F2](from: A => F1, to: B => F2): MigrationBuilder[A, B] = macro MigrationBuilderSyntaxMacros.renameFieldImpl[A, B, F1, F2]
 
     /**
      * Make an optional field mandatory with a default value.
      *
      * Example: builder.mandateField(_.email, "default@example.com")
      */
-    def mandateField[F](selector: A => F, defaultValue: String): MigrationBuilder[A, B] =
-      macro MigrationBuilderSyntaxMacros.mandateFieldImpl[A, B, F]
+    def mandateField[F](selector: A => F, defaultValue: String): MigrationBuilder[A, B] = macro MigrationBuilderSyntaxMacros.mandateFieldImpl[A, B, F]
 
     /**
      * Make a mandatory field optional.
      *
      * Example: builder.optionalizeField(_.middleName)
      */
-    def optionalizeField[F](selector: A => F): MigrationBuilder[A, B] =
-      macro MigrationBuilderSyntaxMacros.optionalizeFieldImpl[A, B, F]
+    def optionalizeField[F](selector: A => F): MigrationBuilder[A, B] = macro MigrationBuilderSyntaxMacros.optionalizeFieldImpl[A, B, F]
 
     /**
      * Navigate to a nested path and apply operations there.
      *
      * Example: builder.atPath(_.address).addField("zip", "00000")
      */
-    def atPath[F](selector: A => F): MigrationBuilderAtPath[A, B] =
-      macro MigrationBuilderSyntaxMacros.atPathImpl[A, B, F]
+    def atPath[F](selector: A => F): MigrationBuilderAtPath[A, B] = macro MigrationBuilderSyntaxMacros.atPathImpl[A, B, F]
   }
 }
 
@@ -138,20 +130,21 @@ object MigrationBuilderSyntaxMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val fieldName = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val fieldName   = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val builderTree = q"${c.prefix.tree}.builder"
 
-    reify {
-      val action = MigrationAction.AddField(
-        DynamicOptic.root,
-        fieldName.splice,
-        SchemaExpr.literalString(defaultValue.splice)
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.AddField(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName,
+        _root_.zio.blocks.schema.migration.SchemaExpr.literalString($defaultValue)
       )
-      new MigrationBuilder(
-        c.prefix.splice.builder.sourceSchema,
-        c.prefix.splice.builder.targetSchema,
-        c.prefix.splice.builder.actions :+ action
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        $builderTree.sourceSchema,
+        $builderTree.targetSchema,
+        $builderTree.actions :+ action
       )
-    }
+    """)
   }
 
   def addFieldIntImpl[A, B, F](c: whitebox.Context)(
@@ -160,20 +153,21 @@ object MigrationBuilderSyntaxMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val fieldName = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val fieldName   = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val builderTree = q"${c.prefix.tree}.builder"
 
-    reify {
-      val action = MigrationAction.AddField(
-        DynamicOptic.root,
-        fieldName.splice,
-        SchemaExpr.literalInt(defaultValue.splice)
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.AddField(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName,
+        _root_.zio.blocks.schema.migration.SchemaExpr.literalInt($defaultValue)
       )
-      new MigrationBuilder(
-        c.prefix.splice.builder.sourceSchema,
-        c.prefix.splice.builder.targetSchema,
-        c.prefix.splice.builder.actions :+ action
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        $builderTree.sourceSchema,
+        $builderTree.targetSchema,
+        $builderTree.actions :+ action
       )
-    }
+    """)
   }
 
   def addFieldBoolImpl[A, B, F](c: whitebox.Context)(
@@ -182,20 +176,21 @@ object MigrationBuilderSyntaxMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val fieldName = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val fieldName   = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val builderTree = q"${c.prefix.tree}.builder"
 
-    reify {
-      val action = MigrationAction.AddField(
-        DynamicOptic.root,
-        fieldName.splice,
-        SchemaExpr.literalBool(defaultValue.splice)
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.AddField(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName,
+        _root_.zio.blocks.schema.migration.SchemaExpr.literalBool($defaultValue)
       )
-      new MigrationBuilder(
-        c.prefix.splice.builder.sourceSchema,
-        c.prefix.splice.builder.targetSchema,
-        c.prefix.splice.builder.actions :+ action
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        $builderTree.sourceSchema,
+        $builderTree.targetSchema,
+        $builderTree.actions :+ action
       )
-    }
+    """)
   }
 
   def dropFieldImpl[A, B, F](c: whitebox.Context)(
@@ -203,20 +198,21 @@ object MigrationBuilderSyntaxMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val fieldName = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val fieldName   = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val builderTree = q"${c.prefix.tree}.builder"
 
-    reify {
-      val action = MigrationAction.DropField(
-        DynamicOptic.root,
-        fieldName.splice,
-        None
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.DropField(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName,
+        _root_.scala.None
       )
-      new MigrationBuilder(
-        c.prefix.splice.builder.sourceSchema,
-        c.prefix.splice.builder.targetSchema,
-        c.prefix.splice.builder.actions :+ action
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        $builderTree.sourceSchema,
+        $builderTree.targetSchema,
+        $builderTree.actions :+ action
       )
-    }
+    """)
   }
 
   def renameFieldImpl[A, B, F1, F2](c: whitebox.Context)(
@@ -225,21 +221,22 @@ object MigrationBuilderSyntaxMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val fromName = MigrationBuilderMacros.extractFieldName(c)(from)
-    val toName   = MigrationBuilderMacros.extractFieldName(c)(to)
+    val fromName    = MigrationBuilderMacros.extractFieldName(c)(from)
+    val toName      = MigrationBuilderMacros.extractFieldName(c)(to)
+    val builderTree = q"${c.prefix.tree}.builder"
 
-    reify {
-      val action = MigrationAction.Rename(
-        DynamicOptic.root,
-        fromName.splice,
-        toName.splice
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.Rename(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fromName,
+        $toName
       )
-      new MigrationBuilder(
-        c.prefix.splice.builder.sourceSchema,
-        c.prefix.splice.builder.targetSchema,
-        c.prefix.splice.builder.actions :+ action
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        $builderTree.sourceSchema,
+        $builderTree.targetSchema,
+        $builderTree.actions :+ action
       )
-    }
+    """)
   }
 
   def mandateFieldImpl[A, B, F](c: whitebox.Context)(
@@ -248,20 +245,21 @@ object MigrationBuilderSyntaxMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val fieldName = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val fieldName   = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val builderTree = q"${c.prefix.tree}.builder"
 
-    reify {
-      val action = MigrationAction.Mandate(
-        DynamicOptic.root,
-        fieldName.splice,
-        SchemaExpr.literalString(defaultValue.splice)
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.Mandate(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName,
+        _root_.zio.blocks.schema.migration.SchemaExpr.literalString($defaultValue)
       )
-      new MigrationBuilder(
-        c.prefix.splice.builder.sourceSchema,
-        c.prefix.splice.builder.targetSchema,
-        c.prefix.splice.builder.actions :+ action
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        $builderTree.sourceSchema,
+        $builderTree.targetSchema,
+        $builderTree.actions :+ action
       )
-    }
+    """)
   }
 
   def optionalizeFieldImpl[A, B, F](c: whitebox.Context)(
@@ -269,19 +267,20 @@ object MigrationBuilderSyntaxMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val fieldName = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val fieldName   = MigrationBuilderMacros.extractFieldName(c)(selector)
+    val builderTree = q"${c.prefix.tree}.builder"
 
-    reify {
-      val action = MigrationAction.Optionalize(
-        DynamicOptic.root,
-        fieldName.splice
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.Optionalize(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName
       )
-      new MigrationBuilder(
-        c.prefix.splice.builder.sourceSchema,
-        c.prefix.splice.builder.targetSchema,
-        c.prefix.splice.builder.actions :+ action
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        $builderTree.sourceSchema,
+        $builderTree.targetSchema,
+        $builderTree.actions :+ action
       )
-    }
+    """)
   }
 
   def atPathImpl[A, B, F](c: whitebox.Context)(
@@ -289,10 +288,11 @@ object MigrationBuilderSyntaxMacros {
   ): c.Expr[MigrationBuilderAtPath[A, B]] = {
     import c.universe._
 
-    val path = MigrationBuilderMacros.extractPath(c)(selector)
+    val path        = MigrationBuilderMacros.extractPath(c)(selector)
+    val builderTree = q"${c.prefix.tree}.builder"
 
-    reify {
-      new MigrationBuilderAtPath(c.prefix.splice.builder, path.splice)
-    }
+    c.Expr[MigrationBuilderAtPath[A, B]](q"""
+      new _root_.zio.blocks.schema.migration.MigrationBuilderAtPath($builderTree, $path)
+    """)
   }
 }

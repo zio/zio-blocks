@@ -84,7 +84,7 @@ object MigrationBuilderMacros {
    */
   def validateFieldExists[A](c: whitebox.Context)(
     selector: c.Expr[A => Any],
-    schema: c.Expr[Schema[A]]
+    @scala.annotation.unused schema: c.Expr[Schema[A]]
   ): c.Expr[Unit] = {
     import c.universe._
 
