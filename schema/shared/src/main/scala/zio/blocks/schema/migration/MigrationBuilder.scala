@@ -78,7 +78,7 @@ final case class MigrationBuilder[A, B](
    * Joins multiple source fields into a single target field using a combiner
    * expression.
    */
-  def joinFields(
+  private[migration] def joinFields(
     target: DynamicOptic,
     sourcePaths: Vector[DynamicOptic],
     combiner: SchemaExpr[DynamicValue, ?]
@@ -89,7 +89,7 @@ final case class MigrationBuilder[A, B](
    * Splits a single source field into multiple target fields using a splitter
    * expression.
    */
-  def splitField(
+  private[migration] def splitField(
     source: DynamicOptic,
     targetPaths: Vector[DynamicOptic],
     splitter: SchemaExpr[DynamicValue, ?]
@@ -99,7 +99,7 @@ final case class MigrationBuilder[A, B](
   /**
    * Renames a variant case.
    */
-  def renameCase(
+  private[migration] def renameCase(
     at: DynamicOptic,
     from: String,
     to: String
@@ -109,7 +109,7 @@ final case class MigrationBuilder[A, B](
   /**
    * Applies nested migration actions to a specific variant case.
    */
-  def transformCase(
+  private[migration] def transformCase(
     at: DynamicOptic,
     caseName: String,
     actions: Vector[MigrationAction]
@@ -119,7 +119,7 @@ final case class MigrationBuilder[A, B](
   /**
    * Applies a transformation to all elements in a sequence.
    */
-  def transformElements(
+  private[migration] def transformElements(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
   ): MigrationBuilder[A, B] =
@@ -128,7 +128,7 @@ final case class MigrationBuilder[A, B](
   /**
    * Applies a transformation to all keys in a map.
    */
-  def transformKeys(
+  private[migration] def transformKeys(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
   ): MigrationBuilder[A, B] =
@@ -137,7 +137,7 @@ final case class MigrationBuilder[A, B](
   /**
    * Applies a transformation to all values in a map.
    */
-  def transformValues(
+  private[migration] def transformValues(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
   ): MigrationBuilder[A, B] =
@@ -188,10 +188,10 @@ final case class MigrationBuilder[A, B](
     val unprovided = (targetPaths -- provided) -- unchanged
 
     // Actions referencing non-existent fields
-    // Handled fields must exist in source schema (or be unchanged)
-    val invalidHandled = handled -- sourcePaths -- unchanged
-    // Provided fields must exist in target schema (or be unchanged)
-    val invalidProvided = provided -- targetPaths -- unchanged
+    // Handled fields must exist in source schema
+    val invalidHandled = handled -- sourcePaths
+    // Provided fields must exist in target schema
+    val invalidProvided = provided -- targetPaths
 
     val allErrors = unhandled.nonEmpty || unprovided.nonEmpty ||
       invalidHandled.nonEmpty || invalidProvided.nonEmpty
@@ -212,6 +212,12 @@ final case class MigrationBuilder[A, B](
   }
 
   /**
+   * Creates a Schema from a Reflect.Bound. Extracted to avoid repeated local
+   * definitions.
+   */
+  private def schemaFor[T](bound: Reflect.Bound[T]): Schema[T] = new Schema(bound)
+
+  /**
    * Extracts all field paths from a schema recursively.
    *
    * @param schema
@@ -229,7 +235,6 @@ final case class MigrationBuilder[A, B](
         val fieldPath = if (prefix.isEmpty) field.name else s"$prefix.${field.name}"
 
         // Recurse into nested records and variants
-        def schemaFor[T](bound: Reflect.Bound[T]): Schema[T] = new Schema(bound)
         if (field.value.isInstanceOf[Reflect.Record[binding.Binding, ?]]) {
           val nestedRecord = field.value.asInstanceOf[Reflect.Record[binding.Binding, Any]]
           // For nested records, include both the field itself and its nested fields
@@ -250,7 +255,6 @@ final case class MigrationBuilder[A, B](
         val casePath = if (prefix.isEmpty) caseField.name else s"$prefix.${caseField.name}"
 
         // Recursively extract nested paths in case values
-        def schemaFor[T](bound: Reflect.Bound[T]): Schema[T] = new Schema(bound)
         if (caseField.value.isInstanceOf[Reflect.Record[binding.Binding, ?]]) {
           val nestedRecord = caseField.value.asInstanceOf[Reflect.Record[binding.Binding, Any]]
           // For variant cases with record values, include the case name
@@ -278,11 +282,17 @@ final case class MigrationBuilder[A, B](
    *   Path string (e.g., "address.street")
    */
   private def opticToPath(optic: DynamicOptic): String =
+    opticToPathParts(optic).mkString(".")
+
+  /**
+   * Converts a DynamicOptic to a field path as Vector[String]. Using Vector
+   * instead of string splitting avoids issues with field names containing dots.
+   */
+  private def opticToPathParts(optic: DynamicOptic): Vector[String] =
     optic.nodes.collect {
       case DynamicOptic.Node.Field(name) => name
       case DynamicOptic.Node.Case(name)  => name
-    }
-      .mkString(".")
+    }.toVector
 
   /**
    * Extracts all field paths for a specific variant case. For a case like
@@ -314,8 +324,7 @@ final case class MigrationBuilder[A, B](
             caseField.value match {
               case record: Reflect.Record[binding.Binding, ?] =>
                 // Recursively extract nested field paths
-                def schemaFor[T](bound: Reflect.Bound[T]): Schema[T] = new Schema(bound)
-                val nestedSchema                                     = schemaFor(record)
+                val nestedSchema = schemaFor(record)
                 Set(casePath) ++ extractFieldPaths(nestedSchema, casePath)
               case _ =>
                 // Simple case (case object or primitive value)
@@ -374,6 +383,34 @@ final case class MigrationBuilder[A, B](
     }
 
   /**
+   * Returns the field path and all nested paths for a field/record at the given
+   * optic.
+   */
+  private def pathWithNested(schema: Schema[?], optic: DynamicOptic): Set[String] = {
+    val fieldPath = opticToPath(optic)
+    navigateToSchema(schema, optic) match {
+      case Some(s) => Set(fieldPath) ++ extractFieldPaths(s, fieldPath)
+      case None    => Set(fieldPath)
+    }
+  }
+
+  /**
+   * Returns the case path for a variant case, using extractVariantCasePaths if
+   * navigable, otherwise falls back to simple path construction.
+   */
+  private def casePathWithNested(
+    schema: Schema[?],
+    optic: DynamicOptic,
+    caseName: String
+  ): Set[String] = {
+    val basePath = opticToPath(optic)
+    navigateToSchema(schema, optic) match {
+      case Some(s) => extractVariantCasePaths(s, caseName, basePath)
+      case None    => if (basePath.isEmpty) Set(caseName) else Set(s"$basePath.$caseName")
+    }
+  }
+
+  /**
    * Determines which source paths are handled by an action.
    */
   private def handledSourcePaths(action: MigrationAction, sourceSchema: Schema[?]): Set[String] =
@@ -384,25 +421,11 @@ final case class MigrationBuilder[A, B](
 
       case MigrationAction.DropField(at, _) =>
         // DropField handles the source field and all nested fields if it's a record
-        val fieldPath = opticToPath(at)
-        navigateToSchema(sourceSchema, at) match {
-          case Some(schema) =>
-            // If the field is a record, extract all nested fields
-            Set(fieldPath) ++ extractFieldPaths(schema, fieldPath)
-          case None =>
-            Set(fieldPath)
-        }
+        pathWithNested(sourceSchema, at)
 
       case MigrationAction.Rename(from, _) =>
         // Rename handles the source field and all nested fields if it's a record
-        val fieldPath = opticToPath(from)
-        navigateToSchema(sourceSchema, from) match {
-          case Some(schema) =>
-            // If the field is a record, extract all nested fields
-            Set(fieldPath) ++ extractFieldPaths(schema, fieldPath)
-          case None =>
-            Set(fieldPath)
-        }
+        pathWithNested(sourceSchema, from)
 
       case MigrationAction.TransformValue(at, _) =>
         // TransformValue handles the field at the path
@@ -430,15 +453,7 @@ final case class MigrationBuilder[A, B](
 
       case MigrationAction.RenameCase(at, from, _) =>
         // RenameCase handles the variant case and all nested fields
-        navigateToSchema(sourceSchema, at) match {
-          case Some(schema) =>
-            val basePath = opticToPath(at)
-            extractVariantCasePaths(schema, from, basePath)
-          case None =>
-            // Fallback to old behavior
-            val basePath = opticToPath(at)
-            if (basePath.isEmpty) Set(from) else Set(s"$basePath.$from")
-        }
+        casePathWithNested(sourceSchema, at, from)
 
       case MigrationAction.TransformCase(at, caseName, nestedActions) =>
         // TransformCase handles the specific variant case and nested actions
@@ -455,8 +470,7 @@ final case class MigrationBuilder[A, B](
                     val casePath = if (basePath.isEmpty) caseName else s"$basePath.$caseName"
 
                     // Get inner schema for this case
-                    def schemaFor[T](bound: Reflect.Bound[T]): Schema[T] = new Schema(bound)
-                    val caseInnerSchema                                  = schemaFor(caseField.value)
+                    val caseInnerSchema = schemaFor(caseField.value)
 
                     // Recursively analyze nested actions
                     val nestedHandled = nestedActions.flatMap { nestedAction =>
@@ -501,13 +515,7 @@ final case class MigrationBuilder[A, B](
     action match {
       case MigrationAction.AddField(at, _) =>
         // AddField provides the target field and all nested fields if it's a record
-        val fieldPath = opticToPath(at)
-        navigateToSchema(targetSchema, at) match {
-          case Some(schema) =>
-            Set(fieldPath) ++ extractFieldPaths(schema, fieldPath)
-          case None =>
-            Set(fieldPath)
-        }
+        pathWithNested(targetSchema, at)
 
       case MigrationAction.DropField(_, _) =>
         // DropField doesn't provide target fields
@@ -515,24 +523,22 @@ final case class MigrationBuilder[A, B](
 
       case MigrationAction.Rename(from, to) =>
         // Rename provides the new field name and all nested fields if it's a record
-        val fromPath = opticToPath(from)
-        val parts    = fromPath.split('.')
-        val toPath   = if (parts.length == 1) {
+        // Use Vector[String] to avoid issues with field names containing dots
+        val fromPathParts = opticToPathParts(from)
+        val toPathParts   = if (fromPathParts.length <= 1) {
           // Top-level field
-          to
+          Vector(to)
         } else {
           // Nested field - replace last component
-          val prefix = parts.dropRight(1).mkString(".")
-          s"$prefix.$to"
+          fromPathParts.dropRight(1) :+ to
         }
+        val toPath = toPathParts.mkString(".")
 
         // Build target optic by replacing last node
         val toOptic = if (from.nodes.isEmpty) {
           DynamicOptic.root.field(to)
         } else {
           val parentNodes = from.nodes.dropRight(1)
-          // val parentOptic = if (parentNodes.isEmpty) DynamicOptic.root
-          //                  else DynamicOptic(parentNodes)
           DynamicOptic(parentNodes :+ DynamicOptic.Node.Field(to))
         }
 
@@ -570,15 +576,7 @@ final case class MigrationBuilder[A, B](
 
       case MigrationAction.RenameCase(at, _, to) =>
         // RenameCase provides the new case name and all nested fields
-        navigateToSchema(targetSchema, at) match {
-          case Some(schema) =>
-            val basePath = opticToPath(at)
-            extractVariantCasePaths(schema, to, basePath)
-          case None =>
-            // Fallback to old behavior
-            val basePath = opticToPath(at)
-            if (basePath.isEmpty) Set(to) else Set(s"$basePath.$to")
-        }
+        casePathWithNested(targetSchema, at, to)
 
       case MigrationAction.TransformCase(at, caseName, nestedActions) =>
         // TransformCase provides the case and nested action results
@@ -592,8 +590,7 @@ final case class MigrationBuilder[A, B](
                     val casePath = if (basePath.isEmpty) caseName else s"$basePath.$caseName"
 
                     // Get inner TARGET schema
-                    def schemaFor[T](bound: Reflect.Bound[T]): Schema[T] = new Schema(bound)
-                    val caseInnerSchema                                  = schemaFor(caseField.value)
+                    val caseInnerSchema = schemaFor(caseField.value)
 
                     // Recursively analyze what nested actions provide
                     val nestedProvided = nestedActions.flatMap { nestedAction =>
