@@ -6,7 +6,6 @@ import zio.test._
 object JoinSplitSpec extends ZIOSpecDefault {
 
   // Helper to create a splitter that returns multiple values for testing
-  // Uses StringSplit with a Literal (which ignores input, but that's fine for tests)
   def testSplitter(value: String, delimiter: String): SchemaExpr[DynamicValue, String] = {
     val literal = SchemaExpr.Literal[DynamicValue, String](value, Schema.string)
     SchemaExpr.StringSplit(literal, delimiter)
@@ -26,7 +25,6 @@ object JoinSplitSpec extends ZIOSpecDefault {
         val lastNameOptic  = DynamicOptic.root.field("lastName")
 
         // Combiner: For now, just return the expected result as a literal
-        // TODO: Build proper combiner that accesses field0 and field1
         val combiner: SchemaExpr[DynamicValue, ?] = SchemaExpr.Literal[DynamicValue, String]("John Doe", Schema.string)
 
         val joinAction = MigrationAction.Join(
@@ -58,7 +56,6 @@ object JoinSplitSpec extends ZIOSpecDefault {
         val bonusOptic    = DynamicOptic.root.field("bonus")
 
         // Combiner: field0 + field1
-        // TODO: Build proper arithmetic combiner
         val combiner: SchemaExpr[DynamicValue, ?] = SchemaExpr.Literal[DynamicValue, Int](15, Schema.int)
 
         val joinAction = MigrationAction.Join(

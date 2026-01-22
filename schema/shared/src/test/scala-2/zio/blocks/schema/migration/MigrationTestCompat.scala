@@ -2,7 +2,7 @@ package zio.blocks.schema.migration
 
 import scala.language.implicitConversions
 
-// Scala 2: Re-export the implicit conversion so it's available via import
+// Scala 2: Re-export the implicit conversion so it's available via import for test
 object MigrationTestCompat {
   // Re-export the implicit conversion from MigrationBuilderSyntax
   implicit def toSyntax[A, B](builder: MigrationBuilder[A, B]): MigrationBuilderSyntax[A, B] =

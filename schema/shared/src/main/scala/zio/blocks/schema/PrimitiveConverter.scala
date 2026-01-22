@@ -1,9 +1,7 @@
 package zio.blocks.schema
 
-/**
- * Represents a primitive type converter used for migration transformations. All
- * converters are reversible and operate on DynamicValue.Primitive.
- */
+//Represents a primitive type converter used for migration transformations.
+//All converters are reversible and operate on DynamicValue.Primitive.
 sealed trait PrimitiveConverter {
 
   /**

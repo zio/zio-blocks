@@ -5,22 +5,13 @@ import scala.language.implicitConversions
 import zio.blocks.schema._
 
 /**
- * Scala 2 macro-based selector syntax for MigrationBuilder.
- *
- * Provides ergonomic methods that accept selector functions like `_.field`
- * instead of manually constructing DynamicOptic instances.
+ * Selector syntax for MigrationBuilder. Methods that accept selector functions
+ * like `_.field` instead of manually constructing DynamicOptic instances.
  */
 final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) extends AnyVal {
 
-  // ===== Record Operations with Selectors =====
-
   /**
    * Adds a field to a record with a default value using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.addField(_.age, SchemaExpr.Literal(0, Schema.int))
-   * }}}
    */
   def addField(
     target: B => Any,
@@ -29,11 +20,6 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
 
   /**
    * Removes a field from a record using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.dropField(_.age, SchemaExpr.Literal(0, Schema.int))
-   * }}}
    */
   def dropField(
     source: A => Any,
@@ -42,11 +28,6 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
 
   /**
    * Renames a field in a record using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.renameField(_.firstName, _.fullName)
-   * }}}
    */
   def renameField(
     from: A => Any,
@@ -55,11 +36,6 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
 
   /**
    * Applies a transformation expression to a field value using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.transformField(_.age, SchemaExpr.Arithmetic(...))
-   * }}}
    */
   def transformField(
     at: A => Any,
@@ -69,11 +45,6 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
   /**
    * Unwraps an Option field using selector syntax, using default for None
    * values.
-   *
-   * Example:
-   * {{{
-   * builder.mandateField(_.name, SchemaExpr.Literal("Unknown", Schema.string))
-   * }}}
    */
   def mandateField(
     at: A => Any,
@@ -82,11 +53,6 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
 
   /**
    * Wraps a field value in Option (as Some) using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.optionalizeField(_.name)
-   * }}}
    */
   def optionalizeField(
     at: A => Any,
@@ -95,31 +61,15 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
 
   /**
    * Converts a field from one primitive type to another using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.changeFieldType(_.age, PrimitiveConverter.StringToInt)
-   * }}}
    */
   def changeFieldType(
     at: A => Any,
     converter: PrimitiveConverter
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacrosImpl.changeFieldTypeImpl[A, B]
 
-  // ===== Multi-Field Operations with Selectors =====
-
   /**
    * Joins multiple source fields into a single target field using selector
    * syntax.
-   *
-   * Example:
-   * {{{
-   * builder.joinFields(
-   *   _.fullName,
-   *   Vector(_.firstName, _.lastName),
-   *   SchemaExpr.StringConcat(...)
-   * )
-   * }}}
    */
   def joinFields(
     target: B => Any,
@@ -130,15 +80,6 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
   /**
    * Splits a single source field into multiple target fields using selector
    * syntax.
-   *
-   * Example:
-   * {{{
-   * builder.splitField(
-   *   _.fullName,
-   *   Vector(_.firstName, _.lastName),
-   *   SchemaExpr.StringSplit(...)
-   * )
-   * }}}
    */
   def splitField(
     source: A => Any,
@@ -146,16 +87,9 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
     splitter: SchemaExpr[DynamicValue, _]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacrosImpl.splitFieldImpl[A, B]
 
-  // ===== Collection Operations with Selectors =====
-
   /**
    * Applies a transformation to all elements in a sequence using selector
    * syntax.
-   *
-   * Example:
-   * {{{
-   * builder.transformElements(_.items, SchemaExpr.Arithmetic(...))
-   * }}}
    */
   def transformElements(
     at: A => Any,
@@ -164,11 +98,6 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
 
   /**
    * Applies a transformation to all keys in a map using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.transformKeys(_.data, SchemaExpr.StringUppercase(...))
-   * }}}
    */
   def transformKeys(
     at: A => Any,
@@ -177,26 +106,14 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
 
   /**
    * Applies a transformation to all values in a map using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.transformValues(_.data, SchemaExpr.Arithmetic(...))
-   * }}}
    */
   def transformValues(
     at: A => Any,
     transform: SchemaExpr[DynamicValue, _]
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacrosImpl.transformValuesImpl[A, B]
 
-  // ===== Enum Operations with Selectors =====
-
   /**
    * Renames a variant case using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.renameCase(_.when[OldCaseName], "NewCaseName")
-   * }}}
    */
   def renameCase(
     from: A => Any,
@@ -206,18 +123,11 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
   /**
    * Applies nested migration actions to a specific variant case using selector
    * syntax.
-   *
-   * Example:
-   * {{{
-   * builder.transformCase(_.when[CreditCard])(
-   *   _.renameField(_.cardNumber, _.number)
-   * )
-   * }}}
    */
   def transformCase(
     at: A => Any
-  )(nestedActions: MigrationBuilder[A, A] => MigrationBuilder[A, A]): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacrosImpl.transformCaseImpl[A, B]
+  )(nestedActions: MigrationBuilder[A, A] => MigrationBuilder[A, A]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacrosImpl.transformCaseImpl[A, B]
 }
 
 object MigrationBuilderSyntax {
@@ -225,9 +135,7 @@ object MigrationBuilderSyntax {
     new MigrationBuilderSyntax[A, B](builder)
 }
 
-/**
- * Macro implementations for Scala 2 selector syntax.
- */
+//Macro implementations for Scala 2 selector syntax.
 private[migration] object MigrationBuilderMacrosImpl {
   import scala.reflect.macros.whitebox
 

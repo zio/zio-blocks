@@ -52,10 +52,6 @@ object MigrationLawsSpec extends ZIOSpecDefault {
     implicit val schema: Schema[CompanyV2] = Schema.derived
   }
 
-  // ============================================================
-  // Generators
-  // ============================================================
-
   val genPersonV1: Gen[Any, PersonV1] =
     for {
       firstName <- Gen.alphaNumericStringBounded(3, 10)
@@ -84,10 +80,6 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       employees <- Gen.vectorOfBounded(0, 5)(genEmployee)
       revenue   <- Gen.int(100000, 10000000)
     } yield CompanyV1(name, address, employees, revenue)
-
-  // ============================================================
-  // Migration Builders (for testing)
-  // ============================================================
 
   // Lossless migration: PersonV1 -> PersonV2
   def personV1ToV2Migration: Migration[PersonV1, PersonV2] =
@@ -149,14 +141,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       )
       .buildPartial
 
-  // ============================================================
-  // Test Suite
-  // ============================================================
-
   def spec = suite("MigrationLawsSpec")(
-    // --------------------------------------------------------
-    // Identity Law Tests
-    // --------------------------------------------------------
     suite("Identity Law")(
       test("identity migration returns input unchanged - simple case") {
         check(genPersonV1) { person =>
@@ -195,9 +180,6 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         assertTrue(composed.dynamicMigration.actions == m.dynamicMigration.actions)
       }
     ),
-    // --------------------------------------------------------
-    // Associativity Law Tests
-    // --------------------------------------------------------
     suite("Associativity Law")(
       test("(m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3) - structure") {
         // Create three simple migrations
@@ -276,9 +258,6 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         }
       }
     ),
-    // --------------------------------------------------------
-    // Structural Reverse Law Tests
-    // --------------------------------------------------------
     suite("Structural Reverse Law")(
       test("m.reverse.reverse == m - simple addField") {
         val m = MigrationBuilder
@@ -359,9 +338,6 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         )
       }
     ),
-    // --------------------------------------------------------
-    // Semantic Inverse Law Tests
-    // --------------------------------------------------------
     suite("Semantic Inverse Law")(
       test("lossless migration: m(a) = b => m.reverse(b) = a - rename only") {
         check(genCompanyV1) { company =>
@@ -478,9 +454,6 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         }
       }
     ),
-    // --------------------------------------------------------
-    // Error Path Tracking Tests
-    // --------------------------------------------------------
     suite("Error Path Tracking")(
       test("error includes path for missing field") {
         val record = DynamicValue.Record(
@@ -591,9 +564,6 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         )
       }
     ),
-    // --------------------------------------------------------
-    // Semantic Inverse Failures (Lossy Transformations)
-    // --------------------------------------------------------
     suite("Semantic Inverse Failures - Lossy Transformations")(
       test("split/join loses information - cannot recover exact split") {
         val original = DynamicValue.Record(
@@ -919,9 +889,6 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         }
       }
     ),
-    // --------------------------------------------------------
-    // Additional Law Properties
-    // --------------------------------------------------------
     suite("Additional Properties")(
       test("identity is left identity for composition") {
         check(genPersonV1) { person =>
