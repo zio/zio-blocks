@@ -244,3 +244,10 @@ private def atPathImpl[A: Type, B: Type, F: Type](
     new MigrationBuilderAtPath($builder, $path)
   }
 }
+
+/**
+ * Compatibility object for Scala 2/3 cross-compilation.
+ * In Scala 2, this object contains the implicit class.
+ * In Scala 3, this object is empty but allows `import MigrationBuilderSyntax._` to work.
+ */
+object MigrationBuilderSyntax

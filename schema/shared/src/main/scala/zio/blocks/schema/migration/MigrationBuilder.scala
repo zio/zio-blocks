@@ -45,9 +45,11 @@ final class MigrationBuilder[A, B](
   }
 
   /**
-   * Add a field with a DynamicValue default.
+   * Add a field with a DynamicValue default (string-based API).
+   *
+   * Note: Prefer using the selector-based API: addField(_.fieldName, default)
    */
-  def addField(fieldName: String, default: DynamicValue): MigrationBuilder[A, B] = {
+  def addFieldByName(fieldName: String, default: DynamicValue): MigrationBuilder[A, B] = {
     val action = MigrationAction.AddField(
       DynamicOptic.root,
       fieldName,
@@ -57,9 +59,11 @@ final class MigrationBuilder[A, B](
   }
 
   /**
-   * Drop a field from the source schema.
+   * Drop a field from the source schema (string-based API).
+   *
+   * Note: Prefer using the selector-based API: dropField(_.fieldName)
    */
-  def dropField(fieldName: String): MigrationBuilder[A, B] = {
+  def dropFieldByName(fieldName: String): MigrationBuilder[A, B] = {
     val action = MigrationAction.DropField(
       DynamicOptic.root,
       fieldName,
@@ -69,9 +73,9 @@ final class MigrationBuilder[A, B](
   }
 
   /**
-   * Drop a field with a default value for reverse migration.
+   * Drop a field with a default value for reverse migration (string-based API).
    */
-  def dropFieldWithDefault(fieldName: String, defaultValue: String): MigrationBuilder[A, B] = {
+  def dropFieldByNameWithDefault(fieldName: String, defaultValue: String): MigrationBuilder[A, B] = {
     val action = MigrationAction.DropField(
       DynamicOptic.root,
       fieldName,
@@ -81,12 +85,12 @@ final class MigrationBuilder[A, B](
   }
 
   /**
-   * Rename a field.
+   * Rename a field (string-based API).
    *
-   * Note: In the full implementation, this will use macros to extract field
-   * names from selector functions like: .renameField(_.name, _.fullName)
+   * Note: Prefer using the selector-based API: renameField(_.oldName,
+   * _.newName)
    */
-  def renameField(from: String, to: String): MigrationBuilder[A, B] = {
+  def renameFieldByName(from: String, to: String): MigrationBuilder[A, B] = {
     val action = MigrationAction.Rename(
       DynamicOptic.root,
       from,
@@ -96,9 +100,9 @@ final class MigrationBuilder[A, B](
   }
 
   /**
-   * Make an optional field mandatory.
+   * Make an optional field mandatory (string-based API).
    */
-  def mandateFieldWithDefault(fieldName: String, defaultValue: String): MigrationBuilder[A, B] = {
+  def mandateFieldByNameWithDefault(fieldName: String, defaultValue: String): MigrationBuilder[A, B] = {
     val action = MigrationAction.Mandate(
       DynamicOptic.root,
       fieldName,
@@ -108,9 +112,11 @@ final class MigrationBuilder[A, B](
   }
 
   /**
-   * Make a mandatory field optional.
+   * Make a mandatory field optional (string-based API).
+   *
+   * Note: Prefer using the selector-based API: optionalizeField(_.fieldName)
    */
-  def optionalizeField(fieldName: String): MigrationBuilder[A, B] = {
+  def optionalizeFieldByName(fieldName: String): MigrationBuilder[A, B] = {
     val action = MigrationAction.Optionalize(
       DynamicOptic.root,
       fieldName

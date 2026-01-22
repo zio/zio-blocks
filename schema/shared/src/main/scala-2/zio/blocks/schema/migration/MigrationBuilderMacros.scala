@@ -303,7 +303,7 @@ object MigrationBuilderMacros {
 object MigrationBuilderSyntax {
   import scala.language.experimental.macros
 
-  implicit class MigrationBuilderOps[A, B](private val builder: MigrationBuilder[A, B]) extends AnyVal {
+  implicit class MigrationBuilderOps[A, B](val builder: MigrationBuilder[A, B]) extends AnyVal {
 
     /**
      * Build the migration with full validation.
@@ -317,5 +317,257 @@ object MigrationBuilderSyntax {
      *   - All target fields are either produced by migration or exist in source
      */
     def build: Migration[A, B] = macro MigrationBuilderMacros.buildWithValidation[A, B]
+
+    /**
+     * Add a field using a selector and string default value.
+     *
+     * Example: builder.addField(_.country, "USA")
+     */
+    def addField[F](selector: B => F, defaultValue: String): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.addFieldStringImpl[A, B, F]
+
+    /**
+     * Add a field using a selector and int default value.
+     *
+     * Example: builder.addField(_.age, 0)
+     */
+    def addField[F](selector: B => F, defaultValue: Int): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.addFieldIntImpl[A, B, F]
+
+    /**
+     * Add a field using a selector and boolean default value.
+     *
+     * Example: builder.addField(_.active, true)
+     */
+    def addField[F](selector: B => F, defaultValue: Boolean): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.addFieldBoolImpl[A, B, F]
+
+    /**
+     * Drop a field using a selector.
+     *
+     * Example: builder.dropField(_.oldField)
+     */
+    def dropField[F](selector: A => F): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.dropFieldImpl[A, B, F]
+
+    /**
+     * Rename a field using two selectors.
+     *
+     * Example: builder.renameField(_.name, _.fullName)
+     */
+    def renameField[F1, F2](from: A => F1, to: B => F2): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.renameFieldImpl[A, B, F1, F2]
+
+    /**
+     * Make an optional field mandatory with a default value.
+     *
+     * Example: builder.mandateField(_.email, "default@example.com")
+     */
+    def mandateField[F](selector: A => F, defaultValue: String): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.mandateFieldImpl[A, B, F]
+
+    /**
+     * Make a mandatory field optional.
+     *
+     * Example: builder.optionalizeField(_.middleName)
+     */
+    def optionalizeField[F](selector: A => F): MigrationBuilder[A, B] =
+      macro MigrationBuilderSelectorMacros.optionalizeFieldImpl[A, B, F]
+  }
+}
+
+/**
+ * Macro implementations for Scala 2 selector-based API.
+ */
+object MigrationBuilderSelectorMacros {
+
+  def addFieldStringImpl[A, B, F](c: whitebox.Context)(
+    selector: c.Expr[B => F],
+    defaultValue: c.Expr[String]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    import c.universe._
+
+    val fieldName = extractFieldName(c)(selector.tree)
+    // In a value class, c.prefix.tree gives us the wrapper (MigrationBuilderOps)
+    // We need to access the .builder field to get the underlying MigrationBuilder
+    val builderTree = q"${c.prefix.tree}.builder"
+
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val b = $builderTree
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.AddField(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName,
+        _root_.zio.blocks.schema.migration.SchemaExpr.literalString($defaultValue)
+      )
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        b.sourceSchema,
+        b.targetSchema,
+        b.actions :+ action
+      )
+    """)
+  }
+
+  def addFieldIntImpl[A, B, F](c: whitebox.Context)(
+    selector: c.Expr[B => F],
+    defaultValue: c.Expr[Int]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    import c.universe._
+
+    val fieldName = extractFieldName(c)(selector.tree)
+    val builderTree = q"${c.prefix.tree}.builder"
+
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val b = $builderTree
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.AddField(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName,
+        _root_.zio.blocks.schema.migration.SchemaExpr.literalInt($defaultValue)
+      )
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        b.sourceSchema,
+        b.targetSchema,
+        b.actions :+ action
+      )
+    """)
+  }
+
+  def addFieldBoolImpl[A, B, F](c: whitebox.Context)(
+    selector: c.Expr[B => F],
+    defaultValue: c.Expr[Boolean]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    import c.universe._
+
+    val fieldName = extractFieldName(c)(selector.tree)
+    val builderTree = q"${c.prefix.tree}.builder"
+
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val b = $builderTree
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.AddField(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName,
+        _root_.zio.blocks.schema.migration.SchemaExpr.literalBool($defaultValue)
+      )
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        b.sourceSchema,
+        b.targetSchema,
+        b.actions :+ action
+      )
+    """)
+  }
+
+  def dropFieldImpl[A, B, F](c: whitebox.Context)(
+    selector: c.Expr[A => F]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    import c.universe._
+
+    val fieldName = extractFieldName(c)(selector.tree)
+    val builderTree = q"${c.prefix.tree}.builder"
+
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val b = $builderTree
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.DropField(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName,
+        _root_.scala.None
+      )
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        b.sourceSchema,
+        b.targetSchema,
+        b.actions :+ action
+      )
+    """)
+  }
+
+  def renameFieldImpl[A, B, F1, F2](c: whitebox.Context)(
+    from: c.Expr[A => F1],
+    to: c.Expr[B => F2]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    import c.universe._
+
+    val fromName = extractFieldName(c)(from.tree)
+    val toName   = extractFieldName(c)(to.tree)
+    val builderTree = q"${c.prefix.tree}.builder"
+
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val b = $builderTree
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.Rename(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fromName,
+        $toName
+      )
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        b.sourceSchema,
+        b.targetSchema,
+        b.actions :+ action
+      )
+    """)
+  }
+
+  def mandateFieldImpl[A, B, F](c: whitebox.Context)(
+    selector: c.Expr[A => F],
+    defaultValue: c.Expr[String]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    import c.universe._
+
+    val fieldName = extractFieldName(c)(selector.tree)
+    val builderTree = q"${c.prefix.tree}.builder"
+
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val b = $builderTree
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.Mandate(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName,
+        _root_.zio.blocks.schema.migration.SchemaExpr.literalString($defaultValue)
+      )
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        b.sourceSchema,
+        b.targetSchema,
+        b.actions :+ action
+      )
+    """)
+  }
+
+  def optionalizeFieldImpl[A, B, F](c: whitebox.Context)(
+    selector: c.Expr[A => F]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    import c.universe._
+
+    val fieldName = extractFieldName(c)(selector.tree)
+    val builderTree = q"${c.prefix.tree}.builder"
+
+    c.Expr[MigrationBuilder[A, B]](q"""
+      val b = $builderTree
+      val action = _root_.zio.blocks.schema.migration.MigrationAction.Optionalize(
+        _root_.zio.blocks.schema.DynamicOptic.root,
+        $fieldName
+      )
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        b.sourceSchema,
+        b.targetSchema,
+        b.actions :+ action
+      )
+    """)
+  }
+
+  /**
+   * Extract field name from a selector lambda like _.fieldName
+   * Returns the field name as a string.
+   */
+  private def extractFieldName(c: whitebox.Context)(tree: c.Tree): String = {
+    import c.universe._
+
+    tree match {
+      // Function literal: (x) => x.fieldName
+      case Function(List(ValDef(_, paramName, _, _)), Select(Ident(ident), fieldName))
+          if ident == paramName =>
+        fieldName.toString
+
+      // Eta-expanded: _.fieldName
+      case Select(_, fieldName) =>
+        fieldName.toString
+
+      case _ =>
+        c.abort(c.enclosingPosition, s"Expected a field selector like _.fieldName, got: ${showRaw(tree)}")
+    }
   }
 }
