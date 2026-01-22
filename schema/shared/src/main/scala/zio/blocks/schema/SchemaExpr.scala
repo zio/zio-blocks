@@ -237,14 +237,34 @@ object SchemaExpr {
 
     def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
+        xs <- left.evalDynamic(input)
+        ys <- right.evalDynamic(input)
       } yield {
+        // Extract primitive numeric values from DynamicValue
+        def extractNumeric(dv: DynamicValue): Option[A] = dv match {
+          case DynamicValue.Primitive(p) =>
+            p match {
+              case PrimitiveValue.Byte(v)       => Some(v.asInstanceOf[A])
+              case PrimitiveValue.Short(v)      => Some(v.asInstanceOf[A])
+              case PrimitiveValue.Int(v)        => Some(v.asInstanceOf[A])
+              case PrimitiveValue.Long(v)       => Some(v.asInstanceOf[A])
+              case PrimitiveValue.Float(v)      => Some(v.asInstanceOf[A])
+              case PrimitiveValue.Double(v)     => Some(v.asInstanceOf[A])
+              case PrimitiveValue.BigInt(v)     => Some(v.asInstanceOf[A])
+              case PrimitiveValue.BigDecimal(v) => Some(v.asInstanceOf[A])
+              case _                            => None
+            }
+          case _ => None
+        }
+
+        val xValues = xs.flatMap(extractNumeric)
+        val yValues = ys.flatMap(extractNumeric)
+
         val n = isNumeric.numeric
         operator match {
-          case ArithmeticOperator.Add      => for { x <- xs; y <- ys } yield toDynamicValue(n.plus(x, y))
-          case ArithmeticOperator.Subtract => for { x <- xs; y <- ys } yield toDynamicValue(n.minus(x, y))
-          case ArithmeticOperator.Multiply => for { x <- xs; y <- ys } yield toDynamicValue(n.times(x, y))
+          case ArithmeticOperator.Add      => for { x <- xValues; y <- yValues } yield toDynamicValue(n.plus(x, y))
+          case ArithmeticOperator.Subtract => for { x <- xValues; y <- yValues } yield toDynamicValue(n.minus(x, y))
+          case ArithmeticOperator.Multiply => for { x <- xValues; y <- yValues } yield toDynamicValue(n.times(x, y))
         }
       }
 
@@ -308,5 +328,197 @@ object SchemaExpr {
 
     private[this] def toDynamicValue(value: Int): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Int(value))
+  }
+
+  /**
+   * Evaluates a DynamicOptic on a DynamicValue input. Used for migrations where
+   * typed Optics are not available.
+   */
+  final case class Dynamic[A, B](optic: DynamicOptic) extends SchemaExpr[A, B] {
+    def eval(input: A): Either[OpticCheck, Seq[B]] =
+      evalDynamic(input).map { dynamicValues =>
+        dynamicValues.map {
+          case DynamicValue.Primitive(p) =>
+            (p match {
+              case PrimitiveValue.String(v)  => v
+              case PrimitiveValue.Int(v)     => v
+              case PrimitiveValue.Boolean(v) => v
+              case PrimitiveValue.Short(v)   => v
+              case PrimitiveValue.Long(v)    => v
+              case PrimitiveValue.Float(v)   => v
+              case PrimitiveValue.Double(v)  => v
+              case PrimitiveValue.Char(v)    => v
+              case PrimitiveValue.Byte(v)    => v
+              case _                         => throw new RuntimeException(s"Cannot cast primitive $p to target type")
+            }).asInstanceOf[B]
+          case _ => throw new RuntimeException("Expected primitive value")
+        }
+      }
+
+    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] = {
+      if (!input.isInstanceOf[DynamicValue]) {
+        return Left(
+          new OpticCheck(
+            new ::(
+              new OpticCheck.WrappingError(optic, optic, "Input must be DynamicValue"),
+              Nil
+            )
+          )
+        )
+      }
+      val root = input.asInstanceOf[DynamicValue]
+
+      var current: DynamicValue = root
+      val nodes                 = optic.nodes
+      var i                     = 0
+      while (i < nodes.length) {
+        nodes(i) match {
+          case DynamicOptic.Node.Field(name) =>
+            current match {
+              case DynamicValue.Record(fields) =>
+                fields.find(_._1 == name) match {
+                  case Some((_, v)) => current = v
+                  case None         =>
+                    return Left(
+                      new OpticCheck(
+                        new ::(
+                          new OpticCheck.WrappingError(optic, optic, s"Field $name not found"),
+                          Nil
+                        )
+                      )
+                    )
+                }
+              case _ =>
+                return Left(
+                  new OpticCheck(
+                    new ::(
+                      new OpticCheck.WrappingError(optic, optic, "Expected Record"),
+                      Nil
+                    )
+                  )
+                )
+            }
+          case _ =>
+            return Left(
+              new OpticCheck(
+                new ::(
+                  new OpticCheck.WrappingError(optic, optic, "Only Field access supported in Dynamic SchemaExpr"),
+                  Nil
+                )
+              )
+            )
+        }
+        i += 1
+      }
+      Right(Seq(current))
+    }
+  }
+
+  /**
+   * Converts a primitive value from one type to another using a
+   * PrimitiveConverter. Used for type conversions in migrations (String to Int,
+   * Int to Long, etc.)
+   */
+  final case class Convert[A, B](expr: SchemaExpr[A, ?], converter: PrimitiveConverter) extends SchemaExpr[A, B] {
+    def eval(input: A): Either[OpticCheck, Seq[B]] =
+      // eval not supported for Convert - migrations use evalDynamic
+      Left(
+        new OpticCheck(
+          new ::(
+            new OpticCheck.WrappingError(
+              DynamicOptic.root,
+              DynamicOptic.root,
+              "Convert.eval not supported - use evalDynamic for type conversions"
+            ),
+            Nil
+          )
+        )
+      )
+
+    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
+      expr.evalDynamic(input).flatMap { dynamicValues =>
+        val results = dynamicValues.map { dv =>
+          converter.convert(dv) match {
+            case Right(converted) => Right(converted)
+            case Left(err)        =>
+              Left(
+                new OpticCheck(
+                  new ::(new OpticCheck.WrappingError(DynamicOptic.root, DynamicOptic.root, err), Nil)
+                )
+              )
+          }
+        }
+
+        // Check if any conversions failed
+        val errors = results.collect { case Left(err) => err }
+        if (errors.nonEmpty) {
+          Left(errors.head)
+        } else {
+          Right(results.collect { case Right(v) => v })
+        }
+      }
+  }
+
+  /**
+   * Splits a string by a delimiter, returning a sequence of string parts. Used
+   * for migrations that split a single field into multiple fields.
+   *
+   * Example: "John Doe".split(" ") => ["John", "Doe"]
+   */
+  final case class StringSplit[A](string: SchemaExpr[A, String], delimiter: String) extends SchemaExpr[A, String] {
+    def eval(input: A): Either[OpticCheck, Seq[String]] =
+      for {
+        xs <- string.eval(input)
+      } yield xs.flatMap(_.split(delimiter, -1)) // -1 means keep trailing empty strings
+
+    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
+      for {
+        xs <- string.eval(input)
+      } yield xs.flatMap(_.split(delimiter, -1)).map(toDynamicValue)
+
+    private[this] def toDynamicValue(value: String): DynamicValue =
+      new DynamicValue.Primitive(new PrimitiveValue.String(value))
+  }
+
+  /**
+   * Converts a string to uppercase. Used for collection transformations in
+   * migrations.
+   *
+   * Example: "hello" => "HELLO"
+   */
+  final case class StringUppercase[A](string: SchemaExpr[A, String]) extends SchemaExpr[A, String] {
+    def eval(input: A): Either[OpticCheck, Seq[String]] =
+      for {
+        xs <- string.eval(input)
+      } yield xs.map(_.toUpperCase)
+
+    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
+      for {
+        xs <- string.eval(input)
+      } yield xs.map(s => toDynamicValue(s.toUpperCase))
+
+    private[this] def toDynamicValue(value: String): DynamicValue =
+      new DynamicValue.Primitive(new PrimitiveValue.String(value))
+  }
+
+  /**
+   * Converts a string to lowercase. Used for collection transformations in
+   * migrations.
+   *
+   * Example: "HELLO" => "hello"
+   */
+  final case class StringLowercase[A](string: SchemaExpr[A, String]) extends SchemaExpr[A, String] {
+    def eval(input: A): Either[OpticCheck, Seq[String]] =
+      for {
+        xs <- string.eval(input)
+      } yield xs.map(_.toLowerCase)
+
+    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
+      for {
+        xs <- string.eval(input)
+      } yield xs.map(s => toDynamicValue(s.toLowerCase))
+
+    private[this] def toDynamicValue(value: String): DynamicValue =
+      new DynamicValue.Primitive(new PrimitiveValue.String(value))
   }
 }
