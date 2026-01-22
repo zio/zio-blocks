@@ -216,8 +216,8 @@ final class MigrationBuilderSyntax[A, B](val builder: MigrationBuilder[A, B]) ex
    */
   def transformCase(
     at: A => Any
-  )(nestedActions: MigrationBuilder[A, A] => MigrationBuilder[A, A]): MigrationBuilder[A, B] =
-    macro MigrationBuilderMacrosImpl.transformCaseImpl[A, B]
+  )(nestedActions: MigrationBuilder[A, A] => MigrationBuilder[A, A]): MigrationBuilder[A, B] = macro
+    MigrationBuilderMacrosImpl.transformCaseImpl[A, B]
 }
 
 object MigrationBuilderSyntax {
@@ -443,8 +443,8 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
     val (atOptic, caseName) = MigrationBuilderMacros.extractCaseSelector[A, Any](c)(at)
     c.universe.reify {
-      val sourceSchema = builder.splice.sourceSchema
-      val emptyBuilder = MigrationBuilder(sourceSchema, sourceSchema, Vector.empty)
+      val sourceSchema       = builder.splice.sourceSchema
+      val emptyBuilder       = MigrationBuilder(sourceSchema, sourceSchema, Vector.empty)
       val transformedBuilder = nestedActions.splice.apply(emptyBuilder)
       builder.splice.transformCase(atOptic.splice, caseName.splice, transformedBuilder.actions)
     }
