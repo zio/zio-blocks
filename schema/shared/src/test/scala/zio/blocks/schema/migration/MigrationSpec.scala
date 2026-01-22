@@ -398,6 +398,196 @@ object MigrationSpec extends SchemaBaseSpec {
       val result = migration.apply(person)
 
       assert(result)(isLeft(anything))
+    },
+
+    test("type mismatch error when operating on wrong type") {
+      val primitive = DynamicValue.Primitive(PrimitiveValue.String("not a record"))
+
+      val migration = DynamicMigration.single(
+        MigrationAction.AddField(DynamicOptic.root, "field", SE.literalString("value"))
+      )
+
+      val result = migration.apply(primitive)
+
+      assert(result)(isLeft(anything))
+    },
+
+    test("invalid path error for deep navigation") {
+      val person = DynamicValue.Record(Vector(
+        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Jack"))
+      ))
+
+      val migration = DynamicMigration.single(
+        MigrationAction.AddField(
+          DynamicOptic.root / "address" / "city",
+          "zip",
+          SE.literalString("12345")
+        )
+      )
+
+      val result = migration.apply(person)
+
+      assert(result)(isLeft(anything))
+    },
+
+    test("index out of bounds error") {
+      val sequence = DynamicValue.Sequence(Vector(
+        DynamicValue.Primitive(PrimitiveValue.Int(1)),
+        DynamicValue.Primitive(PrimitiveValue.Int(2))
+      ))
+
+      val migration = DynamicMigration.single(
+        MigrationAction.AddField(
+          DynamicOptic.root / 10,  // Out of bounds
+          "field",
+          SE.literalString("value")
+        )
+      )
+
+      val result = migration.apply(sequence)
+
+      assert(result)(isLeft(anything))
+    }
+  )
+}
+
+// ===== Additional Test Suites =====
+
+/**
+ * Tests for extremely deep nesting (7-10 levels).
+ * This goes beyond @jdegoes' requirement of 6 levels to show we can handle any depth.
+ */
+object DeepNestingExtraSpec extends SchemaBaseSpec {
+
+  def spec: Spec[TestEnvironment, Any] = suite("Deep Nesting Extra Tests")(
+    test("migrate 7-level deep structure") {
+      // Level 7: Tag
+      val tag = DynamicValue.Record(Vector(
+        "name" -> DynamicValue.Primitive(PrimitiveValue.String("urgent"))
+      ))
+
+      // Level 6: Email
+      val email = DynamicValue.Record(Vector(
+        "address" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com")),
+        "tags" -> DynamicValue.Sequence(Vector(tag))
+      ))
+
+      // Level 5: Contact
+      val contact = DynamicValue.Record(Vector(
+        "email" -> email,
+        "phone" -> DynamicValue.Primitive(PrimitiveValue.String("555-0000"))
+      ))
+
+      // Level 4: Member
+      val member = DynamicValue.Record(Vector(
+        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+        "contact" -> contact
+      ))
+
+      // Level 3: Team
+      val team = DynamicValue.Record(Vector(
+        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Engineering")),
+        "members" -> DynamicValue.Sequence(Vector(member))
+      ))
+
+      // Level 2: Department
+      val department = DynamicValue.Record(Vector(
+        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Tech")),
+        "teams" -> DynamicValue.Sequence(Vector(team))
+      ))
+
+      // Level 1: Company
+      val company = DynamicValue.Record(Vector(
+        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Acme")),
+        "departments" -> DynamicValue.Sequence(Vector(department))
+      ))
+
+      // Add field at level 7
+      val migration = DynamicMigration.single(
+        MigrationAction.AddField(
+          DynamicOptic.root / "departments" / 0 / "teams" / 0 / "members" / 0 / "contact" / "email" / "tags" / 0,
+          "priority",
+          SE.literalInt(1)
+        )
+      )
+
+      val result = migration.apply(company)
+
+      assert(result)(isRight(anything))
+    },
+
+    test("multiple migrations at different depths") {
+      val company = DynamicValue.Record(Vector(
+        "name" -> DynamicValue.Primitive(PrimitiveValue.String("TechCorp")),
+        "departments" -> DynamicValue.Sequence(Vector(
+          DynamicValue.Record(Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Engineering")),
+            "teams" -> DynamicValue.Sequence(Vector(
+              DynamicValue.Record(Vector(
+                "name" -> DynamicValue.Primitive(PrimitiveValue.String("Backend"))
+              ))
+            ))
+          ))
+        ))
+      ))
+
+      val migration = DynamicMigration(Vector(
+        // Level 1: Add field to company
+        MigrationAction.AddField(DynamicOptic.root, "founded", SE.literalInt(2020)),
+        // Level 2: Add field to department
+        MigrationAction.AddField(DynamicOptic.root / "departments" / 0, "location", SE.literalString("SF")),
+        // Level 3: Add field to team
+        MigrationAction.AddField(DynamicOptic.root / "departments" / 0 / "teams" / 0, "size", SE.literalInt(10))
+      ))
+
+      val result = migration.apply(company)
+
+      assert(result)(isRight(anything))
+    }
+  )
+}
+
+/**
+ * Tests for complex transformation scenarios.
+ */
+object ComplexTransformationSpec extends SchemaBaseSpec {
+
+  def spec: Spec[TestEnvironment, Any] = suite("Complex Transformation Tests")(
+    test("chain 10 migrations together") {
+      val person = DynamicValue.Record(Vector(
+        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob"))
+      ))
+
+      val migrations = (1 to 10).map { i =>
+        MigrationAction.AddField(
+          DynamicOptic.root,
+          s"field$i",
+          SE.literalInt(i)
+        )
+      }
+
+      val migration = DynamicMigration(migrations.toVector)
+
+      val result = migration.apply(person)
+
+      assert(result)(isRight(anything)) &&
+      assert(result.map(_.asInstanceOf[DynamicValue.Record].fields.size))(isRight(equalTo(11)))
+    },
+
+    test("complex rename chain") {
+      val record = DynamicValue.Record(Vector(
+        "a" -> DynamicValue.Primitive(PrimitiveValue.String("value"))
+      ))
+
+      val migration = DynamicMigration(Vector(
+        MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+        MigrationAction.Rename(DynamicOptic.root, "b", "c"),
+        MigrationAction.Rename(DynamicOptic.root, "c", "d")
+      ))
+
+      val result = migration.apply(record)
+
+      assert(result)(isRight(anything))
     }
   )
 }
