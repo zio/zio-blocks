@@ -12,10 +12,11 @@ import scala.annotation.tailrec
  */
 object JsonInterpolatorRuntime {
   def jsonWithInterpolation(sc: StringContext, args: Seq[Any]): Json = {
-    val out    = new ByteArrayOutputStream
     val parts  = sc.parts.iterator
     val argsIt = args.iterator
-    out.write(parts.next())
+    val str    = parts.next()
+    val out    = new ByteArrayOutputStream(str.length << 1)
+    out.write(str)
     while (argsIt.hasNext) {
       writeValue(out, argsIt.next())
       out.write(parts.next())
@@ -187,8 +188,8 @@ object JsonInterpolatorRuntime {
   }
 }
 
-private class ByteArrayOutputStream extends OutputStream {
-  private[this] var buf   = new Array[Byte](64)
+private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
+  private[this] var buf   = new Array[Byte](initCapacity)
   private[this] var count = 0
 
   override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {

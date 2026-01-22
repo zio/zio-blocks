@@ -1,15 +1,16 @@
-package zio.blocks.schema.json
+package zio.blocks.schema
 
+import zio.blocks.schema.json._
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
-object JsonInterpolator {
+package object json {
   implicit class JsonStringContext(val sc: StringContext) extends AnyVal {
     def json(args: Any*): Json = macro JsonInterpolatorMacros.jsonImpl
   }
 }
 
-object JsonInterpolatorMacros {
+private object JsonInterpolatorMacros {
   def jsonImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Json] = {
     import c.universe._
 

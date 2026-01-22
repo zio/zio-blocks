@@ -1,8 +1,9 @@
-package zio.blocks.schema.json
+package zio.blocks.schema
 
+import zio.blocks.schema.json._
 import scala.quoted._
 
-object JsonInterpolator {
+package object json {
   extension (inline sc: StringContext) {
     inline def json(inline args: Any*): Json = ${ jsonInterpolatorImpl('sc, 'args) }
   }
