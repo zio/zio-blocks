@@ -259,6 +259,9 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
     else Left(JsonError(s"Number $n is not a valid Long"))
   }
 
+  /** Extracts a single float value. */
+  def float: Either[JsonError, Float] = number.map(_.toFloat)
+
   /** Extracts a single double value. */
   def double: Either[JsonError, Double] = number.map(_.toDouble)
 

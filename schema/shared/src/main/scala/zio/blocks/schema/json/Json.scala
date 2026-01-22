@@ -2,10 +2,10 @@ package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
-
 import java.io.{Reader, Writer}
 import java.nio.ByteBuffer
 import scala.collection.immutable.VectorBuilder
+import scala.util.control.NonFatal
 
 /**
  * A sealed trait representing a JSON value.
@@ -615,6 +615,12 @@ object Json {
     }
   }
 
+  object Boolean {
+    def apply(value: scala.Boolean): Boolean =
+      if (value) Json.True
+      else Json.False
+  }
+
   /**
    * Represents JSON null.
    */
@@ -651,6 +657,9 @@ object Json {
   /** Creates a JSON number from a Long. */
   def number(value: Long): Number = Number(value.toString)
 
+  /** Creates a JSON number from a Float. */
+  def number(value: Float): Number = Number(value.toString)
+
   /** Creates a JSON number from a Double. */
   def number(value: Double): Number = Number(value.toString)
 
@@ -658,10 +667,10 @@ object Json {
   def bool(value: scala.Boolean): Boolean = Boolean(value)
 
   /** The JSON true value. */
-  val True: Boolean = Boolean(true)
+  val True: Boolean = new Boolean(true)
 
   /** The JSON false value. */
-  val False: Boolean = Boolean(false)
+  val False: Boolean = new Boolean(false)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Parsing
@@ -1468,7 +1477,7 @@ object Json {
 
   /**
    * Modifies the value at the given path, returning Some(modified) or None if
-   * path doesn't exist.
+   * the path doesn't exist.
    */
   private[json] def modifyAtPath(json: Json, path: DynamicOptic, f: Json => Json): Option[Json] = {
     val nodes = path.nodes
@@ -1601,7 +1610,8 @@ object Json {
 
   /**
    * Modifies the value at the given path using a partial function. Returns Left
-   * with error if path doesn't exist or partial function is not defined.
+   * with error if the path doesn't exist or the partial function is not
+   * defined.
    */
   private[json] def modifyAtPathOrFail(
     json: Json,
@@ -1684,7 +1694,7 @@ object Json {
           }
 
         case _ =>
-          // For other node types, delegate to non-failing version and wrap result
+          // For other node types, delegate to a non-failing version and wrap the result
           modifyAtPath(json, new DynamicOptic(nodes.drop(idx)), pf.lift.andThen(_.getOrElse(json))) match {
             case Some(result) => Right(result)
             case None         => Left(JsonError(s"Path not found: ${new DynamicOptic(nodes).toString}"))
@@ -1694,7 +1704,7 @@ object Json {
 
   /**
    * Deletes the value at the given path, returning Some(modified) or None if
-   * path doesn't exist.
+   * the path doesn't exist.
    */
   private[json] def deleteAtPath(json: Json, path: DynamicOptic): Option[Json] = {
     val nodes = path.nodes
@@ -1780,15 +1790,15 @@ object Json {
   }
 
   /**
-   * Deletes the value at the given path, returning Left with error if path
+   * Deletes the value at the given path, returning Left with error if the path
    * doesn't exist.
    */
   private[json] def deleteAtPathOrFail(json: Json, path: DynamicOptic): Either[JsonError, Json] =
     deleteAtPath(json, path).toRight(JsonError(s"Path not found: ${path.toString}"))
 
   /**
-   * Inserts a value at the given path, returning Some(modified) or None if path
-   * already exists.
+   * Inserts a value at the given path, returning Some(modified) or None if the
+   * path already exists.
    */
   private[json] def insertAtPath(json: Json, path: DynamicOptic, value: Json): Option[Json] = {
     val nodes = path.nodes
@@ -1858,8 +1868,8 @@ object Json {
   }
 
   /**
-   * Inserts a value at the given path, returning Left with error if path
-   * already exists or parent doesn't exist.
+   * Inserts a value at the given path, returning Left with error if the path
+   * already exists or the parent doesn't exist.
    */
   private[json] def insertAtPathOrFail(json: Json, path: DynamicOptic, value: Json): Either[JsonError, Json] = {
     val nodes = path.nodes
@@ -1940,35 +1950,52 @@ object Json {
       val b = in.nextToken()
       if (b == '"') {
         in.rollbackToken()
-        String(in.readString(null))
+        new String(in.readString(null))
       } else if (b == 'f' || b == 't') {
         in.rollbackToken()
-        Boolean(in.readBoolean())
+        Boolean.apply(in.readBoolean())
       } else if (b >= '0' && b <= '9' || b == '-') {
         in.rollbackToken()
-        Number(in.readBigDecimal(null).toString)
+        in.setMark()
+        val _ = in.readBigDecimal(null)
+        in.rollbackToMark()
+        val v = in.readRawValAsBytes()
+        new Number(new java.lang.String(v, 0, v.length))
       } else if (b == '[') {
         if (in.isNextToken(']')) Array.empty
         else {
           in.rollbackToken()
           val builder = new VectorBuilder[Json]
-          while ({
-            builder.addOne(decodeValue(in, default))
-            in.isNextToken(',')
-          }) ()
-          if (in.isCurrentToken(']')) Array(builder.result())
+          var idx     = 0
+          try {
+            while ({
+              builder.addOne(decodeValue(in, default))
+              idx += 1
+              in.isNextToken(',')
+            }) ()
+          } catch {
+            case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+          }
+          if (in.isCurrentToken(']')) new Array(builder.result())
           else in.arrayEndOrCommaError()
         }
       } else if (b == '{') {
         if (in.isNextToken('}')) Object.empty
         else {
           in.rollbackToken()
-          val builder = ChunkBuilder.make[(scala.Predef.String, Json)]()
-          while ({
-            builder.addOne((in.readKeyAsString(), decodeValue(in, default)))
-            in.isNextToken(',')
-          }) ()
-          if (in.isCurrentToken('}')) Object(builder.result())
+          val builder               = ChunkBuilder.make[(scala.Predef.String, Json)]()
+          var key: java.lang.String = null
+          try {
+            while ({
+              key = in.readKeyAsString()
+              builder.addOne((key, decodeValue(in, default)))
+              key = null
+              in.isNextToken(',')
+            }) ()
+          } catch {
+            case error if NonFatal(error) && (key ne null) => in.decodeError(new DynamicOptic.Node.Field(key), error)
+          }
+          if (in.isCurrentToken('}')) new Object(builder.result())
           else in.objectEndOrCommaError()
         }
       } else {
@@ -1978,10 +2005,9 @@ object Json {
     }
 
     override def encodeValue(x: Json, out: JsonWriter): Unit = x match {
-      case Null       => out.writeNull()
-      case Boolean(v) => out.writeVal(v)
-      case Number(v)  => out.writeVal(BigDecimal(v))
       case String(v)  => out.writeVal(v)
+      case Boolean(v) => out.writeVal(v)
+      case Number(v)  => out.writeRawVal(v.getBytes)
       case Array(v)   =>
         out.writeArrayStart()
         val it = v.iterator
@@ -1998,6 +2024,7 @@ object Json {
           encodeValue(kv._2, out)
         }
         out.writeObjectEnd()
+      case _ => out.writeNull()
     }
 
     override def nullValue: Json = Null
