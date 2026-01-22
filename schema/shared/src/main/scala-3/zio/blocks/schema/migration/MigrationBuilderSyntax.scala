@@ -4,22 +4,13 @@ import scala.language.implicitConversions
 import zio.blocks.schema._
 
 /**
- * Scala 3 macro-based selector syntax for MigrationBuilder.
- *
- * Provides ergonomic methods that accept selector functions like `_.field`
- * instead of manually constructing DynamicOptic instances.
+ * Selector syntax for MigrationBuilder. Methods that accept selector functions
+ * like `_.field` instead of manually constructing DynamicOptic instances.
  */
 extension [A, B](builder: MigrationBuilder[A, B]) {
 
-  // ===== Record Operations with Selectors =====
-
   /**
    * Adds a field to a record with a default value using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.addField(_.age, SchemaExpr.Literal(0, Schema.int))
-   * }}}
    */
   transparent inline def addField(
     inline target: B => Any,
@@ -29,11 +20,6 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
 
   /**
    * Removes a field from a record using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.dropField(_.age, SchemaExpr.Literal(0, Schema.int))
-   * }}}
    */
   transparent inline def dropField(
     inline source: A => Any,
@@ -43,11 +29,6 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
 
   /**
    * Renames a field in a record using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.renameField(_.firstName, _.fullName)
-   * }}}
    */
   transparent inline def renameField(
     inline from: A => Any,
@@ -57,11 +38,6 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
 
   /**
    * Applies a transformation expression to a field value using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.transformField(_.age, SchemaExpr.Arithmetic(...))
-   * }}}
    */
   transparent inline def transformField(
     inline at: A => Any,
@@ -72,11 +48,6 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
   /**
    * Unwraps an Option field using selector syntax, using default for None
    * values.
-   *
-   * Example:
-   * {{{
-   * builder.mandateField(_.name, SchemaExpr.Literal("Unknown", Schema.string))
-   * }}}
    */
   transparent inline def mandateField(
     inline at: A => Any,
@@ -86,11 +57,6 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
 
   /**
    * Wraps a field value in Option (as Some) using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.optionalizeField(_.name)
-   * }}}
    */
   transparent inline def optionalizeField(
     inline at: A => Any,
@@ -100,11 +66,6 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
 
   /**
    * Converts a field from one primitive type to another using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.changeFieldType(_.age, PrimitiveConverter.StringToInt)
-   * }}}
    */
   transparent inline def changeFieldType(
     inline at: A => Any,
@@ -112,20 +73,9 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
   ): MigrationBuilder[A, B] =
     ${ MigrationBuilderMacrosImpl.changeFieldTypeImpl[A, B]('builder, 'at, 'converter) }
 
-  // ===== Multi-Field Operations with Selectors =====
-
   /**
    * Joins multiple source fields into a single target field using selector
    * syntax.
-   *
-   * Example:
-   * {{{
-   * builder.joinFields(
-   *   _.fullName,
-   *   Vector(_.firstName, _.lastName),
-   *   SchemaExpr.StringConcat(...)
-   * )
-   * }}}
    */
   transparent inline def joinFields(
     inline target: B => Any,
@@ -137,15 +87,6 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
   /**
    * Splits a single source field into multiple target fields using selector
    * syntax.
-   *
-   * Example:
-   * {{{
-   * builder.splitField(
-   *   _.fullName,
-   *   Vector(_.firstName, _.lastName),
-   *   SchemaExpr.StringSplit(...)
-   * )
-   * }}}
    */
   transparent inline def splitField(
     inline source: A => Any,
@@ -154,16 +95,9 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
   ): MigrationBuilder[A, B] =
     ${ MigrationBuilderMacrosImpl.splitFieldImpl[A, B]('builder, 'source, 'targetPaths, 'splitter) }
 
-  // ===== Collection Operations with Selectors =====
-
   /**
    * Applies a transformation to all elements in a sequence using selector
    * syntax.
-   *
-   * Example:
-   * {{{
-   * builder.transformElements(_.items, SchemaExpr.Arithmetic(...))
-   * }}}
    */
   transparent inline def transformElements(
     inline at: A => Any,
@@ -173,11 +107,6 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
 
   /**
    * Applies a transformation to all keys in a map using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.transformKeys(_.data, SchemaExpr.StringUppercase(...))
-   * }}}
    */
   transparent inline def transformKeys(
     inline at: A => Any,
@@ -187,11 +116,6 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
 
   /**
    * Applies a transformation to all values in a map using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.transformValues(_.data, SchemaExpr.Arithmetic(...))
-   * }}}
    */
   transparent inline def transformValues(
     inline at: A => Any,
@@ -199,15 +123,8 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
   ): MigrationBuilder[A, B] =
     ${ MigrationBuilderMacrosImpl.transformValuesImpl[A, B]('builder, 'at, 'transform) }
 
-  // ===== Enum Operations with Selectors =====
-
   /**
    * Renames a variant case using selector syntax.
-   *
-   * Example:
-   * {{{
-   * builder.renameCase(_.when[OldCaseName], "NewCaseName")
-   * }}}
    */
   transparent inline def renameCase(
     inline from: A => Any,
@@ -218,13 +135,6 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
   /**
    * Applies nested migration actions to a specific variant case using selector
    * syntax.
-   *
-   * Example:
-   * {{{
-   * builder.transformCase(_.when[CreditCard])(
-   *   _.renameField(_.cardNumber, _.number)
-   * )
-   * }}}
    */
   transparent inline def transformCase(
     inline at: A => Any
@@ -232,16 +142,7 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
     ${ MigrationBuilderMacrosImpl.transformCaseImpl[A, B]('builder, 'at, 'nestedActions) }
 }
 
-/**
- * Companion object for Scala 2/3 compatibility. In Scala 3, extensions are
- * automatically available. This object exists only to allow
- * `import MigrationBuilderSyntax._` in shared code.
- */
-object MigrationBuilderSyntax
-
-/**
- * Macro implementations for Scala 3 selector syntax.
- */
+// Macro implementations for Scala 3 selector syntax.
 private[migration] object MigrationBuilderMacrosImpl {
   import scala.quoted.*
 

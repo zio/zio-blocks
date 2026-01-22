@@ -3,20 +3,7 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 import zio.test._
 
-/**
- * Comprehensive test suite for Phase 9.5: Nested Field Support
- *
- * Tests all 14 migration actions with:
- *   - 2-level nesting (_.address.street)
- *   - 3-level nesting (_.company.address.street)
- *   - Nested fields inside sequences
- *   - Error cases for missing intermediate fields
- */
 object NestedFieldSpec extends ZIOSpecDefault {
-
-  // ============================================================================
-  // Test Data Structures
-  // ============================================================================
 
   // 2-level nesting
   case class Address(street: String, city: String, zip: String)
@@ -73,17 +60,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
   implicit val departmentSchema: Schema[Department]                       = Schema.derived[Department]
   implicit val companyWithDeptSchema: Schema[CompanyWithDept]             = Schema.derived[CompanyWithDept]
 
-  // ============================================================================
-  // Helper: Placeholder Navigation Functions (to be implemented)
-  // ============================================================================
-
-  // TODO: These will be implemented in MigrationAction.scala as NavigationHelpers
-  // For now, tests will fail with "not implemented" errors
-
   def spec = suite("NestedFieldSpec")(
-    // ========================================================================
-    // 1. AddField - Nested
-    // ========================================================================
     suite("AddField - Nested")(
       test("2-level: add field to nested record") {
         // Add _.address.country with default "USA"
@@ -98,8 +75,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(person)
 
-        // Expected: address now has country field
-        assertTrue(result.isRight) // TODO: Will fail until implemented
+        assertTrue(result.isRight)
       },
       test("3-level: add field to deeply nested record") {
         // Add _.company.address.country with default "USA"
@@ -114,7 +90,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(employee)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
+        assertTrue(result.isRight)
       },
       test("error: intermediate field not found") {
         // Try to add _.nonexistent.street
@@ -129,7 +105,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(person)
 
-        assertTrue(result.isLeft) // Should fail with FieldNotFound
+        assertTrue(result.isLeft)
       },
       test("error: intermediate field is not a record") {
         // Try to add _.name.street (name is String, not Record)
@@ -144,13 +120,10 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(person)
 
-        assertTrue(result.isLeft) // Should fail with InvalidStructure
+        assertTrue(result.isLeft)
       }
     ),
 
-    // ========================================================================
-    // 2. DropField - Nested
-    // ========================================================================
     suite("DropField - Nested")(
       test("2-level: drop field from nested record") {
         // Drop _.address.zip - test at DynamicValue level
@@ -205,9 +178,6 @@ object NestedFieldSpec extends ZIOSpecDefault {
       }
     ),
 
-    // ========================================================================
-    // 3. Rename - Nested
-    // ========================================================================
     suite("Rename - Nested")(
       test("2-level: rename nested field") {
         // Rename _.address.street to _.address.streetName - test at DynamicValue level
@@ -266,9 +236,6 @@ object NestedFieldSpec extends ZIOSpecDefault {
       }
     ),
 
-    // ========================================================================
-    // 4. TransformValue - Nested
-    // ========================================================================
     suite("TransformValue - Nested")(
       test("2-level: transform nested field value") {
         // Transform _.address.city to uppercase
@@ -285,8 +252,10 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(person)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
-        // Expected: city should be "NYC"
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get == PersonV2("Alice", 30, Address("123 Main St", "NYC", "10001"))
+        )
       },
       test("3-level: transform deeply nested field") {
         // Transform _.company.address.city to uppercase
@@ -303,13 +272,13 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(employee)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get == EmployeeV2("Bob", Company("Acme Inc", Address("456 Oak Ave", "LA", "90001")))
+        )
       }
     ),
 
-    // ========================================================================
-    // 5. ChangeType - Nested
-    // ========================================================================
     suite("ChangeType - Nested")(
       test("2-level: change type of nested field") {
         // Change _.address.zip from String to Int (if it's numeric)
@@ -339,7 +308,21 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(personDynamic)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
+        val expected = DynamicValue.Record(
+          Vector(
+            "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "age"     -> DynamicValue.Primitive(PrimitiveValue.Int(30)),
+            "address" -> DynamicValue.Record(
+              Vector(
+                "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St")),
+                "city"   -> DynamicValue.Primitive(PrimitiveValue.String("NYC")),
+                "zip"    -> DynamicValue.Primitive(PrimitiveValue.Int(10001))
+              )
+            )
+          )
+        )
+
+        assertTrue(result == Right(expected))
       },
       test("3-level: change type of deeply nested field") {
         val employeeDynamic = DynamicValue.Record(
@@ -371,13 +354,28 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(employeeDynamic)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
+        val expected = DynamicValue.Record(
+          Vector(
+            "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
+            "company" -> DynamicValue.Record(
+              Vector(
+                "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Acme Inc")),
+                "address" -> DynamicValue.Record(
+                  Vector(
+                    "street" -> DynamicValue.Primitive(PrimitiveValue.String("456 Oak Ave")),
+                    "city"   -> DynamicValue.Primitive(PrimitiveValue.String("LA")),
+                    "zip"    -> DynamicValue.Primitive(PrimitiveValue.Int(90001))
+                  )
+                )
+              )
+            )
+          )
+        )
+
+        assertTrue(result == Right(expected))
       }
     ),
 
-    // ========================================================================
-    // 6. Mandate - Nested
-    // ========================================================================
     suite("Mandate - Nested")(
       test("2-level: mandate nested optional field") {
         // Mandate _.address.apartment from Option[String] to String - test at DynamicValue level
@@ -398,7 +396,20 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(personDynamic)
 
-        assertTrue(result.isRight)
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "address")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "apartment")
+            .get
+            ._2 == DynamicValue.Primitive(PrimitiveValue.String("5B"))
+        )
       },
       test("2-level: mandate nested None with default") {
         val person = PersonWithOptAddress(
@@ -418,14 +429,23 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(personDynamic)
 
-        assertTrue(result.isRight)
-        // Expected: apartment should be "N/A"
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "address")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "apartment")
+            .get
+            ._2 == DynamicValue.Primitive(PrimitiveValue.String("N/A"))
+        )
       }
     ),
 
-    // ========================================================================
-    // 7. Optionalize - Nested
-    // ========================================================================
     suite("Optionalize - Nested")(
       test("2-level: optionalize nested field") {
         // Optionalize _.address.zip from String to Option[String] - test at DynamicValue level
@@ -443,7 +463,23 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(personDynamic)
 
-        assertTrue(result.isRight)
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "address")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "zip")
+            .get
+            ._2 == DynamicValue.Variant(
+            "Some",
+            DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.String("10001"))))
+          )
+        )
       },
       test("3-level: optionalize deeply nested field") {
         val employee        = EmployeeV1("Bob", Company("Acme Inc", Address("456 Oak Ave", "LA", "90001")))
@@ -460,13 +496,31 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(employeeDynamic)
 
-        assertTrue(result.isRight)
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "company")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "address")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "zip")
+            .get
+            ._2 == DynamicValue.Variant(
+            "Some",
+            DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.String("90001"))))
+          )
+        )
       }
     ),
 
-    // ========================================================================
-    // 8. Join - Nested
-    // ========================================================================
     suite("Join - Nested")(
       test("2-level: join nested fields") {
         // Join _.address.street + _.address.city -> _.address.fullAddress - test at DynamicValue level
@@ -494,8 +548,20 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(personDynamic)
 
-        assertTrue(result.isRight)
-        // Expected: fullAddress = "123 Main St, NYC"
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "address")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "fullAddress")
+            .get
+            ._2 == DynamicValue.Primitive(PrimitiveValue.String("123 Main St, NYC"))
+        )
       },
       test("3-level: join deeply nested fields") {
         // Join _.company.address.street + _.company.address.city - test at DynamicValue level
@@ -523,13 +589,27 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(employeeDynamic)
 
-        assertTrue(result.isRight)
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "company")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "address")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "fullAddress")
+            .get
+            ._2 == DynamicValue.Primitive(PrimitiveValue.String("456 Oak Ave, LA"))
+        )
       }
     ),
-
-    // ========================================================================
-    // 9. Split - Nested
-    // ========================================================================
     suite("Split - Nested")(
       test("2-level: split nested field") {
         // Split _.address.fullAddress -> _.address.street + _.address.city
@@ -564,7 +644,15 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(personDynamic)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
+        assertTrue(result.isRight) &&
+        assertTrue {
+          val record  = result.toOption.get.asInstanceOf[DynamicValue.Record]
+          val address = record.fields.find(_._1 == "address").get._2.asInstanceOf[DynamicValue.Record]
+          address.fields.find(_._1 == "street").get._2 == DynamicValue.Primitive(
+            PrimitiveValue.String("123 Main St")
+          ) &&
+          address.fields.find(_._1 == "city").get._2 == DynamicValue.Primitive(PrimitiveValue.String("NYC"))
+        }
       },
       test("3-level: split deeply nested field") {
         val employeeDynamic = DynamicValue.Record(
@@ -602,13 +690,18 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(employeeDynamic)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
+        assertTrue(result.isRight) &&
+        assertTrue {
+          val record  = result.toOption.get.asInstanceOf[DynamicValue.Record]
+          val company = record.fields.find(_._1 == "company").get._2.asInstanceOf[DynamicValue.Record]
+          val address = company.fields.find(_._1 == "address").get._2.asInstanceOf[DynamicValue.Record]
+          address.fields.find(_._1 == "street").get._2 == DynamicValue.Primitive(
+            PrimitiveValue.String("456 Oak Ave")
+          ) &&
+          address.fields.find(_._1 == "city").get._2 == DynamicValue.Primitive(PrimitiveValue.String("LA"))
+        }
       }
     ),
-
-    // ========================================================================
-    // 10. TransformElements - Nested (collection with nested records)
-    // ========================================================================
     suite("TransformElements - Nested")(
       test("2-level: transform elements of nested sequence") {
         // Transform _.department.employeeIds elements (multiply by 10)
@@ -632,14 +725,12 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(company)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
-        // Expected: employeeIds should be Vector(1010, 1020, 1030)
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get == CompanyWithDept("Acme Inc", Department("Engineering", Vector(1010, 1020, 1030)))
+        )
       }
     ),
-
-    // ========================================================================
-    // 11. TransformKeys - Nested
-    // ========================================================================
     suite("TransformKeys - Nested")(
       test("2-level: transform keys of nested map") {
         // Transform _.address.metadata keys to uppercase
@@ -660,14 +751,15 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(person)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
-        // Expected: metadata keys should be "FLOOR" and "UNIT"
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get == PersonWithMetadata(
+            "Alice",
+            AddressWithMetadata("123 Main St", "NYC", "10001", Map("FLOOR" -> "5", "UNIT" -> "B"))
+          )
+        )
       }
     ),
-
-    // ========================================================================
-    // 12. TransformValues - Nested
-    // ========================================================================
     suite("TransformValues - Nested")(
       test("2-level: transform values of nested map") {
         // Transform _.address.metadata values to uppercase
@@ -688,14 +780,15 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(person)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
-        // Expected: metadata values should be "FIVE" and "B"
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get == PersonWithMetadata(
+            "Alice",
+            AddressWithMetadata("123 Main St", "NYC", "10001", Map("floor" -> "FIVE", "unit" -> "B"))
+          )
+        )
       }
     ),
-
-    // ========================================================================
-    // 13. RenameCase - Nested (variant inside nested record)
-    // ========================================================================
     suite("RenameCase - Nested")(
       test("2-level: rename case of nested variant") {
         // Rename _.address.addressType case from "Home" to "Residential" - test at DynamicValue level
@@ -717,14 +810,15 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(personDynamic)
 
-        assertTrue(result.isRight)
-        // Expected: addressType case should be renamed to "Residential"
+        assertTrue(result.isRight) &&
+        assertTrue {
+          val record      = result.toOption.get.asInstanceOf[DynamicValue.Record]
+          val address     = record.fields.find(_._1 == "address").get._2.asInstanceOf[DynamicValue.Record]
+          val addressType = address.fields.find(_._1 == "addressType").get._2.asInstanceOf[DynamicValue.Variant]
+          addressType.caseName == "Residential"
+        }
       }
     ),
-
-    // ========================================================================
-    // 14. TransformCase - Nested
-    // ========================================================================
     suite("TransformCase - Nested")(
       test("2-level: transform case of nested variant") {
         // Transform _.address.addressType "Work" case (if we had nested data in the case)
@@ -745,13 +839,12 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(person)
 
-        assertTrue(result.isRight) // TODO: Will fail until implemented
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get == person
+        )
       }
     ),
-
-    // ========================================================================
-    // Integration Tests - Multiple Nested Operations
-    // ========================================================================
     suite("Integration - Multiple Nested Operations")(
       test("chain multiple nested operations") {
         // Add field, rename field, transform field - all nested - test at DynamicValue level
@@ -779,7 +872,16 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(personDynamic)
 
-        assertTrue(result.isRight)
+        assertTrue(result.isRight) &&
+        assertTrue {
+          val record  = result.toOption.get.asInstanceOf[DynamicValue.Record]
+          val address = record.fields.find(_._1 == "address").get._2.asInstanceOf[DynamicValue.Record]
+          address.fields.find(_._1 == "country").get._2 == DynamicValue.Primitive(PrimitiveValue.String("USA")) &&
+          address.fields.find(_._1 == "streetName").get._2 == DynamicValue.Primitive(
+            PrimitiveValue.String("123 Main St")
+          ) &&
+          address.fields.find(_._1 == "city").get._2 == DynamicValue.Primitive(PrimitiveValue.String("NYC"))
+        }
       },
       test("mixed top-level and nested operations") {
         // Top-level: rename name -> fullName
@@ -804,13 +906,17 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val result = migration(personDynamic)
 
-        assertTrue(result.isRight)
+        assertTrue(result.isRight) &&
+        assertTrue {
+          val record = result.toOption.get.asInstanceOf[DynamicValue.Record]
+          record.fields.find(_._1 == "fullName").get._2 == DynamicValue.Primitive(PrimitiveValue.String("Alice")) &&
+          {
+            val address = record.fields.find(_._1 == "address").get._2.asInstanceOf[DynamicValue.Record]
+            address.fields.find(_._1 == "city").get._2 == DynamicValue.Primitive(PrimitiveValue.String("NYC"))
+          }
+        }
       }
     ),
-
-    // ========================================================================
-    // Error Handling Tests
-    // ========================================================================
     suite("Error Handling - Nested")(
       test("error: path too deep for structure") {
         // Try to access _.address.city.street (city is String, not Record)

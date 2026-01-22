@@ -742,7 +742,6 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
           assertTrue(result.isRight)
         }
       ),
-      // Note - Think about vector vs seq problem
       suite("Multi-Field Operations with Selectors")(
         test("joinFields with source selectors") {
           val migration = MigrationBuilder
@@ -879,11 +878,245 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         }
       ),
       suite("Nested Field Selectors")(
-        test("nested field access - placeholder for future") {
-          // Note: This test is a placeholder. Nested selectors like _.address.street
-          // will be implemented when nested field support is added.
-          // For now, we only support top-level field selectors.
-          assertTrue(true)
+        test("2-level: addField to nested record") {
+          // Add _.address.country with default "USA"
+          case class Address(street: String, city: String, zip: String)
+          case class PersonWithAddress(name: String, age: Int, address: Address)
+
+          implicit val addressSchema: Schema[Address]                     = Schema.derived[Address]
+          implicit val personWithAddressSchema: Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
+
+          val person    = PersonWithAddress("Alice", 30, Address("123 Main St", "NYC", "10001"))
+          val migration = MigrationBuilder
+            .newBuilder[PersonWithAddress, PersonWithAddress]
+            .addField(
+              DynamicOptic.root.field("address").field("country"),
+              SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
+            )
+            .buildPartial
+
+          val result = migration(person)
+
+          assertTrue(result.isRight)
+        },
+        test("2-level: dropField from nested record") {
+          // Drop _.address.zip
+          case class Address(street: String, city: String, zip: String)
+          case class PersonWithAddress(name: String, age: Int, address: Address)
+
+          implicit val addressSchema: Schema[Address]                     = Schema.derived[Address]
+          implicit val personWithAddressSchema: Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
+
+          val person        = PersonWithAddress("Alice", 30, Address("123 Main St", "NYC", "10001"))
+          val personDynamic = personWithAddressSchema.toDynamicValue(person)
+
+          val migration = DynamicMigration(
+            Vector(
+              MigrationAction.DropField(
+                DynamicOptic.root.field("address").field("zip"),
+                SchemaExpr.Literal[DynamicValue, String]("00000", Schema.string)
+              )
+            )
+          )
+
+          val result = migration(personDynamic)
+
+          assertTrue(result.isRight)
+        },
+        test("2-level: rename nested field") {
+          // Rename _.address.street to _.address.streetName
+          case class Address(street: String, city: String, zip: String)
+          case class PersonWithAddress(name: String, age: Int, address: Address)
+
+          implicit val addressSchema: Schema[Address]                     = Schema.derived[Address]
+          implicit val personWithAddressSchema: Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
+
+          val person        = PersonWithAddress("Alice", 30, Address("123 Main St", "NYC", "10001"))
+          val personDynamic = personWithAddressSchema.toDynamicValue(person)
+
+          val migration = DynamicMigration(
+            Vector(
+              MigrationAction.Rename(
+                DynamicOptic.root.field("address").field("street"),
+                "streetName"
+              )
+            )
+          )
+
+          val result = migration(personDynamic)
+
+          assertTrue(result.isRight)
+        },
+        test("2-level: transformField on nested field") {
+          // Transform _.address.city to uppercase
+          case class Address(street: String, city: String, zip: String)
+          case class PersonWithAddress(name: String, age: Int, address: Address)
+
+          implicit val addressSchema: Schema[Address]                     = Schema.derived[Address]
+          implicit val personWithAddressSchema: Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
+
+          val person    = PersonWithAddress("Alice", 30, Address("123 Main St", "nyc", "10001"))
+          val migration = MigrationBuilder
+            .newBuilder[PersonWithAddress, PersonWithAddress]
+            .transformField(
+              DynamicOptic.root.field("address").field("city"),
+              SchemaExpr.StringUppercase(
+                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+              )
+            )
+            .buildPartial
+
+          val result = migration(person)
+
+          assertTrue(result.isRight)
+        },
+        test("3-level: addField to deeply nested record") {
+          // Add _.company.address.country with default "USA"
+          case class Address(street: String, city: String, zip: String)
+          case class Company(name: String, address: Address)
+          case class Employee(name: String, company: Company)
+
+          implicit val addressSchema: Schema[Address]   = Schema.derived[Address]
+          implicit val companySchema: Schema[Company]   = Schema.derived[Company]
+          implicit val employeeSchema: Schema[Employee] = Schema.derived[Employee]
+
+          val employee  = Employee("Bob", Company("Acme Inc", Address("456 Oak Ave", "LA", "90001")))
+          val migration = MigrationBuilder
+            .newBuilder[Employee, Employee]
+            .addField(
+              DynamicOptic.root.field("company").field("address").field("country"),
+              SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
+            )
+            .buildPartial
+
+          val result = migration(employee)
+
+          assertTrue(result.isRight)
+        },
+        test("3-level: transformField on deeply nested field") {
+          // Transform _.company.address.city to uppercase
+          case class Address(street: String, city: String, zip: String)
+          case class Company(name: String, address: Address)
+          case class Employee(name: String, company: Company)
+
+          implicit val addressSchema: Schema[Address]   = Schema.derived[Address]
+          implicit val companySchema: Schema[Company]   = Schema.derived[Company]
+          implicit val employeeSchema: Schema[Employee] = Schema.derived[Employee]
+
+          val employee  = Employee("Bob", Company("Acme Inc", Address("456 Oak Ave", "la", "90001")))
+          val migration = MigrationBuilder
+            .newBuilder[Employee, Employee]
+            .transformField(
+              DynamicOptic.root.field("company").field("address").field("city"),
+              SchemaExpr.StringUppercase(
+                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+              )
+            )
+            .buildPartial
+
+          val result = migration(employee)
+
+          assertTrue(result.isRight)
+        },
+        test("2-level: join nested fields") {
+          // Join _.address.street + _.address.city -> _.address.fullAddress
+          case class Address(street: String, city: String, zip: String)
+          case class PersonWithAddress(name: String, age: Int, address: Address)
+
+          implicit val addressSchema: Schema[Address]                     = Schema.derived[Address]
+          implicit val personWithAddressSchema: Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
+
+          val person        = PersonWithAddress("Alice", 30, Address("123 Main St", "NYC", "10001"))
+          val personDynamic = personWithAddressSchema.toDynamicValue(person)
+
+          val migration = DynamicMigration(
+            Vector(
+              MigrationAction.Join(
+                DynamicOptic.root.field("address").field("fullAddress"),
+                Vector(
+                  DynamicOptic.root.field("address").field("street"),
+                  DynamicOptic.root.field("address").field("city")
+                ),
+                SchemaExpr.StringConcat(
+                  SchemaExpr.StringConcat(
+                    SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
+                    SchemaExpr.Literal[DynamicValue, String](", ", Schema.string)
+                  ),
+                  SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+                )
+              )
+            )
+          )
+
+          val result = migration(personDynamic)
+
+          assertTrue(result.isRight)
+        },
+        test("2-level: optionalize nested field") {
+          // Optionalize _.address.zip from String to Option[String]
+          case class Address(street: String, city: String, zip: String)
+          case class PersonWithAddress(name: String, age: Int, address: Address)
+
+          implicit val addressSchema: Schema[Address]                     = Schema.derived[Address]
+          implicit val personWithAddressSchema: Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
+
+          val person        = PersonWithAddress("Alice", 30, Address("123 Main St", "NYC", "10001"))
+          val personDynamic = personWithAddressSchema.toDynamicValue(person)
+
+          val migration = DynamicMigration(
+            Vector(
+              MigrationAction.Optionalize(
+                DynamicOptic.root.field("address").field("zip"),
+                SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+              )
+            )
+          )
+
+          val result = migration(personDynamic)
+
+          assertTrue(result.isRight)
+        },
+        test("error: intermediate field not found") {
+          // Try to add _.nonexistent.street
+          case class Address(street: String, city: String, zip: String)
+          case class PersonWithAddress(name: String, age: Int, address: Address)
+
+          implicit val addressSchema: Schema[Address]                     = Schema.derived[Address]
+          implicit val personWithAddressSchema: Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
+
+          val person    = PersonWithAddress("Alice", 30, Address("123 Main St", "NYC", "10001"))
+          val migration = MigrationBuilder
+            .newBuilder[PersonWithAddress, PersonWithAddress]
+            .addField(
+              DynamicOptic.root.field("nonexistent").field("street"),
+              SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+            )
+            .buildPartial
+
+          val result = migration(person)
+
+          assertTrue(result.isLeft) // Should fail with FieldNotFound
+        },
+        test("error: intermediate field is not a record") {
+          // Try to add _.name.street (name is String, not Record)
+          case class Address(street: String, city: String, zip: String)
+          case class PersonWithAddress(name: String, age: Int, address: Address)
+
+          implicit val addressSchema: Schema[Address]                     = Schema.derived[Address]
+          implicit val personWithAddressSchema: Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
+
+          val person    = PersonWithAddress("Alice", 30, Address("123 Main St", "NYC", "10001"))
+          val migration = MigrationBuilder
+            .newBuilder[PersonWithAddress, PersonWithAddress]
+            .addField(
+              DynamicOptic.root.field("name").field("street"),
+              SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+            )
+            .buildPartial
+
+          val result = migration(person)
+
+          assertTrue(result.isLeft) // Should fail with InvalidStructure
         }
       )
     )

@@ -26,17 +26,13 @@ sealed trait MigrationAction {
 
 object MigrationAction {
 
-  /**
-   * Private helpers for navigating and updating nested DynamicValue structures.
-   */
+  // Private helpers for navigating and updating nested DynamicValue structures.
   private object NavigationHelpers {
 
     /**
      * Navigate to a nested field and return the parent record, field index, and
-     * field value. Handles intermediate record traversal.
-     *
-     * Example: for path `.address.street`, this navigates to the `address`
-     * record and returns (addressRecord, streetIndex, streetValue)
+     * field value. Example: for path `.address.street`, this navigates to the
+     * `address` record and returns (addressRecord, streetIndex, streetValue)
      */
     def navigateToField(
       value: DynamicValue,
@@ -55,7 +51,7 @@ object MigrationAction {
         )
       }
 
-      // Navigate through all intermediate fields (all except the last)
+      // Navigate through all intermediate fields
       def navigateIntermediate(currentValue: DynamicValue, depth: Int): Either[MigrationError, DynamicValue] =
         if (depth >= fieldNodes.length - 1) {
           // Reached the parent of the target field
@@ -108,7 +104,6 @@ object MigrationAction {
 
     /**
      * Update a nested field value, rebuilding the entire structure immutably.
-     *
      * Example: for path `.address.street`, this updates the `street` field
      * inside the `address` record and rebuilds the entire structure.
      */
@@ -178,8 +173,7 @@ object MigrationAction {
     }
 
     /**
-     * Add a nested field, creating intermediate Records if needed. For now, we
-     * require all intermediate Records to exist.
+     * Add a nested field, creating intermediate Records.
      */
     def addNestedField(
       value: DynamicValue,
@@ -922,7 +916,7 @@ object MigrationAction {
         }
       } else {
         // Nested join - navigate to parent record, perform join, rebuild
-        // NOTE: This assumes all paths share the same parent
+        // All paths MUST share the same parent
         val parentPath = new DynamicOptic(at.nodes.dropRight(1))
         NavigationHelpers.navigateToField(value, parentPath) match {
           case Right((_, _, _, parentValue)) =>
@@ -1082,7 +1076,7 @@ object MigrationAction {
         }
       } else {
         // Nested split - navigate to parent record, perform split, rebuild
-        // NOTE: This assumes all paths share the same parent
+        // All paths MUST share the same parent
         val parentPath = new DynamicOptic(at.nodes.dropRight(1))
         NavigationHelpers.navigateToField(value, parentPath) match {
           case Right((_, _, _, parentValue)) =>

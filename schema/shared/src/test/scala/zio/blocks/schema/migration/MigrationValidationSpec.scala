@@ -4,8 +4,6 @@ import zio.blocks.schema._
 import zio.test._
 
 /**
- * Test suite for Phase 10: Build Validation
- *
  * Tests .build() method validation for:
  *   - Top-level record fields
  *   - Nested record fields
@@ -13,8 +11,6 @@ import zio.test._
  *   - All migration actions
  */
 object MigrationValidationSpec extends ZIOSpecDefault {
-
-  // ===== Test Data Types =====
 
   // Simple record types for top-level testing
   case class PersonV1(firstName: String, lastName: String, age: Int)
@@ -77,8 +73,6 @@ object MigrationValidationSpec extends ZIOSpecDefault {
   object PayPalPaymentV2 {
     implicit val schema: Schema[PayPalPaymentV2] = Schema.derived[PayPalPaymentV2]
   }
-
-  // ===== Test Suites =====
 
   def spec = suite("MigrationValidationSpec")(
     suite("Top-level record validation")(
@@ -240,19 +234,48 @@ object MigrationValidationSpec extends ZIOSpecDefault {
       }
     ),
     suite("Variant validation")(
-      test("variant case rename passes validation") {
-        // For now, variants are validated at top level
+      test("variant case rename fails validation - nested fields not handled") {
+        // TODO: Variant validation is incomplete. RenameCase only handles the case name
+        // itself, not the nested fields within the case. This causes validation to fail
+        // because nested fields like CreditCardV1.number, CreditCardV1.cvv are not
+        // marked as handled/provided.
+        //
+        // Expected behavior (not yet implemented):
+        // - RenameCase should handle ALL nested fields of the source case
+        // - RenameCase should provide ALL nested fields of the target case
+        //
+        // See VARIANT_VALIDATION_ISSUE.md for full analysis
         val builder = MigrationBuilder
           .newBuilder[PaymentV1, PaymentV2]
           .renameCase(DynamicOptic.root, "PayPalV1", "PayPalPaymentV2")
 
         val result = builder.build
 
-        // This may pass or fail depending on how we handle variant validation
-        // For now, just check that it returns Either
-        assertTrue(result.isRight || result.isLeft)
+        // Currently fails validation because:
+        // - Unhandled: CreditCardV1, CreditCardV1.number, CreditCardV1.cvv, PayPalV1, PayPalV1.email
+        // - Unprovided: CreditCardV2, CreditCardV2.number, CreditCardV2.cvv, CreditCardV2.expiryDate, PayPalPaymentV2.email
+        assertTrue(result.isLeft) &&
+        assertTrue(result.left.exists {
+          case MigrationError.ValidationError(_, unhandled, unprovided) =>
+            // Verify that nested fields are reported as unhandled/unprovided
+            unhandled.contains("CreditCardV1") &&
+            unhandled.contains("PayPalV1") &&
+            unprovided.contains("CreditCardV2") &&
+            unprovided.contains("PayPalPaymentV2.email")
+          case _ => false
+        })
       },
-      test("variant case field addition requires handling") {
+      test("variant case field addition fails validation - incomplete migration") {
+        // TODO: TransformCase with nested AddField is not sufficient for a complete migration.
+        // The validation correctly identifies that:
+        // 1. Other variant cases (PayPalV1) are not handled
+        // 2. Nested fields that exist in both cases are not explicitly handled
+        //
+        // A complete migration would need to:
+        // - Handle the CreditCardV1 -> CreditCardV2 transformation (rename + add field)
+        // - Handle the PayPalV1 -> PayPalPaymentV2 transformation (rename)
+        //
+        // See VARIANT_VALIDATION_ISSUE.md for full analysis
         val builder = MigrationBuilder
           .newBuilder[PaymentV1, PaymentV2]
           .transformCase(
@@ -268,8 +291,53 @@ object MigrationValidationSpec extends ZIOSpecDefault {
 
         val result = builder.build
 
-        // Placeholder assertion
-        assertTrue(result.isRight || result.isLeft)
+        // Currently fails validation because:
+        // - PayPalV1 and its fields are unhandled
+        // - PayPalPaymentV2 and its fields are unprovided
+        // - CreditCardV1.number and CreditCardV1.cvv are unhandled (nested actions don't propagate)
+        assertTrue(result.isLeft) &&
+        assertTrue(result.left.exists {
+          case MigrationError.ValidationError(_, unhandled, unprovided) =>
+            // Verify incomplete migration is detected
+            unhandled.contains("PayPalV1") &&
+            unprovided.nonEmpty
+          case _ => false
+        })
+      },
+      test("complete variant migration with proper handling") {
+        // This test shows what a COMPLETE variant migration should look like
+        // given the current limitations of variant validation.
+        //
+        // We need to:
+        // 1. Rename both variant cases
+        // 2. Transform the CreditCardV2 case to add the expiryDate field
+        val builder = MigrationBuilder
+          .newBuilder[PaymentV1, PaymentV2]
+          .renameCase(DynamicOptic.root, "CreditCardV1", "CreditCardV2")
+          .renameCase(DynamicOptic.root, "PayPalV1", "PayPalPaymentV2")
+          .transformCase(
+            DynamicOptic.root,
+            "CreditCardV2",
+            Vector(
+              MigrationAction.AddField(
+                DynamicOptic.root.field("expiryDate"),
+                SchemaExpr.Literal[DynamicValue, String]("01/25", Schema.string)
+              )
+            )
+          )
+
+        val result = builder.build
+
+        // Even this "complete" migration fails because nested fields within variant
+        // cases are not properly tracked by RenameCase
+        // TODO: Fix variant validation to make this pass
+        assertTrue(result.isLeft) &&
+        assertTrue(result.left.exists {
+          case MigrationError.ValidationError(_, unhandled, unprovided) =>
+            // The validation still fails due to nested field tracking issues
+            unhandled.nonEmpty || unprovided.nonEmpty
+          case _ => false
+        })
       }
     ),
     suite("Special cases")(

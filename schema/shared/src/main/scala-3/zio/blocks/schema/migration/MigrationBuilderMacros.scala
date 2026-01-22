@@ -5,19 +5,14 @@ import scala.quoted.*
 import zio.blocks.schema._
 
 /**
- * Scala 3 macro implementations for MigrationBuilder selector methods.
- *
- * These macros extract DynamicOptic from selector functions like `_.field` and
- * delegate to the existing Phase 8 methods.
+ * Implementations for MigrationBuilder selector methods. Extracts DynamicOptic
+ * from selector functions like `_.field`
  */
 private[migration] object MigrationBuilderMacros {
 
   /**
-   * Extracts a DynamicOptic from a selector function.
-   *
-   * Supports:
-   *   - Simple field access: _.field → DynamicOptic.root.field("field")
-   *   - Nested fields: _.field.nested → chained optics
+   * Extracts a DynamicOptic from a selector function. Supports both simple
+   * field access and nested fields.
    */
   def extractOptic[A: Type, B: Type](
     selector: Expr[A => B]
@@ -63,9 +58,7 @@ private[migration] object MigrationBuilderMacros {
     }
   }
 
-  /**
-   * Extracts just the field name from a selector (for renameField target).
-   */
+  // Extracts just the field name from a selector (for renameField target).
   def extractFieldName[A: Type, B: Type](
     selector: Expr[A => B]
   )(using q: Quotes): Expr[String] = {
@@ -97,10 +90,7 @@ private[migration] object MigrationBuilderMacros {
     Expr(fieldName)
   }
 
-  /**
-   * Extracts multiple DynamicOptics from a sequence of selector functions.
-   * Handles both Seq(...) and Vector(...) syntax.
-   */
+  // Extracts multiple DynamicOptics from a sequence of selector functions.
   def extractOptics[A: Type, B: Type](
     selectors: Expr[Seq[A => B]]
   )(using q: Quotes): Expr[Vector[DynamicOptic]] = {
@@ -110,25 +100,22 @@ private[migration] object MigrationBuilderMacros {
     def extractSelectors(term: Term): List[Expr[A => B]] = term match {
       case Inlined(_, _, body) => extractSelectors(body)
 
-      // Pattern 1: Seq(...) with repeated parameters
-      // Example: Seq(_.field1, _.field2)
+      // Seq(...) with repeated parameters
       case Apply(TypeApply(Select(_, "apply"), _), List(Typed(Repeated(items, _), _))) =>
         items.map(_.asExprOf[A => B])
 
-      // Pattern 2: Direct repeated parameters (varargs)
+      // Direct repeated parameters (varargs)
       case Typed(Repeated(items, _), _) =>
         items.map(_.asExprOf[A => B])
 
-      // Pattern 3: Vector(...) or other collections with explicit arguments
-      // Example: Vector(_.field1, _.field2)
+      // Vector(...) or other collections with explicit arguments
       case Apply(TypeApply(Select(_, "apply"), _), args) =>
         args.map(_.asExprOf[A => B])
 
-      // Pattern 4: Simple Apply without type parameters
+      // Simple Apply without type parameters
       case Apply(Select(_, "apply"), args) =>
         args.map(_.asExprOf[A => B])
 
-      // Pattern 5: Type ascription (e.g., Vector(...): Seq[...])
       // Unwrap the type ascription and process the inner term
       case Typed(inner, _) =>
         extractSelectors(inner)
@@ -149,14 +136,8 @@ private[migration] object MigrationBuilderMacros {
     '{ $opticsList.toVector }
   }
 
-  /**
-   * Extracts a DynamicOptic and case name from a selector with .when[CaseType]
-   * pattern.
-   *
-   * Supports:
-   *   - _.when[CaseType] → (DynamicOptic.root, "CaseType")
-   *   - _.field.when[CaseType] → (DynamicOptic.root.field("field"), "CaseType")
-   */
+  // Extracts a DynamicOptic and case name from a selector with .when[CaseType]
+  // pattern. Supports both simple field access and nested fields.
   def extractCaseSelector[A: Type, B: Type](
     selector: Expr[A => B]
   )(using q: Quotes): (Expr[DynamicOptic], Expr[String]) = {
@@ -188,8 +169,7 @@ private[migration] object MigrationBuilderMacros {
     }
 
     def extractFieldPathAndCaseName(term: Term): (List[String], String) = term match {
-      // Pattern: _.when[CaseType] or _.field.when[CaseType]
-      // Structure: TypeApply(Apply(TypeApply(caseTerm, _), List(parent)), List(typeTree))
+      // _.when[CaseType] or _.field.when[CaseType]
       case TypeApply(Apply(TypeApply(caseTerm, _), List(parent)), List(typeTree)) if caseTerm match {
             case Select(_, name) => name == "when"
             case Ident(name)     => name == "when"

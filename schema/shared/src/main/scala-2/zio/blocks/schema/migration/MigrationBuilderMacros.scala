@@ -4,19 +4,14 @@ import scala.reflect.macros.whitebox
 import zio.blocks.schema._
 
 /**
- * Scala 2 macro implementations for MigrationBuilder selector methods.
- *
- * These macros extract DynamicOptic from selector functions like `_.field` and
- * delegate to the existing Phase 8 methods.
+ * Implementations for MigrationBuilder selector methods. Extracts DynamicOptic
+ * from selector functions like `_.field`
  */
 private[migration] object MigrationBuilderMacros {
 
   /**
-   * Extracts a DynamicOptic from a selector function.
-   *
-   * Supports:
-   *   - Simple field access: _.field → DynamicOptic.root.field("field")
-   *   - Nested fields: _.field.nested → chained optics
+   * Extracts a DynamicOptic from a selector function. Supports both simple
+   * field access and nested fields.
    */
   def extractOptic[A, B](c: whitebox.Context)(
     selector: c.Expr[A => B]
@@ -60,9 +55,7 @@ private[migration] object MigrationBuilderMacros {
     }
   }
 
-  /**
-   * Extracts just the field name from a selector (for renameField target).
-   */
+  // Extracts just the field name from a selector (for renameField target).
   def extractFieldName[A, B](c: whitebox.Context)(
     selector: c.Expr[A => B]
   ): c.Expr[String] = {
@@ -92,10 +85,7 @@ private[migration] object MigrationBuilderMacros {
     c.Expr[String](Literal(Constant(fieldName)))
   }
 
-  /**
-   * Extracts multiple DynamicOptics from a sequence of selector functions.
-   * Handles both Seq(...) and Vector(...) syntax.
-   */
+  // Extracts multiple DynamicOptics from a sequence of selector functions.
   def extractOptics[A, B](c: whitebox.Context)(
     selectors: c.Expr[Seq[A => B]]
   ): c.Expr[Vector[DynamicOptic]] = {
@@ -103,27 +93,26 @@ private[migration] object MigrationBuilderMacros {
 
     // Extract the sequence of lambda expressions from various collection syntaxes
     def extractSelectors(tree: c.Tree): List[c.Expr[A => B]] = tree match {
-      // Pattern 1: Seq.apply from scala.collection.immutable
+      // Seq.apply from scala.collection.immutable
       case q"scala.collection.immutable.Seq.apply[$_](..$items)" =>
         items.map(item => c.Expr[A => B](item))
 
-      // Pattern 2: Seq.apply from scala.package
+      // Seq.apply from scala.package
       case q"scala.`package`.Seq.apply[$_](..$items)" =>
         items.map(item => c.Expr[A => B](item))
 
-      // Pattern 3: Vector.apply from scala.collection.immutable
+      // Vector.apply from scala.collection.immutable
       case q"scala.collection.immutable.Vector.apply[$_](..$items)" =>
         items.map(item => c.Expr[A => B](item))
 
-      // Pattern 4: Vector.apply from scala.package
+      // Vector.apply from scala.package
       case q"scala.`package`.Vector.apply[$_](..$items)" =>
         items.map(item => c.Expr[A => B](item))
 
-      // Pattern 5: Wrapped array (varargs)
+      // Wrapped array (varargs)
       case q"scala.Predef.wrapRefArray[$_](scala.Array.apply[$_](..$items))" =>
         items.map(item => c.Expr[A => B](item))
 
-      // Pattern 6: Type ascription (e.g., Vector(...): Seq[...])
       // Unwrap the type ascription and process the inner tree
       case Typed(inner, _) =>
         extractSelectors(inner)
@@ -144,14 +133,8 @@ private[migration] object MigrationBuilderMacros {
     c.Expr[Vector[DynamicOptic]](q"_root_.scala.Vector(..$opticsTrees)")
   }
 
-  /**
-   * Extracts a DynamicOptic and case name from a selector with .when[CaseType]
-   * pattern.
-   *
-   * Supports:
-   *   - _.when[CaseType] → (DynamicOptic.root, "CaseType")
-   *   - _.field.when[CaseType] → (DynamicOptic.root.field("field"), "CaseType")
-   */
+  // Extracts a DynamicOptic and case name from a selector with .when[CaseType]
+  // pattern. Supports both simple field access and nested fields.
   def extractCaseSelector[A, B](c: whitebox.Context)(
     selector: c.Expr[A => B]
   ): (c.Expr[DynamicOptic], c.Expr[String]) = {
@@ -164,7 +147,7 @@ private[migration] object MigrationBuilderMacros {
     }
 
     def extractFieldPathAndCaseName(tree: c.Tree): (List[String], String) = tree match {
-      // Pattern: _.when[CaseType] or _.field.when[CaseType]
+      // _.when[CaseType] or _.field.when[CaseType]
       case q"$_[..$_]($parent).when[$caseTree]" =>
         val caseName  = caseTree.tpe.dealias.typeSymbol.name.decodedName.toString
         val fieldPath = extractFieldPath(parent)
