@@ -166,7 +166,7 @@ private[migration] object MigrationBuilderMacros {
     def extractFieldPathAndCaseName(tree: c.Tree): (List[String], String) = tree match {
       // Pattern: _.when[CaseType] or _.field.when[CaseType]
       case q"$_[..$_]($parent).when[$caseTree]" =>
-        val caseName = caseTree.tpe.dealias.typeSymbol.name.decodedName.toString
+        val caseName  = caseTree.tpe.dealias.typeSymbol.name.decodedName.toString
         val fieldPath = extractFieldPath(parent)
         (fieldPath, caseName)
       case _ =>
@@ -193,7 +193,7 @@ private[migration] object MigrationBuilderMacros {
       loop(tree, Nil)
     }
 
-    val pathBody = toPathBody(selector.tree)
+    val pathBody              = toPathBody(selector.tree)
     val (fieldPath, caseName) = extractFieldPathAndCaseName(pathBody)
 
     // Build nested DynamicOptic: DynamicOptic.root.field("f1").field("f2")...
