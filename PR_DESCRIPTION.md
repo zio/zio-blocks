@@ -2,6 +2,8 @@
 
 **Resolves #519** - Schema Migration System for ZIO Schema 2
 
+/claim #519
+
 This PR implements a comprehensive schema migration system for ZIO Schema 2, addressing issue #519. The implementation provides pure, serializable migrations that enable safe, reversible transformations of data structures as schemas evolve over time.
 
 ## Key Features
