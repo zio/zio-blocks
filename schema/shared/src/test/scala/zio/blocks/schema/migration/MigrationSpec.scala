@@ -5,7 +5,6 @@ import zio.test._
 
 object MigrationSpec extends ZIOSpecDefault {
 
-  // Test case classes
   case class PersonV1(firstName: String, lastName: String)
   object PersonV1 {
     implicit val schema: Schema[PersonV1] = Schema.derived
