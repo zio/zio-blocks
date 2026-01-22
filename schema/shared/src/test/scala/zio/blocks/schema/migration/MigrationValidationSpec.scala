@@ -235,9 +235,6 @@ object MigrationValidationSpec extends ZIOSpecDefault {
     ),
     suite("Variant validation")(
       test("variant case rename with nested fields passes validation") {
-        // RenameCase now properly handles the case name and all nested fields
-        // within the case, marking them as handled in the source schema and
-        // provided in the target schema.
         val builder = MigrationBuilder
           .newBuilder[PaymentV1, PaymentV2]
           .renameCase(DynamicOptic.root, "CreditCardV1", "CreditCardV2")
@@ -255,10 +252,6 @@ object MigrationValidationSpec extends ZIOSpecDefault {
 
         val result = builder.build
 
-        // With the fix, this should now pass validation because:
-        // - RenameCase handles all nested fields of source cases
-        // - RenameCase provides all nested fields of target cases
-        // - TransformCase adds the new expiryDate field
         assertTrue(result.isRight)
       },
       test("variant case field addition fails validation - incomplete migration") {
@@ -304,7 +297,7 @@ object MigrationValidationSpec extends ZIOSpecDefault {
         })
       },
       test("complete variant migration with proper handling") {
-        // This test shows a COMPLETE variant migration that properly handles
+        // This test shows a complete variant migration that properly handles
         // all variant cases and their nested fields.
         //
         // We need to:
@@ -327,10 +320,6 @@ object MigrationValidationSpec extends ZIOSpecDefault {
 
         val result = builder.build
 
-        // With the fix, this complete migration now passes validation because:
-        // - RenameCase properly tracks all nested fields within variant cases
-        // - TransformCase correctly analyzes nested actions recursively
-        // - All source fields are handled and all target fields are provided
         assertTrue(result.isRight)
       }
     ),
