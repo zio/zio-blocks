@@ -5,10 +5,6 @@ import zio.test._
 
 object MigrationLawsSpec extends ZIOSpecDefault {
 
-  // ============================================================
-  // Test Data Models
-  // ============================================================
-
   // Simple case class for basic tests
   final case class PersonV1(firstName: String, lastName: String, age: Int)
   object PersonV1 {
@@ -357,6 +353,8 @@ object MigrationLawsSpec extends ZIOSpecDefault {
                       recovered.revenue == company.revenue
                   )
                 case Left(_) =>
+                  // Note: This is not the best test, as it assertTrue anyways
+                  // not sure how else to test this
                   // Reverse may fail due to added field (lossy)
                   assertTrue(true) // Expected for lossy migrations
               }
