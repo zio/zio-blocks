@@ -3,32 +3,13 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 
 /**
- * Immutable builder for constructing typed migrations. Follows the builder
- * pattern where each method returns a new instance with the added action.
- *
- * Phase 8: Accepts DynamicOptic directly (macro-based selectors come in Phase
- * 9)
- *
- * @param sourceSchema
- *   Schema for the source type A
- * @param targetSchema
- *   Schema for the target type B
- * @param actions
- *   Accumulated migration actions
- * @tparam A
- *   Source type
- * @tparam B
- *   Target type
+ * Immutable builder for constructing typed migrations.
  */
 final case class MigrationBuilder[A, B](
   sourceSchema: Schema[A],
   targetSchema: Schema[B],
   actions: Vector[MigrationAction]
 ) {
-
-  // ===== Record Operations =====
-  // Note: These methods are private[migration] and called by macro-generated code.
-  // Users should use the selector-based API from MigrationBuilderSyntax.
 
   /**
    * Adds a field to a record with a default value.
@@ -93,8 +74,6 @@ final case class MigrationBuilder[A, B](
   ): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.ChangeType(at, converter))
 
-  // ===== Multi-Field Operations =====
-
   /**
    * Joins multiple source fields into a single target field using a combiner
    * expression.
@@ -117,8 +96,6 @@ final case class MigrationBuilder[A, B](
   ): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.Split(source, targetPaths, splitter))
 
-  // ===== Enum Operations =====
-
   /**
    * Renames a variant case.
    */
@@ -138,8 +115,6 @@ final case class MigrationBuilder[A, B](
     actions: Vector[MigrationAction]
   ): MigrationBuilder[A, B] =
     copy(actions = this.actions :+ MigrationAction.TransformCase(at, caseName, actions))
-
-  // ===== Collection Operations =====
 
   /**
    * Applies a transformation to all elements in a sequence.
@@ -168,8 +143,6 @@ final case class MigrationBuilder[A, B](
   ): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.TransformValues(at, transform))
 
-  // ===== Build Methods =====
-
   /**
    * Builds the migration with full validation. Validates that all source fields
    * are handled and all target fields are provided.
@@ -184,8 +157,7 @@ final case class MigrationBuilder[A, B](
     }
 
   /**
-   * Builds the migration without validation. Useful for partial migrations or
-   * when validation is not desired.
+   * Builds the migration without validation.
    */
   def buildPartial: Migration[A, B] =
     Migration(
@@ -193,8 +165,6 @@ final case class MigrationBuilder[A, B](
       sourceSchema = sourceSchema,
       targetSchema = targetSchema
     )
-
-  // ===== Private Validation Helpers =====
 
   /**
    * Validates the migration by checking that all source fields are handled and
@@ -206,19 +176,18 @@ final case class MigrationBuilder[A, B](
     val targetPaths = extractFieldPaths(targetSchema, "")
 
     // Fields that exist in both schemas are automatically handled/provided
-    // (they pass through unchanged unless explicitly migrated)
     val unchanged = sourcePaths.intersect(targetPaths)
 
     // Track which paths are handled/provided by actions
     val handled  = actions.flatMap(handledSourcePaths).toSet
     val provided = actions.flatMap(providedTargetPaths).toSet
 
-    // Check 1: Unhandled source fields and unprovided target fields
+    // Unhandled source fields and unprovided target fields
     // Exclude unchanged fields from validation
     val unhandled  = (sourcePaths -- handled) -- unchanged
     val unprovided = (targetPaths -- provided) -- unchanged
 
-    // Check 2: Actions referencing non-existent fields
+    // Actions referencing non-existent fields
     // Handled fields must exist in source schema (or be unchanged)
     val invalidHandled = handled -- sourcePaths -- unchanged
     // Provided fields must exist in target schema (or be unchanged)
@@ -263,7 +232,6 @@ final case class MigrationBuilder[A, B](
         if (field.value.isInstanceOf[Reflect.Record[binding.Binding, ?]]) {
           val nestedRecord = field.value.asInstanceOf[Reflect.Record[binding.Binding, Any]]
           // For nested records, don't include the parent field itself
-          // Only extract the nested leaf fields
           extractFieldPaths(new Schema(nestedRecord.asInstanceOf[Reflect.Bound[Any]]), fieldPath)
         } else {
           // For leaf fields (primitives, sequences, etc.), include the field

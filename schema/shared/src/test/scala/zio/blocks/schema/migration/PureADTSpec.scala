@@ -4,12 +4,22 @@ import zio.blocks.schema._
 import zio.test._
 import zio.test.Assertion._
 
-object SerializationSpec extends SchemaBaseSpec {
+/**
+ * This is meant to Serialization tests for DynamicMigration. the Test
+ * demonstrates that the migration is pure data, even though we cannot fully
+ * serialize/deserialize it due to existential types in SchemaExpr.
+ *
+ * DynamicMigration contains SchemaExpr[DynamicValue, ?] which has an
+ * existential type parameter, making full schema derivation impossible(???)
+ * However, the migration can still be used as pure data and be inspected
+ * structurally.
+ */
+object PureADTSpec extends SchemaBaseSpec {
 
   // Helper schema for DynamicOptic
   private val opticSchema = Schema[DynamicOptic]
 
-  def spec = suite("SerializationSpec")(
+  def spec = suite("PureADTSpec")(
     suite("DynamicValue Round-Trip")(
       test("DynamicMigration should convert to/from DynamicValue") {
         val migration = DynamicMigration(
@@ -280,14 +290,7 @@ object SerializationSpec extends SchemaBaseSpec {
   )
 
   /**
-   * Helper to convert migration to DynamicValue. This demonstrates that the
-   * migration is pure data, even though we cannot fully serialize/deserialize
-   * it due to existential types in SchemaExpr.
-   *
-   * The key insight is that DynamicMigration contains SchemaExpr[DynamicValue,
-   * ?] which has an existential type parameter, making full schema derivation
-   * impossible. However, the migration can still be used as pure data and
-   * inspected structurally.
+   * Helper to convert migration to DynamicValue.
    */
   private def migrationToDynamicValue(migration: DynamicMigration): DynamicValue = {
     // Convert actions to a sequence of records

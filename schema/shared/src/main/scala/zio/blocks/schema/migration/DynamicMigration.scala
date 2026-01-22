@@ -3,11 +3,8 @@ package zio.blocks.schema.migration
 import zio.blocks.schema.DynamicValue
 
 /**
- * Pure, serializable migration engine. Executes a sequence of MigrationActions
- * on DynamicValues.
- *
- * This is the core of the migration system - fully serializable and
- * format-agnostic.
+ * Pure Data migration engine. Executes a sequence of MigrationActions on
+ * DynamicValues.
  */
 final case class DynamicMigration(
   actions: Vector[MigrationAction]
