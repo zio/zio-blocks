@@ -5,14 +5,14 @@ import zio.test._
 
 /**
  * Comprehensive test suite for migration reverse operations.
- *   - PERFECT: Lossless bidirectional transformation
- *   - LOSSY: Reverses but may lose information (still useful!)
- *   - IMPOSSIBLE: Cannot reverse, returns identity
+ *   - Lossless: Lossless bidirectional transformation
+ *   - Lossy: Reverses but may lose information (still useful!)
+ *   - Impossible: Cannot reverse, returns identity
  */
 object MigrationReverseSpec extends ZIOSpecDefault {
 
   def spec = suite("MigrationReverseSpec")(
-    suite("PERFECT - Lossless Bidirectional Transformations")(
+    suite("Lossless Bidirectional Transformations")(
       suite("AddField / DropField")(
         test("AddField → DropField → round-trip preserves original") {
           val original = DynamicValue.Record(
@@ -191,7 +191,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
         }
       )
     ),
-    suite("PERFECT - Arithmetic Reversals (After Implementation)")(
+    suite("Lossy Reversals")(
       suite("TransformValue - Add/Subtract")(
         test("Add → Subtract → round-trip preserves original") {
           val original = DynamicValue.Record(
@@ -312,7 +312,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
         }
       )
     ),
-    suite("LOSSY - String Case Conversions")(
+    suite("Lossy Bidirectional Transformations")(
       suite("TransformValue - Uppercase/Lowercase")(
         test("Uppercase → Lowercase → reverses but loses original casing") {
           val original = DynamicValue.Record(
@@ -364,7 +364,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
           ) &&
           assertTrue(backward.toOption.get == original)
         },
-        test("LOSSY: Mixed case gets lost in round-trip") {
+        test("Lossy: Mixed case gets lost in round-trip") {
           val original = DynamicValue.Record(
             Vector(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("JoHn"))
@@ -392,8 +392,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
         }
       )
     ),
-    // TODO AJAY FIX ME, figure out how you want to handle join and split
-    suite("LOSSY - Join/Split (Leave as-is per user request)")(
+    suite("Lossy - Join/Split")(
       suite("Join - String Concatenation")(
         test("Join with delimiter → Split → recovers fields") {
           val original = DynamicValue.Record(
@@ -445,14 +444,11 @@ object MigrationReverseSpec extends ZIOSpecDefault {
           )
           val joinAction = splitAction.reverse
 
-          // Split.reverse structurally creates a Join, but using splitter as combiner
-          // doesn't work semantically (splitter expects string, combiner gets Record)
-          // This is acknowledged as a limitation - Split reverse is best-effort only
           assertTrue(joinAction.isInstanceOf[MigrationAction.Join])
         }
       )
     ),
-    suite("IMPOSSIBLE - Cannot Reverse (Returns Identity)")(
+    suite("Impossible - Cannot Reverse (Returns Identity)")(
       suite("TransformValue - Irreversible Operations")(
         test("StringLength cannot reverse (info lost)") {
           val lengthAction = MigrationAction.TransformValue(
