@@ -234,48 +234,42 @@ object MigrationValidationSpec extends ZIOSpecDefault {
       }
     ),
     suite("Variant validation")(
-      test("variant case rename fails validation - nested fields not handled") {
-        // TODO: Variant validation is incomplete. RenameCase only handles the case name
-        // itself, not the nested fields within the case. This causes validation to fail
-        // because nested fields like CreditCardV1.number, CreditCardV1.cvv are not
-        // marked as handled/provided.
-        //
-        // Expected behavior (not yet implemented):
-        // - RenameCase should handle ALL nested fields of the source case
-        // - RenameCase should provide ALL nested fields of the target case
-        //
-        // See VARIANT_VALIDATION_ISSUE.md for full analysis
+      test("variant case rename with nested fields passes validation") {
+        // RenameCase now properly handles the case name and all nested fields
+        // within the case, marking them as handled in the source schema and
+        // provided in the target schema.
         val builder = MigrationBuilder
           .newBuilder[PaymentV1, PaymentV2]
+          .renameCase(DynamicOptic.root, "CreditCardV1", "CreditCardV2")
           .renameCase(DynamicOptic.root, "PayPalV1", "PayPalPaymentV2")
+          .transformCase(
+            DynamicOptic.root,
+            "CreditCardV2",
+            Vector(
+              MigrationAction.AddField(
+                DynamicOptic.root.field("expiryDate"),
+                SchemaExpr.Literal[DynamicValue, String]("01/25", Schema.string)
+              )
+            )
+          )
 
         val result = builder.build
 
-        // Currently fails validation because:
-        // - Unhandled: CreditCardV1, CreditCardV1.number, CreditCardV1.cvv, PayPalV1, PayPalV1.email
-        // - Unprovided: CreditCardV2, CreditCardV2.number, CreditCardV2.cvv, CreditCardV2.expiryDate, PayPalPaymentV2.email
-        assertTrue(result.isLeft) &&
-        assertTrue(result.left.exists {
-          case MigrationError.ValidationError(_, unhandled, unprovided) =>
-            // Verify that nested fields are reported as unhandled/unprovided
-            unhandled.contains("CreditCardV1") &&
-            unhandled.contains("PayPalV1") &&
-            unprovided.contains("CreditCardV2") &&
-            unprovided.contains("PayPalPaymentV2.email")
-          case _ => false
-        })
+        // With the fix, this should now pass validation because:
+        // - RenameCase handles all nested fields of source cases
+        // - RenameCase provides all nested fields of target cases
+        // - TransformCase adds the new expiryDate field
+        assertTrue(result.isRight)
       },
       test("variant case field addition fails validation - incomplete migration") {
-        // TODO: TransformCase with nested AddField is not sufficient for a complete migration.
+        // TransformCase with nested AddField is not sufficient for a complete migration.
         // The validation correctly identifies that:
         // 1. Other variant cases (PayPalV1) are not handled
-        // 2. Nested fields that exist in both cases are not explicitly handled
+        // 2. The CreditCardV1 case name change is not handled
         //
         // A complete migration would need to:
         // - Handle the CreditCardV1 -> CreditCardV2 transformation (rename + add field)
         // - Handle the PayPalV1 -> PayPalPaymentV2 transformation (rename)
-        //
-        // See VARIANT_VALIDATION_ISSUE.md for full analysis
         val builder = MigrationBuilder
           .newBuilder[PaymentV1, PaymentV2]
           .transformCase(
@@ -291,22 +285,27 @@ object MigrationValidationSpec extends ZIOSpecDefault {
 
         val result = builder.build
 
-        // Currently fails validation because:
+        // Fails validation because:
         // - PayPalV1 and its fields are unhandled
         // - PayPalPaymentV2 and its fields are unprovided
-        // - CreditCardV1.number and CreditCardV1.cvv are unhandled (nested actions don't propagate)
+        // - CreditCardV2 case name is unprovided (TransformCase doesn't rename)
         assertTrue(result.isLeft) &&
         assertTrue(result.left.exists {
           case MigrationError.ValidationError(_, unhandled, unprovided) =>
-            // Verify incomplete migration is detected
+            // Should detect PayPal case and fields as unhandled
             unhandled.contains("PayPalV1") &&
-            unprovided.nonEmpty
+            unhandled.contains("PayPalV1.email") &&
+            unprovided.contains("PayPalPaymentV2") &&
+            unprovided.contains("PayPalPaymentV2.email") &&
+            unprovided.contains("CreditCardV2") &&
+            // CreditCardV1 case should be handled by TransformCase
+            !unhandled.contains("CreditCardV1")
           case _ => false
         })
       },
       test("complete variant migration with proper handling") {
-        // This test shows what a COMPLETE variant migration should look like
-        // given the current limitations of variant validation.
+        // This test shows a COMPLETE variant migration that properly handles
+        // all variant cases and their nested fields.
         //
         // We need to:
         // 1. Rename both variant cases
@@ -328,16 +327,333 @@ object MigrationValidationSpec extends ZIOSpecDefault {
 
         val result = builder.build
 
-        // Even this "complete" migration fails because nested fields within variant
-        // cases are not properly tracked by RenameCase
-        // TODO: Fix variant validation to make this pass
+        // With the fix, this complete migration now passes validation because:
+        // - RenameCase properly tracks all nested fields within variant cases
+        // - TransformCase correctly analyzes nested actions recursively
+        // - All source fields are handled and all target fields are provided
+        assertTrue(result.isRight)
+      }
+    ),
+    suite("Complex variant validation edge cases")(
+      test("nested variant in record passes validation") {
+        // Test that variant validation works when the variant is nested inside a record
+        case class OrderV1(id: String, payment: PaymentV1)
+        case class OrderV2(id: String, payment: PaymentV2)
+
+        object OrderV1 {
+          implicit val schema: Schema[OrderV1] = Schema.derived[OrderV1]
+        }
+
+        object OrderV2 {
+          implicit val schema: Schema[OrderV2] = Schema.derived[OrderV2]
+        }
+
+        val builder = MigrationBuilder
+          .newBuilder[OrderV1, OrderV2]
+          .renameCase(DynamicOptic.root.field("payment"), "CreditCardV1", "CreditCardV2")
+          .renameCase(DynamicOptic.root.field("payment"), "PayPalV1", "PayPalPaymentV2")
+          .transformCase(
+            DynamicOptic.root.field("payment"),
+            "CreditCardV2",
+            Vector(
+              MigrationAction.AddField(
+                DynamicOptic.root.field("expiryDate"),
+                SchemaExpr.Literal[DynamicValue, String]("01/25", Schema.string)
+              )
+            )
+          )
+
+        val result = builder.build
+
+        assertTrue(result.isRight)
+      },
+      test("TransformCase with nested RenameField validates correctly") {
+        // Test that TransformCase properly tracks nested rename actions within a variant case
+        sealed trait PaymentWithBankV1
+        case class CreditCardWithBankV1(number: String, cvv: String)                       extends PaymentWithBankV1
+        case class BankTransferWithDetailsV1(accountNumber: String, routingNumber: String) extends PaymentWithBankV1
+
+        sealed trait PaymentWithBankV2
+        case class CreditCardWithBankV2(number: String, cvv: String)                    extends PaymentWithBankV2
+        case class BankTransferWithDetailsV2(accountNum: String, routingNumber: String) extends PaymentWithBankV2
+
+        object PaymentWithBankV1 {
+          implicit val schema: Schema[PaymentWithBankV1] = Schema.derived[PaymentWithBankV1]
+        }
+
+        object PaymentWithBankV2 {
+          implicit val schema: Schema[PaymentWithBankV2] = Schema.derived[PaymentWithBankV2]
+        }
+
+        object CreditCardWithBankV1 {
+          implicit val schema: Schema[CreditCardWithBankV1] = Schema.derived[CreditCardWithBankV1]
+        }
+
+        object CreditCardWithBankV2 {
+          implicit val schema: Schema[CreditCardWithBankV2] = Schema.derived[CreditCardWithBankV2]
+        }
+
+        object BankTransferWithDetailsV1 {
+          implicit val schema: Schema[BankTransferWithDetailsV1] = Schema.derived[BankTransferWithDetailsV1]
+        }
+
+        object BankTransferWithDetailsV2 {
+          implicit val schema: Schema[BankTransferWithDetailsV2] = Schema.derived[BankTransferWithDetailsV2]
+        }
+
+        val builder = MigrationBuilder
+          .newBuilder[PaymentWithBankV1, PaymentWithBankV2]
+          .renameCase(DynamicOptic.root, "CreditCardWithBankV1", "CreditCardWithBankV2")
+          .transformCase(
+            DynamicOptic.root,
+            "BankTransferWithDetailsV2",
+            Vector(
+              MigrationAction.Rename(
+                DynamicOptic.root.field("accountNumber"),
+                "accountNum"
+              )
+            )
+          )
+          .renameCase(DynamicOptic.root, "BankTransferWithDetailsV1", "BankTransferWithDetailsV2")
+
+        val result = builder.build
+
+        assertTrue(result.isRight)
+      },
+      test("variant case with nested record containing multiple fields") {
+        // Test complex variant case with deeply nested structure
+        case class DetailedAddress(street: String, city: String, state: String, zipCode: String)
+
+        sealed trait PaymentWithShippingV1
+        case class CardV1(number: String)                                extends PaymentWithShippingV1
+        case class ShippingV1(carrier: String, address: DetailedAddress) extends PaymentWithShippingV1
+
+        sealed trait PaymentWithShippingV2
+        case class CardV2(number: String)                                 extends PaymentWithShippingV2
+        case class ShippingV2(carrier: String, location: DetailedAddress) extends PaymentWithShippingV2
+
+        object DetailedAddress {
+          implicit val schema: Schema[DetailedAddress] = Schema.derived[DetailedAddress]
+        }
+
+        object PaymentWithShippingV1 {
+          implicit val schema: Schema[PaymentWithShippingV1] = Schema.derived[PaymentWithShippingV1]
+        }
+
+        object PaymentWithShippingV2 {
+          implicit val schema: Schema[PaymentWithShippingV2] = Schema.derived[PaymentWithShippingV2]
+        }
+
+        object CardV1 {
+          implicit val schema: Schema[CardV1] = Schema.derived[CardV1]
+        }
+
+        object CardV2 {
+          implicit val schema: Schema[CardV2] = Schema.derived[CardV2]
+        }
+
+        object ShippingV1 {
+          implicit val schema: Schema[ShippingV1] = Schema.derived[ShippingV1]
+        }
+
+        object ShippingV2 {
+          implicit val schema: Schema[ShippingV2] = Schema.derived[ShippingV2]
+        }
+
+        val builder = MigrationBuilder
+          .newBuilder[PaymentWithShippingV1, PaymentWithShippingV2]
+          .renameCase(DynamicOptic.root, "CardV1", "CardV2")
+          .renameCase(DynamicOptic.root, "ShippingV1", "ShippingV2")
+          .transformCase(
+            DynamicOptic.root,
+            "ShippingV2",
+            Vector(
+              MigrationAction.Rename(
+                DynamicOptic.root.field("address"),
+                "location"
+              )
+            )
+          )
+
+        val result = builder.build
+
+        assertTrue(result.isRight)
+      },
+      test("TransformCase with multiple nested actions validates correctly") {
+        // Test that TransformCase properly handles multiple nested actions (AddField + DropField)
+        sealed trait EnhancedPaymentV1
+        case class EnhancedCardV1(number: String, cvv: String, notes: String) extends EnhancedPaymentV1
+        case class SimpleCashV1(amount: Int)                                  extends EnhancedPaymentV1
+
+        sealed trait EnhancedPaymentV2
+        case class EnhancedCardV2(number: String, cvv: String, expiryDate: String) extends EnhancedPaymentV2
+        case class SimpleCashV2(amount: Int)                                       extends EnhancedPaymentV2
+
+        object EnhancedPaymentV1 {
+          implicit val schema: Schema[EnhancedPaymentV1] = Schema.derived[EnhancedPaymentV1]
+        }
+
+        object EnhancedPaymentV2 {
+          implicit val schema: Schema[EnhancedPaymentV2] = Schema.derived[EnhancedPaymentV2]
+        }
+
+        object EnhancedCardV1 {
+          implicit val schema: Schema[EnhancedCardV1] = Schema.derived[EnhancedCardV1]
+        }
+
+        object EnhancedCardV2 {
+          implicit val schema: Schema[EnhancedCardV2] = Schema.derived[EnhancedCardV2]
+        }
+
+        object SimpleCashV1 {
+          implicit val schema: Schema[SimpleCashV1] = Schema.derived[SimpleCashV1]
+        }
+
+        object SimpleCashV2 {
+          implicit val schema: Schema[SimpleCashV2] = Schema.derived[SimpleCashV2]
+        }
+
+        val builder = MigrationBuilder
+          .newBuilder[EnhancedPaymentV1, EnhancedPaymentV2]
+          .renameCase(DynamicOptic.root, "EnhancedCardV1", "EnhancedCardV2")
+          .renameCase(DynamicOptic.root, "SimpleCashV1", "SimpleCashV2")
+          .transformCase(
+            DynamicOptic.root,
+            "EnhancedCardV2",
+            Vector(
+              MigrationAction.DropField(
+                DynamicOptic.root.field("notes"),
+                SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+              ),
+              MigrationAction.AddField(
+                DynamicOptic.root.field("expiryDate"),
+                SchemaExpr.Literal[DynamicValue, String]("01/25", Schema.string)
+              )
+            )
+          )
+
+        val result = builder.build
+
+        assertTrue(result.isRight)
+      },
+      test("deeply nested variant in record structure") {
+        // Test: Record → Record → Variant with nested fields
+        case class CustomerV1(name: String, primaryPayment: PaymentV1)
+        case class AccountV1(customer: CustomerV1, accountId: String)
+
+        case class CustomerV2(name: String, primaryPayment: PaymentV2)
+        case class AccountV2(customer: CustomerV2, accountId: String)
+
+        object CustomerV1 {
+          implicit val schema: Schema[CustomerV1] = Schema.derived[CustomerV1]
+        }
+
+        object AccountV1 {
+          implicit val schema: Schema[AccountV1] = Schema.derived[AccountV1]
+        }
+
+        object CustomerV2 {
+          implicit val schema: Schema[CustomerV2] = Schema.derived[CustomerV2]
+        }
+
+        object AccountV2 {
+          implicit val schema: Schema[AccountV2] = Schema.derived[AccountV2]
+        }
+
+        val builder = MigrationBuilder
+          .newBuilder[AccountV1, AccountV2]
+          .renameCase(
+            DynamicOptic.root.field("customer").field("primaryPayment"),
+            "CreditCardV1",
+            "CreditCardV2"
+          )
+          .renameCase(
+            DynamicOptic.root.field("customer").field("primaryPayment"),
+            "PayPalV1",
+            "PayPalPaymentV2"
+          )
+          .transformCase(
+            DynamicOptic.root.field("customer").field("primaryPayment"),
+            "CreditCardV2",
+            Vector(
+              MigrationAction.AddField(
+                DynamicOptic.root.field("expiryDate"),
+                SchemaExpr.Literal[DynamicValue, String]("01/25", Schema.string)
+              )
+            )
+          )
+
+        val result = builder.build
+
+        assertTrue(result.isRight)
+      },
+      test("incomplete nested variant migration fails with proper error") {
+        // Verify that incomplete migrations in nested variants are properly detected
+        case class OrderWithPaymentV1(orderId: String, payment: PaymentV1)
+        case class OrderWithPaymentV2(orderId: String, payment: PaymentV2)
+
+        object OrderWithPaymentV1 {
+          implicit val schema: Schema[OrderWithPaymentV1] = Schema.derived[OrderWithPaymentV1]
+        }
+
+        object OrderWithPaymentV2 {
+          implicit val schema: Schema[OrderWithPaymentV2] = Schema.derived[OrderWithPaymentV2]
+        }
+
+        // Only handle CreditCard case, not PayPal
+        val builder = MigrationBuilder
+          .newBuilder[OrderWithPaymentV1, OrderWithPaymentV2]
+          .renameCase(DynamicOptic.root.field("payment"), "CreditCardV1", "CreditCardV2")
+          .transformCase(
+            DynamicOptic.root.field("payment"),
+            "CreditCardV2",
+            Vector(
+              MigrationAction.AddField(
+                DynamicOptic.root.field("expiryDate"),
+                SchemaExpr.Literal[DynamicValue, String]("01/25", Schema.string)
+              )
+            )
+          )
+
+        val result = builder.build
+
         assertTrue(result.isLeft) &&
         assertTrue(result.left.exists {
           case MigrationError.ValidationError(_, unhandled, unprovided) =>
-            // The validation still fails due to nested field tracking issues
-            unhandled.nonEmpty || unprovided.nonEmpty
+            // Should detect unhandled PayPal case and its nested fields
+            unhandled.contains("payment.PayPalV1") &&
+            unhandled.contains("payment.PayPalV1.email") &&
+            unprovided.contains("payment.PayPalPaymentV2") &&
+            unprovided.contains("payment.PayPalPaymentV2.email")
           case _ => false
         })
+      },
+      test("variant with simple case objects passes validation") {
+        // Test variant cases that are case objects (no nested fields)
+        sealed trait StatusV1
+        case object PendingV1  extends StatusV1
+        case object ApprovedV1 extends StatusV1
+
+        sealed trait StatusV2
+        case object PendingV2  extends StatusV2
+        case object AcceptedV2 extends StatusV2
+
+        object StatusV1 {
+          implicit val schema: Schema[StatusV1] = Schema.derived[StatusV1]
+        }
+
+        object StatusV2 {
+          implicit val schema: Schema[StatusV2] = Schema.derived[StatusV2]
+        }
+
+        val builder = MigrationBuilder
+          .newBuilder[StatusV1, StatusV2]
+          .renameCase(DynamicOptic.root, "PendingV1", "PendingV2")
+          .renameCase(DynamicOptic.root, "ApprovedV1", "AcceptedV2")
+
+        val result = builder.build
+
+        assertTrue(result.isRight)
       }
     ),
     suite("Special cases")(
