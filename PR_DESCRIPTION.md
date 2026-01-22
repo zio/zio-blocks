@@ -93,53 +93,48 @@ Complete documentation following the zio-blocks style:
 
 ## Files Changed
 
-**Core Implementation (1,999 lines):**
-- `schema/shared/src/main/scala/zio/blocks/schema/migration/Migration.scala` (125 lines)
+**Core Implementation:**
+- `schema/shared/src/main/scala/zio/blocks/schema/migration/Migration.scala` (122 lines)
 - `schema/shared/src/main/scala/zio/blocks/schema/migration/DynamicMigration.scala` (127 lines)
-- `schema/shared/src/main/scala/zio/blocks/schema/migration/MigrationAction.scala` (570 lines)
+- `schema/shared/src/main/scala/zio/blocks/schema/migration/MigrationAction.scala` (550 lines)
 - `schema/shared/src/main/scala/zio/blocks/schema/migration/MigrationBuilder.scala` (168 lines)
-- `schema/shared/src/main/scala/zio/blocks/schema/migration/MigrationError.scala` (105 lines)
 - `schema/shared/src/main/scala/zio/blocks/schema/migration/SchemaExpr.scala` (153 lines)
 - `schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilderMacros.scala` (95 lines)
 - `schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilderSyntax.scala` (300 lines)
 - `schema/shared/src/main/scala-3/zio/blocks/schema/migration/MigrationBuilderMacros.scala` (99 lines)
 - `schema/shared/src/main/scala-3/zio/blocks/schema/migration/MigrationBuilderSyntax.scala` (248 lines)
+- `schema/shared/src/main/scala/zio/blocks/schema/SchemaError.scala` (extended with migration errors)
 
-**Tests (1,506 lines):**
-- `schema/shared/src/test/scala/zio/blocks/schema/migration/MigrationSpec.scala` (594 lines)
-- `schema/shared/src/test/scala/zio/blocks/schema/migration/MigrationActionSpec.scala` (515 lines)
-- `schema/shared/src/test/scala/zio/blocks/schema/migration/MigrationPropertySpec.scala` (272 lines)
-- `schema/shared/src/test/scala/zio/blocks/schema/migration/MigrationBuilderSpec.scala` (125 lines)
-
-**Documentation (1,157 lines):**
-- `docs/reference/migration.md` (1,157 lines)
-
-**Total: 4,662 lines**
+**Tests (1,662 lines):**
+- `schema/shared/src/test/scala/zio/blocks/schema/migration/MigrationSpec.scala` (679 lines)
+- `schema/shared/src/test/scala/zio/blocks/schema/migration/MigrationActionSpec.scala` (566 lines)
+- `schema/shared/src/test/scala/zio/blocks/schema/migration/MigrationPropertySpec.scala` (297 lines)
+- `schema/shared/src/test/scala/zio/blocks/schema/migration/MigrationBuilderSpec.scala` (120 lines)
 
 ## Example Usage
 
 ```scala
 // Define schemas
-case class UserV1(name: String, age: Int)
-case class UserV2(firstName: String, lastName: String, age: Int, email: String)
+case class PersonV1(name: String, age: Int)
+case class PersonV2(fullName: String, age: Int, country: String)
 
 // Create migration
 val migration = MigrationBuilder(
-  Schema.derived[UserV1],
-  Schema.derived[UserV2]
+  Schema.derived[PersonV1],
+  Schema.derived[PersonV2]
 )
-  .splitField("name", Vector("firstName", "lastName"), " ")
-  .addFieldWithDefault("email", "unknown@example.com")
+  .renameField("name", "fullName")
+  .addFieldWithDefault("country", "USA")
   .build
 
 // Apply migration
-val user = UserV1("Alice Smith", 30)
-val result = migration.apply(user)
-// Right(UserV2("Alice", "Smith", 30, "unknown@example.com"))
+val person = PersonV1("Alice", 30)
+val result = migration.apply(person)
+// Right(PersonV2("Alice", 30, "USA"))
 
 // Reverse migration
 val reversed = migration.reverse.apply(result.toOption.get)
-// Right(UserV1("Alice Smith", 30))
+// Right(PersonV1("Alice", 30))
 ```
 
 ## Addresses Issue

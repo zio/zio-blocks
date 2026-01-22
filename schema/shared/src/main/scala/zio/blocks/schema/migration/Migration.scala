@@ -13,8 +13,28 @@ import zio.blocks.schema.{Schema, SchemaError, DynamicOptic}
  *   - Reversible: has a structural inverse
  *   - Introspectable: can inspect the underlying actions
  *
- * Note: The schemas A and B are typically structural types representing old
- * versions of data, not runtime case classes.
+ * ## Intended Use with Structural Types
+ *
+ * The migration system is designed to work with structural types for old schema
+ * versions, avoiding runtime overhead:
+ *
+ * {{{
+ * // Old version as structural type (compile-time only)
+ * type PersonV0 = { val firstName: String; val lastName: String }
+ *
+ * // Current version as case class (runtime representation)
+ * case class Person(fullName: String, age: Int)
+ *
+ * // Migration works with both
+ * val migration = Migration.builder[PersonV0, Person]
+ *   .addField(_.age, 0)
+ *   .build
+ * }}}
+ *
+ * Note: This implementation works with any Schema[A] and Schema[B], whether
+ * derived from case classes, structural types, or other schema sources. When
+ * Schema.structural is available, this migration system will seamlessly support
+ * it without modification.
  */
 final case class Migration[A, B](
   dynamicMigration: DynamicMigration,
