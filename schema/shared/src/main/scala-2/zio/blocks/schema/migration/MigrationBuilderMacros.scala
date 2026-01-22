@@ -14,11 +14,12 @@ import zio.blocks.schema.{DynamicOptic, Schema}
 object MigrationBuilderMacros {
 
   /**
-   * Macro implementation for build() method with validation.
-   * Validates that all fields in target schema are accounted for.
+   * Macro implementation for build() method with validation. Validates that all
+   * fields in target schema are accounted for.
    */
-  def buildWithValidation[A, B](c: whitebox.Context)(
-    implicit aTag: c.WeakTypeTag[A], bTag: c.WeakTypeTag[B]
+  def buildWithValidation[A, B](c: whitebox.Context)(implicit
+    aTag: c.WeakTypeTag[A],
+    bTag: c.WeakTypeTag[B]
   ): c.Expr[Migration[A, B]] = {
     import c.universe._
 
@@ -47,8 +48,8 @@ object MigrationBuilderMacros {
       c.error(
         c.enclosingPosition,
         s"Migration from ${aTag.tpe} to ${bTag.tpe} is incomplete: " +
-        s"source fields [${unmappedSource.mkString(", ")}] are not handled. " +
-        s"Use dropField() to explicitly drop them."
+          s"source fields [${unmappedSource.mkString(", ")}] are not handled. " +
+          s"Use dropField() to explicitly drop them."
       )
     }
 
@@ -56,8 +57,8 @@ object MigrationBuilderMacros {
       c.error(
         c.enclosingPosition,
         s"Migration from ${aTag.tpe} to ${bTag.tpe} is incomplete: " +
-        s"target fields [${unmappedTarget.mkString(", ")}] are not produced. " +
-        s"Use addField() or renameField() to provide them."
+          s"target fields [${unmappedTarget.mkString(", ")}] are not produced. " +
+          s"Use addField() or renameField() to provide them."
       )
     }
 
@@ -95,7 +96,7 @@ object MigrationBuilderMacros {
 
       // Typed wrapper
       case Typed(inner, _) => loop(inner, acc)
-      case Block(_, expr) => loop(expr, acc)
+      case Block(_, expr)  => loop(expr, acc)
 
       // Base case: reached the builder constructor
       case _ => acc
@@ -110,47 +111,46 @@ object MigrationBuilderMacros {
   private def extractActionFromMethod(c: whitebox.Context)(
     methodName: String,
     args: List[c.Tree]
-  ): ExtractedAction = {
+  ): ExtractedAction =
     methodName match {
       case "renameField" if args.length >= 2 =>
         (extractStringLiteral(c)(args(0)), extractStringLiteral(c)(args(1))) match {
           case (Some(from), Some(to)) => ExtractedAction.Rename(from, to)
-          case _ => ExtractedAction.Unknown
+          case _                      => ExtractedAction.Unknown
         }
 
       case "dropField" | "dropFieldWithDefault" if args.nonEmpty =>
         extractStringLiteral(c)(args(0)) match {
           case Some(name) => ExtractedAction.Drop(name)
-          case None => ExtractedAction.Unknown
+          case None       => ExtractedAction.Unknown
         }
 
       case "addField" | "addFieldWithDefault" if args.nonEmpty =>
         extractStringLiteral(c)(args(0)) match {
           case Some(name) => ExtractedAction.Add(name)
-          case None => ExtractedAction.Unknown
+          case None       => ExtractedAction.Unknown
         }
 
       case "optionalizeField" if args.nonEmpty =>
         extractStringLiteral(c)(args(0)) match {
           case Some(name) => ExtractedAction.Optionalize(name)
-          case None => ExtractedAction.Unknown
+          case None       => ExtractedAction.Unknown
         }
 
       case "mandateField" | "mandateFieldWithDefault" if args.nonEmpty =>
         extractStringLiteral(c)(args(0)) match {
           case Some(name) => ExtractedAction.Mandate(name)
-          case None => ExtractedAction.Unknown
+          case None       => ExtractedAction.Unknown
         }
 
       case "changeFieldType" if args.nonEmpty =>
         extractStringLiteral(c)(args(0)) match {
           case Some(name) => ExtractedAction.ChangeType(name, name)
-          case None => ExtractedAction.Unknown
+          case None       => ExtractedAction.Unknown
         }
 
       case _ => ExtractedAction.Unknown
     }
-  }
 
   /**
    * Extract a string literal from a tree.
@@ -160,9 +160,9 @@ object MigrationBuilderMacros {
 
     tree match {
       case Literal(Constant(s: String)) => Some(s)
-      case Typed(t, _) => extractStringLiteral(c)(t)
-      case Block(_, t) => extractStringLiteral(c)(t)
-      case _ => None
+      case Typed(t, _)                  => extractStringLiteral(c)(t)
+      case Block(_, t)                  => extractStringLiteral(c)(t)
+      case _                            => None
     }
   }
 
@@ -170,7 +170,7 @@ object MigrationBuilderMacros {
    * Simulate which fields are handled by the migration actions.
    */
   private def simulateTransformation(actions: List[ExtractedAction]): (Set[String], Set[String]) = {
-    var handledSource = Set.empty[String]
+    var handledSource  = Set.empty[String]
     var producedTarget = Set.empty[String]
 
     actions.foreach {
@@ -203,15 +203,14 @@ object MigrationBuilderMacros {
    */
   private sealed trait ExtractedAction
   private object ExtractedAction {
-    case class Rename(from: String, to: String) extends ExtractedAction
-    case class Drop(name: String) extends ExtractedAction
-    case class Add(name: String) extends ExtractedAction
-    case class Optionalize(name: String) extends ExtractedAction
-    case class Mandate(name: String) extends ExtractedAction
+    case class Rename(from: String, to: String)     extends ExtractedAction
+    case class Drop(name: String)                   extends ExtractedAction
+    case class Add(name: String)                    extends ExtractedAction
+    case class Optionalize(name: String)            extends ExtractedAction
+    case class Mandate(name: String)                extends ExtractedAction
     case class ChangeType(from: String, to: String) extends ExtractedAction
-    case object Unknown extends ExtractedAction
+    case object Unknown                             extends ExtractedAction
   }
-
 
   /**
    * Extract field name from a selector lambda like _.fieldName Returns the
@@ -282,8 +281,8 @@ object MigrationBuilderMacros {
    * Validate that a selector points to a valid field in the schema. This is a
    * compile-time check to ensure type safety.
    *
-   * Note: Full validation is performed in buildWithValidation macro.
-   * This method validates selector syntax only.
+   * Note: Full validation is performed in buildWithValidation macro. This
+   * method validates selector syntax only.
    */
   def validateFieldExists[A](c: whitebox.Context)(
     selector: c.Expr[A => Any],
@@ -305,11 +304,13 @@ object MigrationBuilderSyntax {
   import scala.language.experimental.macros
 
   implicit class MigrationBuilderOps[A, B](private val builder: MigrationBuilder[A, B]) extends AnyVal {
+
     /**
      * Build the migration with full validation.
      *
      * This is the ONLY build method we expose (no buildPartial).
-     * @jdegoes specifically requested this.
+     * @jdegoes
+     *   specifically requested this.
      *
      * This method uses macros to validate at compile time that:
      *   - All source fields are either migrated or explicitly dropped
