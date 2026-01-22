@@ -416,12 +416,10 @@ object SchemaExpr {
 
   /**
    * Converts a primitive value from one type to another using a
-   * PrimitiveConverter. Used for type conversions in migrations (String to Int,
-   * Int to Long, etc.)
+   * PrimitiveConverter.
    */
   final case class Convert[A, B](expr: SchemaExpr[A, ?], converter: PrimitiveConverter) extends SchemaExpr[A, B] {
     def eval(input: A): Either[OpticCheck, Seq[B]] =
-      // eval not supported for Convert - migrations use evalDynamic
       Left(
         new OpticCheck(
           new ::(
