@@ -10,6 +10,7 @@ This PR implements a comprehensive schema migration system for ZIO Schema 2, add
 
 - **Pure Data Migrations**: Migrations are represented as data structures rather than functions, enabling serialization, introspection, and automatic reversal
 - **Type-Safe API**: Compile-time checking with schemas ensures correctness
+- **Macro Validation**: The `build()` method validates at compile-time that migrations are complete, catching missing field mappings before runtime
 - **Deep Nesting Support**: Navigate and transform arbitrarily nested structures up to 7+ levels deep
 - **Comprehensive Action Set**: 14 migration action types covering records, variants, and collections
 - **Automatic Reversal**: Every migration has a structural inverse that can be generated automatically
@@ -59,7 +60,12 @@ val migration = MigrationBuilder(sourceSchema, targetSchema)
   .build
 ```
 
-All builder methods use only `build()` (not `buildPartial()`) as specified in the requirements.
+The `build()` method includes **compile-time macro validation** that ensures migrations are complete:
+- All source fields are handled (renamed, dropped, or implicitly carried over)
+- All target fields are produced (added, renamed, or implicitly carried over)
+- Clear compile-time error messages for incomplete migrations
+
+A `buildUnchecked()` method is also available for cases where validation is not needed.
 
 ## Testing
 
@@ -94,15 +100,14 @@ Complete documentation following the zio-blocks style:
 ## Files Changed
 
 **Core Implementation:**
-- `schema/shared/src/main/scala/zio/blocks/schema/migration/Migration.scala` (122 lines)
-- `schema/shared/src/main/scala/zio/blocks/schema/migration/DynamicMigration.scala` (127 lines)
-- `schema/shared/src/main/scala/zio/blocks/schema/migration/MigrationAction.scala` (550 lines)
-- `schema/shared/src/main/scala/zio/blocks/schema/migration/MigrationBuilder.scala` (168 lines)
-- `schema/shared/src/main/scala/zio/blocks/schema/migration/SchemaExpr.scala` (153 lines)
-- `schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilderMacros.scala` (95 lines)
-- `schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilderSyntax.scala` (300 lines)
-- `schema/shared/src/main/scala-3/zio/blocks/schema/migration/MigrationBuilderMacros.scala` (99 lines)
-- `schema/shared/src/main/scala-3/zio/blocks/schema/migration/MigrationBuilderSyntax.scala` (248 lines)
+- `schema/shared/src/main/scala/zio/blocks/schema/migration/Migration.scala` (141 lines)
+- `schema/shared/src/main/scala/zio/blocks/schema/migration/DynamicMigration.scala` (124 lines)
+- `schema/shared/src/main/scala/zio/blocks/schema/migration/MigrationAction.scala` (549 lines)
+- `schema/shared/src/main/scala/zio/blocks/schema/migration/MigrationBuilder.scala` (164 lines)
+- `schema/shared/src/main/scala/zio/blocks/schema/migration/SchemaExpr.scala` (157 lines)
+- `schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilderMacros.scala` (321 lines - includes macro validation)
+- `schema/shared/src/main/scala-3/zio/blocks/schema/migration/MigrationBuilderMacros.scala` (315 lines - includes macro validation)
+- `schema/shared/src/main/scala-3/zio/blocks/schema/migration/MigrationBuilderSyntax.scala` (246 lines)
 - `schema/shared/src/main/scala/zio/blocks/schema/SchemaError.scala` (extended with migration errors)
 
 **Tests (1,662 lines):**
