@@ -58,10 +58,10 @@ object ThriftCodecSpec extends ZIOSpecDefault {
       } yield DynamicValue.Tuple(a, b)
 
     def anyDynamicSequence[A](schema: Schema[A]): Gen[Sized, DynamicValue] =
-      Gen.chunkOf(anyDynamicValueOfSchema(schema)).map(DynamicValue.Sequence)
+      Gen.chunkOf(anyDynamicValueOfSchema(schema)).map(DynamicValue.Sequence.apply)
 
     def anyDynamicSet[A](schema: Schema[A]): Gen[Sized, DynamicValue] =
-      Gen.chunkOf(anyDynamicValueOfSchema(schema)).map(DynamicValue.Sequence)
+      Gen.chunkOf(anyDynamicValueOfSchema(schema)).map(DynamicValue.Sequence.apply)
   }
   object SchemaGen {
     val anyRecursiveTypeAndValue: Gen[Sized, (Schema[Any], Any)] =

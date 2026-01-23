@@ -148,16 +148,17 @@ final class ThriftEncoder extends MutableSchemaBasedValueProcessor[Unit, ThriftE
 
   private def writePrimitiveType[A](standardType: StandardType[A], value: A): Unit =
     (standardType, value) match {
-      case (StandardType.UnitType, _)                             =>
-      case (StandardType.StringType, str: String)                 => p.writeString(str)
-      case (StandardType.BoolType, b: Boolean)                    => p.writeBool(b)
-      case (StandardType.ByteType, v: Byte)                       => p.writeByte(v)
-      case (StandardType.ShortType, v: Short)                     => p.writeI16(v)
-      case (StandardType.IntType, v: Int)                         => p.writeI32(v)
-      case (StandardType.LongType, v: Long)                       => p.writeI64(v)
-      case (StandardType.FloatType, v: Float)                     => p.writeDouble(v.toDouble)
-      case (StandardType.DoubleType, v: Double)                   => p.writeDouble(v)
-      case (StandardType.BinaryType, bytes: Chunk[Byte])          => p.writeBinary(ByteBuffer.wrap(bytes.toArray))
+      case (StandardType.UnitType, _)                 =>
+      case (StandardType.StringType, str: String)     => p.writeString(str)
+      case (StandardType.BoolType, b: Boolean)        => p.writeBool(b)
+      case (StandardType.ByteType, v: Byte)           => p.writeByte(v)
+      case (StandardType.ShortType, v: Short)         => p.writeI16(v)
+      case (StandardType.IntType, v: Int)             => p.writeI32(v)
+      case (StandardType.LongType, v: Long)           => p.writeI64(v)
+      case (StandardType.FloatType, v: Float)         => p.writeDouble(v.toDouble)
+      case (StandardType.DoubleType, v: Double)       => p.writeDouble(v)
+      case (StandardType.BinaryType, bytes: Chunk[_]) =>
+        p.writeBinary(ByteBuffer.wrap(bytes.asInstanceOf[Chunk[Byte]].toArray))
       case (StandardType.CharType, c: Char)                       => p.writeString(c.toString)
       case (StandardType.UUIDType, u: UUID)                       => p.writeString(u.toString)
       case (StandardType.DayOfWeekType, v: DayOfWeek)             => p.writeByte(v.getValue.toByte)
