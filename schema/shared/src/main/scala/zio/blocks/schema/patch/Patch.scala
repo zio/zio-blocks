@@ -66,6 +66,19 @@ final case class Patch[S] private[schema] (dynamicPatch: DynamicPatch, schema: S
 
   // Check if this patch is empty (no operations).
   def isEmpty: Boolean = dynamicPatch.isEmpty
+
+  override def toString: String = {
+    val typeName = schema.reflect.typeName.toString
+    if (dynamicPatch.isEmpty) s"Patch[$typeName] {}"
+    else {
+      val sb = new StringBuilder(s"Patch[$typeName] {\n")
+      dynamicPatch.ops.foreach { op =>
+        DynamicPatch.appendOp(sb, op, 1)
+      }
+      sb.append('}')
+      sb.toString
+    }
+  }
 }
 
 /**

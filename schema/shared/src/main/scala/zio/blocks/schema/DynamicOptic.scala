@@ -38,21 +38,54 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     var idx = 0
     while (idx < len) {
       nodes(idx) match {
-        case Node.Field(name)    => sb.append('.').append(name)
-        case Node.Case(name)     => sb.append(".when[").append(name).append(']')
-        case Node.AtIndex(index) => sb.append(".at(").append(index).append(')')
-        case Node.AtMapKey(_)    => sb.append(".atKey(<key>)")
-        case Node.AtIndices(_)   => sb.append(".atIndices(<indices>)")
-        case Node.AtMapKeys(_)   => sb.append(".atKeys(<keys>)")
-        case Node.Elements       => sb.append(".each")
-        case Node.MapKeys        => sb.append(".eachKey")
-        case Node.MapValues      => sb.append(".eachValue")
-        case Node.Wrapped        => sb.append(".wrapped")
+        case Node.Field(name)       => sb.append('.').append(name)
+        case Node.Case(name)        => sb.append('<').append(name).append('>')
+        case Node.AtIndex(index)    => sb.append('[').append(index).append(']')
+        case Node.AtIndices(indices) =>
+          sb.append('[')
+          var first = true
+          indices.foreach { i =>
+            if (!first) sb.append(',')
+            first = false
+            sb.append(i)
+          }
+          sb.append(']')
+        case Node.AtMapKey(key)     => sb.append('{').append(formatDynamicValueKey(key)).append('}')
+        case Node.AtMapKeys(keys)   =>
+          sb.append('{')
+          var first = true
+          keys.foreach { k =>
+            if (!first) sb.append(", ")
+            first = false
+            sb.append(formatDynamicValueKey(k))
+          }
+          sb.append('}')
+        case Node.Elements          => sb.append("[*]")
+        case Node.MapKeys           => sb.append("{*:}")
+        case Node.MapValues         => sb.append("{*}")
+        case Node.Wrapped           => sb.append(".~")
       }
       idx += 1
     }
-    if (sb.isEmpty) "."
-    else sb.toString
+    sb.toString
+  }
+
+  private def formatDynamicValueKey(value: DynamicValue): String = value match {
+    case DynamicValue.Primitive(pv) => pv match {
+      case PrimitiveValue.String(s)  => "\"" + s + "\""
+      case PrimitiveValue.Boolean(b) => b.toString
+      case PrimitiveValue.Int(i)     => i.toString
+      case PrimitiveValue.Long(l)    => l.toString
+      case PrimitiveValue.Double(d)  => d.toString
+      case PrimitiveValue.Float(f)   => f.toString
+      case PrimitiveValue.Short(s)   => s.toString
+      case PrimitiveValue.Byte(b)    => b.toString
+      case PrimitiveValue.Char(c)    => "'" + c + "'"
+      case PrimitiveValue.BigInt(bi) => bi.toString
+      case PrimitiveValue.BigDecimal(bd) => bd.toString
+      case other                     => other.toString
+    }
+    case _ => value.toString
   }
 }
 

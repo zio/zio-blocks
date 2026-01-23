@@ -249,10 +249,16 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def aspect[B, Min >: B, Max <: B](optic: Optic[A, B], aspect: SchemaAspect[Min, Max, F]): Reflect[F, A] =
     self.updated[B](optic)(aspect(_)).getOrElse(self)
+
+  override def toString: String = toSDL(0, new java.util.IdentityHashMap[Reflect[?, ?], String]())
+
+  private[schema] def toSDL(indent: Int, visited: java.util.IdentityHashMap[Reflect[?, ?], String]): String
 }
 
 object Reflect {
   type Bound[A] = Reflect[Binding, A]
+
+  private[schema] def indentStr(indent: Int): String = "  " * indent
 
   sealed trait Type {
     type NodeBinding <: BindingType
@@ -444,6 +450,26 @@ object Reflect {
     override def asRecord: Option[Reflect.Record[F, A]] = new Some(this)
 
     override def isRecord: Boolean = true
+
+    private[schema] def toSDL(indent: Int, visited: java.util.IdentityHashMap[Reflect[?, ?], String]): String = {
+      if (visited.containsKey(this)) return s"deferred => ${typeName.name}"
+      visited.put(this, typeName.name)
+      val sb = new StringBuilder
+      sb.append("record ").append(typeName.name)
+      if (fields.isEmpty) {
+        sb.append(" {}")
+      } else {
+        sb.append(" {\n")
+        val innerIndent = Reflect.indentStr(indent + 1)
+        fields.foreach { term =>
+          sb.append(innerIndent).append(term.name).append(": ")
+          sb.append(term.value.toSDL(indent + 1, visited))
+          sb.append('\n')
+        }
+        sb.append(Reflect.indentStr(indent)).append('}')
+      }
+      sb.toString
+    }
   }
 
   object Record {
@@ -609,6 +635,37 @@ object Reflect {
     override def asVariant: Option[Reflect.Variant[F, A]] = new Some(this)
 
     override def isVariant: Boolean = true
+
+    private[schema] def toSDL(indent: Int, visited: java.util.IdentityHashMap[Reflect[?, ?], String]): String = {
+      if (visited.containsKey(this)) return s"deferred => ${typeName.name}"
+      visited.put(this, typeName.name)
+      val sb = new StringBuilder
+      sb.append("variant ").append(typeName.toString)
+      if (cases.isEmpty) {
+        sb.append(" {}")
+      } else {
+        sb.append(" {\n")
+        val innerIndent = Reflect.indentStr(indent + 1)
+        cases.foreach { term =>
+          sb.append(innerIndent).append("| ").append(term.name)
+          term.value match {
+            case r: Reflect.Record[F, ?] @unchecked if r.fields.nonEmpty =>
+              sb.append('(')
+              var first = true
+              r.fields.foreach { field =>
+                if (!first) sb.append(", ")
+                first = false
+                sb.append(field.name).append(": ").append(field.value.toSDL(indent + 1, visited))
+              }
+              sb.append(')')
+            case _ => // no fields
+          }
+          sb.append('\n')
+        }
+        sb.append(Reflect.indentStr(indent)).append('}')
+      }
+      sb.toString
+    }
   }
 
   object Variant {
@@ -810,6 +867,10 @@ object Reflect {
     })
 
     override def isSequence: Boolean = true
+
+    private[schema] def toSDL(indent: Int, visited: java.util.IdentityHashMap[Reflect[?, ?], String]): String = {
+      s"sequence ${typeName.name}[${element.toSDL(indent, visited)}]"
+    }
   }
 
   object Sequence {
@@ -924,6 +985,10 @@ object Reflect {
     })
 
     override def isMap: Boolean = true
+
+    private[schema] def toSDL(indent: Int, visited: java.util.IdentityHashMap[Reflect[?, ?], String]): String = {
+      s"map ${typeName.name}[${key.toSDL(indent, visited)}, ${value.toSDL(indent, visited)}]"
+    }
   }
 
   object Map {
@@ -987,6 +1052,10 @@ object Reflect {
     override def asDynamic: Option[Reflect.Dynamic[F]] = new Some(this)
 
     override def isDynamic: Boolean = true
+
+    private[schema] def toSDL(indent: Int, visited: java.util.IdentityHashMap[Reflect[?, ?], String]): String = {
+      "DynamicValue"
+    }
   }
 
   object Dynamic {
@@ -1043,6 +1112,10 @@ object Reflect {
     override def asPrimitive: Option[Reflect.Primitive[F, A]] = new Some(this)
 
     override def isPrimitive: Boolean = true
+
+    private[schema] def toSDL(indent: Int, visited: java.util.IdentityHashMap[Reflect[?, ?], String]): String = {
+      typeName.name
+    }
   }
 
   object Primitive {
@@ -1112,6 +1185,10 @@ object Reflect {
     override def isWrapper: Boolean = true
 
     def nodeType: Reflect.Type.Wrapper[A, B] = new Reflect.Type.Wrapper
+
+    private[schema] def toSDL(indent: Int, visited: java.util.IdentityHashMap[Reflect[?, ?], String]): String = {
+      s"wrapper ${typeName.name}(${wrapped.toSDL(indent, visited)})"
+    }
   }
 
   object Wrapper {
@@ -1383,6 +1460,18 @@ object Reflect {
       }
 
     def nodeType = value.nodeType
+
+    private[schema] def toSDL(indent: Int, visited: java.util.IdentityHashMap[Reflect[?, ?], String]): String = {
+      if (visited.containsKey(this)) {
+        val tn = visited.get(this)
+        if (tn ne null) s"deferred => $tn"
+        else "deferred => ?"
+      } else {
+        val tn = typeName
+        visited.put(this, if (tn ne null) tn.name else null)
+        value.toSDL(indent, visited)
+      }
+    }
   }
 
   private class IdentityTuple(val v1: AnyRef, val v2: AnyRef) {

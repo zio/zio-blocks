@@ -17,6 +17,8 @@ final case class Term[F[_, _], S, A](
     for {
       value <- value.transform(if (termType == Term.Type.Record) path.field(name) else path.caseOf(name), f)
     } yield new Term(name, value, doc, modifiers)
+
+  override def toString: String = s"$name: ${value.toString}"
 }
 
 object Term {

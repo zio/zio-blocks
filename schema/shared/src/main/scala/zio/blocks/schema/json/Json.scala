@@ -224,6 +224,9 @@ sealed trait Json {
   /** Encodes this JSON value to a string using the default WriterConfig. */
   def print: String = Json.jsonCodec.encodeToString(this)
 
+  /** Returns the JSON string representation. */
+  override def toString: String = print
+
   /** Encodes this JSON value to a string using the specified WriterConfig. */
   def print(config: WriterConfig): String = Json.jsonCodec.encodeToString(this, config)
 

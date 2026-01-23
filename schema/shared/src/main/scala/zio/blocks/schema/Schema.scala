@@ -104,6 +104,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
+
+  override def toString: String = s"Schema { ${reflect.toString} }"
 }
 
 object Schema extends SchemaCompanionVersionSpecific {
