@@ -565,7 +565,11 @@ object Json {
 
     override def asNumber: JsonSelection = JsonSelection.succeed(this)
 
-    override def numberValue: Option[BigDecimal] = scala.util.Try(BigDecimal(value)).toOption
+    override def numberValue: Option[BigDecimal] =
+      try new Some(BigDecimal(value))
+      catch {
+        case err if NonFatal(err) => None
+      }
 
     override def typeIndex: Int = 2
 
@@ -574,7 +578,10 @@ object Json {
 
     override def compare(that: Json): Int = that match {
       case thatNum: Number =>
-        scala.util.Try(BigDecimal(value).compare(BigDecimal(thatNum.value))).getOrElse(value.compareTo(thatNum.value))
+        try BigDecimal(value).compare(BigDecimal(thatNum.value))
+        catch {
+          case err if NonFatal(err) => value.compareTo(thatNum.value)
+        }
       case _ => typeIndex - that.typeIndex
     }
   }

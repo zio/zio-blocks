@@ -48,64 +48,102 @@ object JsonEncoder {
   // Primitive Encoders
   // ─────────────────────────────────────────────────────────────────────────
 
-  implicit val stringEncoder: JsonEncoder[String] = instance(Json.String(_))
+  implicit val stringEncoder: JsonEncoder[String] = new JsonEncoder[String] {
+    def encode(s: String): Json = new Json.String(s)
+  }
 
-  implicit val booleanEncoder: JsonEncoder[Boolean] = instance(Json.Boolean(_))
+  implicit val booleanEncoder: JsonEncoder[Boolean] = new JsonEncoder[Boolean] {
+    def encode(b: Boolean): Json = Json.Boolean(b)
+  }
 
-  implicit val intEncoder: JsonEncoder[Int] = instance(i => Json.Number(i.toString))
+  implicit val intEncoder: JsonEncoder[Int] = new JsonEncoder[Int] {
+    def encode(i: Int): Json = new Json.Number(i.toString)
+  }
 
-  implicit val longEncoder: JsonEncoder[Long] = instance(l => Json.Number(l.toString))
+  implicit val longEncoder: JsonEncoder[Long] = new JsonEncoder[Long] {
+    def encode(l: Long): Json = new Json.Number(l.toString)
+  }
 
-  implicit val floatEncoder: JsonEncoder[Float] = instance(f => Json.Number(f.toString))
+  implicit val floatEncoder: JsonEncoder[Float] = new JsonEncoder[Float] {
+    def encode(f: Float): Json = new Json.Number(f.toString)
+  }
 
-  implicit val doubleEncoder: JsonEncoder[Double] = instance(d => Json.Number(d.toString))
+  implicit val doubleEncoder: JsonEncoder[Double] = new JsonEncoder[Double] {
+    def encode(d: Double): Json = new Json.Number(d.toString)
+  }
 
-  implicit val bigDecimalEncoder: JsonEncoder[BigDecimal] = instance(bd => Json.Number(bd.toString))
+  implicit val bigDecimalEncoder: JsonEncoder[BigDecimal] = new JsonEncoder[BigDecimal] {
+    def encode(bd: BigDecimal): Json = new Json.Number(bd.toString)
+  }
 
-  implicit val bigIntEncoder: JsonEncoder[BigInt] = instance(bi => Json.Number(bi.toString))
+  implicit val bigIntEncoder: JsonEncoder[BigInt] = new JsonEncoder[BigInt] {
+    def encode(bi: BigInt): Json = new Json.Number(bi.toString)
+  }
 
-  implicit val byteEncoder: JsonEncoder[Byte] = instance(b => Json.Number(b.toString))
+  implicit val byteEncoder: JsonEncoder[Byte] = new JsonEncoder[Byte] {
+    def encode(b: Byte): Json = new Json.Number(b.toString)
+  }
 
-  implicit val shortEncoder: JsonEncoder[Short] = instance(s => Json.Number(s.toString))
+  implicit val shortEncoder: JsonEncoder[Short] = new JsonEncoder[Short] {
+    def encode(s: Short): Json = new Json.Number(s.toString)
+  }
 
-  implicit val charEncoder: JsonEncoder[Char] = instance(c => Json.String(c.toString))
+  implicit val charEncoder: JsonEncoder[Char] = new JsonEncoder[Char] {
+    def encode(c: Char): Json = new Json.String(c.toString)
+  }
 
-  implicit val unitEncoder: JsonEncoder[Unit] = instance(_ => Json.Null)
+  implicit val unitEncoder: JsonEncoder[Unit] = new JsonEncoder[Unit] {
+    def encode(u: Unit): Json = Json.Null
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Json identity encoder
   // ─────────────────────────────────────────────────────────────────────────
 
-  implicit val jsonEncoder: JsonEncoder[Json] = instance(identity)
-
+  implicit val jsonEncoder: JsonEncoder[Json] = new JsonEncoder[Json] {
+    def encode(json: Json): Json = json
+  }
   // ─────────────────────────────────────────────────────────────────────────
   // Collection Encoders
   // ─────────────────────────────────────────────────────────────────────────
 
-  implicit def optionEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Option[A]] = instance {
-    case Some(a) => encoder.encode(a)
-    case None    => Json.Null
+  implicit def optionEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Option[A]] = new JsonEncoder[Option[A]] {
+    def encode(opt: Option[A]): Json = opt match {
+      case some: Some[_] => encoder.encode(some.value)
+      case _             => Json.Null
+    }
   }
 
-  implicit def vectorEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Vector[A]] = instance { vec =>
-    Json.Array(vec.map(encoder.encode))
+  implicit def vectorEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Vector[A]] = new JsonEncoder[Vector[A]] {
+    def encode(vec: Vector[A]): Json = new Json.Array(vec.map(encoder.encode))
   }
 
-  implicit def listEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[List[A]] = instance { list =>
-    Json.Array(list.map(encoder.encode).toVector)
+  implicit def listEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[List[A]] = new JsonEncoder[List[A]] {
+    def encode(list: List[A]): Json =
+      new Json.Array(list.foldLeft(Vector.newBuilder[Json])((acc, a) => acc.addOne(encoder.encode(a))).result())
   }
 
-  implicit def seqEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Seq[A]] = instance { seq =>
-    Json.Array(seq.map(encoder.encode).toVector)
+  implicit def seqEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Seq[A]] = new JsonEncoder[Seq[A]] {
+    def encode(seq: Seq[A]): Json =
+      new Json.Array(seq.foldLeft(Vector.newBuilder[Json])((acc, a) => acc.addOne(encoder.encode(a))).result())
   }
 
-  implicit def setEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Set[A]] = instance { set =>
-    Json.Array(set.map(encoder.encode).toVector)
+  implicit def setEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Set[A]] = new JsonEncoder[Set[A]] {
+    def encode(set: Set[A]): Json =
+      new Json.Array(set.foldLeft(Vector.newBuilder[Json])((acc, a) => acc.addOne(encoder.encode(a))).result())
   }
 
-  implicit def mapEncoder[V](implicit valueEncoder: JsonEncoder[V]): JsonEncoder[Map[String, V]] = instance { map =>
-    Json.Object(Chunk.from(map.map { case (k, v) => (k, valueEncoder.encode(v)) }))
-  }
+  implicit def mapEncoder[V](implicit valueEncoder: JsonEncoder[V]): JsonEncoder[Map[String, V]] =
+    new JsonEncoder[Map[String, V]] {
+      def encode(map: Map[String, V]): Json =
+        new Json.Object(
+          map
+            .foldLeft(Chunk.newBuilder[(String, Json)]) { (acc, kv) =>
+              acc.addOne((kv._1, valueEncoder.encode(kv._2)))
+            }
+            .result()
+        )
+    }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Tuple Encoders
@@ -114,16 +152,27 @@ object JsonEncoder {
   implicit def tuple2Encoder[A, B](implicit
     encoderA: JsonEncoder[A],
     encoderB: JsonEncoder[B]
-  ): JsonEncoder[(A, B)] = instance { case (a, b) =>
-    Json.Array(Vector(encoderA.encode(a), encoderB.encode(b)))
+  ): JsonEncoder[(A, B)] = new JsonEncoder[(A, B)] {
+    def encode(v: (A, B)): Json = {
+      val builder = Vector.newBuilder[Json]
+      builder.addOne(encoderA.encode(v._1))
+      builder.addOne(encoderB.encode(v._2))
+      new Json.Array(builder.result())
+    }
   }
 
   implicit def tuple3Encoder[A, B, C](implicit
     encoderA: JsonEncoder[A],
     encoderB: JsonEncoder[B],
     encoderC: JsonEncoder[C]
-  ): JsonEncoder[(A, B, C)] = instance { case (a, b, c) =>
-    Json.Array(Vector(encoderA.encode(a), encoderB.encode(b), encoderC.encode(c)))
+  ): JsonEncoder[(A, B, C)] = new JsonEncoder[(A, B, C)] {
+    def encode(v: (A, B, C)): Json = {
+      val builder = Vector.newBuilder[Json]
+      builder.addOne(encoderA.encode(v._1))
+      builder.addOne(encoderB.encode(v._2))
+      builder.addOne(encoderC.encode(v._3))
+      new Json.Array(builder.result())
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -133,38 +182,92 @@ object JsonEncoder {
   implicit def eitherEncoder[L, R](implicit
     leftEncoder: JsonEncoder[L],
     rightEncoder: JsonEncoder[R]
-  ): JsonEncoder[Either[L, R]] = instance {
-    case Left(l)  => Json.Object(Chunk(("Left", leftEncoder.encode(l))))
-    case Right(r) => Json.Object(Chunk(("Right", rightEncoder.encode(r))))
+  ): JsonEncoder[Either[L, R]] = new JsonEncoder[Either[L, R]] {
+    def encode(e: Either[L, R]): Json = new Json.Object(Chunk.single(e match {
+      case Left(l)  => ("Left", leftEncoder.encode(l))
+      case Right(r) => ("Right", rightEncoder.encode(r))
+    }))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Java Time Encoders
   // ─────────────────────────────────────────────────────────────────────────
 
-  implicit val instantEncoder: JsonEncoder[Instant]               = instance(i => Json.String(i.toString))
-  implicit val localDateEncoder: JsonEncoder[LocalDate]           = instance(d => Json.String(d.toString))
-  implicit val localTimeEncoder: JsonEncoder[LocalTime]           = instance(t => Json.String(t.toString))
-  implicit val localDateTimeEncoder: JsonEncoder[LocalDateTime]   = instance(dt => Json.String(dt.toString))
-  implicit val offsetDateTimeEncoder: JsonEncoder[OffsetDateTime] = instance(dt => Json.String(dt.toString))
-  implicit val offsetTimeEncoder: JsonEncoder[OffsetTime]         = instance(t => Json.String(t.toString))
-  implicit val zonedDateTimeEncoder: JsonEncoder[ZonedDateTime]   = instance(dt => Json.String(dt.toString))
-  implicit val durationEncoder: JsonEncoder[Duration]             = instance(d => Json.String(d.toString))
-  implicit val periodEncoder: JsonEncoder[Period]                 = instance(p => Json.String(p.toString))
-  implicit val yearEncoder: JsonEncoder[Year]                     = instance(y => Json.String(y.toString))
-  implicit val yearMonthEncoder: JsonEncoder[YearMonth]           = instance(ym => Json.String(ym.toString))
-  implicit val monthDayEncoder: JsonEncoder[MonthDay]             = instance(md => Json.String(md.toString))
-  implicit val zoneIdEncoder: JsonEncoder[ZoneId]                 = instance(z => Json.String(z.toString))
-  implicit val zoneOffsetEncoder: JsonEncoder[ZoneOffset]         = instance(z => Json.String(z.toString))
-  implicit val dayOfWeekEncoder: JsonEncoder[DayOfWeek]           = instance(d => Json.String(d.toString))
-  implicit val monthEncoder: JsonEncoder[Month]                   = instance(m => Json.String(m.toString))
+  implicit val dayOfWeekEncoder: JsonEncoder[DayOfWeek] = new JsonEncoder[DayOfWeek] {
+    def encode(dow: DayOfWeek): Json = new Json.String(dow.toString)
+  }
+
+  implicit val durationEncoder: JsonEncoder[Duration] = new JsonEncoder[Duration] {
+    def encode(d: Duration): Json = new Json.String(d.toString)
+  }
+
+  implicit val instantEncoder: JsonEncoder[Instant] = new JsonEncoder[Instant] {
+    def encode(i: Instant): Json = new Json.String(i.toString)
+  }
+
+  implicit val localDateEncoder: JsonEncoder[LocalDate] = new JsonEncoder[LocalDate] {
+    def encode(ld: LocalDate): Json = new Json.String(ld.toString)
+  }
+
+  implicit val localTimeEncoder: JsonEncoder[LocalTime] = new JsonEncoder[LocalTime] {
+    def encode(lt: LocalTime): Json = new Json.String(lt.toString)
+  }
+
+  implicit val localDateTimeEncoder: JsonEncoder[LocalDateTime] = new JsonEncoder[LocalDateTime] {
+    def encode(ldt: LocalDateTime): Json = new Json.String(ldt.toString)
+  }
+
+  implicit val monthEncoder: JsonEncoder[Month] = new JsonEncoder[Month] {
+    def encode(m: Month): Json = new Json.String(m.toString)
+  }
+
+  implicit val monthDayEncoder: JsonEncoder[MonthDay] = new JsonEncoder[MonthDay] {
+    def encode(md: MonthDay): Json = new Json.String(md.toString)
+  }
+
+  implicit val offsetDateTimeEncoder: JsonEncoder[OffsetDateTime] = new JsonEncoder[OffsetDateTime] {
+    def encode(c: OffsetDateTime): Json = new Json.String(c.toString)
+  }
+
+  implicit val offsetTimeEncoder: JsonEncoder[OffsetTime] = new JsonEncoder[OffsetTime] {
+    def encode(ot: OffsetTime): Json = new Json.String(ot.toString)
+  }
+
+  implicit val periodEncoder: JsonEncoder[Period] = new JsonEncoder[Period] {
+    def encode(p: Period): Json = new Json.String(p.toString)
+  }
+
+  implicit val yearEncoder: JsonEncoder[Year] = new JsonEncoder[Year] {
+    def encode(y: Year): Json = new Json.String(y.toString)
+  }
+
+  implicit val yearMonthEncoder: JsonEncoder[YearMonth] = new JsonEncoder[YearMonth] {
+    def encode(ym: YearMonth): Json = new Json.String(ym.toString)
+  }
+
+  implicit val zoneOffsetEncoder: JsonEncoder[ZoneOffset] = new JsonEncoder[ZoneOffset] {
+    def encode(zo: ZoneOffset): Json = new Json.String(zo.toString)
+  }
+
+  implicit val zoneIdEncoder: JsonEncoder[ZoneId] = new JsonEncoder[ZoneId] {
+    def encode(zi: ZoneId): Json = new Json.String(zi.toString)
+  }
+
+  implicit val zonedDateTimeEncoder: JsonEncoder[ZonedDateTime] = new JsonEncoder[ZonedDateTime] {
+    def encode(zdt: ZonedDateTime): Json = new Json.String(zdt.toString)
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Other Standard Types
   // ─────────────────────────────────────────────────────────────────────────
 
-  implicit val uuidEncoder: JsonEncoder[UUID]         = instance(u => Json.String(u.toString))
-  implicit val currencyEncoder: JsonEncoder[Currency] = instance(c => Json.String(c.toString))
+  implicit val uuidEncoder: JsonEncoder[UUID] = new JsonEncoder[UUID] {
+    def encode(u: UUID): Json = new Json.String(u.toString)
+  }
+
+  implicit val currencyEncoder: JsonEncoder[Currency] = new JsonEncoder[Currency] {
+    def encode(c: Currency): Json = new Json.String(c.toString)
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Schema-derived Encoder (lower priority)
@@ -177,10 +280,12 @@ object JsonEncoder {
    * This encoder uses the JsonBinaryCodec derived from the Schema to encode the
    * value to bytes, then parses it back to Json.
    */
-  implicit def fromSchema[A](implicit schema: Schema[A]): JsonEncoder[A] = instance { a =>
-    val codec = schema.derive(JsonBinaryCodecDeriver)
-    val bytes = codec.encode(a)
-    // Parse the bytes back to Json - this is safe since we just encoded it
-    Json.parse(bytes).getOrElse(Json.Null)
+  implicit def fromSchema[A](implicit schema: Schema[A]): JsonEncoder[A] = new JsonEncoder[A] {
+    private[this] val codec = schema.derive(JsonBinaryCodecDeriver)
+
+    def encode(a: A): Json = Json.jsonCodec.decode(codec.encode(a)) match {
+      case Right(json) => json
+      case _           => Json.Null
+    }
   }
 }
