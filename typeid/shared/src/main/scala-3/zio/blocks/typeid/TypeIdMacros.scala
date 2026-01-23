@@ -108,10 +108,9 @@ object TypeIdMacros {
     val typeParamsExpr = buildTypeParams(typeSymbol)
     val defKindExpr    = buildDefKind(typeSymbol)
 
-    import quotes.reflect.*
     // Get the aliased type (with args applied)
     val aliasedType = tr.translucentSuperType.dealias
-    val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set.empty[TypeRepr])
+    val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set.empty[String])
 
     '{
       TypeId.alias[A](
@@ -129,10 +128,9 @@ object TypeIdMacros {
   )(
     types: List[quotes.reflect.TypeRepr]
   ): Expr[TypeId[A]] = {
-    import quotes.reflect.*
     // Build a TypeId that represents this union type
     // We create an alias that points to a Union TypeRepr
-    val typeReprs = types.map(t => buildTypeReprFromTypeRepr(t, Set.empty[TypeRepr]))
+    val typeReprs = types.map(t => buildTypeReprFromTypeRepr(t, Set.empty[String]))
 
     '{
       // Create a synthetic TypeId for the union
@@ -150,10 +148,9 @@ object TypeIdMacros {
   )(
     types: List[quotes.reflect.TypeRepr]
   ): Expr[TypeId[A]] = {
-    import quotes.reflect.*
     // Build a TypeId that represents this intersection type
     // We create an alias that points to an Intersection TypeRepr
-    val typeReprs = types.map(t => buildTypeReprFromTypeRepr(t, Set.empty[TypeRepr]))
+    val typeReprs = types.map(t => buildTypeReprFromTypeRepr(t, Set.empty[String]))
 
     '{
       // Create a synthetic TypeId for the intersection
@@ -245,7 +242,6 @@ object TypeIdMacros {
   )(
     tr: quotes.reflect.TypeRef
   ): Expr[TypeId[A]] = {
-    import quotes.reflect.*
 
     val typeSymbol     = tr.typeSymbol
     val name           = typeSymbol.name
@@ -253,7 +249,7 @@ object TypeIdMacros {
     val typeParamsExpr = buildTypeParams(typeSymbol)
 
     val aliasedType = tr.translucentSuperType.dealias
-    val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set(tr))
+    val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set(typeSymbol.fullName))
 
     '{
       TypeId.alias[A](
@@ -346,12 +342,12 @@ object TypeIdMacros {
     tpe match {
       case tr: TypeRef if tr.isOpaqueAlias =>
         val underlying = tr.translucentSuperType.dealias
-        buildTypeReprFromTypeRepr(underlying, Set.empty[TypeRepr])
+        buildTypeReprFromTypeRepr(underlying, Set.empty[String])
       case _ =>
         // Fallback - try dealias
         val underlying = tpe.dealias
         if (underlying != tpe) {
-          buildTypeReprFromTypeRepr(underlying, Set.empty[TypeRepr])
+          buildTypeReprFromTypeRepr(underlying, Set.empty[String])
         } else {
           '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.string) }
         }
@@ -362,21 +358,21 @@ object TypeIdMacros {
     Quotes
   )(
     tpe: quotes.reflect.TypeRepr,
-    visiting: Set[quotes.reflect.TypeRepr] = Set.empty
+    visitingAliases: Set[String] = Set.empty
   ): Expr[zio.blocks.typeid.TypeRepr] = {
     import quotes.reflect.*
 
-    if (visiting.exists(v => v =:= tpe)) {
-      val sym = tpe.typeSymbol
-      if (sym.isNoSymbol) {
-        return '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing]("Cycle", Owner.Root, Nil)) }
-      }
+    val sym         = tpe.typeSymbol
+    val symFullName = if (sym.isNoSymbol) "" else sym.fullName
+    val isAlias     = !sym.isNoSymbol && sym.isAliasType
+
+    if (isAlias && visitingAliases.contains(symFullName)) {
       val name      = sym.name
       val ownerExpr = buildOwner(sym.owner)
       return '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil)) }
     }
 
-    val newVisiting = visiting + tpe
+    val newVisiting = if (isAlias) visitingAliases + symFullName else visitingAliases
 
     tpe match {
       case OrType(_, _) =>
@@ -597,7 +593,7 @@ object TypeIdMacros {
     Quotes
   )(
     args: List[quotes.reflect.TypeRepr],
-    visiting: Set[quotes.reflect.TypeRepr]
+    visiting: Set[String]
   ): Expr[zio.blocks.typeid.TypeRepr] = {
     // For now, treat all tuple elements as unlabeled
     // Named tuple support would require additional detection
@@ -616,7 +612,7 @@ object TypeIdMacros {
     Quotes
   )(
     tpe: quotes.reflect.TypeRepr,
-    visiting: Set[quotes.reflect.TypeRepr]
+    visiting: Set[String]
   ): Expr[zio.blocks.typeid.TypeRepr] = {
     import quotes.reflect.*
 
@@ -724,7 +720,7 @@ object TypeIdMacros {
     }
 
     val baseExprs = baseClasses.map { base =>
-      buildTypeReprFromTypeRepr(base.typeRef, Set.empty[quotes.reflect.TypeRepr])
+      buildTypeReprFromTypeRepr(base.typeRef, Set.empty[String])
     }
 
     Expr.ofList(baseExprs)
@@ -785,7 +781,7 @@ object TypeIdMacros {
       val subtypeExprs = children.map { child =>
         // Build a TypeRepr for each child
         val childTypeRepr = child.typeRef
-        buildTypeReprFromTypeRepr(childTypeRepr, Set.empty[TypeRepr])
+        buildTypeReprFromTypeRepr(childTypeRepr, Set.empty[String])
       }
       '{ TypeDefKind.Trait(isSealed = true, knownSubtypes = ${ Expr.ofList(subtypeExprs) }, bases = $basesExpr) }
     } else {
@@ -833,7 +829,7 @@ object TypeIdMacros {
       val params = caseSym.primaryConstructor.paramSymss.flatten.filter(_.isTerm).map { param =>
         val paramName     = param.name
         val paramType     = param.termRef.widenTermRefByName
-        val paramTypeRepr = buildTypeReprFromTypeRepr(paramType, Set.empty[TypeRepr])
+        val paramTypeRepr = buildTypeReprFromTypeRepr(paramType, Set.empty[String])
         '{ EnumCaseParam(${ Expr(paramName) }, $paramTypeRepr) }
       }
       '{ EnumCaseInfo(${ Expr(name) }, ${ Expr(ordinal) }, ${ Expr.ofList(params) }, isObjectCase = false) }
@@ -859,7 +855,7 @@ object TypeIdMacros {
       caseSym.primaryConstructor.paramSymss.flatten.isEmpty
 
     // Build parent enum TypeRepr
-    val parentTypeRepr = buildTypeReprFromTypeRepr(parentSym.typeRef, Set.empty[TypeRepr])
+    val parentTypeRepr = buildTypeReprFromTypeRepr(parentSym.typeRef, Set.empty[String])
 
     '{ TypeDefKind.EnumCase($parentTypeRepr, ${ Expr(ordinal) }, ${ Expr(isObjectCase) }) }
   }
@@ -879,7 +875,7 @@ object TypeIdMacros {
     val isObjectCase = termSym.flags.is(Flags.Module) ||
       termSym.primaryConstructor.paramSymss.flatten.isEmpty
 
-    val parentTypeRepr = buildTypeReprFromTypeRepr(parentSym.typeRef, Set.empty[TypeRepr])
+    val parentTypeRepr = buildTypeReprFromTypeRepr(parentSym.typeRef, Set.empty[String])
 
     '{ TypeDefKind.EnumCase($parentTypeRepr, ${ Expr(ordinal) }, ${ Expr(isObjectCase) }) }
   }
