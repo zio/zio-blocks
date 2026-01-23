@@ -26,6 +26,41 @@ object JsonInterpolatorRuntime {
     }
   }
 
+  /**
+   * JSON interpolation with metadata about which interpolations are inside
+   * string literals.
+   * @param sc
+   *   The StringContext
+   * @param args
+   *   The interpolated arguments
+   * @param inStringLiteral
+   *   Array indicating which args are inside JSON string literals
+   */
+  def jsonWithInterpolationAndContext(sc: StringContext, args: Seq[Any], inStringLiteral: Array[Boolean]): Json = {
+    val parts  = sc.parts.iterator
+    val argsIt = args.iterator
+    var argIdx = 0
+    val str    = parts.next()
+    val out    = new ByteArrayOutputStream(str.length << 1)
+    out.write(str)
+    while (argsIt.hasNext) {
+      val arg = argsIt.next()
+      if (argIdx < inStringLiteral.length && inStringLiteral(argIdx)) {
+        // Inside string literal - write as escaped string content (no quotes)
+        writeStringLiteralValue(out, arg)
+      } else {
+        // Normal JSON value or key
+        writeValue(out, arg)
+      }
+      argIdx += 1
+      out.write(parts.next())
+    }
+    Json.jsonCodec.decode(out.toByteArray) match {
+      case Right(json) => json
+      case Left(error) => throw error
+    }
+  }
+
   private[this] def writeValue(out: ByteArrayOutputStream, value: Any): Unit = value match {
     case s: String             => JsonBinaryCodec.stringCodec.encode(s, out)
     case b: Boolean            => JsonBinaryCodec.booleanCodec.encode(b, out)
@@ -168,6 +203,74 @@ object JsonInterpolatorRuntime {
       case x                   => JsonBinaryCodec.stringCodec.encode(x.toString, out)
     }
     out.write(':')
+  }
+
+  /**
+   * Writes a value as plain string content for string literal interpolation.
+   * Does NOT add quotes - assumes we're already inside a JSON string. Escapes
+   * special JSON characters.
+   */
+  private[this] def writeStringLiteralValue(out: ByteArrayOutputStream, value: Any): Unit = {
+    val str = value match {
+      case s: String           => s
+      case b: Boolean          => b.toString
+      case b: Byte             => b.toString
+      case sh: Short           => sh.toString
+      case i: Int              => i.toString
+      case l: Long             => l.toString
+      case f: Float            => f.toString
+      case d: Double           => d.toString
+      case c: Char             => c.toString
+      case bd: BigDecimal      => bd.toString
+      case bi: BigInt          => bi.toString
+      case dow: DayOfWeek      => dow.toString
+      case d: Duration         => d.toString
+      case i: Instant          => i.toString
+      case ld: LocalDate       => ld.toString
+      case ldt: LocalDateTime  => ldt.toString
+      case lt: LocalTime       => lt.toString
+      case m: Month            => m.toString
+      case md: MonthDay        => md.toString
+      case odt: OffsetDateTime => odt.toString
+      case ot: OffsetTime      => ot.toString
+      case p: Period           => p.toString
+      case y: Year             => y.toString
+      case ym: YearMonth       => ym.toString
+      case zo: ZoneOffset      => zo.toString
+      case zi: ZoneId          => zi.toString
+      case zdt: ZonedDateTime  => zdt.toString
+      case c: Currency         => c.getCurrencyCode
+      case uuid: UUID          => uuid.toString
+      case x                   => x.toString
+    }
+    // Write the string content, escaping special JSON characters
+    var i = 0
+    while (i < str.length) {
+      val ch = str.charAt(i)
+      ch match {
+        case '\"'         => out.write('\\'); out.write('\"')
+        case '\\'         => out.write('\\'); out.write('\\')
+        case '\b'         => out.write('\\'); out.write('b')
+        case '\f'         => out.write('\\'); out.write('f')
+        case '\n'         => out.write('\\'); out.write('n')
+        case '\r'         => out.write('\\'); out.write('r')
+        case '\t'         => out.write('\\'); out.write('t')
+        case c if c < ' ' =>
+          out.write('\\')
+          out.write('u')
+          out.write(toHexDigit(c >> 12))
+          out.write(toHexDigit(c >> 8))
+          out.write(toHexDigit(c >> 4))
+          out.write(toHexDigit(c))
+        case c => out.write(c.toInt)
+      }
+      i += 1
+    }
+  }
+
+  private[this] def toHexDigit(n: Int): Int = {
+    val d = n & 0xf
+    if (d < 10) '0' + d else 'a' + (d - 10)
   }
 }
 
