@@ -37,6 +37,18 @@ final case class DynamicPatch(ops: Vector[DynamicPatch.DynamicPatchOp]) {
 
   // Check if this patch is empty (no operations).
   def isEmpty: Boolean = ops.isEmpty
+
+  override def toString: String = {
+    if (ops.isEmpty) "DynamicPatch {}"
+    else {
+      val sb = new StringBuilder("DynamicPatch {\n")
+      ops.foreach { op =>
+        DynamicPatch.appendOp(sb, op, 1)
+      }
+      sb.append('}')
+      sb.toString
+    }
+  }
 }
 
 object DynamicPatch {
@@ -842,6 +854,101 @@ object DynamicPatch {
     implicit object ForSeq        extends CollectionDummy
     implicit object ForIndexedSeq extends CollectionDummy
     implicit object ForLazyList   extends CollectionDummy
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // toString helpers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private def indent(n: Int): String = "  " * n
+
+  private[schema] def appendOp(sb: StringBuilder, op: DynamicPatchOp, level: Int): Unit = {
+    sb.append(indent(level)).append(op.path.toString)
+    op.operation match {
+      case Operation.Set(value) =>
+        sb.append(" = ").append(DynamicValue.toEJSON(value)).append('\n')
+
+      case Operation.PrimitiveDelta(primOp) =>
+        primOp match {
+          case PrimitiveOp.IntDelta(d)        => sb.append(if (d >= 0) " += " else " -= ").append(Math.abs(d)).append('\n')
+          case PrimitiveOp.LongDelta(d)       => sb.append(if (d >= 0) " += " else " -= ").append(Math.abs(d)).append('\n')
+          case PrimitiveOp.DoubleDelta(d)     => sb.append(if (d >= 0) " += " else " -= ").append(Math.abs(d)).append('\n')
+          case PrimitiveOp.FloatDelta(d)      => sb.append(if (d >= 0) " += " else " -= ").append(Math.abs(d)).append('\n')
+          case PrimitiveOp.ShortDelta(d)      => sb.append(if (d >= 0) " += " else " -= ").append(Math.abs(d.toInt)).append('\n')
+          case PrimitiveOp.ByteDelta(d)       => sb.append(if (d >= 0) " += " else " -= ").append(Math.abs(d.toInt)).append('\n')
+          case PrimitiveOp.BigIntDelta(d)     => sb.append(if (d >= 0) " += " else " -= ").append(d.abs).append('\n')
+          case PrimitiveOp.BigDecimalDelta(d) => sb.append(if (d >= 0) " += " else " -= ").append(d.abs).append('\n')
+          case PrimitiveOp.InstantDelta(d)    => sb.append(" += ").append(d).append('\n')
+          case PrimitiveOp.DurationDelta(d)   => sb.append(" += ").append(d).append('\n')
+          case PrimitiveOp.LocalDateDelta(d)  => sb.append(" += ").append(d).append('\n')
+          case PrimitiveOp.LocalDateTimeDelta(p, d) =>
+            sb.append(" += ").append(p).append(", ").append(d).append('\n')
+          case PrimitiveOp.PeriodDelta(d) => sb.append(" += ").append(d).append('\n')
+          case PrimitiveOp.StringEdit(ops) =>
+            sb.append(":\n")
+            ops.foreach {
+              case StringOp.Insert(idx, text) =>
+                sb.append(indent(level + 1)).append("+ [").append(idx).append(": \"").append(text).append("\"]\n")
+              case StringOp.Delete(idx, len) =>
+                sb.append(indent(level + 1)).append("- [").append(idx).append(", ").append(len).append("]\n")
+              case StringOp.Append(text) =>
+                sb.append(indent(level + 1)).append("+ \"").append(text).append("\"\n")
+              case StringOp.Modify(idx, len, text) =>
+                sb.append(indent(level + 1)).append("~ [").append(idx).append(", ").append(len).append(": \"").append(text).append("\"]\n")
+            }
+        }
+
+      case Operation.SequenceEdit(ops) =>
+        sb.append(":\n")
+        ops.foreach {
+          case SeqOp.Append(values) =>
+            values.foreach { v =>
+              sb.append(indent(level + 1)).append("+ ").append(DynamicValue.toEJSON(v)).append('\n')
+            }
+          case SeqOp.Insert(idx, values) =>
+            values.zipWithIndex.foreach { case (v, i) =>
+              sb.append(indent(level + 1)).append("+ [").append(idx + i).append(": ").append(DynamicValue.toEJSON(v)).append("]\n")
+            }
+          case SeqOp.Delete(idx, count) =>
+            if (count == 1) {
+              sb.append(indent(level + 1)).append("- [").append(idx).append("]\n")
+            } else {
+              sb.append(indent(level + 1)).append("- [").append(idx).append(", ").append(idx + count - 1).append("]\n")
+            }
+          case SeqOp.Modify(idx, nestedOp) =>
+            sb.append(indent(level + 1)).append("~ [").append(idx).append("]: ")
+            appendOperation(sb, nestedOp, level + 2)
+        }
+
+      case Operation.MapEdit(ops) =>
+        sb.append(":\n")
+        ops.foreach {
+          case MapOp.Add(key, value) =>
+            sb.append(indent(level + 1)).append("+ {").append(DynamicValue.toEJSON(key)).append(": ").append(DynamicValue.toEJSON(value)).append("}\n")
+          case MapOp.Remove(key) =>
+            sb.append(indent(level + 1)).append("- {").append(DynamicValue.toEJSON(key)).append("}\n")
+          case MapOp.Modify(key, patch) =>
+            sb.append(indent(level + 1)).append("~ {").append(DynamicValue.toEJSON(key)).append("}:\n")
+            patch.ops.foreach { op => appendOp(sb, op, level + 2) }
+        }
+
+      case Operation.Patch(nestedPatch) =>
+        sb.append(":\n")
+        nestedPatch.ops.foreach { nestedOp => appendOp(sb, nestedOp, level + 1) }
+    }
+  }
+
+  private def appendOperation(sb: StringBuilder, op: Operation, level: Int): Unit = {
+    op match {
+      case Operation.Set(value) =>
+        sb.append(DynamicValue.toEJSON(value)).append('\n')
+      case Operation.PrimitiveDelta(primOp) =>
+        primOp match {
+          case PrimitiveOp.IntDelta(d) => sb.append(if (d >= 0) "+= " else "-= ").append(Math.abs(d)).append('\n')
+          case _ => sb.append(primOp.toString).append('\n')
+        }
+      case _ => sb.append(op.toString).append('\n')
+    }
   }
 
   // All of the StringOp, PrimitiveOp, SeqOp, MapOp, Operation, DynamicPatchOp, DynamicPatch schemas are manually derived.

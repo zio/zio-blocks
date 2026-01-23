@@ -332,6 +332,16 @@ object Lens {
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
     }
+
+    override lazy val toString: String = {
+      val sb = new StringBuilder("Lens(_")
+      var i = 0
+      while (i < focusTerms.length) {
+        sb.append('.').append(focusTerms(i).name)
+        i += 1
+      }
+      sb.append(')').toString
+    }
   }
 }
 
@@ -512,6 +522,16 @@ object Prism {
         java.util.Arrays.equals(other.sources.asInstanceOf[Array[AnyRef]], sources.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
+    }
+
+    override lazy val toString: String = {
+      val sb = new StringBuilder("Prism(_")
+      var i = 0
+      while (i < focusTerms.length) {
+        sb.append(".when[").append(focusTerms(i).name).append(']')
+        i += 1
+      }
+      sb.append(')').toString
     }
   }
 }
@@ -1198,6 +1218,43 @@ object Optional {
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.params.asInstanceOf[Array[AnyRef]], params.asInstanceOf[Array[AnyRef]])
       case _ => false
+    }
+
+    override lazy val toString: String = {
+      if (bindings eq null) init()
+      val sb = new StringBuilder("Optional(_")
+      val len = bindings.length
+      var idx = 0
+      while (idx < len) {
+        bindings(idx) match {
+          case _: LensBinding =>
+            sb.append('.').append(focusTerms(idx).name)
+          case _: PrismBinding =>
+            sb.append(".when[").append(focusTerms(idx).name).append(']')
+          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            sb.append(".~")
+          case at: AtBinding[Col] @scala.unchecked =>
+            sb.append('[').append(at.index).append(']')
+          case binding =>
+            val atKeyBinding = binding.asInstanceOf[AtKeyBinding[Key, Map]]
+            sb.append('{').append(formatKeyForString(atKeyBinding.keySchema, atKeyBinding.key)).append('}')
+        }
+        idx += 1
+      }
+      sb.append(')').toString
+    }
+
+    private def formatKeyForString[K](schema: Reflect.Bound[K], key: K): String = {
+      val dv = schema.toDynamicValue(key)
+      dv match {
+        case DynamicValue.Primitive(pv) => pv match {
+          case PrimitiveValue.String(s) => "\"" + s + "\""
+          case PrimitiveValue.Int(i) => i.toString
+          case PrimitiveValue.Long(l) => l.toString
+          case other => other.toString
+        }
+        case _ => dv.toString
+      }
     }
   }
 }
@@ -2872,6 +2929,66 @@ object Traversal {
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.params.asInstanceOf[Array[AnyRef]], params.asInstanceOf[Array[AnyRef]])
       case _ => false
+    }
+
+    override lazy val toString: String = {
+      if (bindings eq null) init()
+      val sb = new StringBuilder("Traversal(_")
+      val len = bindings.length
+      var idx = 0
+      while (idx < len) {
+        bindings(idx) match {
+          case _: LensBinding =>
+            sb.append('.').append(focusTerms(idx).name)
+          case _: PrismBinding =>
+            sb.append(".when[").append(focusTerms(idx).name).append(']')
+          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            sb.append(".~")
+          case at: AtBinding[Col] @scala.unchecked =>
+            sb.append('[').append(at.index).append(']')
+          case atKey: AtKeyBinding[Key, Map] @scala.unchecked =>
+            sb.append('{').append(formatKeyForString(atKey.keySchema, atKey.key)).append('}')
+          case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
+            sb.append('[')
+            var first = true
+            atIndices.indices.foreach { i =>
+              if (!first) sb.append(',')
+              first = false
+              sb.append(i)
+            }
+            sb.append(']')
+          case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
+            sb.append('{')
+            var first = true
+            atKeys.keys.foreach { k =>
+              if (!first) sb.append(", ")
+              first = false
+              sb.append(formatKeyForString(atKeys.keySchema, k))
+            }
+            sb.append('}')
+          case _: SeqBinding[Col] @scala.unchecked =>
+            sb.append("[*]")
+          case _: MapKeyBinding[Map] @scala.unchecked =>
+            sb.append("{*:}")
+          case _ =>
+            sb.append("{*}")
+        }
+        idx += 1
+      }
+      sb.append(')').toString
+    }
+
+    private def formatKeyForString[K](schema: Reflect.Bound[K], key: K): String = {
+      val dv = schema.toDynamicValue(key)
+      dv match {
+        case DynamicValue.Primitive(pv) => pv match {
+          case PrimitiveValue.String(s) => "\"" + s + "\""
+          case PrimitiveValue.Int(i) => i.toString
+          case PrimitiveValue.Long(l) => l.toString
+          case other => other.toString
+        }
+        case _ => dv.toString
+      }
     }
   }
 }

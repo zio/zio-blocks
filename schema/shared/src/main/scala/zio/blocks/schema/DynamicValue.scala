@@ -16,6 +16,8 @@ sealed trait DynamicValue {
   final def <=(that: DynamicValue): Boolean = compare(that) <= 0
 
   def diff(that: DynamicValue): DynamicPatch = DynamicValue.diff(this, that)
+
+  override def toString: String = DynamicValue.toEJSON(this)
 }
 
 object DynamicValue {
@@ -184,4 +186,105 @@ object DynamicValue {
    */
   def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
     Differ.diff(oldValue, newValue)
+
+  private[schema] def toEJSON(dv: DynamicValue): String = {
+    val sb = new StringBuilder
+    appendEJSON(sb, dv)
+    sb.toString
+  }
+
+  private def appendEJSON(sb: StringBuilder, dv: DynamicValue): Unit = dv match {
+    case Primitive(pv) =>
+      pv match {
+        case PrimitiveValue.String(s) =>
+          sb.append('"')
+          escapeString(sb, s)
+          sb.append('"')
+        case PrimitiveValue.Boolean(b) => sb.append(b)
+        case PrimitiveValue.Int(i) => sb.append(i)
+        case PrimitiveValue.Long(l) => sb.append(l)
+        case PrimitiveValue.Double(d) => sb.append(d)
+        case PrimitiveValue.Float(f) => sb.append(f)
+        case PrimitiveValue.Short(s) => sb.append(s)
+        case PrimitiveValue.Byte(b) => sb.append(b)
+        case PrimitiveValue.Char(c) => sb.append('\'').append(c).append('\'')
+        case PrimitiveValue.BigInt(bi) => sb.append(bi).append(" @ {type: \"bigint\"}")
+        case PrimitiveValue.BigDecimal(bd) => sb.append(bd).append(" @ {type: \"bigdecimal\"}")
+        case PrimitiveValue.Instant(i) => sb.append(i.toEpochMilli).append(" @ {type: \"instant\"}")
+        case PrimitiveValue.LocalDate(ld) => sb.append('"').append(ld).append("\" @ {type: \"localdate\"}")
+        case PrimitiveValue.LocalDateTime(ldt) => sb.append('"').append(ldt).append("\" @ {type: \"localdatetime\"}")
+        case PrimitiveValue.LocalTime(lt) => sb.append('"').append(lt).append("\" @ {type: \"localtime\"}")
+        case PrimitiveValue.OffsetDateTime(odt) => sb.append('"').append(odt).append("\" @ {type: \"offsetdatetime\"}")
+        case PrimitiveValue.OffsetTime(ot) => sb.append('"').append(ot).append("\" @ {type: \"offsettime\"}")
+        case PrimitiveValue.ZonedDateTime(zdt) => sb.append('"').append(zdt).append("\" @ {type: \"zoneddatetime\"}")
+        case PrimitiveValue.Duration(d) => sb.append('"').append(d).append("\" @ {type: \"duration\"}")
+        case PrimitiveValue.Period(p) => sb.append('"').append(p).append("\" @ {type: \"period\"}")
+        case PrimitiveValue.DayOfWeek(dow) => sb.append('"').append(dow).append("\" @ {type: \"dayofweek\"}")
+        case PrimitiveValue.Month(m) => sb.append('"').append(m).append("\" @ {type: \"month\"}")
+        case PrimitiveValue.MonthDay(md) => sb.append('"').append(md).append("\" @ {type: \"monthday\"}")
+        case PrimitiveValue.Year(y) => sb.append(y.getValue).append(" @ {type: \"year\"}")
+        case PrimitiveValue.YearMonth(ym) => sb.append('"').append(ym).append("\" @ {type: \"yearmonth\"}")
+        case PrimitiveValue.ZoneId(zi) => sb.append('"').append(zi).append("\" @ {type: \"zoneid\"}")
+        case PrimitiveValue.ZoneOffset(zo) => sb.append('"').append(zo).append("\" @ {type: \"zoneoffset\"}")
+        case PrimitiveValue.Currency(c) => sb.append('"').append(c.getCurrencyCode).append("\" @ {type: \"currency\"}")
+        case PrimitiveValue.UUID(u) => sb.append('"').append(u).append("\" @ {type: \"uuid\"}")
+        case PrimitiveValue.Unit => sb.append("null")
+      }
+
+    case Record(fields) =>
+      sb.append("{ ")
+      var first = true
+      fields.foreach { case (k, v) =>
+        if (!first) sb.append(", ")
+        first = false
+        sb.append(k).append(": ")
+        appendEJSON(sb, v)
+      }
+      sb.append(" }")
+
+    case Variant(caseName, value) =>
+      appendEJSON(sb, value)
+      sb.append(" @ {tag: \"").append(caseName).append("\"}")
+
+    case Sequence(elements) =>
+      sb.append('[')
+      var first = true
+      elements.foreach { e =>
+        if (!first) sb.append(", ")
+        first = false
+        appendEJSON(sb, e)
+      }
+      sb.append(']')
+
+    case Map(entries) =>
+      sb.append("{ ")
+      var first = true
+      entries.foreach { case (k, v) =>
+        if (!first) sb.append(", ")
+        first = false
+        appendEJSON(sb, k)
+        sb.append(": ")
+        appendEJSON(sb, v)
+      }
+      sb.append(" }")
+  }
+
+  private def escapeString(sb: StringBuilder, s: String): Unit = {
+    var i = 0
+    while (i < s.length) {
+      val c = s.charAt(i)
+      c match {
+        case '"'  => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\b' => sb.append("\\b")
+        case '\f' => sb.append("\\f")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case _ if c < 32 => sb.append("\\u%04x".format(c.toInt))
+        case _ => sb.append(c)
+      }
+      i += 1
+    }
+  }
 }

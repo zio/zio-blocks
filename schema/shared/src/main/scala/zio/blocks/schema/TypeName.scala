@@ -2,7 +2,31 @@ package zio.blocks.schema
 
 import scala.collection.immutable.ArraySeq
 
-final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil)
+final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil) {
+  override def toString: String = {
+    val sb = new StringBuilder
+    val elements = namespace.elements
+    var i = 0
+    while (i < elements.length) {
+      if (i > 0) sb.append('.')
+      sb.append(elements(i))
+      i += 1
+    }
+    if (elements.nonEmpty) sb.append('.')
+    sb.append(name)
+    if (params.nonEmpty) {
+      sb.append('[')
+      var first = true
+      params.foreach { param =>
+        if (!first) sb.append(", ")
+        first = false
+        sb.append(param.toString)
+      }
+      sb.append(']')
+    }
+    sb.toString
+  }
+}
 
 object TypeName {
   val unit: TypeName[Unit] = new TypeName(Namespace.scala, "Unit")
