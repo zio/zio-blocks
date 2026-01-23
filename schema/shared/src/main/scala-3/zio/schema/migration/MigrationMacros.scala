@@ -225,8 +225,6 @@ object MigrationMacros {
             loop(qual, node :: acc)
           }
 
-
-
         case TypeApply(fun, _) =>
           fun match {
             case Select(qual, name) if name == "asInstanceOf" || name == "$asInstanceOf$" =>
@@ -299,14 +297,15 @@ object MigrationMacros {
               case _ => report.errorAndAbort("'selectDynamic' expects a string literal")
             }
           } else if (name == "asInstanceOf" || name == "$asInstanceOf$") {
-             // Ignore casts
-             methodQual match {
-               case Some(q) => loop(q, acc)
-               case None => args match {
-                 case List(q) => loop(q, acc)
-                 case _ => report.errorAndAbort(s"Unsupported cast usage")
-               }
-             }
+            // Ignore casts
+            methodQual match {
+              case Some(q) => loop(q, acc)
+              case None    =>
+                args match {
+                  case List(q) => loop(q, acc)
+                  case _       => report.errorAndAbort(s"Unsupported cast usage")
+                }
+            }
           } else {
             // Attempt to unwrap implicit conversions / wrappers
             args match {
@@ -351,10 +350,10 @@ object MigrationMacros {
   private def getLeaf(using Quotes)(term: quotes.reflect.Term): Expr[String] = {
     import quotes.reflect._
     term match {
-      case Inlined(_, _, body) => getLeaf(body)
-      case Select(_, name)     => Expr(name)
+      case Inlined(_, _, body)                                                    => getLeaf(body)
+      case Select(_, name)                                                        => Expr(name)
       case Apply(Select(_, "selectDynamic"), List(Literal(StringConstant(name)))) => Expr(name)
-      case _                   => report.errorAndAbort("Selector must end in a field selection")
+      case _                                                                      => report.errorAndAbort("Selector must end in a field selection")
     }
   }
 }
