@@ -26,23 +26,23 @@ private object JsonInterpolatorMacros {
     // Detect which interpolations are inside JSON string literals
     val inStringLiteral = detectStringLiteralContext(parts)
 
-    val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
-    val argsExpr = c.Expr[Seq[Any]](q"Seq(..$args)")
+    val scExpr      = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
+    val argsExpr    = c.Expr[Seq[Any]](q"Seq(..$args)")
     val contextExpr = c.Expr[Array[Boolean]](q"Array(..$inStringLiteral)")
 
     reify(JsonInterpolatorRuntime.jsonWithInterpolationAndContext(scExpr.splice, argsExpr.splice, contextExpr.splice))
   }
 
   /**
-   * Detects which interpolations are inside JSON string literals.
-   * Returns a list of booleans, one for each interpolation.
+   * Detects which interpolations are inside JSON string literals. Returns a
+   * list of booleans, one for each interpolation.
    */
   private def detectStringLiteralContext(parts: List[String]): List[Boolean] = {
     if (parts.size <= 1) return Nil
 
-    val result = scala.collection.mutable.ArrayBuffer[Boolean]()
+    val result       = scala.collection.mutable.ArrayBuffer[Boolean]()
     var insideString = false
-    var i = 0
+    var i            = 0
     while (i < parts.size - 1) {
       val part = parts(i)
       // Count unescaped quotes to determine if we toggle string state
@@ -61,12 +61,12 @@ private object JsonInterpolatorMacros {
    */
   private def countUnescapedQuotes(s: String): Int = {
     var count = 0
-    var i = 0
+    var i     = 0
     while (i < s.length) {
       if (s.charAt(i) == '"') {
         // Check if it's escaped
         var backslashCount = 0
-        var j = i - 1
+        var j              = i - 1
         while (j >= 0 && s.charAt(j) == '\\') {
           backslashCount += 1
           j -= 1
