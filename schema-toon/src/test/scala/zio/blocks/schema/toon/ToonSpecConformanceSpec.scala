@@ -16,304 +16,238 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("TOON Spec Conformance")(
     suite("inline arrays")(
       test("encodes string arrays inline") {
-        val expected = "tags[2]: reading,gaming"
-        encode(Tags(List("reading", "gaming")), expected)
+        encode(Tags(List("reading", "gaming")), "tags[2]: reading,gaming")
       },
       test("encodes number arrays inline") {
-        val expected = "nums[3]: 1,2,3"
-        encode(Nums(List(1, 2, 3)), expected)
+        encode(Nums(List(1, 2, 3)), "nums[3]: 1,2,3")
       },
       test("encodes empty arrays") {
-        // Need to disable transientEmptyCollection to see empty arrays
-        val deriver  = ToonBinaryCodecDeriver.withTransientEmptyCollection(false)
-        val codec    = deriveCodec(Items.schema, deriver)
-        val expected = "items[0]:"
-        encode(Items(List.empty), expected, codec)
+        encode(Items(List.empty), "items[0]:", deriveCodec[Items](_.withTransientEmptyCollection(false)))
       },
       test("encodes empty string in single-item array") {
-        val expected = "items[1]: \"\""
-        encode(Items(List("")), expected)
+        encode(Items(List("")), "items[1]: \"\"")
       },
       test("encodes empty string in multi-item array") {
-        val expected = "items[3]: a,\"\",b"
-        encode(Items(List("a", "", "b")), expected)
+        encode(Items(List("a", "", "b")), "items[3]: a,\"\",b")
       },
       test("quotes array strings with comma") {
-        val expected = "items[3]: a,\"🚀,🚀\",\"d:e\""
-        encode(Items(List("a", "🚀,🚀", "d:e")), expected)
+        encode(Items(List("a", "🚀,🚀", "d:e")), "items[3]: a,\"🚀,🚀\",\"d:e\"")
       },
       test("quotes strings that look like booleans in arrays") {
-        val expected = "items[4]: x,\"true\",\"42\",\"-3.14\""
-        encode(Items(List("x", "true", "42", "-3.14")), expected)
+        encode(Items(List("x", "true", "42", "-3.14")), "items[4]: x,\"true\",\"42\",\"-3.14\"")
       }
     ),
     suite("tabular arrays")(
       test("encodes arrays of uniform objects in tabular format") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsTable.schema, deriver)
-        val data    = ItemsTable(
-          List(
-            ItemRow("A1", 2, BigDecimal("9.99")),
-            ItemRow("B2", 1, BigDecimal("14.5"))
-          )
+        encode(
+          ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5")))),
+          """items[2]{sku,qty,price}:
+            |  A1,2,9.99
+            |  B2,1,14.5""".stripMargin,
+          deriveCodec[ItemsTable](_.withArrayFormat(ArrayFormat.Tabular))
         )
-        val expected = """items[2]{sku,qty,price}:
-                         |  A1,2,9.99
-                         |  B2,1,14.5""".stripMargin
-        encode(data, expected, codec)
       },
       test("encodes null values in tabular format") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsNullable.schema, deriver)
-        val data    = ItemsNullable(
-          List(
-            ItemNullable(1, None),
-            ItemNullable(2, Some("test"))
-          )
+        encode(
+          ItemsNullable(List(ItemNullable(1, None), ItemNullable(2, Some("test")))),
+          """items[2]{id,value}:
+            |  1,null
+            |  2,test""".stripMargin,
+          deriveCodec[ItemsNullable](_.withArrayFormat(ArrayFormat.Tabular))
         )
-        val expected = """items[2]{id,value}:
-                         |  1,null
-                         |  2,test""".stripMargin
-        encode(data, expected, codec)
       },
       test("quotes strings containing delimiters in tabular rows") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsWithSkuDescQty.schema, deriver)
-        val data    = ItemsWithSkuDescQty(
-          List(
-            SkuDescQty("A,1", "cool", 2),
-            SkuDescQty("B2", "wip: test", 1)
-          )
+        encode(
+          ItemsWithSkuDescQty(List(SkuDescQty("A,1", "cool", 2), SkuDescQty("B2", "wip: test", 1))),
+          """items[2]{sku,desc,qty}:
+            |  "A,1",cool,2
+            |  B2,"wip: test",1""".stripMargin,
+          deriveCodec[ItemsWithSkuDescQty](_.withArrayFormat(ArrayFormat.Tabular))
         )
-        val expected = """items[2]{sku,desc,qty}:
-                         |  "A,1",cool,2
-                         |  B2,"wip: test",1""".stripMargin
-        encode(data, expected, codec)
       },
       test("quotes ambiguous strings in tabular rows") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsWithIdStatus.schema, deriver)
-        val data    = ItemsWithIdStatus(
-          List(
-            IdStatus(1, "true"),
-            IdStatus(2, "false")
-          )
+        encode(
+          ItemsWithIdStatus(List(IdStatus(1, "true"), IdStatus(2, "false"))),
+          """items[2]{id,status}:
+            |  1,"true"
+            |  2,"false"""".stripMargin,
+          deriveCodec[ItemsWithIdStatus](_.withArrayFormat(ArrayFormat.Tabular))
         )
-        val expected = """items[2]{id,status}:
-                         |  1,"true"
-                         |  2,"false"""".stripMargin
-        encode(data, expected, codec)
       },
       test("encodes tabular arrays with keys needing quotes") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(OrderFullNameItems.schema, deriver)
-        val data    = OrderFullNameItems(
-          List(
-            OrderFullName(1, "Ada"),
-            OrderFullName(2, "Bob")
-          )
+        encode(
+          OrderFullNameItems(List(OrderFullName(1, "Ada"), OrderFullName(2, "Bob"))),
+          """items[2]{"order:id","full name"}:
+            |  1,Ada
+            |  2,Bob""".stripMargin,
+          deriveCodec[OrderFullNameItems](_.withArrayFormat(ArrayFormat.Tabular))
         )
-        val expected = """items[2]{"order:id","full name"}:
-                         |  1,Ada
-                         |  2,Bob""".stripMargin
-        encode(data, expected, codec)
       }
     ),
     suite("delimiters")(
       test("encodes primitive arrays with tab delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Tab)
-        val codec    = deriveCodec(Tags.schema, deriver)
-        val data     = Tags(List("reading", "gaming", "coding"))
-        val expected = "tags[3\t]: reading\tgaming\tcoding"
-        encode(data, expected, codec)
+        encode(
+          Tags(List("reading", "gaming", "coding")),
+          "tags[3\t]: reading\tgaming\tcoding",
+          deriveCodec[Tags](_.withDelimiter(Delimiter.Tab))
+        )
       },
       test("encodes primitive arrays with pipe delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec    = deriveCodec(Tags.schema, deriver)
-        val data     = Tags(List("reading", "gaming", "coding"))
-        val expected = "tags[3|]: reading|gaming|coding"
-        encode(data, expected, codec)
+        encode(
+          Tags(List("reading", "gaming", "coding")),
+          "tags[3|]: reading|gaming|coding",
+          deriveCodec[Tags](_.withDelimiter(Delimiter.Pipe))
+        )
       },
       test("encodes primitive arrays with comma delimiter (default)") {
-        val codec    = deriveCodec(Tags.schema, ToonBinaryCodecDeriver)
-        val data     = Tags(List("reading", "gaming", "coding"))
-        val expected = "tags[3]: reading,gaming,coding"
-        encode(data, expected, codec)
+        encode(Tags(List("reading", "gaming", "coding")), "tags[3]: reading,gaming,coding")
       },
       test("encodes tabular arrays with tab delimiter") {
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.Tabular)
-          .withDelimiter(Delimiter.Tab)
-        val codec = deriveCodec(ItemsTable.schema, deriver)
-        val data  = ItemsTable(
-          List(
-            ItemRow("A1", 2, BigDecimal("9.99")),
-            ItemRow("B2", 1, BigDecimal("14.5"))
-          )
+        encode(
+          ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5")))),
+          "items[2\t]{sku\tqty\tprice}:\n  A1\t2\t9.99\n  B2\t1\t14.5",
+          deriveCodec[ItemsTable](_.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Tab))
         )
-        val expected = "items[2\t]{sku\tqty\tprice}:\n  A1\t2\t9.99\n  B2\t1\t14.5"
-        encode(data, expected, codec)
       },
       test("encodes tabular arrays with pipe delimiter") {
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.Tabular)
-          .withDelimiter(Delimiter.Pipe)
-        val codec = deriveCodec(ItemsTable.schema, deriver)
-        val data  = ItemsTable(
-          List(
-            ItemRow("A1", 2, BigDecimal("9.99")),
-            ItemRow("B2", 1, BigDecimal("14.5"))
-          )
+        encode(
+          ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5")))),
+          """items[2|]{sku|qty|price}:
+            |  A1|2|9.99
+            |  B2|1|14.5""".stripMargin,
+          deriveCodec[ItemsTable](_.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Pipe))
         )
-        val expected = """items[2|]{sku|qty|price}:
-                         |  A1|2|9.99
-                         |  B2|1|14.5""".stripMargin
-        encode(data, expected, codec)
       },
       test("does not quote commas with tab delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Tab)
-        val codec    = deriveCodec(Items.schema, deriver)
-        val data     = Items(List("a,b", "c,d"))
-        val expected = "items[2\t]: a,b\tc,d"
-        encode(data, expected, codec)
+        encode(Items(List("a,b", "c,d")), "items[2\t]: a,b\tc,d", deriveCodec[Items](_.withDelimiter(Delimiter.Tab)))
       },
       test("does not quote commas with pipe delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec    = deriveCodec(Items.schema, deriver)
-        val data     = Items(List("a,b", "c,d"))
-        val expected = "items[2|]: a,b|c,d"
-        encode(data, expected, codec)
+        encode(
+          Items(List("a,b", "c,d")),
+          "items[2|]: a,b|c,d",
+          deriveCodec[Items](_.withDelimiter(Delimiter.Pipe))
+        )
       },
       test("quotes strings containing tab delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Tab)
-        val codec    = deriveCodec(Items.schema, deriver)
-        val data     = Items(List("a", "b\tc", "d"))
-        val expected = "items[3\t]: a\t\"b\\tc\"\td"
-        encode(data, expected, codec)
+        encode(
+          Items(List("a", "b\tc", "d")),
+          "items[3\t]: a\t\"b\\tc\"\td",
+          deriveCodec[Items](_.withDelimiter(Delimiter.Tab))
+        )
       },
       test("quotes strings containing pipe delimiter when using pipe") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec    = deriveCodec(Items.schema, deriver)
-        val data     = Items(List("a", "b|c", "d"))
-        val expected = "items[3|]: a|\"b|c\"|d"
-        encode(data, expected, codec)
+        encode(
+          Items(List("a", "b|c", "d")),
+          "items[3|]: a|\"b|c\"|d",
+          deriveCodec[Items](_.withDelimiter(Delimiter.Pipe))
+        )
       },
       test("quotes tabular values containing comma delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec    = deriveCodec(ItemsWithNote.schema, deriver)
-        val data     = ItemsWithNote(List(ItemWithNote(1, "a,b"), ItemWithNote(2, "c,d")))
-        val expected = "items[2]{id,note}:\n  1,\"a,b\"\n  2,\"c,d\""
-        encode(data, expected, codec)
+        encode(
+          ItemsWithNote(List(ItemWithNote(1, "a,b"), ItemWithNote(2, "c,d"))),
+          "items[2]{id,note}:\n  1,\"a,b\"\n  2,\"c,d\"",
+          deriveCodec[ItemsWithNote](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       },
       test("does not quote commas in tabular values with tab delimiter") {
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.Tabular)
-          .withDelimiter(Delimiter.Tab)
-        val codec    = deriveCodec(ItemsWithNote.schema, deriver)
-        val data     = ItemsWithNote(List(ItemWithNote(1, "a,b"), ItemWithNote(2, "c,d")))
-        val expected = "items[2\t]{id\tnote}:\n  1\ta,b\n  2\tc,d"
-        encode(data, expected, codec)
+        encode(
+          ItemsWithNote(List(ItemWithNote(1, "a,b"), ItemWithNote(2, "c,d"))),
+          "items[2\t]{id\tnote}:\n  1\ta,b\n  2\tc,d",
+          deriveCodec[ItemsWithNote](_.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Tab))
+        )
       },
       test("does not quote commas in object values with pipe delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec    = deriveCodec(NoteWrapper.schema, deriver)
-        val data     = NoteWrapper("a,b")
-        val expected = "note: a,b"
-        encode(data, expected, codec)
+        encode(NoteWrapper("a,b"), "note: a,b", deriveCodec[NoteWrapper](_.withDelimiter(Delimiter.Pipe)))
       },
       test("does not quote commas in object values with tab delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Tab)
-        val codec    = deriveCodec(NoteWrapper.schema, deriver)
-        val data     = NoteWrapper("a,b")
-        val expected = "note: a,b"
-        encode(data, expected, codec)
+        encode(NoteWrapper("a,b"), "note: a,b", deriveCodec[NoteWrapper](_.withDelimiter(Delimiter.Tab)))
       },
       test("encodes nested arrays with tab delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Tab)
-        val codec    = deriveCodec(NestedIntList.schema, deriver)
-        val data     = NestedIntList(List(IntListItem(List(1, 2)), IntListItem(List(3, 4))))
-        val expected = "items[2\t]:\n  - xs[2\t]: 1\t2\n  - xs[2\t]: 3\t4"
-        encode(data, expected, codec)
+        encode(
+          NestedIntList(List(IntListItem(List(1, 2)), IntListItem(List(3, 4)))),
+          "items[2\t]:\n  - xs[2\t]: 1\t2\n  - xs[2\t]: 3\t4",
+          deriveCodec[NestedIntList](_.withDelimiter(Delimiter.Tab))
+        )
       },
       test("encodes nested arrays with pipe delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec    = deriveCodec(NestedIntList.schema, deriver)
-        val data     = NestedIntList(List(IntListItem(List(1, 2)), IntListItem(List(3, 4))))
-        val expected = "items[2|]:\n  - xs[2|]: 1|2\n  - xs[2|]: 3|4"
-        encode(data, expected, codec)
+        encode(
+          NestedIntList(List(IntListItem(List(1, 2)), IntListItem(List(3, 4)))),
+          "items[2|]:\n  - xs[2|]: 1|2\n  - xs[2|]: 3|4",
+          deriveCodec[NestedIntList](_.withDelimiter(Delimiter.Pipe))
+        )
       },
       test("encodes root-level array with tab delimiter") {
-        val config = WriterConfig.withDelimiter(Delimiter.Tab)
-        val input  = zio.blocks.schema.DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z")))
-        encodeDynamic(input, "[3\t]: x\ty\tz", config)
+        encodeDynamic(
+          DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
+          "[3\t]: x\ty\tz",
+          WriterConfig.withDelimiter(Delimiter.Tab)
+        )
       },
       test("encodes root-level array with pipe delimiter") {
-        val config = WriterConfig.withDelimiter(Delimiter.Pipe)
-        val input  = zio.blocks.schema.DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z")))
-        encodeDynamic(input, "[3|]: x|y|z", config)
+        encodeDynamic(
+          DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
+          "[3|]: x|y|z",
+          WriterConfig.withDelimiter(Delimiter.Pipe)
+        )
       },
       test("encodes root-level array of objects with tab delimiter") {
-        val config = WriterConfig.withDelimiter(Delimiter.Tab)
-        val input  =
-          zio.blocks.schema.DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2))))
-        encodeDynamic(input, "[2\t]{id}:\n  1\n  2", config)
+        encodeDynamic(
+          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
+          "[2\t]{id}:\n  1\n  2",
+          WriterConfig.withDelimiter(Delimiter.Tab)
+        )
       },
       test("encodes root-level array of objects with pipe delimiter") {
-        val config = WriterConfig.withDelimiter(Delimiter.Pipe)
-        val input  =
-          zio.blocks.schema.DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2))))
-        encodeDynamic(input, "[2|]{id}:\n  1\n  2", config)
+        encodeDynamic(
+          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
+          "[2|]{id}:\n  1\n  2",
+          WriterConfig.withDelimiter(Delimiter.Pipe)
+        )
       },
       test("quotes nested array values containing pipe delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec    = deriveCodec(NestedStringList.schema, deriver)
-        val data     = NestedStringList(List(StringListItem(List("a", "b|c"))))
-        val expected = "pairs[1|]:\n  - xs[2|]: a|\"b|c\""
-        encode(data, expected, codec)
+        encode(
+          NestedStringList(List(StringListItem(List("a", "b|c")))),
+          "pairs[1|]:\n  - xs[2|]: a|\"b|c\"",
+          deriveCodec[NestedStringList](_.withDelimiter(Delimiter.Pipe))
+        )
       },
       test("quotes nested array values containing tab delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Tab)
-        val codec    = deriveCodec(NestedStringList.schema, deriver)
-        val data     = NestedStringList(List(StringListItem(List("a", "b\tc"))))
-        val expected = "pairs[1\t]:\n  - xs[2\t]: a\t\"b\\tc\""
-        encode(data, expected, codec)
+        encode(
+          NestedStringList(List(StringListItem(List("a", "b\tc")))),
+          "pairs[1\t]:\n  - xs[2\t]: a\t\"b\\tc\"",
+          deriveCodec[NestedStringList](_.withDelimiter(Delimiter.Tab))
+        )
       },
       test("preserves ambiguity quoting regardless of delimiter") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec    = deriveCodec(Items.schema, deriver)
-        val data     = Items(List("true", "42", "-3.14"))
-        val expected = "items[3|]: \"true\"|\"42\"|\"-3.14\""
-        encode(data, expected, codec)
+        encode(
+          Items(List("true", "42", "-3.14")),
+          "items[3|]: \"true\"|\"42\"|\"-3.14\"",
+          deriveCodec[Items](_.withDelimiter(Delimiter.Pipe))
+        )
       }
     ),
     suite("objects")(
       test("encodes simple object") {
-        val expected = """id: 123
-                         |name: Ada Lovelace
-                         |active: true""".stripMargin
-        encode(SimpleObject(123, "Ada Lovelace", true), expected)
+        encode(
+          SimpleObject(123, "Ada Lovelace", true),
+          """id: 123
+            |name: Ada Lovelace
+            |active: true""".stripMargin
+        )
       },
       test("object field value does not need delimiter quoting") {
-        // Object field values are on their own line, so commas don't need quoting
-        // (unlike inline array values which are delimiter-separated)
-        val expected = "name: hello,world"
-        encode(NameWrapper("hello,world"), expected)
+        encode(NameWrapper("hello,world"), "name: hello,world")
       },
       test("encodes nested objects") {
-        val expected = """user:
-                         |  id: 123
-                         |  name: Ada Lovelace
-                         |  contact:
-                         |    email: ada@example.com
-                         |    phone: +1-555-0100""".stripMargin
-        val data = UserWrapper(
-          User(
-            123,
-            "Ada Lovelace",
-            Contact("ada@example.com", "+1-555-0100")
-          )
+        encode(
+          UserWrapper(User(123, "Ada Lovelace", Contact("ada@example.com", "+1-555-0100"))),
+          """user:
+            |  id: 123
+            |  name: Ada Lovelace
+            |  contact:
+            |    email: ada@example.com
+            |    phone: +1-555-0100""".stripMargin
         )
-        encode(data, expected)
       }
     ),
     suite("decode inline arrays")(
@@ -324,9 +258,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("nums[3]: 1,2,3", Nums(List(1, 2, 3)))
       },
       test("decodes empty arrays") {
-        val deriver = ToonBinaryCodecDeriver.withTransientEmptyCollection(false)
-        val codec   = deriveCodec(Items.schema, deriver)
-        decode("items[0]:", Items(List.empty), codec)
+        decode("items[0]:", Items(List.empty))
       },
       test("decodes single-item array with empty string") {
         decode("items[1]: \"\"", Items(List("")))
@@ -367,31 +299,17 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("items[3|]: a|\"b|c\"|d", Items(List("a", "b|c", "d")))
       },
       test("decodes tabular arrays with tab delimiter") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsTable.schema, deriver)
         decode(
           "items[2\t]{sku\tqty\tprice}:\n  A1\t2\t9.99\n  B2\t1\t14.5",
-          ItemsTable(
-            List(
-              ItemRow("A1", 2, BigDecimal("9.99")),
-              ItemRow("B2", 1, BigDecimal("14.5"))
-            )
-          ),
-          codec
+          ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5")))),
+          deriveCodec[ItemsTable](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("decodes tabular arrays with pipe delimiter") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsTable.schema, deriver)
         decode(
           "items[2|]{sku|qty|price}:\n  A1|2|9.99\n  B2|1|14.5",
-          ItemsTable(
-            List(
-              ItemRow("A1", 2, BigDecimal("9.99")),
-              ItemRow("B2", 1, BigDecimal("14.5"))
-            )
-          ),
-          codec
+          ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5")))),
+          deriveCodec[ItemsTable](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("decodes quoted ambiguity with pipe delimiter") {
@@ -413,179 +331,149 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("note: a,b", NoteWrapper("a,b"))
       },
       test("parses nested arrays with tab delimiter") {
-        val input    = "pairs[2\t]:\n  - [2\t]: a\tb\n  - [2\t]: c\td"
-        val expected = record(
-          "pairs" -> DynamicValue.Sequence(
-            Vector(
-              DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
-              DynamicValue.Sequence(Vector(dynamicStr("c"), dynamicStr("d")))
+        decodeDynamic(
+          "pairs[2\t]:\n  - [2\t]: a\tb\n  - [2\t]: c\td",
+          record(
+            "pairs" -> DynamicValue.Sequence(
+              Vector(
+                DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
+                DynamicValue.Sequence(Vector(dynamicStr("c"), dynamicStr("d")))
+              )
             )
-          )
+          ),
+          ReaderConfig.withDelimiter(Delimiter.Tab)
         )
-        val config = ReaderConfig.withDelimiter(Delimiter.Tab)
-        decodeDynamic(input, expected, config)
       },
       test("parses nested arrays with pipe delimiter") {
-        val input    = "pairs[2|]:\n  - [2|]: a|b\n  - [2|]: c|d"
-        val expected = record(
-          "pairs" -> DynamicValue.Sequence(
-            Vector(
-              DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
-              DynamicValue.Sequence(Vector(dynamicStr("c"), dynamicStr("d")))
+        decodeDynamic(
+          "pairs[2|]:\n  - [2|]: a|b\n  - [2|]: c|d",
+          record(
+            "pairs" -> DynamicValue.Sequence(
+              Vector(
+                DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
+                DynamicValue.Sequence(Vector(dynamicStr("c"), dynamicStr("d")))
+              )
             )
-          )
+          ),
+          ReaderConfig.withDelimiter(Delimiter.Pipe)
         )
-        val config = ReaderConfig.withDelimiter(Delimiter.Pipe)
-        decodeDynamic(input, expected, config)
       },
       test("parses nested arrays inside list items with default comma delimiter") {
-        val deriver = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Tab).withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(ItemsTags.schema, deriver)
-        val input   = "items[1\t]:\n  - tags[3]: a,b,c"
-        decode(input, ItemsTags(List(Tags(List("a", "b", "c")))), codec)
+        decode(
+          "items[1\t]:\n  - tags[3]: a,b,c",
+          ItemsTags(List(Tags(List("a", "b", "c")))),
+          deriveCodec[ItemsTags](_.withDelimiter(Delimiter.Tab).withArrayFormat(ArrayFormat.List))
+        )
       },
       test("parses nested arrays inside list items with default comma delimiter when parent uses pipe") {
-        val deriver = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe).withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(ItemsTags.schema, deriver)
-        val input   = "items[1|]:\n  - tags[3]: a,b,c"
-        decode(input, ItemsTags(List(Tags(List("a", "b", "c")))), codec)
+        decode(
+          "items[1|]:\n  - tags[3]: a,b,c",
+          ItemsTags(List(Tags(List("a", "b", "c")))),
+          deriveCodec[ItemsTags](_.withDelimiter(Delimiter.Pipe).withArrayFormat(ArrayFormat.List))
+        )
       },
       test("parses root-level array with tab delimiter") {
-        val input    = "[3\t]: x\ty\tz"
-        val expected = DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z")))
-        val config   = ReaderConfig.withDelimiter(Delimiter.Tab)
-        decodeDynamic(input, expected, config)
+        decodeDynamic(
+          "[3\t]: x\ty\tz",
+          DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
+          ReaderConfig.withDelimiter(Delimiter.Tab)
+        )
       },
       test("parses root-level array with pipe delimiter") {
-        val input    = "[3|]: x|y|z"
-        val expected = DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z")))
-        val config   = ReaderConfig.withDelimiter(Delimiter.Pipe)
-        decodeDynamic(input, expected, config)
+        decodeDynamic(
+          "[3|]: x|y|z",
+          DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
+          ReaderConfig.withDelimiter(Delimiter.Pipe)
+        )
       },
       test("parses root-level array of objects with tab delimiter") {
-        val input    = "[2\t]{id}:\n  1\n  2"
-        val expected = DynamicValue.Sequence(
-          Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
+        decodeDynamic(
+          "[2\t]{id}:\n  1\n  2",
+          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
+          ReaderConfig.withDelimiter(Delimiter.Tab)
         )
-        val config = ReaderConfig.withDelimiter(Delimiter.Tab)
-        decodeDynamic(input, expected, config)
       },
       test("parses root-level array of objects with pipe delimiter") {
-        val input    = "[2|]{id}:\n  1\n  2"
-        val expected = DynamicValue.Sequence(
-          Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
+        decodeDynamic(
+          "[2|]{id}:\n  1\n  2",
+          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
+          ReaderConfig.withDelimiter(Delimiter.Pipe)
         )
-        val config = ReaderConfig.withDelimiter(Delimiter.Pipe)
-        decodeDynamic(input, expected, config)
       },
       test("object values in list items follow document delimiter") {
-        val deriver = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Tab).withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(StatusItems.schema, deriver)
-        val input   = "items[2\t]:\n  - status: a,b\n  - status: c,d"
-        decode(input, StatusItems(List(StatusItem("a,b"), StatusItem("c,d"))), codec)
+        decode(
+          "items[2\t]:\n  - status: a,b\n  - status: c,d",
+          StatusItems(List(StatusItem("a,b"), StatusItem("c,d"))),
+          deriveCodec[StatusItems](_.withDelimiter(Delimiter.Tab).withArrayFormat(ArrayFormat.List))
+        )
       },
       test("object values with comma must be quoted when document delimiter is comma") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(StatusItems.schema, deriver)
-        val input   = "items[2]:\n  - status: \"a,b\"\n  - status: \"c,d\""
-        decode(input, StatusItems(List(StatusItem("a,b"), StatusItem("c,d"))), codec)
+        decode(
+          "items[2]:\n  - status: \"a,b\"\n  - status: \"c,d\"",
+          StatusItems(List(StatusItem("a,b"), StatusItem("c,d"))),
+          deriveCodec[StatusItems](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("parses nested array values containing pipe delimiter") {
-        val input    = "pairs[1|]:\n  - [2|]: a|\"b|c\""
-        val expected = record(
-          "pairs" -> DynamicValue.Sequence(
-            Vector(DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b|c"))))
-          )
+        decodeDynamic(
+          "pairs[1|]:\n  - [2|]: a|\"b|c\"",
+          record(
+            "pairs" -> DynamicValue.Sequence(Vector(DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b|c")))))
+          ),
+          ReaderConfig.withDelimiter(Delimiter.Pipe)
         )
-        val config = ReaderConfig.withDelimiter(Delimiter.Pipe)
-        decodeDynamic(input, expected, config)
       },
       test("parses nested array values containing tab delimiter") {
-        val input    = "pairs[1\t]:\n  - [2\t]: a\t\"b\\tc\""
-        val expected = record(
-          "pairs" -> DynamicValue.Sequence(
-            Vector(DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b\tc"))))
-          )
+        decodeDynamic(
+          "pairs[1\t]:\n  - [2\t]: a\t\"b\\tc\"",
+          record(
+            "pairs" -> DynamicValue.Sequence(Vector(DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b\tc")))))
+          ),
+          ReaderConfig.withDelimiter(Delimiter.Tab)
         )
-        val config = ReaderConfig.withDelimiter(Delimiter.Tab)
-        decodeDynamic(input, expected, config)
       },
       test("parses tabular headers with keys containing the active delimiter") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Pipe)
-        val codec   = deriveCodec(ABItems.schema, deriver)
-        val input   = "items[2|]{\"a|b\"}:\n  1\n  2"
-        decode(input, ABItems(List(ABField(1), ABField(2))), codec)
+        decode(
+          "items[2|]{\"a|b\"}:\n  1\n  2",
+          ABItems(List(ABField(1), ABField(2))),
+          deriveCodec[ABItems](_.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Pipe))
+        )
       }
     ),
     suite("decode tabular arrays")(
       test("decodes tabular arrays of uniform objects") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsTable.schema, deriver)
         decode(
           "items[2]{sku,qty,price}:\n  A1,2,9.99\n  B2,1,14.5",
-          ItemsTable(
-            List(
-              ItemRow("A1", 2, BigDecimal("9.99")),
-              ItemRow("B2", 1, BigDecimal("14.5"))
-            )
-          ),
-          codec
+          ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5")))),
+          deriveCodec[ItemsTable](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("decodes nulls and quoted values in tabular rows") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsNullable.schema, deriver)
         decode(
           "items[2]{id,value}:\n  1,null\n  2,\"test\"",
-          ItemsNullable(
-            List(
-              ItemNullable(1, None),
-              ItemNullable(2, Some("test"))
-            )
-          ),
-          codec
+          ItemsNullable(List(ItemNullable(1, None), ItemNullable(2, Some("test")))),
+          deriveCodec[ItemsNullable](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("decodes quoted colon in tabular row as data") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsWithNote.schema, deriver)
         decode(
           "items[2]{id,note}:\n  1,\"a:b\"\n  2,\"c:d\"",
-          ItemsWithNote(
-            List(
-              ItemWithNote(1, "a:b"),
-              ItemWithNote(2, "c:d")
-            )
-          ),
-          codec
+          ItemsWithNote(List(ItemWithNote(1, "a:b"), ItemWithNote(2, "c:d"))),
+          deriveCodec[ItemsWithNote](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("decodes tabular values containing comma with comma delimiter") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsWithNote.schema, deriver)
         decode(
           "items[2]{id,note}:\n  1,\"a,b\"\n  2,\"c,d\"",
-          ItemsWithNote(
-            List(
-              ItemWithNote(1, "a,b"),
-              ItemWithNote(2, "c,d")
-            )
-          ),
-          codec
+          ItemsWithNote(List(ItemWithNote(1, "a,b"), ItemWithNote(2, "c,d"))),
+          deriveCodec[ItemsWithNote](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("does not require quoting commas with tab delimiter") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Tab)
-        val codec   = deriveCodec(ItemsWithNote.schema, deriver)
         decode(
           "items[2\t]{id\tnote}:\n  1\ta,b\n  2\tc,d",
-          ItemsWithNote(
-            List(
-              ItemWithNote(1, "a,b"),
-              ItemWithNote(2, "c,d")
-            )
-          ),
-          codec
+          ItemsWithNote(List(ItemWithNote(1, "a,b"), ItemWithNote(2, "c,d"))),
+          deriveCodec[ItemsWithNote](_.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Tab))
         )
       }
     ),
@@ -642,36 +530,22 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("name: \"\"", NameWrapper(""))
       },
       test("parses positive integer") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("42", dynamicInt(42), config)
+        decodeDynamic("42", dynamicInt(42))
       },
       test("parses negative integer") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("-7", dynamicInt(-7), config)
+        decodeDynamic("-7", dynamicInt(-7))
       },
       test("parses true") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic(
-          "true",
-          zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(true)),
-          config
-        )
+        decodeDynamic("true", dynamicBoolean(true))
       },
       test("parses false") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic(
-          "false",
-          zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(false)),
-          config
-        )
+        decodeDynamic("false", dynamicBoolean(false))
       },
       test("parses null") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("null", zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Unit), config)
+        decodeDynamic("null", dynamicUnit)
       },
       test("parses string with emoji and spaces") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("hello 👋 world", dynamicStr("hello 👋 world"), config)
+        decodeDynamic("hello 👋 world", dynamicStr("hello 👋 world"))
       },
       test("respects ambiguity quoting for scientific notation") {
         decode("name: \"1e-6\"", NameWrapper("1e-6"))
@@ -706,13 +580,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode(
           "nums[5]: 42,-1E+03,1.5000,-0,2.5e2",
           NumsDecimal(
-            List(
-              BigDecimal("42"),
-              BigDecimal("-1000"),
-              BigDecimal("1.5"),
-              BigDecimal("0"),
-              BigDecimal("250")
-            )
+            List(BigDecimal("42"), BigDecimal("-1000"), BigDecimal("1.5"), BigDecimal("0"), BigDecimal("250"))
           )
         )
       },
@@ -726,12 +594,10 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("value: -1e-3", ValueWrapper(BigDecimal("-0.001")))
       },
       test("treats unquoted leading-zero number as string") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("05", dynamicStr("05"), config)
+        decodeDynamic("05", dynamicStr("05"), ReaderConfig.withExpandPaths(PathExpansion.Safe))
       },
       test("treats unquoted multi-leading-zero as string") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("007", dynamicStr("007"), config)
+        decodeDynamic("007", dynamicStr("007"), ReaderConfig.withExpandPaths(PathExpansion.Safe))
       },
       test("treats leading-zeros in array as strings") {
         decode("items[3]: 05,007,0123", Items(List("05", "007", "0123")))
@@ -749,16 +615,13 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("value: -0e1", ValueWrapper(BigDecimal("0")))
       },
       test("treats unquoted octal-like as string") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("0123", dynamicStr("0123"), config)
+        decodeDynamic("0123", dynamicStr("0123"), ReaderConfig.withExpandPaths(PathExpansion.Safe))
       },
       test("treats leading-zero in object value as string") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("a: 05", record("a" -> dynamicStr("05")), config)
+        decodeDynamic("a: 05", record("a" -> dynamicStr("05")), ReaderConfig.withExpandPaths(PathExpansion.Safe))
       },
       test("treats unquoted negative leading-zero number as string") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic("-05", dynamicStr("-05"), config)
+        decodeDynamic("-05", dynamicStr("-05"), ReaderConfig.withExpandPaths(PathExpansion.Safe))
       }
     ),
     suite("decode whitespace handling")(
@@ -772,17 +635,10 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("tags[3\t]: a \t b \t c", Tags(List("a", "b", "c")))
       },
       test("decodes tabular rows with leading and trailing spaces") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsWithNote.schema, deriver)
         decode(
           "items[2]{id,note}:\n  1 , Alice \n  2 , Bob ",
-          ItemsWithNote(
-            List(
-              ItemWithNote(1, "Alice"),
-              ItemWithNote(2, "Bob")
-            )
-          ),
-          codec
+          ItemsWithNote(List(ItemWithNote(1, "Alice"), ItemWithNote(2, "Bob"))),
+          deriveCodec[ItemsWithNote](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("decodes quoted values with spaces around delimiters") {
@@ -815,79 +671,61 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("text: \"null\"", TextWrapper("null"))
       },
       test("parses dotted keys as identifiers") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("user.name: Ada", record("user.name" -> dynamicStr("Ada")), config)
+        decodeDynamic("user.name: Ada", record("user.name" -> dynamicStr("Ada")))
       },
       test("parses underscore-prefixed keys") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("_private: 1", record("_private" -> dynamicInt(1)), config)
+        decodeDynamic("_private: 1", record("_private" -> dynamicInt(1)))
       },
       test("parses underscore-containing keys") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("user_name: 1", record("user_name" -> dynamicInt(1)), config)
+        decodeDynamic("user_name: 1", record("user_name" -> dynamicInt(1)))
       },
       test("parses quoted key with colon") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"order:id\": 7", record("order:id" -> dynamicInt(7)), config)
+        decodeDynamic("\"order:id\": 7", record("order:id" -> dynamicInt(7)))
       },
       test("parses quoted key with brackets") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"[index]\": 5", record("[index]" -> dynamicInt(5)), config)
+        decodeDynamic("\"[index]\": 5", record("[index]" -> dynamicInt(5)))
       },
       test("parses quoted key with braces") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"{key}\": 5", record("{key}" -> dynamicInt(5)), config)
+        decodeDynamic("\"{key}\": 5", record("{key}" -> dynamicInt(5)))
       },
       test("parses quoted key with comma") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"a,b\": 1", record("a,b" -> dynamicInt(1)), config)
+        decodeDynamic("\"a,b\": 1", record("a,b" -> dynamicInt(1)))
       },
       test("parses quoted key with spaces") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"full name\": Ada", record("full name" -> dynamicStr("Ada")), config)
+        decodeDynamic("\"full name\": Ada", record("full name" -> dynamicStr("Ada")))
       },
       test("parses quoted key with leading hyphen") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"-lead\": 1", record("-lead" -> dynamicInt(1)), config)
+        decodeDynamic("\"-lead\": 1", record("-lead" -> dynamicInt(1)))
       },
       test("parses quoted numeric key") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"123\": x", record("123" -> dynamicStr("x")), config)
+        decodeDynamic("\"123\": x", record("123" -> dynamicStr("x")))
       },
       test("parses quoted empty string key") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"\": 1", record("" -> dynamicInt(1)), config)
+        decodeDynamic("\"\": 1", record("" -> dynamicInt(1)))
       },
       test("unescapes newline in key") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"line\\nbreak\": 1", record("line\nbreak" -> dynamicInt(1)), config)
+        decodeDynamic("\"line\\nbreak\": 1", record("line\nbreak" -> dynamicInt(1)))
       },
       test("unescapes tab in key") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"tab\\there\": 2", record("tab\there" -> dynamicInt(2)), config)
+        decodeDynamic("\"tab\\there\": 2", record("tab\there" -> dynamicInt(2)))
       },
       test("unescapes quotes in key") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\"he said \\\"hi\\\"\": 1", record("he said \"hi\"" -> dynamicInt(1)), config)
+        decodeDynamic("\"he said \\\"hi\\\"\": 1", record("he said \"hi\"" -> dynamicInt(1)))
       },
       test("parses quoted key with leading and trailing spaces") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("\" a \": 1", record(" a " -> dynamicInt(1)), config)
+        decodeDynamic("\" a \": 1", record(" a " -> dynamicInt(1)))
       },
       test("parses empty nested object header") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("user:", record("user" -> record()), config)
+        decodeDynamic("user:", record("user" -> record()))
       },
       test("parses deeply nested objects with indentation") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("a:\n  b:\n    c: deep", record("a" -> record("b" -> record("c" -> dynamicStr("deep")))), config)
+        decodeDynamic("a:\n  b:\n    c: deep", record("a" -> record("b" -> record("c" -> dynamicStr("deep")))))
       },
       test("parses quoted object value with newline escape") {
         decode("text: \"line1\\nline2\"", TextWrapper("line1\nline2"))
       },
       test("parses quoted object value with escaped quotes") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("text: \"say \\\"hello\\\"\"", record("text" -> dynamicStr("say \"hello\"")), config)
+        decodeDynamic("text: \"say \\\"hello\\\"\"", record("text" -> dynamicStr("say \"hello\"")))
       },
       test("parses quoted string value that looks like integer") {
         decode("name: \"42\"", NameWrapper("42"))
@@ -898,87 +736,76 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
     ),
     suite("strict mode errors")(
       test("tabs in indentation error in strict mode") {
-        val input = "items[2]:\n\t- 1\n  - 2"
-        val codec = ToonTestUtils.deriveCodec(Nums.schema, ToonBinaryCodecDeriver)
-        decodeError(input, "Tabs are not allowed in indentation at: .", codec, ReaderConfig.withStrict(true))
+        decodeError[Nums]("items[2]:\n\t- 1\n  - 2", "Tabs are not allowed in indentation at: .")
       },
       test("tabs in indentation accepted in non-strict mode") {
-        val input  = "name: test"
-        val config = ReaderConfig.withStrict(false)
-        decode(input, NameWrapper("test"), config)
+        decode("name: test", NameWrapper("test"), ReaderConfig.withStrict(false))
       },
       test("blank lines inside tabular arrays error in strict mode") {
-        val input   = "items[3]{id,note}:\n  1,a\n\n  2,b\n  3,c"
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = ToonTestUtils.deriveCodec(ItemsWithNote.schema, deriver)
         decodeError(
-          input,
+          "items[3]{id,note}:\n  1,a\n\n  2,b\n  3,c",
           "Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .items",
-          codec,
-          ReaderConfig.withStrict(true)
+          deriveCodec[ItemsWithNote](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("blank lines inside tabular arrays parsed correctly") {
-        val input   = "items[2]{id,note}:\n  1,first\n  2,second"
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = ToonTestUtils.deriveCodec(ItemsWithNote.schema, deriver)
-        val config  = ReaderConfig.withStrict(true)
-        decode(input, ItemsWithNote(List(ItemWithNote(1, "first"), ItemWithNote(2, "second"))), codec, config)
+        decode(
+          "items[2]{id,note}:\n  1,first\n  2,second",
+          ItemsWithNote(List(ItemWithNote(1, "first"), ItemWithNote(2, "second"))),
+          deriveCodec[ItemsWithNote](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       },
       test("indentation not multiple of indent size errors in strict mode") {
-        val input = "user:\n   name: Ada" // 3 spaces instead of 2
-        val codec = ToonTestUtils.deriveCodec(UserWrapper.schema, ToonBinaryCodecDeriver)
-        decodeError(
-          input,
-          "Indentation must be multiple of 2 spaces at: .user",
-          codec,
-          ReaderConfig.withStrict(true)
+        decodeError[UserWrapper](
+          "user:\n   name: Ada", // 3 spaces instead of 2
+          "Indentation must be multiple of 2 spaces at: .user"
         )
       },
       test("path expansion conflict errors in strict mode") {
-        val input  = "a.b: 1\na: 2"
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
         decodeDynamicError(
-          input,
+          "a.b: 1\na: 2",
           "Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
-          config
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
       },
       test("path expansion conflict object vs array errors in strict mode") {
-        val input  = "a.b: 1\na[2]: 2,3"
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
         decodeDynamicError(
-          input,
+          "a.b: 1\na[2]: 2,3",
           "Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
-          config
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
       },
       test("path expansion conflict uses LWW in non-strict mode") {
-        // In non-strict mode, LWW applies: a: 2 wins over a.b: 1
-        val input  = "a.b: 1\na: 2"
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
-        decodeDynamic(input, record("a" -> dynamicInt(2)), config)
+        decodeDynamic(
+          "a.b: 1\na: 2", // In non-strict mode, LWW applies: a: 2 wins over a.b: 1
+          record("a" -> dynamicInt(2)),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
+        )
       },
       test("path expansion with record merge succeeds in strict mode") {
-        // When both are records, they merge - this is NOT a conflict
-        val input  = "a.b: 1\na.c: 2"
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
-        decodeDynamic(input, record("a" -> record("b" -> dynamicInt(1), "c" -> dynamicInt(2))), config)
+        decodeDynamic(
+          "a.b: 1\na.c: 2", // When both are records, they merge - this is NOT a conflict
+          record("a" -> record("b" -> dynamicInt(1), "c" -> dynamicInt(2))),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       },
       test("array count mismatch errors for inline arrays") {
-        // Declared [3] but only 2 values provided
-        val input = "nums[3]: 1,2"
-        decodeError[Nums](input, "Array count mismatch: expected 3 items but got 2 at: .nums")
+        decodeError[Nums](
+          "nums[3]: 1,2", // Declared [3] but only 2 values provided
+          "Array count mismatch: expected 3 items but got 2 at: .nums"
+        )
       },
       test("array count mismatch errors for too many items") {
-        // Declared [2] but 3 values provided
-        val input = "nums[2]: 1,2,3"
-        decodeError[Nums](input, "Array count mismatch: expected 2 items but got 3 at: .nums")
+        decodeError[Nums](
+          "nums[2]: 1,2,3", // Declared [2] but 3 values provided
+          "Array count mismatch: expected 2 items but got 3 at: .nums"
+        )
       },
       test("array count match succeeds") {
-        // Declared [3] with exactly 3 values
-        val input = "nums[3]: 1,2,3"
-        decode(input, Nums(List(1, 2, 3)))
+        decode(
+          "nums[3]: 1,2,3", // Declared [3] with exactly 3 values
+          Nums(List(1, 2, 3))
+        )
       }
     ),
     suite("decode quoted keys")(
@@ -1039,50 +866,41 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
     ),
     suite("root form discovery")(
       test("empty document decodes to empty record") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        // Empty document should decode to empty object (Unit value in DynamicValue)
-        val codec  = ToonBinaryCodec.dynamicValueCodec
-        val result = codec.decode("", config)
-        assertTrue(result.isRight)
+        decodeDynamic("", record())
       },
       test("single primitive at root decodes correctly") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("42", dynamicInt(42), config)
+        decodeDynamic("42", dynamicInt(42))
       },
       test("single string primitive at root") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("hello", dynamicStr("hello"), config)
+        decodeDynamic("hello", dynamicStr("hello"))
       },
       test("object at root decodes correctly") {
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic("key: value", record("key" -> dynamicStr("value")), config)
+        decodeDynamic("key: value", record("key" -> dynamicStr("value")))
       }
     ),
     suite("nested arrays")(
       test("encodes nested primitive arrays in list format") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec    = deriveCodec(NestedIntList.schema, deriver)
-        val data     = NestedIntList(List(IntListItem(List(1, 2)), IntListItem(List(3, 4))))
-        val expected = """items[2]:
-                         |  - xs[2]:
-                         |    - 1
-                         |    - 2
-                         |  - xs[2]:
-                         |    - 3
-                         |    - 4""".stripMargin
-        encode(data, expected, codec)
+        encode(
+          NestedIntList(List(IntListItem(List(1, 2)), IntListItem(List(3, 4)))),
+          """items[2]:
+            |  - xs[2]:
+            |    - 1
+            |    - 2
+            |  - xs[2]:
+            |    - 3
+            |    - 4""".stripMargin,
+          deriveCodec[NestedIntList](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("encodes empty inner arrays") {
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.List)
-          .withTransientEmptyCollection(false)
-        val codec    = deriveCodec(NestedIntList.schema, deriver)
-        val data     = NestedIntList(List(IntListItem(List.empty), IntListItem(List(1))))
-        val expected = """items[2]:
-                         |  - xs[0]:
-                         |  - xs[1]:
-                         |    - 1""".stripMargin
-        encode(data, expected, codec)
+        encode(
+          NestedIntList(List(IntListItem(List.empty), IntListItem(List(1)))),
+          """items[2]:
+            |  - xs[0]:
+            |  - xs[1]:
+            |    - 1""".stripMargin,
+          deriveCodec[NestedIntList](_.withArrayFormat(ArrayFormat.List).withTransientEmptyCollection(false))
+        )
       }
     ),
     suite("roundtrip")(
@@ -1090,318 +908,276 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         roundTrip(Tags(List("reading", "gaming")), "tags[2]: reading,gaming")
       },
       test("tabular array roundtrips") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsTable.schema, deriver)
-        val data    = ItemsTable(
-          List(
-            ItemRow("A1", 2, BigDecimal("9.99")),
-            ItemRow("B2", 1, BigDecimal("14.5"))
-          )
+        roundTrip(
+          ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5")))),
+          """items[2]{sku,qty,price}:
+            |  A1,2,9.99
+            |  B2,1,14.5""".stripMargin,
+          deriveCodec[ItemsTable](_.withArrayFormat(ArrayFormat.Tabular))
         )
-        val expected = """items[2]{sku,qty,price}:
-                         |  A1,2,9.99
-                         |  B2,1,14.5""".stripMargin
-        roundTrip(data, expected, codec)
       },
       test("tabular array with pipe delimiter roundtrips") {
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.Tabular)
-          .withDelimiter(Delimiter.Pipe)
-        val codec = deriveCodec(ItemsTable.schema, deriver)
-        val data  = ItemsTable(
-          List(
-            ItemRow("A1", 2, BigDecimal("9.99")),
-            ItemRow("B2", 1, BigDecimal("14.5"))
-          )
+        roundTrip(
+          ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5")))),
+          """items[2|]{sku|qty|price}:
+            |  A1|2|9.99
+            |  B2|1|14.5""".stripMargin,
+          deriveCodec[ItemsTable](_.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Pipe))
         )
-        val expected = """items[2|]{sku|qty|price}:
-                         |  A1|2|9.99
-                         |  B2|1|14.5""".stripMargin
-        roundTrip(data, expected, codec)
       },
       test("tabular array with nullable values roundtrips") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsNullable.schema, deriver)
-        val data    = ItemsNullable(
-          List(
-            ItemNullable(1, None),
-            ItemNullable(2, Some("test"))
-          )
+        roundTrip(
+          ItemsNullable(List(ItemNullable(1, None), ItemNullable(2, Some("test")))),
+          """items[2]{id,value}:
+            |  1,null
+            |  2,test""".stripMargin,
+          deriveCodec[ItemsNullable](_.withArrayFormat(ArrayFormat.Tabular))
         )
-        val expected = """items[2]{id,value}:
-                         |  1,null
-                         |  2,test""".stripMargin
-        roundTrip(data, expected, codec)
       },
       test("nested object roundtrips") {
-        val expected = """user:
-                         |  id: 123
-                         |  name: Ada Lovelace
-                         |  contact:
-                         |    email: ada@example.com
-                         |    phone: +1-555-0100""".stripMargin
-        val data = UserWrapper(
-          User(
-            123,
-            "Ada Lovelace",
-            Contact("ada@example.com", "+1-555-0100")
-          )
+        roundTrip(
+          UserWrapper(User(123, "Ada Lovelace", Contact("ada@example.com", "+1-555-0100"))),
+          """user:
+            |  id: 123
+            |  name: Ada Lovelace
+            |  contact:
+            |    email: ada@example.com
+            |    phone: +1-555-0100""".stripMargin
         )
-        roundTrip(data, expected)
       },
       test("inline array with quoted delimiters roundtrips") {
-        val expected = "items[3]: a,\"b,c\",\"d:e\""
-        val data     = Items(List("a", "b,c", "d:e"))
-        roundTrip(data, expected)
+        roundTrip(Items(List("a", "b,c", "d:e")), "items[3]: a,\"b,c\",\"d:e\"")
       },
       test("inline array with quoted booleans roundtrips") {
-        val expected = "items[4]: x,\"true\",\"42\",\"-3.14\""
-        val data     = Items(List("x", "true", "42", "-3.14"))
-        roundTrip(data, expected)
+        roundTrip(Items(List("x", "true", "42", "-3.14")), "items[4]: x,\"true\",\"42\",\"-3.14\"")
       },
       test("tabular array with tab delimiter roundtrips") {
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.Tabular)
-          .withDelimiter(Delimiter.Tab)
-        val codec = deriveCodec(ItemsTable.schema, deriver)
-        val data  = ItemsTable(
-          List(
-            ItemRow("A1", 2, BigDecimal("9.99")),
-            ItemRow("B2", 1, BigDecimal("14.5"))
-          )
+        roundTrip(
+          ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5")))),
+          "items[2\t]{sku\tqty\tprice}:\n  A1\t2\t9.99\n  B2\t1\t14.5",
+          deriveCodec[ItemsTable](_.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Tab))
         )
-        val expected = "items[2\t]{sku\tqty\tprice}:\n  A1\t2\t9.99\n  B2\t1\t14.5"
-        roundTrip(data, expected, codec)
       },
       test("empty array roundtrips") {
-        val deriver  = ToonBinaryCodecDeriver.withTransientEmptyCollection(false)
-        val codec    = deriveCodec(Items.schema, deriver)
-        val expected = "items[0]:"
-        roundTrip(Items(List.empty), expected, codec)
+        roundTrip(Items(List.empty), "items[0]:", deriveCodec[Items](_.withTransientEmptyCollection(false)))
       },
       test("empty string in array roundtrips") {
-        val expected = "items[1]: \"\""
-        roundTrip(Items(List("")), expected)
+        roundTrip(Items(List("")), "items[1]: \"\"")
       },
       test("pipe delimiter does not quote commas") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec    = deriveCodec(Items.schema, deriver)
-        val data     = Items(List("a,b", "c,d"))
-        val expected = "items[2|]: a,b|c,d"
-        roundTrip(data, expected, codec)
+        roundTrip(Items(List("a,b", "c,d")), "items[2|]: a,b|c,d", deriveCodec[Items](_.withDelimiter(Delimiter.Pipe)))
       },
       test("pipe delimiter quotes pipes") {
-        val deriver  = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec    = deriveCodec(Items.schema, deriver)
-        val data     = Items(List("a", "b|c", "d"))
-        val expected = "items[3|]: a|\"b|c\"|d"
-        roundTrip(data, expected, codec)
+        roundTrip(
+          Items(List("a", "b|c", "d")),
+          "items[3|]: a|\"b|c\"|d",
+          deriveCodec[Items](_.withDelimiter(Delimiter.Pipe))
+        )
       }
     ),
     suite("key folding")(
       test("encodes folded chain to primitive in safe mode") {
-        // {a: {b: {c: 1}}} -> "a.b.c: 1"
-        val input    = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        val expected = "a.b.c: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          "a.b.c: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
+        )
       },
       test("encodes standard nesting with keyFolding off") {
-        // {a: {b: {c: 1}}} -> "a:\n  b:\n    c: 1"
-        val input    = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        val expected = "a:\n  b:\n    c: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Off)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          "a:\n  b:\n    c: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Off)
+        )
       },
       test("encodes full chain with flattenDepth infinity") {
-        // {a: {b: {c: {d: 1}}}} -> "a.b.c.d: 1"
-        val input    = record("a" -> record("b" -> record("c" -> record("d" -> dynamicInt(1)))))
-        val expected = "a.b.c.d: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> record("d" -> dynamicInt(1))))),
+          "a.b.c.d: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
+        )
       },
       test("encodes partial folding with flattenDepth 2") {
-        // {a: {b: {c: {d: 1}}}} with depth 2 -> "a.b:\n  c:\n    d: 1"
-        val input    = record("a" -> record("b" -> record("c" -> record("d" -> dynamicInt(1)))))
-        val expected = "a.b:\n  c:\n    d: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(2)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> record("d" -> dynamicInt(1))))),
+          "a.b:\n  c:\n    d: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(2)
+        )
       },
       test("encodes standard nesting with flattenDepth 0") {
-        // {a: {b: {c: 1}}} with depth 0 -> standard nesting
-        val input    = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        val expected = "a:\n  b:\n    c: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(0)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          "a:\n  b:\n    c: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(0)
+        )
       },
       test("encodes standard nesting with flattenDepth 1") {
-        // {a: {b: {c: 1}}} with depth 1 -> standard nesting (need at least 2 for folding)
-        val input    = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        val expected = "a:\n  b:\n    c: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(1)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          "a:\n  b:\n    c: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(1)
+        )
       },
       test("skips folding when segment requires quotes in safe mode") {
-        // {data: {"full-name": {x: 1}}} -> standard nesting (full-name has hyphen)
-        val input    = record("data" -> record("full-name" -> record("x" -> dynamicInt(1))))
-        val expected = "data:\n  \"full-name\":\n    x: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("data" -> record("full-name" -> record("x" -> dynamicInt(1)))),
+          "data:\n  \"full-name\":\n    x: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
+        )
       },
       test("encodes folded chain ending with empty object") {
-        // {a: {b: {c: {}}}} -> "a.b.c:"
-        val input    = record("a" -> record("b" -> record("c" -> record())))
-        val expected = "a.b.c:"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> record()))),
+          "a.b.c:",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
+        )
       },
       test("encodes folded chains preserving sibling field order") {
-        // Multiple folded chains should preserve order
-        val input = record(
-          "first"  -> record("second" -> record("third" -> dynamicInt(1))),
-          "simple" -> dynamicInt(2),
-          "short"  -> record("path" -> dynamicInt(3))
+        encodeDynamic(
+          record(
+            "first"  -> record("second" -> record("third" -> dynamicInt(1))),
+            "simple" -> dynamicInt(2),
+            "short"  -> record("path" -> dynamicInt(3))
+          ),
+          "first.second.third: 1\nsimple: 2\nshort.path: 3",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
         )
-        val expected = "first.second.third: 1\nsimple: 2\nshort.path: 3"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
       },
       test("stops folding at multi-key records") {
-        // {a: {b: 1, c: 2}} -> "a:\n  b: 1\n  c: 2" (not single-key, so no folding)
-        val input    = record("a" -> record("b" -> dynamicInt(1), "c" -> dynamicInt(2)))
-        val expected = "a:\n  b: 1\n  c: 2"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> dynamicInt(1), "c" -> dynamicInt(2))),
+          "a:\n  b: 1\n  c: 2",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
+        )
       },
       test("encodes folded chain with tabular array") {
-        // {a: {b: {items: [{id: 1, name: A}, {id: 2, name: B}]}}}
-        val input = record(
-          "a" -> record(
-            "b" -> record(
-              "items" -> zio.blocks.schema.DynamicValue.Sequence(
-                Vector(
-                  record("id" -> dynamicInt(1), "name" -> dynamicStr("A")),
-                  record("id" -> dynamicInt(2), "name" -> dynamicStr("B"))
+        encodeDynamic(
+          record(
+            "a" -> record(
+              "b" -> record(
+                "items" -> DynamicValue.Sequence(
+                  Vector(
+                    record("id" -> dynamicInt(1), "name" -> dynamicStr("A")),
+                    record("id" -> dynamicInt(2), "name" -> dynamicStr("B"))
+                  )
                 )
               )
             )
-          )
+          ),
+          "a.b.items[2]{id,name}:\n  1,A\n  2,B",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
         )
-        val expected = "a.b.items[2]{id,name}:\n  1,A\n  2,B"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
       },
       test("stops folding at array boundary") {
-        // {a: {b: [1, 2]}} -> "a.b[2]: 1,2"
-        val input = record(
-          "a" -> record(
-            "b" -> zio.blocks.schema.DynamicValue.Sequence(
-              Vector(dynamicInt(1), dynamicInt(2))
+        encodeDynamic(
+          record(
+            "a" -> record(
+              "b" -> DynamicValue.Sequence(
+                Vector(dynamicInt(1), dynamicInt(2))
+              )
             )
-          )
+          ),
+          "a.b[2]: 1,2",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
         )
-        val expected = "a.b[2]: 1,2"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
       }
     ),
     suite("path expansion")(
       test("expands dotted key to nested object in safe mode") {
-        // "a.b.c: 1" -> {a: {b: {c: 1}}}
-        val input    = "a.b.c: 1"
-        val expected = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic(input, expected, config)
+        decodeDynamic(
+          "a.b.c: 1",
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       },
       test("preserves literal dotted keys when expansion is off") {
-        // "user.name: Ada" with off -> {"user.name": "Ada"}
-        val input    = "user.name: Ada"
-        val expected = record("user.name" -> dynamicStr("Ada"))
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        decodeDynamic(input, expected, config)
+        decodeDynamic(
+          "user.name: Ada",
+          record("user.name" -> dynamicStr("Ada"))
+        )
       },
       test("expands and deep-merges preserving document order") {
-        // "a.b.c: 1\na.b.d: 2\na.e: 3" -> {a: {b: {c: 1, d: 2}, e: 3}}
-        val input    = "a.b.c: 1\na.b.d: 2\na.e: 3"
-        val expected = record(
-          "a" -> record(
-            "b" -> record("c" -> dynamicInt(1), "d" -> dynamicInt(2)),
-            "e" -> dynamicInt(3)
-          )
+        decodeDynamic(
+          "a.b.c: 1\na.b.d: 2\na.e: 3",
+          record(
+            "a" -> record(
+              "b" -> record("c" -> dynamicInt(1), "d" -> dynamicInt(2)),
+              "e" -> dynamicInt(3)
+            )
+          ),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic(input, expected, config)
       },
       test("applies LWW when strict false and primitive overwrites object") {
-        // "a.b: 1\na: 2" with strict=false -> {a: 2}
-        val input    = "a.b: 1\na: 2"
-        val expected = record("a" -> dynamicInt(2))
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
-        decodeDynamic(input, expected, config)
+        decodeDynamic(
+          "a.b: 1\na: 2",
+          record("a" -> dynamicInt(2)),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
+        )
       },
       test("applies LWW when strict false and object overwrites primitive") {
-        // "a: 1\na.b: 2" with strict=false -> {a: {b: 2}}
-        val input    = "a: 1\na.b: 2"
-        val expected = record("a" -> record("b" -> dynamicInt(2)))
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
-        decodeDynamic(input, expected, config)
+        decodeDynamic(
+          "a: 1\na.b: 2",
+          record("a" -> record("b" -> dynamicInt(2))),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
+        )
       },
       test("preserves quoted dotted key as literal in safe mode") {
-        // 'a.b: 1\n"c.d": 2' -> {a: {b: 1}, "c.d": 2}
-        val input    = "a.b: 1\n\"c.d\": 2"
-        val expected = record(
-          "a"   -> record("b" -> dynamicInt(1)),
-          "c.d" -> dynamicInt(2)
+        decodeDynamic(
+          "a.b: 1\n\"c.d\": 2",
+          record(
+            "a"   -> record("b" -> dynamicInt(1)),
+            "c.d" -> dynamicInt(2)
+          ),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic(input, expected, config)
       },
       test("preserves non-identifier segment keys as literals") {
-        // "full-name.x: 1" -> {"full-name.x": 1} (hyphen not allowed in identifier)
-        val input    = "full-name.x: 1"
-        val expected = record("full-name.x" -> dynamicInt(1))
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic(input, expected, config)
+        decodeDynamic(
+          "full-name.x: 1",
+          record("full-name.x" -> dynamicInt(1)),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       },
       test("expands keys creating empty nested objects") {
-        // "a.b.c:" -> {a: {b: {c: {}}}}
-        val input    = "a.b.c:"
-        val expected = record("a" -> record("b" -> record("c" -> record())))
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic(input, expected, config)
+        decodeDynamic(
+          "a.b.c:",
+          record("a" -> record("b" -> record("c" -> record()))),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       },
       test("expands dotted key with inline array") {
-        // "data.meta.items[2]: a,b" -> {data: {meta: {items: [a, b]}}}
-        val input    = "data.meta.items[2]: a,b"
-        val expected = record(
-          "data" -> record(
-            "meta" -> record(
-              "items" -> zio.blocks.schema.DynamicValue.Sequence(
-                Vector(dynamicStr("a"), dynamicStr("b"))
-              )
-            )
-          )
-        )
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic(input, expected, config)
-      },
-      test("expands dotted key with tabular array") {
-        // "a.b.items[2]{id,name}:\n  1,A\n  2,B" -> {a: {b: {items: [...]}}}
-        val input    = "a.b.items[2]{id,name}:\n  1,A\n  2,B"
-        val expected = record(
-          "a" -> record(
-            "b" -> record(
-              "items" -> zio.blocks.schema.DynamicValue.Sequence(
-                Vector(
-                  record("id" -> dynamicInt(1), "name" -> dynamicStr("A")),
-                  record("id" -> dynamicInt(2), "name" -> dynamicStr("B"))
+        decodeDynamic(
+          "data.meta.items[2]: a,b",
+          record(
+            "data" -> record(
+              "meta" -> record(
+                "items" -> DynamicValue.Sequence(
+                  Vector(dynamicStr("a"), dynamicStr("b"))
                 )
               )
             )
-          )
+          ),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        decodeDynamic(input, expected, config)
+      },
+      test("expands dotted key with tabular array") {
+        decodeDynamic(
+          "a.b.items[2]{id,name}:\n  1,A\n  2,B",
+          record(
+            "a" -> record(
+              "b" -> record(
+                "items" -> DynamicValue.Sequence(
+                  Vector(
+                    record("id" -> dynamicInt(1), "name" -> dynamicStr("A")),
+                    record("id" -> dynamicInt(2), "name" -> dynamicStr("B"))
+                  )
+                )
+              )
+            )
+          ),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       }
     ),
     suite("encode primitives")(
@@ -1457,47 +1233,35 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encode(Items(List("a", "- item", "b")), "items[3]: a,\"- item\",b")
       },
       test("encodes scientific notation as decimal") {
-        // 1e6 input represented as decimal 1000000
         encode(1000000L, "1000000")
       },
       test("encodes small decimal from scientific notation") {
-        // 1e-6 = 0.000001
-        encode(BigDecimal("0.000001"), "0.000001")
+        encode(BigDecimal("1e-6"), "0.000001")
       },
       test("encodes large number") {
-        // 1e20 represented as decimal
-        encode(BigDecimal("100000000000000000000"), "100000000000000000000")
+        encode(BigDecimal("1e+20"), "100000000000000000000")
       },
       test("encodes MAX_SAFE_INTEGER") {
         encode(9007199254740991L, "9007199254740991")
       },
       test("encodes repeating decimal with full precision") {
-        // Result of 1/3 in JavaScript: 0.3333333333333333
-        encode(BigDecimal("0.3333333333333333"), "0.3333333333333333")
+        encode(BigDecimal(1.0 / 3), "0.3333333333333333")
       },
       test("encodes null") {
-        // Null as root primitive using DynamicValue
-        val config = WriterConfig
-        encodeDynamic(zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Unit), "null", config)
+        encodeDynamic(dynamicUnit, "null")
       }
     ),
     suite("encode objects")(
       test("preserves key order in objects") {
-        val expected = "id: 123\nname: Ada\nactive: true"
-        encode(SimpleObject(123, "Ada", true), expected)
+        encode(SimpleObject(123, "Ada", true), "id: 123\nname: Ada\nactive: true")
       },
       test("encodes null values in objects") {
-        // Need to disable transientNone to see null values serialized
-        val deriver  = ToonBinaryCodecDeriver.withTransientNone(false)
-        val codec    = deriveCodec(IdValue.schema, deriver)
-        val expected = "id: 123\nvalue: null"
-        encode(IdValue(123, None), expected, codec)
+        encode(IdValue(123, None), "id: 123\nvalue: null", deriveCodec[IdValue](_.withTransientNone(false)))
       },
       test("quotes string value with colon") {
         encode(NameWrapper("a:b"), "name: \"a:b\"")
       },
       test("does not quote string value with comma (commas only special in arrays)") {
-        // Object field values are on their own line, so commas don't need quoting
         encode(NameWrapper("a,b"), "name: a,b")
       },
       test("quotes string value with newline") {
@@ -1513,13 +1277,13 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encode(NameWrapper("  "), "name: \"  \"")
       },
       test("encodes deeply nested objects") {
-        val expected = "user:\n  id: 123\n  name: Ada\n  contact:\n    email: ada@example.com\n    phone: 555-0100"
-        val data     = UserWrapper(User(123, "Ada", Contact("ada@example.com", "555-0100")))
-        encode(data, expected)
+        encode(
+          UserWrapper(User(123, "Ada", Contact("ada@example.com", "555-0100"))),
+          "user:\n  id: 123\n  name: Ada\n  contact:\n    email: ada@example.com\n    phone: 555-0100"
+        )
       },
       test("encodes empty objects as empty string") {
-        val config = WriterConfig
-        encodeDynamic(record(), "", config)
+        encodeDynamic(record(), "")
       },
       test("quotes string value that looks like true") {
         encode(NameWrapper("true"), "name: \"true\"")
@@ -1531,307 +1295,263 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encode(NameWrapper("-7.5"), "name: \"-7.5\"")
       },
       test("quotes key with colon") {
-        val config = WriterConfig
-        encodeDynamic(record("order:id" -> dynamicInt(7)), "\"order:id\": 7", config)
+        encodeDynamic(record("order:id" -> dynamicInt(7)), "\"order:id\": 7")
       },
       test("quotes key with brackets") {
-        val config = WriterConfig
-        encodeDynamic(record("[index]" -> dynamicInt(5)), "\"[index]\": 5", config)
+        encodeDynamic(record("[index]" -> dynamicInt(5)), "\"[index]\": 5")
       },
       test("quotes key with braces") {
-        val config = WriterConfig
-        encodeDynamic(record("{key}" -> dynamicInt(5)), "\"{key}\": 5", config)
+        encodeDynamic(record("{key}" -> dynamicInt(5)), "\"{key}\": 5")
       },
       test("quotes key with comma") {
-        val config = WriterConfig
-        encodeDynamic(record("a,b" -> dynamicInt(1)), "\"a,b\": 1", config)
+        encodeDynamic(record("a,b" -> dynamicInt(1)), "\"a,b\": 1")
       },
       test("quotes key with spaces") {
-        val config = WriterConfig
-        encodeDynamic(record("full name" -> dynamicStr("Ada")), "\"full name\": Ada", config)
+        encodeDynamic(record("full name" -> dynamicStr("Ada")), "\"full name\": Ada")
       },
       test("quotes key with leading hyphen") {
-        val config = WriterConfig
-        encodeDynamic(record("-lead" -> dynamicInt(1)), "\"-lead\": 1", config)
+        encodeDynamic(record("-lead" -> dynamicInt(1)), "\"-lead\": 1")
       },
       test("quotes key with leading and trailing spaces") {
-        val config = WriterConfig
-        encodeDynamic(record(" a " -> dynamicInt(1)), "\" a \": 1", config)
+        encodeDynamic(record(" a " -> dynamicInt(1)), "\" a \": 1")
       },
       test("quotes numeric key") {
-        val config = WriterConfig
-        encodeDynamic(record("123" -> dynamicStr("x")), "\"123\": x", config)
+        encodeDynamic(record("123" -> dynamicStr("x")), "\"123\": x")
       },
       test("quotes empty string key") {
-        val config = WriterConfig
-        encodeDynamic(record("" -> dynamicInt(1)), "\"\": 1", config)
+        encodeDynamic(record("" -> dynamicInt(1)), "\"\": 1")
       },
       test("escapes newline in key") {
-        val config = WriterConfig
-        encodeDynamic(record("line\nbreak" -> dynamicInt(1)), "\"line\\nbreak\": 1", config)
+        encodeDynamic(record("line\nbreak" -> dynamicInt(1)), "\"line\\nbreak\": 1")
       },
       test("escapes tab in key") {
-        val config = WriterConfig
-        encodeDynamic(record("tab\there" -> dynamicInt(2)), "\"tab\\there\": 2", config)
+        encodeDynamic(record("tab\there" -> dynamicInt(2)), "\"tab\\there\": 2")
       },
       test("escapes quotes in key") {
-        val config = WriterConfig
-        encodeDynamic(record("he said \"hi\"" -> dynamicInt(1)), "\"he said \\\"hi\\\"\": 1", config)
+        encodeDynamic(record("he said \"hi\"" -> dynamicInt(1)), "\"he said \\\"hi\\\"\": 1")
       },
       test("encodes empty nested object") {
-        val config = WriterConfig
-        encodeDynamic(record("user" -> record()), "user:", config)
+        encodeDynamic(record("user" -> record()), "user:")
       }
     ),
     suite("encode arrays primitive")(
       test("encodes whitespace-only strings in arrays") {
-        val expected = "items[2]: \" \",\"  \""
-        encode(Items(List(" ", "  ")), expected)
+        encode(Items(List(" ", "  ")), "items[2]: \" \",\"  \"")
       },
       test("quotes strings with structural meanings in arrays") {
-        val expected = "items[3]: \"[5]\",\"- item\",\"{key}\""
-        encode(Items(List("[5]", "- item", "{key}")), expected)
+        encode(Items(List("[5]", "- item", "{key}")), "items[3]: \"[5]\",\"- item\",\"{key}\"")
       }
     ),
     suite("encode arrays tabular")(
       test("encodes arrays of uniform objects in tabular format") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec    = deriveCodec(ItemsTable.schema, deriver)
-        val data     = ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5"))))
-        val expected = "items[2]{sku,qty,price}:\n  A1,2,9.99\n  B2,1,14.5"
-        encode(data, expected, codec)
+        encode(
+          ItemsTable(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5")))),
+          "items[2]{sku,qty,price}:\n  A1,2,9.99\n  B2,1,14.5",
+          deriveCodec[ItemsTable](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       },
       test("encodes null values in tabular format") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec    = deriveCodec(ItemsNullable.schema, deriver)
-        val data     = ItemsNullable(List(ItemNullable(1, None), ItemNullable(2, Some("test"))))
-        val expected = "items[2]{id,value}:\n  1,null\n  2,test"
-        encode(data, expected, codec)
+        encode(
+          ItemsNullable(List(ItemNullable(1, None), ItemNullable(2, Some("test")))),
+          "items[2]{id,value}:\n  1,null\n  2,test",
+          deriveCodec[ItemsNullable](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       },
       test("quotes strings containing delimiters in tabular rows") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec    = deriveCodec(ItemsWithSkuDescQty.schema, deriver)
-        val data     = ItemsWithSkuDescQty(List(SkuDescQty("A,1", "cool", 2), SkuDescQty("B2", "wip: test", 1)))
-        val expected = "items[2]{sku,desc,qty}:\n  \"A,1\",cool,2\n  B2,\"wip: test\",1"
-        encode(data, expected, codec)
+        encode(
+          ItemsWithSkuDescQty(List(SkuDescQty("A,1", "cool", 2), SkuDescQty("B2", "wip: test", 1))),
+          "items[2]{sku,desc,qty}:\n  \"A,1\",cool,2\n  B2,\"wip: test\",1",
+          deriveCodec[ItemsWithSkuDescQty](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       },
       test("quotes ambiguous strings in tabular rows") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec    = deriveCodec(ItemsWithIdStatus.schema, deriver)
-        val data     = ItemsWithIdStatus(List(IdStatus(1, "true"), IdStatus(2, "false")))
-        val expected = "items[2]{id,status}:\n  1,\"true\"\n  2,\"false\""
-        encode(data, expected, codec)
+        encode(
+          ItemsWithIdStatus(List(IdStatus(1, "true"), IdStatus(2, "false"))),
+          "items[2]{id,status}:\n  1,\"true\"\n  2,\"false\"",
+          deriveCodec[ItemsWithIdStatus](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       },
       test("encodes tabular arrays with keys needing quotes") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec    = deriveCodec(OrderFullNameItems.schema, deriver)
-        val data     = OrderFullNameItems(List(OrderFullName(1, "Ada"), OrderFullName(2, "Bob")))
-        val expected = "items[2]{\"order:id\",\"full name\"}:\n  1,Ada\n  2,Bob"
-        encode(data, expected, codec)
+        encode(
+          OrderFullNameItems(List(OrderFullName(1, "Ada"), OrderFullName(2, "Bob"))),
+          "items[2]{\"order:id\",\"full name\"}:\n  1,Ada\n  2,Bob",
+          deriveCodec[OrderFullNameItems](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       }
     ),
     suite("encode arrays nested")(
       test("encodes nested arrays of primitives") {
-        // With ArrayFormat.List, primitive arrays are also expanded
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec    = deriveCodec(PairsList.schema, deriver)
-        val data     = PairsList(List(StringPair(List("a", "b")), StringPair(List("c", "d"))))
-        val expected =
+        encode(
+          PairsList(List(StringPair(List("a", "b")), StringPair(List("c", "d")))),
           """pairs[2]:
             |  - items[2]:
             |    - a
             |    - b
             |  - items[2]:
             |    - c
-            |    - d""".stripMargin
-        encode(data, expected, codec)
+            |    - d""".stripMargin,
+          deriveCodec[PairsList](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("encodes empty inner arrays") {
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.List)
-          .withTransientEmptyCollection(false)
-        val codec    = deriveCodec(PairsList.schema, deriver)
-        val data     = PairsList(List(StringPair(List.empty), StringPair(List.empty)))
-        val expected =
+        encode(
+          PairsList(List(StringPair(List.empty), StringPair(List.empty))),
           """pairs[2]:
             |  - items[0]:
-            |  - items[0]:""".stripMargin
-        encode(data, expected, codec)
+            |  - items[0]:""".stripMargin,
+          deriveCodec[PairsList](_.withArrayFormat(ArrayFormat.List).withTransientEmptyCollection(false))
+        )
       },
       test("encodes complex nested structure") {
-        val deriver  = ToonBinaryCodecDeriver.withTransientEmptyCollection(false)
-        val codec    = deriveCodec(ComplexUser.schema, deriver)
-        val data     = ComplexUser(123, "Ada", List("reading", "gaming"), true, List.empty)
-        val expected =
+        encode(
+          ComplexUser(123, "Ada", List("reading", "gaming"), true, List.empty),
           """id: 123
             |name: Ada
             |tags[2]: reading,gaming
-            |active: true
-            |prefs[0]:""".stripMargin
-        encode(data, expected, codec)
+            |active: true""".stripMargin
+        )
       },
       test("encodes root-level primitive array") {
-        // [5]: x,y,"true",true,10
-        val config = WriterConfig
-        val input  = zio.blocks.schema.DynamicValue.Sequence(
-          Vector(
-            dynamicStr("x"),
-            dynamicStr("y"),
-            dynamicStr("true"),
-            zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(true)),
-            dynamicInt(10)
-          )
+        encodeDynamic(
+          DynamicValue.Sequence(
+            Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("true"), dynamicBoolean(true), dynamicInt(10))
+          ),
+          "[5]: x,y,\"true\",true,10"
         )
-        encodeDynamic(input, "[5]: x,y,\"true\",true,10", config)
       },
       test("encodes root-level array of uniform objects in tabular format") {
-        // [2]{id}:\n  1\n  2
-        val config = WriterConfig
-        val input  = zio.blocks.schema.DynamicValue.Sequence(
-          Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
+        encodeDynamic(
+          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
+          "[2]{id}:\n  1\n  2"
         )
-        encodeDynamic(input, "[2]{id}:\n  1\n  2", config)
       },
       test("encodes root-level array of non-uniform objects in list format") {
-        // [2]:\n  - id: 1\n  - id: 2\n    name: Ada
-        val config = WriterConfig
-        val input  = zio.blocks.schema.DynamicValue.Sequence(
-          Vector(
-            record("id" -> dynamicInt(1)),
-            record("id" -> dynamicInt(2), "name" -> dynamicStr("Ada"))
-          )
+        encodeDynamic(
+          DynamicValue.Sequence(
+            Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2), "name" -> dynamicStr("Ada")))
+          ),
+          "[2]:\n  - id: 1\n  - id: 2\n    name: Ada"
         )
-        encodeDynamic(input, "[2]:\n  - id: 1\n  - id: 2\n    name: Ada", config)
       },
       test("encodes root-level array mixing primitive, object, and array of objects in list format") {
-        val config = WriterConfig
-        val input  = zio.blocks.schema.DynamicValue.Sequence(
-          Vector(
-            dynamicStr("summary"),
-            record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
-            zio.blocks.schema.DynamicValue.Sequence(
-              Vector(record("id" -> dynamicInt(2)), record("status" -> dynamicStr("draft")))
+        encodeDynamic(
+          DynamicValue.Sequence(
+            Vector(
+              dynamicStr("summary"),
+              record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
+              DynamicValue.Sequence(Vector(record("id" -> dynamicInt(2)), record("status" -> dynamicStr("draft"))))
             )
-          )
+          ),
+          "[3]:\n  - summary\n  - id: 1\n    name: Ada\n  - [2]:\n    - id: 2\n    - status: draft"
         )
-        val expected = "[3]:\n  - summary\n  - id: 1\n    name: Ada\n  - [2]:\n    - id: 2\n    - status: draft"
-        encodeDynamic(input, expected, config)
       },
       test("encodes root-level arrays of arrays") {
-        val config = WriterConfig
-        val input  = zio.blocks.schema.DynamicValue.Sequence(
-          Vector(
-            zio.blocks.schema.DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))),
-            zio.blocks.schema.DynamicValue.Sequence(Vector())
-          )
+        encodeDynamic(
+          DynamicValue.Sequence(
+            Vector(DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))), DynamicValue.Sequence(Vector()))
+          ),
+          "[2]:\n  - [2]: 1,2\n  - [0]:"
         )
-        encodeDynamic(input, "[2]:\n  - [2]: 1,2\n  - [0]:", config)
       },
       test("encodes empty root-level array") {
-        val config = WriterConfig
-        val input  = zio.blocks.schema.DynamicValue.Sequence(Vector())
-        encodeDynamic(input, "[0]:", config)
+        encodeDynamic(DynamicValue.Sequence(Vector()), "[0]:")
       },
       test("quotes strings containing delimiters in nested arrays") {
-        val config = WriterConfig
-        val input  = record(
-          "pairs" -> zio.blocks.schema.DynamicValue.Sequence(
-            Vector(
-              zio.blocks.schema.DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
-              zio.blocks.schema.DynamicValue.Sequence(Vector(dynamicStr("c,d"), dynamicStr("e:f"), dynamicStr("true")))
+        encodeDynamic(
+          record(
+            "pairs" -> DynamicValue.Sequence(
+              Vector(
+                DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
+                DynamicValue.Sequence(Vector(dynamicStr("c,d"), dynamicStr("e:f"), dynamicStr("true")))
+              )
             )
-          )
+          ),
+          "pairs[2]:\n  - [2]: a,b\n  - [3]: \"c,d\",\"e:f\",\"true\""
         )
-        encodeDynamic(input, "pairs[2]:\n  - [2]: a,b\n  - [3]: \"c,d\",\"e:f\",\"true\"", config)
       },
       test("encodes mixed-length inner arrays") {
-        val config = WriterConfig
-        val input  = record(
-          "pairs" -> zio.blocks.schema.DynamicValue.Sequence(
-            Vector(
-              zio.blocks.schema.DynamicValue.Sequence(Vector(dynamicInt(1))),
-              zio.blocks.schema.DynamicValue.Sequence(Vector(dynamicInt(2), dynamicInt(3)))
+        encodeDynamic(
+          record(
+            "pairs" -> DynamicValue.Sequence(
+              Vector(
+                DynamicValue.Sequence(Vector(dynamicInt(1))),
+                DynamicValue.Sequence(Vector(dynamicInt(2), dynamicInt(3)))
+              )
             )
-          )
+          ),
+          "pairs[2]:\n  - [1]: 1\n  - [2]: 2,3"
         )
-        encodeDynamic(input, "pairs[2]:\n  - [1]: 1\n  - [2]: 2,3", config)
       },
       test("uses list format for arrays mixing primitives and objects") {
-        val config = WriterConfig
-        val input  = record(
-          "items" -> zio.blocks.schema.DynamicValue.Sequence(
-            Vector(dynamicInt(1), record("a" -> dynamicInt(1)), dynamicStr("text"))
-          )
+        encodeDynamic(
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(dynamicInt(1), record("a" -> dynamicInt(1)), dynamicStr("text"))
+            )
+          ),
+          "items[3]:\n  - 1\n  - a: 1\n  - text"
         )
-        encodeDynamic(input, "items[3]:\n  - 1\n  - a: 1\n  - text", config)
       },
       test("uses list format for arrays mixing objects and arrays") {
-        val config = WriterConfig
-        val input  = record(
-          "items" -> zio.blocks.schema.DynamicValue.Sequence(
-            Vector(
-              record("a" -> dynamicInt(1)),
-              zio.blocks.schema.DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2)))
+        encodeDynamic(
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                record("a" -> dynamicInt(1)),
+                DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2)))
+              )
             )
-          )
+          ),
+          "items[2]:\n  - a: 1\n  - [2]: 1,2"
         )
-        encodeDynamic(input, "items[2]:\n  - a: 1\n  - [2]: 1,2", config)
       }
     ),
     suite("encode arrays objects")(
       test("uses list format for objects with different fields") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec    = deriveCodec(PersonListWrapper.schema, deriver)
-        val data     = PersonListWrapper(List(Person("First", 25), Person("Second", 30)))
-        val expected =
+        encode(
+          PersonListWrapper(List(Person("First", 25), Person("Second", 30))),
           """people[2]:
             |  - name: First
             |    age: 25
             |  - name: Second
-            |    age: 30""".stripMargin
-        encode(data, expected, codec)
+            |    age: 30""".stripMargin,
+          deriveCodec[PersonListWrapper](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("uses list format for objects with nested values") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec    = deriveCodec(ItemsWithNestedWrapper.schema, deriver)
-        val data     = ItemsWithNestedWrapper(List(ItemWithNested(1, NestedX(1))))
-        val expected =
+        encode(
+          ItemsWithNestedWrapper(List(ItemWithNested(1, NestedX(1)))),
           """items[1]:
             |  - id: 1
             |    nested:
-            |      x: 1""".stripMargin
-        encode(data, expected, codec)
+            |      x: 1""".stripMargin,
+          deriveCodec[ItemsWithNestedWrapper](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("preserves field order in list items - primitive first") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec    = deriveCodec(ItemsNameNums.schema, deriver)
-        val data     = ItemsNameNums(List(NameNums("Ada", List(1, 2, 3))))
-        val expected =
+        encode(
+          ItemsNameNums(List(NameNums("Ada", List(1, 2, 3)))),
           """items[1]:
             |  - name: Ada
             |    nums[3]:
             |      - 1
             |      - 2
-            |      - 3""".stripMargin
-        encode(data, expected, codec)
+            |      - 3""".stripMargin,
+          deriveCodec[ItemsNameNums](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("encodes objects with empty arrays in list format") {
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.List)
-          .withTransientEmptyCollection(false)
-        val codec    = deriveCodec(ItemsNameData.schema, deriver)
-        val data     = ItemsNameData(List(NameData("Ada", List.empty)))
-        val expected =
+        encode(
+          ItemsNameData(List(NameData("Ada", List.empty))),
           """items[1]:
             |  - name: Ada
-            |    data[0]:""".stripMargin
-        encode(data, expected, codec)
+            |    data[0]:""".stripMargin,
+          deriveCodec[ItemsNameData](_.withArrayFormat(ArrayFormat.List).withTransientEmptyCollection(false))
+        )
       },
       test("uses list format for objects with multiple array fields") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec    = deriveCodec(ItemsNumsTags.schema, deriver)
-        val data     = ItemsNumsTags(List(NumsTags(List(1, 2), List("a", "b"), "test")))
-        val expected =
+        encode(
+          ItemsNumsTags(List(NumsTags(List(1, 2), List("a", "b"), "test"))),
           """items[1]:
             |  - nums[2]:
             |    - 1
@@ -1839,53 +1559,48 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
             |    tags[2]:
             |      - a
             |      - b
-            |    name: test""".stripMargin
-        encode(data, expected, codec)
+            |    name: test""".stripMargin,
+          deriveCodec[ItemsNumsTags](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("uses field order from first object for tabular headers") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec    = deriveCodec(ABCItems.schema, deriver)
-        val data     = ABCItems(List(ABC(1, 2, 3), ABC(10, 20, 30)))
-        val expected = "items[2]{a,b,c}:\n  1,2,3\n  10,20,30"
-        encode(data, expected, codec)
+        encode(
+          ABCItems(List(ABC(1, 2, 3), ABC(10, 20, 30))),
+          "items[2]{a,b,c}:\n  1,2,3\n  10,20,30",
+          deriveCodec[ABCItems](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       },
       test("preserves field order in list items - array first") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec    = deriveCodec(ItemsNumsName.schema, deriver)
-        val data     = ItemsNumsName(List(NumsName(List(1, 2, 3), "Ada")))
-        val expected = "items[1]:\n  - nums[3]:\n    - 1\n    - 2\n    - 3\n    name: Ada"
-        encode(data, expected, codec)
+        encode(
+          ItemsNumsName(List(NumsName(List(1, 2, 3), "Ada"))),
+          "items[1]:\n  - nums[3]:\n    - 1\n    - 2\n    - 3\n    name: Ada",
+          deriveCodec[ItemsNumsName](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("uses list format for objects containing arrays of arrays") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(ItemsMatrixName.schema, deriver)
-        val data    =
-          ItemsMatrixName(List(MatrixName(List(IntListWrapper(List(1, 2)), IntListWrapper(List(3, 4))), "grid")))
-        val expected =
-          "items[1]:\n  - matrix[2]:\n    - xs[2]:\n      - 1\n      - 2\n    - xs[2]:\n      - 3\n      - 4\n    name: grid"
-        encode(data, expected, codec)
+        encode(
+          ItemsMatrixName(List(MatrixName(List(IntListWrapper(List(1, 2)), IntListWrapper(List(3, 4))), "grid"))),
+          "items[1]:\n  - matrix[2]:\n    - xs[2]:\n      - 1\n      - 2\n    - xs[2]:\n      - 3\n      - 4\n    name: grid",
+          deriveCodec[ItemsMatrixName](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("uses tabular format for nested uniform object arrays") {
-        // items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob\n    status: active
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec    = deriveCodec(ItemsUsersStatus.schema, deriver)
-        val data     = ItemsUsersStatus(List(UsersStatus(List(IdName(1, "Ada"), IdName(2, "Bob")), "active")))
-        val expected = "items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob\n    status: active"
-        encode(data, expected, codec)
+        encode(
+          ItemsUsersStatus(List(UsersStatus(List(IdName(1, "Ada"), IdName(2, "Bob")), "active"))),
+          "items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob\n    status: active",
+          deriveCodec[ItemsUsersStatus](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("uses list format for nested object arrays with mismatched keys") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(ItemsUsersMismatch.schema, deriver)
-        val data    =
-          ItemsUsersMismatch(List(UsersMismatch(List(UserMismatch(1, Some("Ada")), UserMismatch(2, None)), "active")))
-        val expected = "items[1]:\n  - users[2]:\n    - id: 1\n      name: Ada\n    - id: 2\n    status: active"
-        encode(data, expected, codec)
+        encode(
+          ItemsUsersMismatch(List(UsersMismatch(List(UserMismatch(1, Some("Ada")), UserMismatch(2, None)), "active"))),
+          "items[1]:\n  - users[2]:\n    - id: 1\n      name: Ada\n    - id: 2\n    status: active",
+          deriveCodec[ItemsUsersMismatch](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("uses list format for objects with only array fields") {
-        val deriver  = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec    = deriveCodec(ItemsNumsTagsOnly.schema, deriver)
-        val data     = ItemsNumsTagsOnly(List(NumsTagsOnly(List(1, 2, 3), List("a", "b"))))
-        val expected =
+        encode(
+          ItemsNumsTagsOnly(List(NumsTagsOnly(List(1, 2, 3), List("a", "b")))),
           """items[1]:
             |  - nums[3]:
             |    - 1
@@ -1893,89 +1608,80 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
             |    - 3
             |    tags[2]:
             |      - a
-            |      - b""".stripMargin
-        encode(data, expected, codec)
+            |      - b""".stripMargin,
+          deriveCodec[ItemsNumsTagsOnly](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("uses canonical encoding for multi-field list-item objects with tabular arrays") {
-        // items[1]:\n  - users[2]{id}:\n      1\n      2\n    note: x
-        val config = WriterConfig
-        val input  = record(
-          "items" -> zio.blocks.schema.DynamicValue.Sequence(
-            Vector(
-              record(
-                "users" -> zio.blocks.schema.DynamicValue.Sequence(
-                  Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
-                ),
-                "note" -> dynamicStr("x")
+        encodeDynamic(
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                record(
+                  "users" -> DynamicValue.Sequence(
+                    Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
+                  ),
+                  "note" -> dynamicStr("x")
+                )
               )
             )
-          )
+          ),
+          "items[1]:\n  - users[2]{id}:\n      1\n      2\n    note: x"
         )
-        encodeDynamic(input, "items[1]:\n  - users[2]{id}:\n      1\n      2\n    note: x", config)
       },
       test("uses canonical encoding for single-field list-item tabular arrays") {
-        // items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob
-        val config = WriterConfig
-        val input  = record(
-          "items" -> zio.blocks.schema.DynamicValue.Sequence(
-            Vector(
-              record(
-                "users" -> zio.blocks.schema.DynamicValue.Sequence(
-                  Vector(
-                    record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
-                    record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
+        encodeDynamic(
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                record(
+                  "users" -> DynamicValue.Sequence(
+                    Vector(
+                      record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
+                      record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
+                    )
                   )
                 )
               )
             )
-          )
+          ),
+          "items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob"
         )
-        encodeDynamic(input, "items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob", config)
       },
       test("places empty arrays on hyphen line when first") {
-        // items[1]:\n  - data[0]:\n    name: x
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.List)
-          .withTransientEmptyCollection(false)
-        val codec    = deriveCodec(ItemsDataName.schema, deriver)
-        val data     = ItemsDataName(List(DataName(List.empty, "x")))
-        val expected = "items[1]:\n  - data[0]:\n    name: x"
-        encode(data, expected, codec)
+        encode(
+          ItemsDataName(List(DataName(List.empty, "x"))),
+          "items[1]:\n  - data[0]:\n    name: x",
+          deriveCodec[ItemsDataName](_.withArrayFormat(ArrayFormat.List).withTransientEmptyCollection(false))
+        )
       },
       test("encodes empty object list items as bare hyphen") {
-        // items[3]:\n  - first\n  - second\n  -
-        val config = WriterConfig
-        val input  = record(
-          "items" -> zio.blocks.schema.DynamicValue.Sequence(
-            Vector(dynamicStr("first"), dynamicStr("second"), record())
-          )
+        encodeDynamic(
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(dynamicStr("first"), dynamicStr("second"), record())
+            )
+          ),
+          "items[3]:\n  - first\n  - second\n  -"
         )
-        encodeDynamic(input, "items[3]:\n  - first\n  - second\n  -", config)
       },
       test("uses list format when one object has nested field") {
-        // items[2]:\n  - id: 1\n    data: string\n  - id: 2\n    data:\n      nested: true
-        val config = WriterConfig
-        val input  = record(
-          "items" -> zio.blocks.schema.DynamicValue.Sequence(
-            Vector(
-              record("id" -> dynamicInt(1), "data" -> dynamicStr("string")),
-              record(
-                "id"   -> dynamicInt(2),
-                "data" -> record(
-                  "nested" -> zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(true))
+        encodeDynamic(
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                record("id" -> dynamicInt(1), "data" -> dynamicStr("string")),
+                record(
+                  "id"   -> dynamicInt(2),
+                  "data" -> record(
+                    "nested" -> dynamicBoolean(true)
+                  )
                 )
               )
             )
-          )
+          ),
+          "items[2]:\n  - id: 1\n    data: string\n  - id: 2\n    data:\n      nested: true"
         )
-        encodeDynamic(input, "items[2]:\n  - id: 1\n    data: string\n  - id: 2\n    data:\n      nested: true", config)
-      }
-    ),
-    suite("decode root form")(
-      test("parses empty document as empty object") {
-        val config   = ReaderConfig.withStrict(true)
-        val expected = record()
-        decodeDynamic("", expected, config)
       }
     ),
     suite("decode whitespace")(
@@ -1983,22 +1689,16 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("tags[3]: a , b , c", Tags(List("a", "b", "c")))
       },
       test("tolerates spaces around pipes in inline arrays") {
-        val deriver = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec   = deriveCodec(Tags.schema, deriver)
-        decode("tags[3|]: a | b | c", Tags(List("a", "b", "c")), codec)
+        decode("tags[3|]: a | b | c", Tags(List("a", "b", "c")), deriveCodec[Tags](_.withDelimiter(Delimiter.Pipe)))
       },
       test("tolerates spaces around tabs in inline arrays") {
-        val deriver = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Tab)
-        val codec   = deriveCodec(Tags.schema, deriver)
-        decode("tags[3\t]: a \t b \t c", Tags(List("a", "b", "c")), codec)
+        decode("tags[3\t]: a \t b \t c", Tags(List("a", "b", "c")), deriveCodec[Tags](_.withDelimiter(Delimiter.Tab)))
       },
       test("tolerates leading and trailing spaces in tabular row values") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(PersonListWrapper.schema, deriver)
         decode(
           "people[2]{name,age}:\n  Alice , 25 \n  Bob , 30 ",
           PersonListWrapper(List(Person("Alice", 25), Person("Bob", 30))),
-          codec
+          deriveCodec[PersonListWrapper](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("tolerates spaces around delimiters with quoted values") {
@@ -2010,167 +1710,172 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
     ),
     suite("decode path expansion")(
       test("expands dotted key to nested object in safe mode") {
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        val expected = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        decodeDynamic("a.b.c: 1", expected, config)
+        decodeDynamic(
+          "a.b.c: 1",
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       },
       test("expands dotted key with inline array") {
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        val expected = record(
-          "data" -> record(
-            "meta" -> record(
-              "items" -> zio.blocks.schema.DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b")))
+        decodeDynamic(
+          "data.meta.items[2]: a,b",
+          record(
+            "data" -> record(
+              "meta" -> record("items" -> DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))))
             )
-          )
+          ),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
-        decodeDynamic("data.meta.items[2]: a,b", expected, config)
       },
       test("expands dotted key with tabular array") {
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        val expected = record(
-          "a" -> record(
-            "b" -> record(
-              "items" -> zio.blocks.schema.DynamicValue.Sequence(
-                Vector(
-                  record("id" -> dynamicInt(1), "name" -> dynamicStr("A")),
-                  record("id" -> dynamicInt(2), "name" -> dynamicStr("B"))
+        decodeDynamic(
+          "a.b.items[2]{id,name}:\n  1,A\n  2,B",
+          record(
+            "a" -> record(
+              "b" -> record(
+                "items" -> DynamicValue.Sequence(
+                  Vector(
+                    record("id" -> dynamicInt(1), "name" -> dynamicStr("A")),
+                    record("id" -> dynamicInt(2), "name" -> dynamicStr("B"))
+                  )
                 )
               )
             )
-          )
+          ),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
-        decodeDynamic("a.b.items[2]{id,name}:\n  1,A\n  2,B", expected, config)
       },
       test("preserves literal dotted keys when expansion is off") {
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Off)
-        val expected = record("user.name" -> dynamicStr("Ada"))
-        decodeDynamic("user.name: Ada", expected, config)
+        decodeDynamic("user.name: Ada", record("user.name" -> dynamicStr("Ada")))
       },
       test("expands and deep-merges preserving document-order insertion") {
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        val expected = record(
-          "a" -> record(
-            "b" -> record("c" -> dynamicInt(1), "d" -> dynamicInt(2)),
-            "e" -> dynamicInt(3)
-          )
+        decodeDynamic(
+          "a.b.c: 1\na.b.d: 2\na.e: 3",
+          record(
+            "a" -> record(
+              "b" -> record("c" -> dynamicInt(1), "d" -> dynamicInt(2)),
+              "e" -> dynamicInt(3)
+            )
+          ),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
-        decodeDynamic("a.b.c: 1\na.b.d: 2\na.e: 3", expected, config)
       },
       test("throws on expansion conflict (object vs primitive) when strict=true") {
-        val codec  = ToonBinaryCodec.dynamicValueCodec
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
         decodeError(
           "a.b: 1\na: 2",
           "Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
-          codec,
-          config
+          ToonBinaryCodec.dynamicValueCodec,
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
       },
       test("throws on expansion conflict (object vs array) when strict=true") {
-        val codec  = ToonBinaryCodec.dynamicValueCodec
-        val config = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(true)
         decodeError(
           "a.b: 1\na[2]: 2,3",
           "Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
-          codec,
-          config
+          ToonBinaryCodec.dynamicValueCodec,
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
       },
       test("applies LWW when strict=false (primitive overwrites expanded object)") {
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
-        val expected = record("a" -> dynamicInt(2))
-        decodeDynamic("a.b: 1\na: 2", expected, config)
+        decodeDynamic(
+          "a.b: 1\na: 2",
+          record("a" -> dynamicInt(2)),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
+        )
       },
       test("applies LWW when strict=false (expanded object overwrites primitive)") {
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
-        val expected = record("a" -> record("b" -> dynamicInt(2)))
-        decodeDynamic("a: 1\na.b: 2", expected, config)
+        decodeDynamic(
+          "a: 1\na.b: 2",
+          record("a" -> record("b" -> dynamicInt(2))),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe).withStrict(false)
+        )
       },
       test("preserves quoted dotted key as literal when expandPaths=safe") {
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        val expected = record(
-          "a"   -> record("b" -> dynamicInt(1)),
-          "c.d" -> dynamicInt(2)
+        decodeDynamic(
+          "a.b: 1\n\"c.d\": 2",
+          record(
+            "a"   -> record("b" -> dynamicInt(1)),
+            "c.d" -> dynamicInt(2)
+          ),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
-        decodeDynamic("a.b: 1\n\"c.d\": 2", expected, config)
       },
       test("preserves non-IdentifierSegment keys as literals") {
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        val expected = record("full-name.x" -> dynamicInt(1))
-        decodeDynamic("full-name.x: 1", expected, config)
+        decodeDynamic(
+          "full-name.x: 1",
+          record("full-name.x" -> dynamicInt(1)),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       },
       test("expands keys creating empty nested objects") {
-        val config   = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-        val expected = record("a" -> record("b" -> record("c" -> record())))
-        decodeDynamic("a.b.c:", expected, config)
+        decodeDynamic(
+          "a.b.c:",
+          record("a" -> record("b" -> record("c" -> record()))),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       }
     ),
     suite("decode arrays primitive")(
       test("parses string arrays inline") {
-        val input    = "tags[3]: reading,gaming,coding"
-        val expected = record(
-          "tags" -> DynamicValue.Sequence(Vector(dynamicStr("reading"), dynamicStr("gaming"), dynamicStr("coding")))
+        decodeDynamic(
+          "tags[3]: reading,gaming,coding",
+          record(
+            "tags" -> DynamicValue.Sequence(Vector(dynamicStr("reading"), dynamicStr("gaming"), dynamicStr("coding")))
+          )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses number arrays inline") {
         decode("nums[3]: 1,2,3", Nums(List(1, 2, 3)))
       },
       test("parses mixed primitive arrays inline") {
-        val input    = "data[4]: x,y,true,10"
-        val expected = record(
-          "data" -> DynamicValue.Sequence(
-            Vector(
-              dynamicStr("x"),
-              dynamicStr("y"),
-              zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(true)),
-              dynamicInt(10)
+        decodeDynamic(
+          "data[4]: x,y,true,10",
+          record(
+            "data" -> DynamicValue.Sequence(
+              Vector(dynamicStr("x"), dynamicStr("y"), dynamicBoolean(true), dynamicInt(10))
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses empty arrays") {
-        val deriver = ToonBinaryCodecDeriver.withTransientEmptyCollection(false)
-        val codec   = deriveCodec(Items.schema, deriver)
-        decode("items[0]:", Items(List.empty), codec)
+        decode("items[0]:", Items(List.empty), deriveCodec[Items](_.withTransientEmptyCollection(false)))
       },
       test("parses single-item array with empty string") {
-        val input    = "items[1]: \"\""
-        val expected = record("items" -> DynamicValue.Sequence(Vector(dynamicStr(""))))
-        decodeDynamic(input, expected, ReaderConfig)
+        decodeDynamic("items[1]: \"\"", record("items" -> DynamicValue.Sequence(Vector(dynamicStr("")))))
       },
       test("parses multi-item array with empty string") {
-        val input    = "items[3]: a,\"\",b"
-        val expected =
+        decodeDynamic(
+          "items[3]: a,\"\",b",
           record("items" -> DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr(""), dynamicStr("b"))))
-        decodeDynamic(input, expected, ReaderConfig)
+        )
       },
       test("parses whitespace-only strings in arrays") {
-        val input    = "items[2]: \" \",\"  \""
-        val expected = record("items" -> DynamicValue.Sequence(Vector(dynamicStr(" "), dynamicStr("  "))))
-        decodeDynamic(input, expected, ReaderConfig)
+        decodeDynamic(
+          "items[2]: \" \",\"  \"",
+          record("items" -> DynamicValue.Sequence(Vector(dynamicStr(" "), dynamicStr("  "))))
+        )
       },
       test("parses strings with delimiters in arrays") {
-        val input    = "items[3]: a,\"b,c\",\"d:e\""
-        val expected =
+        decodeDynamic(
+          "items[3]: a,\"b,c\",\"d:e\"",
           record("items" -> DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b,c"), dynamicStr("d:e"))))
-        decodeDynamic(input, expected, ReaderConfig)
+        )
       },
       test("parses strings that look like primitives when quoted") {
-        val input    = "items[4]: x,\"true\",\"42\",\"-3.14\""
-        val expected = record(
-          "items" -> DynamicValue.Sequence(
-            Vector(dynamicStr("x"), dynamicStr("true"), dynamicStr("42"), dynamicStr("-3.14"))
+        decodeDynamic(
+          "items[4]: x,\"true\",\"42\",\"-3.14\"",
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(dynamicStr("x"), dynamicStr("true"), dynamicStr("42"), dynamicStr("-3.14"))
+            )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses strings with structural tokens in arrays") {
-        val input    = "items[3]: \"[5]\",\"- item\",\"{key}\""
-        val expected =
+        decodeDynamic(
+          "items[3]: \"[5]\",\"- item\",\"{key}\"",
           record("items" -> DynamicValue.Sequence(Vector(dynamicStr("[5]"), dynamicStr("- item"), dynamicStr("{key}"))))
-        decodeDynamic(input, expected, ReaderConfig)
+        )
       },
       test("parses quoted key with inline array") {
         decode("\"my-key\"[3]: 1,2,3", MyKeyWrapper(List(1, 2, 3)))
@@ -2179,318 +1884,301 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("\"key[test]\"[3]: 1,2,3", KeyTestWrapper(List(1, 2, 3)))
       },
       test("parses quoted key with empty array") {
-        val input    = "\"x-custom\"[0]:"
-        val expected = record("x-custom" -> DynamicValue.Sequence(Vector.empty))
-        decodeDynamic(input, expected, ReaderConfig)
+        decodeDynamic("\"x-custom\"[0]:", record("x-custom" -> DynamicValue.Sequence(Vector.empty)))
       }
     ),
     suite("decode arrays nested")(
       test("parses list arrays for non-uniform objects") {
-        val input    = "items[2]:\n  - id: 1\n    name: First\n  - id: 2\n    name: Second\n    extra: true"
-        val expected = record(
-          "items" -> DynamicValue.Sequence(
-            Vector(
-              record("id" -> dynamicInt(1), "name" -> dynamicStr("First")),
-              record(
-                "id"    -> dynamicInt(2),
-                "name"  -> dynamicStr("Second"),
-                "extra" -> zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(true))
+        decodeDynamic(
+          "items[2]:\n  - id: 1\n    name: First\n  - id: 2\n    name: Second\n    extra: true",
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                record("id" -> dynamicInt(1), "name" -> dynamicStr("First")),
+                record("id" -> dynamicInt(2), "name" -> dynamicStr("Second"), "extra" -> dynamicBoolean(true))
               )
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses list arrays with empty items") {
-        val input    = "items[3]:\n  - first\n  - second\n  -"
-        val expected = record(
-          "items" -> DynamicValue.Sequence(
-            Vector(dynamicStr("first"), dynamicStr("second"), record())
-          )
+        decodeDynamic(
+          "items[3]:\n  - first\n  - second\n  -",
+          record("items" -> DynamicValue.Sequence(Vector(dynamicStr("first"), dynamicStr("second"), record())))
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses list arrays with deeply nested objects") {
-        val input    = "items[2]:\n  - properties:\n      state:\n        type: string\n  - id: 2"
-        val expected = record(
-          "items" -> DynamicValue.Sequence(
-            Vector(
-              record("properties" -> record("state" -> record("type" -> dynamicStr("string")))),
-              record("id"         -> dynamicInt(2))
-            )
-          )
-        )
-        decodeDynamic(input, expected, ReaderConfig)
-      },
-      test("parses list arrays containing objects with nested properties") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(ItemsWithNestedWrapper.schema, deriver)
-        val input   = "items[1]:\n  - id: 1\n    nested:\n      x: 1"
-        decode(input, ItemsWithNestedWrapper(List(ItemWithNested(1, NestedX(1)))), codec)
-      },
-      test("parses list items whose first field is a tabular array") {
-        val input    = "items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob\n    status: active"
-        val expected = record(
-          "items" -> DynamicValue.Sequence(
-            Vector(
-              record(
-                "users" -> DynamicValue.Sequence(
-                  Vector(
-                    record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
-                    record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
-                  )
-                ),
-                "status" -> dynamicStr("active")
+        decodeDynamic(
+          "items[2]:\n  - properties:\n      state:\n        type: string\n  - id: 2",
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                record("properties" -> record("state" -> record("type" -> dynamicStr("string")))),
+                record("id"         -> dynamicInt(2))
               )
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
+      },
+      test("parses list arrays containing objects with nested properties") {
+        decode(
+          "items[1]:\n  - id: 1\n    nested:\n      x: 1",
+          ItemsWithNestedWrapper(List(ItemWithNested(1, NestedX(1)))),
+          deriveCodec[ItemsWithNestedWrapper](_.withArrayFormat(ArrayFormat.List))
+        )
+      },
+      test("parses list items whose first field is a tabular array") {
+        decodeDynamic(
+          "items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob\n    status: active",
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                record(
+                  "users" -> DynamicValue.Sequence(
+                    Vector(
+                      record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
+                      record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
+                    )
+                  ),
+                  "status" -> dynamicStr("active")
+                )
+              )
+            )
+          )
+        )
       },
       test("parses single-field list-item object with tabular array") {
-        val input    = "items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob"
-        val expected = record(
-          "items" -> DynamicValue.Sequence(
-            Vector(
-              record(
-                "users" -> DynamicValue.Sequence(
-                  Vector(
-                    record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
-                    record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
+        decodeDynamic(
+          "items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob",
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                record(
+                  "users" -> DynamicValue.Sequence(
+                    Vector(
+                      record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
+                      record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
+                    )
                   )
                 )
               )
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses objects containing arrays (including empty arrays) in list format") {
-        val deriver = ToonBinaryCodecDeriver
-          .withArrayFormat(ArrayFormat.List)
-          .withTransientEmptyCollection(false)
-        val codec = deriveCodec(ItemsNameData.schema, deriver)
-        val input = "items[1]:\n  - name: Ada\n    data[0]:"
-        decode(input, ItemsNameData(List(NameData("Ada", List.empty))), codec)
+        decode(
+          "items[1]:\n  - name: Ada\n    data[0]:",
+          ItemsNameData(List(NameData("Ada", List.empty))),
+          deriveCodec[ItemsNameData](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("parses arrays of arrays within objects") {
-        val input    = "items[1]:\n  - matrix[2]:\n      - [2]: 1,2\n      - [2]: 3,4\n    name: grid"
-        val expected = record(
-          "items" -> DynamicValue.Sequence(
-            Vector(
-              record(
-                "matrix" -> DynamicValue.Sequence(
-                  Vector(
-                    DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))),
-                    DynamicValue.Sequence(Vector(dynamicInt(3), dynamicInt(4)))
-                  )
-                ),
-                "name" -> dynamicStr("grid")
+        decodeDynamic(
+          "items[1]:\n  - matrix[2]:\n      - [2]: 1,2\n      - [2]: 3,4\n    name: grid",
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                record(
+                  "matrix" -> DynamicValue.Sequence(
+                    Vector(
+                      DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))),
+                      DynamicValue.Sequence(Vector(dynamicInt(3), dynamicInt(4)))
+                    )
+                  ),
+                  "name" -> dynamicStr("grid")
+                )
               )
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses nested arrays of primitives") {
-        val input    = "pairs[2]:\n  - [2]: a,b\n  - [2]: c,d"
-        val expected = record(
-          "pairs" -> DynamicValue.Sequence(
-            Vector(
-              DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
-              DynamicValue.Sequence(Vector(dynamicStr("c"), dynamicStr("d")))
+        decodeDynamic(
+          "pairs[2]:\n  - [2]: a,b\n  - [2]: c,d",
+          record(
+            "pairs" -> DynamicValue.Sequence(
+              Vector(
+                DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
+                DynamicValue.Sequence(Vector(dynamicStr("c"), dynamicStr("d")))
+              )
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses quoted strings and mixed lengths in nested arrays") {
-        val input    = "pairs[2]:\n  - [2]: a,b\n  - [3]: \"c,d\",\"e:f\",\"true\""
-        val expected = record(
-          "pairs" -> DynamicValue.Sequence(
-            Vector(
-              DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
-              DynamicValue.Sequence(Vector(dynamicStr("c,d"), dynamicStr("e:f"), dynamicStr("true")))
+        decodeDynamic(
+          "pairs[2]:\n  - [2]: a,b\n  - [3]: \"c,d\",\"e:f\",\"true\"",
+          record(
+            "pairs" -> DynamicValue.Sequence(
+              Vector(
+                DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
+                DynamicValue.Sequence(Vector(dynamicStr("c,d"), dynamicStr("e:f"), dynamicStr("true")))
+              )
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses empty inner arrays") {
-        val input    = "pairs[2]:\n  - [0]:\n  - [0]:"
-        val expected = record(
-          "pairs" -> DynamicValue.Sequence(
-            Vector(DynamicValue.Sequence(Vector.empty), DynamicValue.Sequence(Vector.empty))
+        decodeDynamic(
+          "pairs[2]:\n  - [0]:\n  - [0]:",
+          record(
+            "pairs" -> DynamicValue.Sequence(
+              Vector(DynamicValue.Sequence(Vector.empty), DynamicValue.Sequence(Vector.empty))
+            )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses mixed-length inner arrays") {
-        val input    = "pairs[2]:\n  - [1]: 1\n  - [2]: 2,3"
-        val expected = record(
-          "pairs" -> DynamicValue.Sequence(
-            Vector(
-              DynamicValue.Sequence(Vector(dynamicInt(1))),
-              DynamicValue.Sequence(Vector(dynamicInt(2), dynamicInt(3)))
+        decodeDynamic(
+          "pairs[2]:\n  - [1]: 1\n  - [2]: 2,3",
+          record(
+            "pairs" -> DynamicValue.Sequence(
+              Vector(
+                DynamicValue.Sequence(Vector(dynamicInt(1))),
+                DynamicValue.Sequence(Vector(dynamicInt(2), dynamicInt(3)))
+              )
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses root-level primitive array inline") {
-        val input    = "[5]: x,y,\"true\",true,10"
-        val expected = DynamicValue.Sequence(
-          Vector(
-            dynamicStr("x"),
-            dynamicStr("y"),
-            dynamicStr("true"),
-            zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(true)),
-            dynamicInt(10)
+        decodeDynamic(
+          "[5]: x,y,\"true\",true,10",
+          DynamicValue.Sequence(
+            Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("true"), dynamicBoolean(true), dynamicInt(10))
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses root-level array of uniform objects in tabular format") {
-        val input    = "[2]{id}:\n  1\n  2"
-        val expected = DynamicValue.Sequence(
-          Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
-        )
-        decodeDynamic(input, expected, ReaderConfig)
-      },
-      test("parses root-level array of non-uniform objects in list format") {
-        val input    = "[2]:\n  - id: 1\n  - id: 2\n    name: Ada"
-        val expected = DynamicValue.Sequence(
-          Vector(
-            record("id" -> dynamicInt(1)),
-            record("id" -> dynamicInt(2), "name" -> dynamicStr("Ada"))
+        decodeDynamic(
+          "[2]{id}:\n  1\n  2",
+          DynamicValue.Sequence(
+            Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
+      },
+      test("parses root-level array of non-uniform objects in list format") {
+        decodeDynamic(
+          "[2]:\n  - id: 1\n  - id: 2\n    name: Ada",
+          DynamicValue.Sequence(
+            Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2), "name" -> dynamicStr("Ada")))
+          )
+        )
       },
       test("parses root-level array mixing primitive, object, and array of objects in list format") {
-        val input    = "[3]:\n  - summary\n  - id: 1\n    name: Ada\n  - [2]:\n    - id: 2\n    - status: draft"
-        val expected = DynamicValue.Sequence(
-          Vector(
-            dynamicStr("summary"),
-            record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
-            DynamicValue.Sequence(
-              Vector(record("id" -> dynamicInt(2)), record("status" -> dynamicStr("draft")))
+        decodeDynamic(
+          "[3]:\n  - summary\n  - id: 1\n    name: Ada\n  - [2]:\n    - id: 2\n    - status: draft",
+          DynamicValue.Sequence(
+            Vector(
+              dynamicStr("summary"),
+              record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
+              DynamicValue.Sequence(Vector(record("id" -> dynamicInt(2)), record("status" -> dynamicStr("draft"))))
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses root-level array of arrays") {
-        val input    = "[2]:\n  - [2]: 1,2\n  - [0]:"
-        val expected = DynamicValue.Sequence(
-          Vector(
-            DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))),
-            DynamicValue.Sequence(Vector.empty)
+        decodeDynamic(
+          "[2]:\n  - [2]: 1,2\n  - [0]:",
+          DynamicValue.Sequence(
+            Vector(DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))), DynamicValue.Sequence(Vector.empty))
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses empty root-level array") {
-        val input    = "[0]:"
-        val expected = DynamicValue.Sequence(Vector.empty)
-        decodeDynamic(input, expected, ReaderConfig)
+        decodeDynamic("[0]:", DynamicValue.Sequence(Vector.empty))
       },
       test("parses complex mixed object with arrays and nested objects") {
-        val deriver = ToonBinaryCodecDeriver.withTransientEmptyCollection(false)
-        val codec   = deriveCodec(ComplexUser.schema, deriver)
-        val input   =
+        decode(
           """id: 123
             |name: Ada
             |tags[2]: reading,gaming
             |active: true
-            |prefs[0]:""".stripMargin
-        decode(input, ComplexUser(123, "Ada", List("reading", "gaming"), true, List.empty), codec)
+            |prefs[0]:""".stripMargin,
+          ComplexUser(123, "Ada", List("reading", "gaming"), true, List.empty)
+        )
       },
       test("parses arrays mixing primitives, objects, and strings in list format") {
-        val input    = "items[3]:\n  - 1\n  - a: 1\n  - text"
-        val expected = record(
-          "items" -> DynamicValue.Sequence(
-            Vector(dynamicInt(1), record("a" -> dynamicInt(1)), dynamicStr("text"))
+        decodeDynamic(
+          "items[3]:\n  - 1\n  - a: 1\n  - text",
+          record(
+            "items" -> DynamicValue.Sequence(Vector(dynamicInt(1), record("a" -> dynamicInt(1)), dynamicStr("text")))
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses arrays mixing objects and arrays") {
-        val input    = "items[2]:\n  - a: 1\n  - [2]: 1,2"
-        val expected = record(
-          "items" -> DynamicValue.Sequence(
-            Vector(
-              record("a" -> dynamicInt(1)),
-              DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2)))
+        decodeDynamic(
+          "items[2]:\n  - a: 1\n  - [2]: 1,2",
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(record("a" -> dynamicInt(1)), DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))))
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses quoted key with list array format") {
-        val input    = "\"x-items\"[2]:\n  - id: 1\n  - id: 2"
-        val expected = record(
-          "x-items" -> DynamicValue.Sequence(
-            Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
+        decodeDynamic(
+          "\"x-items\"[2]:\n  - id: 1\n  - id: 2",
+          record(
+            "x-items" -> DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2))))
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       }
     ),
     suite("decode arrays tabular")(
       test("parses tabular arrays of uniform objects") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(SkuQtyPriceItems.schema, deriver)
-        val input   = "items[2]{sku,qty,price}:\n  A1,2,9.99\n  B2,1,14.5"
-        decode(input, SkuQtyPriceItems(List(SkuQtyPrice("A1", 2, 9.99), SkuQtyPrice("B2", 1, 14.5))), codec)
+        decode(
+          "items[2]{sku,qty,price}:\n  A1,2,9.99\n  B2,1,14.5",
+          SkuQtyPriceItems(List(SkuQtyPrice("A1", 2, 9.99), SkuQtyPrice("B2", 1, 14.5))),
+          deriveCodec[SkuQtyPriceItems](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       },
       test("parses nulls and quoted values in tabular rows") {
-        val input    = "items[2]{id,value}:\n  1,null\n  2,\"test\""
-        val expected = record(
-          "items" -> DynamicValue.Sequence(
-            Vector(
-              record(
-                "id"    -> dynamicInt(1),
-                "value" -> zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Unit)
-              ),
-              record("id" -> dynamicInt(2), "value" -> dynamicStr("test"))
+        decodeDynamic(
+          "items[2]{id,value}:\n  1,null\n  2,\"test\"",
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                record("id" -> dynamicInt(1), "value" -> dynamicUnit),
+                record("id" -> dynamicInt(2), "value" -> dynamicStr("test"))
+              )
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("parses quoted colon in tabular row as data") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(IdNoteItems.schema, deriver)
-        val input   = "items[2]{id,note}:\n  1,\"a:b\"\n  2,\"c:d\""
-        decode(input, IdNoteItems(List(IdNote(1, "a:b"), IdNote(2, "c:d"))), codec)
+        decode(
+          "items[2]{id,note}:\n  1,\"a:b\"\n  2,\"c:d\"",
+          IdNoteItems(List(IdNote(1, "a:b"), IdNote(2, "c:d"))),
+          deriveCodec[IdNoteItems](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       },
       test("parses quoted header keys in tabular arrays") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(OrderFullNameItems.schema, deriver)
-        val input   = "items[2]{\"order:id\",\"full name\"}:\n  1,Ada\n  2,Bob"
-        decode(input, OrderFullNameItems(List(OrderFullName(1, "Ada"), OrderFullName(2, "Bob"))), codec)
+        decode(
+          "items[2]{\"order:id\",\"full name\"}:\n  1,Ada\n  2,Bob",
+          OrderFullNameItems(List(OrderFullName(1, "Ada"), OrderFullName(2, "Bob"))),
+          deriveCodec[OrderFullNameItems](_.withArrayFormat(ArrayFormat.Tabular))
+        )
       },
       test("parses quoted key with tabular array format") {
-        val input    = "\"x-items\"[2]{id,name}:\n  1,Ada\n  2,Bob"
-        val expected = record(
-          "x-items" -> DynamicValue.Sequence(
-            Vector(
-              record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
-              record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
+        decodeDynamic(
+          "\"x-items\"[2]{id,name}:\n  1,Ada\n  2,Bob",
+          record(
+            "x-items" -> DynamicValue.Sequence(
+              Vector(
+                record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
+                record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
+              )
             )
           )
         )
-        decodeDynamic(input, expected, ReaderConfig)
       },
       test("treats unquoted colon as terminator for tabular rows and start of key-value pair") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(ItemsTableWithCount.schema, deriver)
-        val input   = "items[2]{sku,qty,price}:\n  A1,2,9.99\n  B2,1,14.5\ncount: 2"
         decode(
-          input,
+          "items[2]{sku,qty,price}:\n  A1,2,9.99\n  B2,1,14.5\ncount: 2",
           ItemsTableWithCount(List(ItemRow("A1", 2, BigDecimal("9.99")), ItemRow("B2", 1, BigDecimal("14.5"))), 2),
-          codec
+          deriveCodec[ItemsTableWithCount](_.withArrayFormat(ArrayFormat.Tabular))
         )
       }
     ),
@@ -2499,23 +2187,17 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeError[Tags]("tags[2]: a,b,c", "Array count mismatch: expected 2 items but got 3 at: .tags")
       },
       test("throws on tabular row value count mismatch with header field count") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(PersonListWrapper.schema, deriver)
-        // The decoder reports "Missing required field" when a tabular row has fewer values than headers
         decodeError(
           "people[2]{name,age}:\n  Ada,25\n  Bob",
           "Missing required field in tabular row: age at: .people.at(1)",
-          codec
+          deriveCodec[PersonListWrapper](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("throws on tabular row count mismatch with header length") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(PersonListWrapper.schema, deriver)
-        // With [1], decoder reads 1 row then tries to parse next as key:value
         decodeError(
           "people[1]{name,age}:\n  Ada,25\n  Bob,30",
           "Expected key:value, no colon found at: .",
-          codec
+          deriveCodec[PersonListWrapper](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("throws on unterminated string") {
@@ -2527,275 +2209,233 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
     ),
     suite("decode indentation errors")(
       test("throws on object field with non-multiple indentation (3 spaces with indent=2)") {
-        val input = "a:\n   b: 1"
-        val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(
-          input,
-          "Indentation must be multiple of 2 spaces at: .",
-          codec,
-          ReaderConfig.withStrict(true)
-        )
+        decodeError[DynamicValue]("a:\n   b: 1", "Indentation must be multiple of 2 spaces at: .")
       },
       test("accepts correct indentation with custom indent size (4 spaces with indent=4)") {
-        val input    = "a:\n    b: 1"
-        val config   = ReaderConfig.withStrict(true).withIndent(4)
-        val expected = record("a" -> record("b" -> dynamicInt(1)))
-        decodeDynamic(input, expected, config)
+        decodeDynamic("a:\n    b: 1", record("a" -> record("b" -> dynamicInt(1))), ReaderConfig.withIndent(4))
       },
       test("throws on tab character used in indentation") {
-        val input = "a:\n\tb: 1"
-        val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Tabs are not allowed in indentation at: .", codec, ReaderConfig.withStrict(true))
+        decodeError[DynamicValue]("a:\n\tb: 1", "Tabs are not allowed in indentation at: .")
       },
       test("throws on mixed tabs and spaces in indentation") {
-        val input = "a:\n \tb: 1"
-        val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(input, "Tabs are not allowed in indentation at: .", codec, ReaderConfig.withStrict(true))
+        decodeError[DynamicValue]("a:\n \tb: 1", "Tabs are not allowed in indentation at: .")
       },
       test("accepts tabs in quoted string values") {
-        val input  = "text: \"hello\\tworld\""
-        val config = ReaderConfig.withStrict(true)
-        decode(input, TextWrapper("hello\tworld"), config)
+        decode("text: \"hello\\tworld\"", TextWrapper("hello\tworld"))
       },
       test("accepts tabs in quoted keys") {
-        val input    = "\"key\\ttab\": value"
-        val config   = ReaderConfig.withStrict(true).withExpandPaths(PathExpansion.Off)
-        val expected = record("key\ttab" -> dynamicStr("value"))
-        decodeDynamic(input, expected, config)
+        decodeDynamic("\"key\\ttab\": value", record("key\ttab" -> dynamicStr("value")))
       },
       test("accepts non-multiple indentation when strict=false") {
-        val input    = "a:\n   b: 1" // 3 spaces
-        val config   = ReaderConfig.withStrict(false)
-        val expected = record("a" -> record("b" -> dynamicInt(1)))
-        decodeDynamic(input, expected, config)
+        decodeDynamic(
+          "a:\n   b: 1", // 3 spaces
+          record("a" -> record("b" -> dynamicInt(1))),
+          ReaderConfig.withStrict(false)
+        )
       },
       test("accepts deeply nested non-multiples when strict=false") {
-        val input    = "a:\n   b:\n     c: 1"
-        val config   = ReaderConfig.withStrict(false)
-        val expected = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        decodeDynamic(input, expected, config)
+        decodeDynamic(
+          "a:\n   b:\n     c: 1",
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          ReaderConfig.withStrict(false)
+        )
       },
       test("parses empty lines without validation errors") {
-        val input    = "a: 1\n\nb: 2"
-        val config   = ReaderConfig.withStrict(true)
-        val expected = record("a" -> dynamicInt(1), "b" -> dynamicInt(2))
-        decodeDynamic(input, expected, config)
+        decodeDynamic("a: 1\n\nb: 2", record("a" -> dynamicInt(1), "b" -> dynamicInt(2)))
       },
       test("parses root-level content (0 indentation) as always valid") {
-        val input    = "a: 1\nb: 2\nc: 3"
-        val config   = ReaderConfig.withStrict(true)
-        val expected = record("a" -> dynamicInt(1), "b" -> dynamicInt(2), "c" -> dynamicInt(3))
-        decodeDynamic(input, expected, config)
+        decodeDynamic("a: 1\nb: 2\nc: 3", record("a" -> dynamicInt(1), "b" -> dynamicInt(2), "c" -> dynamicInt(3)))
       }
     ),
     suite("decode blank lines")(
       test("throws on blank line inside list array") {
-        val input = "items[3]:\n  - a\n\n  - b\n  - c"
-        val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(
-          input,
-          "Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .",
-          codec,
-          ReaderConfig.withStrict(true)
+        decodeError[DynamicValue](
+          "items[3]:\n  - a\n\n  - b\n  - c",
+          "Blank lines are not allowed inside arrays/tabular blocks in strict mode at: ."
         )
       },
       test("throws on blank line inside tabular array") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(PersonListWrapper.schema, deriver)
-        val input   = "people[2]{name,age}:\n  Ada,25\n\n  Bob,30"
         decodeError(
-          input,
+          "people[2]{name,age}:\n  Ada,25\n\n  Bob,30",
           "Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .people",
-          codec,
-          ReaderConfig.withStrict(true)
+          deriveCodec[PersonListWrapper](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("throws on multiple blank lines inside array") {
-        val input = "items[2]:\n  - a\n\n\n  - b"
-        val codec = ToonBinaryCodec.dynamicValueCodec
-        decodeError(
-          input,
-          "Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .",
-          codec,
-          ReaderConfig.withStrict(true)
+        decodeError[DynamicValue](
+          "items[2]:\n  - a\n\n\n  - b",
+          "Blank lines are not allowed inside arrays/tabular blocks in strict mode at: ."
         )
       },
       test("accepts blank line between root-level fields") {
-        val input    = "a: 1\n\nb: 2"
-        val config   = ReaderConfig.withStrict(true)
-        val expected = record("a" -> dynamicInt(1), "b" -> dynamicInt(2))
-        decodeDynamic(input, expected, config)
+        decodeDynamic("a: 1\n\nb: 2", record("a" -> dynamicInt(1), "b" -> dynamicInt(2)))
       },
       test("accepts trailing newline at end of file") {
-        val input    = "a: 1\n"
-        val config   = ReaderConfig.withStrict(true)
-        val expected = record("a" -> dynamicInt(1))
-        decodeDynamic(input, expected, config)
+        decodeDynamic("a: 1\n", record("a" -> dynamicInt(1)))
       },
       test("accepts multiple trailing newlines") {
-        val input    = "a: 1\n\n\n"
-        val config   = ReaderConfig.withStrict(true)
-        val expected = record("a" -> dynamicInt(1))
-        decodeDynamic(input, expected, config)
+        decodeDynamic("a: 1\n\n\n", record("a" -> dynamicInt(1)))
       },
       test("accepts blank line after array ends") {
-        val input    = "items[1]:\n  - a\n\nb: 2"
-        val config   = ReaderConfig.withStrict(true)
-        val expected = record(
-          "items" -> zio.blocks.schema.DynamicValue.Sequence(
-            Vector(zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.String("a")))
-          ),
-          "b" -> dynamicInt(2)
-        )
-        decodeDynamic(input, expected, config)
-      },
-      test("accepts blank line between nested object fields") {
-        val input    = "a:\n  b: 1\n\n  c: 2"
-        val config   = ReaderConfig.withStrict(true)
-        val expected = record("a" -> record("b" -> dynamicInt(1), "c" -> dynamicInt(2)))
-        decodeDynamic(input, expected, config)
-      },
-      test("ignores blank lines inside list array when strict=false") {
-        val input    = "items[3]:\n  - a\n\n  - b\n  - c"
-        val config   = ReaderConfig.withStrict(false)
-        val expected = record(
-          "items" -> zio.blocks.schema.DynamicValue.Sequence(
-            Vector(
-              zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.String("a")),
-              zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.String("b")),
-              zio.blocks.schema.DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.String("c"))
-            )
+        decodeDynamic(
+          "items[1]:\n  - a\n\nb: 2",
+          record(
+            "items" -> DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.String("a")))),
+            "b"     -> dynamicInt(2)
           )
         )
-        decodeDynamic(input, expected, config)
+      },
+      test("accepts blank line between nested object fields") {
+        decodeDynamic("a:\n  b: 1\n\n  c: 2", record("a" -> record("b" -> dynamicInt(1), "c" -> dynamicInt(2))))
+      },
+      test("ignores blank lines inside list array when strict=false") {
+        decodeDynamic(
+          "items[3]:\n  - a\n\n  - b\n  - c",
+          record(
+            "items" -> DynamicValue.Sequence(
+              Vector(
+                DynamicValue.Primitive(PrimitiveValue.String("a")),
+                DynamicValue.Primitive(PrimitiveValue.String("b")),
+                DynamicValue.Primitive(PrimitiveValue.String("c"))
+              )
+            )
+          ),
+          ReaderConfig.withStrict(false)
+        )
       },
       test("ignores blank lines inside tabular array when strict=false") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(PersonListWrapper.schema, deriver)
-        val input   = "people[2]{name,age}:\n  Ada,25\n\n  Bob,30"
-        val config  = ReaderConfig.withStrict(false)
-        decode(input, PersonListWrapper(List(Person("Ada", 25), Person("Bob", 30))), codec, config)
+        decode(
+          "people[2]{name,age}:\n  Ada,25\n\n  Bob,30",
+          PersonListWrapper(List(Person("Ada", 25), Person("Bob", 30))),
+          deriveCodec[PersonListWrapper](_.withArrayFormat(ArrayFormat.Tabular)),
+          ReaderConfig.withStrict(false)
+        )
       }
     ),
     suite("encode whitespace")(
       test("produces no trailing newline at end of output") {
-        val data    = IdWrapper(123)
-        val codec   = deriveCodec(IdWrapper.schema, ToonBinaryCodecDeriver)
-        val encoded = codec.encodeToString(data)
-        assertTrue(!encoded.endsWith("\n"))
+        assertTrue(!deriveCodec[IdWrapper](identity).encodeToString(IdWrapper(123)).endsWith("\n"))
       },
       test("maintains proper indentation for nested structures") {
-        val data = UserWithItems(
-          UserSimple(123, "Ada"),
-          List("a", "b")
+        encode(
+          UserWithItems(UserSimple(123, "Ada"), List("a", "b")),
+          "user:\n  id: 123\n  name: Ada\nitems[2]: a,b"
         )
-        val expected = "user:\n  id: 123\n  name: Ada\nitems[2]: a,b"
-        encode(data, expected)
       },
       test("respects custom indent size option") {
-        val data     = UserWrapper(User(123, "Ada", Contact("ada@example.com", "555-0100")))
-        val config   = WriterConfig.withIndent(4)
-        val expected =
-          "user:\n    id: 123\n    name: Ada\n    contact:\n        email: ada@example.com\n        phone: 555-0100"
-        val codec = deriveCodec(UserWrapper.schema, ToonBinaryCodecDeriver)
-        encode(data, expected, codec, config)
+        encode(
+          UserWrapper(User(123, "Ada", Contact("ada@example.com", "555-0100"))),
+          "user:\n    id: 123\n    name: Ada\n    contact:\n        email: ada@example.com\n        phone: 555-0100",
+          deriveCodec[UserWrapper](identity),
+          WriterConfig.withIndent(4)
+        )
       }
     ),
     suite("encode key folding")(
       test("encodes folded chain to primitive (safe mode)") {
-        val input    = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        val expected = "a.b.c: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          "a.b.c: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
+        )
       },
       test("encodes folded chain with inline array") {
-        val input = record(
-          "data" -> record(
-            "meta" -> record(
-              "items" -> DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y")))
+        encodeDynamic(
+          record(
+            "data" -> record(
+              "meta" -> record("items" -> DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"))))
             )
-          )
+          ),
+          "data.meta.items[2]: x,y",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
         )
-        val expected = "data.meta.items[2]: x,y"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
       },
       test("skips folding on sibling literal-key collision (safe mode)") {
-        val input = record(
-          "data" -> record(
-            "meta" -> record("items" -> DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))))
+        encodeDynamic(
+          record(
+            "data" -> record(
+              "meta" -> record("items" -> DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))))
+            ),
+            "data.meta.items" -> dynamicStr("literal")
           ),
-          "data.meta.items" -> dynamicStr("literal")
+          "data:\n  meta:\n    items[2]: 1,2\ndata.meta.items: literal",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
         )
-        val expected = "data:\n  meta:\n    items[2]: 1,2\ndata.meta.items: literal"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
       },
       test("encodes partial folding with flattenDepth=2") {
-        val input    = record("a" -> record("b" -> record("c" -> record("d" -> dynamicInt(1)))))
-        val expected = "a.b:\n  c:\n    d: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(2)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> record("d" -> dynamicInt(1))))),
+          "a.b:\n  c:\n    d: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(2)
+        )
       },
       test("encodes full chain with flattenDepth=Infinity (default)") {
-        val input    = record("a" -> record("b" -> record("c" -> record("d" -> dynamicInt(1)))))
-        val expected = "a.b.c.d: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> record("d" -> dynamicInt(1))))),
+          "a.b.c.d: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
+        )
       },
       test("encodes standard nesting with flattenDepth=0 (no folding)") {
-        val input    = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        val expected = "a:\n  b:\n    c: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(0)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          "a:\n  b:\n    c: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(0)
+        )
       },
       test("encodes standard nesting with flattenDepth=1 (no practical effect)") {
-        val input    = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        val expected = "a:\n  b:\n    c: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(1)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          "a:\n  b:\n    c: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Safe).withFlattenDepth(1)
+        )
       },
       test("encodes standard nesting with keyFolding=off (baseline)") {
-        val input    = record("a" -> record("b" -> record("c" -> dynamicInt(1))))
-        val expected = "a:\n  b:\n    c: 1"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Off)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> dynamicInt(1)))),
+          "a:\n  b:\n    c: 1",
+          WriterConfig.withKeyFolding(KeyFolding.Off)
+        )
       },
       test("encodes folded chain ending with empty object") {
-        val input    = record("a" -> record("b" -> record("c" -> record())))
-        val expected = "a.b.c:"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> record("c" -> record()))),
+          "a.b.c:",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
+        )
       },
       test("stops folding at array boundary (not single-key object)") {
-        val input    = record("a" -> record("b" -> DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2)))))
-        val expected = "a.b[2]: 1,2"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))))),
+          "a.b[2]: 1,2",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
+        )
       },
       test("encodes folded chains preserving sibling field order") {
-        val input = record(
-          "first"  -> record("second" -> record("third" -> dynamicInt(1))),
-          "simple" -> dynamicInt(2),
-          "short"  -> record("path" -> dynamicInt(3))
+        encodeDynamic(
+          record(
+            "first"  -> record("second" -> record("third" -> dynamicInt(1))),
+            "simple" -> dynamicInt(2),
+            "short"  -> record("path" -> dynamicInt(3))
+          ),
+          "first.second.third: 1\nsimple: 2\nshort.path: 3",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
         )
-        val expected = "first.second.third: 1\nsimple: 2\nshort.path: 3"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
       },
       test("stops folding at multi-key records") {
-        val input    = record("a" -> record("b" -> dynamicInt(1), "c" -> dynamicInt(2)))
-        val expected = "a:\n  b: 1\n  c: 2"
-        val config   = WriterConfig.withKeyFolding(KeyFolding.Safe)
-        encodeDynamic(input, expected, config)
+        encodeDynamic(
+          record("a" -> record("b" -> dynamicInt(1), "c" -> dynamicInt(2))),
+          "a:\n  b: 1\n  c: 2",
+          WriterConfig.withKeyFolding(KeyFolding.Safe)
+        )
       }
     ),
     suite("deep nesting - records with lists of records with lists")(
       test("encodes record with list of records containing lists of primitives") {
-        val data = TeamWrapper(
-          Team("Engineering", List(Member("Alice", List("Scala", "Rust")), Member("Bob", List("Go", "Python"))))
-        )
-        val expected =
+        encode(
+          TeamWrapper(
+            Team("Engineering", List(Member("Alice", List("Scala", "Rust")), Member("Bob", List("Go", "Python"))))
+          ),
           """team:
             |  name: Engineering
             |  members[2]:
@@ -2806,53 +2446,66 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
             |    - name: Bob
             |      skills[2]:
             |        - Go
-            |        - Python""".stripMargin
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(TeamWrapper.schema, deriver)
-        encode(data, expected, codec)
+            |        - Python""".stripMargin,
+          deriveCodec[TeamWrapper](_.withArrayFormat(ArrayFormat.List))
+        )
       },
       test("decodes record with list of records containing lists of primitives") {
-        val input =
+        decode(
           """team:
             |  name: Engineering
             |  members[2]:
             |    - name: Alice
             |      skills[2]: Scala,Rust
             |    - name: Bob
-            |      skills[2]: Go,Python""".stripMargin
-        val expected = TeamWrapper(
-          Team("Engineering", List(Member("Alice", List("Scala", "Rust")), Member("Bob", List("Go", "Python"))))
+            |      skills[2]: Go,Python""".stripMargin,
+          TeamWrapper(
+            Team("Engineering", List(Member("Alice", List("Scala", "Rust")), Member("Bob", List("Go", "Python"))))
+          ),
+          deriveCodec[TeamWrapper](_.withArrayFormat(ArrayFormat.List))
         )
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(TeamWrapper.schema, deriver)
-        decode(input, expected, codec)
       },
       test("roundtrips deep nesting with three levels") {
-        val data = OrgWrapper(
-          Organization(
-            "TechCorp",
-            List(
-              Department(
-                "Engineering",
-                List(
-                  TeamMember("Alice", List(Project("ZIO", 100), Project("Cats", 50))),
-                  TeamMember("Bob", List(Project("Akka", 75)))
-                )
-              ),
-              Department(
-                "Design",
-                List(
-                  TeamMember("Carol", List(Project("UI Kit", 200)))
+        roundTrip(
+          OrgWrapper(
+            Organization(
+              "TechCorp",
+              List(
+                Department(
+                  "Engineering",
+                  List(
+                    TeamMember("Alice", List(Project("ZIO", 100), Project("Cats", 50))),
+                    TeamMember("Bob", List(Project("Akka", 75)))
+                  )
+                ),
+                Department(
+                  "Design",
+                  List(
+                    TeamMember("Carol", List(Project("UI Kit", 200)))
+                  )
                 )
               )
             )
-          )
+          ),
+          """org:
+            |  name: TechCorp
+            |  departments[2]:
+            |    - name: Engineering
+            |      members[2]:
+            |        - name: Alice
+            |          projects[2]{name,hours}:
+            |              ZIO,100
+            |              Cats,50
+            |        - name: Bob
+            |          projects[1]{name,hours}:
+            |              Akka,75
+            |    - name: Design
+            |      members[1]:
+            |        - name: Carol
+            |          projects[1]{name,hours}:
+            |              UI Kit,200""".stripMargin,
+          deriveCodec[OrgWrapper](_.withArrayFormat(ArrayFormat.List))
         )
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(OrgWrapper.schema, deriver)
-        val encoded = codec.encodeToString(data)
-        val decoded = codec.decode(encoded)
-        assertTrue(decoded == Right(data))
       }
     )
   )

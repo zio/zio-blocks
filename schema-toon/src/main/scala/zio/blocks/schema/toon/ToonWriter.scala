@@ -238,7 +238,8 @@ final class ToonWriter private (
     val mantissa = str.substring(0, eIdx)
     val exp      = str.substring(eIdx + 1).toInt
     val mant     = mantissa.split('.')
-    val digits   = mant(0) + mant(1)
+    var digits   = mant(0)
+    if (mant.length == 2) digits += mant(1)
     val pointPos = mant(0).length + exp
     if (pointPos <= 0) {
       val sb = new java.lang.StringBuilder(digits.length - pointPos + 2)

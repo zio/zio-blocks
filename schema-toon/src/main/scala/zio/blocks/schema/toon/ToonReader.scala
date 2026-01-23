@@ -95,6 +95,8 @@ final class ToonReader private[toon] (
     }
   }
 
+  def isFirstLine: Boolean = lineIndex == 0
+
   def hasMoreLines: Boolean = lineIndex < lines.length
 
   def hasMoreContent: Boolean = linePos < currentLine.length
@@ -303,7 +305,7 @@ final class ToonReader private[toon] (
     if (keyPart.startsWith("\"")) unescapeString(keyPart) else keyPart
   }
 
-  def parseArrayHeader(): ArrayHeader = {
+  def parseArrayHeader(isInline: Boolean = false): ArrayHeader = {
     skipWhitespace()
     val bracketStart = findUnquotedChar(currentLine, '[', linePos)
     if (bracketStart < 0) decodeError("Expected array header with [")
@@ -328,7 +330,8 @@ final class ToonReader private[toon] (
     }
     if (afterBracket >= len || currentLine.charAt(afterBracket) != ':') decodeError("Expected : after array header")
     activeDelimiter = delim
-    advanceLine()
+    if (isInline) linePos = afterBracket + 1
+    else advanceLine()
     ArrayHeader(key, length, fields, delim)
   }
 

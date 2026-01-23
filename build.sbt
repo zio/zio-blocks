@@ -77,6 +77,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
+  .dependsOn(chunk)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
@@ -229,7 +230,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %% "neotype" % "0.3.37" % Test
         )
     })
   )
