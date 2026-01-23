@@ -11,9 +11,64 @@ import java.math.MathContext
 import java.nio.charset.StandardCharsets
 import java.time._
 import java.util.{Currency, UUID}
-import scala.collection.immutable.ArraySeq
+import scala.collection.immutable.{ArraySeq, Seq}
 
 object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
+  import zio.blocks.typeid.{TypeId, StandardTypes}
+
+  private def unsafeTypeId[A](s: String): TypeId[A] =
+    TypeId.parse(s).fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[A]])
+
+  case class TestNs(parts: Seq[String], sub: Seq[String] = Nil) {
+    def toDotted: String = (parts ++ sub).mkString(".")
+  }
+
+  object TestTypeId {
+    def apply[A](namespace: TestNs, name: String, @annotation.unused params: Any*): TypeId[A] =
+      unsafeTypeId(s"${namespace.toDotted}.$name")
+
+    val int            = StandardTypes.int
+    val long           = StandardTypes.long
+    val string         = StandardTypes.string
+    val boolean        = StandardTypes.boolean
+    val byte           = StandardTypes.byte
+    val short          = StandardTypes.short
+    val double         = StandardTypes.double
+    val float          = StandardTypes.float
+    val char           = StandardTypes.char
+    val unit           = StandardTypes.unit
+    val bigDecimal     = StandardTypes.bigDecimal
+    val bigInt         = StandardTypes.bigInt
+    val dayOfWeek      = StandardTypes.dayOfWeek
+    val duration       = StandardTypes.duration
+    val instant        = StandardTypes.instant
+    val localDate      = StandardTypes.localDate
+    val localDateTime  = StandardTypes.localDateTime
+    val localTime      = StandardTypes.localTime
+    val month          = StandardTypes.month
+    val monthDay       = StandardTypes.monthDay
+    val offsetDateTime = StandardTypes.offsetDateTime
+    val currency       = StandardTypes.currency
+    val offsetTime     = StandardTypes.offsetTime
+    val period         = StandardTypes.period
+    val year           = StandardTypes.year
+    val yearMonth      = StandardTypes.yearMonth
+    val zonedDateTime  = StandardTypes.zonedDateTime
+    val zoneId         = StandardTypes.zoneId
+    val zoneOffset     = StandardTypes.zoneOffset
+    val uuid           = StandardTypes.uuid
+
+    def list[A](@annotation.unused e: Any): TypeId[List[A]]                                = unsafeTypeId("scala.collection.immutable.List")
+    def vector[A](@annotation.unused e: Any): TypeId[Vector[A]]                            = unsafeTypeId("scala.collection.immutable.Vector")
+    def map[K, V](@annotation.unused k: Any, @annotation.unused v: Any): TypeId[Map[K, V]] = unsafeTypeId(
+      "scala.collection.immutable.Map"
+    )
+    def set[A](@annotation.unused e: Any): TypeId[Set[A]]         = unsafeTypeId("scala.collection.immutable.Set")
+    def seq[A](@annotation.unused e: Any): TypeId[Seq[A]]         = unsafeTypeId("scala.collection.immutable.Seq")
+    def chunk[A](@annotation.unused e: Any): TypeId[zio.Chunk[A]] = unsafeTypeId("zio.Chunk")
+    def option[A](@annotation.unused e: Any): TypeId[Option[A]]   = unsafeTypeId("scala.Option")
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverSpec")(
     suite("primitives")(
       test("Unit") {
@@ -1792,7 +1847,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Tuple10[Unit, Boolean, Byte, Short, Int, Long, Float, Double, Char, String]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.boolean,
+            TestTypeId.boolean,
             new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
               def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readStringAsBoolean()
 
@@ -1800,7 +1855,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             }
           )
           .instance(
-            TypeName.byte,
+            TestTypeId.byte,
             new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) { // stringifies byte values
               def decodeValue(in: JsonReader, default: Byte): Byte = in.readStringAsByte()
 
@@ -1808,7 +1863,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             }
           )
           .instance(
-            TypeName.short,
+            TestTypeId.short,
             new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) { // stringifies short values
               def decodeValue(in: JsonReader, default: Short): Short = in.readStringAsShort()
 
@@ -1816,7 +1871,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             }
           )
           .instance(
-            TypeName.int,
+            TestTypeId.int,
             new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
               def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
 
@@ -1824,7 +1879,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             }
           )
           .instance(
-            TypeName.long,
+            TestTypeId.long,
             new JsonBinaryCodec[Long](JsonBinaryCodec.longType) { // stringifies long values
               def decodeValue(in: JsonReader, default: Long): Long = in.readStringAsLong()
 
@@ -1832,7 +1887,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             }
           )
           .instance(
-            TypeName.float,
+            TestTypeId.float,
             new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) { // stringifies float values
               def decodeValue(in: JsonReader, default: Float): Float = in.readStringAsFloat()
 
@@ -1840,7 +1895,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             }
           )
           .instance(
-            TypeName.double,
+            TestTypeId.double,
             new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) { // stringifies double values
               def decodeValue(in: JsonReader, default: Double): Double = in.readStringAsDouble()
 
@@ -1848,7 +1903,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             }
           )
           .instance(
-            TypeName.char,
+            TestTypeId.char,
             new JsonBinaryCodec[Char](JsonBinaryCodec.charType) { // expecting char code numbers (not one-char strings)
               def decodeValue(in: JsonReader, default: Char): Char = in.readInt().toChar
 
@@ -1866,7 +1921,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         val codec = Record3.schema
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.currency,
+            TestTypeId.currency,
             new JsonBinaryCodec[Currency]() { // decode null values as the default one ("USD")
               def decodeValue(in: JsonReader, default: Currency): Currency =
                 if (in.isNextToken('n')) {
@@ -1976,7 +2031,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         val codec = Record2.schema
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.int,
+            TestTypeId.int,
             new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
               def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
 
@@ -2005,7 +2060,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         val codec = Record2.schema
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            Record1.schema.reflect.typeName,
+            Record1.schema.reflect.typeId,
             new JsonBinaryCodec[Record1]() { // allows null values which are prohibited for codecs derived by default
               private val codec = Record1.schema.derive(JsonBinaryCodecDeriver)
 
@@ -2190,7 +2245,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Array[Boolean]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.boolean,
+            TestTypeId.boolean,
             new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
               def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readStringAsBoolean()
 
@@ -2202,7 +2257,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Array[Byte]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.byte,
+            TestTypeId.byte,
             new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) { // stringifies byte values
               def decodeValue(in: JsonReader, default: Byte): Byte = in.readStringAsByte()
 
@@ -2214,7 +2269,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Array[Char]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.char,
+            TestTypeId.char,
             new JsonBinaryCodec[Char](JsonBinaryCodec.charType) { // char values as numbers
               def decodeValue(in: JsonReader, default: Char): Char = in.readInt().toChar
 
@@ -2226,7 +2281,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Array[Short]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.short,
+            TestTypeId.short,
             new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) { // stringifies short values
               def decodeValue(in: JsonReader, default: Short): Short = in.readStringAsShort()
 
@@ -2238,7 +2293,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Array[Int]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.int,
+            TestTypeId.int,
             new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
               def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
 
@@ -2250,7 +2305,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Array[Float]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.float,
+            TestTypeId.float,
             new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) { // stringifies float values
               def decodeValue(in: JsonReader, default: Float): Float = in.readStringAsFloat()
 
@@ -2262,7 +2317,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Array[Long]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.long,
+            TestTypeId.long,
             new JsonBinaryCodec[Long](JsonBinaryCodec.longType) { // stringifies long values
               def decodeValue(in: JsonReader, default: Long): Long = in.readStringAsLong()
 
@@ -2274,7 +2329,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Array[Double]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.double,
+            TestTypeId.double,
             new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) { // stringifies double values
               def decodeValue(in: JsonReader, default: Double): Double = in.readStringAsDouble()
 
@@ -2338,7 +2393,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Array[ZonedDateTime]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.zonedDateTime,
+            TestTypeId.zonedDateTime,
             new JsonBinaryCodec[ZonedDateTime]() {
               def decodeValue(in: JsonReader, default: ZonedDateTime): ZonedDateTime = in.readZonedDateTime(default)
 
@@ -2381,7 +2436,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .derived[Array[OffsetDateTime]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.offsetDateTime,
+            TestTypeId.offsetDateTime,
             new JsonBinaryCodec[OffsetDateTime]() {
               private[this] val maxLen = 44 // should be enough for the longest offset date time value
               private[this] val pool   = new ThreadLocal[Array[Byte]] {
@@ -3091,7 +3146,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Email] = new Schema(
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
-        TypeName(Namespace(Seq("zio", "blocks", "schema", "json"), Seq("JsonBinaryCodecDeriverSpec")), "Email"),
+        TestTypeId(TestNs(Seq("zio", "blocks", "schema", "json"), Seq("JsonBinaryCodecDeriverSpec")), "Email"),
         None,
         new Binding.Wrapper(
           {

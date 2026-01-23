@@ -1,10 +1,23 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.{Owner, TypeDefKind, TypeId}
 import zio.test.Assertion._
 import zio.test._
 
 object SchemaVersionSpecificSpec extends SchemaBaseSpec {
+  // Base NamedTuple TypeId - matches the one constructed in SchemaCompanionVersionSpecific macro
+  // All NamedTuple variants should compare equal to this base typeId
+  private def baseNamedTupleTypeId[T]: TypeId[T] = TypeId[Any](
+    owner = Owner(List(Owner.Package("scala"), Owner.Type("NamedTuple"))),
+    name = "NamedTuple",
+    typeParams = Nil,
+    kind = TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil),
+    parents = Nil,
+    args = Nil,
+    annotations = Nil
+  ).asInstanceOf[TypeId[T]]
+
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
     suite("Reflect.Record")(
       test("derives schema for named tuples") {
@@ -44,11 +57,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[Int].reflect.asTerm("i"),
                   Schema[Long].reflect.asTerm("l")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[b,sh,i,l]",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
-                ),
+                typeId = baseNamedTupleTypeId,
                 recordBinding = null
               )
             )
@@ -100,11 +109,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[Int].reflect.asTerm("i"),
                   Schema[String].reflect.asTerm("s")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[i,s]",
-                  params = Seq(TypeName.int, TypeName.string)
-                ),
+                typeId = baseNamedTupleTypeId,
                 recordBinding = null
               )
             )
@@ -128,14 +133,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema.derived[(Int, Long)].reflect.asTerm("i"),
                   Schema.derived[(String, String)].reflect.asTerm("s")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[i,s]",
-                  params = Seq(
-                    TypeName(Namespace.scala, "Tuple2", Seq(TypeName.int, TypeName.long)),
-                    TypeName(Namespace.scala, "Tuple2", Seq(TypeName.string, TypeName.string))
-                  )
-                ),
+                typeId = baseNamedTupleTypeId,
                 recordBinding = null
               )
             )
@@ -149,11 +147,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[Option[Int]].reflect.asTerm("i"),
                   Schema[Option[String]].reflect.asTerm("s")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[i,s]",
-                  params = Seq(TypeName.option(TypeName.int), TypeName.option(TypeName.string))
-                ),
+                typeId = baseNamedTupleTypeId,
                 recordBinding = null
               )
             )
@@ -164,7 +158,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             new Schema[NamedTuple.Empty](
               reflect = Reflect.Record[Binding, NamedTuple.Empty](
                 fields = Vector(),
-                typeName = TypeName(Namespace(Seq("scala"), Seq("NamedTuple")), "NamedTuple[]"),
+                typeId = baseNamedTupleTypeId,
                 recordBinding = null
               )
             )
@@ -211,11 +205,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[Int].reflect.asTerm("_1"),
                   Schema[String].reflect.asTerm("_2")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace.scala,
-                  name = "Tuple2",
-                  params = Seq(TypeName.int, TypeName.string)
-                ),
+                typeId = TypeId.of[(Int, String)],
                 recordBinding = null
               )
             )
@@ -254,11 +244,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[Int].reflect.asTerm("a"),
                   Schema[String].reflect.asTerm("b")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[a,b]",
-                  params = Seq(TypeName.int, TypeName.string)
-                ),
+                typeId = baseNamedTupleTypeId,
                 recordBinding = null
               )
             )
@@ -292,11 +278,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[List[Int]].reflect.asTerm("a"),
                   Schema[Set[String]].reflect.asTerm("b")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[a,b]",
-                  params = Seq(TypeName.list(TypeName.int), TypeName.set(TypeName.string))
-                ),
+                typeId = baseNamedTupleTypeId,
                 recordBinding = null
               )
             )

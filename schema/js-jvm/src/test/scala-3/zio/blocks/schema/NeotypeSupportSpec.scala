@@ -5,9 +5,34 @@ import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test.Assertion._
+import zio.blocks.typeid.{TypeId, Owner, TypeDefKind}
 import zio.test._
 
 object NeotypeSupportSpec extends SchemaBaseSpec {
+  object TypeId {
+    def parse(s: String)                  = zio.blocks.typeid.TypeId.parse(s)
+    def option(@annotation.unused e: Any) = zio.blocks.typeid.TypeId
+      .parse("scala.Option")
+      .getOrElse(throw new RuntimeException("fail"))
+      .asInstanceOf[zio.blocks.typeid.TypeId[Option[Any]]]
+    def list(@annotation.unused e: Any) = zio.blocks.typeid.TypeId
+      .parse("scala.collection.immutable.List")
+      .getOrElse(throw new RuntimeException("fail"))
+      .asInstanceOf[zio.blocks.typeid.TypeId[List[Any]]]
+    def vector(@annotation.unused e: Any) = zio.blocks.typeid.TypeId
+      .parse("scala.collection.immutable.Vector")
+      .getOrElse(throw new RuntimeException("fail"))
+      .asInstanceOf[zio.blocks.typeid.TypeId[Vector[Any]]]
+    def set(@annotation.unused e: Any) = zio.blocks.typeid.TypeId
+      .parse("scala.collection.immutable.Set")
+      .getOrElse(throw new RuntimeException("fail"))
+      .asInstanceOf[zio.blocks.typeid.TypeId[Set[Any]]]
+    def map(@annotation.unused k: Any, @annotation.unused v: Any) = zio.blocks.typeid.TypeId
+      .parse("scala.collection.immutable.Map")
+      .getOrElse(throw new RuntimeException("fail"))
+      .asInstanceOf[zio.blocks.typeid.TypeId[Map[Any, Any]]]
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("NeotypeSupportSpec")(
     test("derive schemas for cases classes with subtype and newtype fields") {
       val value = new Planet(Name("Earth"), Kilogram(5.97e24), Meter(6378000.0), Some(Meter(1.5e15)))
@@ -23,19 +48,67 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
-        equalTo(TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name"))
-      ) &&
-      assert(Planet.mass.focus.typeName)(
-        equalTo(TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram"))
-      ) &&
-      assert(Planet.radius.focus.typeName)(
-        equalTo(TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter"))
-      ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
+      assert(stripMetadata(Planet.name.focus.typeId).copy(args = Nil))(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
+          zio.blocks.typeid.TypeId(
+            Owner(
+              List(
+                Owner.Package("zio"),
+                Owner.Package("blocks"),
+                Owner.Package("schema"),
+                Owner.Term("NeotypeSupportSpec")
+              )
+            ),
+            "Name",
+            Nil,
+            TypeDefKind.Class(),
+            Nil,
+            Nil
+          )
+        )
+      ) &&
+      assert(stripMetadata(Planet.mass.focus.typeId).copy(args = Nil))(
+        equalTo(
+          zio.blocks.typeid.TypeId(
+            Owner(
+              List(
+                Owner.Package("zio"),
+                Owner.Package("blocks"),
+                Owner.Package("schema"),
+                Owner.Term("NeotypeSupportSpec")
+              )
+            ),
+            "Kilogram",
+            Nil,
+            TypeDefKind.Class(),
+            Nil,
+            Nil
+          )
+        )
+      ) &&
+      assert(stripMetadata(Planet.radius.focus.typeId).copy(args = Nil))(
+        equalTo(
+          zio.blocks.typeid.TypeId(
+            Owner(
+              List(
+                Owner.Package("zio"),
+                Owner.Package("blocks"),
+                Owner.Package("schema"),
+                Owner.Term("NeotypeSupportSpec")
+              )
+            ),
+            "Meter",
+            Nil,
+            TypeDefKind.Class(),
+            Nil,
+            Nil
+          )
+        )
+      ) &&
+      assert(stripMetadata(Planet.distanceFromSun.focus.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
+        equalTo(
+          TypeId.option(
+            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Meter")
           )
         )
       ) &&
@@ -86,31 +159,31 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
+      assert(stripMetadata(schema1.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.option(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
+          TypeId.option(
+            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Name")
           )
         )
       ) &&
-      assert(schema2.reflect.typeName)(
+      assert(stripMetadata(schema2.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.option(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
+          TypeId.option(
+            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Kilogram")
           )
         )
       ) &&
-      assert(schema3.reflect.typeName)(
+      assert(stripMetadata(schema3.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
+          TypeId.option(
+            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Meter")
           )
         )
       ) &&
-      assert(schema4.reflect.typeName)(
+      assert(stripMetadata(schema4.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.option(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId")
+          TypeId.option(
+            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.EmojiDataId")
           )
         )
       )
@@ -128,32 +201,32 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
+      assert(stripMetadata(schema1.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.list(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
+          TypeId.list(
+            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Name")
           )
         )
       ) &&
-      assert(schema2.reflect.typeName)(
+      assert(stripMetadata(schema2.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.vector(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
+          TypeId.vector(
+            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Kilogram")
           )
         )
       ) &&
-      assert(schema3.reflect.typeName)(
+      assert(stripMetadata(schema3.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.set(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
+          TypeId.set(
+            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Meter")
           )
         )
       ) &&
-      assert(schema4.reflect.typeName)(
+      assert(stripMetadata(schema4.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.map(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId"),
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
+          TypeId.map(
+            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.EmojiDataId"),
+            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Name")
           )
         )
       )
@@ -200,7 +273,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
                       DynamicOptic.Node.AtIndex(0)
                     )
                   ),
-                  expectation = "Expected ResponseTime: Validation Failed"
+                  expectation = "Expected Type: Validation Failed"
                 ),
                 Nil
               )

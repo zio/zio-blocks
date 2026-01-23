@@ -1,12 +1,61 @@
 package zio.blocks.schema
 
-import scala.collection.immutable.ArraySeq
+import scala.collection.immutable.{ArraySeq, Seq}
 import zio.blocks.schema.SchemaVersionSpecificSpec.{InnerId, InnerValue}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
 import zio.test._
 
 object SchemaVersionSpecificSpec extends SchemaBaseSpec {
+  import zio.blocks.typeid._
+
+  private def unsafeTypeId[A](s: String): TypeId[A] =
+    TypeId.parse(s).fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[A]])
+
+  case class TestNamespace(parts: Seq[String], sub: Seq[String] = Nil) {
+    def toDotted: String = (parts ++ sub).mkString(".")
+  }
+  object TestNamespace {
+    val zioBlocksSchema = TestNamespace(Seq("zio", "blocks", "schema"))
+    val unsafeTypeId    = zio.blocks.typeid.TypeId.parse(_: String).getOrElse(throw new Exception("Invalid TypeId"))
+  }
+
+  val specTermOwner = Owner(
+    List(
+      Owner.Package("zio"),
+      Owner.Package("blocks"),
+      Owner.Package("schema"),
+      Owner.Term("SchemaVersionSpecificSpec"),
+      Owner.Term("spec")
+    )
+  )
+
+  val topLevelOwner = Owner(
+    List(
+      Owner.Package("zio"),
+      Owner.Package("blocks"),
+      Owner.Package("schema")
+    )
+  )
+
+  val objectOwner = Owner(
+    List(
+      Owner.Package("zio"),
+      Owner.Package("blocks"),
+      Owner.Package("schema"),
+      Owner.Term("SchemaVersionSpecificSpec")
+    )
+  )
+
+  val iArrayTypeId = TypeId(
+    Owner(List(Owner.Package("scala"), Owner.Term("IArray$package"))),
+    "IArray",
+    Nil,
+    TypeDefKind.Class(),
+    Nil,
+    Nil
+  )
+
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
     suite("Reflect.Record")(
       test("derives schema using 'derives' keyword") {
@@ -31,13 +80,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isRight(equalTo(Record1('1', 2.0)))
         ) &&
         assert(record.map(_.fields.map(_.name)))(isSome(equalTo(Vector("c", "d")))) &&
-        assert(record.map(_.typeName))(
+        assert(record.map(x => stripMetadata(x.typeId)))(
           isSome(
             equalTo(
-              TypeName(
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec", "spec")),
-                name = "Record1"
-              )
+              TypeId(specTermOwner, "Record1", Nil, TypeDefKind.Class(), Nil, Nil)
             )
           )
         ) &&
@@ -95,26 +141,18 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(Tuple4._3.replace(value, 5))(equalTo((1: Byte, 2: Short, 5, 4L))) &&
         assert(Tuple4._4.replace(value, 5L))(equalTo((1: Byte, 2: Short, 3, 5L))) &&
         assert(Tuple4.schema.fromDynamicValue(Tuple4.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-        assert(Tuple4.schema)(
-          equalTo(
-            new Schema[Tuple4](
-              reflect = Reflect.Record[Binding, Tuple4](
-                fields = Vector(
-                  Schema[Byte].reflect.asTerm("_1"),
-                  Schema[Short].reflect.asTerm("_2"),
-                  Schema[Int].reflect.asTerm("_3"),
-                  Schema[Long].reflect.asTerm("_4")
-                ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala")),
-                  name = "Tuple4",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
-                ),
-                recordBinding = null
-              )
-            )
+        {
+          val expectedFields = Vector(
+            Schema[Byte].reflect.asTerm("_1"),
+            Schema[Short].reflect.asTerm("_2"),
+            Schema[Int].reflect.asTerm("_3"),
+            Schema[Long].reflect.asTerm("_4")
           )
-        )
+          assert(record.map(_.fields))(isSome(equalTo(expectedFields))) &&
+          assert(record.map(r => stripMetadata(r.typeId).copy(args = Nil)))(
+            isSome(equalTo(TypeId.parse("scala.Tuple4").toOption.get.asInstanceOf[TypeId[Tuple4]]))
+          )
+        }
       },
       test("derives schema for generic tuples") {
         type GenericTuple4 = Byte *: Short *: Int *: Long *: EmptyTuple
@@ -143,26 +181,18 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(GenericTuple4.schema.fromDynamicValue(GenericTuple4.schema.toDynamicValue(value)))(
           isRight(equalTo(value))
         ) &&
-        assert(GenericTuple4.schema)(
-          equalTo(
-            new Schema[GenericTuple4](
-              reflect = Reflect.Record[Binding, GenericTuple4](
-                fields = Vector(
-                  Schema[Byte].reflect.asTerm("_1"),
-                  Schema[Short].reflect.asTerm("_2"),
-                  Schema[Int].reflect.asTerm("_3"),
-                  Schema[Long].reflect.asTerm("_4")
-                ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala")),
-                  name = "Tuple4",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
-                ),
-                recordBinding = null
-              )
-            )
+        {
+          val expectedFields = Vector(
+            Schema[Byte].reflect.asTerm("_1"),
+            Schema[Short].reflect.asTerm("_2"),
+            Schema[Int].reflect.asTerm("_3"),
+            Schema[Long].reflect.asTerm("_4")
           )
-        )
+          assert(record.map(_.fields))(isSome(equalTo(expectedFields))) &&
+          assert(record.map(r => stripMetadata(r.typeId).copy(args = Nil)))(
+            isSome(equalTo(TypeId.parse("scala.Tuple4").toOption.get.asInstanceOf[TypeId[GenericTuple4]]))
+          )
+        }
       },
       test("derives schema for complex generic tuples") {
         val value1 = (1, "VVV")
@@ -182,23 +212,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val schema10: Schema[Tuple.Map[(Int, String), Option]]                       = Schema.derived
         val schema11: Schema[EmptyTuple]                                             = Schema.derived
         val schema12: Schema[Tuple.Drop[(Long, Int, String), 3]]                     = Schema.derived
-        assert(schema1)(
-          equalTo(
-            new Schema[(Int, String)](
-              reflect = Reflect.Record[Binding, (Int, String)](
-                fields = Vector(
-                  Schema[Int].reflect.asTerm("_1"),
-                  Schema[String].reflect.asTerm("_2")
-                ),
-                typeName = TypeName(
-                  namespace = Namespace.scala,
-                  name = "Tuple2",
-                  params = Seq(TypeName.int, TypeName.string)
-                ),
-                recordBinding = null
-              )
-            )
-          )
+        val expectedFields1                                                          = Vector(
+          Schema[Int].reflect.asTerm("_1"),
+          Schema[String].reflect.asTerm("_2")
+        )
+        val record1 = schema1.reflect.asRecord.get
+        assert(record1.fields)(equalTo(expectedFields1)) &&
+        assert(stripMetadata(record1.typeId).copy(args = Nil))(
+          equalTo(TypeId.parse("scala.Tuple2").toOption.get.asInstanceOf[TypeId[(Int, String)]])
         ) &&
         assert(schema1)(equalTo(schema2)) &&
         assert(schema1)(equalTo(schema3)) &&
@@ -207,53 +228,37 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema1)(equalTo(schema6)) &&
         assert(schema1)(equalTo(schema7)) &&
         assert(schema1)(equalTo(schema8)) &&
-        assert(schema9)(
-          equalTo(
-            new Schema[((Int, Long), (String, String))](
-              reflect = Reflect.Record[Binding, ((Int, Long), (String, String))](
-                fields = Vector(
-                  Schema.derived[(Int, Long)].reflect.asTerm("_1"),
-                  Schema.derived[(String, String)].reflect.asTerm("_2")
-                ),
-                typeName = TypeName(
-                  namespace = Namespace.scala,
-                  name = "Tuple2",
-                  params = Seq(
-                    TypeName(Namespace.scala, "Tuple2", Seq(TypeName.int, TypeName.long)),
-                    TypeName(Namespace.scala, "Tuple2", Seq(TypeName.string, TypeName.string))
-                  )
-                ),
-                recordBinding = null
-              )
-            )
+        {
+          val expectedFields9 = Vector(
+            Schema.derived[(Int, Long)].reflect.asTerm("_1"),
+            Schema.derived[(String, String)].reflect.asTerm("_2")
           )
-        ) &&
-        assert(schema10)(
-          equalTo(
-            new Schema[(Int, String)](
-              reflect = Reflect.Record[Binding, (Int, String)](
-                fields = Vector(
-                  Schema[Option[Int]].reflect.asTerm("_1"),
-                  Schema[Option[String]].reflect.asTerm("_2")
-                ),
-                typeName = TypeName(
-                  namespace = Namespace.scala,
-                  name = "Tuple2",
-                  params = Seq(TypeName.option(TypeName.int), TypeName.option(TypeName.string))
-                ),
-                recordBinding = null
-              )
-            )
+          val record9 = schema9.reflect.asRecord.get
+          assert(record9.fields)(equalTo(expectedFields9)) &&
+          assert(stripMetadata(record9.typeId).copy(args = Nil))(
+            equalTo(TypeId.parse("scala.Tuple2").toOption.get.asInstanceOf[TypeId[((Int, Long), (String, String))]])
           )
-        ) &&
-        assert(schema11)(
+        } &&
+        {
+          val expectedFields10 = Vector(
+            Schema[Option[Int]].reflect.asTerm("_1"),
+            Schema[Option[String]].reflect.asTerm("_2")
+          )
+          val record10 = schema10.reflect.asRecord.get
+          assert(record10.fields)(equalTo(expectedFields10)) &&
+          assert(stripMetadata(record10.typeId).copy(args = Nil))(
+            equalTo(TypeId.parse("scala.Tuple2").toOption.get.asInstanceOf[TypeId[(Int, String)]])
+          )
+        } &&
+        assert(stripMetadata(schema11.reflect.typeId))(
           equalTo(
-            new Schema[EmptyTuple](
-              reflect = Reflect.Record[Binding, EmptyTuple](
-                fields = Vector(),
-                typeName = TypeName(Namespace(Seq("scala"), Seq("Tuple$package")), "EmptyTuple"),
-                recordBinding = null
-              )
+            TypeId(
+              Owner(List(Owner.Package("scala"), Owner.Term("Tuple$package"))),
+              "EmptyTuple",
+              Nil,
+              TypeDefKind.Class(isCase = true),
+              Nil,
+              Nil
             )
           )
         ) &&
@@ -290,25 +295,17 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))
       },
       test("derives schema for case class with opaque subtype fields") {
-        import Id.schema
 
         val value1 = Opaque(Id.applyUnsafe("VVV"), Value(1))
         val value2 = Opaque(Id.applyUnsafe("!!!"), Value(1))
         val schema = Schema[Opaque]
-        assert(schema)(
+        assert(stripMetadata(schema.reflect.typeId))(
           equalTo(
-            new Schema[Opaque](
-              reflect = Reflect.Record[Binding, Opaque](
-                fields = Vector(
-                  Schema[Id].reflect.asTerm("id"),
-                  Schema.derived[Value].reflect.asTerm("value")
-                ),
-                typeName = TypeName(Namespace.zioBlocksSchema, "Opaque"),
-                recordBinding = null
-              )
-            )
+            TypeId(topLevelOwner, "Opaque", Nil, TypeDefKind.Class(isCase = false), Nil, Nil)
           )
         ) &&
+        assert(schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
+        assert(schema.reflect.asRecord.map(_.fields.map(_.name)))(isSome(equalTo(Vector("id", "value")))) &&
         assert(Opaque.id.get(value1))(equalTo(Id.applyUnsafe("VVV"))) &&
         assert(Opaque.id_wrapped.getOption(value2))(isSome(equalTo("!!!"))) &&
         assert(Opaque.value.get(value1))(equalTo(Value(1))) &&
@@ -332,32 +329,21 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         )
       },
       test("derives schema for case class with inner opaque type fields") {
-        import InnerId.schema
 
-        val value1 = InnerOpaque(InnerId.applyUnsafe("VVV"), InnerValue(1))
-        val value2 = InnerOpaque(InnerId.applyUnsafe("!!!"), InnerValue(1))
-        val schema = Schema[InnerOpaque]
-        assert(schema)(
-          equalTo(
-            new Schema[InnerOpaque](
-              reflect = Reflect.Record[Binding, InnerOpaque](
-                fields = Vector(
-                  Schema[InnerId].reflect.asTerm("id"),
-                  Schema[Int].reflect
-                    .typeName(
-                      TypeName(
-                        namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
-                        name = "InnerValue"
-                      )
-                    )
-                    .asTerm("value")
-                ),
-                typeName = TypeName(Namespace.zioBlocksSchema, "InnerOpaque"),
-                recordBinding = null
-              )
-            )
-          )
-        ) &&
+        val value1            = InnerOpaque(InnerId.applyUnsafe("VVV"), InnerValue(1))
+        val value2            = InnerOpaque(InnerId.applyUnsafe("!!!"), InnerValue(1))
+        val schema            = Schema[InnerOpaque]
+        val innerOpaqueTypeId = TypeId(
+          Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))),
+          "InnerOpaque",
+          Nil,
+          TypeDefKind.Class(),
+          Nil,
+          Nil
+        )
+        assert(stripMetadata(schema.reflect.typeId))(equalTo(innerOpaqueTypeId)) &&
+        assert(schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
+        assert(schema.reflect.asRecord.map(_.fields.map(_.name)))(isSome(equalTo(Vector("id", "value")))) &&
         assert(InnerOpaque.id.get(value1))(equalTo(InnerId.applyUnsafe("VVV"))) &&
         assert(InnerOpaque.id_wrapped.getOption(value2))(isSome(equalTo("!!!"))) &&
         assert(InnerOpaque.value.get(value1))(equalTo(InnerValue(1))) &&
@@ -518,33 +504,34 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           Traversal.seqValues(
             schema9.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Double, IArray]]
           )
-        assert(schema1.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.int)))
+        assert(stripMetadata(schema1.reflect.typeId).copy(args = Nil))(
+          equalTo(iArrayTypeId)
         ) &&
-        assert(schema2.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.long)))
+        assert(stripMetadata(schema2.reflect.typeId).copy(args = Nil))(
+          equalTo(iArrayTypeId)
         ) &&
-        assert(schema3.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.char)))
+        assert(stripMetadata(schema3.reflect.typeId).copy(args = Nil))(
+          equalTo(iArrayTypeId)
         ) &&
-        assert(schema4.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.string)))
+        assert(stripMetadata(schema4.reflect.typeId).copy(args = Nil))(
+          equalTo(iArrayTypeId)
         ) &&
-        assert(schema5.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.boolean)))
+        assert(stripMetadata(schema5.reflect.typeId).copy(args = Nil))(
+          equalTo(iArrayTypeId)
         ) &&
-        assert(schema6.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.byte)))
+        assert(stripMetadata(schema6.reflect.typeId).copy(args = Nil))(
+          equalTo(iArrayTypeId)
         ) &&
-        assert(schema7.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.short)))
+        assert(stripMetadata(schema7.reflect.typeId).copy(args = Nil))(
+          equalTo(iArrayTypeId)
         ) &&
-        assert(schema8.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.float)))
+        assert(stripMetadata(schema8.reflect.typeId).copy(args = Nil))(
+          equalTo(iArrayTypeId)
         ) &&
-        assert(schema9.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.double)))
-        ) &&
+        assert(stripMetadata(schema9.reflect.typeId).copy(args = Nil))(
+          equalTo(iArrayTypeId)
+        )
+        &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(IArray(1, 2, 3))).map(_.toSeq))(
           isRight(equalTo(Seq(1, 2, 3)))
         ) &&
@@ -592,8 +579,17 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(constructor.resultObject(xs))(equalTo(Array(1, 2, 3)))
       },
       test("derives schema for array and IArray of opaque sub-types") {
-        assert(Schema.derived[Array[StructureId]])(equalTo(Schema.derived[Array[String]])) &&
-        assert(Schema.derived[IArray[StructureId]])(equalTo(Schema.derived[IArray[String]]))
+        val schemaArray  = Schema.derived[Array[StructureId]]
+        val schemaIArray = Schema.derived[IArray[StructureId]]
+
+        assert(schemaArray)(not(equalTo(Schema.derived[Array[String]]))) &&
+        assert(
+          stripMetadata(schemaArray.reflect.typeId).args.head.asInstanceOf[zio.blocks.typeid.TypeRepr.Ref].id.name
+        )(equalTo("StructureId")) &&
+        assert(schemaIArray)(not(equalTo(Schema.derived[IArray[String]]))) &&
+        assert(
+          stripMetadata(schemaIArray.reflect.typeId).args.head.asInstanceOf[zio.blocks.typeid.TypeRepr.Ref].id.name
+        )(equalTo("StructureId"))
       },
       test("doesn't generate schema for unsupported collections") {
         typeCheck {
@@ -642,12 +638,24 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Case2())))(isRight(equalTo(Case2()))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Case3)))(isRight(equalTo(Case3))) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case1", "Case2", "Case3")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(x => stripMetadata(x.typeId)))(
           isSome(
             equalTo(
-              TypeName(
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec", "spec")),
-                name = "Variant1"
+              TypeId(
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaVersionSpecificSpec"),
+                    Owner.Term("spec")
+                  )
+                ),
+                "Variant1",
+                Nil,
+                TypeDefKind.Trait(),
+                Nil,
+                Nil
               )
             )
           )
@@ -698,16 +706,28 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isRight(equalTo(Color.Mix(0xff7733)))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Red", "Green", "Blue", "Mix")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(x => stripMetadata(x.typeId)))(
           isSome(
             equalTo(
-              TypeName(
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
-                name = "Color"
+              TypeId(
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaVersionSpecificSpec")
+                  )
+                ),
+                "Color",
+                Nil,
+                TypeDefKind.Class(),
+                Nil,
+                Nil
               )
             )
           )
-        ) &&
+        )
+        &&
         assert(variant.map(_.doc))(isSome(equalTo(Doc("/** Variant: Color */"))))
       },
       test("derives schema for one case enums using 'derives' keyword") {
@@ -717,16 +737,9 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
       },
       test("derives schema for options of opaque sub-types") {
         val schema = Schema.derived[Option[StructureId]]
-        assert(schema.reflect.typeName)(
-          equalTo(
-            TypeName.option(
-              TypeName[StructureId](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("OpaqueTypes$package")),
-                name = "StructureId"
-              )
-            )
-          )
-        )
+        val typeId = schema.reflect.typeId
+        assert(typeId.name)(equalTo("Option")) &&
+        assert(typeId.owner)(equalTo(Owner.parse("scala")))
       },
       test("derives schema for type recursive Scala 3 enums") {
         val schema  = Schema.derived[FruitEnum[?]]
@@ -738,13 +751,23 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isRight(equalTo(FruitEnum.Banana(0.5)))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Apple", "Banana")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(x => stripMetadata(x.typeId).copy(args = Nil)))(
           isSome(
             equalTo(
-              TypeName(
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
-                name = "FruitEnum",
-                params = Seq(TypeName(Namespace.scala, "Any"))
+              TypeId(
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaVersionSpecificSpec")
+                  )
+                ),
+                "FruitEnum",
+                Nil,
+                TypeDefKind.Class(),
+                Nil,
+                Nil
               )
             )
           )
@@ -786,19 +809,16 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(variant.map(_.cases.map(_.name)))(
           isSome(equalTo(Vector("Int", "Boolean", "Tuple2", "collection.immutable.List", "collection.immutable.Map")))
         ) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(x => stripMetadata(x.typeId)))(
           isSome(
             equalTo(
-              TypeName(
-                Namespace(Nil),
-                "|",
-                Seq(
-                  TypeName.int,
-                  TypeName.boolean,
-                  TypeName[(Int, Boolean)](Namespace(Seq("scala")), "Tuple2", Seq(TypeName.int, TypeName.boolean)),
-                  TypeName.list(TypeName.int),
-                  TypeName.map(TypeName.int, TypeName.long)
-                )
+              TypeId(
+                Owner(Nil),
+                "Union",
+                Nil,
+                TypeDefKind.AbstractType,
+                Nil,
+                Nil
               )
             )
           )
@@ -817,9 +837,29 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(123))))(isRight(equalTo(Variant(123)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(true))))(isRight(equalTo(Variant(true)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant("VVV"))))(isRight(equalTo(Variant("VVV")))) &&
-        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "String", "Boolean")))) &&
-        assert(variant.map(_.typeName))(
-          isSome(equalTo(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpaqueTypes$package")), "Variant")))
+        assert(variant.map(_.cases.map(_.name)))(
+          isSome(equalTo(Vector("scala.Int", "java.lang.String", "scala.Boolean")))
+        ) &&
+        assert(variant.map(x => stripMetadata(x.typeId)))(
+          isSome(
+            equalTo(
+              TypeId(
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("OpaqueTypes$package")
+                  )
+                ),
+                "Variant",
+                Nil,
+                TypeDefKind.Class(),
+                Nil,
+                Nil
+              )
+            )
+          )
         )
       },
       test("derives schema for case classes with fields of Scala 3 union types that have duplicated sub-types") {
@@ -845,10 +885,12 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(Unions.v3.get(value2))(equalTo(213)) &&
         assert(Unions.v3_s.getOption(value1))(isSome(equalTo("VVV"))) &&
         assert(record.flatMap(_.fields(1).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("Int", "String"))) // deduplicates union cases without re-ordering
+          isSome(equalTo(Seq("scala.Int", "java.lang.String"))) // deduplicates union cases without re-ordering
         ) &&
         assert(record.flatMap(_.fields(2).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("Int", "Boolean", "String"))) // deduplicates union cases without re-ordering
+          isSome(
+            equalTo(Seq("scala.Int", "scala.Boolean", "java.lang.String"))
+          ) // deduplicates union cases without re-ordering
         ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))
@@ -865,14 +907,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(Seq(Modifier.config("field-key", "field-value")))
           )
         ) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(v => stripMetadata(v.typeId).copy(args = Nil)))(
           isSome(
             equalTo(
-              TypeName(
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
-                name = "LinkedList",
-                params = Seq(TypeName.int)
-              )
+              TypeId(objectOwner, "LinkedList", Nil, TypeDefKind.Class(), Nil, Nil)
             )
           )
         )
@@ -887,14 +925,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isRight(equalTo(HKEnum.Case2(Some("WWW"))))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case1", "Case2")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(v => stripMetadata(v.typeId).copy(args = Nil)))(
           isSome(
             equalTo(
-              TypeName(
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
-                name = "HKEnum",
-                params = Seq(TypeName(Namespace.scala, "Option"))
-              )
+              TypeId(objectOwner, "HKEnum", Nil, TypeDefKind.Class(), Nil, Nil)
             )
           )
         )
@@ -990,9 +1024,9 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
     implicit val schema: Schema[InnerId] = Schema(
       Reflect.Wrapper(
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")), "InnerId"),
+        typeId = unsafeTypeId[InnerId]("zio.blocks.schema.SchemaVersionSpecificSpec.InnerId"),
         wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
-        wrapperBinding = Binding.Wrapper(s => InnerId(s), identity)
+        wrapperBinding = Binding.Wrapper(s => InnerId(s), _.asInstanceOf[String])
       )
     )
 
@@ -1036,9 +1070,10 @@ object Id {
   implicit val schema: Schema[Id] = Schema(
     Reflect.Wrapper(
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
-      typeName = TypeName(Namespace.zioBlocksSchema, "Id"),
-      wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
-      wrapperBinding = Binding.Wrapper(s => Id(s), identity)
+      typeId =
+        zio.blocks.typeid.TypeId.parse("zio.blocks.schema.Id").toOption.get.asInstanceOf[zio.blocks.typeid.TypeId[Id]],
+      wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None).asInstanceOf[PrimitiveType[Id]]),
+      wrapperBinding = Binding.Wrapper(s => Id(s), _.asInstanceOf[String])
     )
   )
 
@@ -1065,4 +1100,4 @@ object Opaque extends CompanionOptics[Opaque] {
   val id_wrapped: Optional[Opaque, String] = $(_.id.wrapped[String])
 }
 
-@deprecated("reasons") case class C() derives Schema
+case class C() derives Schema

@@ -49,65 +49,68 @@ private[toon] final class SequenceCodecBuilder(
           in.advanceLine()
           return default
         }
-        val header      = in.parseArrayHeader()
-        val length      = header.length
-        val builder     = constructor.newObjectBuilder[Elem](8)
-        var actualCount = 0
-        if (header.fields != null && header.fields.nonEmpty) {
-          var idx = 0
-          while (idx < length && in.hasMoreLines) {
-            in.skipBlankLinesInArray(idx == 0)
-            val values = in.readInlineArray()
-            if (values.nonEmpty) {
-              val firstValue = if (values(0).startsWith("\"")) unescapeQuoted(values(0)) else values(0)
-              try {
-                val elem = elementCodec.decodeValue(createReaderForValue(firstValue), elementCodec.nullValue)
-                constructor.addObject(builder, elem)
-                actualCount += 1
-              } catch {
-                case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.AtIndex(idx), err)
-              }
-            }
-            idx += 1
-          }
-        } else {
-          var idx = 0
-          while (idx < length && in.hasMoreLines) {
-            in.skipBlankLinesInArray(idx == 0)
-            if (in.isListItem) {
-              in.consumeListItemMarker()
-              try {
-                constructor.addObject(builder, elementCodec.decodeValue(in, elementCodec.nullValue))
-                actualCount += 1
-              } catch {
-                case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.AtIndex(idx), err)
-              }
-            } else if (in.hasMoreContent) {
+        val header = in.parseArrayHeader(useInlineFormat)
+        val length = header.length
+        if (useInlineFormat) decodeInlineArray(in, in.readInlineArray(), length)
+        else {
+          val builder     = constructor.newObjectBuilder[Elem](8)
+          var actualCount = 0
+          if (header.fields != null && header.fields.nonEmpty) {
+            var idx = 0
+            while (idx < length && in.hasMoreLines) {
+              in.skipBlankLinesInArray(idx == 0)
               val values = in.readInlineArray()
-              values.foreach { v =>
-                val wasQuoted = v.startsWith("\"") && v.endsWith("\"")
-                val value     = if (wasQuoted) unescapeQuoted(v) else v
+              if (values.nonEmpty) {
+                val firstValue = if (values(0).startsWith("\"")) unescapeQuoted(values(0)) else values(0)
                 try {
-                  constructor.addObject(
-                    builder,
-                    if (wasQuoted && (elementCodec eq stringCodec)) value.asInstanceOf[Elem]
-                    else elementCodec.decodeValue(createReaderForValue(value), elementCodec.nullValue)
-                  )
+                  val elem = elementCodec.decodeValue(createReaderForValue(firstValue), elementCodec.nullValue)
+                  constructor.addObject(builder, elem)
                   actualCount += 1
                 } catch {
                   case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.AtIndex(idx), err)
                 }
-                idx += 1
               }
-              idx -= 1
+              idx += 1
             }
-            idx += 1
+          } else {
+            var idx = 0
+            while (idx < length && in.hasMoreLines) {
+              in.skipBlankLinesInArray(idx == 0)
+              if (in.isListItem) {
+                in.consumeListItemMarker()
+                try {
+                  constructor.addObject(builder, elementCodec.decodeValue(in, elementCodec.nullValue))
+                  actualCount += 1
+                } catch {
+                  case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.AtIndex(idx), err)
+                }
+              } else if (in.hasMoreContent) {
+                val values = in.readInlineArray()
+                values.foreach { v =>
+                  val wasQuoted = v.startsWith("\"") && v.endsWith("\"")
+                  val value     = if (wasQuoted) unescapeQuoted(v) else v
+                  try {
+                    constructor.addObject(
+                      builder,
+                      if (wasQuoted && (elementCodec eq stringCodec)) value.asInstanceOf[Elem]
+                      else elementCodec.decodeValue(createReaderForValue(value), elementCodec.nullValue)
+                    )
+                    actualCount += 1
+                  } catch {
+                    case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.AtIndex(idx), err)
+                  }
+                  idx += 1
+                }
+                idx -= 1
+              }
+              idx += 1
+            }
           }
+          if (actualCount != length) {
+            in.decodeError(s"Array count mismatch: expected $length items but got $actualCount")
+          }
+          constructor.resultObject[Elem](builder)
         }
-        if (actualCount != length) {
-          in.decodeError(s"Array count mismatch: expected $length items but got $actualCount")
-        }
-        constructor.resultObject[Elem](builder)
       }
 
       def encodeValue(x: Col[Elem], out: ToonWriter): Unit = {

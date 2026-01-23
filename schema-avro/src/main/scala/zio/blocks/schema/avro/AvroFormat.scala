@@ -2,6 +2,7 @@ package zio.blocks.schema.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import org.apache.avro.{Schema => AvroSchema}
+import zio.blocks.typeid.TypeId
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema.binding.SeqDeconstructor._
 import zio.blocks.schema._
@@ -17,16 +18,16 @@ object AvroFormat
       new Deriver[AvroBinaryCodec] {
         override def derivePrimitive[F[_, _], A](
           primitiveType: PrimitiveType[A],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           binding: Binding[BindingType.Primitive, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         ): Lazy[AvroBinaryCodec[A]] =
-          Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)))
+          Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)))
 
         override def deriveRecord[F[_, _], A](
           fields: IndexedSeq[Term[F, A, ?]],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           binding: Binding[BindingType.Record, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
@@ -34,7 +35,7 @@ object AvroFormat
           deriveCodec(
             new Reflect.Record(
               fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
-              typeName,
+              typeId,
               binding,
               doc,
               modifiers
@@ -44,7 +45,7 @@ object AvroFormat
 
         override def deriveVariant[F[_, _], A](
           cases: IndexedSeq[Term[F, A, ?]],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           binding: Binding[BindingType.Variant, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
@@ -52,7 +53,7 @@ object AvroFormat
           deriveCodec(
             new Reflect.Variant(
               cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
-              typeName,
+              typeId,
               binding,
               doc,
               modifiers
@@ -62,20 +63,20 @@ object AvroFormat
 
         override def deriveSequence[F[_, _], C[_], A](
           element: Reflect[F, A],
-          typeName: TypeName[C[A]],
+          typeId: TypeId[C[A]],
           binding: Binding[BindingType.Seq[C], C[A]],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[C[A]]] = Lazy {
           deriveCodec(
-            new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeName, binding, doc, modifiers)
+            new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeId, binding, doc, modifiers)
           )
         }
 
         override def deriveMap[F[_, _], M[_, _], K, V](
           key: Reflect[F, K],
           value: Reflect[F, V],
-          typeName: TypeName[M[K, V]],
+          typeId: TypeId[M[K, V]],
           binding: Binding[BindingType.Map[M], M[K, V]],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
@@ -84,7 +85,7 @@ object AvroFormat
             new Reflect.Map(
               key.asInstanceOf[Reflect[Binding, K]],
               value.asInstanceOf[Reflect[Binding, V]],
-              typeName,
+              typeId,
               binding,
               doc,
               modifiers
@@ -97,11 +98,11 @@ object AvroFormat
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[DynamicValue]] =
-          Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeName.dynamicValue, doc, modifiers)))
+          Lazy(deriveCodec(new Reflect.Dynamic(binding, doc = doc, modifiers = modifiers)))
 
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           wrapperPrimitiveType: Option[PrimitiveType[A]],
           binding: Binding[BindingType.Wrapper[A, B], A],
           doc: Doc,
@@ -110,7 +111,7 @@ object AvroFormat
           deriveCodec(
             new Reflect.Wrapper(
               wrapped.asInstanceOf[Reflect[Binding, B]],
-              typeName,
+              typeId,
               wrapperPrimitiveType,
               binding,
               doc,
@@ -134,8 +135,8 @@ object AvroFormat
         type TC[_]
 
         private[this] val recursiveRecordCache =
-          new ThreadLocal[java.util.HashMap[TypeName[?], (Array[AvroBinaryCodec[?]], AvroSchema)]] {
-            override def initialValue: java.util.HashMap[TypeName[?], (Array[AvroBinaryCodec[?]], AvroSchema)] =
+          new ThreadLocal[java.util.HashMap[TypeId[?], (Array[AvroBinaryCodec[?]], AvroSchema)]] {
+            override def initialValue: java.util.HashMap[TypeId[?], (Array[AvroBinaryCodec[?]], AvroSchema)] =
               new java.util.HashMap
           }
         private[this] val recordCounters =
@@ -639,7 +640,7 @@ object AvroFormat
             val primitive = reflect.asPrimitive.get
             if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
               primitive.primitiveType match {
-                case _: PrimitiveType.Unit.type      => unitCodec
+                case PrimitiveType.Unit              => unitCodec
                 case _: PrimitiveType.Boolean        => booleanCodec
                 case _: PrimitiveType.Byte           => byteCodec
                 case _: PrimitiveType.Short          => shortCodec
@@ -1216,27 +1217,21 @@ object AvroFormat
               val binding              = record.recordBinding.asInstanceOf[Binding.Record[A]]
               val fields               = record.fields
               val isRecursive          = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
-              val typeName             = record.typeName
+              val typeId               = record.typeId
               var codecsWithAvroSchema =
-                if (isRecursive) recursiveRecordCache.get.get(typeName)
+                if (isRecursive) recursiveRecordCache.get.get(typeId)
                 else null
               var offset = 0L
               if (codecsWithAvroSchema eq null) {
-                val namespaceBuilder = new java.lang.StringBuilder()
-                val namespace        = typeName.namespace
-                namespace.packages.foreach { element =>
-                  if (namespaceBuilder.length > 0) namespaceBuilder.append('.')
-                  namespaceBuilder.append(element)
-                }
-                namespace.values.foreach { element =>
-                  if (namespaceBuilder.length > 0) namespaceBuilder.append('.')
-                  namespaceBuilder.append(element)
-                }
-                val avroSchema = createAvroRecord(namespaceBuilder.toString, typeName.name)
-                val len        = fields.length
-                val codecs     = new Array[AvroBinaryCodec[?]](len)
+                val fullName     = typeId.show
+                val lastDotIndex = fullName.lastIndexOf('.')
+                val namespace    = if (lastDotIndex >= 0) fullName.substring(0, lastDotIndex) else ""
+                val name         = if (lastDotIndex >= 0) fullName.substring(lastDotIndex + 1) else fullName
+                val avroSchema   = createAvroRecord(namespace, name)
+                val len          = fields.length
+                val codecs       = new Array[AvroBinaryCodec[?]](len)
                 codecsWithAvroSchema = (codecs, avroSchema)
-                if (isRecursive) recursiveRecordCache.get.put(typeName, codecsWithAvroSchema)
+                if (isRecursive) recursiveRecordCache.get.put(typeId, codecsWithAvroSchema)
                 val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field](len)
                 var idx              = 0
                 while (idx < len) {
@@ -1336,16 +1331,16 @@ object AvroFormat
               val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
               val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[AvroBinaryCodec[Wrapped]]
               new AvroBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(AvroBinaryCodec.objectType) {
-                case _: PrimitiveType.Boolean   => AvroBinaryCodec.booleanType
-                case _: PrimitiveType.Byte      => AvroBinaryCodec.byteType
-                case _: PrimitiveType.Char      => AvroBinaryCodec.charType
-                case _: PrimitiveType.Short     => AvroBinaryCodec.shortType
-                case _: PrimitiveType.Float     => AvroBinaryCodec.floatType
-                case _: PrimitiveType.Int       => AvroBinaryCodec.intType
-                case _: PrimitiveType.Double    => AvroBinaryCodec.doubleType
-                case _: PrimitiveType.Long      => AvroBinaryCodec.longType
-                case _: PrimitiveType.Unit.type => AvroBinaryCodec.unitType
-                case _                          => AvroBinaryCodec.objectType
+                case _: PrimitiveType.Boolean     => AvroBinaryCodec.booleanType
+                case _: PrimitiveType.Byte        => AvroBinaryCodec.byteType
+                case _: PrimitiveType.Char        => AvroBinaryCodec.charType
+                case _: PrimitiveType.Short       => AvroBinaryCodec.shortType
+                case _: PrimitiveType.Float       => AvroBinaryCodec.floatType
+                case _: PrimitiveType.Int         => AvroBinaryCodec.intType
+                case _: PrimitiveType.Double      => AvroBinaryCodec.doubleType
+                case _: PrimitiveType.Long        => AvroBinaryCodec.longType
+                case x if x eq PrimitiveType.Unit => AvroBinaryCodec.unitType
+                case _                            => AvroBinaryCodec.objectType
               }) {
                 private[this] val unwrap       = binding.unwrap
                 private[this] val wrap         = binding.wrap

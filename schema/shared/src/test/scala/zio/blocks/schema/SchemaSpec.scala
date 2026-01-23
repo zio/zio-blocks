@@ -11,8 +11,252 @@ import zio.test._
 import zio.test.Assertion._
 import java.nio.CharBuffer
 import scala.collection.immutable.ArraySeq
+import zio.blocks.typeid._
 
 object SchemaSpec extends SchemaBaseSpec {
+  val schemaSpecOwner = Owner(
+    List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"), Owner.Term("SchemaSpec"))
+  )
+  import zio.blocks.typeid.StandardTypes
+
+  private def unsafeTypeId[A](s: String): TypeId[A] =
+    TypeId.parse(s).fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[A]])
+
+  case class Namespace(parts: Seq[String], sub: Seq[String] = Nil) {
+    def toDotted: String = (parts ++ sub).mkString(".")
+  }
+  object Namespace {
+    val scala = Namespace(Seq("scala"))
+  }
+  object TestTypeId {
+    def apply[A](namespace: Namespace, name: String, @annotation.unused params: Any*): TypeId[A] =
+      unsafeTypeId(s"${namespace.toDotted}.$name")
+
+    val int     = StandardTypes.int
+    val long    = StandardTypes.long
+    val string  = StandardTypes.string
+    val boolean = StandardTypes.boolean
+    val byte    = StandardTypes.byte
+    val short   = StandardTypes.short
+    val double  = StandardTypes.double
+    val float   = StandardTypes.float
+    val char    = StandardTypes.char
+    val unit    = StandardTypes.unit
+
+    def map(@annotation.unused k: Any, @annotation.unused v: Any): TypeId[Map[Any, Any]] = unsafeTypeId(
+      "scala.collection.immutable.Map"
+    )
+    def set(@annotation.unused e: Any): TypeId[Set[Any]]       = unsafeTypeId("scala.collection.immutable.Set")
+    def list(@annotation.unused e: Any): TypeId[List[Any]]     = unsafeTypeId("scala.collection.immutable.List")
+    def vector(@annotation.unused e: Any): TypeId[Vector[Any]] = unsafeTypeId("scala.collection.immutable.Vector")
+    def option(@annotation.unused e: Any): TypeId[Option[Any]] = unsafeTypeId("scala.Option")
+    def chunk(@annotation.unused e: Any): TypeId[Chunk[Any]]   = unsafeTypeId("zio.Chunk")
+    def seq(@annotation.unused e: Any): TypeId[Seq[Any]]       = unsafeTypeId("scala.collection.immutable.Seq")
+  }
+
+  case class SchemaRecord(b: Byte, i: Int)
+
+  object SchemaRecord extends CompanionOptics[SchemaRecord] {
+    implicit val schema: Schema[SchemaRecord] = Schema.derived
+    val b: Lens[SchemaRecord, Byte]           = $(_.b)
+    val i: Lens[SchemaRecord, Int]            = $(_.i)
+    val x: Lens[SchemaRecord, Boolean]        = // invalid lens
+      Lens(
+        schema.reflect.asRecord.get,
+        Reflect.boolean[Binding].asTerm("x").asInstanceOf[Term.Bound[SchemaRecord, Boolean]]
+      )
+  }
+
+  sealed trait Variant
+
+  object Variant extends CompanionOptics[Variant] {
+    implicit val schema: Schema[Variant] = Schema.derived
+    val case1: Prism[Variant, Case1]     = $(_.when[Case1])
+    val case2: Prism[Variant, Case2]     = $(_.when[Case2])
+  }
+
+  case class Case1(c: Char) extends Variant
+
+  case class Case2(s: String) extends Variant
+
+  sealed trait A
+
+  object B {
+    case object A1 extends A
+
+    case object A2 extends A
+  }
+
+  object A extends CompanionOptics[A] {
+    implicit val schema: Schema[A] = Schema.derived
+    val a1: Prism[A, B.A1.type]    = $(_.when[B.A1.type])
+    val a2: Prism[A, B.A2.type]    = $(_.when[B.A2.type])
+  }
+
+  object Level1 {
+    sealed trait MultiLevel
+
+    case object Case extends MultiLevel
+  }
+
+  case object Case extends Level1.MultiLevel
+
+  case class Box1(l: Long) extends AnyVal
+
+  object Box1 extends CompanionOptics[Box1] {
+    implicit val schema: Schema[Box1] = Schema.derived
+  }
+
+  case class Box2(s: String) extends AnyVal
+
+  object Box2 extends CompanionOptics[Box2] {
+    implicit val schema: Schema[Box2] = Schema.derived
+  }
+
+  case class PosInt private (value: Int) extends AnyVal
+
+  object PosInt extends CompanionOptics[PosInt] {
+    def apply(value: Int): Either[String, PosInt] =
+      if (value >= 0) new Right(new PosInt(value))
+      else new Left("Expected positive value")
+
+    def applyUnsafe(value: Int): PosInt =
+      if (value >= 0) new PosInt(value)
+      else throw new IllegalArgumentException("Expected positive value")
+
+    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
+    val wrapped: Optional[PosInt, Int]  = $(_.wrapped[Int])
+  }
+
+  case class Email(value: String)
+
+  object Email extends CompanionOptics[Email] {
+    implicit val schema: Schema[Email]   = Schema.derived.wrapTotal(x => new Email(x), _.value)
+    val wrapped: Optional[Email, String] = $(_.wrapped[String])
+  }
+
+  @scala.annotation.unused
+  private[this] def hasError(message: String): Assertion[SchemaError] =
+    hasField[SchemaError, String]("getMessage", _.getMessage, containsString(message))
+
+  implicit val eitherSchema: Schema[Either[Int, Long]] = Schema.derived
+
+  def encodeToString(f: CharBuffer => Unit): String = {
+    val out = CharBuffer.allocate(1024)
+    f(out)
+    out.limit(out.position()).position(0).toString
+  }
+
+  object ToStringFormat
+      extends TextFormat(
+        "text/plain",
+        new Deriver[TextCodec] {
+          override def derivePrimitive[F[_, _], A](
+            primitiveType: PrimitiveType[A],
+            typeId: TypeId[A],
+            binding: Binding[BindingType.Primitive, A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect]
+          ): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+
+          override def deriveRecord[F[_, _], A](
+            fields: IndexedSeq[Term[F, A, ?]],
+            typeId: TypeId[A],
+            binding: Binding[BindingType.Record, A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+
+          override def deriveVariant[F[_, _], A](
+            cases: IndexedSeq[Term[F, A, ?]],
+            typeId: TypeId[A],
+            binding: Binding[BindingType.Variant, A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+
+          override def deriveSequence[F[_, _], C[_], A](
+            element: Reflect[F, A],
+            typeId: TypeId[C[A]],
+            binding: Binding[BindingType.Seq[C], C[A]],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[C[A]]] =
+            Lazy(new TextCodec[C[A]] {
+              override def encode(value: C[A], output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, C[A]] = ???
+            })
+
+          override def deriveMap[F[_, _], M[_, _], K, V](
+            key: Reflect[F, K],
+            value: Reflect[F, V],
+            typeId: TypeId[M[K, V]],
+            binding: Binding[BindingType.Map[M], M[K, V]],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[M[K, V]]] =
+            Lazy(new TextCodec[M[K, V]] {
+              override def encode(value: M[K, V], output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, M[K, V]] = ???
+            })
+
+          override def deriveDynamic[F[_, _]](
+            binding: Binding[BindingType.Dynamic, DynamicValue],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect]
+          )(implicit
+            F: HasBinding[F],
+            D: HasInstance[F]
+          ): Lazy[TextCodec[DynamicValue]] =
+            Lazy(new TextCodec[DynamicValue] {
+              override def encode(value: DynamicValue, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, DynamicValue] = ???
+            })
+
+          override def deriveWrapper[F[_, _], A, B](
+            wrapped: Reflect[F, B],
+            typeId: TypeId[A],
+            wrapperPrimitiveType: Option[PrimitiveType[A]],
+            binding: Binding[BindingType.Wrapper[A, B], A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+        }
+      )
+
+  val specOwner = Owner(
+    List(
+      Owner.Package("zio"),
+      Owner.Package("blocks"),
+      Owner.Package("schema"),
+      Owner.Term("SchemaSpec"),
+      Owner.Term("spec")
+    )
+  )
+
   def spec: Spec[TestEnvironment, Any] = suite("SchemaSpec")(
     suite("Reflect.Primitive")(
       test("has consistent equals and hashCode") {
@@ -58,43 +302,54 @@ object SchemaSpec extends SchemaBaseSpec {
     ),
     suite("Reflect.Record")(
       test("has consistent equals and hashCode") {
-        assert(Record.schema)(equalTo(Record.schema)) &&
-        assert(Record.schema.hashCode)(equalTo(Record.schema.hashCode)) &&
-        assert(Record.schema.defaultValue(Record(0, 0)))(equalTo(Record.schema)) &&
-        assert(Record.schema.defaultValue(Record(0, 0)).hashCode)(equalTo(Record.schema.hashCode)) &&
-        assert(Record.schema.examples(Record(1, 1000)))(equalTo(Record.schema)) &&
-        assert(Record.schema.examples(Record(1, 1000)).hashCode)(equalTo(Record.schema.hashCode)) &&
-        assert(Record.schema.doc("Record (updated)"))(not(equalTo(Record.schema)))
+        assert(SchemaRecord.schema)(equalTo(SchemaRecord.schema)) &&
+        assert(SchemaRecord.schema.hashCode)(equalTo(SchemaRecord.schema.hashCode)) &&
+        assert(SchemaRecord.schema.defaultValue(SchemaRecord(0, 0)))(equalTo(SchemaRecord.schema)) &&
+        assert(SchemaRecord.schema.defaultValue(SchemaRecord(0, 0)).hashCode)(equalTo(SchemaRecord.schema.hashCode)) &&
+        assert(SchemaRecord.schema.doc("Record (updated)"))(not(equalTo(SchemaRecord.schema))) &&
+        assert(SchemaRecord.schema.doc("Record (updated)").hashCode)(not(equalTo(SchemaRecord.schema.hashCode))) &&
+        assert(SchemaRecord.schema: Any)(not(equalTo(Schema[Long]))) &&
+        assert(SchemaRecord.schema: Any)(not(equalTo(Schema[Box1])))
       },
       test("gets and updates record default value") {
-        assert(Record.schema.getDefaultValue)(isNone) &&
-        assert(Record.schema.defaultValue(Record(1, 2)).getDefaultValue)(isSome(equalTo(Record(1, 2))))
+        assert(SchemaRecord.schema.getDefaultValue)(isNone) &&
+        assert(SchemaRecord.schema.defaultValue(SchemaRecord(0, 0)).getDefaultValue)(
+          isSome(equalTo(SchemaRecord(0, 0)))
+        )
       },
       test("gets and updates record documentation") {
-        assert(Record.schema.doc)(equalTo(Doc.Empty)) &&
-        assert(Record.schema.doc("Record (updated)").doc)(equalTo(Doc("Record (updated)")))
+        assert(SchemaRecord.schema.doc)(equalTo(Doc.Empty)) &&
+        assert(SchemaRecord.schema.doc("Record (updated)").doc)(equalTo(Doc("Record (updated)")))
       },
       test("gets and updates record examples") {
-        assert(Record.schema.examples)(equalTo(Nil)) &&
-        assert(Record.schema.examples(Record(2, 2000)).examples)(equalTo(Record(2, 2000) :: Nil))
+        assert(SchemaRecord.schema.examples)(equalTo(Nil)) &&
+        assert(SchemaRecord.schema.examples(SchemaRecord(2, 2000)).examples)(equalTo(SchemaRecord(2, 2000) :: Nil))
       },
       test("gets and updates default values of record fields using optic focus") {
-        assert(Record.schema.defaultValue(Record.b, 1: Byte).getDefaultValue(Record.b))(isSome(equalTo(1: Byte))) &&
-        assert(Record.schema.defaultValue(Record.i, 1000).getDefaultValue(Record.i))(isSome(equalTo(1000))) &&
-        assert(Record.schema.defaultValue(Record.x, true).getDefaultValue(Record.x))(isNone) // invalid lens
+        assert(SchemaRecord.schema.defaultValue(SchemaRecord.b, 1: Byte).getDefaultValue(SchemaRecord.b))(
+          isSome(equalTo(1: Byte))
+        ) &&
+        assert(SchemaRecord.schema.defaultValue(SchemaRecord.i, 1000).getDefaultValue(SchemaRecord.i))(
+          isSome(equalTo(1000))
+        ) &&
+        assert(SchemaRecord.schema.defaultValue(SchemaRecord.x, true).getDefaultValue(SchemaRecord.x))(
+          isNone
+        ) // invalid lens
       },
       test("gets and updates documentation of record fields using optic focus") {
-        assert(Record.schema.doc(Record.b, "b").doc(Record.b))(equalTo(Doc("b"))) &&
-        assert(Record.schema.doc(Record.i, "i").doc(Record.i))(equalTo(Doc("i"))) &&
-        assert(Record.schema.doc(Record.x, "x").doc(Record.x))(equalTo(Doc.Empty)) // invalid lens
+        assert(SchemaRecord.schema.doc(SchemaRecord.b, "b").doc(SchemaRecord.b))(equalTo(Doc("b"))) &&
+        assert(SchemaRecord.schema.doc(SchemaRecord.i, "i").doc(SchemaRecord.i))(equalTo(Doc("i"))) &&
+        assert(SchemaRecord.schema.doc(SchemaRecord.x, "x").doc(SchemaRecord.x))(equalTo(Doc.Empty)) // invalid lens
       },
       test("gets and updates examples of record fields using optic focus") {
-        assert(Record.schema.examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
-        assert(Record.schema.examples(Record.i, 2000).examples(Record.i))(equalTo(Seq(2000))) &&
-        assert(Record.schema.examples(Record.x, true).examples(Record.x))(equalTo(Seq())) // invalid lens
+        assert(SchemaRecord.schema.examples(SchemaRecord.b, 2: Byte).examples(SchemaRecord.b))(equalTo(Seq(2: Byte))) &&
+        assert(SchemaRecord.schema.examples(SchemaRecord.i, 2000).examples(SchemaRecord.i))(equalTo(Seq(2000))) &&
+        assert(SchemaRecord.schema.examples(SchemaRecord.x, true).examples(SchemaRecord.x))(
+          equalTo(Seq())
+        ) // invalid lens
       },
       test("appends record modifiers") {
-        val schema1 = Record.schema
+        val schema1 = SchemaRecord.schema
         val schema2 = schema1.modifier(Modifier.config("key1", "value1"))
         assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
         assert(
@@ -104,14 +359,14 @@ object SchemaSpec extends SchemaBaseSpec {
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Box1.schema.fromDynamicValue(Box1.schema.toDynamicValue(Box1(4L))))(isRight(equalTo(Box1(4L)))) &&
         assert(Box2.schema.fromDynamicValue(Box2.schema.toDynamicValue(Box2("VVV"))))(isRight(equalTo(Box2("VVV")))) &&
-        assert(Record.schema.fromDynamicValue(Record.schema.toDynamicValue(Record(1: Byte, 1000))))(
-          isRight(equalTo(Record(1: Byte, 1000)))
+        assert(SchemaRecord.schema.fromDynamicValue(SchemaRecord.schema.toDynamicValue(SchemaRecord(1: Byte, 1000))))(
+          isRight(equalTo(SchemaRecord(1: Byte, 1000)))
         ) &&
-        assert(Record.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(hasError("Expected a record at: ."))
+        assert(SchemaRecord.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+          isLeft(hasError("Expected a record"))
         ) &&
         assert(
-          Record.schema.fromDynamicValue(
+          SchemaRecord.schema.fromDynamicValue(
             DynamicValue.Record(
               Vector(
                 ("i", DynamicValue.Primitive(PrimitiveValue.Long(1000))),
@@ -122,9 +377,11 @@ object SchemaSpec extends SchemaBaseSpec {
         )(isLeft(hasError("Expected Int at: .i\nDuplicated field 'i' at: .\nMissing field 'b' at: .")))
       },
       test("has consistent gets for typed and dynamic optics") {
-        assert(Record.schema.get(Record.b.toDynamic))(equalTo(Record.schema.get(Record.b))) &&
-        assert(Record.schema.get(Record.i.toDynamic))(equalTo(Record.schema.get(Record.i))) &&
-        assert(Record.schema.get(Record.x.toDynamic))(equalTo(Record.schema.get(Record.x))) // invalid lens
+        assert(SchemaRecord.schema.get(SchemaRecord.b.toDynamic))(equalTo(SchemaRecord.schema.get(SchemaRecord.b))) &&
+        assert(SchemaRecord.schema.get(SchemaRecord.i.toDynamic))(equalTo(SchemaRecord.schema.get(SchemaRecord.i))) &&
+        assert(SchemaRecord.schema.get(SchemaRecord.x.toDynamic))(
+          equalTo(SchemaRecord.schema.get(SchemaRecord.x))
+        ) // invalid lens
       },
       test("derives schema for tuples") {
         type Tuple4 = (Byte, Short, Int, Long)
@@ -151,22 +408,20 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Tuple4._3.replace(value, 5))(equalTo((1: Byte, 2: Short, 5, 4L))) &&
         assert(Tuple4._4.replace(value, 5L))(equalTo((1: Byte, 2: Short, 3, 5L))) &&
         assert(Tuple4.schema.fromDynamicValue(Tuple4.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-        assert(Tuple4.schema)(
-          equalTo(
-            new Schema[Tuple4](
-              reflect = Reflect.Record[Binding, Tuple4](
-                fields = Vector(
-                  Schema[Byte].reflect.asTerm("_1"),
-                  Schema[Short].reflect.asTerm("_2"),
-                  Schema[Int].reflect.asTerm("_3"),
-                  Schema[Long].reflect.asTerm("_4")
-                ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala")),
-                  name = "Tuple4",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
-                ),
-                recordBinding = null
+        assert(stripMetadata(Tuple4.schema.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
+          equalTo(unsafeTypeId("scala.Tuple4").asInstanceOf[TypeId[Any]])
+        ) &&
+        assert(Tuple4.schema.reflect.asRecord.map(_.fields.map(_.name)))(
+          isSome(equalTo(Vector("_1", "_2", "_3", "_4")))
+        ) &&
+        assert(Tuple4.schema.reflect.asRecord.map(_.fields.map(_.value.typeId)))(
+          isSome(
+            equalTo(
+              Vector(
+                Schema[Byte].reflect.typeId,
+                Schema[Short].reflect.typeId,
+                Schema[Int].reflect.typeId,
+                Schema[Long].reflect.typeId
               )
             )
           )
@@ -203,37 +458,29 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(`Record-1`.schema.fromDynamicValue(`Record-1`.schema.toDynamicValue(`Record-1`())))(
           isRight(equalTo(`Record-1`()))
         ) &&
-        assert(`Record-1`.schema)(
+        assert(stripMetadata(`Record-1`.schema.reflect.typeId).asInstanceOf[TypeId[Any]])(
           equalTo(
-            new Schema[Record1](
-              reflect = Reflect.Record[Binding, Record1](
-                fields = Vector(
-                  Schema[Boolean].reflect
-                    .asTerm("b-1")
-                    .copy(modifiers =
-                      Seq(
-                        Modifier.config("field-key", "field-value-1"),
-                        Modifier.config("field-key", "field-value-2")
-                      )
-                    ),
-                  Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
-                ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-1"
-                ),
-                recordBinding = null,
-                modifiers = Seq(
-                  Modifier.config("record-key", "record-value-1"),
-                  Modifier.config("record-key", "record-value-2")
-                )
-              )
-            )
+            TypeId(specOwner, "Record-1", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
           )
+        ) &&
+        assert(`Record-1`.schema.reflect.modifiers)(
+          equalTo(Seq(Modifier.config("record-key", "record-value-1"), Modifier.config("record-key", "record-value-2")))
+        ) &&
+        assert(`Record-1`.schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
+        assert(`Record-1`.schema.reflect.asRecord.map(_.fields(0).name))(isSome(equalTo("b-1"))) &&
+        assert(`Record-1`.schema.reflect.asRecord.map(_.fields(0).modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("field-key", "field-value-1"), Modifier.config("field-key", "field-value-2")))
+          )
+        ) &&
+        assert(`Record-1`.schema.reflect.asRecord.map(_.fields(1).name))(isSome(equalTo("f-2"))) &&
+        assert(`Record-1`.schema.reflect.asRecord.map(_.fields(1).modifiers))(
+          isSome(equalTo(Seq(Modifier.transient())))
         )
       },
       test("derives schema for generic record using a macro call") {
-        case class `Record-2`[B, I](b: B, i: I)
+
+        case class `Record-2`[B, I](val b: B, val i: I)
 
         type Record2[B, I] = `Record-2`[B, I]
         type `i-8`         = Byte
@@ -259,27 +506,17 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(`Record-2`.schema.fromDynamicValue(`Record-2`.schema.toDynamicValue(`Record-2`[`i-8`, `i-32`](1, 2))))(
           isRight(equalTo(`Record-2`[`i-8`, `i-32`](1, 2)))
         ) &&
-        assert(`Record-2`.schema)(
+        assert(stripMetadata(`Record-2`.schema.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
           equalTo(
-            new Schema[Record2[`i-8`, `i-32`]](
-              reflect = Reflect.Record[Binding, Record2[`i-8`, `i-32`]](
-                fields = Vector(
-                  Schema[Byte].reflect.asTerm("b"),
-                  Schema[Int].reflect.asTerm("i")
-                ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-2",
-                  params = Seq(TypeName.byte, TypeName.int)
-                ),
-                recordBinding = null
-              )
-            )
+            TypeId(specOwner, "Record-2", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
           )
-        )
+        ) &&
+        assert(`Record-2`.schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
+        assert(`Record-2`.schema.reflect.asRecord.map(_.fields.map(_.name)))(isSome(equalTo(Vector("b", "i"))))
       },
       test("derives schema for record with multi list constructor using a macro call") {
-        case class Record3(s: Short = 0: Short)(val l: Long)
+
+        case class Record3(val s: Short = 0: Short)(val l: Long)
 
         object Record3 extends CompanionOptics[Record3] {
           implicit val schema: Schema[Record3] = Schema.derived
@@ -299,26 +536,17 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Record3.schema.fromDynamicValue(Record3.schema.toDynamicValue(new Record3(1)(2L))))(
           isRight(equalTo(new Record3(1)(2L)))
         ) &&
-        assert(Record3.schema)(
+        assert(stripMetadata(Record3.schema.reflect.typeId).asInstanceOf[TypeId[Any]])(
           equalTo(
-            new Schema[Record3](
-              reflect = Reflect.Record[Binding, Record3](
-                fields = Vector(
-                  Schema[Short].reflect.asTerm("s"),
-                  Schema[Long].reflect.asTerm("l")
-                ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record3"
-                ),
-                recordBinding = null
-              )
-            )
+            TypeId(specOwner, "Record3", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
           )
-        )
+        ) &&
+        assert(Record3.schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
+        assert(Record3.schema.reflect.asRecord.map(_.fields.map(_.name)))(isSome(equalTo(Vector("s", "l"))))
       },
       test("derives schema for record with nested collections using a macro call") {
-        case class Record4(mx: Vector[ArraySeq[Int]], rs: List[Set[Int]])
+
+        case class Record4(val mx: Vector[ArraySeq[Int]], val rs: List[Set[Int]])
 
         object Record4 extends CompanionOptics[Record4] {
           implicit val schema: Schema[Record4]     = Schema.derived
@@ -348,25 +576,16 @@ object SchemaSpec extends SchemaBaseSpec {
             Record4.schema.toDynamicValue(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4))))
           )
         )(isRight(equalTo(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4)))))) &&
-        assert(Record4.schema)(
+        assert(stripMetadata(Record4.schema.reflect.typeId).asInstanceOf[TypeId[Any]])(
           equalTo(
-            new Schema[Record4](
-              reflect = Reflect.Record[Binding, Record4](
-                fields = Vector(
-                  Schema.derived[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
-                  Schema[List[Set[Int]]].reflect.asTerm("rs")
-                ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record4"
-                ),
-                recordBinding = null
-              )
-            )
+            TypeId(specOwner, "Record4", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
           )
-        )
+        ) &&
+        assert(Record4.schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
+        assert(Record4.schema.reflect.asRecord.map(_.fields.map(_.name)))(isSome(equalTo(Vector("mx", "rs"))))
       },
       test("derives schema recursively for options and supported collections using a macro call") {
+
         case class Foo(
           as: ArraySeq[Bar],
           l: List[Bar],
@@ -376,7 +595,7 @@ object SchemaSpec extends SchemaBaseSpec {
           s: Set[Bar]
         )
 
-        case class Bar(id: Int)
+        case class Bar(val id: Int)
 
         val schema = Schema.derived[Foo]
         val record = schema.reflect.asRecord
@@ -394,7 +613,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(record.map(_.fields.map(_.name)))(isSome(equalTo(Vector("as", "l", "m", "o", "v", "s"))))
       },
       test("derives schema for record with unit types") {
-        case class Record5(u: Unit, su: Seq[Unit])
+
+        case class Record5(val u: Unit, val su: Seq[Unit])
 
         object Record5 extends CompanionOptics[Record5] {
           implicit val schema: Schema[Record5] = Schema.derived
@@ -420,10 +640,7 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Unit].reflect.asTerm("u"),
                   Schema[Seq[Unit]].reflect.asTerm("su")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record5"
-                ),
+                typeId = TypeId(specOwner, "Record5", Nil, TypeDefKind.Class(), Nil, Nil),
                 recordBinding = null
               )
             )
@@ -431,8 +648,9 @@ object SchemaSpec extends SchemaBaseSpec {
         )
       },
       test("derives schema for record with option types") {
+
         case class Record6(
-          u: Option[Unit] = Some(()),
+          val u: Option[Unit] = Some(()),
           bl: Option[Boolean] = Some(false),
           b: Option[Byte] = Some(0: Byte),
           c: Option[Char] = Some(' '),
@@ -441,7 +659,7 @@ object SchemaSpec extends SchemaBaseSpec {
           i: Option[Int] = Some(0),
           d: Option[Double] = Some(0.0),
           l: Option[Long] = Some(0L),
-          r: Option[Record6] = None
+          val r: Option[Record6] = None
         )
 
         object Record6 extends CompanionOptics[Record6] {
@@ -493,7 +711,8 @@ object SchemaSpec extends SchemaBaseSpec {
         )
       },
       test("derives schema for record with dynamic values") {
-        case class Record7(d: DynamicValue, od: Option[DynamicValue], isd: IndexedSeq[DynamicValue])
+
+        case class Record7(val d: DynamicValue, val od: Option[DynamicValue], val isd: IndexedSeq[DynamicValue])
 
         object Record7 extends CompanionOptics[Record7] {
           implicit val schema: Schema[Record7]      = Schema.derived
@@ -550,41 +769,40 @@ object SchemaSpec extends SchemaBaseSpec {
             )
           )
         ) &&
-        assert(Record7.schema)(
+        assert(stripMetadata(Record7.schema.reflect.typeId).asInstanceOf[TypeId[Any]])(
           equalTo(
-            new Schema[Record7](
-              reflect = Reflect.Record[Binding, Record7](
-                fields = Vector(
-                  Schema[DynamicValue].reflect.asTerm("d"),
-                  Schema[Option[DynamicValue]].reflect.asTerm("od"),
-                  Schema[IndexedSeq[DynamicValue]].reflect.asTerm("isd")
-                ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record7"
-                ),
-                recordBinding = null
-              )
-            )
+            TypeId(specOwner, "Record7", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
           )
         )
       },
       test("derives schema for recursive higher-kinded records using a macro call") {
-        case class Record8[F[_]](f: F[Int], fs: F[Record8[F]])
+
+        case class Record8[F[_]](val f: F[Int], val fs: F[Record8[F]])
 
         val schema = Schema.derived[Record8[Option]]
         val record = schema.reflect.asRecord
         val value  = Record8[Option](Some(1), Some(Record8[Option](Some(2), None)))
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
-        assert(record.map(_.typeName))(
+        assert(record.map(x => stripMetadata(x.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeName[Record8[Option]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Record8",
-                params = Seq(TypeName(Namespace.scala, "Option"))
-              )
+              TypeId(
+                Owner(
+                  List(
+                    Owner.Package("zio"),
+                    Owner.Package("blocks"),
+                    Owner.Package("schema"),
+                    Owner.Term("SchemaSpec"),
+                    Owner.Term("spec")
+                  )
+                ),
+                "Record8",
+                Nil,
+                TypeDefKind.Class(),
+                Nil,
+                Nil
+              ).asInstanceOf[TypeId[Any]]
             )
           )
         ) &&
@@ -594,20 +812,21 @@ object SchemaSpec extends SchemaBaseSpec {
         sealed trait MySealedTrait
 
         object MySealedTrait {
-          case class Foo(foo: Int) extends MySealedTrait
 
-          case class Bar(bar: String) extends MySealedTrait
+          case class Foo(val foo: Int) extends MySealedTrait
+
+          case class Bar(val bar: String) extends MySealedTrait
 
           implicit val schema: Schema[MySealedTrait] = Schema.derived
         }
 
-        case class Child[T <: MySealedTrait](test: T)
+        case class Child[T <: MySealedTrait](val test: T)
 
         object Child {
           implicit val schema: Schema[Child[MySealedTrait]] = Schema.derived
         }
 
-        case class Parent(child: Child[MySealedTrait])
+        case class Parent(val child: Child[MySealedTrait])
 
         object Parent {
           implicit val schema: Schema[Parent] = Schema.derived
@@ -620,7 +839,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))
       },
       test("derives schema for case class with value class fields using a macro call") {
-        case class Record9(b1: Box1, b2: Box2)
+
+        case class Record9(val b1: Box1, val b2: Box2)
 
         object Record9 extends CompanionOptics[Record9] {
           implicit val schema: Schema[Record9] = Schema.derived
@@ -645,37 +865,62 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Record9.schema.fromDynamicValue(Record9.schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
       test("derives schema for case classes with more than 22 fields using a macro call") {
+
         case class Record24(
-          i1: Int,
-          i2: Int,
-          i3: Int,
-          i4: Int,
-          i5: Int,
-          i6: Int,
-          i7: Int,
-          i8: Int,
-          i9: Int,
-          i10: Int,
-          i11: Int,
-          i12: Int,
-          i13: Int,
-          i14: Int,
-          i15: Int,
-          i16: Int,
-          i17: Int,
-          i18: Int,
-          i19: Int,
-          i20: Int,
-          i21: Int,
-          i22: Int,
-          i23: Int,
-          s24: String
+          val i1: Int,
+          val i2: Int,
+          val i3: Int,
+          val i4: Int,
+          val i5: Int,
+          val i6: Int,
+          val i7: Int,
+          val i8: Int,
+          val i9: Int,
+          val i10: Int,
+          val i11: Int,
+          val i12: Int,
+          val i13: Int,
+          val i14: Int,
+          val i15: Int,
+          val i16: Int,
+          val i17: Int,
+          val i18: Int,
+          val i19: Int,
+          val i20: Int,
+          val i21: Int,
+          val i22: Int,
+          val i23: Int,
+          val s24: String
         )
 
         object Record24 extends CompanionOptics[Record24] {
           implicit val schema: Schema[Record24] = Schema.derived
           val i23: Lens[Record24, Int]          = $(_.i23)
           val s24: Lens[Record24, String]       = $(_.s24)
+          def _suppress(r: Record24)            = (
+            r.i1,
+            r.i2,
+            r.i3,
+            r.i4,
+            r.i5,
+            r.i6,
+            r.i7,
+            r.i8,
+            r.i9,
+            r.i10,
+            r.i11,
+            r.i12,
+            r.i13,
+            r.i14,
+            r.i15,
+            r.i16,
+            r.i17,
+            r.i18,
+            r.i19,
+            r.i20,
+            r.i21,
+            r.i22
+          )
         }
 
         val record = Record24.schema.reflect.asRecord
@@ -687,11 +932,12 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Record24.schema.fromDynamicValue(Record24.schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
       test("derives schema for record with fields that have 3rd party collection type") {
+        @scala.annotation.unused
         implicit def chunkSchema[V](implicit ev: Schema[V]): Schema[Chunk[V]] =
           new Schema(
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
-              TypeName(Namespace(Seq("zio")), "Chunk"),
+              TestTypeId(Namespace(Seq("zio")), "Chunk"),
               None,
               new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
             )
@@ -705,8 +951,8 @@ object SchemaSpec extends SchemaBaseSpec {
       },
       test("encodes values using provided formats and outputs") {
         assert(encodeToString { out =>
-          Schema[Record].encode(ToStringFormat)(out)(Record(1: Byte, 2))
-        })(equalTo("Record(1,2)"))
+          Schema[SchemaRecord].encode(ToStringFormat)(out)(SchemaRecord(1: Byte, 2))
+        })(equalTo("SchemaRecord(1,2)"))
       },
       test("doesn't generate schema for classes without a primary constructor") {
         typeCheck {
@@ -861,11 +1107,11 @@ object SchemaSpec extends SchemaBaseSpec {
 
         @Modifier.config("case-key-1", "case-value-1")
         @Modifier.config("case-key-1", "case-value-2")
-        case class `Case-1`(@Modifier.config("field-key-1", "field-value-1") d: Double) extends Variant1
+        case class `Case-1`(@Modifier.config("field-key-1", "field-value-1") val d: Double) extends Variant1
 
         @Modifier.config("case-key-2", "case-value-1")
         @Modifier.config("case-key-2", "case-value-2")
-        case class `Case-2`(@Modifier.config("field-key-2", "field-value-2") f: Float) extends Variant1
+        case class `Case-2`(@Modifier.config("field-key-2", "field-value-2") val f: Float) extends Variant1
 
         @Modifier.config("case-key-3", "case-value-1")
         @Modifier.config("case-key-3", "case-value-2")
@@ -938,13 +1184,10 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(`Case-3`))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2", "Case-3")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(x => stripMetadata(x.typeId).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeName[`Variant-1`](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-1"
-              )
+              TypeId(specOwner, "Variant-1", Nil, TypeDefKind.Trait(), Nil, Nil).asInstanceOf[TypeId[Any]]
             )
           )
         ) &&
@@ -994,14 +1237,10 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(Value[String]("WWW")))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("MissingValue", "NullValue", "Value")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(x => stripMetadata(x.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeName[`Variant-2`[String]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-2",
-                params = Seq(TypeName.string)
-              )
+              TypeId(specOwner, "Variant-2", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
             )
           )
         )
@@ -1048,21 +1287,19 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A1)))(isRight(equalTo(B.A1))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A2)))(isRight(equalTo(B.A2))) &&
         assert(variant1.map(_.cases.map(_.name)))(isSome(equalTo(Vector("A1", "A2")))) &&
-        assert(variant1.map(_.typeName))(
-          isSome(equalTo(TypeName[A](Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "A")))
+        assert(variant1.map(x => stripMetadata(x.typeId).asInstanceOf[TypeId[Any]]))(
+          isSome(equalTo(TypeId(schemaSpecOwner, "A", Nil, TypeDefKind.Trait(), Nil, Nil).asInstanceOf[TypeId[Any]]))
         ) &&
         assert(Level1_MultiLevel.c.getOption(Case))(isSome(equalTo(Case))) &&
         assert(Level1_MultiLevel.l1_c.getOption(Level1.Case))(isSome(equalTo(Level1.Case))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(Case)))(isRight(equalTo(Case))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(Level1.Case)))(isRight(equalTo(Level1.Case))) &&
         assert(variant2.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Level1.Case", "Case")))) &&
-        assert(variant2.map(_.typeName))(
+        assert(variant2.map(x => stripMetadata(x.typeId).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeName[Level1.MultiLevel](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "Level1")),
-                name = "MultiLevel"
-              )
+              TypeId(schemaSpecOwner / Owner.Term("Level1"), "MultiLevel", Nil, TypeDefKind.Trait(), Nil, Nil)
+                .asInstanceOf[TypeId[Any]]
             )
           )
         )
@@ -1070,9 +1307,9 @@ object SchemaSpec extends SchemaBaseSpec {
       test("derives schema for higher-kinded variant using a macro call") {
         sealed trait `Variant-3`[F[_]]
 
-        case class `Case-1`[F[_]](a: F[Double]) extends `Variant-3`[F]
+        case class `Case-1`[F[_]](val a: F[Double]) extends `Variant-3`[F]
 
-        case class `Case-2`[F[_]](a: F[Float]) extends `Variant-3`[F]
+        case class `Case-2`[F[_]](val a: F[Float]) extends `Variant-3`[F]
 
         object Variant3OfOption extends CompanionOptics[`Variant-3`[Option]] {
           implicit val schema: Schema[`Variant-3`[Option]]        = Schema.derived
@@ -1094,14 +1331,10 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(`Case-2`[Option](None)))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(x => stripMetadata(x.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeName[`Variant-3`[Option]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-3",
-                params = Seq(TypeName(Namespace.scala, "Option"))
-              )
+              TypeId(specOwner, "Variant-3", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
             )
           )
         )
@@ -1109,25 +1342,21 @@ object SchemaSpec extends SchemaBaseSpec {
       test("derives schema for genetic variant with 'Nothing' type parameter using a macro call") {
         sealed trait Variant4[+E, +A]
 
-        case class Error[E](error: E) extends Variant4[E, Nothing]
+        case class Error[E](val error: E) extends Variant4[E, Nothing]
 
-        case class Fatal(reason: String) extends Variant4[Nothing, Nothing]
+        case class Fatal(val reason: String) extends Variant4[Nothing, Nothing]
 
-        case class Success[A](a: A) extends Variant4[Nothing, A]
+        case class Success[A](val a: A) extends Variant4[Nothing, A]
 
         case class Timeout() extends Variant4[Nothing, Nothing]
 
         val schema  = Schema.derived[Variant4[String, Int]]
         val variant = schema.reflect.asVariant
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Error", "Fatal", "Success", "Timeout")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(x => stripMetadata(x.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeName[Variant4[String, Int]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant4",
-                params = Seq(TypeName.string, TypeName.int)
-              )
+              TypeId(specOwner, "Variant4", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
             )
           )
         ) &&
@@ -1338,7 +1567,7 @@ object SchemaSpec extends SchemaBaseSpec {
           )
         )(isLeft(hasError("Expected String at: .each.at(0)"))) &&
         assert(
-          Schema[List[Record]].fromDynamicValue(DynamicValue.Sequence(Vector(DynamicValue.Record(Vector.empty))))
+          Schema[List[SchemaRecord]].fromDynamicValue(DynamicValue.Sequence(Vector(DynamicValue.Record(Vector.empty))))
         )(
           isLeft(
             equalTo(
@@ -1401,7 +1630,7 @@ object SchemaSpec extends SchemaBaseSpec {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
-          typeName = TypeName.map(TypeName.int, TypeName.long),
+          typeId = TestTypeId.map(TestTypeId.int, TestTypeId.long).asInstanceOf[TypeId[Map[Int, Long]]],
           mapBinding = Binding.Map[Map, Int, Long](
             constructor = MapConstructor.map,
             deconstructor = MapDeconstructor.map,
@@ -1542,7 +1771,7 @@ object SchemaSpec extends SchemaBaseSpec {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred3 = Reflect.int[Binding]
-        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeName.int, Binding.Primitive.int)
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TestTypeId.int, Binding.Primitive.int)
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(Schema(deferred1))(equalTo(Schema(deferred1))) &&
         assert(Schema(deferred1).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
@@ -1567,7 +1796,7 @@ object SchemaSpec extends SchemaBaseSpec {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
-            TypeName.int,
+            TestTypeId.int,
             Binding.Primitive(examples = Seq(1, 2, 3))
           )
         }
@@ -1575,14 +1804,16 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Schema(deferred1).examples(1, 2).examples)(equalTo(Seq(1, 2)))
       },
       test("gets and updates default values of deferred value using optic focus") {
-        val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
+        val deferred1 = Reflect.Deferred[Binding, SchemaRecord](() => SchemaRecord.schema.reflect)
         val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
         val deferred3 = Reflect.Deferred[Binding, List[Int]](() => Schema[List[Int]].reflect)
         val deferred4 = Reflect.Deferred[Binding, Map[Int, Long]](() => Schema[Map[Int, Long]].reflect)
         val elements  = Traversal.listValues(Reflect.int[Binding])
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
-        assert(Schema(deferred1).defaultValue(Record.b, 1: Byte).getDefaultValue(Record.b))(isSome(equalTo(1: Byte))) &&
+        assert(Schema(deferred1).defaultValue(SchemaRecord.b, 1: Byte).getDefaultValue(SchemaRecord.b))(
+          isSome(equalTo(1: Byte))
+        ) &&
         assert(Schema(deferred2).defaultValue(Variant.case1, Case1('1')).getDefaultValue(Variant.case1))(
           isSome(equalTo(Case1('1')))
         ) &&
@@ -1591,35 +1822,35 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Schema(deferred4).defaultValue(mapValues, 1L).getDefaultValue(mapValues))(isSome(equalTo(1L)))
       },
       test("gets and updates documentation of deferred value using optic focus") {
-        val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
+        val deferred1 = Reflect.Deferred[Binding, SchemaRecord](() => SchemaRecord.schema.reflect)
         val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
         val deferred3 = Reflect.Deferred[Binding, List[Int]](() => Schema[List[Int]].reflect)
         val deferred4 = Reflect.Deferred[Binding, Map[Int, Long]](() => Schema[Map[Int, Long]].reflect)
         val elements  = Traversal.listValues(Reflect.int[Binding])
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
-        assert(Schema(deferred1).doc(Record.b, "b").doc(Record.b))(equalTo(Doc("b"))) &&
+        assert(Schema(deferred1).doc(SchemaRecord.b, "b").doc(SchemaRecord.b))(equalTo(Doc("b"))) &&
         assert(Schema(deferred2).doc(Variant.case1, "Case1").doc(Variant.case1))(equalTo(Doc("Case1")))
         assert(Schema(deferred3).doc(elements, "Int").doc(elements))(equalTo(Doc("Int"))) &&
         assert(Schema(deferred4).doc(mapKeys, "Int").doc(mapKeys))(equalTo(Doc("Int"))) &&
         assert(Schema(deferred4).doc(mapValues, "Long").doc(mapValues))(equalTo(Doc("Long")))
       },
       test("gets and updates examples of deferred value using optic focus") {
-        val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
+        val deferred1 = Reflect.Deferred[Binding, SchemaRecord](() => SchemaRecord.schema.reflect)
         val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
         val deferred3 = Reflect.Deferred[Binding, List[Int]](() => Schema[List[Int]].reflect)
         val deferred4 = Reflect.Deferred[Binding, Map[Int, Long]](() => Schema[Map[Int, Long]].reflect)
         val elements  = Traversal.listValues(Reflect.int[Binding])
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
-        assert(Schema(deferred1).examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
+        assert(Schema(deferred1).examples(SchemaRecord.b, 2: Byte).examples(SchemaRecord.b))(equalTo(Seq(2: Byte))) &&
         assert(Schema(deferred2).examples(Variant.case1, Case1('1')).examples(Variant.case1))(equalTo(Seq(Case1('1'))))
         assert(Schema(deferred3).examples(elements, 2).examples(elements))(equalTo(Seq(2))) &&
         assert(Schema(deferred4).examples(mapKeys, 2).examples(mapKeys))(equalTo(Seq(2))) &&
         assert(Schema(deferred4).examples(mapValues, 2L).examples(mapValues))(equalTo(Seq(2L)))
       },
       test("appends deferred modifiers") {
-        val schema1 = Schema(Reflect.Deferred[Binding, Record](() => Record.schema.reflect))
+        val schema1 = Schema(Reflect.Deferred[Binding, SchemaRecord](() => SchemaRecord.schema.reflect))
         val schema2 = schema1.modifier(Modifier.config("key1", "value1"))
         assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
         assert(
@@ -1627,19 +1858,19 @@ object SchemaSpec extends SchemaBaseSpec {
         )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
-        val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
+        val deferred1 = Reflect.Deferred[Binding, SchemaRecord](() => SchemaRecord.schema.reflect)
         val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
-        assert(Schema(deferred1).fromDynamicValue(Schema(deferred1).toDynamicValue(Record(1: Byte, 1000))))(
-          isRight(equalTo(Record(1: Byte, 1000)))
+        assert(Schema(deferred1).fromDynamicValue(Schema(deferred1).toDynamicValue(SchemaRecord(1: Byte, 1000))))(
+          isRight(equalTo(SchemaRecord(1: Byte, 1000)))
         ) &&
         assert(Schema(deferred2).fromDynamicValue(Schema(deferred2).toDynamicValue(Case1('1'))))(
           isRight(equalTo(Case1('1')))
         )
       },
       test("has consistent gets for typed and dynamic optics") {
-        val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
+        val deferred1 = Reflect.Deferred[Binding, SchemaRecord](() => SchemaRecord.schema.reflect)
         val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
-        assert(Schema(deferred1).get(Record.b.toDynamic))(equalTo(Schema(deferred1).get(Record.b))) &&
+        assert(Schema(deferred1).get(SchemaRecord.b.toDynamic))(equalTo(Schema(deferred1).get(SchemaRecord.b))) &&
         assert(Schema(deferred2).get(Variant.case1.toDynamic))(equalTo(Schema(deferred2).get(Variant.case1)))
       },
       test("encodes values using provided formats and outputs") {
@@ -1647,7 +1878,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(encodeToString(out => Schema(deferred1).encode(ToStringFormat)(out)(1)))(equalTo("1"))
       },
       test("helps to avoid stack overflow for schemas of recursive data structures") {
-        case class Recursive(a: Int, @Modifier.config("field-key", "field-value") b: Option[Recursive] = None)
+        @scala.annotation.unused
+        case class Recursive(val a: Int, @Modifier.config("field-key", "field-value") val b: Option[Recursive] = None)
 
         def recursiveSchema: Schema[Recursive] = {
           implicit lazy val schema: Schema[Recursive] = Schema.derived[Recursive]
@@ -1750,6 +1982,7 @@ object SchemaSpec extends SchemaBaseSpec {
         )
       },
       test("has consistent toDynamicValue and fromDynamicValue with wrapper in a case class") {
+
         case class Test(a: PosInt)
 
         val value  = Test(PosInt.applyUnsafe(1))
@@ -1816,192 +2049,4 @@ object SchemaSpec extends SchemaBaseSpec {
     }
   )
 
-  private[this] def hasError(message: String): Assertion[SchemaError] =
-    hasField[SchemaError, String]("getMessage", _.getMessage, containsString(message))
-
-  implicit val eitherSchema: Schema[Either[Int, Long]] = Schema.derived
-
-  case class Record(b: Byte, i: Int)
-
-  object Record extends CompanionOptics[Record] {
-    implicit val schema: Schema[Record] = Schema.derived
-    val b: Lens[Record, Byte]           = $(_.b)
-    val i: Lens[Record, Int]            = $(_.i)
-    val x: Lens[Record, Boolean]        = // invalid lens
-      Lens(schema.reflect.asRecord.get, Reflect.boolean[Binding].asTerm("x").asInstanceOf[Term.Bound[Record, Boolean]])
-  }
-
-  sealed trait Variant
-
-  object Variant extends CompanionOptics[Variant] {
-    implicit val schema: Schema[Variant] = Schema.derived
-    val case1: Prism[Variant, Case1]     = $(_.when[Case1])
-    val case2: Prism[Variant, Case2]     = $(_.when[Case2])
-  }
-
-  case class Case1(c: Char) extends Variant
-
-  case class Case2(s: String) extends Variant
-
-  sealed trait A
-
-  object B {
-    case object A1 extends A
-
-    case object A2 extends A
-  }
-
-  object A extends CompanionOptics[A] {
-    implicit val schema: Schema[A] = Schema.derived
-    val a1: Prism[A, B.A1.type]    = $(_.when[B.A1.type])
-    val a2: Prism[A, B.A2.type]    = $(_.when[B.A2.type])
-  }
-
-  object Level1 {
-    sealed trait MultiLevel
-
-    case object Case extends MultiLevel
-  }
-
-  case object Case extends Level1.MultiLevel
-
-  case class Box1(l: Long) extends AnyVal
-
-  object Box1 extends CompanionOptics[Box1] {
-    implicit val schema: Schema[Box1] = Schema.derived
-  }
-
-  case class Box2(s: String) extends AnyVal
-
-  object Box2 extends CompanionOptics[Box2] {
-    implicit val schema: Schema[Box2] = Schema.derived
-  }
-
-  case class PosInt private (value: Int) extends AnyVal
-
-  object PosInt extends CompanionOptics[PosInt] {
-    def apply(value: Int): Either[String, PosInt] =
-      if (value >= 0) new Right(new PosInt(value))
-      else new Left("Expected positive value")
-
-    def applyUnsafe(value: Int): PosInt =
-      if (value >= 0) new PosInt(value)
-      else throw new IllegalArgumentException("Expected positive value")
-
-    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
-    val wrapped: Optional[PosInt, Int]  = $(_.wrapped[Int])
-  }
-
-  case class Email(value: String)
-
-  object Email extends CompanionOptics[Email] {
-    implicit val schema: Schema[Email]   = Schema.derived.wrapTotal(x => new Email(x), _.value)
-    val wrapped: Optional[Email, String] = $(_.wrapped[String])
-  }
-
-  def encodeToString(f: CharBuffer => Unit): String = {
-    val out = CharBuffer.allocate(1024)
-    f(out)
-    out.limit(out.position()).position(0).toString
-  }
-
-  object ToStringFormat
-      extends TextFormat(
-        "text/plain",
-        new Deriver[TextCodec] {
-          override def derivePrimitive[F[_, _], A](
-            primitiveType: PrimitiveType[A],
-            typeName: TypeName[A],
-            binding: Binding[BindingType.Primitive, A],
-            doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
-          ): Lazy[TextCodec[A]] =
-            Lazy(new TextCodec[A] {
-              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
-
-              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
-            })
-
-          override def deriveRecord[F[_, _], A](
-            fields: IndexedSeq[Term[F, A, ?]],
-            typeName: TypeName[A],
-            binding: Binding[BindingType.Record, A],
-            doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
-          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
-            Lazy(new TextCodec[A] {
-              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
-
-              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
-            })
-
-          override def deriveVariant[F[_, _], A](
-            cases: IndexedSeq[Term[F, A, ?]],
-            typeName: TypeName[A],
-            binding: Binding[BindingType.Variant, A],
-            doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
-          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
-            Lazy(new TextCodec[A] {
-              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
-
-              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
-            })
-
-          override def deriveSequence[F[_, _], C[_], A](
-            element: Reflect[F, A],
-            typeName: TypeName[C[A]],
-            binding: Binding[BindingType.Seq[C], C[A]],
-            doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
-          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[C[A]]] =
-            Lazy(new TextCodec[C[A]] {
-              override def encode(value: C[A], output: CharBuffer): Unit = output.append(value.toString)
-
-              override def decode(input: CharBuffer): Either[SchemaError, C[A]] = ???
-            })
-
-          override def deriveMap[F[_, _], M[_, _], K, V](
-            key: Reflect[F, K],
-            value: Reflect[F, V],
-            typeName: TypeName[M[K, V]],
-            binding: Binding[BindingType.Map[M], M[K, V]],
-            doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
-          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[M[K, V]]] =
-            Lazy(new TextCodec[M[K, V]] {
-              override def encode(value: M[K, V], output: CharBuffer): Unit = output.append(value.toString)
-
-              override def decode(input: CharBuffer): Either[SchemaError, M[K, V]] = ???
-            })
-
-          override def deriveDynamic[F[_, _]](
-            binding: Binding[BindingType.Dynamic, DynamicValue],
-            doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
-          )(implicit
-            F: HasBinding[F],
-            D: HasInstance[F]
-          ): Lazy[TextCodec[DynamicValue]] =
-            Lazy(new TextCodec[DynamicValue] {
-              override def encode(value: DynamicValue, output: CharBuffer): Unit = output.append(value.toString)
-
-              override def decode(input: CharBuffer): Either[SchemaError, DynamicValue] = ???
-            })
-
-          override def deriveWrapper[F[_, _], A, B](
-            wrapped: Reflect[F, B],
-            typeName: TypeName[A],
-            wrapperPrimitiveType: Option[PrimitiveType[A]],
-            binding: Binding[BindingType.Wrapper[A, B], A],
-            doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
-          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
-            Lazy(new TextCodec[A] {
-              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
-
-              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
-            })
-        }
-      )
 }

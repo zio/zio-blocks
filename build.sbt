@@ -40,12 +40,20 @@ addCommandAlias(
   "schemaNative/test; chunkNative/test; streamsNative/test; schema-toonNative/test"
 )
 
+addCommandAlias(
+  "testTypeId",
+  "typeidJVM/test; typeidJS/test; typeidNative/test"
+)
+
 lazy val root = project
   .in(file("."))
   .settings(
     publish / skip := true
   )
   .aggregate(
+    typeid.jvm,
+    typeid.js,
+    typeid.native,
     schema.jvm,
     schema.js,
     schema.native,
@@ -67,12 +75,33 @@ lazy val root = project
     examples
   )
 
+lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-typeid"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.typeid"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ =>
+        Seq()
+    }),
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    )
+  )
+
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-schema"))
+  .dependsOn(typeid)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))
   .enablePlugins(BuildInfoPlugin)
+  .settings(Test / scalacOptions += "-Wconf:cat=unused:s")
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
@@ -222,6 +251,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.7.4")))
+  .settings(Test / scalacOptions += "-Wconf:cat=unused:s")
   .dependsOn(schema % "compile->compile;test->test")
   .settings(crossProjectSettings)
   .settings(

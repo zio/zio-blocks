@@ -1,14 +1,35 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.TypeId
 import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._
+
+import zio.blocks.typeid.{Owner, TypeDefKind}
 
 object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("ZIOPreludeSupportSpec")(
     test("derive schemas for cases classes with subtype and newtype fields") {
       val value = new Planet(Name("Earth"), Kilogram(5.97e24), Meter(6378000.0), Some(Meter(1.5e15)))
+
+      val expectedOwner = Owner(
+        List(
+          Owner.Package("zio"),
+          Owner.Package("blocks"),
+          Owner.Package("schema"),
+          Owner.Term("ZIOPreludeSupportSpec")
+        )
+      )
+      def expectedTypeId(name: String): TypeId[Any] = TypeId(
+        expectedOwner,
+        name,
+        Nil,
+        TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false),
+        Nil,
+        Nil
+      ).asInstanceOf[TypeId[Any]]
+
       assert(Planet.name.get(value))(equalTo(Name("Earth"))) &&
       assert(Planet.name_wrapped.getOption(value))(isSome(equalTo("Earth"))) &&
       assert(Planet.mass.get(value))(equalTo(Kilogram(5.97e24))) &&
@@ -21,27 +42,11 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
-        equalTo(
-          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
-        )
-      ) &&
-      assert(Planet.mass.focus.typeName)(
-        equalTo(
-          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
-        )
-      ) &&
-      assert(Planet.radius.focus.typeName)(
-        equalTo(
-          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-        )
-      ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-          )
-        )
+      assert(Planet.name.focus.typeId.asInstanceOf[TypeId[Any]])(equalTo(expectedTypeId("Name"))) &&
+      assert(Planet.mass.focus.typeId.asInstanceOf[TypeId[Any]])(equalTo(expectedTypeId("Kilogram"))) &&
+      assert(Planet.radius.focus.typeId.asInstanceOf[TypeId[Any]])(equalTo(expectedTypeId("Meter"))) &&
+      assert(stripMetadata(Planet.distanceFromSun.focus.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
+        equalTo(stripMetadata(TypeId.from[Option[Meter]]).copy(args = Nil).asInstanceOf[TypeId[Any]])
       )
     },
     test("derive schemas for cases classes and generic tuples with newtypes") {
@@ -79,11 +84,15 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
 
   type Kilogram = Kilogram.Type
 
-  object Kilogram extends Subtype[Double]
+  object Kilogram extends Subtype[Double] {
+    implicit val schema: Schema[Kilogram] = Schema.derived
+  }
 
   type Meter = Meter.Type
 
-  object Meter extends Newtype[Double]
+  object Meter extends Newtype[Double] {
+    implicit val schema: Schema[Meter] = Schema.derived
+  }
 
   case class Planet(name: Name, mass: Kilogram, radius: Meter, distanceFromSun: Option[Meter])
 
@@ -96,25 +105,25 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
     val name_wrapped: Optional[Planet, String]       = $(_.name.wrapped[String])
   }
 
-  object NInt extends Newtype[Int]
+  object NInt extends Newtype[Int] { implicit val schema: Schema[NInt.Type] = Schema.derived }
 
-  object NFloat extends Newtype[Float]
+  object NFloat extends Newtype[Float] { implicit val schema: Schema[NFloat.Type] = Schema.derived }
 
-  object NLong extends Newtype[Long]
+  object NLong extends Newtype[Long] { implicit val schema: Schema[NLong.Type] = Schema.derived }
 
-  object NDouble extends Newtype[Double]
+  object NDouble extends Newtype[Double] { implicit val schema: Schema[NDouble.Type] = Schema.derived }
 
-  object NBoolean extends Newtype[Boolean]
+  object NBoolean extends Newtype[Boolean] { implicit val schema: Schema[NBoolean.Type] = Schema.derived }
 
-  object NByte extends Newtype[Byte]
+  object NByte extends Newtype[Byte] { implicit val schema: Schema[NByte.Type] = Schema.derived }
 
-  object NChar extends Newtype[Char]
+  object NChar extends Newtype[Char] { implicit val schema: Schema[NChar.Type] = Schema.derived }
 
-  object NShort extends Newtype[Short]
+  object NShort extends Newtype[Short] { implicit val schema: Schema[NShort.Type] = Schema.derived }
 
-  object NUnit extends Newtype[Unit]
+  object NUnit extends Newtype[Unit] { implicit val schema: Schema[NUnit.Type] = Schema.derived }
 
-  object NString extends Newtype[String]
+  object NString extends Newtype[String] { implicit val schema: Schema[NString.Type] = Schema.derived }
 
   case class NRecord(
     i: NInt.Type,

@@ -17,4 +17,14 @@ trait SchemaBaseSpec extends ZIOSpecDefault {
     } else {
       zio.Chunk(TestAspect.timeout(120.seconds), TestAspect.timed, TestAspect.sequential, TestAspect.size(10))
     }
+
+  import zio.blocks.typeid.{TypeId, TypeDefKind}
+
+  protected def stripMetadata[A](typeId: TypeId[A]): TypeId[A] =
+    typeId.copy(
+      kind = TypeDefKind.Class(),
+      typeParams = Nil,
+      parents = Nil,
+      annotations = Nil
+    )
 }

@@ -1,11 +1,22 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.{Owner, TypeDefKind}
 import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._
 
 object ZIOPreludeSupportSpec extends SchemaBaseSpec {
+
+  import zio.blocks.typeid.TypeId
+
+  private def unsafeTypeId[A](s: String): TypeId[A] =
+    TypeId.parse(s).fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[A]])
+
+  case class Namespace(parts: Seq[String], sub: Seq[String] = Nil) {
+    def toDotted: String = (parts ++ sub).mkString(".")
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("ZIOPreludeSupportSpec")(
     test("derive schemas for cases classes with subtype and newtype fields") {
       val value = new Planet(Name("Earth"), Kilogram(5.97e24), Meter(6378000.0), Some(Meter(1.5e15)))
@@ -21,26 +32,45 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
+      assert(stripMetadata(Planet.name.focus.typeId).copy(args = Nil))(
         equalTo(
-          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
-        )
-      ) &&
-      assert(Planet.mass.focus.typeName)(
-        equalTo(
-          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
-        )
-      ) &&
-      assert(Planet.radius.focus.typeName)(
-        equalTo(
-          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-        )
-      ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          TypeId(
+            Owner(List(Owner.Package("zio"), Owner.Package("prelude"), Owner.Type("NewtypeCustom"))),
+            "Type",
+            Nil,
+            TypeDefKind.Class(),
+            Nil,
+            Nil
           )
+        )
+      ) &&
+      assert(stripMetadata(Planet.mass.focus.typeId).copy(args = Nil))(
+        equalTo(
+          TypeId(
+            Owner(List(Owner.Package("zio"), Owner.Package("prelude"), Owner.Type("NewtypeCustom"))),
+            "Type",
+            Nil,
+            TypeDefKind.Class(),
+            Nil,
+            Nil
+          )
+        )
+      ) &&
+      assert(stripMetadata(Planet.radius.focus.typeId).copy(args = Nil))(
+        equalTo(
+          TypeId(
+            Owner(List(Owner.Package("zio"), Owner.Package("prelude"), Owner.Type("Subtype"))),
+            "Type",
+            Nil,
+            TypeDefKind.Class(),
+            Nil,
+            Nil
+          )
+        )
+      ) &&
+      assert(stripMetadata(Planet.distanceFromSun.focus.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
+        equalTo(
+          unsafeTypeId("scala.Option")
         )
       )
     },
@@ -57,35 +87,24 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
+      assert(stripMetadata(schema1.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.option(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
-          )
+          unsafeTypeId("scala.Option")
         )
       ) &&
-      assert(schema2.reflect.typeName)(
+      assert(stripMetadata(schema2.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.option(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
-          )
+          unsafeTypeId("scala.Option")
         )
       ) &&
-      assert(schema3.reflect.typeName)(
+      assert(stripMetadata(schema3.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-          )
+          unsafeTypeId("scala.Option")
         )
       ) &&
-      assert(schema4.reflect.typeName)(
+      assert(stripMetadata(schema4.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.option(
-            TypeName[EmojiDataId](
-              Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")),
-              "EmojiDataId"
-            )
-          )
+          unsafeTypeId("scala.Option")
         )
       )
     },
@@ -102,36 +121,24 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
+      assert(stripMetadata(schema1.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.list(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
-          )
+          unsafeTypeId("scala.collection.immutable.List")
         )
       ) &&
-      assert(schema2.reflect.typeName)(
+      assert(stripMetadata(schema2.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.vector(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
-          )
+          unsafeTypeId("scala.collection.immutable.Vector")
         )
       ) &&
-      assert(schema3.reflect.typeName)(
+      assert(stripMetadata(schema3.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.set(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-          )
+          unsafeTypeId("scala.collection.immutable.Set")
         )
       ) &&
-      assert(schema4.reflect.typeName)(
+      assert(stripMetadata(schema4.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeName.map(
-            TypeName[EmojiDataId](
-              Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")),
-              "EmojiDataId"
-            ),
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
-          )
+          unsafeTypeId("scala.collection.immutable.Map")
         )
       )
     },

@@ -2,7 +2,8 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset
-import zio.blocks.schema.{TypeName => SchemaTypeName}
+import zio.blocks.typeid._
+import zio.blocks.typeid.StandardTypes
 import zio.blocks.schema.CommonMacroOps
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
@@ -127,53 +128,82 @@ private object SchemaCompanionVersionSpecific {
         }
     )
 
-    val typeNameCache = new mutable.HashMap[Type, SchemaTypeName[?]]
+    val typeIdCache = new mutable.HashMap[Type, TypeId[?]]
 
-    def typeName(tpe: Type): SchemaTypeName[?] = {
-      def calculateTypeName(tpe: Type): SchemaTypeName[?] =
-        if (tpe =:= typeOf[java.lang.String]) SchemaTypeName.string
+    def typeId(tpe: Type): TypeId[?] = {
+      def calculateTypeId(tpe: Type): TypeId[?] =
+        if (tpe =:= typeOf[java.lang.String]) StandardTypes.string
         else {
           var packages  = List.empty[String]
           var values    = List.empty[String]
           val tpeSymbol = tpe.typeSymbol
           var name      = NameTransformer.decode(tpeSymbol.name.toString)
           val comp      = companion(tpe)
-          var owner     =
+          var ownerSym  =
             if (comp == null) tpeSymbol
             else if (comp == NoSymbol) {
               name += ".type"
               tpeSymbol.asClass.module
             } else comp
           while ({
-            owner = owner.owner
-            owner.owner != NoSymbol
+            ownerSym = ownerSym.owner
+            ownerSym.owner != NoSymbol
           }) {
-            val ownerName = NameTransformer.decode(owner.name.toString)
-            if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
+            val ownerName = NameTransformer.decode(ownerSym.name.toString)
+            if (ownerSym.isPackage || ownerSym.isPackageClass) packages = ownerName :: packages
             else values = ownerName :: values
           }
-          new SchemaTypeName(new Namespace(packages, values), name, typeArgs(tpe).map(typeName))
+
+          val owner = Owner((packages.map(Owner.Package(_)) ::: values.map(Owner.Term(_))).toList)
+
+          val tArgs = typeArgs(tpe).map(typeId)
+
+          new TypeId(
+            owner,
+            name,
+            tArgs.zipWithIndex.map { case (arg, i) =>
+              TypeParam(arg.show, i, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty)
+            },
+            TypeDefKind.Class(),
+            Nil,
+            Nil
+          )
         }
 
-      typeNameCache.getOrElseUpdate(
+      typeIdCache.getOrElseUpdate(
         tpe,
         tpe match {
           case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-            var tpeName = calculateTypeName(compTpe)
-            if (tpeName.name.endsWith(".type")) tpeName = tpeName.copy(name = tpeName.name.stripSuffix(".type"))
-            tpeName
+            var tTypeId = calculateTypeId(compTpe)
+            if (tTypeId.name.endsWith(".type")) tTypeId = tTypeId.copy(name = tTypeId.name.stripSuffix(".type"))
+            tTypeId
           case _ =>
-            calculateTypeName(tpe)
+            calculateTypeId(tpe)
         }
       )
     }
 
-    def toTree(tpeName: SchemaTypeName[?]): Tree = {
-      val packages = tpeName.namespace.packages.toList
-      val values   = tpeName.namespace.values.toList
-      val name     = tpeName.name
-      val params   = tpeName.params.map(toTree).toList
-      q"new TypeName(new Namespace($packages, $values), $name, $params)"
+    def toTree(tId: TypeId[?]): Tree = {
+      val segments = tId.owner.segments.map {
+        case Owner.Package(n) => q"zio.blocks.typeid.Owner.Package($n)"
+        case Owner.Term(n)    => q"zio.blocks.typeid.Owner.Term($n)"
+        case Owner.Type(n)    => q"zio.blocks.typeid.Owner.Type($n)"
+        case Owner.Local(i)   => q"zio.blocks.typeid.Owner.Local($i)"
+      }
+
+      val ownerTree = q"zio.blocks.typeid.Owner(List(..$segments))"
+
+      val name = tId.name
+
+      val typeParams = tId.typeParams.map { tp =>
+        val kind = tp.kind match {
+          case zio.blocks.typeid.Kind.Type => q"zio.blocks.typeid.Kind.Type"
+          case _                           => q"zio.blocks.typeid.Kind.Type" // simplification for now
+        }
+        q"zio.blocks.typeid.TypeParam(${tp.name}, ${tp.index}, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty, $kind)"
+      }
+
+      q"new zio.blocks.typeid.TypeId($ownerTree, $name, List(..$typeParams), zio.blocks.typeid.TypeDefKind.Class(), Nil, Nil)"
     }
 
     def modifiers(tpe: Type): List[Tree] = {
@@ -382,11 +412,11 @@ private object SchemaCompanionVersionSpecific {
             if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
             else elementTpe
           val schema  = findImplicitOrDeriveSchema(elementTpe)
-          val tpeName = toTree(typeName(tpe))
+          val tpeName = toTree(typeId(tpe))
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
-                typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                typeId = $tpeName.copy(typeParams = List(zio.blocks.typeid.TypeParam($schema.reflect.typeId.name, 0, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty, zio.blocks.typeid.Kind.Type))),
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArrayConstructor {
                     def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -422,11 +452,11 @@ private object SchemaCompanionVersionSpecific {
             if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
             else elementTpe
           val schema  = findImplicitOrDeriveSchema(elementTpe)
-          val tpeName = toTree(typeName(tpe))
+          val tpeName = toTree(typeId(tpe))
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
-                typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                typeId = $tpeName.copy(typeParams = List(zio.blocks.typeid.TypeParam($schema.reflect.typeId.name, 0, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty, zio.blocks.typeid.Kind.Type))),
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArraySeqConstructor {
                     def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -502,16 +532,16 @@ private object SchemaCompanionVersionSpecific {
         deriveSchemaForNonAbstractScalaClass(tpe)
       } else if (isZioPreludeNewtype(tpe)) {
         val schema  = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
-        val tpeName = toTree(typeName(tpe))
-        q"new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[$tpe]]"
+        val tpeName = toTree(typeId(tpe))
+        q"new Schema($schema.reflect.typeId($tpeName).asInstanceOf[_root_.zio.blocks.schema.Reflect.Bound[$tpe]])"
       } else cannotDeriveSchema(tpe)
 
     def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree = {
-      val tpeName = toTree(typeName(tpe))
+      val tpeName = toTree(typeId(tpe))
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector.empty,
-              typeName = $tpeName,
+              typeId = $tpeName,
               recordBinding = new Binding.Record(
                 constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
                 deconstructor = new ConstantDeconstructor[$tpe]
@@ -523,11 +553,11 @@ private object SchemaCompanionVersionSpecific {
 
     def deriveSchemaForNonAbstractScalaClass(tpe: Type): Tree = {
       val classInfo = new ClassInfo(tpe)
-      val tpeName   = toTree(typeName(tpe))
+      val tpeName   = toTree(typeId(tpe))
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
-              typeName = $tpeName,
+              typeId = $tpeName,
               recordBinding = new Binding.Record(
                 constructor = new Constructor[$tpe] {
                   def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
@@ -550,7 +580,7 @@ private object SchemaCompanionVersionSpecific {
     def deriveSchemaForSealedTraitOrAbstractClass(tpe: Type): Tree = {
       val subtypes = directSubTypes(tpe)
       if (subtypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
-      val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
+      val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeId(sTpe)))
       val maxCommonPrefixLength = {
         val minFullTermName = fullTermNames.min
         val maxFullTermName = fullTermNames.max
@@ -583,11 +613,11 @@ private object SchemaCompanionVersionSpecific {
               }
             }"""
       }
-      val tpeName = toTree(typeName(tpe))
+      val tpeName = toTree(typeId(tpe))
       q"""new Schema(
             reflect = new Reflect.Variant[Binding, $tpe](
               cases = _root_.scala.Vector(..$cases),
-              typeName = $tpeName,
+              typeId = $tpeName,
               variantBinding = new Binding.Variant(
                 discriminator = new Discriminator[$tpe] {
                   def discriminate(a: $tpe): Int = a match {
@@ -601,20 +631,21 @@ private object SchemaCompanionVersionSpecific {
           )"""
     }
 
-    def toFullTermName(tpeName: SchemaTypeName[?]): Array[String] = {
-      val packages     = tpeName.namespace.packages
-      val values       = tpeName.namespace.values
-      val fullTermName = new Array[String](packages.size + values.size + 1)
+    def toFullTermName(tId: TypeId[?]): Array[String] = {
+      // Special handling for java.lang.String - normalize to scala.String
+      // to match original TypeName.string behavior for consistent discriminator names
+      if (tId == StandardTypes.string) {
+        return Array("scala", "String")
+      }
+
+      val segments     = tId.owner.segments.map(_.name)
+      val fullTermName = new Array[String](segments.size + 1)
       var idx          = 0
-      packages.foreach { p =>
+      segments.foreach { p =>
         fullTermName(idx) = p
         idx += 1
       }
-      values.foreach { p =>
-        fullTermName(idx) = p
-        idx += 1
-      }
-      fullTermName(idx) = tpeName.name
+      fullTermName(idx) = tId.name
       fullTermName
     }
 

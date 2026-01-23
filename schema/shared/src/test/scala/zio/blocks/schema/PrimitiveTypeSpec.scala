@@ -17,7 +17,7 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
         )
       },
       test("Validation is set to None") {
-        assert(PrimitiveType.Unit.validation)(equalTo(None))
+        assert(PrimitiveType.Unit.validation)(equalTo(Validation.None))
       }
     ),
     suite("PrimitiveType.Byte")(

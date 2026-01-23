@@ -3,7 +3,9 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
 import zio.blocks.schema.patch.{Patch, PatchMode}
+
 import java.util.concurrent.ConcurrentHashMap
+import scala.collection.immutable.ArraySeq
 
 /**
  * A `Schema` is a data type that contains reified information on the structure
@@ -90,7 +92,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
-      reflect.typeName,
+      reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(wrap, unwrap)
     )
@@ -99,7 +101,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
-      reflect.typeName,
+      reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
@@ -202,6 +204,9 @@ object Schema extends SchemaCompanionVersionSpecific {
     new Schema(Reflect.indexedSeq(element.reflect))
 
   implicit def seq[A](implicit element: Schema[A]): Schema[Seq[A]] = new Schema(Reflect.seq(element.reflect))
+
+  implicit def arraySeq[A](implicit element: Schema[A]): Schema[ArraySeq[A]] =
+    new Schema(Reflect.indexedSeq(element.reflect).asInstanceOf[Reflect.Sequence[Binding, A, ArraySeq]])
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
