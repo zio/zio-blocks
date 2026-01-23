@@ -40,7 +40,7 @@ val jsonCodec = Schema[Person].derive(JsonFormat.deriver)      // JSON serializa
 val avroCodec = Schema[Person].derive(AvroFormat.deriver)      // Avro serialization
 val toonCodec = Schema[Person].derive(ToonFormat.deriver)      // TOON serialization
 val protobuf  = Schema[Person].derive(ProtobufFormat.deriver)  // Protobuf serialization (not implemented yet)
-val thrift    = Schema[Person].derive(ThriftFormat.deriver)    // Thrift serialization (not implemented yet)
+val thrift = Schema[Person].derive(ThriftFormat.deriver) // Thrift serialization (ZIO Schema V2)
 // ...
 ```
 
@@ -55,7 +55,7 @@ Here are the key features that make ZIO Blocks stand out:
    - **Avro** – Apache Avro binary format
    - **TOON** – Compact, LLM-optimized format
    - **Protobuf** – Protocol Buffers
-   - **Thrift** – Apache Thrift
+   - **Thrift** – Apache Thrift (ZIO 2 & Schema V2 Support)
    - **BSON** – MongoDB's binary JSON format
    - **MessagePack** – Efficient binary serialization
 4. **Reflective Optics**: Combines traditional optics with embedded structural metadata that captures the actual structure of your data types. This enables type-safe introspection, writing DSLs, and dynamic customization of your data models.
@@ -75,6 +75,7 @@ Now you have access to the core ZIO Blocks schema library. You can also add addi
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-json" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "@VERSION@" 
 ```
 
 ## Example
