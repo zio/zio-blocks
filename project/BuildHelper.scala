@@ -103,6 +103,7 @@ object BuildHelper {
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
           "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
           "-Wconf:msg=unused import&src=.*/test/.*:s", // suppress unused imports in test files (needed for Scala 2/3 cross-compilation)
+          "-Wconf:msg=unused local definition&src=.*/test/.*:s", // suppress unused local definitions in test files (helper classes for schema derivation)
           "-Werror"
         )
       case _ =>
