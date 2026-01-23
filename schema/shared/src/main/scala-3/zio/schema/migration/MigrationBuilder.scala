@@ -85,6 +85,10 @@ class MigrationBuilder[A, B](
   inline def renameCase(inline path: A => Any, from: String, to: String): MigrationBuilder[A, B] =
     ${ MigrationMacros.renameCaseImpl[A, B]('this, 'path, 'from, 'to) }
 
+  /** Convenience overload for top-level enum rename */
+  inline def renameCase(from: String, to: String): MigrationBuilder[A, B] =
+    renameCase(x => x, from, to)
+
   inline def changeType[S](inline path: A => S, inline converter: SchemaExpr[S, ?]): MigrationBuilder[A, B] =
     ${ MigrationMacros.changeTypeImpl[A, B, S]('this, 'path, 'converter) }
 

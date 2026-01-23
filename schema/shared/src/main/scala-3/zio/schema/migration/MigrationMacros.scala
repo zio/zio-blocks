@@ -218,8 +218,26 @@ object MigrationMacros {
 
         // Select(qual, name) -> x.name
         case Select(qual, name) =>
-          val node = '{ Node.Field(${ Expr(name) }) }
-          loop(qual, node :: acc)
+          if (name == "asInstanceOf" || name == "$asInstanceOf$") {
+            loop(qual, acc)
+          } else {
+            val node = '{ Node.Field(${ Expr(name) }) }
+            loop(qual, node :: acc)
+          }
+
+
+
+        case TypeApply(fun, _) =>
+          fun match {
+            case Select(qual, name) if name == "asInstanceOf" || name == "$asInstanceOf$" =>
+              loop(qual, acc)
+            case _ =>
+              // Fallback: try to process the function itself?
+              // Usually TypeApply wraps a method that is then Applied.
+              // If we see TypeApply at top, it might be a method call without args (e.g. extension)?
+              // Or just recurse on fun?
+              loop(fun, acc)
+          }
 
         // General Apply handling
         case Apply(rawFun, args) =>
@@ -269,6 +287,26 @@ object MigrationMacros {
                 }
               case _ => report.errorAndAbort("'when' requires type param")
             }
+          } else if (name == "selectDynamic") {
+            // Handle structural type access: x.selectDynamic("field")
+            args match {
+              case List(Literal(StringConstant(fieldName))) =>
+                val node = '{ Node.Field(${ Expr(fieldName) }) }
+                methodQual match {
+                  case Some(q) => loop(q, node :: acc)
+                  case None    => report.errorAndAbort("'selectDynamic' unexpected structure")
+                }
+              case _ => report.errorAndAbort("'selectDynamic' expects a string literal")
+            }
+          } else if (name == "asInstanceOf" || name == "$asInstanceOf$") {
+             // Ignore casts
+             methodQual match {
+               case Some(q) => loop(q, acc)
+               case None => args match {
+                 case List(q) => loop(q, acc)
+                 case _ => report.errorAndAbort(s"Unsupported cast usage")
+               }
+             }
           } else {
             // Attempt to unwrap implicit conversions / wrappers
             args match {
@@ -315,6 +353,7 @@ object MigrationMacros {
     term match {
       case Inlined(_, _, body) => getLeaf(body)
       case Select(_, name)     => Expr(name)
+      case Apply(Select(_, "selectDynamic"), List(Literal(StringConstant(name)))) => Expr(name)
       case _                   => report.errorAndAbort("Selector must end in a field selection")
     }
   }
