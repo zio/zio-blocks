@@ -50,7 +50,7 @@ lazy val root = project
     schema.js,
     schema.native,
     `schema-avro`,
-    schemaThrift,
+    `schema-thrift`,
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-toon`.native,
@@ -174,7 +174,7 @@ lazy val `schema-avro` = project
     })
   )
 
-lazy val schemaThrift = project
+lazy val `schema-thrift` = project
   .in(file("schema-thrift"))
   .settings(stdSettings("zio-blocks-schema-thrift"))
   .dependsOn(schema.jvm, chunk.jvm)
