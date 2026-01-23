@@ -1,6 +1,6 @@
 package zio.blocks.schema.messagepack
 
-import org.msgpack.core.{MessageBufferPacker, MessagePack, MessageUnpacker}
+import org.msgpack.core.{MessagePack, MessagePacker, MessageUnpacker}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
@@ -39,9 +39,9 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
   def decodeValue(unpacker: MessageUnpacker): A
 
   /**
-   * Encodes a value of type `A` to a MessageBufferPacker.
+   * Encodes a value of type `A` to a MessagePacker.
    */
-  def encodeValue(value: A, packer: MessageBufferPacker): Unit
+  def encodeValue(value: A, packer: MessagePacker): Unit
 
   /**
    * Returns a default/null value for this type.

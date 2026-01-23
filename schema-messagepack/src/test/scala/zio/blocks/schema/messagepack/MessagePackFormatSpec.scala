@@ -4,7 +4,6 @@ import zio.blocks.schema._
 import zio.blocks.schema.messagepack.MessagePackTestUtils._
 import zio.test._
 
-import java.time._
 import java.util.{Currency, UUID}
 
 object MessagePackFormatSpec extends SchemaBaseSpec {

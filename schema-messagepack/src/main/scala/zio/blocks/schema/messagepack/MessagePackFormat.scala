@@ -1,10 +1,10 @@
 package zio.blocks.schema.messagepack
 
-import org.msgpack.core.{MessageBufferPacker, MessageFormat, MessagePack, MessageUnpacker}
+import org.msgpack.core.{MessagePacker, MessageUnpacker}
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema.codec.BinaryFormat
-import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
+import zio.blocks.schema.derive.{BindingInstance, Deriver}
 
 import java.nio.charset.StandardCharsets
 import java.time._
@@ -170,36 +170,62 @@ object MessagePackFormat
 
         private[this] def deriveRecordCodec[F[_, _], A](record: Reflect.Record[F, A]): MessagePackBinaryCodec[A] =
           if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
-            val binding      = record.recordBinding.asInstanceOf[Binding.Record[A]]
-            val fields       = record.fields
-            val fieldCount   = fields.size
+            val binding    = record.recordBinding.asInstanceOf[Binding.Record[A]]
+            val fields     = record.fields
+            val fieldCount = fields.size
             val fieldCodecs  = new Array[MessagePackBinaryCodec[Any]](fieldCount)
             val fieldNames   = new Array[String](fieldCount)
-            val fieldGetters = new Array[Any => Any](fieldCount)
+            val fieldOffsets = new Array[Long](fieldCount)
             // O(1) field lookup map for efficient decoding
             val fieldIndexMap = new java.util.HashMap[String, Integer](fieldCount)
+            var offset        = 0L
             var i             = 0
             while (i < fieldCount) {
               val field = fields(i)
-              fieldCodecs(i) = deriveCodec(field.reflectField).asInstanceOf[MessagePackBinaryCodec[Any]]
-              fieldNames(i) = field.label
-              fieldGetters(i) = binding.fields(i).get.asInstanceOf[Any => Any]
-              fieldIndexMap.put(field.label, i)
+              val codec = deriveCodec(field.value).asInstanceOf[MessagePackBinaryCodec[Any]]
+              fieldCodecs(i) = codec
+              fieldNames(i) = field.name
+              fieldOffsets(i) = offset
+              fieldIndexMap.put(field.name, i)
+              offset = RegisterOffset.add(codec.valueOffset, offset)
               i += 1
             }
+            val usedRegisters = binding.constructor.usedRegisters
 
             new MessagePackBinaryCodec[A]() {
               override def decodeValue(unpacker: MessageUnpacker): A = {
                 val mapSize = unpacker.unpackMapHeader()
-                val regs    = binding.registers()
+                val regs    = Registers(usedRegisters)
                 var j       = 0
                 while (j < mapSize) {
                   val key = unpacker.unpackString()
                   val idx = fieldIndexMap.get(key)
                   if (idx ne null) {
                     try {
-                      val value = fieldCodecs(idx).decodeValue(unpacker)
-                      binding.fields(idx).setAny(regs, value)
+                      val codec = fieldCodecs(idx)
+                      val off   = fieldOffsets(idx)
+                      (codec.valueType: @scala.annotation.switch) match {
+                        case MessagePackBinaryCodec.objectType =>
+                          regs.setObject(off, codec.decodeValue(unpacker).asInstanceOf[AnyRef])
+                        case MessagePackBinaryCodec.booleanType =>
+                          regs.setBoolean(off, codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].decodeValue(unpacker))
+                        case MessagePackBinaryCodec.byteType =>
+                          regs.setByte(off, codec.asInstanceOf[MessagePackBinaryCodec[Byte]].decodeValue(unpacker))
+                        case MessagePackBinaryCodec.charType =>
+                          regs.setChar(off, codec.asInstanceOf[MessagePackBinaryCodec[Char]].decodeValue(unpacker))
+                        case MessagePackBinaryCodec.shortType =>
+                          regs.setShort(off, codec.asInstanceOf[MessagePackBinaryCodec[Short]].decodeValue(unpacker))
+                        case MessagePackBinaryCodec.floatType =>
+                          regs.setFloat(off, codec.asInstanceOf[MessagePackBinaryCodec[Float]].decodeValue(unpacker))
+                        case MessagePackBinaryCodec.intType =>
+                          regs.setInt(off, codec.asInstanceOf[MessagePackBinaryCodec[Int]].decodeValue(unpacker))
+                        case MessagePackBinaryCodec.doubleType =>
+                          regs.setDouble(off, codec.asInstanceOf[MessagePackBinaryCodec[Double]].decodeValue(unpacker))
+                        case MessagePackBinaryCodec.longType =>
+                          regs.setLong(off, codec.asInstanceOf[MessagePackBinaryCodec[Long]].decodeValue(unpacker))
+                        case _ =>
+                          codec.asInstanceOf[MessagePackBinaryCodec[Unit]].decodeValue(unpacker)
+                      }
                     } catch {
                       case err if NonFatal(err) =>
                         decodeError(DynamicOptic.Node.Field(key), err)
@@ -210,16 +236,41 @@ object MessagePackFormat
                   }
                   j += 1
                 }
-                binding.construct(regs)
+                binding.constructor.construct(regs, 0)
               }
 
-              override def encodeValue(value: A, packer: MessageBufferPacker): Unit = {
+              override def encodeValue(value: A, packer: MessagePacker): Unit = {
                 packer.packMapHeader(fieldCount)
+                val regs = Registers(usedRegisters)
+                binding.deconstructor.deconstruct(regs, 0, value)
+                var offset = 0L
                 var i = 0
                 while (i < fieldCount) {
                   packer.packString(fieldNames(i))
-                  val fieldValue = fieldGetters(i)(value)
-                  fieldCodecs(i).encodeValue(fieldValue, packer)
+                  val codec = fieldCodecs(i)
+                  (codec.valueType: @scala.annotation.switch) match {
+                    case MessagePackBinaryCodec.objectType =>
+                      codec.encodeValue(regs.getObject(offset), packer)
+                    case MessagePackBinaryCodec.booleanType =>
+                      codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].encodeValue(regs.getBoolean(offset), packer)
+                    case MessagePackBinaryCodec.byteType =>
+                      codec.asInstanceOf[MessagePackBinaryCodec[Byte]].encodeValue(regs.getByte(offset), packer)
+                    case MessagePackBinaryCodec.charType =>
+                      codec.asInstanceOf[MessagePackBinaryCodec[Char]].encodeValue(regs.getChar(offset), packer)
+                    case MessagePackBinaryCodec.shortType =>
+                      codec.asInstanceOf[MessagePackBinaryCodec[Short]].encodeValue(regs.getShort(offset), packer)
+                    case MessagePackBinaryCodec.floatType =>
+                      codec.asInstanceOf[MessagePackBinaryCodec[Float]].encodeValue(regs.getFloat(offset), packer)
+                    case MessagePackBinaryCodec.intType =>
+                      codec.asInstanceOf[MessagePackBinaryCodec[Int]].encodeValue(regs.getInt(offset), packer)
+                    case MessagePackBinaryCodec.doubleType =>
+                      codec.asInstanceOf[MessagePackBinaryCodec[Double]].encodeValue(regs.getDouble(offset), packer)
+                    case MessagePackBinaryCodec.longType =>
+                      codec.asInstanceOf[MessagePackBinaryCodec[Long]].encodeValue(regs.getLong(offset), packer)
+                    case _ =>
+                      codec.asInstanceOf[MessagePackBinaryCodec[Unit]].encodeValue((), packer)
+                  }
+                  offset = RegisterOffset.add(codec.valueOffset, offset)
                   i += 1
                 }
               }
@@ -238,8 +289,8 @@ object MessagePackFormat
             var i          = 0
             while (i < caseCount) {
               val c = cases(i)
-              caseCodecs(i) = deriveCodec(c.reflectField).asInstanceOf[MessagePackBinaryCodec[Any]]
-              caseNames(i) = c.label
+              caseCodecs(i) = deriveCodec(c.value).asInstanceOf[MessagePackBinaryCodec[Any]]
+              caseNames(i) = c.name
               i += 1
             }
 
@@ -279,8 +330,8 @@ object MessagePackFormat
                 result
               }
 
-              override def encodeValue(value: A, packer: MessageBufferPacker): Unit = {
-                val idx = binding.discriminator(value)
+              override def encodeValue(value: A, packer: MessagePacker): Unit = {
+                val idx = binding.discriminator.discriminate(value)
                 packer.packMapHeader(2)
                 packer.packString("_type")
                 packer.packString(caseNames(idx))
@@ -302,23 +353,23 @@ object MessagePackFormat
             new MessagePackBinaryCodec[C[A]]() {
               override def decodeValue(unpacker: MessageUnpacker): C[A] = {
                 val size    = unpacker.unpackArrayHeader()
-                val builder = binding.newBuilder(size)
+                val builder = binding.constructor.newObjectBuilder[A](size)
                 var i       = 0
                 while (i < size) {
-                  try builder += elementCodec.decodeValue(unpacker)
+                  try binding.constructor.addObject(builder, elementCodec.decodeValue(unpacker))
                   catch {
                     case err if NonFatal(err) =>
-                      decodeError(DynamicOptic.Node.Index(i), err)
+                      decodeError(DynamicOptic.Node.AtIndex(i), err)
                   }
                   i += 1
                 }
-                builder.result()
+                binding.constructor.resultObject(builder)
               }
 
-              override def encodeValue(value: C[A], packer: MessageBufferPacker): Unit = {
-                val size = binding.size(value)
+              override def encodeValue(value: C[A], packer: MessagePacker): Unit = {
+                val size = binding.deconstructor.size(value)
                 packer.packArrayHeader(size)
-                val iterator = binding.iterator(value)
+                val iterator = binding.deconstructor.deconstruct(value)
                 while (iterator.hasNext) {
                   elementCodec.encodeValue(iterator.next(), packer)
                 }
@@ -339,35 +390,35 @@ object MessagePackFormat
             new MessagePackBinaryCodec[M[K, V]]() {
               override def decodeValue(unpacker: MessageUnpacker): M[K, V] = {
                 val size    = unpacker.unpackMapHeader()
-                val builder = binding.newBuilder(size)
+                val builder = binding.constructor.newObjectBuilder[K, V](size)
                 var i       = 0
                 while (i < size) {
                   val k =
                     try keyCodec.decodeValue(unpacker)
                     catch {
                       case err if NonFatal(err) =>
-                        decodeError(DynamicOptic.Node.MapKey, err)
+                        decodeError(DynamicOptic.Node.MapKeys, err)
                     }
                   val v =
                     try valueCodec.decodeValue(unpacker)
                     catch {
                       case err if NonFatal(err) =>
-                        decodeError(DynamicOptic.Node.MapValue, err)
+                        decodeError(DynamicOptic.Node.MapValues, err)
                     }
-                  builder += ((k, v))
+                  binding.constructor.addObject(builder, k, v)
                   i += 1
                 }
-                builder.result()
+                binding.constructor.resultObject(builder)
               }
 
-              override def encodeValue(value: M[K, V], packer: MessageBufferPacker): Unit = {
-                val size = binding.size(value)
+              override def encodeValue(value: M[K, V], packer: MessagePacker): Unit = {
+                val size = binding.deconstructor.size(value)
                 packer.packMapHeader(size)
-                val iterator = binding.iterator(value)
+                val iterator = binding.deconstructor.deconstruct(value)
                 while (iterator.hasNext) {
-                  val (k, v) = iterator.next()
-                  keyCodec.encodeValue(k, packer)
-                  valueCodec.encodeValue(v, packer)
+                  val kv = iterator.next()
+                  keyCodec.encodeValue(binding.deconstructor.getKey(kv), packer)
+                  valueCodec.encodeValue(binding.deconstructor.getValue(kv), packer)
                 }
               }
             }
@@ -407,7 +458,7 @@ object MessagePackFormat
                 }
               }
 
-              override def encodeValue(value: A, packer: MessageBufferPacker): Unit =
+              override def encodeValue(value: A, packer: MessagePacker): Unit =
                 wrappedCodec.encodeValue(binding.unwrap(value), packer)
             }
           } else {
@@ -428,7 +479,7 @@ object MessagePackFormat
               unpacker.unpackNil()
               ()
             }
-            override def encodeValue(value: Unit, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Unit, packer: MessagePacker): Unit =
               packer.packNil()
           }
 
@@ -436,7 +487,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Boolean](MessagePackBinaryCodec.booleanType) {
             override def decodeValue(unpacker: MessageUnpacker): Boolean =
               unpacker.unpackBoolean()
-            override def encodeValue(value: Boolean, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Boolean, packer: MessagePacker): Unit =
               packer.packBoolean(value)
           }
 
@@ -444,7 +495,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Byte](MessagePackBinaryCodec.byteType) {
             override def decodeValue(unpacker: MessageUnpacker): Byte =
               unpacker.unpackByte()
-            override def encodeValue(value: Byte, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Byte, packer: MessagePacker): Unit =
               packer.packByte(value)
           }
 
@@ -452,7 +503,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Short](MessagePackBinaryCodec.shortType) {
             override def decodeValue(unpacker: MessageUnpacker): Short =
               unpacker.unpackShort()
-            override def encodeValue(value: Short, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Short, packer: MessagePacker): Unit =
               packer.packShort(value)
           }
 
@@ -460,7 +511,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Int](MessagePackBinaryCodec.intType) {
             override def decodeValue(unpacker: MessageUnpacker): Int =
               unpacker.unpackInt()
-            override def encodeValue(value: Int, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Int, packer: MessagePacker): Unit =
               packer.packInt(value)
           }
 
@@ -468,7 +519,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Long](MessagePackBinaryCodec.longType) {
             override def decodeValue(unpacker: MessageUnpacker): Long =
               unpacker.unpackLong()
-            override def encodeValue(value: Long, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Long, packer: MessagePacker): Unit =
               packer.packLong(value)
           }
 
@@ -476,7 +527,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Float](MessagePackBinaryCodec.floatType) {
             override def decodeValue(unpacker: MessageUnpacker): Float =
               unpacker.unpackFloat()
-            override def encodeValue(value: Float, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Float, packer: MessagePacker): Unit =
               packer.packFloat(value)
           }
 
@@ -484,7 +535,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Double](MessagePackBinaryCodec.doubleType) {
             override def decodeValue(unpacker: MessageUnpacker): Double =
               unpacker.unpackDouble()
-            override def encodeValue(value: Double, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Double, packer: MessagePacker): Unit =
               packer.packDouble(value)
           }
 
@@ -495,7 +546,7 @@ object MessagePackFormat
               if (s.length == 1) s.charAt(0)
               else throw new MessagePackBinaryCodecError(Nil, s"Expected single char, got: $s")
             }
-            override def encodeValue(value: Char, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Char, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -503,7 +554,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[String]() {
             override def decodeValue(unpacker: MessageUnpacker): String =
               unpacker.unpackString()
-            override def encodeValue(value: String, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: String, packer: MessagePacker): Unit =
               packer.packString(value)
           }
 
@@ -511,7 +562,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[BigInt]() {
             override def decodeValue(unpacker: MessageUnpacker): BigInt =
               BigInt(unpacker.unpackString())
-            override def encodeValue(value: BigInt, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: BigInt, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -519,7 +570,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[BigDecimal]() {
             override def decodeValue(unpacker: MessageUnpacker): BigDecimal =
               BigDecimal(unpacker.unpackString())
-            override def encodeValue(value: BigDecimal, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: BigDecimal, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -527,7 +578,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[DayOfWeek]() {
             override def decodeValue(unpacker: MessageUnpacker): DayOfWeek =
               DayOfWeek.valueOf(unpacker.unpackString())
-            override def encodeValue(value: DayOfWeek, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: DayOfWeek, packer: MessagePacker): Unit =
               packer.packString(value.name)
           }
 
@@ -535,7 +586,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Duration]() {
             override def decodeValue(unpacker: MessageUnpacker): Duration =
               Duration.parse(unpacker.unpackString())
-            override def encodeValue(value: Duration, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Duration, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -543,7 +594,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Instant]() {
             override def decodeValue(unpacker: MessageUnpacker): Instant =
               Instant.parse(unpacker.unpackString())
-            override def encodeValue(value: Instant, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Instant, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -551,7 +602,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[LocalDate]() {
             override def decodeValue(unpacker: MessageUnpacker): LocalDate =
               LocalDate.parse(unpacker.unpackString())
-            override def encodeValue(value: LocalDate, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: LocalDate, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -559,7 +610,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[LocalDateTime]() {
             override def decodeValue(unpacker: MessageUnpacker): LocalDateTime =
               LocalDateTime.parse(unpacker.unpackString())
-            override def encodeValue(value: LocalDateTime, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: LocalDateTime, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -567,7 +618,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[LocalTime]() {
             override def decodeValue(unpacker: MessageUnpacker): LocalTime =
               LocalTime.parse(unpacker.unpackString())
-            override def encodeValue(value: LocalTime, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: LocalTime, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -575,7 +626,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Month]() {
             override def decodeValue(unpacker: MessageUnpacker): Month =
               Month.valueOf(unpacker.unpackString())
-            override def encodeValue(value: Month, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Month, packer: MessagePacker): Unit =
               packer.packString(value.name)
           }
 
@@ -583,7 +634,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[MonthDay]() {
             override def decodeValue(unpacker: MessageUnpacker): MonthDay =
               MonthDay.parse(unpacker.unpackString())
-            override def encodeValue(value: MonthDay, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: MonthDay, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -591,7 +642,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[OffsetDateTime]() {
             override def decodeValue(unpacker: MessageUnpacker): OffsetDateTime =
               OffsetDateTime.parse(unpacker.unpackString())
-            override def encodeValue(value: OffsetDateTime, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: OffsetDateTime, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -599,7 +650,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[OffsetTime]() {
             override def decodeValue(unpacker: MessageUnpacker): OffsetTime =
               OffsetTime.parse(unpacker.unpackString())
-            override def encodeValue(value: OffsetTime, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: OffsetTime, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -607,7 +658,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Period]() {
             override def decodeValue(unpacker: MessageUnpacker): Period =
               Period.parse(unpacker.unpackString())
-            override def encodeValue(value: Period, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Period, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -615,7 +666,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Year]() {
             override def decodeValue(unpacker: MessageUnpacker): Year =
               Year.of(unpacker.unpackInt())
-            override def encodeValue(value: Year, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Year, packer: MessagePacker): Unit =
               packer.packInt(value.getValue)
           }
 
@@ -623,7 +674,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[YearMonth]() {
             override def decodeValue(unpacker: MessageUnpacker): YearMonth =
               YearMonth.parse(unpacker.unpackString())
-            override def encodeValue(value: YearMonth, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: YearMonth, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -631,7 +682,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[ZoneId]() {
             override def decodeValue(unpacker: MessageUnpacker): ZoneId =
               ZoneId.of(unpacker.unpackString())
-            override def encodeValue(value: ZoneId, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: ZoneId, packer: MessagePacker): Unit =
               packer.packString(value.getId)
           }
 
@@ -639,7 +690,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[ZoneOffset]() {
             override def decodeValue(unpacker: MessageUnpacker): ZoneOffset =
               ZoneOffset.of(unpacker.unpackString())
-            override def encodeValue(value: ZoneOffset, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: ZoneOffset, packer: MessagePacker): Unit =
               packer.packString(value.getId)
           }
 
@@ -647,7 +698,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[ZonedDateTime]() {
             override def decodeValue(unpacker: MessageUnpacker): ZonedDateTime =
               ZonedDateTime.parse(unpacker.unpackString())
-            override def encodeValue(value: ZonedDateTime, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: ZonedDateTime, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -655,7 +706,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[Currency]() {
             override def decodeValue(unpacker: MessageUnpacker): Currency =
               Currency.getInstance(unpacker.unpackString())
-            override def encodeValue(value: Currency, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: Currency, packer: MessagePacker): Unit =
               packer.packString(value.getCurrencyCode)
           }
 
@@ -663,7 +714,7 @@ object MessagePackFormat
           new MessagePackBinaryCodec[UUID]() {
             override def decodeValue(unpacker: MessageUnpacker): UUID =
               UUID.fromString(unpacker.unpackString())
-            override def encodeValue(value: UUID, packer: MessageBufferPacker): Unit =
+            override def encodeValue(value: UUID, packer: MessagePacker): Unit =
               packer.packString(value.toString)
           }
 
@@ -720,7 +771,7 @@ object MessagePackFormat
               }
             }
 
-            override def encodeValue(value: DynamicValue, packer: MessageBufferPacker): Unit = value match {
+            override def encodeValue(value: DynamicValue, packer: MessagePacker): Unit = value match {
               case DynamicValue.Primitive(p)   => encodePrimitive(p, packer)
               case DynamicValue.Record(fields) =>
                 packer.packMapHeader(fields.size)
@@ -745,7 +796,7 @@ object MessagePackFormat
                 }
             }
 
-            private def encodePrimitive(p: PrimitiveValue, packer: MessageBufferPacker): Unit = p match {
+            private def encodePrimitive(p: PrimitiveValue, packer: MessagePacker): Unit = p match {
               case _: PrimitiveValue.Unit.type      => packer.packNil()
               case v: PrimitiveValue.Boolean        => packer.packBoolean(v.value)
               case v: PrimitiveValue.Byte           => packer.packByte(v.value)
