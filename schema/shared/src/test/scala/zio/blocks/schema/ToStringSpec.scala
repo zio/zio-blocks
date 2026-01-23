@@ -85,34 +85,34 @@ object ToStringSpec extends SchemaBaseSpec {
       assert(DynamicOptic.root.field("address").field("street").toString)(equalTo(".address.street"))
     },
     test("renders case/variant selection") {
-      assert(DynamicOptic.root.caseOf("Some").toString)(equalTo(".when[Some]")) &&
-      assert(DynamicOptic.root.caseOf("X").field("y").toString)(equalTo(".when[X].y"))
+      assert(DynamicOptic.root.caseOf("Some").toString)(equalTo("<Some>")) &&
+      assert(DynamicOptic.root.caseOf("X").field("y").toString)(equalTo("<X>.y"))
     },
     test("renders index access") {
-      assert(DynamicOptic.root.at(0).toString)(equalTo(".at(0)")) &&
-      assert(DynamicOptic.root.at(0).at(1).toString)(equalTo(".at(0).at(1)"))
+      assert(DynamicOptic.root.at(0).toString)(equalTo("[0]")) &&
+      assert(DynamicOptic.root.at(0).at(1).toString)(equalTo("[0][1]"))
     },
     test("renders multiple indices") {
-      assert(DynamicOptic.root.atIndices(0, 1, 2).toString)(equalTo(".atIndices(<indices>)"))
+      assert(DynamicOptic.root.atIndices(0, 1, 2).toString)(equalTo("[0,1,2]"))
     },
     test("renders map key access") {
-      assert(DynamicOptic.root.atKey("host").toString)(equalTo(".atKey(<key>)")) &&
-      assert(DynamicOptic.root.atKeys("x", "y", "z").toString)(equalTo(".atKeys(<keys>)"))
+      assert(DynamicOptic.root.atKey("host").toString)(equalTo("{\"host\"}")) &&
+      assert(DynamicOptic.root.atKeys("x", "y", "z").toString)(equalTo("{\"x\", \"y\", \"z\"}"))
     },
     test("renders collection traversals") {
-      assert(DynamicOptic.elements.toString)(equalTo(".each")) &&
-      assert(DynamicOptic.mapKeys.toString)(equalTo(".eachKey")) &&
-      assert(DynamicOptic.mapValues.toString)(equalTo(".eachValue"))
+      assert(DynamicOptic.elements.toString)(equalTo("[*]")) &&
+      assert(DynamicOptic.mapKeys.toString)(equalTo("{*:}")) &&
+      assert(DynamicOptic.mapValues.toString)(equalTo("{*}"))
     },
     test("renders wrapper unwrapping") {
-      assert(DynamicOptic.wrapped.toString)(equalTo(".wrapped"))
+      assert(DynamicOptic.wrapped.toString)(equalTo(".~"))
     },
     test("renders complex composed paths") {
       assert(DynamicOptic.root.field("users").elements.field("email").toString)(
-        equalTo(".users.each.email")
+        equalTo(".users[*].email")
       ) &&
       assert(DynamicOptic.root.caseOf("Success").field("data").toString)(
-        equalTo(".when[Success].data")
+        equalTo("<Success>.data")
       )
     }
   )
@@ -139,9 +139,8 @@ object ToStringSpec extends SchemaBaseSpec {
     test("renders typed primitives with metadata") {
       val instant = java.time.Instant.ofEpochMilli(1705312800000L)
       val instantValue = DynamicValue.Primitive(PrimitiveValue.Instant(instant))
-      assert(instantValue.toString)(containsString("@ {type: \"instant\"}")) &&
-
       val bigIntValue = DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(12345)))
+      assert(instantValue.toString)(containsString("@ {type: \"instant\"}")) &&
       assert(bigIntValue.toString)(equalTo("12345 @ {type: \"bigint\"}"))
     },
     test("renders records with unquoted keys") {
@@ -157,11 +156,10 @@ object ToStringSpec extends SchemaBaseSpec {
     },
     test("renders variants with tag metadata") {
       val noneVariant = DynamicValue.Variant("None", DynamicValue.Record(Vector.empty))
-      assert(noneVariant.toString)(equalTo("{  } @ {tag: \"None\"}")) &&
-
       val someVariant = DynamicValue.Variant("Some", DynamicValue.Record(Vector(
         "value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
       )))
+      assert(noneVariant.toString)(equalTo("{  } @ {tag: \"None\"}")) &&
       assert(someVariant.toString)(equalTo("{ value: 42 } @ {tag: \"Some\"}"))
     },
     test("renders sequences") {
@@ -236,9 +234,8 @@ object ToStringSpec extends SchemaBaseSpec {
   val reflectSpec: Spec[TestEnvironment, Any] = suite("Reflect toString (SDL)")(
     test("renders primitive types") {
       val intReflect = Reflect.int[Binding]
-      assert(intReflect.toString)(equalTo("Int")) &&
-
       val stringReflect = Reflect.string[Binding]
+      assert(intReflect.toString)(equalTo("Int")) &&
       assert(stringReflect.toString)(equalTo("String"))
     },
     test("renders simple records") {
@@ -257,7 +254,7 @@ object ToStringSpec extends SchemaBaseSpec {
     },
     test("renders variants with cases") {
       val reflect = Schema[Status].reflect
-      assert(reflect.toString)(containsString("variant Status")) &&
+      assert(reflect.toString)(containsString("variant zio.blocks.schema.ToStringSpec.Status")) &&
       assert(reflect.toString)(containsString("Active")) &&
       assert(reflect.toString)(containsString("Inactive"))
     },
@@ -303,56 +300,68 @@ object ToStringSpec extends SchemaBaseSpec {
     },
     test("renders set operation") {
       val patch = DynamicPatch(
-        DynamicOptic.root.field("name") -> DynamicPatch.Operation.Set(
-          DynamicValue.Primitive(PrimitiveValue.String("John"))
-        )
+        DynamicOptic.root.field("name"),
+        DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("John")))
       )
       assert(patch.toString)(containsString(".name ="))
     },
-    test("renders numeric delta") {
+    test("renders primitive delta") {
       val patch = DynamicPatch(
-        DynamicOptic.root.field("age") -> DynamicPatch.Operation.NumericDelta(5L)
+        DynamicOptic.root.field("age"),
+        DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(5L))
       )
       assert(patch.toString)(containsString(".age"))
     },
     test("renders sequence insert") {
       val patch = DynamicPatch(
-        DynamicOptic.root.field("items") -> DynamicPatch.Operation.SequenceInsert(0,
-          DynamicValue.Primitive(PrimitiveValue.String("new item"))
-        )
+        DynamicOptic.root.field("items"),
+        DynamicPatch.Operation.SequenceEdit(Vector(
+          DynamicPatch.SeqOp.Insert(0, Vector(DynamicValue.Primitive(PrimitiveValue.String("new item"))))
+        ))
       )
       assert(patch.toString)(containsString(".items"))
     },
     test("renders sequence delete") {
       val patch = DynamicPatch(
-        DynamicOptic.root.field("items") -> DynamicPatch.Operation.SequenceDelete(0)
+        DynamicOptic.root.field("items"),
+        DynamicPatch.Operation.SequenceEdit(Vector(
+          DynamicPatch.SeqOp.Delete(0, 1)
+        ))
       )
       assert(patch.toString)(containsString(".items"))
     },
-    test("renders map insert") {
+    test("renders map add") {
       val patch = DynamicPatch(
-        DynamicOptic.root.field("config") -> DynamicPatch.Operation.MapInsert(
-          DynamicValue.Primitive(PrimitiveValue.String("key")),
-          DynamicValue.Primitive(PrimitiveValue.String("value"))
-        )
+        DynamicOptic.root.field("config"),
+        DynamicPatch.Operation.MapEdit(Vector(
+          DynamicPatch.MapOp.Add(
+            DynamicValue.Primitive(PrimitiveValue.String("key")),
+            DynamicValue.Primitive(PrimitiveValue.String("value"))
+          )
+        ))
       )
       assert(patch.toString)(containsString(".config"))
     },
-    test("renders map delete") {
+    test("renders map remove") {
       val patch = DynamicPatch(
-        DynamicOptic.root.field("config") -> DynamicPatch.Operation.MapDelete(
-          DynamicValue.Primitive(PrimitiveValue.String("oldKey"))
-        )
+        DynamicOptic.root.field("config"),
+        DynamicPatch.Operation.MapEdit(Vector(
+          DynamicPatch.MapOp.Remove(DynamicValue.Primitive(PrimitiveValue.String("oldKey")))
+        ))
       )
       assert(patch.toString)(containsString(".config"))
     },
     test("renders multi-operation patch") {
-      val patch = DynamicPatch(
-        DynamicOptic.root.field("name") -> DynamicPatch.Operation.Set(
-          DynamicValue.Primitive(PrimitiveValue.String("John"))
+      val patch = DynamicPatch(Vector(
+        DynamicPatch.DynamicPatchOp(
+          DynamicOptic.root.field("name"),
+          DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("John")))
         ),
-        DynamicOptic.root.field("age") -> DynamicPatch.Operation.NumericDelta(1L)
-      )
+        DynamicPatch.DynamicPatchOp(
+          DynamicOptic.root.field("age"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
+        )
+      ))
       assert(patch.toString)(containsString("DynamicPatch")) &&
       assert(patch.toString)(containsString(".name")) &&
       assert(patch.toString)(containsString(".age"))

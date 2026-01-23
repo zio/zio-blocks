@@ -938,7 +938,7 @@ object DynamicPatch {
     }
   }
 
-  private def appendOperation(sb: StringBuilder, op: Operation, level: Int): Unit = {
+  private def appendOperation(sb: StringBuilder, op: Operation, @scala.annotation.unused level: Int): Unit = {
     op match {
       case Operation.Set(value) =>
         sb.append(DynamicValue.toEJSON(value)).append('\n')
