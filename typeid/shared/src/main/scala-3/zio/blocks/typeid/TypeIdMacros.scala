@@ -481,9 +481,11 @@ object TypeIdMacros {
     }
 
   private def buildTypeRefRepr(using Quotes)(tref: quotes.reflect.TypeRef): Expr[zio.blocks.typeid.TypeRepr] = {
+    import quotes.reflect.*
 
-    val sym  = tref.typeSymbol
-    val name = sym.name
+    val sym     = tref.typeSymbol
+    val rawName = sym.name
+    val name    = if (sym.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
 
     // Check for common predefined types
     val typeIdExpr = name match {
@@ -507,7 +509,6 @@ object TypeIdMacros {
       case "Nothing" => return '{ zio.blocks.typeid.TypeRepr.NothingType }
       case "Null"    => return '{ zio.blocks.typeid.TypeRepr.NullType }
       case _         =>
-        // Create a nominal type reference
         val ownerExpr = buildOwner(sym.owner)
         '{ TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil) }
     }
