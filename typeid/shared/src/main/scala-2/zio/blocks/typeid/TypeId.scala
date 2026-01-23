@@ -42,7 +42,7 @@ sealed trait TypeId[A] {
 
   final def isClass: Boolean = defKind.isInstanceOf[TypeDefKind.Class]
   final def isTrait: Boolean = defKind.isInstanceOf[TypeDefKind.Trait]
-  final def isObject: Boolean = defKind == TypeDefKind.Object
+  final def isObject: Boolean = defKind.isInstanceOf[TypeDefKind.Object]
   final def isEnum: Boolean = defKind.isInstanceOf[TypeDefKind.Enum]
   final def isAlias: Boolean = defKind == TypeDefKind.TypeAlias
   final def isOpaque: Boolean = defKind.isInstanceOf[TypeDefKind.OpaqueType]

@@ -25,7 +25,7 @@ object TypeIdMacros {
 
     // Check if this is a type alias by pattern matching on TypeRef
     tpe match {
-      case TypeRef(pre, sym, args) =>
+      case TypeRef(_, sym, args) =>
         if (sym.isType && sym.asType.isAliasType && isUserDefinedAlias(c)(sym)) {
           // This is a user-defined type alias - derive it directly
           deriveNew[A](c)
@@ -69,8 +69,6 @@ object TypeIdMacros {
   }
 
   private def isUserDefinedAlias(c: blackbox.Context)(sym: c.Symbol): Boolean = {
-    import c.universe._
-
     // Built-in aliases are in scala.Predef or scala package object
     val ownerFullName = sym.owner.fullName
     val isBuiltIn     = ownerFullName.contains("scala.Predef") ||
@@ -86,7 +84,7 @@ object TypeIdMacros {
 
     // Check if this is a type alias using proper TypeRef pattern matching
     tpe match {
-      case TypeRef(pre, sym, args) if sym.isType && sym.asType.isAliasType =>
+      case TypeRef(_, sym, _) if sym.isType && sym.asType.isAliasType =>
         // This is a type alias - extract alias information
         val aliasName      = sym.name.decodedName.toString
         val ownerExpr      = buildOwner(c)(sym.owner)
@@ -225,7 +223,7 @@ object TypeIdMacros {
     } else if (sym.isType && sym.asType.isAliasType) {
       // Type alias
       q"_root_.zio.blocks.typeid.TypeDefKind.TypeAlias"
-    } else if (sym.isType && sym.asType.isAbstractType) {
+    } else if (sym.isType && sym.asType.isAbstract) {
       // Abstract type member
       q"_root_.zio.blocks.typeid.TypeDefKind.AbstractType"
     } else if (sym.isClass) {

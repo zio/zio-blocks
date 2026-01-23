@@ -433,7 +433,8 @@ private object SchemaCompanionVersionSpecific {
           val elementTpe = typeArgs(tpe).head
           val copyOfTpe  =
             if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
-            else elementTpeval schema     = findImplicitOrDeriveSchema(elementTpe)
+            else elementTpe
+          val schema     = findImplicitOrDeriveSchema(elementTpe)
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
@@ -471,7 +472,8 @@ private object SchemaCompanionVersionSpecific {
           val elementTpe = typeArgs(tpe).head
           val copyOfTpe  =
             if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
-            else elementTpeval schema     = findImplicitOrDeriveSchema(elementTpe)
+            else elementTpe
+          val schema     = findImplicitOrDeriveSchema(elementTpe)
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,

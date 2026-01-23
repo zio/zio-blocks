@@ -9,7 +9,7 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.SeqDeconstructor.SpecializedIndexed
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
-import zio.blocks.typeid.{Owner, TypeId}
+import zio.blocks.typeid.Owner
 import scala.annotation.{switch, tailrec}
 import scala.util.control.NonFatal
 
