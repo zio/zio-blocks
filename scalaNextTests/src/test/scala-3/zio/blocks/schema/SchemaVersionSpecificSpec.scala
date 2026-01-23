@@ -1,10 +1,21 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.binding._
-import zio.test.Assertion._
-import zio.test._
+import zio.blocks.schema.binding.*
+import zio.blocks.typeid.{Owner, TypeBounds, TypeId, TypeRepr}
+import zio.test.*
+import zio.test.Assertion.*
 
 object SchemaVersionSpecificSpec extends SchemaBaseSpec {
+
+  private def expectedNamedTupleTypeId[A]: TypeId[A] =
+    TypeId.opaque[A](
+      "NamedTuple",
+      Owner(List(Owner.Package("scala"), Owner.Term("NamedTuple"))),
+      Nil,
+      TypeRepr.Ref(TypeId.string),
+      TypeBounds.Unbounded
+    )
+
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
     suite("Reflect.Record")(
       test("derives schema for named tuples") {
@@ -20,33 +31,31 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
 
         val record = NamedTuple4.schema.reflect.asRecord
         val value  = (b = 1: Byte, sh = 2: Short, i = 3, l = 4L)
-        assert(record.map(_.constructor.usedRegisters))(
-          isSome(equalTo(RegisterOffset(bytes = 1, shorts = 1, ints = 1, longs = 1)))
+        assertTrue(
+          record.map(_.constructor.usedRegisters).get == RegisterOffset(bytes = 1, shorts = 1, ints = 1, longs = 1),
+          NamedTuple4.b.get(value) == (1: Byte),
+          NamedTuple4.sh.get(value) == (2: Short),
+          NamedTuple4.i.get(value) == 3,
+          NamedTuple4.l.get(value) == 4L,
+          NamedTuple4.b.replace(value, 5: Byte) == (b = 5: Byte, sh = 2: Short, i = 3, l = 4L),
+          NamedTuple4.sh.replace(value, 5: Short) == (b = 1: Byte, sh = 5: Short, i = 3, l = 4L),
+          NamedTuple4.i.replace(value, 5) == (b = 1: Byte, sh = 2: Short, i = 5, l = 4L),
+          NamedTuple4.l.replace(value, 5L) == (b = 1: Byte, sh = 2: Short, i = 3, l = 5L)
         ) &&
-        assert(NamedTuple4.b.get(value))(equalTo(1: Byte)) &&
-        assert(NamedTuple4.sh.get(value))(equalTo(2: Short)) &&
-        assert(NamedTuple4.i.get(value))(equalTo(3)) &&
-        assert(NamedTuple4.l.get(value))(equalTo(4L)) &&
-        assert(NamedTuple4.b.replace(value, 5: Byte))(equalTo((b = 5: Byte, sh = 2: Short, i = 3, l = 4L))) &&
-        assert(NamedTuple4.sh.replace(value, 5: Short))(equalTo((b = 1: Byte, sh = 5: Short, i = 3, l = 4L))) &&
-        assert(NamedTuple4.i.replace(value, 5))(equalTo((b = 1: Byte, sh = 2: Short, i = 5, l = 4L))) &&
-        assert(NamedTuple4.l.replace(value, 5L))(equalTo((b = 1: Byte, sh = 2: Short, i = 3, l = 5L))) &&
         assert(NamedTuple4.schema.fromDynamicValue(NamedTuple4.schema.toDynamicValue(value)))(
           isRight(equalTo(value))
         ) &&
-        assert(NamedTuple4.schema)(
-          equalTo(
-            new Schema[NamedTuple4](
-              reflect = Reflect.Record[Binding, NamedTuple4](
-                fields = Vector(
-                  Schema[Byte].reflect.asTerm("b"),
-                  Schema[Short].reflect.asTerm("sh"),
-                  Schema[Int].reflect.asTerm("i"),
-                  Schema[Long].reflect.asTerm("l")
-                ),
-                typeId = NamedTuple4.schema.reflect.typeId,
-                recordBinding = null
-              )
+        assertTrue(
+          NamedTuple4.schema == new Schema[NamedTuple4](
+            reflect = Reflect.Record[Binding, NamedTuple4](
+              fields = Vector(
+                Schema[Byte].reflect.asTerm("b"),
+                Schema[Short].reflect.asTerm("sh"),
+                Schema[Int].reflect.asTerm("i"),
+                Schema[Long].reflect.asTerm("l")
+              ),
+              typeId = expectedNamedTupleTypeId[NamedTuple4],
+              recordBinding = null
             )
           )
         )
@@ -88,70 +97,56 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val schema13: Schema[NamedTuple.From[Product]]                                      = Schema.derived
         val schema14: Schema[NamedTuple.Empty]                                              = Schema.derived
         val schema15: Schema[NamedTuple.Drop[(l: Long, i: Int, s: String), 3]]              = Schema.derived
-        assert(schema1)(
-          equalTo(
-            new Schema[(i: Int, s: String)](
-              reflect = Reflect.Record[Binding, (i: Int, s: String)](
-                fields = Vector(
-                  Schema[Int].reflect.asTerm("i"),
-                  Schema[String].reflect.asTerm("s")
-                ),
-                typeId = schema1.reflect.typeId,
-                recordBinding = null
-              )
+        assertTrue(
+          schema1 == new Schema[(i: Int, s: String)](
+            reflect = Reflect.Record[Binding, (i: Int, s: String)](
+              fields = Vector(
+                Schema[Int].reflect.asTerm("i"),
+                Schema[String].reflect.asTerm("s")
+              ),
+              typeId = expectedNamedTupleTypeId[(i: Int, s: String)],
+              recordBinding = null
             )
-          )
-        ) &&
-        assert(schema1)(equalTo(schema2)) &&
-        assert(schema1)(equalTo(schema3)) &&
-        assert(schema1)(equalTo(schema4)) &&
-        assert(schema1)(equalTo(schema5)) &&
-        assert(schema1)(equalTo(schema6)) &&
-        assert(schema1)(equalTo(schema7)) &&
-        assert(schema1)(equalTo(schema8)) &&
-        assert(schema1)(equalTo(schema9)) &&
-        assert(schema1)(equalTo(schema10)) &&
-        assert(schema1)(equalTo(schema13)) &&
-        assert(schema11)(
-          equalTo(
-            new Schema[(i: (Int, Long), s: (String, String))](
-              reflect = Reflect.Record[Binding, (i: (Int, Long), s: (String, String))](
-                fields = Vector(
-                  Schema.derived[(Int, Long)].reflect.asTerm("i"),
-                  Schema.derived[(String, String)].reflect.asTerm("s")
-                ),
-                typeId = schema11.reflect.typeId,
-                recordBinding = null
-              )
+          ),
+          schema1 == schema2,
+          schema1 == schema3,
+          schema1 == schema4,
+          schema1 == schema5,
+          schema1 == schema6,
+          schema1 == schema7,
+          schema1 == schema8,
+          schema1 == schema9,
+          schema1 == schema10,
+          schema1 == schema13,
+          schema11 == new Schema[(i: (Int, Long), s: (String, String))](
+            reflect = Reflect.Record[Binding, (i: (Int, Long), s: (String, String))](
+              fields = Vector(
+                Schema.derived[(Int, Long)].reflect.asTerm("i"),
+                Schema.derived[(String, String)].reflect.asTerm("s")
+              ),
+              typeId = expectedNamedTupleTypeId[(i: (Int, Long), s: (String, String))],
+              recordBinding = null
             )
-          )
-        ) &&
-        assert(schema12)(
-          equalTo(
-            new Schema[(i: Option[Int], s: Option[String])](
-              reflect = Reflect.Record[Binding, (i: Option[Int], s: Option[String])](
-                fields = Vector(
-                  Schema[Option[Int]].reflect.asTerm("i"),
-                  Schema[Option[String]].reflect.asTerm("s")
-                ),
-                typeId = schema12.reflect.typeId,
-                recordBinding = null
-              )
+          ),
+          schema12 == new Schema[(i: Option[Int], s: Option[String])](
+            reflect = Reflect.Record[Binding, (i: Option[Int], s: Option[String])](
+              fields = Vector(
+                Schema[Option[Int]].reflect.asTerm("i"),
+                Schema[Option[String]].reflect.asTerm("s")
+              ),
+              typeId = expectedNamedTupleTypeId[(i: Option[Int], s: Option[String])],
+              recordBinding = null
             )
-          )
-        ) &&
-        assert(schema14)(
-          equalTo(
-            new Schema[NamedTuple.Empty](
-              reflect = Reflect.Record[Binding, NamedTuple.Empty](
-                fields = Vector(),
-                typeId = schema14.reflect.typeId,
-                recordBinding = null
-              )
+          ),
+          schema14 == new Schema[NamedTuple.Empty](
+            reflect = Reflect.Record[Binding, NamedTuple.Empty](
+              fields = Vector(),
+              typeId = expectedNamedTupleTypeId[NamedTuple.Empty],
+              recordBinding = null
             )
-          )
+          ),
+          schema15 == schema14
         ) &&
-        assert(schema15)(equalTo(schema14)) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value4)))(isRight(equalTo(value1))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
@@ -184,21 +179,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
 
         val schema1: Schema[Tuple.Reverse[(String, Int)]]              = Schema.derived
         val schema2: Schema[NamedTuple.DropNames[(i: Int, s: String)]] = Schema.derived
-        assert(schema1)(
-          equalTo(
-            new Schema[(Int, String)](
-              reflect = Reflect.Record[Binding, (Int, String)](
-                fields = Vector(
-                  Schema[Int].reflect.asTerm("_1"),
-                  Schema[String].reflect.asTerm("_2")
-                ),
-                typeId = schema1.reflect.typeId,
-                recordBinding = null
-              )
-            )
-          )
+        val record1                                                    = schema1.reflect.asRecord
+        assertTrue(
+          record1.isDefined,
+          record1.get.fields.map(_.name) == Vector("_1", "_2"),
+          schema1.reflect.typeId.name == "Tuple2",
+          schema1.reflect.typeId.owner == Owner.fromPackagePath("scala"),
+          schema1 == schema2
         ) &&
-        assert(schema1)(equalTo(schema2)) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value2)))(isRight(equalTo(value1))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
@@ -215,25 +203,25 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
 
         val record = NamedTupleOfIntAndString.schema.reflect.asRecord
         val value  = (a = 1, b = "VVV")
-        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 1, objects = 1)))) &&
-        assert(NamedTupleOfIntAndString.a.get(value))(equalTo(1)) &&
-        assert(NamedTupleOfIntAndString.b.get(value))(equalTo("VVV")) &&
-        assert(NamedTupleOfIntAndString.a.replace(value, 2))(equalTo((a = 2, b = "VVV"))) &&
-        assert(NamedTupleOfIntAndString.b.replace(value, "WWW"))(equalTo((a = 1, b = "WWW"))) &&
+        assertTrue(
+          record.map(_.constructor.usedRegisters).get == RegisterOffset(ints = 1, objects = 1),
+          NamedTupleOfIntAndString.a.get(value) == 1,
+          NamedTupleOfIntAndString.b.get(value) == "VVV",
+          NamedTupleOfIntAndString.a.replace(value, 2) == (a = 2, b = "VVV"),
+          NamedTupleOfIntAndString.b.replace(value, "WWW") == (a = 1, b = "WWW")
+        ) &&
         assert(NamedTupleOfIntAndString.schema.fromDynamicValue(NamedTupleOfIntAndString.schema.toDynamicValue(value)))(
           isRight(equalTo(value))
         ) &&
-        assert(NamedTupleOfIntAndString.schema)(
-          equalTo(
-            new Schema[GenericNamedTuple2[Int, String]](
-              reflect = Reflect.Record[Binding, GenericNamedTuple2[Int, String]](
-                fields = Vector(
-                  Schema[Int].reflect.asTerm("a"),
-                  Schema[String].reflect.asTerm("b")
-                ),
-                typeId = NamedTupleOfIntAndString.schema.reflect.typeId,
-                recordBinding = null
-              )
+        assertTrue(
+          NamedTupleOfIntAndString.schema == new Schema[GenericNamedTuple2[Int, String]](
+            reflect = Reflect.Record[Binding, GenericNamedTuple2[Int, String]](
+              fields = Vector(
+                Schema[Int].reflect.asTerm("a"),
+                Schema[String].reflect.asTerm("b")
+              ),
+              typeId = expectedNamedTupleTypeId[GenericNamedTuple2[Int, String]],
+              recordBinding = null
             )
           )
         )
@@ -249,25 +237,25 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
 
         val record = NamedTupleOfIntAndStringLists.schema.reflect.asRecord
         val value  = (a = List(1, 2, 3), b = Set("VVV"))
-        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
-        assert(NamedTupleOfIntAndStringLists.a.fold(value)(0, _ + _))(equalTo(6)) &&
-        assert(NamedTupleOfIntAndStringLists.b.fold(value)("", _ + _))(equalTo("VVV")) &&
+        assertTrue(
+          record.map(_.constructor.usedRegisters).get == RegisterOffset(objects = 2),
+          NamedTupleOfIntAndStringLists.a.fold(value)(0, _ + _) == 6,
+          NamedTupleOfIntAndStringLists.b.fold(value)("", _ + _) == "VVV"
+        ) &&
         assert(
           NamedTupleOfIntAndStringLists.schema.fromDynamicValue(
             NamedTupleOfIntAndStringLists.schema.toDynamicValue(value)
           )
         )(isRight(equalTo(value))) &&
-        assert(NamedTupleOfIntAndStringLists.schema)(
-          equalTo(
-            new Schema[HKNamedTuple2[List, Set]](
-              reflect = Reflect.Record[Binding, HKNamedTuple2[List, Set]](
-                fields = Vector(
-                  Schema[List[Int]].reflect.asTerm("a"),
-                  Schema[Set[String]].reflect.asTerm("b")
-                ),
-                typeId = NamedTupleOfIntAndStringLists.schema.reflect.typeId,
-                recordBinding = null
-              )
+        assertTrue(
+          NamedTupleOfIntAndStringLists.schema == new Schema[HKNamedTuple2[List, Set]](
+            reflect = Reflect.Record[Binding, HKNamedTuple2[List, Set]](
+              fields = Vector(
+                Schema[List[Int]].reflect.asTerm("a"),
+                Schema[Set[String]].reflect.asTerm("b")
+              ),
+              typeId = expectedNamedTupleTypeId[HKNamedTuple2[List, Set]],
+              recordBinding = null
             )
           )
         )
@@ -286,6 +274,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         )
 
         object NamedTuple9 extends CompanionOptics[NamedTuple9] {
+          @annotation.nowarn("msg=Infinite loop")
           implicit lazy val schema: Schema[NamedTuple9]  = Schema.derived
           val o9: Lens[NamedTuple9, Option[NamedTuple9]] = $(_.o9)
           val t8_i1: Lens[NamedTuple9, Int]              = $(_.t8(0))
@@ -319,6 +308,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         )
 
         object NamedTuple24 extends CompanionOptics[NamedTuple24] {
+          @annotation.nowarn("msg=Infinite loop")
           implicit lazy val schema: Schema[NamedTuple24]   = Schema.derived
           val o9: Lens[NamedTuple24, Option[NamedTuple24]] = $(_.o9)
           val l10: Lens[NamedTuple24, List[NamedTuple9]]   = $(_.l10)
@@ -391,15 +381,18 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           i23 = 23,
           s24 = "24"
         )
-        assert(record2.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 19, objects = 5)))) &&
-        assert(record2.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 19, objects = 5)))) &&
-        assert(NamedTuple9.t8_i1.get(value1))(equalTo(8)) &&
-        assert(NamedTuple24.o9.get(value2))(isNone) &&
-        assert(NamedTuple24.b21.get(value2))(equalTo(Box1(21L))) &&
-        assert(NamedTuple24.b22.get(value2))(equalTo(Box2("22"))) &&
-        assert(NamedTuple24.i23.get(value2))(equalTo(23)) &&
-        assert(NamedTuple24.s24.get(value2))(equalTo("24")) &&
-        assert(NamedTuple24.l10_i1s.fold(value2)(0, _ + _))(equalTo(11)) &&
+        assertTrue(
+          record2.map(_.constructor.usedRegisters).get == RegisterOffset(ints = 19, objects = 5),
+          record2.map(_.deconstructor.usedRegisters).get == RegisterOffset(ints = 19, objects = 5),
+          NamedTuple9.t8_i1.get(value1) == 8
+        ) &&
+        assert(NamedTuple24.o9.get(value2))(isNone) && assertTrue(
+          NamedTuple24.b21.get(value2) == Box1(21L),
+          NamedTuple24.b22.get(value2) == Box2("22"),
+          NamedTuple24.i23.get(value2) == 23,
+          NamedTuple24.s24.get(value2) == "24",
+          NamedTuple24.l10_i1s.fold(value2)(0, _ + _) == 11
+        ) &&
         assert(NamedTuple9.schema.fromDynamicValue(NamedTuple9.schema.toDynamicValue(value1)))(
           isRight(equalTo(value1))
         ) &&
@@ -481,12 +474,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           shorts = 1,
           objects = 1
         )
-        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(offset))) &&
-        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(offset))) &&
-        assert(Tuple24.i21.get(value))(equalTo(21)) &&
-        assert(Tuple24.i22.get(value))(equalTo(22)) &&
-        assert(Tuple24.i23.get(value))(equalTo(23)) &&
-        assert(Tuple24.i24.get(value))(equalTo(24)) &&
+        assertTrue(
+          record.map(_.constructor.usedRegisters).get == offset,
+          record.map(_.deconstructor.usedRegisters).get == offset,
+          Tuple24.i21.get(value) == 21,
+          Tuple24.i22.get(value) == 22,
+          Tuple24.i23.get(value) == 23,
+          Tuple24.i24.get(value) == 24
+        ) &&
         assert(Tuple24.schema.fromDynamicValue(Tuple24.schema.toDynamicValue(value)))(isRight(equalTo(value)))
       }
     )
