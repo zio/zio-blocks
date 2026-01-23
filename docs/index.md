@@ -39,6 +39,7 @@ object Person {
 val jsonCodec = Schema[Person].derive(JsonFormat.deriver)      // JSON serialization
 val avroCodec = Schema[Person].derive(AvroFormat.deriver)      // Avro serialization
 val toonCodec = Schema[Person].derive(ToonFormat.deriver)      // TOON serialization
+val bsonCodec = Schema[Person].derive(BsonFormat.deriver)      // BSON serialization
 val protobuf  = Schema[Person].derive(ProtobufFormat.deriver)  // Protobuf serialization (not implemented yet)
 val thrift    = Schema[Person].derive(ThriftFormat.deriver)    // Thrift serialization (not implemented yet)
 // ...
@@ -75,6 +76,7 @@ Now you have access to the core ZIO Blocks schema library. You can also add addi
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-json" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "@VERSION@"
 ```
 
 ## Example
