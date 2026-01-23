@@ -170,12 +170,12 @@ object MessagePackFormat
 
         private[this] def deriveRecordCodec[F[_, _], A](record: Reflect.Record[F, A]): MessagePackBinaryCodec[A] =
           if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
-            val binding    = record.recordBinding.asInstanceOf[Binding.Record[A]]
-            val fields     = record.fields
-            val fieldCount = fields.size
-            val fieldCodecs  = new Array[MessagePackBinaryCodec[Any]](fieldCount)
-            val fieldNames   = new Array[String](fieldCount)
-            val fieldOffsets = new Array[Long](fieldCount)
+            val binding       = record.recordBinding.asInstanceOf[Binding.Record[A]]
+            val fields        = record.fields
+            val fieldCount    = fields.size
+            val fieldCodecs   = new Array[MessagePackBinaryCodec[Any]](fieldCount)
+            val fieldNames    = new Array[String](fieldCount)
+            val fieldOffsets  = new Array[Long](fieldCount)
             // O(1) field lookup map for efficient decoding
             val fieldIndexMap = new java.util.HashMap[String, Integer](fieldCount)
             var offset        = 0L
@@ -241,10 +241,10 @@ object MessagePackFormat
 
               override def encodeValue(value: A, packer: MessagePacker): Unit = {
                 packer.packMapHeader(fieldCount)
-                val regs = Registers(usedRegisters)
+                val regs   = Registers(usedRegisters)
                 binding.deconstructor.deconstruct(regs, 0, value)
                 var offset = 0L
-                var i = 0
+                var i      = 0
                 while (i < fieldCount) {
                   packer.packString(fieldNames(i))
                   val codec = fieldCodecs(i)
