@@ -4,7 +4,7 @@ import scala.quoted._
 
 object TypeIdMacros {
 
-  def fromImpl[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
+  def fromImpl[A: Type](using Quotes): Expr[TypeId[A]] = {
     import quotes.reflect._
 
     def getTypeId(rootTpe: TypeRepr): Expr[TypeId[A]] = {

@@ -9,15 +9,14 @@ import zio.test._
 object SchemaVersionSpecificSpec extends SchemaBaseSpec {
   import zio.blocks.typeid._
 
-  private def unsafeTypeId[A](s: String): TypeId[A] =
-    TypeId.parse(s).fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[A]])
+  private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
+    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
 
   case class TestNamespace(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")
   }
   object TestNamespace {
     val zioBlocksSchema = TestNamespace(Seq("zio", "blocks", "schema"))
-    val unsafeTypeId    = zio.blocks.typeid.TypeId.parse(_: String).getOrElse(throw new Exception("Invalid TypeId"))
   }
 
   val specTermOwner = Owner(
@@ -150,7 +149,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           )
           assert(record.map(_.fields))(isSome(equalTo(expectedFields))) &&
           assert(record.map(r => stripMetadata(r.typeId).copy(args = Nil)))(
-            isSome(equalTo(TypeId.parse("scala.Tuple4").toOption.get.asInstanceOf[TypeId[Tuple4]]))
+            isSome(equalTo(unsafeTypeId[Tuple4]("scala", "Tuple4")))
           )
         }
       },
@@ -190,7 +189,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           )
           assert(record.map(_.fields))(isSome(equalTo(expectedFields))) &&
           assert(record.map(r => stripMetadata(r.typeId).copy(args = Nil)))(
-            isSome(equalTo(TypeId.parse("scala.Tuple4").toOption.get.asInstanceOf[TypeId[GenericTuple4]]))
+            isSome(equalTo(unsafeTypeId[GenericTuple4]("scala", "Tuple4")))
           )
         }
       },
@@ -219,7 +218,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val record1 = schema1.reflect.asRecord.get
         assert(record1.fields)(equalTo(expectedFields1)) &&
         assert(stripMetadata(record1.typeId).copy(args = Nil))(
-          equalTo(TypeId.parse("scala.Tuple2").toOption.get.asInstanceOf[TypeId[(Int, String)]])
+          equalTo(unsafeTypeId[(Int, String)]("scala", "Tuple2"))
         ) &&
         assert(schema1)(equalTo(schema2)) &&
         assert(schema1)(equalTo(schema3)) &&
@@ -236,7 +235,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           val record9 = schema9.reflect.asRecord.get
           assert(record9.fields)(equalTo(expectedFields9)) &&
           assert(stripMetadata(record9.typeId).copy(args = Nil))(
-            equalTo(TypeId.parse("scala.Tuple2").toOption.get.asInstanceOf[TypeId[((Int, Long), (String, String))]])
+            equalTo(unsafeTypeId[((Int, Long), (String, String))]("scala", "Tuple2"))
           )
         } &&
         {
@@ -247,7 +246,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           val record10 = schema10.reflect.asRecord.get
           assert(record10.fields)(equalTo(expectedFields10)) &&
           assert(stripMetadata(record10.typeId).copy(args = Nil))(
-            equalTo(TypeId.parse("scala.Tuple2").toOption.get.asInstanceOf[TypeId[(Int, String)]])
+            equalTo(unsafeTypeId[(Int, String)]("scala", "Tuple2"))
           )
         } &&
         assert(stripMetadata(schema11.reflect.typeId))(
@@ -1024,7 +1023,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
     implicit val schema: Schema[InnerId] = Schema(
       Reflect.Wrapper(
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
-        typeId = unsafeTypeId[InnerId]("zio.blocks.schema.SchemaVersionSpecificSpec.InnerId"),
+        typeId = unsafeTypeId[InnerId]("zio.blocks.schema.SchemaVersionSpecificSpec", "InnerId"),
         wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
         wrapperBinding = Binding.Wrapper(s => InnerId(s), _.asInstanceOf[String])
       )
@@ -1070,8 +1069,7 @@ object Id {
   implicit val schema: Schema[Id] = Schema(
     Reflect.Wrapper(
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
-      typeId =
-        zio.blocks.typeid.TypeId.parse("zio.blocks.schema.Id").toOption.get.asInstanceOf[zio.blocks.typeid.TypeId[Id]],
+      typeId = zio.blocks.typeid.TypeId.of[Id],
       wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None).asInstanceOf[PrimitiveType[Id]]),
       wrapperBinding = Binding.Wrapper(s => Id(s), _.asInstanceOf[String])
     )

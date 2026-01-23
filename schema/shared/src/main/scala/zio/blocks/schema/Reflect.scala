@@ -262,8 +262,7 @@ object Reflect {
   type Bound[A] = Reflect[Binding, A]
 
   // Cached TypeIds for frequently used types
-  private val noneTypeId: TypeId[None.type] =
-    TypeId.parse("scala.None").getOrElse(throw new RuntimeException("Parse failed")).asInstanceOf[TypeId[None.type]]
+  private val noneTypeId: TypeId[None.type] = TypeId.of[None.type]
 
   sealed trait Type {
     type NodeBinding <: BindingType
@@ -1005,11 +1004,7 @@ object Reflect {
   object Dynamic {
     type Bound = Dynamic[Binding]
 
-    private[Reflect] val dynamicValueTypeId: TypeId[DynamicValue] =
-      TypeId
-        .parse("zio.blocks.schema.DynamicValue")
-        .getOrElse(throw new Exception("Parse failed"))
-        .asInstanceOf[TypeId[DynamicValue]]
+    private[Reflect] val dynamicValueTypeId: TypeId[DynamicValue] = TypeId.of[DynamicValue]
   }
 
   case class Primitive[F[_, _], A](

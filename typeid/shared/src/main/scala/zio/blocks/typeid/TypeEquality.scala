@@ -1,77 +1,120 @@
 package zio.blocks.typeid
 
-object TypeEquality {
+/**
+ * Provides equality checks and hash code computation for TypeId and TypeRepr.
+ *
+ * Equality is defined as mutual subtyping: a equals b iff a.isSubtypeOf(b) &&
+ * b.isSubtypeOf(a). This ensures that equality flows naturally from the
+ * subtyping relation as per jdegoes' design.
+ *
+ * Hash codes are computed after dealiasing and normalizing the types to ensure
+ * consistency with the equals contract.
+ */
+private[typeid] object TypeEquality {
+
+  /**
+   * Checks equality between two TypeIds. Equality is defined as:
+   * a.isSubtypeOf(b) && b.isSubtypeOf(a) This means two types are equal only if
+   * they are mutually subtypes of each other.
+   */
   def typeIdEquals(a: TypeId[_], b: TypeId[_]): Boolean = {
-    // Fast path for nominal identity
-    if (a.owner == b.owner && a.name == b.name && a.args == b.args) return true
+    // Fast path: reference equality
+    if (a eq b) return true
 
-    // Check if both are NamedTuple types (including aliases like Empty, Map, etc.)
-    // NamedTuple aliases should be compared by their underlying structure, not nominal type
-    if (isNamedTupleType(a) && isNamedTupleType(b)) {
-      // Both are NamedTuple-related types - compare by name only (all NamedTuple types should match)
-      return a.name == "NamedTuple" || b.name == "NamedTuple" || a.name == b.name
-    }
+    // Fast path: different names means definitely not equal
+    if (a.name != b.name || a.owner != b.owner) {
+      // Only could be equal if one is an alias of the other
+      // Check via full subtyping relation
+      Subtyping.isEquivalent(TypeRepr.Ref(a, Nil), TypeRepr.Ref(b, Nil))
+    } else {
+      // Same name and owner - check args via subtyping
+      if (a.args.size != b.args.size) return false
+      if (a.args.isEmpty && b.args.isEmpty) return true
 
-    // Check alias transparency
-    (a.aliasedTo, b.aliasedTo) match {
-      case (Some(aliasA), _) => typeReprEquals(aliasA, TypeRepr.Ref(b, Nil))
-      case (_, Some(aliasB)) => typeReprEquals(TypeRepr.Ref(a, Nil), aliasB)
-      case _                 => false // Different nominal types with no aliases
+      // Check each arg pair for equivalence
+      a.args.zip(b.args).forall { case (arg1, arg2) =>
+        Subtyping.isEquivalent(arg1, arg2)
+      }
     }
   }
 
-  // Check if a TypeId represents a NamedTuple type or alias
-  private def isNamedTupleType(id: TypeId[_]): Boolean = {
-    val ownerStr = id.owner.segments.map {
-      case Owner.Package(n) => n
-      case Owner.Term(n)    => n
-      case Owner.Type(n)    => n
-      case Owner.Local(n)   => n
-    }.mkString(".")
-    // Only match types that are actually in scala.NamedTuple package
-    // Do NOT match scala.collection.immutable.Map or other unrelated types
-    ownerStr == "scala.NamedTuple" ||
-    (ownerStr.contains("NamedTuple") && (id.name == "NamedTuple" || id.name == "Empty" || id.name == "Map"))
+  /**
+   * Computes hash code for a TypeId. Hash code is computed on the normalized
+   * (dealiased) form to ensure consistency with the equals contract.
+   */
+  def typeIdHashCode(a: TypeId[_]): Int = {
+    // For consistent hashing with subtyping-based equality,
+    // we hash the normalized form
+    val normalized = TypeRepr.Ref(a, a.args).dealias
+    typeReprHashCode(normalized)
   }
 
-  def typeIdHashCode(a: TypeId[_]): Int =
-    a.aliasedTo match {
-      case Some(tpe) =>
-        // Hash the underlying type for aliases to match equals contract
-        // We use a simplified hash for TypeRepr to avoid heavy computation if possible,
-        // but it must match typeReprEquals.
-        // Assuming TypeRepr.hashCode is consistent with typeReprEquals (which is structural)
-        tpe.hashCode
-      case None =>
-        val h = a.owner.hashCode ^ a.name.hashCode
-        if (a.args.isEmpty) h else h ^ a.args.hashCode
-    }
+  /**
+   * Computes hash code for a TypeRepr after normalization.
+   */
+  private def typeReprHashCode(tpe: TypeRepr): Int = {
+    val normalized = tpe.dealias
+    computeHashCode(normalized)
+  }
 
-  def typeReprEquals(a: TypeRepr, b: TypeRepr): Boolean = {
-    val normA = a.dealias
-    val normB = b.dealias
+  /**
+   * Computes hash code for a normalized TypeRepr.
+   */
+  private def computeHashCode(tpe: TypeRepr): Int = tpe match {
+    case TypeRepr.Ref(id, args) =>
+      var h = id.owner.hashCode * 31 + id.name.hashCode
+      args.foreach(arg => h = h * 31 + computeHashCode(arg))
+      h
 
-    (normA, normB) match {
-      case (TypeRepr.Ref(id1, args1), TypeRepr.Ref(id2, args2)) =>
-        id1 == id2 && args1.corresponds(args2)(typeReprEquals)
+    case TypeRepr.AppliedType(base, args) =>
+      var h = computeHashCode(base)
+      args.foreach(arg => h = h * 31 + computeHashCode(arg))
+      h * 37
 
-      case (TypeRepr.AppliedType(t1, a1), TypeRepr.AppliedType(t2, a2)) =>
-        typeReprEquals(t1, t2) && a1.corresponds(a2)(typeReprEquals)
+    case TypeRepr.Union(types) =>
+      types.map(computeHashCode).sorted.foldLeft(41)(_ * 43 + _)
 
-      case (TypeRepr.Union(ts1), TypeRepr.Union(ts2)) =>
-        // Set equality
-        // val s1 = ts1.map(_.dealias).toSet
-        // val s2 = ts2.map(_.dealias).toSet
-        // Need custom set logic because default set uses default equals
-        // Assuming we implement equals on TypeRepr to call this?
-        // Infinite recursion alert if we put this in equals/hashCode directly without handling cycle
-        // For now simple list check (can improved to sorted)
-        ts1.size == ts2.size && ts1.forall(t1 => ts2.exists(t2 => typeReprEquals(t1, t2)))
+    case TypeRepr.Intersection(types) =>
+      types.map(computeHashCode).sorted.foldLeft(47)(_ * 53 + _)
 
-      case (TypeRepr.Intersection(ts1), TypeRepr.Intersection(ts2)) =>
-        ts1.size == ts2.size && ts1.forall(t1 => ts2.exists(t2 => typeReprEquals(t1, t2)))
+    case TypeRepr.Function(params, result) =>
+      val h = params.map(computeHashCode).foldLeft(59)(_ * 61 + _)
+      h * 67 + computeHashCode(result)
 
-      case _ => normA == normB // Default fallback
-    }
+    case TypeRepr.Tuple(elements) =>
+      elements.map(computeHashCode).foldLeft(71)(_ * 73 + _)
+
+    case TypeRepr.TypeParamRef(name, index) =>
+      name.hashCode * 79 + index
+
+    case TypeRepr.ConstantType(value) =>
+      value.hashCode * 83
+
+    case TypeRepr.ThisType(tpe) =>
+      computeHashCode(tpe) * 89
+
+    case TypeRepr.SuperType(thisTpe, superTpe) =>
+      computeHashCode(thisTpe) * 97 + computeHashCode(superTpe)
+
+    case TypeRepr.TypeLambda(params, result) =>
+      params.map(_.name.hashCode).foldLeft(101)(_ * 103 + _) * 107 + computeHashCode(result)
+
+    case TypeRepr.Wildcard(bounds) =>
+      val lowerHash = bounds.lower.map(computeHashCode).getOrElse(0)
+      val upperHash = bounds.upper.map(computeHashCode).getOrElse(0)
+      lowerHash * 109 + upperHash * 113
+
+    case TypeRepr.TypeProjection(qualifier, name) =>
+      computeHashCode(qualifier) * 127 + name.hashCode
+
+    case TypeRepr.Structural(members) =>
+      members.map(_.toString.hashCode).foldLeft(131)(_ * 137 + _)
+
+    // Case objects
+    case TypeRepr.AnyType     => 139
+    case TypeRepr.AnyKindType => 149
+    case TypeRepr.NothingType => 151
+    case TypeRepr.NullType    => 157
+    case TypeRepr.UnitType    => 163
   }
 }

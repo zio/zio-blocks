@@ -1,17 +1,16 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
-import zio.blocks.typeid.{Owner, TypeDefKind}
 import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._
 
 object ZIOPreludeSupportSpec extends SchemaBaseSpec {
 
-  import zio.blocks.typeid.TypeId
+  import zio.blocks.typeid.{TypeId, Owner, TypeDefKind}
 
-  private def unsafeTypeId[A](s: String): TypeId[A] =
-    TypeId.parse(s).fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[A]])
+  private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
+    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
 
   case class Namespace(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")
@@ -70,7 +69,7 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       ) &&
       assert(stripMetadata(Planet.distanceFromSun.focus.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          unsafeTypeId("scala.Option")
+          unsafeTypeId("scala", "Option")
         )
       )
     },
@@ -89,22 +88,22 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(stripMetadata(schema1.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          unsafeTypeId("scala.Option")
+          unsafeTypeId("scala", "Option")
         )
       ) &&
       assert(stripMetadata(schema2.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          unsafeTypeId("scala.Option")
+          unsafeTypeId("scala", "Option")
         )
       ) &&
       assert(stripMetadata(schema3.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          unsafeTypeId("scala.Option")
+          unsafeTypeId("scala", "Option")
         )
       ) &&
       assert(stripMetadata(schema4.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          unsafeTypeId("scala.Option")
+          unsafeTypeId("scala", "Option")
         )
       )
     },
@@ -123,22 +122,22 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(stripMetadata(schema1.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          unsafeTypeId("scala.collection.immutable.List")
+          unsafeTypeId("scala.collection.immutable", "List")
         )
       ) &&
       assert(stripMetadata(schema2.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          unsafeTypeId("scala.collection.immutable.Vector")
+          unsafeTypeId("scala.collection.immutable", "Vector")
         )
       ) &&
       assert(stripMetadata(schema3.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          unsafeTypeId("scala.collection.immutable.Set")
+          unsafeTypeId("scala.collection.immutable", "Set")
         )
       ) &&
       assert(stripMetadata(schema4.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          unsafeTypeId("scala.collection.immutable.Map")
+          unsafeTypeId("scala.collection.immutable", "Map")
         )
       )
     },

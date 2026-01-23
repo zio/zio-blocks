@@ -1,6 +1,6 @@
 package zio.blocks.typeid
 
-object TypeNormalization {
+private[typeid] object TypeNormalization {
   def dealias(tpe: TypeRepr): TypeRepr = tpe match {
     case TypeRepr.Ref(id, args) =>
       id.kind match {

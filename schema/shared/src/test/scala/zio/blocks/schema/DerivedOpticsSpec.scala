@@ -5,10 +5,10 @@ import zio.blocks.schema.binding.Binding
 import scala.language.reflectiveCalls
 
 object DerivedOpticsSpec extends SchemaBaseSpec {
-  import zio.blocks.typeid.TypeId
+  import zio.blocks.typeid.{TypeId, Owner, TypeDefKind}
 
-  private def unsafeTypeId[A](s: String): TypeId[A] =
-    TypeId.parse(s).fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[A]])
+  private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
+    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
 
   case class Namespace(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")
@@ -16,7 +16,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
   object TestTypeId {
     def apply[A](namespace: Namespace, name: String, @annotation.unused params: Any*): TypeId[A] =
-      unsafeTypeId(s"${namespace.toDotted}.$name")
+      unsafeTypeId(namespace.toDotted, name)
   }
 
   case class Person(name: String, age: Int)

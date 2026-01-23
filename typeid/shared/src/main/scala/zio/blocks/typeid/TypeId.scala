@@ -20,12 +20,12 @@ final case class TypeId[A](
     case _                            => None
   }
 
-  def isClass: Boolean    = kind.isInstanceOf[TypeDefKind.Class]
-  def isTrait: Boolean    = kind.isInstanceOf[TypeDefKind.Trait]
+  def isClass: Boolean    = kind match { case _: TypeDefKind.Class => true; case _ => false }
+  def isTrait: Boolean    = kind match { case _: TypeDefKind.Trait => true; case _ => false }
   def isObject: Boolean   = kind == TypeDefKind.Object
-  def isEnum: Boolean     = kind.isInstanceOf[TypeDefKind.Enum]
-  def isAlias: Boolean    = kind.isInstanceOf[TypeDefKind.TypeAlias]
-  def isOpaque: Boolean   = kind.isInstanceOf[TypeDefKind.OpaqueType]
+  def isEnum: Boolean     = kind match { case _: TypeDefKind.Enum => true; case _ => false }
+  def isAlias: Boolean    = kind match { case _: TypeDefKind.TypeAlias => true; case _ => false }
+  def isOpaque: Boolean   = kind match { case _: TypeDefKind.OpaqueType => true; case _ => false }
   def isAbstract: Boolean = kind == TypeDefKind.AbstractType
 
   def isSealed: Boolean = kind match {
@@ -72,12 +72,4 @@ final case class TypeId[A](
   override def toString: String = show
 }
 
-object TypeId extends TypeIdPlatformSpecific {
-  def parse(s: String): Either[String, TypeId[Any]] = {
-    val (pkg, name) = s.lastIndexOf('.') match {
-      case -1 => ("", s)
-      case i  => (s.substring(0, i), s.substring(i + 1))
-    }
-    Right(TypeId(Owner.parse(pkg), name, Nil, TypeDefKind.Class(), Nil))
-  }
-}
+object TypeId extends TypeIdPlatformSpecific

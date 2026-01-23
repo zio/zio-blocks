@@ -1,6 +1,6 @@
 package zio.blocks.typeid
 
-object Subtyping {
+private[typeid] object Subtyping {
 
   final case class Context(
     assumptions: Set[(TypeRepr, TypeRepr)] = Set.empty,
@@ -68,16 +68,99 @@ object Subtyping {
     case _                     => false
   }
 
+  /**
+   * Structural equality check for TypeRepr that avoids triggering custom equals
+   * methods. This is used to break the recursive cycle between TypeId.equals
+   * and Subtyping.isSubtype. Uses nominal identity (owner + name) for TypeId
+   * comparisons.
+   */
+  private def structurallyEqual(a: TypeRepr, b: TypeRepr): Boolean = (a, b) match {
+    case (TypeRepr.Ref(id1, args1), TypeRepr.Ref(id2, args2)) =>
+      // Compare TypeIds by nominal identity (owner + name), not by custom equals
+      typeIdNominallyEqual(id1, id2) &&
+      args1.size == args2.size &&
+      args1.zip(args2).forall { case (a1, a2) => structurallyEqual(a1, a2) }
+
+    case (TypeRepr.AppliedType(t1, a1), TypeRepr.AppliedType(t2, a2)) =>
+      structurallyEqual(t1, t2) &&
+      a1.size == a2.size &&
+      a1.zip(a2).forall { case (x, y) => structurallyEqual(x, y) }
+
+    case (TypeRepr.Union(ts1), TypeRepr.Union(ts2)) =>
+      ts1.size == ts2.size && ts1.forall(t1 => ts2.exists(t2 => structurallyEqual(t1, t2)))
+
+    case (TypeRepr.Intersection(ts1), TypeRepr.Intersection(ts2)) =>
+      ts1.size == ts2.size && ts1.forall(t1 => ts2.exists(t2 => structurallyEqual(t1, t2)))
+
+    case (TypeRepr.Function(p1, r1), TypeRepr.Function(p2, r2)) =>
+      p1.size == p2.size &&
+      p1.zip(p2).forall { case (x, y) => structurallyEqual(x, y) } &&
+      structurallyEqual(r1, r2)
+
+    case (TypeRepr.Tuple(e1), TypeRepr.Tuple(e2)) =>
+      e1.size == e2.size && e1.zip(e2).forall { case (x, y) => structurallyEqual(x, y) }
+
+    case (TypeRepr.TypeParamRef(n1, i1), TypeRepr.TypeParamRef(n2, i2)) =>
+      n1 == n2 && i1 == i2
+
+    case (TypeRepr.ConstantType(v1), TypeRepr.ConstantType(v2)) =>
+      v1 == v2
+
+    case (TypeRepr.Wildcard(b1), TypeRepr.Wildcard(b2)) =>
+      b1.lower.zip(b2.lower).forall { case (x, y) => structurallyEqual(x, y) } &&
+      b1.upper.zip(b2.upper).forall { case (x, y) => structurallyEqual(x, y) }
+
+    case (TypeRepr.TypeProjection(q1, n1), TypeRepr.TypeProjection(q2, n2)) =>
+      structurallyEqual(q1, q2) && n1 == n2
+
+    case (TypeRepr.ThisType(t1), TypeRepr.ThisType(t2)) =>
+      structurallyEqual(t1, t2)
+
+    case (TypeRepr.SuperType(th1, su1), TypeRepr.SuperType(th2, su2)) =>
+      structurallyEqual(th1, th2) && structurallyEqual(su1, su2)
+
+    case (TypeRepr.TypeLambda(_, r1), TypeRepr.TypeLambda(_, r2)) =>
+      structurallyEqual(r1, r2)
+
+    // Case objects
+    case (TypeRepr.AnyType, TypeRepr.AnyType)         => true
+    case (TypeRepr.AnyKindType, TypeRepr.AnyKindType) => true
+    case (TypeRepr.NothingType, TypeRepr.NothingType) => true
+    case (TypeRepr.NullType, TypeRepr.NullType)       => true
+    case (TypeRepr.UnitType, TypeRepr.UnitType)       => true
+
+    case _ => false
+  }
+
+  /**
+   * Nominal equality check for TypeIds (compares owner and name only). Does not
+   * use TypeId.equals to avoid infinite recursion.
+   */
+  private def typeIdNominallyEqual(a: TypeId[_], b: TypeId[_]): Boolean =
+    a.owner == b.owner && a.name == b.name
+
+  /**
+   * Structural equality check for lists of TypeReprs. Avoids triggering custom
+   * equals on TypeRepr.
+   */
+  private def argsStructurallyEqual(args1: List[TypeRepr], args2: List[TypeRepr]): Boolean =
+    args1.size == args2.size && args1.zip(args2).forall { case (a, b) => structurallyEqual(a, b) }
+
   def isSubtype(sub: TypeRepr, sup: TypeRepr)(implicit ctx: Context = Context()): Boolean = {
     if (ctx.tooDeep) return false // Fail safe
 
     if (ctx.isAssumed(sub, sup)) return true
-    if (sub == sup) return true
+    // Use reference equality first to avoid triggering custom equals
+    if (sub.eq(sup)) return true
+    // Then check structural equality (avoids infinite recursion)
+    if (structurallyEqual(sub, sup)) return true
 
     val subNorm = sub.dealias
     val supNorm = sup.dealias
 
-    if (subNorm == supNorm) return true
+    // Check reference equality on normalized forms
+    if (subNorm.eq(supNorm)) return true
+    if (structurallyEqual(subNorm, supNorm)) return true
 
     // Handle Nothing and Any specially
     if (isNothing(subNorm)) return true
@@ -113,7 +196,7 @@ object Subtyping {
           // Get TypeId from t2 (the supertype) to get variance info
           t2 match {
             case TypeRepr.Ref(id, _) => checkArgs(id.typeParams, args1, args2)(newCtx)
-            case _                   => args1 == args2 // fallback to invariance if unknown
+            case _                   => argsStructurallyEqual(args1, args2) // fallback to invariance if unknown
           }
         } else false
 
@@ -122,7 +205,7 @@ object Subtyping {
         val (base1, fullArgs1) = (id1.copy(args = Nil), id1.args ++ args1)
         val (base2, fullArgs2) = (id2.copy(args = Nil), id2.args ++ args2)
 
-        if (base1 == base2) {
+        if (typeIdNominallyEqual(base1, base2)) {
           // Same base type, check args with variance
           checkArgs(base1.typeParams, fullArgs1, fullArgs2)(newCtx)
         } else {
@@ -160,7 +243,7 @@ object Subtyping {
     if (args1.size != args2.size) return false
     if (params.isEmpty && args1.nonEmpty) {
       // No variance info available, assume invariant
-      return args1 == args2
+      return argsStructurallyEqual(args1, args2)
     }
 
     // If we have fewer params than args, extend with invariant

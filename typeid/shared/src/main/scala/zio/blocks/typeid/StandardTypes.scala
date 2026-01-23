@@ -2,7 +2,7 @@ package zio.blocks.typeid
 
 import zio.blocks.typeid.TypeDefKind._
 
-object StandardTypes {
+private[blocks] object StandardTypes {
   private val scalaOwner  = Owner.pkg("scala")
   private val javaLang    = Owner.pkgs("java", "lang")
   private val javaTime    = Owner.pkgs("java", "time")

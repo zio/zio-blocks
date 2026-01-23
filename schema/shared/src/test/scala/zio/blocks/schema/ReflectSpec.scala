@@ -9,10 +9,10 @@ import java.util.{Currency, UUID}
 import scala.collection.immutable.Seq
 
 object ReflectSpec extends SchemaBaseSpec {
-  import zio.blocks.typeid.{TypeId, StandardTypes}
+  import zio.blocks.typeid.{TypeId, StandardTypes, Owner, TypeDefKind}
 
-  private def unsafeTypeId[A](s: String): TypeId[A] =
-    TypeId.parse(s).fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[A]])
+  private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
+    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
 
   case class TestNamespace(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")
@@ -24,7 +24,7 @@ object ReflectSpec extends SchemaBaseSpec {
 
   object TestTypeId {
     def apply[A](namespace: TestNamespace, name: String, @annotation.unused params: Any*): TypeId[A] =
-      unsafeTypeId(s"${namespace.toDotted}.$name")
+      unsafeTypeId(namespace.toDotted, name)
 
     val int     = StandardTypes.int
     val long    = StandardTypes.long
@@ -38,21 +38,18 @@ object ReflectSpec extends SchemaBaseSpec {
     val unit    = StandardTypes.unit
 
     // Special types used in ReflectSpec
-    val dynamicValue = TypeId
-      .parse("zio.blocks.schema.DynamicValue")
-      .fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[Any]])
-    val year      = unsafeTypeId("java.time.Year")
-    val yearMonth = unsafeTypeId("java.time.YearMonth")
+    val dynamicValue: TypeId[Any] = TypeId.of[DynamicValue].asInstanceOf[TypeId[Any]]
+    val year                      = unsafeTypeId[Year]("java.time", "Year")
+    val yearMonth                 = unsafeTypeId[YearMonth]("java.time", "YearMonth")
 
-    def list[A](@annotation.unused e: Any): TypeId[List[A]]                                = unsafeTypeId("scala.collection.immutable.List")
-    def vector[A](@annotation.unused e: Any): TypeId[Vector[A]]                            = unsafeTypeId("scala.collection.immutable.Vector")
-    def map[K, V](@annotation.unused k: Any, @annotation.unused v: Any): TypeId[Map[K, V]] = unsafeTypeId(
-      "scala.collection.immutable.Map"
-    )
-    def set[A](@annotation.unused e: Any): TypeId[Set[A]]         = unsafeTypeId("scala.collection.immutable.Set")
-    def seq[A](@annotation.unused e: Any): TypeId[Seq[A]]         = unsafeTypeId("scala.collection.immutable.Seq")
-    def chunk[A](@annotation.unused e: Any): TypeId[zio.Chunk[A]] = unsafeTypeId("zio.Chunk")
-    def option[A](@annotation.unused e: Any): TypeId[Option[A]]   = unsafeTypeId("scala.Option")
+    def list[A](@annotation.unused e: Any): TypeId[List[A]]                                = unsafeTypeId("scala.collection.immutable", "List")
+    def vector[A](@annotation.unused e: Any): TypeId[Vector[A]]                            = unsafeTypeId("scala.collection.immutable", "Vector")
+    def map[K, V](@annotation.unused k: Any, @annotation.unused v: Any): TypeId[Map[K, V]] =
+      unsafeTypeId("scala.collection.immutable", "Map")
+    def set[A](@annotation.unused e: Any): TypeId[Set[A]]         = unsafeTypeId("scala.collection.immutable", "Set")
+    def seq[A](@annotation.unused e: Any): TypeId[Seq[A]]         = unsafeTypeId("scala.collection.immutable", "Seq")
+    def chunk[A](@annotation.unused e: Any): TypeId[zio.Chunk[A]] = unsafeTypeId("zio", "Chunk")
+    def option[A](@annotation.unused e: Any): TypeId[Option[A]]   = unsafeTypeId("scala", "Option")
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("ReflectSpec")(

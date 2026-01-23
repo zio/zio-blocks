@@ -19,18 +19,19 @@ object SchemaSpec extends SchemaBaseSpec {
   )
   import zio.blocks.typeid.StandardTypes
 
-  private def unsafeTypeId[A](s: String): TypeId[A] =
-    TypeId.parse(s).fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[A]])
+  private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
+    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
 
   case class Namespace(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")
+    def toOwner: Owner   = Owner(parts.map(Owner.Package(_)).toList)
   }
   object Namespace {
     val scala = Namespace(Seq("scala"))
   }
   object TestTypeId {
     def apply[A](namespace: Namespace, name: String, @annotation.unused params: Any*): TypeId[A] =
-      unsafeTypeId(s"${namespace.toDotted}.$name")
+      unsafeTypeId(namespace.toDotted, name)
 
     val int     = StandardTypes.int
     val long    = StandardTypes.long
@@ -44,14 +45,15 @@ object SchemaSpec extends SchemaBaseSpec {
     val unit    = StandardTypes.unit
 
     def map(@annotation.unused k: Any, @annotation.unused v: Any): TypeId[Map[Any, Any]] = unsafeTypeId(
-      "scala.collection.immutable.Map"
+      "scala.collection.immutable",
+      "Map"
     )
-    def set(@annotation.unused e: Any): TypeId[Set[Any]]       = unsafeTypeId("scala.collection.immutable.Set")
-    def list(@annotation.unused e: Any): TypeId[List[Any]]     = unsafeTypeId("scala.collection.immutable.List")
-    def vector(@annotation.unused e: Any): TypeId[Vector[Any]] = unsafeTypeId("scala.collection.immutable.Vector")
-    def option(@annotation.unused e: Any): TypeId[Option[Any]] = unsafeTypeId("scala.Option")
-    def chunk(@annotation.unused e: Any): TypeId[Chunk[Any]]   = unsafeTypeId("zio.Chunk")
-    def seq(@annotation.unused e: Any): TypeId[Seq[Any]]       = unsafeTypeId("scala.collection.immutable.Seq")
+    def set(@annotation.unused e: Any): TypeId[Set[Any]]       = unsafeTypeId("scala.collection.immutable", "Set")
+    def list(@annotation.unused e: Any): TypeId[List[Any]]     = unsafeTypeId("scala.collection.immutable", "List")
+    def vector(@annotation.unused e: Any): TypeId[Vector[Any]] = unsafeTypeId("scala.collection.immutable", "Vector")
+    def option(@annotation.unused e: Any): TypeId[Option[Any]] = unsafeTypeId("scala", "Option")
+    def chunk(@annotation.unused e: Any): TypeId[Chunk[Any]]   = unsafeTypeId("zio", "Chunk")
+    def seq(@annotation.unused e: Any): TypeId[Seq[Any]]       = unsafeTypeId("scala.collection.immutable", "Seq")
   }
 
   case class SchemaRecord(b: Byte, i: Int)
@@ -409,7 +411,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Tuple4._4.replace(value, 5L))(equalTo((1: Byte, 2: Short, 3, 5L))) &&
         assert(Tuple4.schema.fromDynamicValue(Tuple4.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
         assert(stripMetadata(Tuple4.schema.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
-          equalTo(unsafeTypeId("scala.Tuple4").asInstanceOf[TypeId[Any]])
+          equalTo(unsafeTypeId("scala", "Tuple4").asInstanceOf[TypeId[Any]])
         ) &&
         assert(Tuple4.schema.reflect.asRecord.map(_.fields.map(_.name)))(
           isSome(equalTo(Vector("_1", "_2", "_3", "_4")))

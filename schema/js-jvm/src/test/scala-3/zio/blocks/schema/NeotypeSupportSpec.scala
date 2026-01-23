@@ -9,28 +9,20 @@ import zio.blocks.typeid.{TypeId, Owner, TypeDefKind}
 import zio.test._
 
 object NeotypeSupportSpec extends SchemaBaseSpec {
+  private def unsafeTypeId[A](ownerStr: String, name: String): zio.blocks.typeid.TypeId[A] =
+    zio.blocks.typeid.TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
+
   object TypeId {
-    def parse(s: String)                  = zio.blocks.typeid.TypeId.parse(s)
-    def option(@annotation.unused e: Any) = zio.blocks.typeid.TypeId
-      .parse("scala.Option")
-      .getOrElse(throw new RuntimeException("fail"))
-      .asInstanceOf[zio.blocks.typeid.TypeId[Option[Any]]]
-    def list(@annotation.unused e: Any) = zio.blocks.typeid.TypeId
-      .parse("scala.collection.immutable.List")
-      .getOrElse(throw new RuntimeException("fail"))
-      .asInstanceOf[zio.blocks.typeid.TypeId[List[Any]]]
-    def vector(@annotation.unused e: Any) = zio.blocks.typeid.TypeId
-      .parse("scala.collection.immutable.Vector")
-      .getOrElse(throw new RuntimeException("fail"))
-      .asInstanceOf[zio.blocks.typeid.TypeId[Vector[Any]]]
-    def set(@annotation.unused e: Any) = zio.blocks.typeid.TypeId
-      .parse("scala.collection.immutable.Set")
-      .getOrElse(throw new RuntimeException("fail"))
-      .asInstanceOf[zio.blocks.typeid.TypeId[Set[Any]]]
-    def map(@annotation.unused k: Any, @annotation.unused v: Any) = zio.blocks.typeid.TypeId
-      .parse("scala.collection.immutable.Map")
-      .getOrElse(throw new RuntimeException("fail"))
-      .asInstanceOf[zio.blocks.typeid.TypeId[Map[Any, Any]]]
+    def option(@annotation.unused e: Any): zio.blocks.typeid.TypeId[Option[Any]] =
+      unsafeTypeId("scala", "Option")
+    def list(@annotation.unused e: Any): zio.blocks.typeid.TypeId[List[Any]] =
+      unsafeTypeId("scala.collection.immutable", "List")
+    def vector(@annotation.unused e: Any): zio.blocks.typeid.TypeId[Vector[Any]] =
+      unsafeTypeId("scala.collection.immutable", "Vector")
+    def set(@annotation.unused e: Any): zio.blocks.typeid.TypeId[Set[Any]] =
+      unsafeTypeId("scala.collection.immutable", "Set")
+    def map(@annotation.unused k: Any, @annotation.unused v: Any): zio.blocks.typeid.TypeId[Map[Any, Any]] =
+      unsafeTypeId("scala.collection.immutable", "Map")
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("NeotypeSupportSpec")(
@@ -107,9 +99,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       ) &&
       assert(stripMetadata(Planet.distanceFromSun.focus.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
         equalTo(
-          TypeId.option(
-            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Meter")
-          )
+          TypeId.option(null)
         )
       ) &&
       roundTrip[Planet](value, """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""") &&
@@ -160,32 +150,16 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(stripMetadata(schema1.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
-        equalTo(
-          TypeId.option(
-            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Name")
-          )
-        )
+        equalTo(TypeId.option(null))
       ) &&
       assert(stripMetadata(schema2.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
-        equalTo(
-          TypeId.option(
-            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Kilogram")
-          )
-        )
+        equalTo(TypeId.option(null))
       ) &&
       assert(stripMetadata(schema3.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
-        equalTo(
-          TypeId.option(
-            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Meter")
-          )
-        )
+        equalTo(TypeId.option(null))
       ) &&
       assert(stripMetadata(schema4.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
-        equalTo(
-          TypeId.option(
-            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.EmojiDataId")
-          )
-        )
+        equalTo(TypeId.option(null))
       )
     },
     test("derive schemas for collections with newtypes and subtypes") {
@@ -202,33 +176,16 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(stripMetadata(schema1.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
-        equalTo(
-          TypeId.list(
-            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Name")
-          )
-        )
+        equalTo(TypeId.list(null))
       ) &&
       assert(stripMetadata(schema2.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
-        equalTo(
-          TypeId.vector(
-            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Kilogram")
-          )
-        )
+        equalTo(TypeId.vector(null))
       ) &&
       assert(stripMetadata(schema3.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
-        equalTo(
-          TypeId.set(
-            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Meter")
-          )
-        )
+        equalTo(TypeId.set(null))
       ) &&
       assert(stripMetadata(schema4.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
-        equalTo(
-          TypeId.map(
-            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.EmojiDataId"),
-            TypeId.parse("zio.blocks.schema.NeotypeSupportSpec.Name")
-          )
-        )
+        equalTo(TypeId.map(null, null))
       )
     },
     test("derive schemas for cases classes and collections with newtypes for primitives") {

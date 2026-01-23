@@ -10,10 +10,10 @@ import zio.test._
 import scala.collection.immutable.ArraySeq
 
 object OpticSpec extends SchemaBaseSpec {
-  import zio.blocks.typeid.TypeId
+  import zio.blocks.typeid.{TypeId, Owner, TypeDefKind}
 
-  private def unsafeTypeId[A](s: String): TypeId[A] =
-    TypeId.parse(s).fold(e => throw new RuntimeException(e), _.asInstanceOf[TypeId[A]])
+  private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
+    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
 
   case class Namespace(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")
@@ -21,7 +21,7 @@ object OpticSpec extends SchemaBaseSpec {
 
   object TestTypeId {
     def apply[A](namespace: Namespace, name: String, @annotation.unused params: Any*): TypeId[A] =
-      unsafeTypeId(s"${namespace.toDotted}.$name")
+      unsafeTypeId(namespace.toDotted, name)
   }
 
   import OpticSpecTypes._
@@ -3462,9 +3462,7 @@ object OpticSpecTypes {
 
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
-      typeId = zio.blocks.typeid.TypeId
-        .parse("zio.blocks.schema.OpticSpec.Wrapper")
-        .fold(e => throw new RuntimeException(e), _.asInstanceOf[zio.blocks.typeid.TypeId[Wrapper]]),
+      typeId = zio.blocks.typeid.TypeId.of[Wrapper],
       wrapperPrimitiveType = None,
       wrapperBinding = Binding.Wrapper(
         wrap = Wrapper.apply,

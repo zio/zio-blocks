@@ -350,10 +350,7 @@ class JsonBinaryCodecDeriver private[json] (
       deriveCodec(
         new Reflect.Dynamic(
           binding,
-          zio.blocks.typeid.TypeId
-            .parse("zio.blocks.schema.DynamicValue")
-            .getOrElse(throw new RuntimeException("Parse failed"))
-            .asInstanceOf[zio.blocks.typeid.TypeId[DynamicValue]],
+          TypeId.of[DynamicValue],
           doc,
           modifiers
         )
