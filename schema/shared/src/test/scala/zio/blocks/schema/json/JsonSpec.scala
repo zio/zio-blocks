@@ -1486,7 +1486,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("JsonError getMessage returns formatted string") {
           val error = JsonError("test message")
-          assertTrue(error.getMessage == "JsonError: test message")
+          assertTrue(error.getMessage == "test message")
         },
         test("JsonError with path is formatted correctly") {
           val error = JsonError("test message").atField("users").atIndex(0)
@@ -1549,10 +1549,7 @@ object JsonSpec extends SchemaBaseSpec {
           val error = JsonError("field missing", path)
           assertTrue(
             error.message == "field missing",
-            error.path == path,
-            error.offset.isEmpty,
-            error.line.isEmpty,
-            error.column.isEmpty
+            error.path == path
           )
         }
       ),
