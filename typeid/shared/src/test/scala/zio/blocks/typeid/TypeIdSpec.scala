@@ -136,7 +136,7 @@ object TypeIdSpec extends ZIOSpecDefault {
       test("Alias extractor works") {
         val aliasId = TypeId.alias[Int]("Age", Owner.Root / "myapp", Nil, TypeRepr.Ref(TypeId.int))
         aliasId match {
-          case TypeId.Alias(name, owner, params, aliased) =>
+          case TypeId.Alias(name, _, _, aliased) =>
             assertTrue(name == "Age", aliased == TypeRepr.Ref(TypeId.int))
           case _ =>
             assertTrue(false)

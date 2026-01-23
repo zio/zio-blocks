@@ -1186,23 +1186,6 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private def genNewArray[T: Type](size: Expr[Int]): Expr[Array[T]] =
     Apply(TypeApply(newArray, List(TypeTree.of[T])), List(size.asTerm)).asExpr.asInstanceOf[Expr[Array[T]]]
 
-  private def toFullTermName(tpeName: TypeName[?]): Array[String] = {
-    val packages     = tpeName.namespace.packages
-    val values       = tpeName.namespace.values
-    val fullTermName = new Array[String](packages.size + values.size + 1)
-    var idx          = 0
-    packages.foreach { p =>
-      fullTermName(idx) = p
-      idx += 1
-    }
-    values.foreach { p =>
-      fullTermName(idx) = p
-      idx += 1
-    }
-    fullTermName(idx) = tpeName.name
-    fullTermName
-  }
-
   private def toShortTermName(fullName: Array[String], from: Int): String = {
     val str = new java.lang.StringBuilder
     var idx = from

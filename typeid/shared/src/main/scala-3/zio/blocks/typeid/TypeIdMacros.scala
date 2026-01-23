@@ -24,9 +24,9 @@ object TypeIdMacros {
 
     // Handle union and intersection types first
     tpe match {
-      case OrType(left, right) =>
+      case OrType(_, _) =>
         deriveUnionType[A](flattenUnion(tpe))
-      case AndType(left, right) =>
+      case AndType(_, _) =>
         deriveIntersectionType[A](flattenIntersection(tpe))
       case AppliedType(tycon, args) =>
         // Check if the type constructor is a type alias
@@ -99,14 +99,13 @@ object TypeIdMacros {
     Quotes
   )(
     tr: quotes.reflect.TypeRef,
-    _args: List[quotes.reflect.TypeRepr]
+    @annotation.unused args: List[quotes.reflect.TypeRepr]
   ): Expr[TypeId[A]] = {
 
     val typeSymbol     = tr.typeSymbol
     val name           = typeSymbol.name
     val ownerExpr      = buildOwner(typeSymbol.owner)
     val typeParamsExpr = buildTypeParams(typeSymbol)
-    val defKindExpr    = buildDefKind(typeSymbol)
 
     // Get the aliased type (with args applied)
     val aliasedType = tr.translucentSuperType.dealias
@@ -334,7 +333,7 @@ object TypeIdMacros {
     Quotes
   )(
     tpe: quotes.reflect.TypeRepr,
-    typeSymbol: quotes.reflect.Symbol
+    @annotation.unused typeSymbol: quotes.reflect.Symbol
   ): Expr[zio.blocks.typeid.TypeRepr] = {
     import quotes.reflect.*
 
@@ -358,7 +357,7 @@ object TypeIdMacros {
     Quotes
   )(
     tpe: quotes.reflect.TypeRepr,
-    visitingAliases: Set[String] = Set.empty
+    visitingAliases: Set[String]
   ): Expr[zio.blocks.typeid.TypeRepr] = {
     import quotes.reflect.*
 

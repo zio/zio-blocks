@@ -986,5 +986,3 @@ object Opaque extends CompanionOptics[Opaque] {
   val value: Lens[Opaque, Value]           = $(_.value)
   val id_wrapped: Optional[Opaque, String] = $(_.id.wrapped[String])
 }
-
-@deprecated("reasons") case class C() derives Schema

@@ -77,7 +77,7 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
         roundTrip[Value]("VVV", """{"java.lang.String":"VVV"}""") &&
         roundTrip[Value]((1, true), """{"scala.Tuple2":[1,true]}""") &&
         roundTrip[Value](List(1, 2, 3), """{"scala.collection.immutable.List":[1,2,3]}""") &&
-        roundTrip[Value]((), """{"Unit":{}}""")
+        roundTrip[Value]((), """{"scala.Unit":{}}""")
       },
       test("union type without discriminator") {
         type Value = Int | Boolean | String | (Int, Boolean) | List[Int] | Unit

@@ -133,9 +133,9 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def isOption: Boolean = isVariant && {
     val variant = asVariant.get
-    val tn      = typeName
+    val tid     = typeId
     val cases   = variant.cases
-    tn.namespace == Namespace.scala && tn.name == "Option" &&
+    tid.owner == zio.blocks.typeid.Owner.fromPackagePath("scala") && tid.name == "Option" &&
     cases.length == 2 && cases(1).name == "Some"
   }
 
