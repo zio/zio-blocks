@@ -367,7 +367,10 @@ object TypeIdMacros {
     import quotes.reflect.*
 
     if (visiting.exists(v => v =:= tpe)) {
-      val sym       = tpe.typeSymbol
+      val sym = tpe.typeSymbol
+      if (sym.isNoSymbol) {
+        return '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing]("Cycle", Owner.Root, Nil)) }
+      }
       val name      = sym.name
       val ownerExpr = buildOwner(sym.owner)
       return '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil)) }
@@ -459,7 +462,6 @@ object TypeIdMacros {
         }
         '{ zio.blocks.typeid.TypeRepr.ParamRef(TypeParam(${ Expr(paramName) }, ${ Expr(pr.paramNum) }), 0) }
 
-      // Fallback for other types
       case other =>
         val sym  = other.typeSymbol
         val name = if (sym.isNoSymbol) "Unknown" else sym.name

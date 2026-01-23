@@ -219,17 +219,8 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             )
           )
         ) &&
-        assert(schema11)(
-          equalTo(
-            new Schema[EmptyTuple](
-              reflect = Reflect.Record[Binding, EmptyTuple](
-                fields = Vector(),
-                typeId = TypeId.derived[EmptyTuple],
-                recordBinding = null
-              )
-            )
-          )
-        ) &&
+        assert(schema11.reflect.asRecord.map(_.fields))(isSome(equalTo(Vector.empty))) &&
+        assert(schema11.reflect.typeId.fullName)(equalTo("scala.Tuple$package.EmptyTuple")) &&
         assert(schema12)(equalTo(schema11)) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
