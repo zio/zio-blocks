@@ -144,8 +144,7 @@ sealed trait Json {
    * Modifies the value at the given path using a function. If the path doesn't
    * exist, returns the original JSON unchanged.
    */
-  def modify(path: DynamicOptic)(f: Json => Json): Json =
-    Json.modifyAtPath(this, path, f).getOrElse(this)
+  def modify(path: DynamicOptic)(f: Json => Json): Json = Json.modifyAtPath(this, path, f).getOrElse(this)
 
   /**
    * Modifies the value at the given path using a partial function. Returns Left
@@ -159,8 +158,7 @@ sealed trait Json {
    * Sets a value at the given path. If the path doesn't exist, returns the
    * original JSON unchanged.
    */
-  def set(path: DynamicOptic, value: Json): Json =
-    modify(path)(_ => value)
+  def set(path: DynamicOptic, value: Json): Json = modify(path)(_ => value)
 
   /**
    * Sets a value at the given path. Returns Left with an error if the path
@@ -173,23 +171,20 @@ sealed trait Json {
    * Deletes the value at the given path. If the path doesn't exist, returns the
    * original JSON unchanged.
    */
-  def delete(path: DynamicOptic): Json =
-    Json.deleteAtPath(this, path).getOrElse(this)
+  def delete(path: DynamicOptic): Json = Json.deleteAtPath(this, path).getOrElse(this)
 
   /**
    * Deletes the value at the given path. Returns Left with an error if the path
    * doesn't exist.
    */
-  def deleteOrFail(path: DynamicOptic): Either[JsonError, Json] =
-    Json.deleteAtPathOrFail(this, path)
+  def deleteOrFail(path: DynamicOptic): Either[JsonError, Json] = Json.deleteAtPathOrFail(this, path)
 
   /**
    * Inserts a value at the given path. For arrays, inserts at the specified
    * index. For objects, adds the field. If the path already exists, returns the
    * original JSON unchanged.
    */
-  def insert(path: DynamicOptic, value: Json): Json =
-    Json.insertAtPath(this, path, value).getOrElse(this)
+  def insert(path: DynamicOptic, value: Json): Json = Json.insertAtPath(this, path, value).getOrElse(this)
 
   /**
    * Inserts a value at the given path. Returns Left with an error if the path
@@ -264,8 +259,7 @@ sealed trait Json {
   def encodeTo(buffer: ByteBuffer): Unit = encodeTo(buffer, WriterConfig)
 
   /** Encodes this JSON value into the provided ByteBuffer with config. */
-  def encodeTo(buffer: ByteBuffer, config: WriterConfig): Unit =
-    buffer.put(encodeToBytes(config))
+  def encodeTo(buffer: ByteBuffer, config: WriterConfig): Unit = buffer.put(encodeToBytes(config))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Conversion
@@ -311,23 +305,20 @@ sealed trait Json {
    * receives the current path and the JSON value at that path. Child values are
    * transformed before their parents.
    */
-  def transformUp(f: (DynamicOptic, Json) => Json): Json =
-    Json.transformUpImpl(this, DynamicOptic.root, f)
+  def transformUp(f: (DynamicOptic, Json) => Json): Json = Json.transformUpImpl(this, DynamicOptic.root, f)
 
   /**
    * Transforms this JSON value top-down using the given function. The function
    * receives the current path and the JSON value at that path. Parent values
    * are transformed before their children.
    */
-  def transformDown(f: (DynamicOptic, Json) => Json): Json =
-    Json.transformDownImpl(this, DynamicOptic.root, f)
+  def transformDown(f: (DynamicOptic, Json) => Json): Json = Json.transformDownImpl(this, DynamicOptic.root, f)
 
   /**
    * Transforms all object keys using the given function. The function receives
    * the current path and the key at that path.
    */
-  def transformKeys(f: (DynamicOptic, String) => String): Json =
-    Json.transformKeysImpl(this, DynamicOptic.root, f)
+  def transformKeys(f: (DynamicOptic, String) => String): Json = Json.transformKeysImpl(this, DynamicOptic.root, f)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Filtering Methods
@@ -338,28 +329,24 @@ sealed trait Json {
    * current path and the JSON value at that path. Only values for which the
    * predicate returns true are kept.
    */
-  def filter(p: (DynamicOptic, Json) => Boolean): Json =
-    Json.filterImpl(this, DynamicOptic.root, p)
+  def filter(p: (DynamicOptic, Json) => Boolean): Json = Json.filterImpl(this, DynamicOptic.root, p)
 
   /**
    * Filters elements/fields based on the negation of a predicate.
    */
-  def filterNot(p: (DynamicOptic, Json) => Boolean): Json =
-    filter((path, json) => !p(path, json))
+  def filterNot(p: (DynamicOptic, Json) => Boolean): Json = filter((path, json) => !p(path, json))
 
   /**
    * Projects only the specified paths from this JSON value. Creates a new JSON
    * containing only values at the given paths.
    */
-  def project(paths: DynamicOptic*): Json =
-    Json.projectImpl(this, paths)
+  def project(paths: DynamicOptic*): Json = Json.projectImpl(this, paths)
 
   /**
    * Partitions elements/fields based on a predicate. Returns a tuple of
    * (matching, non-matching) JSON values.
    */
-  def partition(p: (DynamicOptic, Json) => Boolean): (Json, Json) =
-    Json.partitionImpl(this, DynamicOptic.root, p)
+  def partition(p: (DynamicOptic, Json) => Boolean): (Json, Json) = Json.partitionImpl(this, DynamicOptic.root, p)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Folding Methods
@@ -370,16 +357,14 @@ sealed trait Json {
    * path, the JSON value, and the accumulator. Child values are folded before
    * their parents.
    */
-  def foldUp[B](z: B)(f: (DynamicOptic, Json, B) => B): B =
-    Json.foldUpImpl(this, DynamicOptic.root, z, f)
+  def foldUp[B](z: B)(f: (DynamicOptic, Json, B) => B): B = Json.foldUpImpl(this, DynamicOptic.root, z, f)
 
   /**
    * Folds over the JSON structure top-down. The function receives the current
    * path, the JSON value, and the accumulator. Parent values are folded before
    * their children.
    */
-  def foldDown[B](z: B)(f: (DynamicOptic, Json, B) => B): B =
-    Json.foldDownImpl(this, DynamicOptic.root, z, f)
+  def foldDown[B](z: B)(f: (DynamicOptic, Json, B) => B): B = Json.foldDownImpl(this, DynamicOptic.root, z, f)
 
   /**
    * Folds over the JSON structure bottom-up, allowing failure.
@@ -401,15 +386,13 @@ sealed trait Json {
    * Queries the JSON using a predicate function. Returns a JsonSelection
    * containing all values for which the predicate returns true.
    */
-  def query(p: (DynamicOptic, Json) => Boolean): JsonSelection =
-    Json.queryImpl(this, DynamicOptic.root, p)
+  def query(p: (DynamicOptic, Json) => Boolean): JsonSelection = Json.queryImpl(this, DynamicOptic.root, p)
 
   /**
    * Converts this JSON to a sequence of path-value pairs. Each pair contains
    * the path to a leaf value and the value itself.
    */
-  def toKV: Seq[(DynamicOptic, Json)] =
-    Json.toKVImpl(this, DynamicOptic.root)
+  def toKV: Seq[(DynamicOptic, Json)] = Json.toKVImpl(this, DynamicOptic.root)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Stubbed Methods (to be implemented later)
@@ -439,10 +422,13 @@ object Json {
    * order-independent (compared as sorted key-value pairs).
    */
   final case class Object(value: Chunk[(scala.Predef.String, Json)]) extends Json {
-    override def isObject: scala.Boolean                  = true
-    override def asObject: JsonSelection                  = JsonSelection.succeed(this)
+    override def isObject: scala.Boolean = true
+
+    override def asObject: JsonSelection = JsonSelection.succeed(this)
+
     override def fields: Seq[(scala.Predef.String, Json)] = value
-    override def typeIndex: Int                           = 5
+
+    override def typeIndex: Int = 5
 
     override def get(key: scala.Predef.String): JsonSelection = {
       var idx = 0
@@ -523,9 +509,12 @@ object Json {
    */
   final case class Array(value: Vector[Json]) extends Json {
     override def isArray: scala.Boolean = true
+
     override def asArray: JsonSelection = JsonSelection.succeed(this)
-    override def elements: Seq[Json]    = value
-    override def typeIndex: Int         = 4
+
+    override def elements: Seq[Json] = value
+
+    override def typeIndex: Int = 4
 
     override def apply(index: Int): JsonSelection =
       if (index >= 0 && index < value.length) JsonSelection.succeed(value(index))
@@ -569,10 +558,13 @@ object Json {
    * Represents a JSON string.
    */
   final case class String(value: scala.Predef.String) extends Json {
-    override def isString: scala.Boolean                  = true
-    override def asString: JsonSelection                  = JsonSelection.succeed(this)
+    override def isString: scala.Boolean = true
+
+    override def asString: JsonSelection = JsonSelection.succeed(this)
+
     override def stringValue: Option[scala.Predef.String] = Some(value)
-    override def typeIndex: Int                           = 3
+
+    override def typeIndex: Int = 3
 
     override def compare(that: Json): Int = that match {
       case thatStr: String => value.compareTo(thatStr.value)
@@ -585,10 +577,13 @@ object Json {
    * representation.
    */
   final case class Number(value: scala.Predef.String) extends Json {
-    override def isNumber: scala.Boolean         = true
-    override def asNumber: JsonSelection         = JsonSelection.succeed(this)
+    override def isNumber: scala.Boolean = true
+
+    override def asNumber: JsonSelection = JsonSelection.succeed(this)
+
     override def numberValue: Option[BigDecimal] = scala.util.Try(BigDecimal(value)).toOption
-    override def typeIndex: Int                  = 2
+
+    override def typeIndex: Int = 2
 
     /** Returns the underlying BigDecimal value. */
     def toBigDecimal: BigDecimal = BigDecimal(value)
@@ -604,10 +599,13 @@ object Json {
    * Represents a JSON boolean.
    */
   final case class Boolean(value: scala.Boolean) extends Json {
-    override def isBoolean: scala.Boolean            = true
-    override def asBoolean: JsonSelection            = JsonSelection.succeed(this)
+    override def isBoolean: scala.Boolean = true
+
+    override def asBoolean: JsonSelection = JsonSelection.succeed(this)
+
     override def booleanValue: Option[scala.Boolean] = Some(value)
-    override def typeIndex: Int                      = 1
+
+    override def typeIndex: Int = 1
 
     override def compare(that: Json): Int = that match {
       case thatBool: Boolean => java.lang.Boolean.compare(value, thatBool.value)
@@ -625,9 +623,12 @@ object Json {
    * Represents JSON null.
    */
   case object Null extends Json {
+
     override def isNull: scala.Boolean = true
+
     override def asNull: JsonSelection = JsonSelection.succeed(this)
-    override def typeIndex: Int        = 0
+
+    override def typeIndex: Int = 0
 
     override def compare(that: Json): Int = that match {
       case Null => 0
@@ -1959,22 +1960,23 @@ object Json {
         in.setMark()
         val _ = in.readBigDecimal(null)
         in.rollbackToMark()
-        val v = in.readRawValAsBytes()
-        new Number(new java.lang.String(v, 0, v.length))
+        new Number(new java.lang.String(in.readRawValAsBytes()))
       } else if (b == '[') {
         if (in.isNextToken(']')) Array.empty
         else {
           in.rollbackToken()
-          val builder = new VectorBuilder[Json]
-          var idx     = 0
+          val builder     = new VectorBuilder[Json]
+          var idx, errIdx = 0
           try {
             while ({
+              errIdx = idx
               builder.addOne(decodeValue(in, default))
+              errIdx = -1
               idx += 1
               in.isNextToken(',')
             }) ()
           } catch {
-            case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+            case error if NonFatal(error) && errIdx >= 0 => in.decodeError(new DynamicOptic.Node.AtIndex(errIdx), error)
           }
           if (in.isCurrentToken(']')) new Array(builder.result())
           else in.arrayEndOrCommaError()
@@ -1983,7 +1985,7 @@ object Json {
         if (in.isNextToken('}')) Object.empty
         else {
           in.rollbackToken()
-          val builder               = ChunkBuilder.make[(scala.Predef.String, Json)]()
+          val builder               = ChunkBuilder.make[(java.lang.String, Json)]()
           var key: java.lang.String = null
           try {
             while ({
@@ -2000,24 +2002,24 @@ object Json {
         }
       } else {
         in.rollbackToken()
-        in.readNullOrError(Null, "expected JSON value")
+        in.readNullOrError(default, "expected JSON value")
       }
     }
 
     override def encodeValue(x: Json, out: JsonWriter): Unit = x match {
-      case String(v)  => out.writeVal(v)
-      case Boolean(v) => out.writeVal(v)
-      case Number(v)  => out.writeRawVal(v.getBytes)
-      case Array(v)   =>
+      case s: String  => out.writeVal(s.value)
+      case b: Boolean => out.writeVal(b.value)
+      case n: Number  => out.writeRawVal(n.value.getBytes)
+      case a: Array   =>
         out.writeArrayStart()
-        val it = v.iterator
+        val it = a.value.iterator
         while (it.hasNext) {
           encodeValue(it.next(), out)
         }
         out.writeArrayEnd()
-      case Object(v) =>
+      case o: Object =>
         out.writeObjectStart()
-        val it = v.iterator
+        val it = o.value.iterator
         while (it.hasNext) {
           val kv = it.next()
           out.writeKey(kv._1)
