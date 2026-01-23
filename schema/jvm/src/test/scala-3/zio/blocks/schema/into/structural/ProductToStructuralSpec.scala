@@ -15,10 +15,13 @@ import scala.reflect.Selectable.reflectiveSelectable
 object ProductToStructuralSpec extends ZIOSpecDefault {
 
   // === Source Case Classes ===
-  case class Person(name: String, age: Int)
-  case class Employee(name: String, age: Int, department: String)
-  case class NameOnly(name: String)
-  case class PersonWithExtra(name: String, age: Int, email: String, phone: String)
+  object Types {
+    case class Person(name: String, age: Int)
+    case class Employee(name: String, age: Int, department: String)
+    case class NameOnly(name: String)
+    case class PersonWithExtra(name: String, age: Int, email: String, phone: String)
+  }
+  import Types._
 
   // === Structural type aliases ===
   type HasName        = { def name: String }

@@ -8,13 +8,14 @@ import scala.reflect.Selectable.reflectiveSelectable
 /** JVM-only tests for As with pure structural types (requires reflection). */
 object StructuralAsSpec extends ZIOSpecDefault {
 
-  case class Person(name: String, age: Int)
-  case class Point(x: Int, y: Int)
-  case class Employee(name: String, age: Int, department: String)
-
-  case class PersonWithOptDept(name: String, age: Int, department: Option[String])
-
-  case class PersonWithDefaultDept(name: String, age: Int, department: String = "Unknown")
+  object Types {
+    case class Person(name: String, age: Int)
+    case class Point(x: Int, y: Int)
+    case class Employee(name: String, age: Int, department: String)
+    case class PersonWithOptDept(name: String, age: Int, department: Option[String])
+    case class PersonWithDefaultDept(name: String, age: Int, department: String = "Unknown")
+  }
+  import Types._
 
   def spec: Spec[TestEnvironment, Any] = suite("StructuralAsJVMOnlySpec")(
     suite("As with Pure Structural Types (JVM Only)")(
@@ -65,7 +66,7 @@ object StructuralAsSpec extends ZIOSpecDefault {
           intoChecked <- typeCheck(
                            """
             import zio.blocks.schema._
-            import zio.blocks.schema.as.structural.StructuralAsSpec.Employee
+            import zio.blocks.schema.as.structural.StructuralAsSpec.Types.Employee
             Into.derived[{ def name: String; def age: Int }, Employee]
             """
                          )
@@ -73,7 +74,7 @@ object StructuralAsSpec extends ZIOSpecDefault {
           asChecked <- typeCheck(
                          """
             import zio.blocks.schema._
-            import zio.blocks.schema.as.structural.StructuralAsSpec.Employee
+            import zio.blocks.schema.as.structural.StructuralAsSpec.Types.Employee
             As.derived[Employee, { def name: String; def age: Int }]
             """
                        )
