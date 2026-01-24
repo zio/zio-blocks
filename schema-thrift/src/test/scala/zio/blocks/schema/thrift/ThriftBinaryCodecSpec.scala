@@ -1,8 +1,8 @@
 package zio.blocks.schema.thrift
 
 import zio.blocks.schema._
+import zio.blocks.schema.JavaTimeGen._
 import zio.test._
-
 import java.nio.ByteBuffer
 import java.time._
 import java.util.{Currency, UUID}
@@ -11,449 +11,324 @@ import java.util.{Currency, UUID}
  * Comprehensive test suite for ThriftBinaryCodec. Tests round-trip
  * encoding/decoding for all supported types.
  */
-object ThriftCodecSpec extends ZIOSpecDefault {
-
-  // Test case classes
+object ThriftBinaryCodecSpec extends SchemaBaseSpec {
   case class BasicInt(value: Int)
+
   object BasicInt {
     implicit val schema: Schema[BasicInt] = Schema.derived
   }
 
-  case class BasicString(value: String)
-  object BasicString {
-    implicit val schema: Schema[BasicString] = Schema.derived
-  }
-
-  case class BasicDouble(value: Double)
-  object BasicDouble {
-    implicit val schema: Schema[BasicDouble] = Schema.derived
-  }
-
   case class Record(name: String, value: Int)
+
   object Record {
     implicit val schema: Schema[Record] = Schema.derived
   }
 
   case class Embedded(inner: BasicInt)
+
   object Embedded {
     implicit val schema: Schema[Embedded] = Schema.derived
   }
 
-  case class IntList(items: List[Int])
-  object IntList {
-    implicit val schema: Schema[IntList] = Schema.derived
-  }
-
-  case class StringList(items: List[String])
-  object StringList {
-    implicit val schema: Schema[StringList] = Schema.derived
-  }
-
-  case class MapRecord(id: Int, data: Map[String, Int])
-  object MapRecord {
-    implicit val schema: Schema[MapRecord] = Schema.derived
-  }
-
-  case class SetRecord(id: Int, tags: Set[String])
-  object SetRecord {
-    implicit val schema: Schema[SetRecord] = Schema.derived
-  }
-
-  case class OptionalRecord(name: String, age: Option[Int])
-  object OptionalRecord {
-    implicit val schema: Schema[OptionalRecord] = Schema.derived
-  }
-
-  case class TupleRecord(pair: (String, Int))
-  object TupleRecord {
-    implicit val schema: Schema[TupleRecord] = Schema.derived
-  }
-
   sealed trait OneOf
+
   object OneOf {
     case class StringValue(value: String) extends OneOf
-    case class IntValue(value: Int)       extends OneOf
-    case class BoolValue(value: Boolean)  extends OneOf
+
+    case class IntValue(value: Int) extends OneOf
+
+    case class BoolValue(value: Boolean) extends OneOf
 
     implicit val schema: Schema[OneOf] = Schema.derived
   }
 
-  case class Enumeration(oneOf: OneOf)
-  object Enumeration {
-    implicit val schema: Schema[Enumeration] = Schema.derived
-  }
-
   case class HighArity(
-    f1: Int,
-    f2: Int,
-    f3: Int,
-    f4: Int,
+    f1: Unit,
+    f2: Boolean,
+    f3: Byte,
+    f4: Short,
     f5: Int,
-    f6: Int,
-    f7: Int,
-    f8: Int,
-    f9: Int,
-    f10: Int,
-    f11: Int,
-    f12: Int,
-    f13: Int,
-    f14: Int,
-    f15: Int,
-    f16: Int,
-    f17: Int,
-    f18: Int,
-    f19: Int,
-    f20: Int,
-    f21: Int,
-    f22: Int,
-    f23: Int,
-    f24: Int
+    f6: Long,
+    f7: Float,
+    f8: Double,
+    f9: Char,
+    f10: BigInt,
+    f11: BigDecimal,
+    f12: DayOfWeek,
+    f13: Duration,
+    f14: Instant,
+    f15: LocalDate,
+    f16: LocalDateTime,
+    f17: LocalTime,
+    f18: Month,
+    f19: MonthDay,
+    f20: OffsetDateTime,
+    f21: OffsetTime,
+    f22: Period,
+    f23: Year,
+    f24: YearMonth,
+    f25: ZoneId,
+    f26: ZoneOffset,
+    f27: ZonedDateTime,
+    f28: Currency,
+    f29: UUID
   )
+
   object HighArity {
     implicit val schema: Schema[HighArity] = Schema.derived
     val default: HighArity                 =
-      HighArity(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24)
-  }
-
-  case class DateTimeRecord(
-    instant: Instant,
-    localDate: LocalDate,
-    localTime: LocalTime,
-    localDateTime: LocalDateTime
-  )
-  object DateTimeRecord {
-    implicit val schema: Schema[DateTimeRecord] = Schema.derived
-  }
-
-  case class NestedRecord(outer: Record, inner: Embedded)
-  object NestedRecord {
-    implicit val schema: Schema[NestedRecord] = Schema.derived
-  }
-
-  // Recursive type for tree structure
-  case class TreeNode(value: Int, children: List[TreeNode])
-  object TreeNode {
-    implicit val schema: Schema[TreeNode] = Schema.derived
-  }
-
-  // Recursive list-like structure
-  case class LinkedListNode(value: String, next: Option[LinkedListNode])
-  object LinkedListNode {
-    implicit val schema: Schema[LinkedListNode] = Schema.derived
+      HighArity(
+        (),
+        true,
+        Byte.MaxValue,
+        Short.MaxValue,
+        Int.MaxValue,
+        Long.MaxValue,
+        Float.MaxValue,
+        Double.MaxValue,
+        Char.MaxValue,
+        BigInt("9" * 20),
+        BigDecimal("9" * 20),
+        DayOfWeek.WEDNESDAY,
+        Duration.ofSeconds(Long.MaxValue),
+        Instant.MAX,
+        LocalDate.MAX,
+        LocalDateTime.MAX,
+        LocalTime.MAX,
+        Month.DECEMBER,
+        MonthDay.of(Month.DECEMBER, 31),
+        OffsetDateTime.MAX,
+        OffsetTime.MAX,
+        Period.ofDays(Int.MaxValue),
+        Year.of(Year.MAX_VALUE),
+        YearMonth.of(2026, Month.DECEMBER),
+        ZoneId.of("GMT"),
+        ZoneOffset.MAX,
+        ZonedDateTime.of(LocalDateTime.MAX, ZoneId.of("GMT")),
+        Currency.getInstance("USD"),
+        new UUID(1L, 2L)
+      )
   }
 
   // Helper for round-trip testing
-  def roundTrip[A](value: A)(implicit schema: Schema[A]): Either[SchemaError, A] = {
-    val buffer = ByteBuffer.allocate(8192)
-    schema.encode(ThriftFormat)(buffer)(value)
-    buffer.flip()
-    schema.decode(ThriftFormat)(buffer)
+  def roundTrip[A](value: A)(implicit schema: Schema[A]): TestResult = {
+    val heapByteBuffer = ByteBuffer.allocate(8192)
+    schema.encode(ThriftFormat)(heapByteBuffer)(value)
+    heapByteBuffer.flip()
+    val directByteBuffer = ByteBuffer.allocateDirect(8192)
+    schema.encode(ThriftFormat)(directByteBuffer)(value)
+    directByteBuffer.flip()
+    assertTrue(
+      schema.decode(ThriftFormat)(heapByteBuffer) == Right(value),
+      schema.decode(ThriftFormat)(directByteBuffer) == Right(value)
+    )
   }
 
-  def spec = suite("ThriftCodec Spec")(
-    suite("Primitive Types")(
+  def spec = suite("ThriftBinaryCodecSpec")(
+    suite("primitives")(
       test("encode/decode Unit") {
-        val result = roundTrip(())
-        assertTrue(result == Right(()))
+        roundTrip(())
       },
-      test("encode/decode Boolean true") {
-        val result = roundTrip(true)
-        assertTrue(result == Right(true))
-      },
-      test("encode/decode Boolean false") {
-        val result = roundTrip(false)
-        assertTrue(result == Right(false))
+      test("encode/decode Boolean") {
+        check(Gen.boolean)(x => roundTrip(x))
       },
       test("encode/decode Byte") {
-        val result = roundTrip(42.toByte)
-        assertTrue(result == Right(42.toByte))
+        check(Gen.byte)(x => roundTrip(x))
       },
       test("encode/decode Short") {
-        val result = roundTrip(1234.toShort)
-        assertTrue(result == Right(1234.toShort))
+        check(Gen.short)(x => roundTrip(x))
       },
       test("encode/decode Int") {
-        val result = roundTrip(150)
-        assertTrue(result == Right(150))
+        check(Gen.int)(x => roundTrip(x))
       },
       test("encode/decode Long") {
-        val result = roundTrip(1000L)
-        assertTrue(result == Right(1000L))
+        check(Gen.long)(x => roundTrip(x))
       },
       test("encode/decode Float") {
-        val result = roundTrip(0.001f)
-        assertTrue(result == Right(0.001f))
+        check(Gen.float)(x => roundTrip(x))
       },
       test("encode/decode Double") {
-        val result = roundTrip(0.001)
-        assertTrue(result == Right(0.001))
+        check(Gen.double)(x => roundTrip(x))
       },
       test("encode/decode Char") {
-        val result = roundTrip('c')
-        assertTrue(result == Right('c'))
+        check(Gen.char)(x => roundTrip(x))
       },
       test("encode/decode String") {
-        val result = roundTrip("hello world")
-        assertTrue(result == Right("hello world"))
-      },
-      test("encode/decode empty String") {
-        val result = roundTrip("")
-        assertTrue(result == Right(""))
+        check(Gen.string)(x => roundTrip(x))
       },
       test("encode/decode BigInt") {
-        val value  = BigInt("12345678901234567890")
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x => roundTrip(x))
       },
       test("encode/decode BigDecimal") {
-        val value  = BigDecimal("12345.67890")
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x => roundTrip(x))
       },
       test("encode/decode UUID") {
-        val value  = UUID.randomUUID()
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(Gen.uuid)(x => roundTrip(x))
       },
       test("encode/decode Currency") {
-        val value  = Currency.getInstance("USD")
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      }
-    ),
-    suite("Date/Time Types")(
+        check(Gen.currency)(x => roundTrip(x))
+      },
       test("encode/decode DayOfWeek") {
-        val value  = DayOfWeek.WEDNESDAY
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode Month") {
-        val value  = Month.MARCH
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode Year") {
-        val value  = Year.of(2024)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode MonthDay") {
-        val value  = MonthDay.of(3, 15)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode YearMonth") {
-        val value  = YearMonth.of(2024, 3)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode Period") {
-        val value  = Period.of(1, 2, 3)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(genDayOfWeek)(x => roundTrip(x))
       },
       test("encode/decode Duration") {
-        val value  = Duration.ofHours(25)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(genDuration)(x => roundTrip(x))
       },
       test("encode/decode Instant") {
-        val value  = Instant.parse("2024-01-15T10:30:00Z")
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(genInstant)(x => roundTrip(x))
       },
       test("encode/decode LocalDate") {
-        val value  = LocalDate.of(2024, 1, 15)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode LocalTime") {
-        val value  = LocalTime.of(10, 30, 45)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(genLocalDate)(x => roundTrip(x))
       },
       test("encode/decode LocalDateTime") {
-        val value  = LocalDateTime.of(2024, 1, 15, 10, 30, 45)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(genLocalDateTime)(x => roundTrip(x))
+      },
+      test("encode/decode LocalTime") {
+        check(genLocalTime)(x => roundTrip(x))
+      },
+      test("encode/decode Month") {
+        check(genMonth)(x => roundTrip(x))
+      },
+      test("encode/decode MonthDay") {
+        check(genMonthDay)(x => roundTrip(x))
       },
       test("encode/decode OffsetTime") {
-        val value  = OffsetTime.of(10, 30, 45, 0, ZoneOffset.ofHours(5))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(genOffsetTime)(x => roundTrip(x))
       },
       test("encode/decode OffsetDateTime") {
-        val value  = OffsetDateTime.of(2024, 1, 15, 10, 30, 45, 0, ZoneOffset.ofHours(5))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(genOffsetDateTime)(x => roundTrip(x))
       },
-      test("encode/decode ZonedDateTime") {
-        val value  = ZonedDateTime.of(2024, 1, 15, 10, 30, 45, 0, ZoneId.of("America/New_York"))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+      test("encode/decode Period") {
+        check(genPeriod)(x => roundTrip(x))
+      },
+      test("encode/decode Year") {
+        check(genYear)(x => roundTrip(x))
+      },
+      test("encode/decode YearMonth") {
+        check(genYearMonth)(x => roundTrip(x))
       },
       test("encode/decode ZoneId") {
-        val value  = ZoneId.of("Europe/London")
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(genZoneId)(x => roundTrip(x))
       },
       test("encode/decode ZoneOffset") {
-        val value  = ZoneOffset.ofHours(5)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        check(genZoneOffset)(x => roundTrip(x))
+      },
+      test("encode/decode ZonedDateTime") {
+        check(genZonedDateTime)(x => roundTrip(x))
       }
     ),
     suite("Record Types")(
       test("encode/decode simple record") {
-        val value  = Record("hello", 42)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode BasicInt record") {
-        val value  = BasicInt(150)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode BasicString record") {
-        val value  = BasicString("testing")
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode BasicDouble record") {
-        val value  = BasicDouble(3.14159)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        roundTrip(Record("hello", 42))
       },
       test("encode/decode embedded record") {
-        val value  = Embedded(BasicInt(100))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        roundTrip(Embedded(BasicInt(100)))
       },
       test("encode/decode nested record") {
-        val value  = NestedRecord(Record("outer", 1), Embedded(BasicInt(2)))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        case class NestedRecord(outer: Record, inner: Embedded)
+
+        object NestedRecord {
+          implicit val schema: Schema[NestedRecord] = Schema.derived
+        }
+
+        roundTrip(NestedRecord(Record("outer", 1), Embedded(BasicInt(2))))
+      },
+      test("encode/decode record with option value") {
+        case class OptionalRecord(name: String, age: Option[Int])
+
+        object OptionalRecord {
+          implicit val schema: Schema[OptionalRecord] = Schema.derived
+        }
+
+        roundTrip(OptionalRecord("John", Some(30))) &&
+        roundTrip(OptionalRecord("Jane", None))
+      },
+      test("encode/decode tuple in record") {
+        case class TupleRecord(pair: (String, Int))
+
+        object TupleRecord {
+          implicit val schema: Schema[TupleRecord] = Schema.derived
+        }
+
+        roundTrip(TupleRecord(("hello", 42)))
       },
       test("encode/decode high arity record") {
-        val value  = HighArity.default
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        roundTrip(HighArity.default)
+      },
+      test("encode/decode list of records") {
+        roundTrip(List(Record("a", 1), Record("b", 2), Record("c", 3)))
       }
     ),
-    suite("Collection Types")(
+    suite("collections")(
       test("encode/decode int list") {
-        val value  = IntList(List(1, 2, 3, 4, 5))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode empty int list") {
-        val value  = IntList(List.empty)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        case class IntList(items: List[Int])
+
+        object IntList {
+          implicit val schema: Schema[IntList] = Schema.derived
+        }
+
+        roundTrip(IntList(List(1, 2, 3, 4, 5))) &&
+        roundTrip(IntList(List.empty))
       },
       test("encode/decode string list") {
-        val value  = StringList(List("foo", "bar", "baz"))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        case class StringList(items: List[String])
+
+        object StringList {
+          implicit val schema: Schema[StringList] = Schema.derived
+        }
+
+        roundTrip(StringList(List("foo", "bar", "baz")))
       },
       test("encode/decode map record") {
-        val value  = MapRecord(1, Map("a" -> 100, "b" -> 200))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode empty map record") {
-        val value  = MapRecord(1, Map.empty)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        case class MapRecord(id: Int, data: Map[String, Int])
+
+        object MapRecord {
+          implicit val schema: Schema[MapRecord] = Schema.derived
+        }
+
+        roundTrip(MapRecord(1, Map("a" -> 100, "b" -> 200))) &&
+        roundTrip(MapRecord(1, Map.empty))
       },
       test("encode/decode set record") {
-        val value  = SetRecord(1, Set("tag1", "tag2", "tag3"))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode empty set record") {
-        val value  = SetRecord(1, Set.empty)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      }
-    ),
-    suite("Optional Types")(
-      test("encode/decode Some value") {
-        val value  = OptionalRecord("John", Some(30))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode None value") {
-        val value  = OptionalRecord("Jane", None)
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode standalone Option Some") {
-        val value: Option[Int] = Some(42)
-        val result             = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode standalone Option None") {
-        val value: Option[Int] = None
-        val result             = roundTrip(value)
-        assertTrue(result == Right(value))
-      }
-    ),
-    suite("Enum/Variant Types")(
-      test("encode/decode StringValue variant") {
-        val value  = Enumeration(OneOf.StringValue("hello"))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode IntValue variant") {
-        val value  = Enumeration(OneOf.IntValue(42))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode BoolValue variant") {
-        val value  = Enumeration(OneOf.BoolValue(true))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode standalone StringValue") {
-        val value: OneOf = OneOf.StringValue("test")
-        val result       = roundTrip(value)
-        assertTrue(result == Right(value))
-      }
-    ),
-    suite("Tuple Types")(
-      test("encode/decode tuple in record") {
-        val value  = TupleRecord(("hello", 42))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      }
-    ),
-    suite("Complex Nested Types")(
-      test("encode/decode list of records") {
-        val value  = List(Record("a", 1), Record("b", 2), Record("c", 3))
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
+        case class SetRecord(id: Int, tags: Set[String])
+
+        object SetRecord {
+          implicit val schema: Schema[SetRecord] = Schema.derived
+        }
+
+        roundTrip(SetRecord(1, Set("tag1", "tag2", "tag3"))) &&
+        roundTrip(SetRecord(1, Set.empty))
       },
       test("encode/decode map with record values") {
-        val value: Map[String, Record] = Map(
-          "first"  -> Record("a", 1),
-          "second" -> Record("b", 2)
+        roundTrip(
+          Map(
+            "first"  -> Record("a", 1),
+            "second" -> Record("b", 2)
+          )
         )
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
-      },
-      test("encode/decode date/time record") {
-        val value = DateTimeRecord(
-          instant = Instant.parse("2024-01-15T10:30:00Z"),
-          localDate = LocalDate.of(2024, 1, 15),
-          localTime = LocalTime.of(10, 30, 45),
-          localDateTime = LocalDateTime.of(2024, 1, 15, 10, 30, 45)
-        )
-        val result = roundTrip(value)
-        assertTrue(result == Right(value))
       }
     ),
-    suite("Schema Evolution & Wire Compatibility")(
+    suite("variants")(
+      test("encode/decode standalone Option") {
+        roundTrip[Option[Int]](Some(42)) &&
+        roundTrip[Option[Int]](None)
+      },
+      test("encode/decode standalone StringValue") {
+        roundTrip[OneOf](OneOf.StringValue("test"))
+      },
+      test("encode/decode case class with ADT field value") {
+        case class Enumeration(oneOf: OneOf)
+
+        object Enumeration {
+          implicit val schema: Schema[Enumeration] = Schema.derived
+        }
+
+        roundTrip(Enumeration(OneOf.StringValue("hello"))) &&
+        roundTrip(Enumeration(OneOf.IntValue(42))) &&
+        roundTrip(Enumeration(OneOf.BoolValue(true)))
+      }
+    ),
+    suite("schema evolution & wire compatibility")(
       test("decode fields in different order than schema definition") {
         // This test verifies that fields can arrive in ANY order on the wire
         import org.apache.thrift.protocol._
@@ -602,16 +477,8 @@ object ThriftCodecSpec extends ZIOSpecDefault {
           implicit val schema: Schema[User] = Schema.derived
         }
 
-        // Test 1: Round-trip with None
-        val userWithNone = User("Charlie", None)
-        val resultNone   = roundTrip(userWithNone)
-        assertTrue(resultNone == Right(User("Charlie", None))) &&
-        // Test 2: Round-trip with Some
-        {
-          val userWithSome = User("Dave", Some(42))
-          val resultSome   = roundTrip(userWithSome)
-          assertTrue(resultSome == Right(User("Dave", Some(42))))
-        }
+        roundTrip(User("Dave", Some(42))) &&
+        roundTrip(User("Charlie", None))
       },
       test("decode with field ID gaps (sparse field IDs)") {
         // Field IDs don't need to be contiguous - test with gaps
@@ -650,43 +517,38 @@ object ThriftCodecSpec extends ZIOSpecDefault {
         assertTrue(result == Right(SparseRecord("hello", 999)))
       }
     ),
-    suite("Recursive Types")(
-      test("encode/decode tree node with children") {
-        val tree = TreeNode(
-          1,
-          List(
-            TreeNode(2, List(TreeNode(4, Nil), TreeNode(5, Nil))),
-            TreeNode(3, List(TreeNode(6, Nil)))
+    suite("recursive types")(
+      test("encode/decode tree") {
+        case class TreeNode(value: Int, children: List[TreeNode])
+
+        object TreeNode {
+          implicit val schema: Schema[TreeNode] = Schema.derived
+        }
+
+        roundTrip(
+          TreeNode(
+            1,
+            List(
+              TreeNode(2, List(TreeNode(4, Nil), TreeNode(5, Nil))),
+              TreeNode(3, List(TreeNode(6, Nil)))
+            )
           )
-        )
-        val result = roundTrip(tree)
-        assertTrue(result == Right(tree))
+        ) &&
+        roundTrip(TreeNode(42, Nil)) &&
+        roundTrip(TreeNode(1, List(TreeNode(2, List(TreeNode(3, List(TreeNode(4, List(TreeNode(5, Nil))))))))))
       },
-      test("encode/decode tree node with no children") {
-        val tree   = TreeNode(42, Nil)
-        val result = roundTrip(tree)
-        assertTrue(result == Right(tree))
-      },
-      test("encode/decode deeply nested tree") {
-        val tree = TreeNode(
-          1,
-          List(TreeNode(2, List(TreeNode(3, List(TreeNode(4, List(TreeNode(5, Nil))))))))
-        )
-        val result = roundTrip(tree)
-        assertTrue(result == Right(tree))
-      },
-      test("encode/decode linked list with next node") {
-        val list   = LinkedListNode("first", Some(LinkedListNode("second", Some(LinkedListNode("third", None)))))
-        val result = roundTrip(list)
-        assertTrue(result == Right(list))
-      },
-      test("encode/decode linked list terminal node") {
-        val list   = LinkedListNode("single", None)
-        val result = roundTrip(list)
-        assertTrue(result == Right(list))
+      test("encode/decode linked list") {
+        case class LinkedListNode(value: String, next: Option[LinkedListNode])
+
+        object LinkedListNode {
+          implicit val schema: Schema[LinkedListNode] = Schema.derived
+        }
+
+        roundTrip(LinkedListNode("first", Some(LinkedListNode("second", Some(LinkedListNode("third", None)))))) &&
+        roundTrip(LinkedListNode("single", None))
       }
     ),
-    suite("Edge Cases & Robustness")(
+    suite("edge cases & robustness")(
       test("skip unknown nested struct field") {
         import org.apache.thrift.protocol._
         import org.apache.thrift.transport.TMemoryBuffer
@@ -800,9 +662,7 @@ object ThriftCodecSpec extends ZIOSpecDefault {
           implicit val schema: Schema[Extremes] = Schema.derived
         }
 
-        val extremes = Extremes(Int.MinValue, Int.MaxValue, Long.MinValue, Long.MaxValue)
-        val result   = roundTrip(extremes)
-        assertTrue(result == Right(extremes))
+        roundTrip(Extremes(Int.MinValue, Int.MaxValue, Long.MinValue, Long.MaxValue))
       },
       test("special float/double values (NaN, Infinity)") {
         case class Floats(zero: Double, inf: Double, negInf: Double, nan: Double)
@@ -833,9 +693,7 @@ object ThriftCodecSpec extends ZIOSpecDefault {
           implicit val schema: Schema[Strings] = Schema.derived
         }
 
-        val strings = Strings("", "Hello 世界 🌍 émojis")
-        val result  = roundTrip(strings)
-        assertTrue(result == Right(strings))
+        roundTrip(Strings("", "Hello 世界 🌍 émojis"))
       },
       test("deeply nested records (5 levels)") {
         case class L5(value: String)
@@ -850,9 +708,7 @@ object ThriftCodecSpec extends ZIOSpecDefault {
         object L2 { implicit val schema: Schema[L2] = Schema.derived }
         object L1 { implicit val schema: Schema[L1] = Schema.derived }
 
-        val nested = L1(L2(L3(L4(L5("deep")))))
-        val result = roundTrip(nested)
-        assertTrue(result == Right(nested))
+        roundTrip(L1(L2(L3(L4(L5("deep"))))))
       },
       test("empty collections") {
         case class Empty(list: List[String], set: Set[Int], map: Map[String, Int])
@@ -860,9 +716,7 @@ object ThriftCodecSpec extends ZIOSpecDefault {
           implicit val schema: Schema[Empty] = Schema.derived
         }
 
-        val empty  = Empty(List(), Set(), Map())
-        val result = roundTrip(empty)
-        assertTrue(result == Right(empty))
+        roundTrip(Empty(List(), Set(), Map()))
       },
       test("large collections (1000 elements)") {
         case class Large(numbers: List[Int])
