@@ -496,16 +496,16 @@ Here is an example of adding modifiers to a schema:
 
 ## Wrapper Types
 
-ZIO Blocks provides convenient methods for creating schemas for wrapper types, such as newtypes, opaque types and value classes. These methods are `wrap` and `wrapTotal`, which allow defining schemas for types that wrap an underlying type:
+ZIO Blocks provides convenient methods for creating schemas for wrapper types, such as newtypes, opaque types and value classes. These methods are `transform` and `transformOrFail`, which allow defining schemas for types that wrap an underlying type:
 
 ```scala
 final case class Schema[A](reflect: Reflect.Bound[A]) {
-  def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = ???
-  def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A]            = ???
+  def transform[B](to: A => B, from: B => A): Schema[B]                              = ???
+  def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A): Schema[B]   = ???
 }
 ```
 
-The `wrap` method is used for types where the wrapping operation may fail (e.g., validation), while `wrapTotal` is used for total transformations that never fail. 
+The `transformOrFail` method is used for types where the transformation may fail (e.g., validation), while `transform` is used for total transformations that never fail. 
 
 Here are examples of both:
 
