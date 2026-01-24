@@ -126,6 +126,6 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       else throw new IllegalArgumentException("Expected positive value")
 
     implicit val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeName[PosInt]
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).asOpaqueType[PosInt]
   }
 }
