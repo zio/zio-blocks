@@ -686,6 +686,187 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           schema.conforms(Json.obj())
         )
       }
+    ),
+    suite("unevaluatedProperties")(
+      test("rejects unevaluated properties when schema is False") {
+        val schema = JsonSchema.`object`(
+          properties = Some(Map("name" -> JsonSchema.string())),
+          unevaluatedProperties = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.obj("name" -> Json.str("Alice"))),
+          !schema.conforms(Json.obj("name" -> Json.str("Alice"), "extra" -> Json.number(1)))
+        )
+      },
+      test("validates unevaluated properties against schema") {
+        val schema = JsonSchema.`object`(
+          properties = Some(Map("name" -> JsonSchema.string())),
+          unevaluatedProperties = Some(JsonSchema.integer())
+        )
+        assertTrue(
+          schema.conforms(Json.obj("name" -> Json.str("Alice"))),
+          schema.conforms(Json.obj("name" -> Json.str("Alice"), "extra" -> Json.number(42))),
+          !schema.conforms(Json.obj("name" -> Json.str("Alice"), "extra" -> Json.str("not-an-int")))
+        )
+      },
+      test("properties evaluated by patternProperties are not unevaluated") {
+        val schema = JsonSchema.`object`(
+          patternProperties = Some(Map(RegexPattern.unsafe("^x_") -> JsonSchema.string())),
+          unevaluatedProperties = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.obj("x_foo" -> Json.str("bar"))),
+          !schema.conforms(Json.obj("foo" -> Json.str("bar")))
+        )
+      },
+      test("properties evaluated by additionalProperties are not unevaluated") {
+        val schema = JsonSchema.`object`(
+          properties = Some(Map("name" -> JsonSchema.string())),
+          additionalProperties = Some(JsonSchema.number()),
+          unevaluatedProperties = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))),
+          !schema.conforms(Json.obj("name" -> Json.str("Alice"), "age" -> Json.str("thirty")))
+        )
+      },
+      test("properties from allOf subschemas are evaluated") {
+        val schema = JsonSchema.SchemaObject(
+          allOf = Some(
+            ::(
+              JsonSchema.`object`(properties = Some(Map("foo" -> JsonSchema.string()))),
+              List(JsonSchema.`object`(properties = Some(Map("bar" -> JsonSchema.integer()))))
+            )
+          ),
+          unevaluatedProperties = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.obj("foo" -> Json.str("a"), "bar" -> Json.number(1))),
+          !schema.conforms(Json.obj("foo" -> Json.str("a"), "bar" -> Json.number(1), "baz" -> Json.bool(true)))
+        )
+      },
+      test("properties from anyOf valid subschemas are evaluated") {
+        val schema = JsonSchema.SchemaObject(
+          anyOf = Some(
+            ::(
+              JsonSchema.`object`(properties = Some(Map("foo" -> JsonSchema.string()))),
+              List(JsonSchema.`object`(properties = Some(Map("bar" -> JsonSchema.integer()))))
+            )
+          ),
+          unevaluatedProperties = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.obj("foo" -> Json.str("a"))),
+          schema.conforms(Json.obj("bar" -> Json.number(1))),
+          !schema.conforms(Json.obj("baz" -> Json.bool(true)))
+        )
+      },
+      test("properties from oneOf valid subschema are evaluated") {
+        val schema = JsonSchema.SchemaObject(
+          oneOf = Some(
+            ::(
+              JsonSchema.`object`(properties =
+                Some(Map("type" -> JsonSchema.constOf(Json.str("a")), "a" -> JsonSchema.string()))
+              ),
+              List(
+                JsonSchema.`object`(properties =
+                  Some(Map("type" -> JsonSchema.constOf(Json.str("b")), "b" -> JsonSchema.integer()))
+                )
+              )
+            )
+          ),
+          unevaluatedProperties = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.obj("type" -> Json.str("a"), "a" -> Json.str("value"))),
+          schema.conforms(Json.obj("type" -> Json.str("b"), "b" -> Json.number(42))),
+          !schema.conforms(Json.obj("type" -> Json.str("a"), "a" -> Json.str("value"), "extra" -> Json.bool(true)))
+        )
+      },
+      test("properties from if/then branch are evaluated") {
+        val schema = JsonSchema.SchemaObject(
+          `if` = Some(JsonSchema.`object`(properties = Some(Map("type" -> JsonSchema.constOf(Json.str("a")))))),
+          `then` = Some(JsonSchema.`object`(properties = Some(Map("a" -> JsonSchema.string())))),
+          `else` = Some(JsonSchema.`object`(properties = Some(Map("b" -> JsonSchema.integer())))),
+          unevaluatedProperties = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.obj("type" -> Json.str("a"), "a" -> Json.str("value"))),
+          schema.conforms(Json.obj("type" -> Json.str("b"), "b" -> Json.number(42))),
+          !schema.conforms(Json.obj("type" -> Json.str("a"), "a" -> Json.str("value"), "extra" -> Json.bool(true)))
+        )
+      },
+      test("properties from $ref are evaluated") {
+        val schema = JsonSchema.SchemaObject(
+          $defs = Some(Map("base" -> JsonSchema.`object`(properties = Some(Map("foo" -> JsonSchema.string()))))),
+          $ref = Some(UriReference("#/$defs/base")),
+          unevaluatedProperties = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.obj("foo" -> Json.str("bar"))),
+          !schema.conforms(Json.obj("foo" -> Json.str("bar"), "extra" -> Json.number(1)))
+        )
+      }
+    ),
+    suite("unevaluatedItems")(
+      test("rejects unevaluated items when schema is False") {
+        val schema = JsonSchema.array(
+          prefixItems = Some(::(JsonSchema.string(), List(JsonSchema.integer()))),
+          unevaluatedItems = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.arr(Json.str("a"), Json.number(1))),
+          !schema.conforms(Json.arr(Json.str("a"), Json.number(1), Json.bool(true)))
+        )
+      },
+      test("validates unevaluated items against schema") {
+        val schema = JsonSchema.array(
+          prefixItems = Some(::(JsonSchema.string(), Nil)),
+          unevaluatedItems = Some(JsonSchema.integer())
+        )
+        assertTrue(
+          schema.conforms(Json.arr(Json.str("a"))),
+          schema.conforms(Json.arr(Json.str("a"), Json.number(1), Json.number(2))),
+          !schema.conforms(Json.arr(Json.str("a"), Json.str("not-an-int")))
+        )
+      },
+      test("items keyword evaluates all remaining items") {
+        val schema = JsonSchema.array(
+          prefixItems = Some(::(JsonSchema.string(), Nil)),
+          items = Some(JsonSchema.number()),
+          unevaluatedItems = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.arr(Json.str("a"), Json.number(1), Json.number(2))),
+          !schema.conforms(Json.arr(Json.str("a"), Json.str("not-a-number")))
+        )
+      },
+      test("items from allOf subschemas are evaluated") {
+        val schema = JsonSchema.SchemaObject(
+          `type` = Some(SchemaType.Single(JsonType.Array)),
+          allOf = Some(
+            ::(
+              JsonSchema.array(prefixItems = Some(::(JsonSchema.string(), Nil))),
+              List(JsonSchema.array(prefixItems = Some(::(JsonSchema.True, List(JsonSchema.integer())))))
+            )
+          ),
+          unevaluatedItems = Some(JsonSchema.False)
+        )
+        assertTrue(
+          schema.conforms(Json.arr(Json.str("a"), Json.number(1))),
+          !schema.conforms(Json.arr(Json.str("a"), Json.number(1), Json.bool(true)))
+        )
+      },
+      test("contains does not mark items as evaluated") {
+        val schema = JsonSchema.array(
+          contains = Some(JsonSchema.string()),
+          unevaluatedItems = Some(JsonSchema.False)
+        )
+        assertTrue(
+          !schema.conforms(Json.arr(Json.str("a"))),
+          !schema.conforms(Json.arr(Json.number(1), Json.str("b")))
+        )
+      }
     )
   )
 }
