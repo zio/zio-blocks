@@ -44,6 +44,7 @@ object ToStringSpec extends SchemaBaseSpec {
     typeNameSuite,
     dynamicValueSuite,
     reflectSuite,
+    termSuite,
     schemaSuite,
     opticSuite,
     dynamicOpticSuite,
@@ -238,6 +239,20 @@ object ToStringSpec extends SchemaBaseSpec {
       val reflect = Schema[Map[String, Int]].reflect
       val str     = reflect.toString
       assertTrue(str.contains("map Map[String, Int]"))
+    }
+  )
+
+  val termSuite: Spec[Any, Nothing] = suite("Term.toString")(
+    test("renders term with name and type") {
+      val reflect = Schema[Person].reflect.asInstanceOf[Reflect.Record[Binding, Person]]
+      val term    = reflect.fields(0)
+      assertTrue(term.toString == "name: String")
+    },
+    test("renders term with nested record type") {
+      val reflect = Schema[Company].reflect.asInstanceOf[Reflect.Record[Binding, Company]]
+      val term    = reflect.fields(1)
+      val str     = term.toString
+      assertTrue(str.startsWith("address: record Address"))
     }
   )
 
