@@ -125,7 +125,7 @@ Test utilities: `schema/shared/src/test/scala/zio/blocks/schema/json/JsonTestUti
 
 ## PR Checklist
 
-- [ ] `sbt fmt` run
+- [ ] Formatted on both versions: `sbt "++3.3.7; fmt" && sbt "++2.13.18; fmt"`
 - [ ] Tests pass on Scala 3: `sbt "++3.3.7; testJVM"`
 - [ ] Tests pass on Scala 2: `sbt "++2.13.18; testJVM"`
 - [ ] New public APIs have Scaladoc
