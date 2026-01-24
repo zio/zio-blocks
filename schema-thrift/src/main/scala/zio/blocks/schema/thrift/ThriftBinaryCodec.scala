@@ -1,6 +1,7 @@
 package zio.blocks.schema.thrift
 
 import org.apache.thrift.protocol._
+import org.apache.thrift.transport.TMemoryTransport
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.RegisterOffset
@@ -97,7 +98,7 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
    */
   def decode(input: Array[Byte]): Either[SchemaError, A] =
     try {
-      val transport = new ChunkTransport.Read(input)
+      val transport = new TMemoryTransport(input)
       val protocol  = new TBinaryProtocol(transport)
       new Right(decodeUnsafe(protocol))
     } catch {
@@ -108,9 +109,9 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
    * Encodes to a byte array.
    */
   def encode(value: A): Array[Byte] = {
-    val transport = new ChunkTransport.Write()
+    val transport = new TMemoryTransport(Array.emptyByteArray)
     encode(value, new TBinaryProtocol(transport))
-    transport.toByteArray
+    transport.getOutput.toByteArray
   }
 
   private def toError(error: Throwable): SchemaError = new SchemaError(
