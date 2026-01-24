@@ -1,7 +1,7 @@
 package zio.blocks.schema.bson
 
 import org.bson.types.ObjectId
-import zio.blocks.schema.{Reflect, Schema}
+import zio.blocks.schema.{Reflect, Schema, SchemaBaseSpec}
 import zio.blocks.typeid.TypeId
 import zio.test._
 

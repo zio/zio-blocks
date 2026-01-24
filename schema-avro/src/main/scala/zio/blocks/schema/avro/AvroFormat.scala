@@ -96,7 +96,7 @@ object AvroFormat
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[DynamicValue]] =
-          Lazy(deriveCodec(new Reflect.Dynamic(binding, doc = doc, modifiers = modifiers)))
+          Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)))
 
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
@@ -147,36 +147,36 @@ object AvroFormat
             val primitive = reflect.asPrimitive.get
             if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
               primitive.primitiveType match {
-                case PrimitiveType.Unit              => unitCodec
-                case _: PrimitiveType.Boolean        => booleanCodec
-                case _: PrimitiveType.Byte           => byteCodec
-                case _: PrimitiveType.Short          => shortCodec
-                case _: PrimitiveType.Int            => intCodec
-                case _: PrimitiveType.Long           => longCodec
-                case _: PrimitiveType.Float          => floatCodec
-                case _: PrimitiveType.Double         => doubleCodec
-                case _: PrimitiveType.Char           => charCodec
-                case _: PrimitiveType.String         => stringCodec
-                case _: PrimitiveType.BigInt         => bigIntCodec
-                case _: PrimitiveType.BigDecimal     => bigDecimalCodec
-                case _: PrimitiveType.DayOfWeek      => dayOfWeekCodec
-                case _: PrimitiveType.Duration       => durationCodec
-                case _: PrimitiveType.Instant        => instantCodec
-                case _: PrimitiveType.LocalDate      => localDateCodec
-                case _: PrimitiveType.LocalDateTime  => localDateTimeCodec
-                case _: PrimitiveType.LocalTime      => localTimeCodec
-                case _: PrimitiveType.Month          => monthCodec
-                case _: PrimitiveType.MonthDay       => monthDayCodec
-                case _: PrimitiveType.OffsetDateTime => offsetDateTimeCodec
-                case _: PrimitiveType.OffsetTime     => offsetTimeCodec
-                case _: PrimitiveType.Period         => periodCodec
-                case _: PrimitiveType.Year           => yearCodec
-                case _: PrimitiveType.YearMonth      => yearMonthCodec
-                case _: PrimitiveType.ZoneId         => zoneIdCodec
-                case _: PrimitiveType.ZoneOffset     => zoneOffsetCodec
-                case _: PrimitiveType.ZonedDateTime  => zonedDateTimeCodec
-                case _: PrimitiveType.Currency       => currencyCodec
-                case _: PrimitiveType.UUID           => uuidCodec
+                case _: PrimitiveType.Unit.type      => AvroBinaryCodec.unitCodec
+                case _: PrimitiveType.Boolean        => AvroBinaryCodec.booleanCodec
+                case _: PrimitiveType.Byte           => AvroBinaryCodec.byteCodec
+                case _: PrimitiveType.Short          => AvroBinaryCodec.shortCodec
+                case _: PrimitiveType.Int            => AvroBinaryCodec.intCodec
+                case _: PrimitiveType.Long           => AvroBinaryCodec.longCodec
+                case _: PrimitiveType.Float          => AvroBinaryCodec.floatCodec
+                case _: PrimitiveType.Double         => AvroBinaryCodec.doubleCodec
+                case _: PrimitiveType.Char           => AvroBinaryCodec.charCodec
+                case _: PrimitiveType.String         => AvroBinaryCodec.stringCodec
+                case _: PrimitiveType.BigInt         => AvroBinaryCodec.bigIntCodec
+                case _: PrimitiveType.BigDecimal     => AvroBinaryCodec.bigDecimalCodec
+                case _: PrimitiveType.DayOfWeek      => AvroBinaryCodec.dayOfWeekCodec
+                case _: PrimitiveType.Duration       => AvroBinaryCodec.durationCodec
+                case _: PrimitiveType.Instant        => AvroBinaryCodec.instantCodec
+                case _: PrimitiveType.LocalDate      => AvroBinaryCodec.localDateCodec
+                case _: PrimitiveType.LocalDateTime  => AvroBinaryCodec.localDateTimeCodec
+                case _: PrimitiveType.LocalTime      => AvroBinaryCodec.localTimeCodec
+                case _: PrimitiveType.Month          => AvroBinaryCodec.monthCodec
+                case _: PrimitiveType.MonthDay       => AvroBinaryCodec.monthDayCodec
+                case _: PrimitiveType.OffsetDateTime => AvroBinaryCodec.offsetDateTimeCodec
+                case _: PrimitiveType.OffsetTime     => AvroBinaryCodec.offsetTimeCodec
+                case _: PrimitiveType.Period         => AvroBinaryCodec.periodCodec
+                case _: PrimitiveType.Year           => AvroBinaryCodec.yearCodec
+                case _: PrimitiveType.YearMonth      => AvroBinaryCodec.yearMonthCodec
+                case _: PrimitiveType.ZoneId         => AvroBinaryCodec.zoneIdCodec
+                case _: PrimitiveType.ZoneOffset     => AvroBinaryCodec.zoneOffsetCodec
+                case _: PrimitiveType.ZonedDateTime  => AvroBinaryCodec.zonedDateTimeCodec
+                case _: PrimitiveType.Currency       => AvroBinaryCodec.currencyCodec
+                case _: PrimitiveType.UUID           => AvroBinaryCodec.uuidCodec
               }
             } else primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else if (reflect.isVariant) {
@@ -838,16 +838,16 @@ object AvroFormat
               val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
               val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[AvroBinaryCodec[Wrapped]]
               new AvroBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(AvroBinaryCodec.objectType) {
-                case _: PrimitiveType.Boolean     => AvroBinaryCodec.booleanType
-                case _: PrimitiveType.Byte        => AvroBinaryCodec.byteType
-                case _: PrimitiveType.Char        => AvroBinaryCodec.charType
-                case _: PrimitiveType.Short       => AvroBinaryCodec.shortType
-                case _: PrimitiveType.Float       => AvroBinaryCodec.floatType
-                case _: PrimitiveType.Int         => AvroBinaryCodec.intType
-                case _: PrimitiveType.Double      => AvroBinaryCodec.doubleType
-                case _: PrimitiveType.Long        => AvroBinaryCodec.longType
-                case x if x eq PrimitiveType.Unit => AvroBinaryCodec.unitType
-                case _                            => AvroBinaryCodec.objectType
+                case _: PrimitiveType.Boolean   => AvroBinaryCodec.booleanType
+                case _: PrimitiveType.Byte      => AvroBinaryCodec.byteType
+                case _: PrimitiveType.Char      => AvroBinaryCodec.charType
+                case _: PrimitiveType.Short     => AvroBinaryCodec.shortType
+                case _: PrimitiveType.Float     => AvroBinaryCodec.floatType
+                case _: PrimitiveType.Int       => AvroBinaryCodec.intType
+                case _: PrimitiveType.Double    => AvroBinaryCodec.doubleType
+                case _: PrimitiveType.Long      => AvroBinaryCodec.longType
+                case _: PrimitiveType.Unit.type => AvroBinaryCodec.unitType
+                case _                          => AvroBinaryCodec.objectType
               }) {
                 private[this] val unwrap       = binding.unwrap
                 private[this] val wrap         = binding.wrap
