@@ -15,5 +15,9 @@ object zioGolemMill extends ScalaModule {
   def sources = T.sources { millSourcePath / "src" }
 
   def resources = T.sources { millSourcePath / "resources" }
+
+  def ivyDeps = Agg(
+    ivy"org.scalameta::scalameta:4.14.5"
+  )
 }
 

@@ -15,5 +15,6 @@ lazy val root = (project in file("."))
     Compile / unmanagedResourceDirectories += {
       val repoRoot = baseDirectory.value.getParentFile
       repoRoot / "golem" / "sbt" / "src" / "main" / "resources"
-    }
+    },
+    libraryDependencies += "org.scalameta" %% "scalameta" % "4.14.5"
   )

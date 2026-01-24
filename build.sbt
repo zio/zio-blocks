@@ -475,6 +475,7 @@ lazy val zioGolemSbt = project
     scalaVersion := "2.12.20",
     sbtVersion   := "1.12.0",
     addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.20.2"),
+    libraryDependencies += "org.scalameta" %% "scalameta" % "4.14.5",
     publish / skip        := false,
     mimaPreviousArtifacts := Set()
   )

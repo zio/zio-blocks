@@ -6,7 +6,8 @@ import mill.scalalib.*
 import java.io.ByteArrayOutputStream
 import java.nio.file.Path
 import java.security.MessageDigest
-import scala.util.matching.Regex
+import scala.meta.*
+import scala.meta.parsers.*
 
 /**
  * Mill mixin that generates Scala.js agent auto-registration sources.
@@ -98,92 +99,68 @@ trait GolemAutoRegister extends ScalaModule {
 
         final case class AgentImpl(pkg: String, implClass: String, traitType: String, ctorTypes: List[String])
 
-        def packageOf(source: String): String = {
-          val Pkg: Regex = """(?m)^\s*package\s+([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)\s*$""".r
-          Pkg.findFirstMatchIn(source).map(_.group(1)).getOrElse("")
+        def parseWithDialect(input: Input.String, dialect: Dialect): Option[Source] = {
+          implicit val d: Dialect = dialect
+          input.parse[Source].toOption
         }
 
-        val Ann: Regex = """@agentImplementation(?:\([^\)]*\))?""".r
-        val ClassWithCtor: Regex =
-          (Ann.regex + """\s*(?:final\s+)?class\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*extends\s+([^\s\{]+)""").r
-        val ClassNoCtor: Regex =
-          (Ann.regex + """\s*(?:final\s+)?class\s+([A-Za-z_]\w*)\s*extends\s+([^\s\{]+)""").r
+        def parseSource(source: String): Option[Source] = {
+          val input = Input.String(source)
+          parseWithDialect(input, dialects.Scala3).orElse(parseWithDialect(input, dialects.Scala213))
+        }
 
-        def ctorTypes(params: String): List[String] = {
-          def stripComments(s: String): String = {
-            val noBlock = s.replaceAll("(?s)/\\*.*?\\*/", "")
-            noBlock.replaceAll("(?m)//.*$", "")
+        def hasAgentImplementation(mods: List[Mod]): Boolean =
+          mods.exists {
+            case Mod.Annot(init) =>
+              val full = init.tpe.syntax
+              full == "agentImplementation" || full.endsWith(".agentImplementation")
+            case _ => false
           }
 
-          def splitTopLevelCommas(s: String): List[String] = {
-            val out = scala.collection.mutable.ListBuffer.empty[String]
-            val buf = new java.lang.StringBuilder
-            var paren = 0
-            var bracket = 0
-            var brace = 0
-            var i = 0
-            while (i < s.length) {
-              val ch = s.charAt(i)
-              ch match {
-                case '(' => paren += 1; buf.append(ch)
-                case ')' => if (paren > 0) paren -= 1; buf.append(ch)
-                case '[' => bracket += 1; buf.append(ch)
-                case ']' => if (bracket > 0) bracket -= 1; buf.append(ch)
-                case '{' => brace += 1; buf.append(ch)
-                case '}' => if (brace > 0) brace -= 1; buf.append(ch)
-                case ',' if paren == 0 && bracket == 0 && brace == 0 =>
-                  out += buf.toString
-                  buf.setLength(0)
+        def appendPkg(prefix: String, name: String): String =
+          if (prefix.isEmpty) name else s"$prefix.$name"
+
+        def collect(tree: Tree, pkg: String): List[AgentImpl] =
+          tree match {
+            case source: Source =>
+              source.stats.flatMap(collect(_, pkg))
+            case Pkg(ref, stats) =>
+              val nextPkg = appendPkg(pkg, ref.syntax)
+              stats.flatMap(collect(_, nextPkg))
+            case Pkg.Object(_, name, templ) =>
+              val nextPkg = appendPkg(pkg, name.value)
+              templ.stats.flatMap(collect(_, nextPkg))
+            case cls: Defn.Class if hasAgentImplementation(cls.mods) =>
+              val traitTypeOpt: Option[String] = cls.templ.inits.headOption.map(_.tpe.syntax)
+              val ctorParams                  = cls.ctor.paramss.flatten
+              val ctorTypes: List[String]     = ctorParams.map(_.decltpe.map(_.syntax).getOrElse("")).toList
+              traitTypeOpt match {
+                case Some(traitType) if pkg.nonEmpty && !ctorTypes.exists(_.isEmpty) =>
+                  List(
+                    AgentImpl(
+                      pkg = pkg,
+                      implClass = cls.name.value,
+                      traitType = traitType,
+                      ctorTypes = ctorTypes
+                    )
+                  )
                 case _ =>
-                  buf.append(ch)
+                  if (ctorTypes.exists(_.isEmpty))
+                    T.log.warn(
+                      s"[golem] Skipping @agentImplementation ${cls.name.value} (missing constructor type annotations)."
+                    )
+                  Nil
               }
-              i += 1
-            }
-            out += buf.toString
-            out.toList
+            case _ =>
+              Nil
           }
 
-          val cleaned = stripComments(params).trim
-          if (cleaned.isEmpty) Nil
-          else {
-            splitTopLevelCommas(cleaned)
-              .map(_.trim)
-              .filter(_.nonEmpty)
-              .flatMap { p =>
-                val colonIdx = p.indexOf(':')
-                if (colonIdx < 0) Nil
-                else {
-                  val afterColon = p.substring(colonIdx + 1).trim
-                  val tpe        = afterColon.takeWhile(_ != '=').trim
-                  if (tpe.isEmpty) Nil else List(tpe)
-                }
-              }
-          }
-        }
-
-        def parseAgentImpls(source: String): List[AgentImpl] = {
-          val pkg      = packageOf(source)
-          val withCtor = ClassWithCtor
-            .findAllMatchIn(source)
-            .map { m =>
-              AgentImpl(pkg = pkg, implClass = m.group(1), traitType = m.group(3), ctorTypes = ctorTypes(m.group(2)))
-            }
-            .toList
-
-          val ctorClassNames = withCtor.map(_.implClass).toSet
-          val noCtor         = ClassNoCtor
-            .findAllMatchIn(source)
-            .map(m => AgentImpl(pkg = pkg, implClass = m.group(1), traitType = m.group(2), ctorTypes = Nil))
-            .filterNot(ai => ctorClassNames.contains(ai.implClass))
-            .toList
-
-          withCtor ++ noCtor
-        }
+        def parseAgentImpls(source: String): List[AgentImpl] =
+          parseSource(source).toList.flatMap(tree => collect(tree, ""))
 
         val impls: List[AgentImpl] =
           scalaSources
             .flatMap(p => parseAgentImpls(os.read(p)))
-            .filter(_.pkg.nonEmpty)
             .distinct
             .sortBy(ai => (ai.pkg, ai.traitType, ai.implClass))
             .toList
