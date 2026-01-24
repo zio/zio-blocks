@@ -1,8 +1,7 @@
 package zio.blocks.schema.bson
 
 import zio.blocks.schema._
-import zio.bson._
-import zio.bson.BsonBuilder._
+import zio.blocks.schema.bson.BsonBuilder._
 import zio.test._
 
 object BsonCodecConfigSpec extends ZIOSpecDefault {
@@ -40,7 +39,7 @@ object BsonCodecConfigSpec extends ZIOSpecDefault {
         val config  = BsonSchemaCodec.Config.withIgnoreExtraFields(false)
         val codec   = BsonSchemaCodec.bsonCodec(SimpleRecord.schema, config)
         val decoded = bson.as[SimpleRecord](codec.decoder)
-        assertTrue(decoded.isLeft && decoded.left.exists(_.contains("extra")))
+        assertTrue(decoded.isLeft && decoded.left.exists(_.message.contains("extra")))
       },
       test("DiscriminatorField mode works with strict validation") {
         sealed trait StrictSum
@@ -70,7 +69,7 @@ object BsonCodecConfigSpec extends ZIOSpecDefault {
         assertTrue(decoded == Right(RecordWithDefault("test", 42)))
       },
       test("override default value when field is present") {
-        val bson    = doc("a" -> str("test"), "b" -> int(100))
+        val bson    = doc("a" -> str("test"), "b" -> int32(100))
         val codec   = BsonSchemaCodec.bsonCodec(RecordWithDefault.schema, BsonSchemaCodec.Config)
         val decoded = bson.as[RecordWithDefault](codec.decoder)
         assertTrue(decoded == Right(RecordWithDefault("test", 100)))
@@ -168,7 +167,7 @@ object BsonCodecConfigSpec extends ZIOSpecDefault {
         val codec  = BsonSchemaCodec.bsonCodec(Status.schema, BsonSchemaCodec.Config)
 
         // Construct BSON using alias "Alive"
-        val bson = doc("Alive" -> doc("since" -> int(2022)))
+        val bson = doc("Alive" -> doc("since" -> int32(2022)))
 
         val decoded = bson.as[Status](codec.decoder)
 

@@ -20,7 +20,7 @@ object BsonCodecVersionSpecificSpec extends ZIOSpecDefault {
         val codec  = BsonSchemaCodec.bsonCodec(Schema[Result])
 
         val encoded = codec.encoder.toBsonValue(result)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == result)
       },
@@ -29,7 +29,7 @@ object BsonCodecVersionSpecificSpec extends ZIOSpecDefault {
         val codec  = BsonSchemaCodec.bsonCodec(Schema[Result])
 
         val encoded = codec.encoder.toBsonValue(result)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == result)
       }

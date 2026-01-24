@@ -1,8 +1,7 @@
 package zio.blocks.schema.bson
 
 import zio.blocks.schema._
-import zio.bson._
-import zio.bson.BsonBuilder._
+import zio.blocks.schema.bson.BsonBuilder._
 import zio.test._
 
 /**
@@ -585,7 +584,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
         val bson    = doc("extra" -> doc(), "a" -> str("str"))
         val codec   = BsonConfigPort.RejectExtraFields.codec
         val decoded = bson.as[BsonConfigPort.RejectExtraFields](codec.decoder)
-        assertTrue(decoded.isLeft && decoded.left.exists(_.contains("extra")))
+        assertTrue(decoded.isLeft && decoded.left.exists(_.message.contains("extra")))
       }
     ),
     suite("transient field")(
@@ -593,16 +592,16 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
         val value   = BsonConfigPort.TransientField("str", 1)
         val codec   = BsonConfigPort.TransientField.codec
         val encoded = codec.encoder.toBsonValue(value)
-        assertTrue(encoded == doc("b" -> int(1)))
+        assertTrue(encoded == doc("b" -> int32(1)))
       },
       test("decode with default value") {
-        val bson    = doc("b" -> int(1))
+        val bson    = doc("b" -> int32(1))
         val codec   = BsonConfigPort.TransientField.codec
         val decoded = bson.as[BsonConfigPort.TransientField](codec.decoder)
         assertTrue(decoded == Right(BsonConfigPort.TransientField("defaultValue", 1)))
       },
       test("decode ignores transient field value") {
-        val bson    = doc("a" -> str("str"), "b" -> int(1))
+        val bson    = doc("a" -> str("str"), "b" -> int32(1))
         val codec   = BsonConfigPort.TransientField.codec
         val decoded = bson.as[BsonConfigPort.TransientField](codec.decoder)
         assertTrue(decoded == Right(BsonConfigPort.TransientField("str", 1)))
@@ -904,7 +903,7 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
         val bson    = doc("extra" -> doc(), "a" -> str("str"))
         val codec   = MixedConfigPort.RejectExtraFields.codec
         val decoded = bson.as[MixedConfigPort.RejectExtraFields](codec.decoder)
-        assertTrue(decoded.isLeft && decoded.left.exists(_.contains("extra")))
+        assertTrue(decoded.isLeft && decoded.left.exists(_.message.contains("extra")))
       }
     ),
     suite("transient case without discriminator")(
@@ -976,16 +975,16 @@ object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
         val value   = MixedConfigPort.TransientField("str", 1)
         val codec   = MixedConfigPort.TransientField.codec
         val encoded = codec.encoder.toBsonValue(value)
-        assertTrue(encoded == doc("b" -> int(1)))
+        assertTrue(encoded == doc("b" -> int32(1)))
       },
       test("decode with default value") {
-        val bson    = doc("b" -> int(1))
+        val bson    = doc("b" -> int32(1))
         val codec   = MixedConfigPort.TransientField.codec
         val decoded = bson.as[MixedConfigPort.TransientField](codec.decoder)
         assertTrue(decoded == Right(MixedConfigPort.TransientField("defaultValue", 1)))
       },
       test("decode ignores transient field value") {
-        val bson    = doc("a" -> str("str"), "b" -> int(1))
+        val bson    = doc("a" -> str("str"), "b" -> int32(1))
         val codec   = MixedConfigPort.TransientField.codec
         val decoded = bson.as[MixedConfigPort.TransientField](codec.decoder)
         assertTrue(decoded == Right(MixedConfigPort.TransientField("str", 1)))

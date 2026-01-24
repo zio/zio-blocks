@@ -952,7 +952,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         new Binding.Wrapper(
           {
             case x @ EmailRegex(_*) => new Right(new Email(x))
-            case _                  => new Left("Expected Email")
+            case _                  => new Left(SchemaError.validationFailed("Expected Email"))
           },
           _.value
         )
