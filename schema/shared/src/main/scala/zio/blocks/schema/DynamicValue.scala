@@ -17,7 +17,9 @@ sealed trait DynamicValue {
 
   def diff(that: DynamicValue): DynamicPatch = DynamicValue.diff(this, that)
 
-  override def toString: String = DynamicValue.toEjson(this, 0)
+  def toEjson(indent: Int = 0): String = DynamicValue.toEjson(this, indent)
+
+  override def toString: String = toEjson()
 }
 
 object DynamicValue {
@@ -204,7 +206,7 @@ object DynamicValue {
    * @return
    *   EJSON string representation
    */
-  def toEjson(value: DynamicValue, indent: Int): String = {
+  private def toEjson(value: DynamicValue, indent: Int): String = {
     val indentStr = "  " * indent
 
     value match {
