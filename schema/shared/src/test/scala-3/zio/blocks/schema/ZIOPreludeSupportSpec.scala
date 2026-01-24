@@ -165,7 +165,7 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
           else Left(SchemaError.validationFailed("String must not be empty")),
         _.asInstanceOf[String]
       )
-      .withTypeName[Name]
+      .asOpaqueType[Name]
   }
 
   type Kilogram = Kilogram.Type
