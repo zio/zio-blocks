@@ -10,6 +10,8 @@ import scala.annotation.tailrec
  * and Scala 3 macro implementations.
  */
 object JsonInterpolatorRuntime {
+  final case class Raw(s: String) extends AnyVal
+
   def jsonWithInterpolation(sc: StringContext, args: Seq[Any]): Json = {
     val parts  = sc.parts.iterator
     val argsIt = args.iterator
@@ -27,6 +29,7 @@ object JsonInterpolatorRuntime {
   }
 
   private[this] def writeValue(out: ByteArrayOutputStream, value: Any): Unit = value match {
+    case Raw(s)                => writeEscapedString(out, s)
     case s: String             => JsonBinaryCodec.stringCodec.encode(s, out)
     case b: Boolean            => JsonBinaryCodec.booleanCodec.encode(b, out)
     case b: Byte               => JsonBinaryCodec.byteCodec.encode(b, out)
@@ -169,64 +172,96 @@ object JsonInterpolatorRuntime {
     }
     out.write(':')
   }
-}
 
-private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
-  private[this] var buf   = new Array[Byte](initCapacity)
-  private[this] var count = 0
-
-  override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
-    val limit = count + len
-    if (limit > buf.length) buf = java.util.Arrays.copyOf(buf, math.max(buf.length << 1, limit))
-    System.arraycopy(bytes, off, buf, count, len)
-    count = limit
-  }
-
-  override def write(b: Int): Unit = {
-    val pos = count
-    if (pos >= buf.length) buf = java.util.Arrays.copyOf(buf, buf.length << 1)
-    buf(pos) = b.toByte
-    count = pos + 1
-  }
-
-  def write(s: String): Unit = count = write(s, 0, s.length, count, buf.length - 4)
-
-  @tailrec
-  private[this] def write(s: String, from: Int, to: Int, pos: Int, posLim: Int): Int =
-    if (from >= to) pos
-    else if (pos >= posLim) {
-      buf = java.util.Arrays.copyOf(buf, Math.max(buf.length << 1, count + (to - from) * 3))
-      write(s, from, to, pos, buf.length - 4)
-    } else {
-      val ch1 = s.charAt(from).toInt
-      if (ch1 < 0x80) {
-        buf(pos) = ch1.toByte
-        write(s, from + 1, to, pos + 1, posLim)
-      } else if (ch1 < 0x800) { // 00000bbbbbaaaaaa (UTF-16 char) -> 110bbbbb 10aaaaaa (UTF-8 bytes)
-        buf(pos) = (ch1 >> 6 | 0xc0).toByte
-        buf(pos + 1) = (ch1 & 0x3f | 0x80).toByte
-        write(s, from + 1, to, pos + 2, posLim)
-      } else if ((ch1 & 0xf800) != 0xd800) { // ccccbbbbbbaaaaaa (UTF-16 char) -> 1110cccc 10bbbbbb 10aaaaaa (UTF-8 bytes)
-        buf(pos) = (ch1 >> 12 | 0xe0).toByte
-        buf(pos + 1) = (ch1 >> 6 & 0x3f | 0x80).toByte
-        buf(pos + 2) = (ch1 & 0x3f | 0x80).toByte
-        write(s, from + 1, to, pos + 3, posLim)
-      } else { // 110110uuuuccccbb 110111bbbbaaaaaa (UTF-16 chars) -> 11110ddd 10ddcccc 10bbbbbb 10aaaaaa (UTF-8 bytes), where ddddd = uuuu + 1
-        var ch2 = 0
-        if (
-          ch1 >= 0xdc00 || from + 1 >= to || {
-            ch2 = s.charAt(from + 1).toInt
-            (ch2 & 0xfc00) != 0xdc00
+  private[this] def writeEscapedString(out: ByteArrayOutputStream, s: String): Unit = {
+    var i     = 0
+    var start = 0
+    val len   = s.length
+    while (i < len) {
+      val c       = s.charAt(i)
+      val escaped =
+        if (c == '"') "\\\""
+        else if (c == '\\') "\\\\"
+        else if (c < 0x20) {
+          c match {
+            case '\b' => "\\b"
+            case '\f' => "\\f"
+            case '\n' => "\\n"
+            case '\r' => "\\r"
+            case '\t' => "\\t"
+            case _    => f"\\u$c%04x"
           }
-        ) throw new JsonBinaryCodecError(Nil, "Illegal surrogate pair")
-        val cp = (ch1 << 10) + (ch2 - 56613888) // -56613888 == 0x10000 - (0xD800 << 10) - 0xDC00
-        buf(pos) = (cp >> 18 | 0xf0).toByte
-        buf(pos + 1) = (cp >> 12 & 0x3f | 0x80).toByte
-        buf(pos + 2) = (cp >> 6 & 0x3f | 0x80).toByte
-        buf(pos + 3) = (cp & 0x3f | 0x80).toByte
-        write(s, from + 2, to, pos + 4, posLim)
+        } else null
+
+      if (escaped != null) {
+        if (i > start) out.write(s, start, i)
+        out.write(escaped)
+        start = i + 1
       }
+      i += 1
+    }
+    if (i > start) out.write(s, start, i)
+  }
+
+  private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
+    private[this] var buf   = new Array[Byte](initCapacity)
+    private[this] var count = 0
+
+    override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
+      val limit = count + len
+      if (limit > buf.length) buf = java.util.Arrays.copyOf(buf, math.max(buf.length << 1, limit))
+      System.arraycopy(bytes, off, buf, count, len)
+      count = limit
     }
 
-  def toByteArray: Array[Byte] = java.util.Arrays.copyOf(buf, count)
+    override def write(b: Int): Unit = {
+      val pos = count
+      if (pos >= buf.length) buf = java.util.Arrays.copyOf(buf, buf.length << 1)
+      buf(pos) = b.toByte
+      count = pos + 1
+    }
+
+    def write(s: String): Unit = count = write(s, 0, s.length, count, buf.length - 4)
+
+    def write(s: String, from: Int, to: Int): Unit = count = write(s, from, to, count, buf.length - 4)
+
+    @tailrec
+    private[this] def write(s: String, from: Int, to: Int, pos: Int, posLim: Int): Int =
+      if (from >= to) pos
+      else if (pos >= posLim) {
+        buf = java.util.Arrays.copyOf(buf, Math.max(buf.length << 1, count + (to - from) * 3))
+        write(s, from, to, pos, buf.length - 4)
+      } else {
+        val ch1 = s.charAt(from).toInt
+        if (ch1 < 0x80) {
+          buf(pos) = ch1.toByte
+          write(s, from + 1, to, pos + 1, posLim)
+        } else if (ch1 < 0x800) { // 00000bbbbbaaaaaa (UTF-16 char) -> 110bbbbb 10aaaaaa (UTF-8 bytes)
+          buf(pos) = (ch1 >> 6 | 0xc0).toByte
+          buf(pos + 1) = (ch1 & 0x3f | 0x80).toByte
+          write(s, from + 1, to, pos + 2, posLim)
+        } else if ((ch1 & 0xf800) != 0xd800) { // ccccbbbbbbaaaaaa (UTF-16 char) -> 1110cccc 10bbbbbb 10aaaaaa (UTF-8 bytes)
+          buf(pos) = (ch1 >> 12 | 0xe0).toByte
+          buf(pos + 1) = (ch1 >> 6 & 0x3f | 0x80).toByte
+          buf(pos + 2) = (ch1 & 0x3f | 0x80).toByte
+          write(s, from + 1, to, pos + 3, posLim)
+        } else { // 110110uuuuccccbb 110111bbbbaaaaaa (UTF-16 chars) -> 11110ddd 10ddcccc 10bbbbbb 10aaaaaa (UTF-8 bytes), where ddddd = uuuu + 1
+          var ch2 = 0
+          if (
+            ch1 >= 0xdc00 || from + 1 >= to || {
+              ch2 = s.charAt(from + 1).toInt
+              (ch2 & 0xfc00) != 0xdc00
+            }
+          ) throw new JsonBinaryCodecError(Nil, "Illegal surrogate pair")
+          val cp = (ch1 << 10) + (ch2 - 56613888) // -56613888 == 0x10000 - (0xD800 << 10) - 0xDC00
+          buf(pos) = (cp >> 18 | 0xf0).toByte
+          buf(pos + 1) = (cp >> 12 & 0x3f | 0x80).toByte
+          buf(pos + 2) = (cp >> 6 & 0x3f | 0x80).toByte
+          buf(pos + 3) = (cp & 0x3f | 0x80).toByte
+          write(s, from + 2, to, pos + 4, posLim)
+        }
+      }
+
+    def toByteArray: Array[Byte] = java.util.Arrays.copyOf(buf, count)
+  }
 }

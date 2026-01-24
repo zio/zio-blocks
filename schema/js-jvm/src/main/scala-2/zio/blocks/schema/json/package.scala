@@ -15,7 +15,7 @@ private object JsonInterpolatorMacros {
   def jsonImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Json] = {
     import c.universe._
 
-    val parts = c.prefix.tree match {
+    val parts: List[String] = c.prefix.tree match {
       case Apply(_, List(Apply(_, rawParts))) =>
         rawParts.map {
           case Literal(Constant(part: String)) => part
@@ -23,10 +23,150 @@ private object JsonInterpolatorMacros {
         }
       case _ => c.abort(c.enclosingPosition, "Expected StringContext")
     }
+
+    if (parts.size != args.size + 1)
+      c.abort(c.enclosingPosition, "Invalid number of parts and arguments")
+
+    def isStringable(tpe: Type): Boolean =
+      tpe <:< typeOf[String] ||
+        tpe <:< typeOf[Boolean] ||
+        tpe <:< typeOf[Byte] ||
+        tpe <:< typeOf[Short] ||
+        tpe <:< typeOf[Int] ||
+        tpe <:< typeOf[Long] ||
+        tpe <:< typeOf[Float] ||
+        tpe <:< typeOf[Double] ||
+        tpe <:< typeOf[Char] ||
+        tpe <:< typeOf[BigInt] ||
+        tpe <:< typeOf[BigDecimal] ||
+        tpe <:< typeOf[java.util.UUID] ||
+        tpe <:< typeOf[java.time.DayOfWeek] ||
+        tpe <:< typeOf[java.time.Duration] ||
+        tpe <:< typeOf[java.time.Instant] ||
+        tpe <:< typeOf[java.time.LocalDate] ||
+        tpe <:< typeOf[java.time.LocalDateTime] ||
+        tpe <:< typeOf[java.time.LocalTime] ||
+        tpe <:< typeOf[java.time.Month] ||
+        tpe <:< typeOf[java.time.MonthDay] ||
+        tpe <:< typeOf[java.time.OffsetDateTime] ||
+        tpe <:< typeOf[java.time.OffsetTime] ||
+        tpe <:< typeOf[java.time.Period] ||
+        tpe <:< typeOf[java.time.Year] ||
+        tpe <:< typeOf[java.time.YearMonth] ||
+        tpe <:< typeOf[java.time.ZoneId] ||
+        tpe <:< typeOf[java.time.ZoneOffset] ||
+        tpe <:< typeOf[java.time.ZonedDateTime] ||
+        tpe <:< typeOf[java.util.Currency]
+
+    object Context extends Enumeration {
+      type Context = Value
+      val Unknown, Key, JsonValue, StringLiteral = Value
+    }
+
+    class Parser {
+      private var stack: List[Char]          = Nil
+      private var expecting: Context.Context = Context.JsonValue
+      private var inString: Boolean          = false
+      private var inEscaped: Boolean         = false
+
+      def process(part: String): Unit = {
+        var i   = 0
+        val len = part.length
+        while (i < len) {
+          val char = part.charAt(i)
+          if (inString) {
+            if (inEscaped) {
+              inEscaped = false
+            } else if (char == '\\') {
+              inEscaped = true
+            } else if (char == '"') {
+              inString = false
+            }
+          } else {
+            char match {
+              case '{' =>
+                stack = '{' :: stack
+                expecting = Context.Key
+              case '}' =>
+                if (stack.nonEmpty && stack.head == '{') stack = stack.tail
+                expecting = Context.Unknown
+              case '[' =>
+                stack = '[' :: stack
+                expecting = Context.JsonValue
+              case ']' =>
+                if (stack.nonEmpty && stack.head == '[') stack = stack.tail
+                expecting = Context.Unknown
+              case ':' =>
+                expecting = Context.JsonValue
+              case ',' =>
+                if (stack.nonEmpty) {
+                  if (stack.head == '{') expecting = Context.Key
+                  else expecting = Context.JsonValue
+                } else expecting = Context.JsonValue
+              case '"' =>
+                inString = true
+              case _ =>
+            }
+          }
+          i += 1
+        }
+      }
+
+      def currentContext: Context.Context =
+        if (inString) Context.StringLiteral
+        else expecting
+    }
+
+    val parser    = new Parser
+    val newArgs   = scala.collection.mutable.ListBuffer.empty[c.Expr[Any]]
+    val dummyArgs = scala.collection.mutable.ListBuffer.empty[Any]
+
+    parts.init.zip(args).foreach { case (part, arg) =>
+      parser.process(part)
+      val ctx = parser.currentContext
+      val tpe = arg.tree.tpe
+
+      ctx match {
+        case Context.StringLiteral =>
+          if (!isStringable(tpe))
+            c.abort(
+              c.enclosingPosition,
+              s"Type $tpe is not supported in string literal interpolation. Expected a stringable type."
+            )
+          newArgs += c.Expr[Any](q"zio.blocks.schema.json.JsonInterpolatorRuntime.Raw($arg.toString)")
+          dummyArgs += JsonInterpolatorRuntime.Raw("x")
+
+        case Context.Key =>
+          if (!isStringable(tpe))
+            c.abort(
+              c.enclosingPosition,
+              s"Type $tpe is not supported in JSON key position. Expected a stringable type."
+            )
+          newArgs += c.Expr[Any](q"$arg.toString")
+          dummyArgs += "key"
+
+        case Context.JsonValue =>
+          val encoderType = appliedType(typeOf[JsonEncoder[_]], tpe)
+          val encoder     = c.inferImplicitValue(encoderType)
+          if (encoder == EmptyTree)
+            c.abort(c.enclosingPosition, s"Could not find JsonEncoder for type $tpe in value position.")
+          newArgs += c.Expr[Any](q"$encoder.encode($arg)")
+          dummyArgs += "value"
+
+        case _ =>
+          val encoderType = appliedType(typeOf[JsonEncoder[_]], tpe)
+          val encoder     = c.inferImplicitValue(encoderType)
+          if (encoder == EmptyTree)
+            c.abort(c.enclosingPosition, s"Could not find JsonEncoder for type $tpe (context undetermined).")
+          newArgs += c.Expr[Any](q"$encoder.encode($arg)")
+          dummyArgs += "value"
+      }
+    }
+
     try {
-      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), (2 to parts.size).map(_ => ""))
+      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), dummyArgs.toSeq)
       val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
-      val argsExpr = c.Expr[Seq[Any]](q"Seq(..$args)")
+      val argsExpr = c.Expr[Seq[Any]](q"Seq(..$newArgs)")
       reify(JsonInterpolatorRuntime.jsonWithInterpolation(scExpr.splice, argsExpr.splice))
     } catch {
       case error if NonFatal(error) => c.abort(c.enclosingPosition, s"Invalid JSON literal: ${error.getMessage}")
