@@ -1239,8 +1239,12 @@ object Optional {
             sb.append(".~")
           case at: AtBinding[Col] @scala.unchecked =>
             sb.append('[').append(at.index).append(']')
+          case atKey: AtKeyBinding[Key, Map] @scala.unchecked =>
+            sb.append(".atKey(")
+            OpticToStringHelper.appendKey(sb, atKey.key)
+            sb.append(')')
           case _ =>
-            sb.append("{").append("<key>").append("}")
+            sb.append("{<unknown>}")
         }
         idx += 1
       }
@@ -2947,10 +2951,19 @@ object Traversal {
               i += 1
             }
             sb.append(']')
-          case _: AtKeyBinding[Key, Map] @scala.unchecked =>
-            sb.append("{<key>}")
-          case _: AtKeysBinding[Key, Map] @scala.unchecked =>
-            sb.append("{<keys>}")
+          case atKey: AtKeyBinding[Key, Map] @scala.unchecked =>
+            sb.append(".atKey(")
+            OpticToStringHelper.appendKey(sb, atKey.key)
+            sb.append(')')
+          case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
+            sb.append(".atKeys(")
+            var i = 0
+            while (i < atKeys.keys.length) {
+              if (i > 0) sb.append(", ")
+              OpticToStringHelper.appendKey(sb, atKeys.keys(i))
+              i += 1
+            }
+            sb.append(')')
           case _: SeqBinding[Col] @scala.unchecked =>
             sb.append(".each")
           case _: MapKeyBinding[Map] @scala.unchecked =>
@@ -3027,3 +3040,11 @@ private[schema] case class WrappedBinding[A, B](
 ) extends OpticBinding
 
 private[schema] case class OpticCheckBuilder(toOpticCheck: () => OpticCheck) extends Exception with NoStackTrace
+
+private[schema] object OpticToStringHelper {
+  def appendKey(sb: StringBuilder, key: Any): Unit = key match {
+    case s: String => sb.append('"').append(s).append('"')
+    case c: Char   => sb.append('\'').append(c).append('\'')
+    case other     => sb.append(other)
+  }
+}

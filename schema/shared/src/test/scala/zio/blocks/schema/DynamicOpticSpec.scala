@@ -80,15 +80,15 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       assert(DynamicOptic.mapValues.apply(Schema[A].reflect): Option[Any])(isNone) &&
       assert(DynamicOptic.wrapped.apply(Schema[A].reflect): Option[Any])(isNone)
     },
-    test("toString returns a path") {
-      assert(A.x.toDynamic.toString)(equalTo(".when[X]")) &&
-      assert(A.x(X.y).toDynamic.toString)(equalTo(".when[X].y")) &&
-      assert(A.x(X.y)(Y.z).toDynamic.toString)(equalTo(".when[X].y.z")) &&
-      assert(DynamicOptic.root.at(0).atKey("Z").toString)(equalTo(".at(0).atKey(\"Z\")")) &&
+    test("toString returns a path matching p\"...\" interpolator syntax") {
+      assert(A.x.toDynamic.toString)(equalTo("<X>")) &&
+      assert(A.x(X.y).toDynamic.toString)(equalTo("<X>.y")) &&
+      assert(A.x(X.y)(Y.z).toDynamic.toString)(equalTo("<X>.y.z")) &&
+      assert(DynamicOptic.root.at(0).atKey("Z").toString)(equalTo("[0]{\"Z\"}")) &&
       assert(DynamicOptic.root.atIndices(0, 1, 2).atKeys("X", "Y", "Z").toString)(
-        equalTo(".atIndices(0, 1, 2).atKeys(\"X\", \"Y\", \"Z\")")
+        equalTo("[0,1,2]{\"X\",\"Y\",\"Z\"}")
       ) &&
-      assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo(".each.eachKey.eachValue.wrapped"))
+      assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo("[*]{*:}{*}.~"))
     }
   )
 

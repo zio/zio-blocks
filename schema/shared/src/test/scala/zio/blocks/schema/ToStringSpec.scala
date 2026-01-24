@@ -185,21 +185,27 @@ object ToStringSpec extends SchemaBaseSpec {
       )
       assertTrue(dv.toString == "[[1, 2], [3, 4]]")
     },
-    test("renders temporal types as quoted strings") {
+    test("renders temporal types with type metadata") {
       val dv = DynamicValue.Primitive(PrimitiveValue.Instant(java.time.Instant.parse("2024-01-15T10:30:00Z")))
-      assertTrue(dv.toString == "\"2024-01-15T10:30:00Z\"")
+      assertTrue(dv.toString == "\"2024-01-15T10:30:00Z\" @ {type: \"instant\"}")
     },
-    test("renders UUID as quoted string") {
+    test("renders UUID with type metadata") {
       val uuid = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
       val dv   = DynamicValue.Primitive(PrimitiveValue.UUID(uuid))
-      assertTrue(dv.toString == "\"550e8400-e29b-41d4-a716-446655440000\"")
+      assertTrue(dv.toString == "\"550e8400-e29b-41d4-a716-446655440000\" @ {type: \"uuid\"}")
     }
   )
 
   val reflectSuite: Spec[Any, Nothing] = suite("Reflect.toString (SDL-style)")(
-    test("renders primitive types") {
-      val reflect = Reflect.int[Binding]
-      assertTrue(reflect.toString == "Int")
+    test("renders scala primitive types with short name") {
+      assertTrue(Reflect.int[Binding].toString == "Int") &&
+      assertTrue(Reflect.string[Binding].toString == "String") &&
+      assertTrue(Reflect.boolean[Binding].toString == "Boolean")
+    },
+    test("renders java types with fully qualified name") {
+      assertTrue(Reflect.instant[Binding].toString == "java.time.Instant") &&
+      assertTrue(Reflect.uuid[Binding].toString == "java.util.UUID") &&
+      assertTrue(Reflect.duration[Binding].toString == "java.time.Duration")
     },
     test("renders record with fields") {
       val reflect = Schema[Person].reflect
@@ -236,12 +242,17 @@ object ToStringSpec extends SchemaBaseSpec {
   )
 
   val schemaSuite: Spec[Any, Nothing] = suite("Schema.toString")(
-    test("wraps Reflect output with Schema prefix") {
+    test("wraps Reflect output with Schema prefix - multi-line for records") {
       val schema = Schema[Person]
       val str    = schema.toString
-      assertTrue(str.startsWith("Schema { ")) &&
-      assertTrue(str.endsWith(" }")) &&
-      assertTrue(str.contains("record Person"))
+      assertTrue(str.startsWith("Schema {\n")) &&
+      assertTrue(str.endsWith("\n}")) &&
+      assertTrue(str.contains("  record Person"))
+    },
+    test("wraps Reflect output on single line for simple types") {
+      val schema = Schema[Int]
+      val str    = schema.toString
+      assertTrue(str == "Schema { Int }")
     }
   )
 
@@ -274,10 +285,34 @@ object ToStringSpec extends SchemaBaseSpec {
       }
       val traversal = Container.each
       assertTrue(traversal.toString.contains(".each"))
+    },
+    test("Optional renders .atKey with actual key value") {
+      object Test extends CompanionOptics[Map[Int, Long]] {
+        val atKey42: Optional[Map[Int, Long], Long] = optic[Long](_.atKey(42))
+      }
+      assertTrue(Test.atKey42.toString == "Optional(_.atKey(42))")
+    },
+    test("Optional renders .atKey with string key quoted") {
+      object Test extends CompanionOptics[Map[String, Int]] {
+        val atKeyStr: Optional[Map[String, Int], Int] = optic[Int](_.atKey("myKey"))
+      }
+      assertTrue(Test.atKeyStr.toString == "Optional(_.atKey(\"myKey\"))")
+    },
+    test("Traversal renders .atKeys with actual key values") {
+      object Test extends CompanionOptics[Map[Int, Long]] {
+        val atKeys123: Traversal[Map[Int, Long], Long] = $(_.atKeys(1, 2, 3))
+      }
+      assertTrue(Test.atKeys123.toString == "Traversal(_.atKeys(1, 2, 3))")
+    },
+    test("Traversal renders .atKeys with string keys quoted") {
+      object Test extends CompanionOptics[Map[String, Int]] {
+        val atKeysAB: Traversal[Map[String, Int], Int] = $(_.atKeys("a", "b"))
+      }
+      assertTrue(Test.atKeysAB.toString == "Traversal(_.atKeys(\"a\", \"b\"))")
     }
   )
 
-  val dynamicOpticSuite: Spec[Any, Nothing] = suite("DynamicOptic.toString")(
+  val dynamicOpticSuite: Spec[Any, Nothing] = suite("DynamicOptic.toString (path interpolator syntax)")(
     test("renders root as dot") {
       assertTrue(DynamicOptic.root.toString == ".")
     },
@@ -285,53 +320,53 @@ object ToStringSpec extends SchemaBaseSpec {
       val optic = DynamicOptic.root.field("name")
       assertTrue(optic.toString == ".name")
     },
-    test("renders case selection") {
+    test("renders case selection with angle brackets") {
       val optic = DynamicOptic.root.caseOf("Some")
-      assertTrue(optic.toString == ".when[Some]")
+      assertTrue(optic.toString == "<Some>")
     },
-    test("renders index access") {
+    test("renders index access with brackets") {
       val optic = DynamicOptic.root.at(0)
-      assertTrue(optic.toString == ".at(0)")
+      assertTrue(optic.toString == "[0]")
     },
-    test("renders atKey with actual key value") {
+    test("renders atKey with braces and quoted key") {
       val optic = DynamicOptic.root.atKey("myKey")
-      assertTrue(optic.toString == ".atKey(\"myKey\")")
+      assertTrue(optic.toString == "{\"myKey\"}")
     },
-    test("renders atIndices with actual indices") {
+    test("renders atIndices with comma-separated indices") {
       val optic = DynamicOptic.root.atIndices(0, 1, 2)
-      assertTrue(optic.toString == ".atIndices(0, 1, 2)")
+      assertTrue(optic.toString == "[0,1,2]")
     },
-    test("renders atKeys with actual key values") {
+    test("renders atKeys with comma-separated quoted keys") {
       val optic = DynamicOptic.root.atKeys("a", "b", "c")
-      assertTrue(optic.toString == ".atKeys(\"a\", \"b\", \"c\")")
+      assertTrue(optic.toString == "{\"a\",\"b\",\"c\"}")
     },
-    test("renders elements traversal") {
+    test("renders elements traversal as [*]") {
       val optic = DynamicOptic.elements
-      assertTrue(optic.toString == ".each")
+      assertTrue(optic.toString == "[*]")
     },
-    test("renders mapKeys traversal") {
+    test("renders mapKeys traversal as {*:}") {
       val optic = DynamicOptic.mapKeys
-      assertTrue(optic.toString == ".eachKey")
+      assertTrue(optic.toString == "{*:}")
     },
-    test("renders mapValues traversal") {
+    test("renders mapValues traversal as {*}") {
       val optic = DynamicOptic.mapValues
-      assertTrue(optic.toString == ".eachValue")
+      assertTrue(optic.toString == "{*}")
     },
-    test("renders wrapped") {
+    test("renders wrapped as .~") {
       val optic = DynamicOptic.wrapped
-      assertTrue(optic.toString == ".wrapped")
+      assertTrue(optic.toString == ".~")
     },
     test("renders chained operations") {
       val optic = DynamicOptic.root.field("users").at(0).field("name")
-      assertTrue(optic.toString == ".users.at(0).name")
+      assertTrue(optic.toString == ".users[0].name")
     },
     test("renders complex path with case and key") {
       val optic = DynamicOptic.root.caseOf("Some").field("value").atKey("key1")
-      assertTrue(optic.toString == ".when[Some].value.atKey(\"key1\")")
+      assertTrue(optic.toString == "<Some>.value{\"key1\"}")
     },
     test("renders atKey with integer key") {
       val optic = DynamicOptic.root.atKey(42)
-      assertTrue(optic.toString == ".atKey(42)")
+      assertTrue(optic.toString == "{42}")
     }
   )
 
@@ -346,9 +381,9 @@ object ToStringSpec extends SchemaBaseSpec {
       )
       val str = patch.toString
       assertTrue(str.contains("DynamicPatch {")) &&
-      assertTrue(str.contains("~ . = 42"))
+      assertTrue(str.contains(". = 42"))
     },
-    test("renders numeric delta with + sign") {
+    test("renders numeric delta with += operator") {
       val patch = DynamicPatch(
         Vector(
           DynamicPatch.DynamicPatchOp(
@@ -358,7 +393,7 @@ object ToStringSpec extends SchemaBaseSpec {
         )
       )
       val str = patch.toString
-      assertTrue(str.contains("+5"))
+      assertTrue(str.contains(".age += 5"))
     },
     test("renders negative delta") {
       val patch = DynamicPatch(
@@ -370,9 +405,9 @@ object ToStringSpec extends SchemaBaseSpec {
         )
       )
       val str = patch.toString
-      assertTrue(str.contains("-3"))
+      assertTrue(str.contains(".count += -3"))
     },
-    test("renders sequence append with + marker") {
+    test("renders sequence append") {
       val patch = DynamicPatch(
         Vector(
           DynamicPatch.DynamicPatchOp(
@@ -386,10 +421,25 @@ object ToStringSpec extends SchemaBaseSpec {
         )
       )
       val str = patch.toString
-      assertTrue(str.contains("+ ")) &&
-      assertTrue(str.contains("[+]"))
+      assertTrue(str.contains(".items + 99"))
     },
-    test("renders sequence delete with - marker") {
+    test("renders sequence insert with index") {
+      val patch = DynamicPatch(
+        Vector(
+          DynamicPatch.DynamicPatchOp(
+            DynamicOptic.root.field("items"),
+            DynamicPatch.Operation.SequenceEdit(
+              Vector(
+                DynamicPatch.SeqOp.Insert(0, Vector(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+              )
+            )
+          )
+        )
+      )
+      val str = patch.toString
+      assertTrue(str.contains(".items + [0: 42]"))
+    },
+    test("renders sequence delete") {
       val patch = DynamicPatch(
         Vector(
           DynamicPatch.DynamicPatchOp(
@@ -403,8 +453,7 @@ object ToStringSpec extends SchemaBaseSpec {
         )
       )
       val str = patch.toString
-      assertTrue(str.contains("- ")) &&
-      assertTrue(str.contains("[0]"))
+      assertTrue(str.contains(".items - [0]"))
     }
   )
 }

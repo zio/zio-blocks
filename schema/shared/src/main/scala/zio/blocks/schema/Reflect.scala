@@ -271,7 +271,9 @@ object Reflect {
     seen: Set[TypeName[?]]
   ): Unit = reflect match {
     case p: Primitive[F, A] @unchecked =>
-      sb.append(p.typeName.name)
+      val ns = p.typeName.namespace
+      if (ns == Namespace.scala) sb.append(p.typeName.name)
+      else sb.append(p.typeName.toString)
 
     case d: Deferred[F, A] @unchecked =>
       val tn = d.typeName

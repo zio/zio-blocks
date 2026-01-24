@@ -77,7 +77,15 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def modifiers(modifiers: Iterable[Modifier.Reflect]): Schema[A] = new Schema(reflect.modifiers(modifiers))
 
-  override def toString: String = s"Schema { ${reflect.toString} }"
+  override def toString: String = {
+    val reflectStr = reflect.toString
+    if (reflectStr.contains('\n')) {
+      val indented = reflectStr.linesIterator.map(line => "  " + line).mkString("\n")
+      s"Schema {\n$indented\n}"
+    } else {
+      s"Schema { $reflectStr }"
+    }
+  }
 
   def diff(oldValue: A, newValue: A): Patch[A] = {
     val oldDynamic   = toDynamicValue(oldValue)

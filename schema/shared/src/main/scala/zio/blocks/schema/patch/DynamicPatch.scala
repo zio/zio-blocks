@@ -2031,10 +2031,10 @@ object DynamicPatch {
     val pathStr = if (op.path.nodes.isEmpty) "." else op.path.toString
     op.operation match {
       case Operation.Set(value) =>
-        sb.append(indent).append("~ ").append(pathStr).append(" = ").append(value.toString).append('\n')
+        sb.append(indent).append(pathStr).append(" = ").append(value.toString).append('\n')
 
       case Operation.PrimitiveDelta(primOp) =>
-        sb.append(indent).append("~ ").append(pathStr).append(" ")
+        sb.append(indent).append(pathStr).append(" ")
         renderPrimitiveOp(primOp, sb)
         sb.append('\n')
 
@@ -2053,7 +2053,7 @@ object DynamicPatch {
         }
 
       case Operation.Patch(nested) =>
-        sb.append(indent).append("~ ").append(pathStr).append(" {\n")
+        sb.append(indent).append(pathStr).append(" {\n")
         var i = 0
         while (i < nested.ops.length) {
           renderOp(nested.ops(i), sb, indent + "  ")
@@ -2064,14 +2064,14 @@ object DynamicPatch {
   }
 
   private def renderPrimitiveOp(op: PrimitiveOp, sb: StringBuilder): Unit = op match {
-    case PrimitiveOp.IntDelta(delta)        => sb.append(if (delta >= 0) "+" else "").append(delta)
-    case PrimitiveOp.LongDelta(delta)       => sb.append(if (delta >= 0) "+" else "").append(delta)
-    case PrimitiveOp.DoubleDelta(delta)     => sb.append(if (delta >= 0) "+" else "").append(delta)
-    case PrimitiveOp.FloatDelta(delta)      => sb.append(if (delta >= 0) "+" else "").append(delta)
-    case PrimitiveOp.ShortDelta(delta)      => sb.append(if (delta >= 0) "+" else "").append(delta.toInt)
-    case PrimitiveOp.ByteDelta(delta)       => sb.append(if (delta >= 0) "+" else "").append(delta.toInt)
-    case PrimitiveOp.BigIntDelta(delta)     => sb.append(if (delta >= 0) "+" else "").append(delta)
-    case PrimitiveOp.BigDecimalDelta(delta) => sb.append(if (delta >= 0) "+" else "").append(delta)
+    case PrimitiveOp.IntDelta(delta)        => sb.append("+= ").append(delta)
+    case PrimitiveOp.LongDelta(delta)       => sb.append("+= ").append(delta)
+    case PrimitiveOp.DoubleDelta(delta)     => sb.append("+= ").append(delta)
+    case PrimitiveOp.FloatDelta(delta)      => sb.append("+= ").append(delta)
+    case PrimitiveOp.ShortDelta(delta)      => sb.append("+= ").append(delta.toInt)
+    case PrimitiveOp.ByteDelta(delta)       => sb.append("+= ").append(delta.toInt)
+    case PrimitiveOp.BigIntDelta(delta)     => sb.append("+= ").append(delta)
+    case PrimitiveOp.BigDecimalDelta(delta) => sb.append("+= ").append(delta)
     case PrimitiveOp.StringEdit(strOps)     =>
       sb.append("string-edit(")
       var i = 0
@@ -2099,24 +2099,24 @@ object DynamicPatch {
     case SeqOp.Insert(idx, values) =>
       var i = 0
       while (i < values.length) {
-        sb.append(indent).append("+ ").append(pathStr).append("[").append(idx + i).append("] = ")
-        sb.append(values(i).toString).append('\n')
+        sb.append(indent).append(pathStr).append(" + [").append(idx + i).append(": ")
+        sb.append(values(i).toString).append("]\n")
         i += 1
       }
     case SeqOp.Append(values) =>
       var i = 0
       while (i < values.length) {
-        sb.append(indent).append("+ ").append(pathStr).append("[+] = ").append(values(i).toString).append('\n')
+        sb.append(indent).append(pathStr).append(" + ").append(values(i).toString).append('\n')
         i += 1
       }
     case SeqOp.Delete(idx, count) =>
       var i = 0
       while (i < count) {
-        sb.append(indent).append("- ").append(pathStr).append("[").append(idx + i).append("]\n")
+        sb.append(indent).append(pathStr).append(" - [").append(idx + i).append("]\n")
         i += 1
       }
     case SeqOp.Modify(idx, nestedOp) =>
-      sb.append(indent).append("~ ").append(pathStr).append("[").append(idx).append("] ")
+      sb.append(indent).append(pathStr).append("[").append(idx).append("] ")
       nestedOp match {
         case Operation.Set(value) =>
           sb.append("= ").append(value.toString).append('\n')
@@ -2132,12 +2132,12 @@ object DynamicPatch {
 
   private def renderMapOp(op: MapOp, pathStr: String, sb: StringBuilder, indent: String): Unit = op match {
     case MapOp.Add(key, value) =>
-      sb.append(indent).append("+ ").append(pathStr).append("{").append(key.toString).append("} = ")
-      sb.append(value.toString).append('\n')
+      sb.append(indent).append(pathStr).append(" + {").append(key.toString).append(": ")
+      sb.append(value.toString).append("}\n")
     case MapOp.Remove(key) =>
-      sb.append(indent).append("- ").append(pathStr).append("{").append(key.toString).append("}\n")
+      sb.append(indent).append(pathStr).append(" - {").append(key.toString).append("}\n")
     case MapOp.Modify(key, nestedPatch) =>
-      sb.append(indent).append("~ ").append(pathStr).append("{").append(key.toString).append("} {\n")
+      sb.append(indent).append(pathStr).append("{").append(key.toString).append("} {\n")
       var i = 0
       while (i < nestedPatch.ops.length) {
         renderOp(nestedPatch.ops(i), sb, indent + "  ")
