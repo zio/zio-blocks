@@ -936,7 +936,8 @@ object AvroFormatSpec extends SchemaBaseSpec {
   case class UserId(value: Long)
 
   object UserId {
-    implicit val schema: Schema[UserId] = Schema.derived.wrapTotal(x => new UserId(x), _.value)
+    implicit val schema: Schema[UserId] =
+      Schema[Long].transform[UserId](x => new UserId(x), _.value).withTypeName[UserId]
   }
 
   case class Email(value: String)
