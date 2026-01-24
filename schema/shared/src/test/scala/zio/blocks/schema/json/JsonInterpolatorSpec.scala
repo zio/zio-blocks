@@ -14,9 +14,21 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         json""" "★🎸🎧⋆｡°⋆" """ == Json.str("★🎸🎧⋆｡°⋆"),
         json"""42""" == Json.number(42),
         json"""true""" == Json.bool(true),
+        json"""false""" == Json.bool(false),
         json"""[1,0,-1]""" == Json.arr(Json.number(1), Json.number(0), Json.number(-1)),
         json"""{"name": "Alice", "age": 20}""" == Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(20)),
-        json"""null""" == Json.Null
+        json"""null""" == Json.Null,
+        json"""[null]""" == Json.arr(Json.Null),
+        json"""{"key": null}""" == Json.obj("key" -> Json.Null)
+      )
+    },
+    test("interpolates stringable types") {
+      val name  = "World"
+      val count = 42
+      val flag  = true
+      assertTrue(
+        json"""{"greeting": $name, "count": $count, "active": $flag}""" ==
+          Json.obj("greeting" -> Json.str("World"), "count" -> Json.number(42), "active" -> Json.bool(true))
       )
     },
     // NOTE: Tests using check(Gen.X(...)) blocks with type variables are NOT supported by strict compile-time validation.

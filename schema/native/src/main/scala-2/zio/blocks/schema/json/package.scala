@@ -3,7 +3,6 @@ package zio.blocks.schema
 import zio.blocks.schema.json._
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
-import scala.util.control.NonFatal
 
 package object json {
   implicit class JsonStringContext(val sc: StringContext) extends AnyVal {
@@ -41,16 +40,11 @@ private object JsonInterpolatorMacros {
       }
     }
 
-    try {
-      // First validate the JSON by trying to parse it with dummy arguments
-      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), args.map(_ => ""))
-      val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
-      val argsExpr = c.Expr[Seq[Any]](q"Seq(..$args)")
-      reify(JsonInterpolatorRuntime.jsonWithInterpolation(scExpr.splice, argsExpr.splice))
-    } catch {
-      case error: Throwable if NonFatal(error) =>
-        c.abort(c.enclosingPosition, s"Invalid JSON literal: ${error.getMessage}")
-    }
+    // Native compilation can't validate JSON literals at compile time
+    // Keep only argument type validation above
+    val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
+    val argsExpr = c.Expr[Seq[Any]](q"Seq(..$args)")
+    reify(JsonInterpolatorRuntime.jsonWithInterpolation(scExpr.splice, argsExpr.splice))
   }
 
   private def isStringableType(c: blackbox.Context)(tpe: c.universe.Type): Boolean = {
