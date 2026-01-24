@@ -13,7 +13,7 @@ import zio.test._
  * - @bsonNoExtraFields → Config.withIgnoreExtraFields(false)
  */
 
-object BsonCodecAnnotationPortSpec extends ZIOSpecDefault {
+object BsonCodecAnnotationPortSpec extends SchemaBaseSpec {
 
   object BsonConfigPort {
     // WithoutDiscriminator - plain variant without discriminator

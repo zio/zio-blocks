@@ -1,11 +1,10 @@
 package zio.blocks.schema.bson
 
 import org.bson.{BsonDocument, BsonInt32, BsonString}
-
 import zio.blocks.schema._
 import zio.test._
 
-object BsonCodecMapSpec extends ZIOSpecDefault {
+object BsonCodecMapSpec extends SchemaBaseSpec {
 
   case class RecordWithMap(data: Map[String, Int])
 

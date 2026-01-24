@@ -1,11 +1,10 @@
 package zio.blocks.schema.bson
 
 import org.bson.BsonDocument
-
 import zio.blocks.schema._
 import zio.test._
 
-object BsonCodecRecordSpec extends ZIOSpecDefault {
+object BsonCodecRecordSpec extends SchemaBaseSpec {
 
   case class SimpleRecord(name: String, age: Int)
 

@@ -1,7 +1,7 @@
 package zio.blocks.schema.bson
 
 import org.bson.types.ObjectId
-import zio.blocks.schema.{Namespace, Reflect, Schema, TypeName}
+import zio.blocks.schema._
 import zio.test._
 
 /**
@@ -12,7 +12,7 @@ import zio.test._
  *   - Lists of ObjectId wrappers
  *   - Config.withNativeObjectId(true) for explicit enablement
  */
-object BsonCodecObjectIdSpec extends ZIOSpecDefault {
+object BsonCodecObjectIdSpec extends SchemaBaseSpec {
 
   // Import ObjectId schema support
   import ObjectIdSupport._
