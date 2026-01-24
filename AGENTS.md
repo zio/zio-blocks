@@ -33,8 +33,6 @@ sbt testJVM 2>&1 | tee /tmp/test-output.txt
 grep -i "error" /tmp/test-output.txt
 ```
 
-Note: Always lint, test, and typecheck updated files. Use project-wide build sparingly.
-
 ## All Commands
 
 ```bash
@@ -47,11 +45,16 @@ sbt check                  # Check formatting (version-agnostic)
 sbt testJS                 # JS tests
 sbt testNative             # Native tests
 
+# Scala Next forward-compatibility (CI runs these on Scala 3.7.4)
+sbt "++3.7.4; scalaNextTestsJVM/test; benchmarks/test"
+
 # Fast dev loop (single project, default Scala 3)
 sbt schemaJVM/compile      # Quick compile check
 sbt schemaJVM/test         # Single project tests
 sbt "schemaJVM/testOnly zio.blocks.schema.SchemaSpec"  # Single spec
 ```
+
+Note: Always lint, test, and typecheck updated files. Use project-wide build sparingly.
 
 ## Project Structure
 
@@ -75,7 +78,7 @@ docs/             # Documentation
 
 ## Scala Version Compatibility
 
-Code must compile and pass tests on **both** Scala 2.13.18 and Scala 3.3.7.
+Code must compile and pass tests on **both** Scala 2.13.18 and Scala 3.3.7. CI also validates forward compatibility with Scala 3.7.x via `scalaNextTests`.
 
 - Maximize shared code in `shared/src/main/scala/`
 - Version-specific code goes in `scala-2/` or `scala-3/` directories
