@@ -102,7 +102,7 @@ private object SchemaCompanionVersionSpecific {
             acc
           }
         } else if (s.isModule || s.isModuleClass) {
-          val termName = s.name.decodedName.toString.stripSuffix("$$")
+          val termName = s.name.decodedName.toString.stripSuffix("$")
           loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Term($termName)" :: acc)
         } else if (s.isClass || s.isType) {
           loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Type(${s.name.decodedName.toString})" :: acc)
