@@ -169,8 +169,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A): Schema[B] = new Schema(
     new Reflect.Wrapper[Binding, B, A](
       reflect,
-      reflect.typeName.asInstanceOf[TypeName[B]],
-      None,
+      reflect.typeId.asInstanceOf[zio.blocks.typeid.TypeId[B]],
+      Reflect.unwrapToPrimitiveTypeOption(reflect).asInstanceOf[Option[PrimitiveType[B]]],
       new Binding.Wrapper(to, from)
     )
   )
