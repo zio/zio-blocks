@@ -82,8 +82,11 @@ Code must compile and pass tests on **both** Scala 2.13.18 and Scala 3.3.7. CI a
 
 - Maximize shared code in `shared/src/main/scala/`
 - Version-specific code goes in `scala-2/` or `scala-3/` directories
-- Pattern: Define `*VersionSpecific` traits per Scala version, mix into shared code
-- Example: `SchemaCompanionVersionSpecific` in `scala-2/` uses `blackbox.Context`, in `scala-3/` uses `quoted`
+- Platform-specific code goes in `jvm/`, `js/`, `native/` directories
+- Pattern: Define `*Specific` traits per version/platform, mix into shared code:
+  - `XXVersionSpecific` - Scala version differences (e.g., `IntoVersionSpecific`)
+  - `XXPlatformSpecific` - JVM/JS/Native differences (e.g., `ChunkPlatformSpecific`)
+  - `XXCompanionVersionSpecific` - Companion object macros (e.g., `SchemaCompanionVersionSpecific`)
 
 ## Code Style
 
