@@ -11,27 +11,27 @@ object ReflectSpec extends ZIOSpecDefault {
     suite("Primitive types")(
       test("renders String") {
         val reflect = Reflect.string[Binding]
-        assertTrue(reflect.toString == "scala.String")
+        assertTrue(reflect.toString == "String")
       },
       test("renders Int") {
         val reflect = Reflect.int[Binding]
-        assertTrue(reflect.toString == "scala.Int")
+        assertTrue(reflect.toString == "Int")
       },
       test("renders Boolean") {
         val reflect = Reflect.boolean[Binding]
-        assertTrue(reflect.toString == "scala.Boolean")
+        assertTrue(reflect.toString == "Boolean")
       },
       test("renders Long") {
         val reflect = Reflect.long[Binding]
-        assertTrue(reflect.toString == "scala.Long")
+        assertTrue(reflect.toString == "Long")
       },
       test("renders Double") {
         val reflect = Reflect.double[Binding]
-        assertTrue(reflect.toString == "scala.Double")
+        assertTrue(reflect.toString == "Double")
       },
       test("renders BigDecimal") {
         val reflect = Reflect.bigDecimal[Binding]
-        assertTrue(reflect.toString == "scala.BigDecimal")
+        assertTrue(reflect.toString == "BigDecimal")
       },
       test("renders java.time.Instant") {
         val reflect = Reflect.instant[Binding]
@@ -80,7 +80,7 @@ object ReflectSpec extends ZIOSpecDefault {
         )
         val expected =
           """record Point1D {
-            |  x: scala.Int
+            |  x: Int
             |}""".stripMargin
         assertTrue(reflect.toString == expected)
       },
@@ -108,8 +108,8 @@ object ReflectSpec extends ZIOSpecDefault {
         )
         val expected =
           """record Point2D {
-            |  x: scala.Int
-            |  y: scala.Int
+            |  x: Int
+            |  y: Int
             |}""".stripMargin
         assertTrue(reflect.toString == expected)
       },
@@ -143,9 +143,9 @@ object ReflectSpec extends ZIOSpecDefault {
         )
         val expected =
           """record Person {
-            |  name: scala.String
-            |  age: scala.Int
-            |  active: scala.Boolean
+            |  name: String
+            |  age: Int
+            |  active: Boolean
             |}""".stripMargin
         assertTrue(reflect.toString == expected)
       }
@@ -211,12 +211,12 @@ object ReflectSpec extends ZIOSpecDefault {
 
         val expected =
           """record PersonWithAddress {
-            |  name: scala.String
-            |  age: scala.Int
+            |  name: String
+            |  age: Int
             |  address:   record Address {
-            |    street: scala.String
-            |    city: scala.String
-            |    zip: scala.String
+            |    street: String
+            |    city: String
+            |    zip: String
             |  }
             |}""".stripMargin
         assertTrue(personWithAddressReflect.toString == expected)
@@ -295,9 +295,9 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders Option[Int] variant") {
         val reflect  = Reflect.optionInt[Binding](Reflect.int[Binding])
         val expected =
-          """variant scala.Option[scala.Int] {
+          """variant Option[Int] {
             |  | None
-            |  | Some(value: scala.Int)
+            |  | Some(value: Int)
             |}""".stripMargin
         assertTrue(reflect.toString == expected)
       }
@@ -396,14 +396,14 @@ object ReflectSpec extends ZIOSpecDefault {
           """variant PaymentMethod {
             |  | Cash
             |  | CreditCard(
-            |      number: scala.String,
-            |      expiry: scala.String,
-            |      cvv: scala.String
+            |      number: String,
+            |      expiry: String,
+            |      cvv: String
             |    )
             |  | BankTransfer(
             |      account:       record BankAccount {
-            |        routing: scala.String
-            |        number: scala.String
+            |        routing: String
+            |        number: String
             |      }
             |    )
             |}""".stripMargin
@@ -414,23 +414,23 @@ object ReflectSpec extends ZIOSpecDefault {
     suite("More Primitive types")(
       test("renders Byte") {
         val reflect = Reflect.byte[Binding]
-        assertTrue(reflect.toString == "scala.Byte")
+        assertTrue(reflect.toString == "Byte")
       },
       test("renders Short") {
         val reflect = Reflect.short[Binding]
-        assertTrue(reflect.toString == "scala.Short")
+        assertTrue(reflect.toString == "Short")
       },
       test("renders Float") {
         val reflect = Reflect.float[Binding]
-        assertTrue(reflect.toString == "scala.Float")
+        assertTrue(reflect.toString == "Float")
       },
       test("renders Char") {
         val reflect = Reflect.char[Binding]
-        assertTrue(reflect.toString == "scala.Char")
+        assertTrue(reflect.toString == "Char")
       },
       test("renders Unit") {
         val reflect = Reflect.unit[Binding]
-        assertTrue(reflect.toString == "scala.Unit")
+        assertTrue(reflect.toString == "Unit")
       },
       test("renders Duration") {
         val reflect = Reflect.duration[Binding]
@@ -449,7 +449,7 @@ object ReflectSpec extends ZIOSpecDefault {
     suite("Sequence types")(
       test("renders sequence with primitive element") {
         val reflect = Reflect.list[Binding, Int](Reflect.int[Binding])
-        assertTrue(reflect.toString == "sequence List[scala.Int]")
+        assertTrue(reflect.toString == "sequence List[Int]")
       },
       test("renders sequence with complex element") {
         val itemReflect = Reflect.Record[Binding, OrderItem](
@@ -484,9 +484,9 @@ object ReflectSpec extends ZIOSpecDefault {
         val expected =
           """sequence Vector[
             |  record OrderItem {
-            |    product: scala.String
-            |    quantity: scala.Int
-            |    price: scala.BigDecimal
+            |    product: String
+            |    quantity: Int
+            |    price: BigDecimal
             |  }
             |]""".stripMargin
         assertTrue(reflect.toString == expected)
@@ -496,7 +496,7 @@ object ReflectSpec extends ZIOSpecDefault {
     suite("Map types")(
       test("renders map with primitive types") {
         val reflect = Reflect.map[Binding, String, Int](Reflect.string[Binding], Reflect.int[Binding])
-        assertTrue(reflect.toString == "map Map[scala.String, scala.Int]")
+        assertTrue(reflect.toString == "map Map[String, Int]")
       },
       test("renders map with complex value type") {
         val configReflect = Reflect.Record[Binding, Config](
@@ -524,10 +524,10 @@ object ReflectSpec extends ZIOSpecDefault {
         val reflect  = Reflect.map[Binding, String, Config](Reflect.string[Binding], configReflect)
         val expected =
           """map Map[
-            |  scala.String,
+            |  String,
             |  record Config {
-            |    value: scala.String
-            |    enabled: scala.Boolean
+            |    value: String
+            |    enabled: Boolean
             |  }
             |]""".stripMargin
         assertTrue(reflect.toString == expected)
@@ -545,7 +545,7 @@ object ReflectSpec extends ZIOSpecDefault {
             unwrap = _.value
           )
         )
-        assertTrue(reflect.toString == "wrapper UserId(scala.String)")
+        assertTrue(reflect.toString == "wrapper UserId(String)")
       },
       test("renders wrapper with complex underlying type") {
         val emailPartsReflect = Reflect.Record[Binding, EmailParts](
@@ -586,8 +586,8 @@ object ReflectSpec extends ZIOSpecDefault {
         val expected =
           """wrapper ValidatedEmail(
             |  record EmailParts {
-            |    local: scala.String
-            |    domain: scala.String
+            |    local: String
+            |    domain: String
             |  }
             |)""".stripMargin
         assertTrue(reflect.toString == expected)
@@ -613,7 +613,7 @@ object ReflectSpec extends ZIOSpecDefault {
           )
         )
 
-        assertTrue(orderIdReflect.toString == "wrapper OrderId(wrapper UUID(scala.String))")
+        assertTrue(orderIdReflect.toString == "wrapper OrderId(wrapper UUID(String))")
       }
     ),
 
@@ -643,7 +643,7 @@ object ReflectSpec extends ZIOSpecDefault {
 
         val expected =
           """record Tree {
-            |  value: scala.Int
+            |  value: Int
             |  children:   sequence List[
             |    deferred => Tree
             |  ]
@@ -700,10 +700,10 @@ object ReflectSpec extends ZIOSpecDefault {
 
         val expected =
           """record Node {
-            |  id: scala.Int
+            |  id: Int
             |  edges:   sequence List[
             |    record Edge {
-            |      label: scala.String
+            |      label: String
             |      target: deferred => Node
             |    }
             |  ]
@@ -784,12 +784,12 @@ object ReflectSpec extends ZIOSpecDefault {
 
         val expected =
           """record Customer {
-            |  name: scala.String
-            |  email: wrapper Email(scala.String)
+            |  name: String
+            |  email: wrapper Email(String)
             |  address:   record Address {
-            |    street: scala.String
-            |    city: scala.String
-            |    country: scala.String
+            |    street: String
+            |    city: String
+            |    country: String
             |  }
             |}""".stripMargin
         assertTrue(customerReflect.toString == expected)
@@ -799,7 +799,7 @@ object ReflectSpec extends ZIOSpecDefault {
     suite("Dynamic type")(
       test("renders dynamic as its type name") {
         val reflect = Reflect.dynamic[Binding]
-        assertTrue(reflect.toString == "zio.blocks.schema.DynamicValue")
+        assertTrue(reflect.toString == "DynamicValue")
       }
     ),
 
@@ -857,7 +857,7 @@ object ReflectSpec extends ZIOSpecDefault {
           """record Level1 {
             |  nested:   record Level2 {
             |    nested:   record Level3 {
-            |      value: scala.Int
+            |      value: Int
             |    }
             |  }
             |}""".stripMargin

@@ -996,7 +996,7 @@ object Reflect {
 
     override def isDynamic: Boolean = true
 
-    override def toString: String = typeName.toString
+    override def toString: String = ReflectPrinter.sdlTypeName(typeName)
   }
 
   object Dynamic {
@@ -1054,7 +1054,7 @@ object Reflect {
 
     override def isPrimitive: Boolean = true
 
-    override def toString: String = typeName.toString
+    override def toString: String = ReflectPrinter.sdlTypeName(typeName)
   }
 
   object Primitive {

@@ -9,27 +9,27 @@ object SchemaToStringSpec extends ZIOSpecDefault {
     suite("Primitive types")(
       test("renders String") {
         lazy implicit val schema: Schema[String] = Schema.string
-        assertTrue(schema.toString == "Schema {\n  scala.String\n}")
+        assertTrue(schema.toString == "Schema {\n  String\n}")
       },
       test("renders Int") {
         lazy implicit val schema: Schema[Int] = Schema.int
-        assertTrue(schema.toString == "Schema {\n  scala.Int\n}")
+        assertTrue(schema.toString == "Schema {\n  Int\n}")
       },
       test("renders Boolean") {
         lazy implicit val schema: Schema[Boolean] = Schema.boolean
-        assertTrue(schema.toString == "Schema {\n  scala.Boolean\n}")
+        assertTrue(schema.toString == "Schema {\n  Boolean\n}")
       },
       test("renders Long") {
         lazy implicit val schema: Schema[Long] = Schema.long
-        assertTrue(schema.toString == "Schema {\n  scala.Long\n}")
+        assertTrue(schema.toString == "Schema {\n  Long\n}")
       },
       test("renders Double") {
         lazy implicit val schema: Schema[Double] = Schema.double
-        assertTrue(schema.toString == "Schema {\n  scala.Double\n}")
+        assertTrue(schema.toString == "Schema {\n  Double\n}")
       },
       test("renders BigDecimal") {
         lazy implicit val schema: Schema[BigDecimal] = Schema.bigDecimal
-        assertTrue(schema.toString == "Schema {\n  scala.BigDecimal\n}")
+        assertTrue(schema.toString == "Schema {\n  BigDecimal\n}")
       },
       test("renders java.time.Instant") {
         lazy implicit val schema: Schema[java.time.Instant] = Schema.instant
@@ -44,14 +44,14 @@ object SchemaToStringSpec extends ZIOSpecDefault {
     suite("Simple Record")(
       test("renders empty record") {
         lazy implicit val schema: Schema[EmptyRecord] = Schema.derived[EmptyRecord]
-        assertTrue(schema.toString == "Schema {\n  record zio.blocks.schema.tostring.EmptyRecord {}\n}")
+        assertTrue(schema.toString == "Schema {\n  record EmptyRecord {}\n}")
       },
       test("renders record with single primitive field") {
         lazy implicit val schema: Schema[Point1D] = Schema.derived[Point1D]
         val expected                              =
           """Schema {
-            |  record zio.blocks.schema.tostring.Point1D {
-            |    x: scala.Int
+            |  record Point1D {
+            |    x: Int
             |  }
             |}""".stripMargin
         assertTrue(schema.toString == expected)
@@ -60,9 +60,9 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         lazy implicit val schema: Schema[Point2D] = Schema.derived[Point2D]
         val expected                              =
           """Schema {
-            |  record zio.blocks.schema.tostring.Point2D {
-            |    x: scala.Int
-            |    y: scala.Int
+            |  record Point2D {
+            |    x: Int
+            |    y: Int
             |  }
             |}""".stripMargin
         assertTrue(schema.toString == expected)
@@ -71,10 +71,10 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         lazy implicit val schema: Schema[Person] = Schema.derived[Person]
         val expected                             =
           """Schema {
-            |  record zio.blocks.schema.tostring.Person {
-            |    name: scala.String
-            |    age: scala.Int
-            |    active: scala.Boolean
+            |  record Person {
+            |    name: String
+            |    age: Int
+            |    active: Boolean
             |  }
             |}""".stripMargin
         assertTrue(schema.toString == expected)
@@ -88,13 +88,13 @@ object SchemaToStringSpec extends ZIOSpecDefault {
 
         val expected =
           """Schema {
-            |  record zio.blocks.schema.tostring.PersonWithAddress {
-            |    name: scala.String
-            |    age: scala.Int
-            |    address:   record zio.blocks.schema.tostring.Address {
-            |      street: scala.String
-            |      city: scala.String
-            |      zip: scala.String
+            |  record PersonWithAddress {
+            |    name: String
+            |    age: Int
+            |    address:   record Address {
+            |      street: String
+            |      city: String
+            |      zip: String
             |    }
             |  }
             |}""".stripMargin
@@ -107,7 +107,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         lazy implicit val schema: Schema[BooleanEnum] = Schema.derived[BooleanEnum]
         val expected                                  =
           """Schema {
-            |  variant zio.blocks.schema.tostring.BooleanEnum {
+            |  variant BooleanEnum {
             |    | True
             |    | False
             |  }
@@ -118,9 +118,9 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         lazy implicit val schema: Schema[Option[Int]] = Schema.optionInt
         val expected                                  =
           """Schema {
-            |  variant scala.Option[scala.Int] {
+            |  variant Option[Int] {
             |    | None
-            |    | Some(value: scala.Int)
+            |    | Some(value: Int)
             |  }
             |}""".stripMargin
         assertTrue(schema.toString == expected)
@@ -135,10 +135,10 @@ object SchemaToStringSpec extends ZIOSpecDefault {
 
         val str = paymentMethodSchema.toString
         assertTrue(
-          str.contains("variant zio.blocks.schema.tostring.PaymentMethodTest {"),
+          str.contains("variant PaymentMethodTest {"),
           str.contains("| CashTest"),
           str.contains("| CreditCardTest("),
-          str.contains("number: scala.String"),
+          str.contains("number: String"),
           str.contains("| BankTransferTest(")
         )
       }
@@ -147,23 +147,23 @@ object SchemaToStringSpec extends ZIOSpecDefault {
     suite("More Primitive types")(
       test("renders Byte") {
         lazy implicit val schema: Schema[Byte] = Schema.byte
-        assertTrue(schema.toString == "Schema {\n  scala.Byte\n}")
+        assertTrue(schema.toString == "Schema {\n  Byte\n}")
       },
       test("renders Short") {
         lazy implicit val schema: Schema[Short] = Schema.short
-        assertTrue(schema.toString == "Schema {\n  scala.Short\n}")
+        assertTrue(schema.toString == "Schema {\n  Short\n}")
       },
       test("renders Float") {
         lazy implicit val schema: Schema[Float] = Schema.float
-        assertTrue(schema.toString == "Schema {\n  scala.Float\n}")
+        assertTrue(schema.toString == "Schema {\n  Float\n}")
       },
       test("renders Char") {
         lazy implicit val schema: Schema[Char] = Schema.char
-        assertTrue(schema.toString == "Schema {\n  scala.Char\n}")
+        assertTrue(schema.toString == "Schema {\n  Char\n}")
       },
       test("renders Unit") {
         lazy implicit val schema: Schema[Unit] = Schema.unit
-        assertTrue(schema.toString == "Schema {\n  scala.Unit\n}")
+        assertTrue(schema.toString == "Schema {\n  Unit\n}")
       },
       test("renders Duration") {
         lazy implicit val schema: Schema[java.time.Duration] = Schema.duration
@@ -182,7 +182,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
     suite("Sequence types")(
       test("renders sequence with primitive element") {
         lazy implicit val schema: Schema[List[Int]] = Schema.list[Int]
-        assertTrue(schema.toString == "Schema {\n  sequence List[scala.Int]\n}")
+        assertTrue(schema.toString == "Schema {\n  sequence List[Int]\n}")
       },
       test("renders sequence with complex element") {
         lazy implicit val itemSchema: Schema[OrderItem]           = Schema.derived[OrderItem]
@@ -191,10 +191,10 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val expected =
           """Schema {
             |  sequence Vector[
-            |    record zio.blocks.schema.tostring.OrderItem {
-            |      product: scala.String
-            |      quantity: scala.Int
-            |      price: scala.BigDecimal
+            |    record OrderItem {
+            |      product: String
+            |      quantity: Int
+            |      price: BigDecimal
             |    }
             |  ]
             |}""".stripMargin
@@ -206,7 +206,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
       test("renders map with primitive types") {
         lazy implicit val schema: Schema[collection.immutable.Map[String, Int]] =
           Schema.map[String, Int]
-        assertTrue(schema.toString == "Schema {\n  map Map[scala.String, scala.Int]\n}")
+        assertTrue(schema.toString == "Schema {\n  map Map[String, Int]\n}")
       },
       test("renders map with complex value type") {
         lazy implicit val configSchema: Schema[Config]                                = Schema.derived[Config]
@@ -216,10 +216,10 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val expected =
           """Schema {
             |  map Map[
-            |    scala.String,
-            |    record zio.blocks.schema.tostring.Config {
-            |      value: scala.String
-            |      enabled: scala.Boolean
+            |    String,
+            |    record Config {
+            |      value: String
+            |      enabled: Boolean
             |    }
             |  ]
             |}""".stripMargin
@@ -232,8 +232,8 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         // Note: Schema.derived treats AnyVal as records, not wrappers
         lazy implicit val schema: Schema[UserId] = Schema.derived[UserId]
         val expected                             = """Schema {
-                                                     |  record zio.blocks.schema.tostring.UserId {
-                                                     |    value: scala.String
+                                                     |  record UserId {
+                                                     |    value: String
                                                      |  }
                                                      |}""".stripMargin
         assertTrue(schema.toString == expected)
@@ -245,10 +245,10 @@ object SchemaToStringSpec extends ZIOSpecDefault {
 
         val expected =
           """Schema {
-            |  record zio.blocks.schema.tostring.ValidatedEmail {
-            |    parts:   record zio.blocks.schema.tostring.EmailParts {
-            |      local: scala.String
-            |      domain: scala.String
+            |  record ValidatedEmail {
+            |    parts:   record EmailParts {
+            |      local: String
+            |      domain: String
             |    }
             |  }
             |}""".stripMargin
@@ -260,9 +260,9 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         lazy implicit val orderIdSchema: Schema[OrderId] = Schema.derived[OrderId]
 
         val expected = """Schema {
-                         |  record zio.blocks.schema.tostring.OrderId {
-                         |    uuid:   record zio.blocks.schema.tostring.UUID {
-                         |      value: scala.String
+                         |  record OrderId {
+                         |    uuid:   record UUID {
+                         |      value: String
                          |    }
                          |  }
                          |}""".stripMargin
@@ -276,10 +276,10 @@ object SchemaToStringSpec extends ZIOSpecDefault {
 
         val expected =
           """Schema {
-            |  record zio.blocks.schema.tostring.Tree {
-            |    value: scala.Int
+            |  record Tree {
+            |    value: Int
             |    children:   sequence List[
-            |      deferred => zio.blocks.schema.tostring.Tree
+            |      deferred => Tree
             |    ]
             |  }
             |}""".stripMargin
@@ -291,12 +291,12 @@ object SchemaToStringSpec extends ZIOSpecDefault {
 
         val expected =
           """Schema {
-            |  record zio.blocks.schema.tostring.Node {
-            |    id: scala.Int
+            |  record Node {
+            |    id: Int
             |    edges:   sequence List[
-            |      record zio.blocks.schema.tostring.Edge {
-            |        label: scala.String
-            |        target: deferred => zio.blocks.schema.tostring.Node
+            |      record Edge {
+            |        label: String
+            |        target: deferred => Node
             |      }
             |    ]
             |  }
@@ -315,15 +315,15 @@ object SchemaToStringSpec extends ZIOSpecDefault {
 
         val expected =
           """Schema {
-            |  record zio.blocks.schema.tostring.Customer {
-            |    name: scala.String
-            |    email:   record zio.blocks.schema.tostring.Email {
-            |      value: scala.String
+            |  record Customer {
+            |    name: String
+            |    email:   record Email {
+            |      value: String
             |    }
-            |    address:   record zio.blocks.schema.tostring.Address {
-            |      street: scala.String
-            |      city: scala.String
-            |      zip: scala.String
+            |    address:   record Address {
+            |      street: String
+            |      city: String
+            |      zip: String
             |    }
             |  }
             |}""".stripMargin
@@ -334,7 +334,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
     suite("Dynamic type")(
       test("renders dynamic as its type name") {
         lazy implicit val schema: Schema[DynamicValue] = Schema.dynamic
-        assertTrue(schema.toString == "Schema {\n  zio.blocks.schema.DynamicValue\n}")
+        assertTrue(schema.toString == "Schema {\n  DynamicValue\n}")
       }
     ),
 
@@ -346,10 +346,10 @@ object SchemaToStringSpec extends ZIOSpecDefault {
 
         val expected =
           """Schema {
-            |  record zio.blocks.schema.tostring.Level1 {
-            |    nested:   record zio.blocks.schema.tostring.Level2 {
-            |      nested:   record zio.blocks.schema.tostring.Level3 {
-            |        value: scala.Int
+            |  record Level1 {
+            |    nested:   record Level2 {
+            |      nested:   record Level3 {
+            |        value: Int
             |      }
             |    }
             |  }

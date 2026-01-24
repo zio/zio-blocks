@@ -11,11 +11,11 @@ object TermToString extends ZIOSpecDefault {
     suite("Primitive Term")(
       test("renders String term") {
         val term = Term("fieldName", Reflect.string[Binding])
-        assertTrue(term.toString == "fieldName: scala.String")
+        assertTrue(term.toString == "fieldName: String")
       },
       test("renders Int term") {
         val term = Term("age", Reflect.int[Binding])
-        assertTrue(term.toString == "age: scala.Int")
+        assertTrue(term.toString == "age: Int")
       }
     ),
 
@@ -49,8 +49,8 @@ object TermToString extends ZIOSpecDefault {
         // The record body is indented because it's multiline.
         val expected =
           """location: record Point {
-            |  x: scala.Int
-            |  y: scala.Int
+            |  x: Int
+            |  y: Int
             |}""".stripMargin
 
         assertTrue(term.toString == expected)
@@ -59,7 +59,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders term with sequence value") {
         val listReflect = Reflect.list[Binding, Int](Reflect.int[Binding])
         val term        = Term("items", listReflect)
-        assertTrue(term.toString == "items: sequence List[scala.Int]")
+        assertTrue(term.toString == "items: sequence List[Int]")
       },
 
       test("renders term with list of records (multiline sequence)") {
@@ -87,7 +87,7 @@ object TermToString extends ZIOSpecDefault {
         val expected =
           """points: sequence List[
             |  record Point {
-            |    x: scala.Int
+            |    x: Int
             |  }
             |]""".stripMargin
 
@@ -101,9 +101,9 @@ object TermToString extends ZIOSpecDefault {
         val term          = Term("maybeInt", optionReflect)
 
         val expected =
-          """maybeInt: variant scala.Option[scala.Int] {
+          """maybeInt: variant Option[Int] {
             |  | None
-            |  | Some(value: scala.Int)
+            |  | Some(value: Int)
             |}""".stripMargin
 
         assertTrue(term.toString == expected)
@@ -114,7 +114,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders term with simple map value") {
         val mapReflect = Reflect.map[Binding, String, Int](Reflect.string[Binding], Reflect.int[Binding])
         val term       = Term("config", mapReflect)
-        assertTrue(term.toString == "config: map Map[scala.String, scala.Int]")
+        assertTrue(term.toString == "config: map Map[String, Int]")
       },
       test("renders term with complex map value (multiline)") {
         val pointReflect = Reflect.Record[Binding, Point](
@@ -144,10 +144,10 @@ object TermToString extends ZIOSpecDefault {
 
         val expected =
           """locations: map Map[
-            |  scala.String,
+            |  String,
             |  record Point {
-            |    x: scala.Int
-            |    y: scala.Int
+            |    x: Int
+            |    y: Int
             |  }
             |]""".stripMargin
 
@@ -164,7 +164,7 @@ object TermToString extends ZIOSpecDefault {
           wrapperBinding = Binding.Wrapper[String, String](s => Right(s), identity)
         )
         val term = Term("userId", userIdReflect)
-        assertTrue(term.toString == "userId: wrapper UserId(scala.String)")
+        assertTrue(term.toString == "userId: wrapper UserId(String)")
       },
       test("renders term with complex wrapper") {
         val emailPartsReflect = Reflect.Record[Binding, EmailParts](
@@ -204,8 +204,8 @@ object TermToString extends ZIOSpecDefault {
         val expected =
           """email: wrapper ValidatedEmail(
             |  record EmailParts {
-            |    local: scala.String
-            |    domain: scala.String
+            |    local: String
+            |    domain: String
             |  }
             |)""".stripMargin
 
@@ -216,43 +216,43 @@ object TermToString extends ZIOSpecDefault {
     suite("All Primitive Terms")(
       test("renders Boolean term") {
         val term = Term("active", Reflect.boolean[Binding])
-        assertTrue(term.toString == "active: scala.Boolean")
+        assertTrue(term.toString == "active: Boolean")
       },
       test("renders Byte term") {
         val term = Term("byteValue", Reflect.byte[Binding])
-        assertTrue(term.toString == "byteValue: scala.Byte")
+        assertTrue(term.toString == "byteValue: Byte")
       },
       test("renders Short term") {
         val term = Term("shortValue", Reflect.short[Binding])
-        assertTrue(term.toString == "shortValue: scala.Short")
+        assertTrue(term.toString == "shortValue: Short")
       },
       test("renders Long term") {
         val term = Term("timestamp", Reflect.long[Binding])
-        assertTrue(term.toString == "timestamp: scala.Long")
+        assertTrue(term.toString == "timestamp: Long")
       },
       test("renders Float term") {
         val term = Term("floatValue", Reflect.float[Binding])
-        assertTrue(term.toString == "floatValue: scala.Float")
+        assertTrue(term.toString == "floatValue: Float")
       },
       test("renders Double term") {
         val term = Term("doubleValue", Reflect.double[Binding])
-        assertTrue(term.toString == "doubleValue: scala.Double")
+        assertTrue(term.toString == "doubleValue: Double")
       },
       test("renders Char term") {
         val term = Term("charValue", Reflect.char[Binding])
-        assertTrue(term.toString == "charValue: scala.Char")
+        assertTrue(term.toString == "charValue: Char")
       },
       test("renders BigInt term") {
         val term = Term("bigIntValue", Reflect.bigInt[Binding])
-        assertTrue(term.toString == "bigIntValue: scala.BigInt")
+        assertTrue(term.toString == "bigIntValue: BigInt")
       },
       test("renders BigDecimal term") {
         val term = Term("price", Reflect.bigDecimal[Binding])
-        assertTrue(term.toString == "price: scala.BigDecimal")
+        assertTrue(term.toString == "price: BigDecimal")
       },
       test("renders Unit term") {
         val term = Term("unitValue", Reflect.unit[Binding])
-        assertTrue(term.toString == "unitValue: scala.Unit")
+        assertTrue(term.toString == "unitValue: Unit")
       },
       test("renders Instant term") {
         val term = Term("createdAt", Reflect.instant[Binding])
@@ -345,7 +345,7 @@ object TermToString extends ZIOSpecDefault {
             |  nested:   record Level3 {
             |    nested:   record Level4 {
             |      nested:   record Level5 {
-            |        value: scala.Int
+            |        value: Int
             |      }
             |    }
             |  }
@@ -391,9 +391,9 @@ object TermToString extends ZIOSpecDefault {
 
         val expected =
           """complex: record OuterRecord {
-            |  data:   map Map[scala.String, sequence List[
+            |  data:   map Map[String, sequence List[
             |    record InnerRecord {
-            |      x: scala.Int
+            |      x: Int
             |    }
             |  ]]
             |}""".stripMargin
@@ -489,9 +489,9 @@ object TermToString extends ZIOSpecDefault {
 
         val expected =
           """tree: variant Tree {
-            |  | Leaf(value: scala.Int)
+            |  | Leaf(value: Int)
             |  | Branch(
-            |      value: scala.Int,
+            |      value: Int,
             |      left: deferred => Tree,
             |      right: deferred => Tree
             |    )
