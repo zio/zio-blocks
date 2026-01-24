@@ -7,8 +7,6 @@ import zio.blocks.schema.binding.SeqDeconstructor._
 import zio.blocks.schema._
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
-import java.math.{BigInteger, MathContext}
-import java.nio.ByteBuffer
 import scala.util.control.NonFatal
 
 object AvroFormat
@@ -142,533 +140,42 @@ object AvroFormat
           new ThreadLocal[java.util.HashMap[(String, String), Int]] {
             override def initialValue: java.util.HashMap[(String, String), Int] = new java.util.HashMap
           }
-        private[this] val unitCodec = new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
-          val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.NULL)
-
-          def decodeUnsafe(decoder: BinaryDecoder): Unit = ()
-
-          def encode(value: Unit, encoder: BinaryEncoder): Unit = ()
-        }
-        private[this] val booleanCodec = new AvroBinaryCodec[Boolean](AvroBinaryCodec.booleanType) {
-          val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.BOOLEAN)
-
-          def decodeUnsafe(decoder: BinaryDecoder): Boolean = decoder.readBoolean()
-
-          def encode(value: Boolean, encoder: BinaryEncoder): Unit = encoder.writeBoolean(value)
-        }
-        private[this] val byteCodec = new AvroBinaryCodec[Byte](AvroBinaryCodec.byteType) {
-          val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.INT)
-
-          def decodeUnsafe(decoder: BinaryDecoder): Byte = {
-            val x = decoder.readInt()
-            if (x >= Byte.MinValue && x <= Byte.MaxValue) x.toByte
-            else decodeError("Expected Byte")
-          }
-
-          def encode(value: Byte, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
-        }
-        private[this] val shortCodec = new AvroBinaryCodec[Short](AvroBinaryCodec.shortType) {
-          val avroSchema: AvroSchema = byteCodec.avroSchema
-
-          def decodeUnsafe(decoder: BinaryDecoder): Short = {
-            val x = decoder.readInt()
-            if (x >= Short.MinValue && x <= Short.MaxValue) x.toShort
-            else decodeError("Expected Short")
-          }
-
-          def encode(value: Short, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
-        }
-        private[this] val intCodec = new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-          val avroSchema: AvroSchema = shortCodec.avroSchema
-
-          def decodeUnsafe(decoder: BinaryDecoder): Int = decoder.readInt()
-
-          def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
-        }
-        private[this] val longCodec = new AvroBinaryCodec[Long](AvroBinaryCodec.longType) {
-          val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.LONG)
-
-          def decodeUnsafe(decoder: BinaryDecoder): Long = decoder.readLong()
-
-          def encode(value: Long, encoder: BinaryEncoder): Unit = encoder.writeLong(value)
-        }
-        private[this] val floatCodec = new AvroBinaryCodec[Float](AvroBinaryCodec.floatType) {
-          val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.FLOAT)
-
-          def decodeUnsafe(decoder: BinaryDecoder): Float = decoder.readFloat()
-
-          def encode(value: Float, encoder: BinaryEncoder): Unit = encoder.writeFloat(value)
-        }
-        private[this] val doubleCodec = new AvroBinaryCodec[Double](AvroBinaryCodec.doubleType) {
-          val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.DOUBLE)
-
-          def decodeUnsafe(decoder: BinaryDecoder): Double = decoder.readDouble()
-
-          def encode(value: Double, encoder: BinaryEncoder): Unit = encoder.writeDouble(value)
-        }
-        private[this] val charCodec = new AvroBinaryCodec[Char](AvroBinaryCodec.charType) {
-          val avroSchema: AvroSchema = intCodec.avroSchema
-
-          def decodeUnsafe(decoder: BinaryDecoder): Char = {
-            val x = decoder.readInt()
-            if (x >= Char.MinValue && x <= Char.MaxValue) x.toChar
-            else decodeError("Expected Char")
-          }
-
-          def encode(value: Char, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
-        }
-        private[this] val stringCodec = new AvroBinaryCodec[String]() {
-          val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
-
-          def decodeUnsafe(decoder: BinaryDecoder): String = decoder.readString()
-
-          def encode(value: String, encoder: BinaryEncoder): Unit = encoder.writeString(value)
-        }
-        private[this] val bigIntCodec = new AvroBinaryCodec[BigInt]() {
-          val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.BYTES)
-
-          def decodeUnsafe(decoder: BinaryDecoder): BigInt = BigInt(decoder.readBytes(null).array())
-
-          def encode(value: BigInt, encoder: BinaryEncoder): Unit = encoder.writeBytes(value.toByteArray)
-        }
-        private[this] val bigDecimalCodec = new AvroBinaryCodec[BigDecimal]() {
-          val avroSchema: AvroSchema = {
-            val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field](4)
-            fields.add(new AvroSchema.Field("mantissa", bigIntCodec.avroSchema))
-            fields.add(new AvroSchema.Field("scale", intAvroSchema))
-            fields.add(new AvroSchema.Field("precision", intAvroSchema))
-            fields.add(new AvroSchema.Field("roundingMode", intAvroSchema))
-            createAvroRecord("scala", "BigDecimal", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): BigDecimal = {
-            val mantissa     = decoder.readBytes(null).array()
-            val scale        = decoder.readInt()
-            val precision    = decoder.readInt()
-            val roundingMode = java.math.RoundingMode.valueOf(decoder.readInt())
-            val mc           = new MathContext(precision, roundingMode)
-            new BigDecimal(new java.math.BigDecimal(new BigInteger(mantissa), scale), mc)
-          }
-
-          def encode(value: BigDecimal, encoder: BinaryEncoder): Unit = {
-            val bd = value.underlying
-            val mc = value.mc
-            encoder.writeBytes(ByteBuffer.wrap(bd.unscaledValue.toByteArray))
-            encoder.writeInt(bd.scale)
-            encoder.writeInt(mc.getPrecision)
-            encoder.writeInt(mc.getRoundingMode.ordinal)
-          }
-        }
-        private[this] val dayOfWeekCodec = new AvroBinaryCodec[java.time.DayOfWeek]() {
-          val avroSchema: AvroSchema = intCodec.avroSchema
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.DayOfWeek = java.time.DayOfWeek.of(decoder.readInt())
-
-          def encode(value: java.time.DayOfWeek, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
-        }
-        private[this] val durationCodec = new AvroBinaryCodec[java.time.Duration]() {
-          val avroSchema: AvroSchema = {
-            val fields = new java.util.ArrayList[AvroSchema.Field](2)
-            fields.add(new AvroSchema.Field("seconds", longCodec.avroSchema))
-            fields.add(new AvroSchema.Field("nanos", intCodec.avroSchema))
-            createAvroRecord("java.time", "Duration", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.Duration =
-            java.time.Duration.ofSeconds(decoder.readLong(), decoder.readInt())
-
-          def encode(value: java.time.Duration, encoder: BinaryEncoder): Unit = {
-            encoder.writeLong(value.getSeconds)
-            encoder.writeInt(value.getNano)
-          }
-        }
-        private[this] val instantCodec = new AvroBinaryCodec[java.time.Instant]() {
-          val avroSchema: AvroSchema = {
-            val fields = new java.util.ArrayList[AvroSchema.Field](2)
-            fields.add(new AvroSchema.Field("epochSecond", longCodec.avroSchema))
-            fields.add(new AvroSchema.Field("nano", intCodec.avroSchema))
-            createAvroRecord("java.time", "Instant", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.Instant =
-            java.time.Instant.ofEpochSecond(decoder.readLong(), decoder.readInt())
-
-          def encode(value: java.time.Instant, encoder: BinaryEncoder): Unit = {
-            encoder.writeLong(value.getEpochSecond)
-            encoder.writeInt(value.getNano)
-          }
-        }
-        private[this] val localDateCodec = new AvroBinaryCodec[java.time.LocalDate]() {
-          val avroSchema: AvroSchema = {
-            val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field](3)
-            fields.add(new AvroSchema.Field("year", intAvroSchema))
-            fields.add(new AvroSchema.Field("month", intAvroSchema))
-            fields.add(new AvroSchema.Field("day", intAvroSchema))
-            createAvroRecord("java.time", "LocalDate", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.LocalDate =
-            java.time.LocalDate.of(decoder.readInt(), decoder.readInt(), decoder.readInt())
-
-          def encode(value: java.time.LocalDate, encoder: BinaryEncoder): Unit = {
-            encoder.writeInt(value.getYear)
-            encoder.writeInt(value.getMonthValue)
-            encoder.writeInt(value.getDayOfMonth)
-          }
-        }
-        private[this] val localDateTimeCodec = new AvroBinaryCodec[java.time.LocalDateTime]() {
-          val avroSchema: AvroSchema = {
-            val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field](7)
-            fields.add(new AvroSchema.Field("year", intAvroSchema))
-            fields.add(new AvroSchema.Field("month", intAvroSchema))
-            fields.add(new AvroSchema.Field("day", intAvroSchema))
-            fields.add(new AvroSchema.Field("hour", intAvroSchema))
-            fields.add(new AvroSchema.Field("minute", intAvroSchema))
-            fields.add(new AvroSchema.Field("second", intAvroSchema))
-            fields.add(new AvroSchema.Field("nano", intAvroSchema))
-            createAvroRecord("java.time", "LocalDateTime", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.LocalDateTime =
-            java.time.LocalDateTime
-              .of(
-                decoder.readInt(),
-                decoder.readInt(),
-                decoder.readInt(),
-                decoder.readInt(),
-                decoder.readInt(),
-                decoder.readInt(),
-                decoder.readInt()
-              )
-
-          def encode(value: java.time.LocalDateTime, encoder: BinaryEncoder): Unit = {
-            encoder.writeInt(value.getYear)
-            encoder.writeInt(value.getMonthValue)
-            encoder.writeInt(value.getDayOfMonth)
-            encoder.writeInt(value.getHour)
-            encoder.writeInt(value.getMinute)
-            encoder.writeInt(value.getSecond)
-            encoder.writeInt(value.getNano)
-          }
-        }
-        private[this] val localTimeCodec = new AvroBinaryCodec[java.time.LocalTime]() {
-          val avroSchema: AvroSchema = {
-            val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field](4)
-            fields.add(new AvroSchema.Field("hour", intAvroSchema))
-            fields.add(new AvroSchema.Field("minute", intAvroSchema))
-            fields.add(new AvroSchema.Field("second", intAvroSchema))
-            fields.add(new AvroSchema.Field("nano", intAvroSchema))
-            createAvroRecord("java.time", "LocalTime", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.LocalTime =
-            java.time.LocalTime.of(decoder.readInt(), decoder.readInt(), decoder.readInt(), decoder.readInt())
-
-          def encode(value: java.time.LocalTime, encoder: BinaryEncoder): Unit = {
-            encoder.writeInt(value.getHour)
-            encoder.writeInt(value.getMinute)
-            encoder.writeInt(value.getSecond)
-            encoder.writeInt(value.getNano)
-          }
-        }
-        private[this] val monthCodec = new AvroBinaryCodec[java.time.Month]() {
-          val avroSchema: AvroSchema = intCodec.avroSchema
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.Month = java.time.Month.of(decoder.readInt())
-
-          def encode(value: java.time.Month, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
-        }
-        private[this] val monthDayCodec = new AvroBinaryCodec[java.time.MonthDay]() {
-          val avroSchema: AvroSchema = {
-            val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field](2)
-            fields.add(new AvroSchema.Field("month", intAvroSchema))
-            fields.add(new AvroSchema.Field("day", intAvroSchema))
-            createAvroRecord("java.time", "MonthDay", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.MonthDay =
-            java.time.MonthDay.of(decoder.readInt(), decoder.readInt())
-
-          def encode(value: java.time.MonthDay, encoder: BinaryEncoder): Unit = {
-            encoder.writeInt(value.getMonthValue)
-            encoder.writeInt(value.getDayOfMonth)
-          }
-        }
-        private[this] val offsetDateTimeCodec = new AvroBinaryCodec[java.time.OffsetDateTime]() {
-          val avroSchema: AvroSchema = {
-            val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field](8)
-            fields.add(new AvroSchema.Field("year", intAvroSchema))
-            fields.add(new AvroSchema.Field("month", intAvroSchema))
-            fields.add(new AvroSchema.Field("day", intAvroSchema))
-            fields.add(new AvroSchema.Field("hour", intAvroSchema))
-            fields.add(new AvroSchema.Field("minute", intAvroSchema))
-            fields.add(new AvroSchema.Field("second", intAvroSchema))
-            fields.add(new AvroSchema.Field("nano", intAvroSchema))
-            fields.add(new AvroSchema.Field("offsetSecond", intAvroSchema))
-            createAvroRecord("java.time", "OffsetDateTime", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.OffsetDateTime =
-            java.time.OffsetDateTime.of(
-              decoder.readInt(),
-              decoder.readInt(),
-              decoder.readInt(),
-              decoder.readInt(),
-              decoder.readInt(),
-              decoder.readInt(),
-              decoder.readInt(),
-              java.time.ZoneOffset.ofTotalSeconds(decoder.readInt())
-            )
-
-          def encode(value: java.time.OffsetDateTime, encoder: BinaryEncoder): Unit = {
-            encoder.writeInt(value.getYear)
-            encoder.writeInt(value.getMonthValue)
-            encoder.writeInt(value.getDayOfMonth)
-            encoder.writeInt(value.getHour)
-            encoder.writeInt(value.getMinute)
-            encoder.writeInt(value.getSecond)
-            encoder.writeInt(value.getNano)
-            encoder.writeInt(value.getOffset.getTotalSeconds)
-          }
-        }
-        private[this] val offsetTimeCodec = new AvroBinaryCodec[java.time.OffsetTime]() {
-          val avroSchema: AvroSchema = {
-            val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field](5)
-            fields.add(new AvroSchema.Field("hour", intAvroSchema))
-            fields.add(new AvroSchema.Field("minute", intAvroSchema))
-            fields.add(new AvroSchema.Field("second", intAvroSchema))
-            fields.add(new AvroSchema.Field("nano", intAvroSchema))
-            fields.add(new AvroSchema.Field("offsetSecond", intAvroSchema))
-            createAvroRecord("java.time", "OffsetTime", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.OffsetTime =
-            java.time.OffsetTime.of(
-              decoder.readInt(),
-              decoder.readInt(),
-              decoder.readInt(),
-              decoder.readInt(),
-              java.time.ZoneOffset.ofTotalSeconds(decoder.readInt())
-            )
-
-          def encode(value: java.time.OffsetTime, encoder: BinaryEncoder): Unit = {
-            encoder.writeInt(value.getHour)
-            encoder.writeInt(value.getMinute)
-            encoder.writeInt(value.getSecond)
-            encoder.writeInt(value.getNano)
-            encoder.writeInt(value.getOffset.getTotalSeconds)
-          }
-        }
-        private[this] val periodCodec = new AvroBinaryCodec[java.time.Period]() {
-          val avroSchema: AvroSchema = {
-            val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field](3)
-            fields.add(new AvroSchema.Field("years", intAvroSchema))
-            fields.add(new AvroSchema.Field("month", intAvroSchema))
-            fields.add(new AvroSchema.Field("days", intAvroSchema))
-            createAvroRecord("java.time", "Period", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.Period =
-            java.time.Period.of(decoder.readInt(), decoder.readInt(), decoder.readInt())
-
-          def encode(value: java.time.Period, encoder: BinaryEncoder): Unit = {
-            encoder.writeInt(value.getYears)
-            encoder.writeInt(value.getMonths)
-            encoder.writeInt(value.getDays)
-          }
-        }
-        private[this] val yearCodec = new AvroBinaryCodec[java.time.Year]() {
-          val avroSchema: AvroSchema = intCodec.avroSchema
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.Year = java.time.Year.of(decoder.readInt())
-
-          def encode(value: java.time.Year, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
-        }
-        private[this] val yearMonthCodec = new AvroBinaryCodec[java.time.YearMonth]() {
-          val avroSchema: AvroSchema = {
-            val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field](2)
-            fields.add(new AvroSchema.Field("year", intAvroSchema))
-            fields.add(new AvroSchema.Field("month", intAvroSchema))
-            createAvroRecord("java.time", "YearMonth", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.YearMonth =
-            java.time.YearMonth.of(decoder.readInt(), decoder.readInt())
-
-          def encode(value: java.time.YearMonth, encoder: BinaryEncoder): Unit = {
-            encoder.writeInt(value.getYear)
-            encoder.writeInt(value.getMonthValue)
-          }
-        }
-        private[this] val zoneIdCodec = new AvroBinaryCodec[java.time.ZoneId]() {
-          val avroSchema: AvroSchema = stringCodec.avroSchema
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.ZoneId = java.time.ZoneId.of(decoder.readString())
-
-          def encode(value: java.time.ZoneId, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
-        }
-        private[this] val zoneOffsetCodec = new AvroBinaryCodec[java.time.ZoneOffset]() {
-          val avroSchema: AvroSchema = intCodec.avroSchema
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.ZoneOffset =
-            java.time.ZoneOffset.ofTotalSeconds(decoder.readInt())
-
-          def encode(value: java.time.ZoneOffset, encoder: BinaryEncoder): Unit =
-            encoder.writeInt(value.getTotalSeconds)
-        }
-        private[this] val zonedDateTimeCodec = new AvroBinaryCodec[java.time.ZonedDateTime]() {
-          val avroSchema: AvroSchema = {
-            val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field](9)
-            fields.add(new AvroSchema.Field("year", intAvroSchema))
-            fields.add(new AvroSchema.Field("month", intAvroSchema))
-            fields.add(new AvroSchema.Field("day", intAvroSchema))
-            fields.add(new AvroSchema.Field("hour", intAvroSchema))
-            fields.add(new AvroSchema.Field("minute", intAvroSchema))
-            fields.add(new AvroSchema.Field("second", intAvroSchema))
-            fields.add(new AvroSchema.Field("nano", intAvroSchema))
-            fields.add(new AvroSchema.Field("offsetSecond", intAvroSchema))
-            fields.add(new AvroSchema.Field("zoneId", stringCodec.avroSchema))
-            createAvroRecord("java.time", "ZonedDateTime", fields)
-          }
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.time.ZonedDateTime =
-            java.time.ZonedDateTime.ofInstant(
-              java.time.LocalDateTime.of(
-                decoder.readInt(),
-                decoder.readInt(),
-                decoder.readInt(),
-                decoder.readInt(),
-                decoder.readInt(),
-                decoder.readInt(),
-                decoder.readInt()
-              ),
-              java.time.ZoneOffset.ofTotalSeconds(decoder.readInt()),
-              java.time.ZoneId.of(decoder.readString())
-            )
-
-          def encode(value: java.time.ZonedDateTime, encoder: BinaryEncoder): Unit = {
-            encoder.writeInt(value.getYear)
-            encoder.writeInt(value.getMonthValue)
-            encoder.writeInt(value.getDayOfMonth)
-            encoder.writeInt(value.getHour)
-            encoder.writeInt(value.getMinute)
-            encoder.writeInt(value.getSecond)
-            encoder.writeInt(value.getNano)
-            encoder.writeInt(value.getOffset.getTotalSeconds)
-            encoder.writeString(value.getZone.toString)
-          }
-        }
-        private[this] val currencyCodec = new AvroBinaryCodec[java.util.Currency]() {
-          val avroSchema: AvroSchema = AvroSchema.createFixed("Currency", null, "java.util", 3)
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.util.Currency = {
-            val bs = new Array[Byte](3)
-            decoder.readFixed(bs, 0, 3)
-            java.util.Currency.getInstance(new String(bs))
-          }
-
-          def encode(value: java.util.Currency, encoder: BinaryEncoder): Unit = {
-            val s = value.toString
-            encoder.writeFixed(Array(s.charAt(0).toByte, s.charAt(1).toByte, s.charAt(2).toByte))
-          }
-        }
-        private[this] val uuidCodec = new AvroBinaryCodec[java.util.UUID]() {
-          val avroSchema: AvroSchema = AvroSchema.createFixed("UUID", null, "java.util", 16)
-
-          def decodeUnsafe(decoder: BinaryDecoder): java.util.UUID = {
-            val bs = new Array[Byte](16)
-            decoder.readFixed(bs)
-            val hi =
-              (bs(0) & 0xff).toLong << 56 |
-                (bs(1) & 0xff).toLong << 48 |
-                (bs(2) & 0xff).toLong << 40 |
-                (bs(3) & 0xff).toLong << 32 |
-                (bs(4) & 0xff).toLong << 24 |
-                (bs(5) & 0xff) << 16 |
-                (bs(6) & 0xff) << 8 |
-                (bs(7) & 0xff)
-            val lo =
-              (bs(8) & 0xff).toLong << 56 |
-                (bs(9) & 0xff).toLong << 48 |
-                (bs(10) & 0xff).toLong << 40 |
-                (bs(11) & 0xff).toLong << 32 |
-                (bs(12) & 0xff).toLong << 24 |
-                (bs(13) & 0xff) << 16 |
-                (bs(14) & 0xff) << 8 |
-                (bs(15) & 0xff)
-            new java.util.UUID(hi, lo)
-          }
-
-          def encode(value: java.util.UUID, encoder: BinaryEncoder): Unit = {
-            val hi = value.getMostSignificantBits
-            val lo = value.getLeastSignificantBits
-            val bs = Array(
-              (hi >> 56).toByte,
-              (hi >> 48).toByte,
-              (hi >> 40).toByte,
-              (hi >> 32).toByte,
-              (hi >> 24).toByte,
-              (hi >> 16).toByte,
-              (hi >> 8).toByte,
-              hi.toByte,
-              (lo >> 56).toByte,
-              (lo >> 48).toByte,
-              (lo >> 40).toByte,
-              (lo >> 32).toByte,
-              (lo >> 24).toByte,
-              (lo >> 16).toByte,
-              (lo >> 8).toByte,
-              lo.toByte
-            )
-            encoder.writeFixed(bs)
-          }
-        }
 
         private[this] def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): AvroBinaryCodec[A] = {
           if (reflect.isPrimitive) {
             val primitive = reflect.asPrimitive.get
             if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
               primitive.primitiveType match {
-                case _: PrimitiveType.Unit.type      => unitCodec
-                case _: PrimitiveType.Boolean        => booleanCodec
-                case _: PrimitiveType.Byte           => byteCodec
-                case _: PrimitiveType.Short          => shortCodec
-                case _: PrimitiveType.Int            => intCodec
-                case _: PrimitiveType.Long           => longCodec
-                case _: PrimitiveType.Float          => floatCodec
-                case _: PrimitiveType.Double         => doubleCodec
-                case _: PrimitiveType.Char           => charCodec
-                case _: PrimitiveType.String         => stringCodec
-                case _: PrimitiveType.BigInt         => bigIntCodec
-                case _: PrimitiveType.BigDecimal     => bigDecimalCodec
-                case _: PrimitiveType.DayOfWeek      => dayOfWeekCodec
-                case _: PrimitiveType.Duration       => durationCodec
-                case _: PrimitiveType.Instant        => instantCodec
-                case _: PrimitiveType.LocalDate      => localDateCodec
-                case _: PrimitiveType.LocalDateTime  => localDateTimeCodec
-                case _: PrimitiveType.LocalTime      => localTimeCodec
-                case _: PrimitiveType.Month          => monthCodec
-                case _: PrimitiveType.MonthDay       => monthDayCodec
-                case _: PrimitiveType.OffsetDateTime => offsetDateTimeCodec
-                case _: PrimitiveType.OffsetTime     => offsetTimeCodec
-                case _: PrimitiveType.Period         => periodCodec
-                case _: PrimitiveType.Year           => yearCodec
-                case _: PrimitiveType.YearMonth      => yearMonthCodec
-                case _: PrimitiveType.ZoneId         => zoneIdCodec
-                case _: PrimitiveType.ZoneOffset     => zoneOffsetCodec
-                case _: PrimitiveType.ZonedDateTime  => zonedDateTimeCodec
-                case _: PrimitiveType.Currency       => currencyCodec
-                case _: PrimitiveType.UUID           => uuidCodec
+                case _: PrimitiveType.Unit.type      => AvroBinaryCodec.unitCodec
+                case _: PrimitiveType.Boolean        => AvroBinaryCodec.booleanCodec
+                case _: PrimitiveType.Byte           => AvroBinaryCodec.byteCodec
+                case _: PrimitiveType.Short          => AvroBinaryCodec.shortCodec
+                case _: PrimitiveType.Int            => AvroBinaryCodec.intCodec
+                case _: PrimitiveType.Long           => AvroBinaryCodec.longCodec
+                case _: PrimitiveType.Float          => AvroBinaryCodec.floatCodec
+                case _: PrimitiveType.Double         => AvroBinaryCodec.doubleCodec
+                case _: PrimitiveType.Char           => AvroBinaryCodec.charCodec
+                case _: PrimitiveType.String         => AvroBinaryCodec.stringCodec
+                case _: PrimitiveType.BigInt         => AvroBinaryCodec.bigIntCodec
+                case _: PrimitiveType.BigDecimal     => AvroBinaryCodec.bigDecimalCodec
+                case _: PrimitiveType.DayOfWeek      => AvroBinaryCodec.dayOfWeekCodec
+                case _: PrimitiveType.Duration       => AvroBinaryCodec.durationCodec
+                case _: PrimitiveType.Instant        => AvroBinaryCodec.instantCodec
+                case _: PrimitiveType.LocalDate      => AvroBinaryCodec.localDateCodec
+                case _: PrimitiveType.LocalDateTime  => AvroBinaryCodec.localDateTimeCodec
+                case _: PrimitiveType.LocalTime      => AvroBinaryCodec.localTimeCodec
+                case _: PrimitiveType.Month          => AvroBinaryCodec.monthCodec
+                case _: PrimitiveType.MonthDay       => AvroBinaryCodec.monthDayCodec
+                case _: PrimitiveType.OffsetDateTime => AvroBinaryCodec.offsetDateTimeCodec
+                case _: PrimitiveType.OffsetTime     => AvroBinaryCodec.offsetTimeCodec
+                case _: PrimitiveType.Period         => AvroBinaryCodec.periodCodec
+                case _: PrimitiveType.Year           => AvroBinaryCodec.yearCodec
+                case _: PrimitiveType.YearMonth      => AvroBinaryCodec.yearMonthCodec
+                case _: PrimitiveType.ZoneId         => AvroBinaryCodec.zoneIdCodec
+                case _: PrimitiveType.ZoneOffset     => AvroBinaryCodec.zoneOffsetCodec
+                case _: PrimitiveType.ZonedDateTime  => AvroBinaryCodec.zonedDateTimeCodec
+                case _: PrimitiveType.Currency       => AvroBinaryCodec.currencyCodec
+                case _: PrimitiveType.UUID           => AvroBinaryCodec.uuidCodec
               }
             } else primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else if (reflect.isVariant) {
@@ -1407,35 +914,35 @@ object AvroFormat
                             "Unit",
                             new java.util.ArrayList[AvroSchema.Field](0)
                           ),
-                          createPrimitiveValueAvroRecord("Boolean", booleanCodec),
-                          createPrimitiveValueAvroRecord("Byte", byteCodec),
-                          createPrimitiveValueAvroRecord("Short", shortCodec),
-                          createPrimitiveValueAvroRecord("Int", intCodec),
-                          createPrimitiveValueAvroRecord("Long", longCodec),
-                          createPrimitiveValueAvroRecord("Float", floatCodec),
-                          createPrimitiveValueAvroRecord("Double", doubleCodec),
-                          createPrimitiveValueAvroRecord("Char", charCodec),
-                          createPrimitiveValueAvroRecord("String", stringCodec),
-                          createPrimitiveValueAvroRecord("BigInt", bigIntCodec),
-                          createPrimitiveValueAvroRecord("BigDecimal", bigDecimalCodec),
-                          createPrimitiveValueAvroRecord("DayOfWeek", dayOfWeekCodec),
-                          createPrimitiveValueAvroRecord("Duration", durationCodec),
-                          createPrimitiveValueAvroRecord("Instant", instantCodec),
-                          createPrimitiveValueAvroRecord("LocalDate", localDateCodec),
-                          createPrimitiveValueAvroRecord("LocalDateTime", localDateTimeCodec),
-                          createPrimitiveValueAvroRecord("LocalTime", localTimeCodec),
-                          createPrimitiveValueAvroRecord("Month", monthCodec),
-                          createPrimitiveValueAvroRecord("MonthDay", monthDayCodec),
-                          createPrimitiveValueAvroRecord("OffsetDateTime", offsetDateTimeCodec),
-                          createPrimitiveValueAvroRecord("OffsetTime", offsetTimeCodec),
-                          createPrimitiveValueAvroRecord("Period", periodCodec),
-                          createPrimitiveValueAvroRecord("Year", yearCodec),
-                          createPrimitiveValueAvroRecord("YearMonth", yearMonthCodec),
-                          createPrimitiveValueAvroRecord("ZoneId", zoneIdCodec),
-                          createPrimitiveValueAvroRecord("ZoneOffset", zoneOffsetCodec),
-                          createPrimitiveValueAvroRecord("ZonedDateTime", zonedDateTimeCodec),
-                          createPrimitiveValueAvroRecord("Currency", currencyCodec),
-                          createPrimitiveValueAvroRecord("UUID", uuidCodec)
+                          createPrimitiveValueAvroRecord("Boolean", AvroBinaryCodec.booleanCodec),
+                          createPrimitiveValueAvroRecord("Byte", AvroBinaryCodec.byteCodec),
+                          createPrimitiveValueAvroRecord("Short", AvroBinaryCodec.shortCodec),
+                          createPrimitiveValueAvroRecord("Int", AvroBinaryCodec.intCodec),
+                          createPrimitiveValueAvroRecord("Long", AvroBinaryCodec.longCodec),
+                          createPrimitiveValueAvroRecord("Float", AvroBinaryCodec.floatCodec),
+                          createPrimitiveValueAvroRecord("Double", AvroBinaryCodec.doubleCodec),
+                          createPrimitiveValueAvroRecord("Char", AvroBinaryCodec.charCodec),
+                          createPrimitiveValueAvroRecord("String", AvroBinaryCodec.stringCodec),
+                          createPrimitiveValueAvroRecord("BigInt", AvroBinaryCodec.bigIntCodec),
+                          createPrimitiveValueAvroRecord("BigDecimal", AvroBinaryCodec.bigDecimalCodec),
+                          createPrimitiveValueAvroRecord("DayOfWeek", AvroBinaryCodec.dayOfWeekCodec),
+                          createPrimitiveValueAvroRecord("Duration", AvroBinaryCodec.durationCodec),
+                          createPrimitiveValueAvroRecord("Instant", AvroBinaryCodec.instantCodec),
+                          createPrimitiveValueAvroRecord("LocalDate", AvroBinaryCodec.localDateCodec),
+                          createPrimitiveValueAvroRecord("LocalDateTime", AvroBinaryCodec.localDateTimeCodec),
+                          createPrimitiveValueAvroRecord("LocalTime", AvroBinaryCodec.localTimeCodec),
+                          createPrimitiveValueAvroRecord("Month", AvroBinaryCodec.monthCodec),
+                          createPrimitiveValueAvroRecord("MonthDay", AvroBinaryCodec.monthDayCodec),
+                          createPrimitiveValueAvroRecord("OffsetDateTime", AvroBinaryCodec.offsetDateTimeCodec),
+                          createPrimitiveValueAvroRecord("OffsetTime", AvroBinaryCodec.offsetTimeCodec),
+                          createPrimitiveValueAvroRecord("Period", AvroBinaryCodec.periodCodec),
+                          createPrimitiveValueAvroRecord("Year", AvroBinaryCodec.yearCodec),
+                          createPrimitiveValueAvroRecord("YearMonth", AvroBinaryCodec.yearMonthCodec),
+                          createPrimitiveValueAvroRecord("ZoneId", AvroBinaryCodec.zoneIdCodec),
+                          createPrimitiveValueAvroRecord("ZoneOffset", AvroBinaryCodec.zoneOffsetCodec),
+                          createPrimitiveValueAvroRecord("ZonedDateTime", AvroBinaryCodec.zonedDateTimeCodec),
+                          createPrimitiveValueAvroRecord("Currency", AvroBinaryCodec.currencyCodec),
+                          createPrimitiveValueAvroRecord("UUID", AvroBinaryCodec.uuidCodec)
                         )
                       )
                     )
@@ -1447,7 +954,7 @@ object AvroFormat
                         "fields",
                         AvroSchema.createArray {
                           val fieldFields = new java.util.ArrayList[AvroSchema.Field](2)
-                          fieldFields.add(new AvroSchema.Field("name", stringCodec.avroSchema))
+                          fieldFields.add(new AvroSchema.Field("name", AvroBinaryCodec.stringCodec.avroSchema))
                           fieldFields.add(new AvroSchema.Field("value", dynamicValue))
                           createAvroRecord("zio.blocks.schema.internal", "Field", fieldFields)
                         }
@@ -1456,7 +963,7 @@ object AvroFormat
                     createAvroRecord("zio.blocks.schema.DynamicValue", "Record", recordFields)
                   }, {
                     val variantFields = new java.util.ArrayList[AvroSchema.Field](2)
-                    variantFields.add(new AvroSchema.Field("caseName", stringCodec.avroSchema))
+                    variantFields.add(new AvroSchema.Field("caseName", AvroBinaryCodec.stringCodec.avroSchema))
                     variantFields.add(new AvroSchema.Field("value", dynamicValue))
                     createAvroRecord("zio.blocks.schema.DynamicValue", "Variant", variantFields)
                   }, {
@@ -1493,35 +1000,38 @@ object AvroFormat
                 try {
                   new DynamicValue.Primitive((idx: @scala.annotation.switch) match {
                     case 0  => PrimitiveValue.Unit
-                    case 1  => new PrimitiveValue.Boolean(booleanCodec.decodeUnsafe(decoder))
-                    case 2  => new PrimitiveValue.Byte(byteCodec.decodeUnsafe(decoder))
-                    case 3  => new PrimitiveValue.Short(shortCodec.decodeUnsafe(decoder))
-                    case 4  => new PrimitiveValue.Int(intCodec.decodeUnsafe(decoder))
-                    case 5  => new PrimitiveValue.Long(longCodec.decodeUnsafe(decoder))
-                    case 6  => new PrimitiveValue.Float(floatCodec.decodeUnsafe(decoder))
-                    case 7  => new PrimitiveValue.Double(doubleCodec.decodeUnsafe(decoder))
-                    case 8  => new PrimitiveValue.Char(charCodec.decodeUnsafe(decoder))
-                    case 9  => new PrimitiveValue.String(stringCodec.decodeUnsafe(decoder))
-                    case 10 => new PrimitiveValue.BigInt(bigIntCodec.decodeUnsafe(decoder))
-                    case 11 => new PrimitiveValue.BigDecimal(bigDecimalCodec.decodeUnsafe(decoder))
-                    case 12 => new PrimitiveValue.DayOfWeek(dayOfWeekCodec.decodeUnsafe(decoder))
-                    case 13 => new PrimitiveValue.Duration(durationCodec.decodeUnsafe(decoder))
-                    case 14 => new PrimitiveValue.Instant(instantCodec.decodeUnsafe(decoder))
-                    case 15 => new PrimitiveValue.LocalDate(localDateCodec.decodeUnsafe(decoder))
-                    case 16 => new PrimitiveValue.LocalDateTime(localDateTimeCodec.decodeUnsafe(decoder))
-                    case 17 => new PrimitiveValue.LocalTime(localTimeCodec.decodeUnsafe(decoder))
-                    case 18 => new PrimitiveValue.Month(monthCodec.decodeUnsafe(decoder))
-                    case 19 => new PrimitiveValue.MonthDay(monthDayCodec.decodeUnsafe(decoder))
-                    case 20 => new PrimitiveValue.OffsetDateTime(offsetDateTimeCodec.decodeUnsafe(decoder))
-                    case 21 => new PrimitiveValue.OffsetTime(offsetTimeCodec.decodeUnsafe(decoder))
-                    case 22 => new PrimitiveValue.Period(periodCodec.decodeUnsafe(decoder))
-                    case 23 => new PrimitiveValue.Year(yearCodec.decodeUnsafe(decoder))
-                    case 24 => new PrimitiveValue.YearMonth(yearMonthCodec.decodeUnsafe(decoder))
-                    case 25 => new PrimitiveValue.ZoneId(zoneIdCodec.decodeUnsafe(decoder))
-                    case 26 => new PrimitiveValue.ZoneOffset(zoneOffsetCodec.decodeUnsafe(decoder))
-                    case 27 => new PrimitiveValue.ZonedDateTime(zonedDateTimeCodec.decodeUnsafe(decoder))
-                    case 28 => new PrimitiveValue.Currency(currencyCodec.decodeUnsafe(decoder))
-                    case _  => new PrimitiveValue.UUID(uuidCodec.decodeUnsafe(decoder))
+                    case 1  => new PrimitiveValue.Boolean(AvroBinaryCodec.booleanCodec.decodeUnsafe(decoder))
+                    case 2  => new PrimitiveValue.Byte(AvroBinaryCodec.byteCodec.decodeUnsafe(decoder))
+                    case 3  => new PrimitiveValue.Short(AvroBinaryCodec.shortCodec.decodeUnsafe(decoder))
+                    case 4  => new PrimitiveValue.Int(AvroBinaryCodec.intCodec.decodeUnsafe(decoder))
+                    case 5  => new PrimitiveValue.Long(AvroBinaryCodec.longCodec.decodeUnsafe(decoder))
+                    case 6  => new PrimitiveValue.Float(AvroBinaryCodec.floatCodec.decodeUnsafe(decoder))
+                    case 7  => new PrimitiveValue.Double(AvroBinaryCodec.doubleCodec.decodeUnsafe(decoder))
+                    case 8  => new PrimitiveValue.Char(AvroBinaryCodec.charCodec.decodeUnsafe(decoder))
+                    case 9  => new PrimitiveValue.String(AvroBinaryCodec.stringCodec.decodeUnsafe(decoder))
+                    case 10 => new PrimitiveValue.BigInt(AvroBinaryCodec.bigIntCodec.decodeUnsafe(decoder))
+                    case 11 => new PrimitiveValue.BigDecimal(AvroBinaryCodec.bigDecimalCodec.decodeUnsafe(decoder))
+                    case 12 => new PrimitiveValue.DayOfWeek(AvroBinaryCodec.dayOfWeekCodec.decodeUnsafe(decoder))
+                    case 13 => new PrimitiveValue.Duration(AvroBinaryCodec.durationCodec.decodeUnsafe(decoder))
+                    case 14 => new PrimitiveValue.Instant(AvroBinaryCodec.instantCodec.decodeUnsafe(decoder))
+                    case 15 => new PrimitiveValue.LocalDate(AvroBinaryCodec.localDateCodec.decodeUnsafe(decoder))
+                    case 16 =>
+                      new PrimitiveValue.LocalDateTime(AvroBinaryCodec.localDateTimeCodec.decodeUnsafe(decoder))
+                    case 17 => new PrimitiveValue.LocalTime(AvroBinaryCodec.localTimeCodec.decodeUnsafe(decoder))
+                    case 18 => new PrimitiveValue.Month(AvroBinaryCodec.monthCodec.decodeUnsafe(decoder))
+                    case 19 => new PrimitiveValue.MonthDay(AvroBinaryCodec.monthDayCodec.decodeUnsafe(decoder))
+                    case 20 =>
+                      new PrimitiveValue.OffsetDateTime(AvroBinaryCodec.offsetDateTimeCodec.decodeUnsafe(decoder))
+                    case 21 => new PrimitiveValue.OffsetTime(AvroBinaryCodec.offsetTimeCodec.decodeUnsafe(decoder))
+                    case 22 => new PrimitiveValue.Period(AvroBinaryCodec.periodCodec.decodeUnsafe(decoder))
+                    case 23 => new PrimitiveValue.Year(AvroBinaryCodec.yearCodec.decodeUnsafe(decoder))
+                    case 24 => new PrimitiveValue.YearMonth(AvroBinaryCodec.yearMonthCodec.decodeUnsafe(decoder))
+                    case 25 => new PrimitiveValue.ZoneId(AvroBinaryCodec.zoneIdCodec.decodeUnsafe(decoder))
+                    case 26 => new PrimitiveValue.ZoneOffset(AvroBinaryCodec.zoneOffsetCodec.decodeUnsafe(decoder))
+                    case 27 =>
+                      new PrimitiveValue.ZonedDateTime(AvroBinaryCodec.zonedDateTimeCodec.decodeUnsafe(decoder))
+                    case 28 => new PrimitiveValue.Currency(AvroBinaryCodec.currencyCodec.decodeUnsafe(decoder))
+                    case _  => new PrimitiveValue.UUID(AvroBinaryCodec.uuidCodec.decodeUnsafe(decoder))
                   })
                 } catch {
                   case error if NonFatal(error) => decodeError(spanValue, error)
@@ -1655,91 +1165,91 @@ object AvroFormat
                   encoder.writeInt(0)
                 case v: PrimitiveValue.Boolean =>
                   encoder.writeInt(1)
-                  booleanCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.booleanCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Byte =>
                   encoder.writeInt(2)
-                  byteCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.byteCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Short =>
                   encoder.writeInt(3)
-                  shortCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.shortCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Int =>
                   encoder.writeInt(4)
-                  intCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.intCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Long =>
                   encoder.writeInt(5)
-                  longCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.longCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Float =>
                   encoder.writeInt(6)
-                  floatCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.floatCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Double =>
                   encoder.writeInt(7)
-                  doubleCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.doubleCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Char =>
                   encoder.writeInt(8)
-                  charCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.charCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.String =>
                   encoder.writeInt(9)
-                  stringCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.stringCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.BigInt =>
                   encoder.writeInt(10)
-                  bigIntCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.bigIntCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.BigDecimal =>
                   encoder.writeInt(11)
-                  bigDecimalCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.bigDecimalCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.DayOfWeek =>
                   encoder.writeInt(12)
-                  dayOfWeekCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.dayOfWeekCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Duration =>
                   encoder.writeInt(13)
-                  durationCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.durationCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Instant =>
                   encoder.writeInt(14)
-                  instantCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.instantCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.LocalDate =>
                   encoder.writeInt(15)
-                  localDateCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.localDateCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.LocalDateTime =>
                   encoder.writeInt(16)
-                  localDateTimeCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.localDateTimeCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.LocalTime =>
                   encoder.writeInt(17)
-                  localTimeCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.localTimeCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Month =>
                   encoder.writeInt(18)
-                  monthCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.monthCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.MonthDay =>
                   encoder.writeInt(19)
-                  monthDayCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.monthDayCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.OffsetDateTime =>
                   encoder.writeInt(20)
-                  offsetDateTimeCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.offsetDateTimeCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.OffsetTime =>
                   encoder.writeInt(21)
-                  offsetTimeCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.offsetTimeCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Period =>
                   encoder.writeInt(22)
-                  periodCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.periodCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Year =>
                   encoder.writeInt(23)
-                  yearCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.yearCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.YearMonth =>
                   encoder.writeInt(24)
-                  yearMonthCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.yearMonthCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.ZoneId =>
                   encoder.writeInt(25)
-                  zoneIdCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.zoneIdCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.ZoneOffset =>
                   encoder.writeInt(26)
-                  zoneOffsetCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.zoneOffsetCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.ZonedDateTime =>
                   encoder.writeInt(27)
-                  zonedDateTimeCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.zonedDateTimeCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.Currency =>
                   encoder.writeInt(28)
-                  currencyCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.currencyCodec.encode(v.value, encoder)
                 case v: PrimitiveValue.UUID =>
                   encoder.writeInt(29)
-                  uuidCodec.encode(v.value, encoder)
+                  AvroBinaryCodec.uuidCodec.encode(v.value, encoder)
               }
             case record: DynamicValue.Record =>
               encoder.writeInt(1)
