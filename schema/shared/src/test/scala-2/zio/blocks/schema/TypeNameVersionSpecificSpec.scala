@@ -71,7 +71,7 @@ object TypeNameVersionSpecificSpec extends SchemaBaseSpec {
   case class `Special$Name`(value: Int)
 
   sealed trait SealedTraitForAlias
-  case class AliasCase1(i: Int) extends SealedTraitForAlias
+  case class AliasCase1(i: Int)    extends SealedTraitForAlias
   case class AliasCase2(s: String) extends SealedTraitForAlias
 
   trait HigherKindedContainer[F[_]]
