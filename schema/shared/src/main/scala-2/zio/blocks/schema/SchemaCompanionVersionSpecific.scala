@@ -204,7 +204,7 @@ private object SchemaCompanionVersionSpecific {
             else values = ownerName :: values
           }
           val result = new Array[String](packages.size + values.size + 1)
-          var idx = 0
+          var idx    = 0
           packages.foreach { p =>
             result(idx) = p
             idx += 1
@@ -221,7 +221,7 @@ private object SchemaCompanionVersionSpecific {
         tpe,
         tpe match {
           case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-            val result = calculate(compTpe)
+            val result   = calculate(compTpe)
             val lastName = result(result.length - 1)
             if (lastName.endsWith(".type")) result(result.length - 1) = lastName.stripSuffix(".type")
             result
@@ -434,7 +434,7 @@ private object SchemaCompanionVersionSpecific {
           val copyOfTpe  =
             if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
             else elementTpe
-          val schema     = findImplicitOrDeriveSchema(elementTpe)
+          val schema = findImplicitOrDeriveSchema(elementTpe)
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
@@ -473,7 +473,7 @@ private object SchemaCompanionVersionSpecific {
           val copyOfTpe  =
             if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
             else elementTpe
-          val schema     = findImplicitOrDeriveSchema(elementTpe)
+          val schema = findImplicitOrDeriveSchema(elementTpe)
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
@@ -550,9 +550,9 @@ private object SchemaCompanionVersionSpecific {
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         deriveSchemaForSealedTraitOrAbstractClass(tpe)
       } else if (isZioPreludeNewtype(tpe)) {
-        val sTpe        = zioPreludeNewtypeDealias(tpe)
-        val schema      = findImplicitOrDeriveSchema(sTpe)
-        val newtypeId   = buildTypeIdForZioPreludeNewtype(tpe)
+        val sTpe      = zioPreludeNewtypeDealias(tpe)
+        val schema    = findImplicitOrDeriveSchema(sTpe)
+        val newtypeId = buildTypeIdForZioPreludeNewtype(tpe)
         q"new Schema($schema.reflect.typeId($newtypeId.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$sTpe]])).asInstanceOf[Schema[$tpe]]"
       } else if (isTypeAlias(tpe)) {
         val sTpe = tpe.dealias
@@ -572,7 +572,7 @@ private object SchemaCompanionVersionSpecific {
         deriveSchemaForNonAbstractScalaClass(tpe)
       } else cannotDeriveSchema(tpe)
 
-    def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree = {
+    def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree =
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector.empty,
@@ -584,7 +584,6 @@ private object SchemaCompanionVersionSpecific {
               modifiers = ${modifiers(tpe)}
             )
           )"""
-    }
 
     def deriveSchemaForNonAbstractScalaClass(tpe: Type): Tree = {
       val classInfo = new ClassInfo(tpe)
@@ -675,9 +674,11 @@ private object SchemaCompanionVersionSpecific {
       str.toString
     }
 
-    def cannotDeriveSchema(tpe: Type): Nothing = fail(s"Cannot derive schema for '$tpe'. Symbol: ${tpe.typeSymbol}, isTypeAlias: ${isTypeAlias(tpe)}, isZioPreludeNewtype: ${isZioPreludeNewtype(tpe)}")
+    def cannotDeriveSchema(tpe: Type): Nothing = fail(
+      s"Cannot derive schema for '$tpe'. Symbol: ${tpe.typeSymbol}, isTypeAlias: ${isTypeAlias(tpe)}, isZioPreludeNewtype: ${isZioPreludeNewtype(tpe)}"
+    )
 
-    val tpeA = weakTypeOf[A]
+    val tpeA        = weakTypeOf[A]
     val schema      = deriveSchema(tpeA)
     val schemaBlock =
       q"""{

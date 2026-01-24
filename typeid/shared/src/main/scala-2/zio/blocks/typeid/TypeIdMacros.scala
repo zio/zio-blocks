@@ -53,7 +53,9 @@ object TypeIdMacros {
     }
   }
 
-  private def deriveAppliedType[A: c.WeakTypeTag](c: blackbox.Context)(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
+  private def deriveAppliedType[A: c.WeakTypeTag](
+    c: blackbox.Context
+  )(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
     import c.universe._
 
     val tpe             = weakTypeOf[A]
@@ -86,7 +88,9 @@ object TypeIdMacros {
     }
   }
 
-  private def deriveAppliedTypeNew[A: c.WeakTypeTag](c: blackbox.Context)(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
+  private def deriveAppliedTypeNew[A: c.WeakTypeTag](
+    c: blackbox.Context
+  )(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
     import c.universe._
 
     val tpe            = weakTypeOf[A]
@@ -252,8 +256,8 @@ object TypeIdMacros {
     import c.universe._
 
     val params = sym.asType.typeParams.zipWithIndex.map { case (p, idx) =>
-      val paramName = p.name.decodedName.toString
-      val typeSym = p.asType
+      val paramName    = p.name.decodedName.toString
+      val typeSym      = p.asType
       val varianceExpr = if (typeSym.isCovariant) {
         q"_root_.zio.blocks.typeid.Variance.Covariant"
       } else if (typeSym.isContravariant) {

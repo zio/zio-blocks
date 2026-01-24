@@ -41,15 +41,15 @@ sealed trait TypeId[A] {
     if (owner.isRoot) name
     else s"${owner.asString}.$name"
 
-  final def isProperType: Boolean = arity == 0
+  final def isProperType: Boolean      = arity == 0
   final def isTypeConstructor: Boolean = arity > 0
 
-  final def isClass: Boolean = defKind.isInstanceOf[TypeDefKind.Class]
-  final def isTrait: Boolean = defKind.isInstanceOf[TypeDefKind.Trait]
-  final def isObject: Boolean = defKind.isInstanceOf[TypeDefKind.Object]
-  final def isEnum: Boolean = defKind.isInstanceOf[TypeDefKind.Enum]
-  final def isAlias: Boolean = defKind == TypeDefKind.TypeAlias
-  final def isOpaque: Boolean = defKind.isInstanceOf[TypeDefKind.OpaqueType]
+  final def isClass: Boolean    = defKind.isInstanceOf[TypeDefKind.Class]
+  final def isTrait: Boolean    = defKind.isInstanceOf[TypeDefKind.Trait]
+  final def isObject: Boolean   = defKind.isInstanceOf[TypeDefKind.Object]
+  final def isEnum: Boolean     = defKind.isInstanceOf[TypeDefKind.Enum]
+  final def isAlias: Boolean    = defKind == TypeDefKind.TypeAlias
+  final def isOpaque: Boolean   = defKind.isInstanceOf[TypeDefKind.OpaqueType]
   final def isAbstract: Boolean = defKind == TypeDefKind.AbstractType
 
   final def isSealed: Boolean = defKind match {
@@ -134,9 +134,10 @@ sealed trait TypeId[A] {
 
   override def toString: String = {
     val paramStr = if (typeParams.isEmpty) "" else typeParams.map(_.name).mkString("[", ", ", "]")
-    val kindStr = if (aliasedTo.isDefined) "alias"
-    else if (representation.isDefined) "opaque"
-    else "nominal"
+    val kindStr  =
+      if (aliasedTo.isDefined) "alias"
+      else if (representation.isDefined) "opaque"
+      else "nominal"
     s"TypeId.$kindStr($fullName$paramStr)"
   }
 }
@@ -215,8 +216,8 @@ object TypeId {
   )
 
   /**
-   * Creates an applied type from a type constructor and type arguments.
-   * For example: applied(TypeId.list, TypeRepr.Ref(TypeId.int)) creates List[Int]
+   * Creates an applied type from a type constructor and type arguments. For
+   * example: applied(TypeId.list, TypeRepr.Ref(TypeId.int)) creates List[Int]
    */
   def applied[A](
     typeConstructor: TypeId[_],
@@ -353,15 +354,15 @@ object TypeId {
     case _ => sub == sup
   }
 
-  implicit val unit: TypeId[Unit]             = nominal[Unit]("Unit", Owner.scala)
-  implicit val boolean: TypeId[Boolean]       = nominal[Boolean]("Boolean", Owner.scala)
-  implicit val byte: TypeId[Byte]             = nominal[Byte]("Byte", Owner.scala)
-  implicit val short: TypeId[Short]           = nominal[Short]("Short", Owner.scala)
-  implicit val int: TypeId[Int]               = nominal[Int]("Int", Owner.scala)
-  implicit val long: TypeId[Long]             = nominal[Long]("Long", Owner.scala)
-  implicit val float: TypeId[Float]           = nominal[Float]("Float", Owner.scala)
-  implicit val double: TypeId[Double]         = nominal[Double]("Double", Owner.scala)
-  implicit val char: TypeId[Char]             = nominal[Char]("Char", Owner.scala)
+  implicit val unit: TypeId[Unit]                 = nominal[Unit]("Unit", Owner.scala)
+  implicit val boolean: TypeId[Boolean]           = nominal[Boolean]("Boolean", Owner.scala)
+  implicit val byte: TypeId[Byte]                 = nominal[Byte]("Byte", Owner.scala)
+  implicit val short: TypeId[Short]               = nominal[Short]("Short", Owner.scala)
+  implicit val int: TypeId[Int]                   = nominal[Int]("Int", Owner.scala)
+  implicit val long: TypeId[Long]                 = nominal[Long]("Long", Owner.scala)
+  implicit val float: TypeId[Float]               = nominal[Float]("Float", Owner.scala)
+  implicit val double: TypeId[Double]             = nominal[Double]("Double", Owner.scala)
+  implicit val char: TypeId[Char]                 = nominal[Char]("Char", Owner.scala)
   implicit val charSequence: TypeId[CharSequence] =
     nominal[CharSequence]("CharSequence", Owner.javaLang, defKind = TypeDefKind.Trait(isSealed = false))
   implicit val comparable: TypeId[Comparable[_]] =
@@ -392,8 +393,8 @@ object TypeId {
   implicit val list: TypeId[List[_]]     = nominal[List[_]]("List", Owner.scalaCollectionImmutable, List(TypeParam.A))
   implicit val vector: TypeId[Vector[_]] =
     nominal[Vector[_]]("Vector", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  implicit val set: TypeId[Set[_]]    = nominal[Set[_]]("Set", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  implicit val seq: TypeId[Seq[_]]    = nominal[Seq[_]]("Seq", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  implicit val set: TypeId[Set[_]]               = nominal[Set[_]]("Set", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  implicit val seq: TypeId[Seq[_]]               = nominal[Seq[_]]("Seq", Owner.scalaCollectionImmutable, List(TypeParam.A))
   implicit val indexedSeq: TypeId[IndexedSeq[_]] =
     nominal[IndexedSeq[_]]("IndexedSeq", Owner.scalaCollectionImmutable, List(TypeParam.A))
   implicit val map: TypeId[Map[_, _]] =
@@ -426,10 +427,11 @@ object TypeId {
 
   private[typeid] object Owner {
     val scala: zio.blocks.typeid.Owner                    = zio.blocks.typeid.Owner.fromPackagePath("scala")
-    val scalaCollectionImmutable: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("scala.collection.immutable")
-    val javaLang: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
-    val javaTime: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.time")
-    val javaUtil: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.util")
-    val javaIo: zio.blocks.typeid.Owner                   = zio.blocks.typeid.Owner.fromPackagePath("java.io")
+    val scalaCollectionImmutable: zio.blocks.typeid.Owner =
+      zio.blocks.typeid.Owner.fromPackagePath("scala.collection.immutable")
+    val javaLang: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
+    val javaTime: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.time")
+    val javaUtil: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.util")
+    val javaIo: zio.blocks.typeid.Owner   = zio.blocks.typeid.Owner.fromPackagePath("java.io")
   }
 }
