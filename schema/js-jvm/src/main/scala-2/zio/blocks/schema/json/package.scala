@@ -142,7 +142,7 @@ private object JsonInterpolatorMacros {
               c.enclosingPosition,
               s"Context: key position\nProvided: $tpe\nRequired: PrimitiveType (stringable)\nFix: Use a primitive type or explicitly call .toString"
             )
-          newArgs += c.Expr[Any](q"$arg")
+          newArgs += c.Expr[Any](q"$arg.toString")
           dummyArgs += "key"
 
         case Context.JsonValue =>
