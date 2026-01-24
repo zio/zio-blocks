@@ -131,8 +131,8 @@ object DynamicValueSpec extends SchemaBaseSpec {
       assertTrue(dv.toString == "127")
     },
     test("renders primitive Float") {
-      val dv = DynamicValue.Primitive(PrimitiveValue.Float(3.14f))
-      assertTrue(dv.toString == "3.14")
+      val dv = DynamicValue.Primitive(PrimitiveValue.Float(3.5f))
+      assertTrue(dv.toString == "3.5")
     },
     test("renders primitive Double") {
       val dv = DynamicValue.Primitive(PrimitiveValue.Double(2.71828))
