@@ -1579,3 +1579,126 @@ object Inventory extends CompanionOptics[Inventory] {
   val allQuantities: Traversal[Inventory, Int] = optic(_.items.eachValue)
 }
 ```
+
+## String Representation
+
+All optics provide a human-readable `toString` representation using **path-style** syntax, which is useful for debugging, logging, and error messages:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Address(street: String, city: String)
+object Address extends CompanionOptics[Address] {
+  implicit val schema: Schema[Address] = Schema.derived
+  val street: Lens[Address, String] = optic(_.street)
+}
+
+// Lens shows field name
+Address.street.toString
+// => ".street"
+```
+
+### Lenses
+
+Lenses display as a dot followed by the field name:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Person(name: String, address: Address)
+object Person extends CompanionOptics[Person] {
+  implicit val schema: Schema[Person] = Schema.derived
+  val name: Lens[Person, String] = optic(_.name)
+  val street: Lens[Person, String] = optic(_.address.street)
+}
+
+Person.name.toString    // => ".name"
+Person.street.toString  // => ".address.street"
+```
+
+### Prisms
+
+Prisms display as `.when[CaseName]` to show which case of a variant they focus on:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+sealed trait Notification
+object Notification extends CompanionOptics[Notification] {
+  case class Email(to: String) extends Notification
+  case class SMS(phone: String) extends Notification
+  implicit val schema: Schema[Notification] = Schema.derived
+  
+  val email: Prism[Notification, Email] = optic(_.when[Email])
+}
+
+Notification.email.toString
+// => ".when[Email]"
+```
+
+### Optionals
+
+Optionals show the composed path, combining lens and prism notations:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+// Continuing from previous examples
+object NotificationOps extends CompanionOptics[Notification] {
+  implicit val schema: Schema[Notification] = Notification.schema
+  val emailTo: Optional[Notification, String] = optic(_.when[Notification.Email].to)
+}
+
+NotificationOps.emailTo.toString
+// => ".when[Email].to"
+```
+
+### Traversals
+
+Traversals show `.each` for collection iteration:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Order(items: List[String])
+object Order extends CompanionOptics[Order] {
+  implicit val schema: Schema[Order] = Schema.derived
+  val allItems: Traversal[Order, String] = optic(_.items.each)
+}
+
+Order.allItems.toString
+// => ".items.each"
+```
+
+For maps, keys show as `.eachKey` and values as `.eachValue`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Scores(data: Map[String, Int])
+object Scores extends CompanionOptics[Scores] {
+  implicit val schema: Schema[Scores] = Schema.derived
+  val keys: Traversal[Scores, String] = optic(_.data.eachKey)
+  val values: Traversal[Scores, Int] = optic(_.data.eachValue)
+}
+
+Scores.keys.toString    // => ".data.eachKey"
+Scores.values.toString  // => ".data.eachValue"
+```
+
+### Index-Based Access
+
+Optionals created with `.at(index)` show the index:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Playlist(songs: List[String])
+object Playlist extends CompanionOptics[Playlist] {
+  implicit val schema: Schema[Playlist] = Schema.derived
+  val firstSong: Optional[Playlist, String] = optic(_.songs.at(0))
+}
+
+Playlist.firstSong.toString
+// => ".songs.at(0)"
+```

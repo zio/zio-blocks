@@ -463,3 +463,78 @@ object Person {
 ```
 
 The above will automatically generate a `Reflect.Record` for the `Person` case class, including fields for `name` and `age`, along with the necessary bindings for construction and deconstruction. The same applies to more complex types, including variants, collections, and recursive structures.
+
+## String Representation
+
+`Reflect` provides a human-readable `toString` representation using **SDL-style** (Schema Definition Language) syntax, useful for debugging and logging:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+// Get SDL-style string representation
+Schema[Person].reflect.toString
+// => "record Person { name: String, age: Int }"
+```
+
+### Records and Variants
+
+Records are displayed with their fields, and variants show all their cases:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+sealed trait Shape
+object Shape {
+  case class Circle(radius: Double) extends Shape
+  case class Rectangle(width: Double, height: Double) extends Shape
+  implicit val schema: Schema[Shape] = Schema.derived
+}
+
+Schema[Shape].reflect.toString
+// => "variant Shape { Circle { radius: Double }, Rectangle { width: Double, height: Double } }"
+```
+
+### Collections
+
+Sequences and maps are displayed with their element types:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+Schema[List[String]].reflect.toString
+// => "List[String]"
+
+Schema[Map[String, Int]].reflect.toString
+// => "Map[String, Int]"
+```
+
+### TypeName
+
+The `TypeName` type also provides a `toString` method that renders the fully qualified type name:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class User(id: Long)
+object User {
+  implicit val schema: Schema[User] = Schema.derived
+}
+
+// Get just the type name
+Schema[User].reflect.asRecord.get.typeName.toString
+// => "User"
+```
+
+For types with type parameters, the parameters are included:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+Schema[Option[String]].reflect.toString
+// => "variant Option[String] { None, Some { value: String } }"
+```
