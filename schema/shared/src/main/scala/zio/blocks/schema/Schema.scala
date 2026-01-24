@@ -77,6 +77,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def modifiers(modifiers: Iterable[Modifier.Reflect]): Schema[A] = new Schema(reflect.modifiers(modifiers))
 
+  override def toString: String = s"Schema { ${reflect.toString} }"
+
   def diff(oldValue: A, newValue: A): Patch[A] = {
     val oldDynamic   = toDynamicValue(oldValue)
     val newDynamic   = toDynamicValue(newValue)

@@ -3,6 +3,8 @@ package zio.blocks.schema
 import zio.blocks.schema.patch.{DynamicPatch, Differ}
 
 sealed trait DynamicValue {
+  override def toString: String = DynamicValue.renderToString(this)
+
   def typeIndex: Int
 
   def compare(that: DynamicValue): Int
@@ -184,4 +186,123 @@ object DynamicValue {
    */
   def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
     Differ.diff(oldValue, newValue)
+
+  private[schema] def renderToString(value: DynamicValue): String = {
+    val sb = new StringBuilder
+    renderToStringBuilder(value, sb)
+    sb.toString
+  }
+
+  private def renderToStringBuilder(value: DynamicValue, sb: StringBuilder): Unit = value match {
+    case Primitive(pv) =>
+      renderPrimitiveValue(pv, sb)
+
+    case Record(fields) =>
+      sb.append("{ ")
+      var first = true
+      val iter  = fields.iterator
+      while (iter.hasNext) {
+        val (name, v) = iter.next()
+        if (!first) sb.append(", ")
+        first = false
+        sb.append(name).append(": ")
+        renderToStringBuilder(v, sb)
+      }
+      sb.append(" }")
+
+    case Variant(caseName, v) =>
+      renderToStringBuilder(v, sb)
+      sb.append(" @ {tag: \"").append(escapeString(caseName)).append("\"}")
+
+    case Sequence(elements) =>
+      sb.append('[')
+      var first = true
+      val iter  = elements.iterator
+      while (iter.hasNext) {
+        if (!first) sb.append(", ")
+        first = false
+        renderToStringBuilder(iter.next(), sb)
+      }
+      sb.append(']')
+
+    case Map(entries) =>
+      sb.append("{ ")
+      var first = true
+      val iter  = entries.iterator
+      while (iter.hasNext) {
+        val (k, v) = iter.next()
+        if (!first) sb.append(", ")
+        first = false
+        renderDynamicValueKey(k, sb)
+        sb.append(": ")
+        renderToStringBuilder(v, sb)
+      }
+      sb.append(" }")
+  }
+
+  private def renderDynamicValueKey(key: DynamicValue, sb: StringBuilder): Unit = key match {
+    case Primitive(PrimitiveValue.String(s)) =>
+      sb.append('"').append(escapeString(s)).append('"')
+    case other =>
+      sb.append('"')
+      renderToStringBuilder(other, sb)
+      sb.append('"')
+  }
+
+  private def renderPrimitiveValue(pv: PrimitiveValue, sb: StringBuilder): Unit = pv match {
+    case PrimitiveValue.Unit              => sb.append("()")
+    case PrimitiveValue.Boolean(v)        => sb.append(v)
+    case PrimitiveValue.Byte(v)           => sb.append(v)
+    case PrimitiveValue.Short(v)          => sb.append(v)
+    case PrimitiveValue.Int(v)            => sb.append(v)
+    case PrimitiveValue.Long(v)           => sb.append(v)
+    case PrimitiveValue.Float(v)          => sb.append(v)
+    case PrimitiveValue.Double(v)         => sb.append(v)
+    case PrimitiveValue.Char(v)           => sb.append('\'').append(escapeChar(v)).append('\'')
+    case PrimitiveValue.String(v)         => sb.append('"').append(escapeString(v)).append('"')
+    case PrimitiveValue.BigInt(v)         => sb.append(v)
+    case PrimitiveValue.BigDecimal(v)     => sb.append(v)
+    case v: PrimitiveValue.DayOfWeek      => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.Duration       => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.Instant        => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.LocalDate      => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.LocalDateTime  => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.LocalTime      => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.Month          => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.MonthDay       => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.OffsetDateTime => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.OffsetTime     => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.Period         => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.Year           => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.YearMonth      => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.ZoneId         => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.ZoneOffset     => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.ZonedDateTime  => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.Currency       => sb.append('"').append(v.value.toString).append('"')
+    case v: PrimitiveValue.UUID           => sb.append('"').append(v.value.toString).append('"')
+  }
+
+  private def escapeString(s: String): String = {
+    val sb  = new StringBuilder
+    var idx = 0
+    while (idx < s.length) {
+      sb.append(escapeChar(s.charAt(idx)))
+      idx += 1
+    }
+    sb.toString
+  }
+
+  private def escapeChar(c: Char): String = c match {
+    case '"'          => "\\\""
+    case '\\'         => "\\\\"
+    case '\b'         => "\\b"
+    case '\f'         => "\\f"
+    case '\n'         => "\\n"
+    case '\r'         => "\\r"
+    case '\t'         => "\\t"
+    case _ if c < ' ' =>
+      val hex = Integer.toHexString(c.toInt)
+      "\\u" + ("0" * (4 - hex.length)) + hex
+    case _ => c.toString
+  }
 }

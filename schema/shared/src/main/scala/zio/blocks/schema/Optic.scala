@@ -332,6 +332,18 @@ object Lens {
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
     }
+
+    override def toString: String = {
+      val sb  = new StringBuilder("Lens(_")
+      var idx = 0
+      val len = focusTerms.length
+      while (idx < len) {
+        sb.append('.').append(focusTerms(idx).name)
+        idx += 1
+      }
+      sb.append(')')
+      sb.toString
+    }
   }
 }
 
@@ -512,6 +524,18 @@ object Prism {
         java.util.Arrays.equals(other.sources.asInstanceOf[Array[AnyRef]], sources.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
+    }
+
+    override def toString: String = {
+      val sb  = new StringBuilder("Prism(_")
+      var idx = 0
+      val len = focusTerms.length
+      while (idx < len) {
+        sb.append(".when[").append(focusTerms(idx).name).append(']')
+        idx += 1
+      }
+      sb.append(')')
+      sb.toString
     }
   }
 }
@@ -1198,6 +1222,30 @@ object Optional {
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.params.asInstanceOf[Array[AnyRef]], params.asInstanceOf[Array[AnyRef]])
       case _ => false
+    }
+
+    override def toString: String = {
+      if (bindings eq null) init()
+      val sb  = new StringBuilder("Optional(_")
+      val len = bindings.length
+      var idx = 0
+      while (idx < len) {
+        bindings(idx) match {
+          case _: LensBinding =>
+            sb.append('.').append(focusTerms(idx).name)
+          case _: PrismBinding =>
+            sb.append(".when[").append(focusTerms(idx).name).append(']')
+          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            sb.append(".~")
+          case at: AtBinding[Col] @scala.unchecked =>
+            sb.append('[').append(at.index).append(']')
+          case _ =>
+            sb.append("{").append("<key>").append("}")
+        }
+        idx += 1
+      }
+      sb.append(')')
+      sb.toString
     }
   }
 }
@@ -2872,6 +2920,48 @@ object Traversal {
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.params.asInstanceOf[Array[AnyRef]], params.asInstanceOf[Array[AnyRef]])
       case _ => false
+    }
+
+    override def toString: String = {
+      if (bindings eq null) init()
+      val sb  = new StringBuilder("Traversal(_")
+      val len = bindings.length
+      var idx = 0
+      while (idx < len) {
+        bindings(idx) match {
+          case _: LensBinding =>
+            sb.append('.').append(focusTerms(idx).name)
+          case _: PrismBinding =>
+            sb.append(".when[").append(focusTerms(idx).name).append(']')
+          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            sb.append(".~")
+          case at: AtBinding[Col] @scala.unchecked =>
+            sb.append('[').append(at.index).append(']')
+          case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
+            sb.append('[')
+            var i       = 0
+            val indices = atIndices.indices
+            while (i < indices.length) {
+              if (i > 0) sb.append(',')
+              sb.append(indices(i))
+              i += 1
+            }
+            sb.append(']')
+          case _: AtKeyBinding[Key, Map] @scala.unchecked =>
+            sb.append("{<key>}")
+          case _: AtKeysBinding[Key, Map] @scala.unchecked =>
+            sb.append("{<keys>}")
+          case _: SeqBinding[Col] @scala.unchecked =>
+            sb.append(".each")
+          case _: MapKeyBinding[Map] @scala.unchecked =>
+            sb.append(".eachKey")
+          case _: MapValueBinding[Map] @scala.unchecked =>
+            sb.append(".eachValue")
+        }
+        idx += 1
+      }
+      sb.append(')')
+      sb.toString
     }
   }
 }

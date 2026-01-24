@@ -1534,7 +1534,7 @@ object SchemaSpec extends SchemaBaseSpec {
       test("encodes values using provided formats and outputs") {
         assert(encodeToString { out =>
           Schema[DynamicValue].encode(ToStringFormat)(out)(DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        })(equalTo("Primitive(Int(1))"))
+        })(equalTo("1"))
       }
     ),
     suite("Reflect.Deferred")(

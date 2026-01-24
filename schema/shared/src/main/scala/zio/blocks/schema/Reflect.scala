@@ -249,9 +249,171 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def aspect[B, Min >: B, Max <: B](optic: Optic[A, B], aspect: SchemaAspect[Min, Max, F]): Reflect[F, A] =
     self.updated[B](optic)(aspect(_)).getOrElse(self)
+
+  override def toString: String = Reflect.renderToString(this, 0, Set.empty)
 }
 
 object Reflect {
+  private[schema] def renderToString[F[_, _], A](
+    reflect: Reflect[F, A],
+    indent: Int,
+    seen: Set[TypeName[?]]
+  ): String = {
+    val sb = new StringBuilder
+    renderToStringBuilder(reflect, sb, indent, seen)
+    sb.toString
+  }
+
+  private def renderToStringBuilder[F[_, _], A](
+    reflect: Reflect[F, A],
+    sb: StringBuilder,
+    indent: Int,
+    seen: Set[TypeName[?]]
+  ): Unit = reflect match {
+    case p: Primitive[F, A] @unchecked =>
+      sb.append(p.typeName.name)
+
+    case d: Deferred[F, A] @unchecked =>
+      val tn = d.typeName
+      if (seen.contains(tn)) {
+        sb.append("deferred => ").append(tn.toString)
+      } else {
+        renderToStringBuilder(d.value, sb, indent, seen + tn)
+      }
+
+    case r: Record[F, A] @unchecked =>
+      val tn = r.typeName
+      if (seen.contains(tn)) {
+        sb.append("deferred => ").append(tn.toString)
+      } else {
+        val newSeen = seen + tn
+        sb.append("record ").append(tn.name)
+        if (r.fields.isEmpty) {
+          sb.append(" {}")
+        } else {
+          sb.append(" {\n")
+          val fieldIndent = indent + 2
+          val indentStr   = " " * fieldIndent
+          var idx         = 0
+          val len         = r.fields.length
+          while (idx < len) {
+            val field = r.fields(idx)
+            sb.append(indentStr).append(field.name).append(": ")
+            renderToStringBuilder(field.value, sb, fieldIndent, newSeen)
+            sb.append('\n')
+            idx += 1
+          }
+          sb.append(" " * indent).append("}")
+        }
+      }
+
+    case v: Variant[F, A] @unchecked =>
+      val tn = v.typeName
+      if (seen.contains(tn)) {
+        sb.append("deferred => ").append(tn.toString)
+      } else {
+        val newSeen = seen + tn
+        sb.append("variant ").append(tn.toString)
+        if (v.cases.isEmpty) {
+          sb.append(" {}")
+        } else {
+          sb.append(" {\n")
+          val caseIndent = indent + 2
+          val indentStr  = " " * caseIndent
+          var idx        = 0
+          val len        = v.cases.length
+          while (idx < len) {
+            val case_ = v.cases(idx)
+            sb.append(indentStr).append("| ").append(case_.name)
+            case_.value match {
+              case rec: Record[F, ?] @unchecked if rec.fields.isEmpty =>
+                ()
+              case rec: Record[F, ?] @unchecked =>
+                sb.append("(")
+                var fIdx = 0
+                val fLen = rec.fields.length
+                if (fLen == 1) {
+                  val field = rec.fields(0)
+                  sb.append(field.name).append(": ")
+                  renderToStringBuilder(field.value, sb, caseIndent + 2, newSeen)
+                } else {
+                  sb.append('\n')
+                  val argIndent    = caseIndent + 4
+                  val argIndentStr = " " * argIndent
+                  while (fIdx < fLen) {
+                    val field = rec.fields(fIdx)
+                    sb.append(argIndentStr).append(field.name).append(": ")
+                    renderToStringBuilder(field.value, sb, argIndent, newSeen)
+                    if (fIdx < fLen - 1) sb.append(",")
+                    sb.append('\n')
+                    fIdx += 1
+                  }
+                  sb.append(" " * caseIndent).append("  ")
+                }
+                sb.append(")")
+              case other =>
+                sb.append("(")
+                renderToStringBuilder(other, sb, caseIndent + 2, newSeen)
+                sb.append(")")
+            }
+            sb.append('\n')
+            idx += 1
+          }
+          sb.append(" " * indent).append("}")
+        }
+      }
+
+    case s: Sequence[F, ?, ?] @unchecked =>
+      sb.append("sequence ").append(s.typeName.name).append("[")
+      val elemNeedsNewline = s.element.isRecord || s.element.isVariant
+      if (elemNeedsNewline) {
+        sb.append('\n')
+        val elemIndent = indent + 2
+        sb.append(" " * elemIndent)
+        renderToStringBuilder(s.element, sb, elemIndent, seen)
+        sb.append('\n').append(" " * indent)
+      } else {
+        renderToStringBuilder(s.element, sb, indent, seen)
+      }
+      sb.append(']')
+
+    case m: Map[F, ?, ?, ?] @unchecked =>
+      sb.append("map ").append(m.typeName.name).append("[")
+      val keyNeedsNewline = m.key.isRecord || m.key.isVariant
+      val valNeedsNewline = m.value.isRecord || m.value.isVariant
+      if (keyNeedsNewline || valNeedsNewline) {
+        sb.append('\n')
+        val elemIndent = indent + 2
+        sb.append(" " * elemIndent)
+        renderToStringBuilder(m.key, sb, elemIndent, seen)
+        sb.append(",\n").append(" " * elemIndent)
+        renderToStringBuilder(m.value, sb, elemIndent, seen)
+        sb.append('\n').append(" " * indent)
+      } else {
+        renderToStringBuilder(m.key, sb, indent, seen)
+        sb.append(", ")
+        renderToStringBuilder(m.value, sb, indent, seen)
+      }
+      sb.append(']')
+
+    case w: Wrapper[F, A, ?] @unchecked =>
+      sb.append("wrapper ").append(w.typeName.name).append("(")
+      val wrapNeedsNewline = w.wrapped.isRecord || w.wrapped.isVariant
+      if (wrapNeedsNewline) {
+        sb.append('\n')
+        val wrapIndent = indent + 2
+        sb.append(" " * wrapIndent)
+        renderToStringBuilder(w.wrapped, sb, wrapIndent, seen)
+        sb.append('\n').append(" " * indent)
+      } else {
+        renderToStringBuilder(w.wrapped, sb, indent, seen)
+      }
+      sb.append(')')
+
+    case _: Dynamic[F] @unchecked =>
+      sb.append("DynamicValue")
+  }
+
   type Bound[A] = Reflect[Binding, A]
 
   sealed trait Type {
