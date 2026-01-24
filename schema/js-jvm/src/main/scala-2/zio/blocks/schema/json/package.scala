@@ -33,7 +33,7 @@ private object JsonInterpolatorMacros {
       if (!isStringable && !hasEncoder) {
         val typeName = argType.toString
         c.error(
-          argExpr.pos,
+          argExpr.tree.pos,
           s"Type '$typeName' cannot be interpolated: no JsonEncoder[A] instance found. " +
           s"Supported in value position: types with JsonEncoder[A] (e.g., types with Schema.derived). " +
           s"Supported in key/string positions: stringable types only (primitives, temporal types, UUID, Currency)."
@@ -47,7 +47,7 @@ private object JsonInterpolatorMacros {
       val argsExpr = c.Expr[Seq[Any]](q"Seq(..$args)")
       reify(JsonInterpolatorRuntime.jsonWithInterpolation(scExpr.splice, argsExpr.splice))
     } catch {
-      case error if NonFatal(error) => c.abort(c.enclosingPosition, s"Invalid JSON literal: ${error.getMessage}")
+      case error: Throwable if NonFatal(error) => c.abort(c.enclosingPosition, s"Invalid JSON literal: ${error.getMessage}")
     }
   }
 
@@ -94,7 +94,7 @@ private object JsonInterpolatorMacros {
       val encoderType = appliedType(typeOf[JsonEncoder[_]].typeConstructor, List(tpe))
       c.inferImplicitValue(encoderType) != EmptyTree
     } catch {
-      case _ => false
+      case _ : Throwable => false
     }
   }
 }
