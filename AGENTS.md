@@ -33,15 +33,22 @@ sbt testJVM 2>&1 | tee /tmp/test-output.txt
 grep -i "error" /tmp/test-output.txt
 ```
 
+Note: Always lint, test, and typecheck updated files. Use project-wide build sparingly.
+
 ## All Commands
 
 ```bash
-sbt fmt                    # Format code (required before PR)
-sbt check                  # Check formatting (CI runs this)
-sbt testJVM                # All JVM tests (Scala 3)
-sbt testJS                 # All JS tests
-sbt testNative             # All Native tests
-sbt "++2.13.18; testJVM"   # All JVM tests (Scala 2.13)
+# Required before merge (both Scala versions)
+sbt "++3.3.7; fmt" && sbt "++2.13.18; fmt"        # Format all code
+sbt "++3.3.7; testJVM" && sbt "++2.13.18; testJVM"  # Run all JVM tests
+
+# CI checks
+sbt check                  # Check formatting (version-agnostic)
+sbt testJS                 # JS tests
+sbt testNative             # Native tests
+
+# Fast dev loop (single project, default Scala 3)
+sbt schemaJVM/compile      # Quick compile check
 sbt schemaJVM/test         # Single project tests
 sbt "schemaJVM/testOnly zio.blocks.schema.SchemaSpec"  # Single spec
 ```
@@ -103,8 +110,9 @@ Test utilities: `schema/shared/src/test/scala/zio/blocks/schema/json/JsonTestUti
 ## Boundaries
 
 ### Always do
-- Run `sbt fmt` before committing
-- Test on both Scala 2.13 and Scala 3
+- Run tests after modifying code
+- Format on both Scala versions: `sbt "++3.3.7; fmt" && sbt "++2.13.18; fmt"`
+- Test on both Scala versions before merge: `sbt "++3.3.7; testJVM" && sbt "++2.13.18; testJVM"`
 - Add Scaladoc for new public APIs
 - Place shared code in `shared/`, version-specific in `scala-2/` or `scala-3/`
 - New features need documentation in `docs/`
@@ -119,7 +127,7 @@ Test utilities: `schema/shared/src/test/scala/zio/blocks/schema/json/JsonTestUti
 ### Never do
 - Add ecosystem dependencies (ZIO, Cats, Akka, etc.)
 - Break source compatibility between Scala versions
-- Commit without formatting (`sbt fmt`)
+- Commit without formatting
 - Delete or skip tests to make CI pass
 - Reduce code coverage below minimums
 
