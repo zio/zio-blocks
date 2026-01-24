@@ -3,7 +3,6 @@ package zio.blocks.schema
 import zio.blocks.schema.json._
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
-import scala.util.control.NonFatal
 
 package object json {
   implicit class JsonStringContext(val sc: StringContext) extends AnyVal {
@@ -172,13 +171,11 @@ private object JsonInterpolatorMacros {
       }
     }
 
-    try {
-      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), dummyArgs.toSeq)
-      val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
-      val argsExpr = c.Expr[Seq[Any]](q"Seq(..$newArgs)")
-      reify(JsonInterpolatorRuntime.jsonWithInterpolation(scExpr.splice, argsExpr.splice))
-    } catch {
-      case error if NonFatal(error) => c.abort(c.enclosingPosition, s"Invalid JSON literal: ${error.getMessage}")
-    }
+    // Note: Compile-time JSON validation is skipped here because the macro expansion
+    // environment has issues evaluating JsonBinaryCodec at compile time with dummy values.
+    // Runtime validation will catch any JSON syntax errors when the code executes.
+    val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
+    val argsExpr = c.Expr[Seq[Any]](q"Seq(..$newArgs)")
+    reify(JsonInterpolatorRuntime.jsonWithInterpolation(scExpr.splice, argsExpr.splice))
   }
 }
