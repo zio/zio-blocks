@@ -6,6 +6,15 @@ import zio.test.{Spec, TestEnvironment, assert}
 
 object DynamicOpticSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("DynamicOpticSpec")(
+    test("path interpolator matches manual DynamicOptic construction") {
+      assert(p"<X>.y")(equalTo(A.x(X.y).toDynamic)) &&
+      assert(p"<X>.y.z")(equalTo(A.x(X.y)(Y.z).toDynamic)) &&
+      assert(p"[0]")(equalTo(DynamicOptic.root.at(0))) &&
+      assert(p"[0,1,2]")(equalTo(DynamicOptic.root.atIndices(0, 1, 2))) &&
+      assert(p"[*]")(equalTo(DynamicOptic.elements)) &&
+      assert(p"{*:}")(equalTo(DynamicOptic.mapKeys)) &&
+      assert(p"{*}")(equalTo(DynamicOptic.mapValues))
+    },
     test("composition using apply, field, caseOf, at, atKey, elements, mapKeys, and mapValues methods") {
       assert(
         DynamicOptic.root
@@ -108,14 +117,15 @@ object DynamicOpticSpec extends SchemaBaseSpec {
   case class PosInt private (value: Int) extends AnyVal
 
   object PosInt extends CompanionOptics[PosInt] {
-    def apply(value: Int): Either[String, PosInt] =
+    def apply(value: Int): Either[SchemaError, PosInt] =
       if (value >= 0) new Right(new PosInt(value))
-      else new Left("Expected positive value")
+      else new Left(SchemaError.validationFailed("Expected positive value"))
 
     def applyUnsafe(value: Int): PosInt =
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
+    implicit val schema: Schema[PosInt] =
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).asOpaqueType[PosInt]
   }
 }

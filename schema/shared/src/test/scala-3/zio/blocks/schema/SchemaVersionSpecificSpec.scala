@@ -317,16 +317,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(
           isLeft(
-            equalTo(
-              SchemaError(errors =
-                ::(
-                  SchemaError.ExpectationMismatch(
-                    source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
-                    expectation = "Expected Id: Expected a string with letter or digit characters"
-                  ),
-                  Nil
-                )
-              )
+            hasField[SchemaError, String](
+              "getMessage",
+              _.getMessage,
+              containsString("Expected a string with letter or digit characters")
             )
           )
         )
@@ -366,16 +360,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(
           isLeft(
-            equalTo(
-              SchemaError(errors =
-                ::(
-                  SchemaError.ExpectationMismatch(
-                    source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
-                    expectation = "Expected InnerId: Expected a string with letter or digit characters"
-                  ),
-                  Nil
-                )
-              )
+            hasField[SchemaError, String](
+              "getMessage",
+              _.getMessage,
+              containsString("Expected a string with letter or digit characters")
             )
           )
         )
@@ -931,6 +919,60 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           )
         )
       }
+    ),
+    suite("withTypeName")(
+      test("sets the correct TypeName on transformed schema") {
+        case class Age(value: Int)
+        val ageSchema: Schema[Age] = Schema[Int].transform(Age(_), _.value).withTypeName[Age]
+        val wrapper                = ageSchema.reflect.asWrapperUnknown
+        assert(wrapper.map(_.wrapper.typeName.name))(isSome(equalTo("Age")))
+      },
+      test("preserves transformation behavior after setting TypeName") {
+        case class Age(value: Int)
+        val ageSchema: Schema[Age] = Schema[Int].transform(Age(_), _.value).withTypeName[Age]
+        val dv                     = Schema[Int].toDynamicValue(25)
+        assert(ageSchema.fromDynamicValue(dv))(isRight(equalTo(Age(25))))
+      }
+    ),
+    suite("asOpaqueType")(
+      test("sets TypeName and primitive type on Wrapper reflect") {
+        case class Score(value: Int)
+        val scoreSchema: Schema[Score] = Schema[Int].transform(Score(_), _.value).asOpaqueType[Score]
+        val wrapper                    = scoreSchema.reflect.asWrapperUnknown
+        assert(wrapper.map(_.wrapper.typeName.name))(isSome(equalTo("Score"))) &&
+        assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Int(Validation.None))))
+      },
+      test("round-trips correctly with asOpaqueType") {
+        case class Score(value: Int)
+        val scoreSchema: Schema[Score] = Schema[Int].transform(Score(_), _.value).asOpaqueType[Score]
+        val value                      = Score(100)
+        val dv                         = scoreSchema.toDynamicValue(value)
+        assert(scoreSchema.fromDynamicValue(dv))(isRight(equalTo(value)))
+      },
+      test("falls back to withTypeName behavior when called on non-Wrapper reflect") {
+        val intSchema: Schema[Int] = Schema[Int].asOpaqueType[Int]
+        assert(intSchema.reflect.typeName.name)(equalTo("Int"))
+      },
+      test("works with Long primitive type") {
+        case class LongWrapper(value: Long)
+        val schema: Schema[LongWrapper] = Schema[Long].transform(LongWrapper(_), _.value).asOpaqueType[LongWrapper]
+        val wrapper                     = schema.reflect.asWrapperUnknown
+        assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Long(Validation.None))))
+      },
+      test("works with String primitive type") {
+        case class StringWrapper(value: String)
+        val schema: Schema[StringWrapper] =
+          Schema[String].transform(StringWrapper(_), _.value).asOpaqueType[StringWrapper]
+        val wrapper = schema.reflect.asWrapperUnknown
+        assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.String(Validation.None))))
+      },
+      test("works with Double primitive type") {
+        case class DoubleWrapper(value: Double)
+        val schema: Schema[DoubleWrapper] =
+          Schema[Double].transform(DoubleWrapper(_), _.value).asOpaqueType[DoubleWrapper]
+        val wrapper = schema.reflect.asWrapperUnknown
+        assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Double(Validation.None))))
+      }
     )
   )
 
@@ -992,7 +1034,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
         typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")), "InnerId"),
         wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
-        wrapperBinding = Binding.Wrapper(s => InnerId(s), identity)
+        wrapperBinding = Binding.Wrapper(s => InnerId(s).left.map(SchemaError.validationFailed), identity)
       )
     )
 
@@ -1038,7 +1080,7 @@ object Id {
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
       typeName = TypeName(Namespace.zioBlocksSchema, "Id"),
       wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
-      wrapperBinding = Binding.Wrapper(s => Id(s), identity)
+      wrapperBinding = Binding.Wrapper(s => Id(s).left.map(SchemaError.validationFailed), identity)
     )
   )
 

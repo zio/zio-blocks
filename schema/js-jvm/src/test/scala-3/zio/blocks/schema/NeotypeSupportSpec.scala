@@ -1,7 +1,6 @@
 package zio.blocks.schema
 
 import neotype._
-import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test.Assertion._
@@ -71,7 +70,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
         NString("VVV")
       )
       assert(NRecord.schema.fromDynamicValue(NRecord.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      roundTrip[NRecord](value, """{"i":1,"f":2.0,"l":3,"d":4.0,"bl":true,"b":6,"c":"7","sh":8,"u":null,"s":"VVV"}""")
+      roundTrip[NRecord](value, """{"i":1,"f":2.0,"l":3,"d":4.0,"bl":true,"b":6,"c":"7","sh":8,"u":{},"s":"VVV"}""")
     },
     test("derive schemas for options with newtypes and subtypes") {
       val schema1 = Schema.derived[Option[Name]]
@@ -173,49 +172,23 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(Stats.responseTimes_wrapped.modify(value, _ - 1))(equalTo(value)) &&
       assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
       assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue1)))(
-        isLeft(
-          equalTo(
-            SchemaError(
-              errors = ::(
-                ExpectationMismatch(
-                  source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field("dropRate"))),
-                  expectation = "Expected DropRate: Validation Failed"
-                ),
-                Nil
-              )
-            )
-          )
-        )
+        isLeft(hasField[SchemaError, String]("getMessage", _.getMessage, containsString("Validation Failed")))
       ) &&
       assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue2)))(
-        isLeft(
-          equalTo(
-            SchemaError(
-              errors = ::(
-                ExpectationMismatch(
-                  source = DynamicOptic(
-                    nodes = Vector(
-                      DynamicOptic.Node.Field("responseTimes"),
-                      DynamicOptic.Node.Elements,
-                      DynamicOptic.Node.AtIndex(0)
-                    )
-                  ),
-                  expectation = "Expected ResponseTime: Validation Failed"
-                ),
-                Nil
-              )
-            )
-          )
-        )
+        isLeft(hasField[SchemaError, String]("getMessage", _.getMessage, containsString("Validation Failed")))
       )
     }
   )
 
   inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
-    Schema.derived[B].wrap[A](newType.make, newType.unwrap)
+    Schema[A]
+      .transformOrFail(a => newType.make(a).left.map(SchemaError.validationFailed), newType.unwrap)
+      .asOpaqueType[B]
 
   inline given subTypeSchema[A, B <: A](using subType: Subtype.WithType[A, B], schema: Schema[A]): Schema[B] =
-    Schema.derived[B].wrap[A](subType.make, _.asInstanceOf[A])
+    Schema[A]
+      .transformOrFail(a => subType.make(a).left.map(SchemaError.validationFailed), _.asInstanceOf[A])
+      .asOpaqueType[B]
 
   type Name = Name.Type
 

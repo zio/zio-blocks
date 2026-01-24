@@ -11,11 +11,8 @@ private[toon] final class ToonEnumLeafInfo(val name: String, val constructor: Co
 private[toon] final class ToonEnumNodeInfo(discr: Discriminator[?], children: Array[ToonEnumInfo])
     extends ToonEnumInfo {
   @tailrec
-  def discriminate(x: Any): String = {
-    val idx = discr.asInstanceOf[Discriminator[Any]].discriminate(x)
-    children(idx) match {
-      case leaf: ToonEnumLeafInfo => leaf.name
-      case node: ToonEnumNodeInfo => node.discriminate(x)
-    }
+  def discriminate(x: Any): String = children(discr.asInstanceOf[Discriminator[Any]].discriminate(x)) match {
+    case leaf: ToonEnumLeafInfo => leaf.name
+    case node: ToonEnumNodeInfo => node.discriminate(x)
   }
 }

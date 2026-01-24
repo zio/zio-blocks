@@ -79,14 +79,12 @@ private[toon] final class ToonFieldInfo(
     val lengthStr  = if (bracketStart >= 0 && bracketEnd > bracketStart) {
       rawKey.substring(bracketStart + 1, bracketEnd)
     } else "0"
-
     val delimChar = if (lengthStr.nonEmpty) {
       val lastChar = lengthStr.charAt(lengthStr.length - 1)
       if (lastChar == '\t') Delimiter.Tab
       else if (lastChar == '|') Delimiter.Pipe
       else Delimiter.Comma
     } else Delimiter.Comma
-
     val length =
       try {
         val numPart = if (delimChar != Delimiter.Comma) lengthStr.dropRight(1).trim else lengthStr
@@ -94,10 +92,8 @@ private[toon] final class ToonFieldInfo(
       } catch {
         case _: NumberFormatException => 0
       }
-
     val braceStart = rawKey.indexOf('{', bracketEnd)
     val braceEnd   = rawKey.indexOf('}', braceStart)
-
     if (braceStart > 0 && braceEnd > braceStart) {
       val fieldNamesStr = rawKey.substring(braceStart + 1, braceEnd)
       val fieldNames    = splitFieldNames(fieldNamesStr, delimChar).map { f =>
@@ -106,10 +102,8 @@ private[toon] final class ToonFieldInfo(
           trimmed.substring(1, trimmed.length - 1)
         else trimmed
       }
-
       in.advanceLine()
       in.skipBlankLines()
-
       regs.setObject(
         off,
         codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeTabularArray(in, fieldNames, length, delimChar)
@@ -126,10 +120,9 @@ private[toon] final class ToonFieldInfo(
       } else {
         in.setActiveDelimiter(delimChar)
         val values = in.readInlineArray()
-
         regs.setObject(
           off,
-          codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeInlineArray(values, length)
+          codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeInlineArray(in, values, length)
         )
       }
     }
@@ -277,7 +270,7 @@ private[toon] final class ToonFieldInfo(
     val off = this.offset + top
 
     val reader = ToonReader(ReaderConfig.withDelimiter(Delimiter.None))
-    reader.reset(value.getBytes(java.nio.charset.StandardCharsets.UTF_8), 0, value.length)
+    reader.reset(value)
     (codec.valueType: @switch) match {
       case 0 =>
         regs.setObject(

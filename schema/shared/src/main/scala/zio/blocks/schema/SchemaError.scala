@@ -20,6 +20,21 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
 }
 
 object SchemaError {
+  def conversionFailed(trace: List[DynamicOptic.Node], details: String): SchemaError =
+    new SchemaError(new ::(ConversionFailed(toDynamicOptic(trace), details, None), Nil))
+
+  def conversionFailed(contextMessage: String, cause: SchemaError): SchemaError =
+    new SchemaError(
+      new ::(
+        ConversionFailed(
+          DynamicOptic.root,
+          contextMessage,
+          Some(cause)
+        ),
+        Nil
+      )
+    )
+
   def expectationMismatch(trace: List[DynamicOptic.Node], expectation: String): SchemaError =
     new SchemaError(new ::(new ExpectationMismatch(toDynamicOptic(trace), expectation), Nil))
 
@@ -31,6 +46,14 @@ object SchemaError {
 
   def unknownCase(trace: List[DynamicOptic.Node], caseName: String): SchemaError =
     new SchemaError(new ::(new UnknownCase(toDynamicOptic(trace), caseName), Nil))
+
+  /**
+   * Creates a SchemaError from a validation failure message. Use this to
+   * convert string-based validation errors (e.g., from smart constructors) into
+   * SchemaError.
+   */
+  def validationFailed(message: String): SchemaError =
+    conversionFailed(Nil, message)
 
   private[this] def toDynamicOptic(trace: List[DynamicOptic.Node]): DynamicOptic = {
     val nodes = trace.toArray
@@ -55,6 +78,28 @@ object SchemaError {
     def message: String
 
     def source: DynamicOptic
+  }
+
+  /** Sub-trait for Into conversion errors */
+  sealed trait IntoError extends Single {
+    def source: DynamicOptic
+  }
+
+  case class ConversionFailed(
+    source: DynamicOptic,
+    details: String,
+    cause: Option[SchemaError] = None
+  ) extends IntoError {
+    override def message: String =
+      cause match {
+        case Some(causeErr) =>
+          val causeMessages =
+            if (causeErr.errors.isEmpty) " <no further details>"
+            else if (causeErr.errors.length == 1) s"  Caused by: ${causeErr.errors.head.message}"
+            else "Caused by:\n" + causeErr.errors.map(e => s"  - ${e.message}").mkString("\n")
+          s"$details\n$causeMessages"
+        case None => details
+      }
   }
 
   case class MissingField(source: DynamicOptic, fieldName: String) extends Single {

@@ -1,7 +1,7 @@
 package zio.blocks.schema.avro
 
 import neotype._
-import zio.blocks.schema.{Schema, SchemaBaseSpec}
+import zio.blocks.schema.{Schema, SchemaBaseSpec, SchemaError}
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.avro.AvroTestUtils._
 import zio.test._
@@ -18,7 +18,9 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
   )
 
   inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
-    Schema.derived[B].wrap[A](newType.make, newType.unwrap)
+    Schema[A]
+      .transformOrFail(a => newType.make(a).left.map(SchemaError.validationFailed), newType.unwrap)
+      .asOpaqueType[B]
 
   type Name = Name.Type
 
