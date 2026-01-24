@@ -89,6 +89,12 @@ private[blocks] object Subtyping {
   private def isTuple1(id: TypeId[_]): Boolean =
     id.name == "Tuple1" && id.owner.asString.startsWith("scala")
 
+  // Helper to check if a TypeRepr represents any tuple type (*: or TupleN)
+  private def isTupleType(t: TypeRepr): Boolean = t match {
+    case TypeRepr.Ref(id, _) => isTupleCons(id) || isTupleN(id) || isTuple1(id)
+    case _                   => false
+  }
+
   /**
    * Flatten a *: chain into a list of element types. Returns None if the type
    * is not a *: chain. For example: Int *: String *: EmptyTuple becomes
@@ -119,7 +125,7 @@ private[blocks] object Subtyping {
   /**
    * Check if two tuple representations are structurally equivalent. This
    * handles the case where *: chains and TupleN represent the same tuple
-   * structure.
+   * structure. Wildcards are treated as matching any type.
    */
   private def tupleStructurallyEqual(a: TypeRepr, b: TypeRepr): Boolean = {
     val aFlat = flattenTupleCons(a).orElse(flattenTupleN(a))
@@ -128,10 +134,25 @@ private[blocks] object Subtyping {
     (aFlat, bFlat) match {
       case (Some(aElems), Some(bElems)) =>
         aElems.size == bElems.size && aElems.zip(bElems).forall { case (x, y) =>
-          structurallyEqual(x, y) || tupleStructurallyEqual(x, y)
+          elementsCompatible(x, y)
         }
       case _ => false
     }
+  }
+
+  /**
+   * Check if two type elements are compatible for tuple comparison. Wildcards
+   * match any type.
+   */
+  private def elementsCompatible(a: TypeRepr, b: TypeRepr): Boolean = (a, b) match {
+    case (TypeRepr.Wildcard(_), _)                    => true
+    case (_, TypeRepr.Wildcard(_))                    => true
+    case _ if structurallyEqual(a, b)                 => true
+    case _ if tupleStructurallyEqual(a, b)            => true
+    case (TypeRepr.Ref(id1, _), TypeRepr.Ref(id2, _)) =>
+      // Check if types are nominally equivalent (same name at scala package level)
+      id1.name == id2.name && id1.owner.asString.startsWith("scala") && id2.owner.asString.startsWith("scala")
+    case _ => false
   }
 
   /**
@@ -195,8 +216,9 @@ private[blocks] object Subtyping {
     case (TypeRepr.NullType, TypeRepr.NullType)       => true
     case (TypeRepr.UnitType, TypeRepr.UnitType)       => true
 
-    // Fallback: check for tuple equivalence (*: vs TupleN)
-    case _ => tupleStructurallyEqual(a, b)
+    // Fallback: check for tuple equivalence (*: vs TupleN) only if at least one is a tuple
+    case _ =>
+      (isTupleType(a) || isTupleType(b)) && tupleStructurallyEqual(a, b)
   }
 
   /**

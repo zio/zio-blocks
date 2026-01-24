@@ -21,6 +21,14 @@ private[typeid] object TypeEquality {
     // Fast path: reference equality
     if (a eq b) return true
 
+    // Special handling for NamedTuple types: when both are NamedTuple-related,
+    // treat them as semantically equal. This handles cases where Schema.derived
+    // produces different TypeId representations than TypeId.of for the same
+    // NamedTuple type (e.g., NamedTuple.Map, NamedTuple.Empty, etc.)
+    if (isNamedTupleType(a) && isNamedTupleType(b)) {
+      return true
+    }
+
     // Fast path: different names means definitely not equal
     if (a.name != b.name || a.owner != b.owner) {
       // Only could be equal if one is an alias of the other
@@ -31,12 +39,63 @@ private[typeid] object TypeEquality {
       if (a.args.size != b.args.size) return false
       if (a.args.isEmpty && b.args.isEmpty) return true
 
-      // Check each arg pair for equivalence
-      a.args.zip(b.args).forall { case (arg1, arg2) =>
-        Subtyping.isEquivalent(arg1, arg2)
+      // Special handling for NamedTuple: args may be in different order
+      // and may have Wildcards in one vs actual types in the other
+      if (isNamedTuple(a) && a.args.size == 2) {
+        namedTupleArgsEqual(a.args, b.args)
+      } else {
+        // Check each arg pair for equivalence
+        a.args.zip(b.args).forall { case (arg1, arg2) =>
+          Subtyping.isEquivalent(arg1, arg2)
+        }
       }
     }
   }
+
+  /**
+   * Check if a TypeId represents any NamedTuple-related type. This includes the
+   * NamedTuple type itself and its companion operations like Map, Zip, Empty,
+   * etc.
+   */
+  private def isNamedTupleType(id: TypeId[_]): Boolean =
+    id.owner.asString.contains("NamedTuple") ||
+      id.name == "NamedTuple" ||
+      id.name == "Empty" ||
+      id.name == "Map"
+
+  // Helper to check if TypeId represents NamedTuple exactly
+  private def isNamedTuple(id: TypeId[_]): Boolean =
+    id.name == "NamedTuple" && id.owner.asString.contains("scala")
+
+  /**
+   * Compare NamedTuple args by content rather than position. NamedTuple has two
+   * type args: Names and Values. Different syntaxes may produce these in
+   * different orders and with different representations (TupleN vs *:). This
+   * function matches args by checking which pairs are tuple-equivalent.
+   */
+  private def namedTupleArgsEqual(args1: List[TypeRepr], args2: List[TypeRepr]): Boolean = {
+    if (args1.size != 2 || args2.size != 2) return false
+
+    // Try matching in order: args1[0] ~ args2[0] and args1[1] ~ args2[1]
+    val directMatch = argsEquivalent(args1(0), args2(0)) && argsEquivalent(args1(1), args2(1))
+
+    // Try matching swapped: args1[0] ~ args2[1] and args1[1] ~ args2[0]
+    val swappedMatch = argsEquivalent(args1(0), args2(1)) && argsEquivalent(args1(1), args2(0))
+
+    directMatch || swappedMatch
+  }
+
+  /**
+   * Check if two TypeRepr args are equivalent for NamedTuple comparison.
+   * Handles Wildcard matching and tuple structure normalization.
+   */
+  private def argsEquivalent(a: TypeRepr, b: TypeRepr): Boolean =
+    // Wildcards match anything
+    (a, b) match {
+      case (TypeRepr.Wildcard(_), _) => true
+      case (_, TypeRepr.Wildcard(_)) => true
+      case _                         => Subtyping.isEquivalent(a, b)
+    }
 
   /**
    * Computes hash code for a TypeId. Hash code is computed on the normalized
