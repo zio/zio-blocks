@@ -4,33 +4,46 @@ Zero-dependency building blocks for Scala. Supports Scala 2.13 and 3.3+ with sou
 
 ## Development Workflow
 
+**IMPORTANT: Command execution rules**
+- All commands run from workspace root. Do NOT use `cd` in command strings (triggers permission prompts and blocks execution).
+- For ANY slow command (compile/test/format), ALWAYS capture output to a temp file via `tee`. Do NOT pipe directly to `tail`/`head`/`grep` in a way that discards output.
+- If you need more context from a previous run, read/grep/slice the saved log file. Only re-run the command if inputs changed or the prior run was incomplete/invalid.
+
 **Fast loop** - stay in one project, one Scala version:
 ```bash
 # Run tests for current project (default Scala 3)
-sbt schemaJVM/test
-sbt "schemaJVM/testOnly zio.blocks.schema.SchemaSpec"
+sbt schemaJVM/test 2>&1 | tee /tmp/sbt-test.txt
+sbt "schemaJVM/testOnly zio.blocks.schema.SchemaSpec" 2>&1 | tee /tmp/sbt-test.txt
 
 # Compile to check for errors quickly
-sbt schemaJVM/compile
+sbt schemaJVM/compile 2>&1 | tee /tmp/sbt-compile.txt
+
+# If you need more context later, read from the file:
+tail -n 100 /tmp/sbt-test.txt
+grep -n "error" /tmp/sbt-compile.txt
 ```
 
-**Before commit/push** - run full checks:
+**Wrap-up workflow** - when finishing work, do this ONCE (no interleaving):
 ```bash
-# Format all code (must run on both Scala versions)
-sbt "++3.3.7; fmt" && sbt "++2.13.18; fmt"
+# Step 1: Format all code first (both versions)
+sbt "++3.3.7; fmt" 2>&1 | tee /tmp/sbt-fmt-3.txt && sbt "++2.13.18; fmt" 2>&1 | tee /tmp/sbt-fmt-2.txt
 
-# Test both Scala versions (required before merge)
-sbt "++3.3.7; testJVM" && sbt "++2.13.18; testJVM"
+# Step 2: Then run all tests once (both versions)
+sbt "++3.3.7; testJVM" 2>&1 | tee /tmp/sbt-test-3.txt && sbt "++2.13.18; testJVM" 2>&1 | tee /tmp/sbt-test-2.txt
 
-# If you changed a dependency (e.g., chunk), run root tests
-sbt testJVM
+# If a test fails, fix it, then re-run only the failing version
+# Do NOT repeat format/test cycles unnecessarily
 ```
 
-**Slow operations** - save output to temp files:
+**Slow operations** - always save output:
 ```bash
-# Compile/test are slow. Save output, grep from file:
+# ALWAYS use tee for slow commands:
 sbt testJVM 2>&1 | tee /tmp/test-output.txt
+
+# Then inspect without re-running:
 grep -i "error" /tmp/test-output.txt
+sed -n '1,200p' /tmp/test-output.txt
+tail -n 200 /tmp/test-output.txt
 ```
 
 ## All Commands
