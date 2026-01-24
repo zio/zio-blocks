@@ -16,8 +16,8 @@ sbt schemaJVM/compile
 
 **Before commit/push** - run full checks:
 ```bash
-# Format all code
-sbt fmt
+# Format all code (must run on both Scala versions)
+sbt "++3.3.7; fmt" && sbt "++2.13.18; fmt"
 
 # Test both Scala versions (required before merge)
 sbt "++3.3.7; testJVM" && sbt "++2.13.18; testJVM"
