@@ -180,14 +180,6 @@ final case class BsonCodec[A](encoder: BsonEncoder[A], decoder: BsonDecoder[A]) 
 }
 
 object BsonCodec {
-
-  /**
-   * Extension methods for BsonValue to enable decoding.
-   */
-  implicit class BsonDecoderOps(private val value: BsonValue) extends AnyVal {
-    def as[A](implicit decoder: BsonDecoder[A]): Either[BsonDecoder.Error, A] =
-      decoder.fromBsonValue(value)
-  }
   private def primitive[A](
     writeValue: (BsonWriter, A) => Unit,
     toBson: A => BsonValue,
