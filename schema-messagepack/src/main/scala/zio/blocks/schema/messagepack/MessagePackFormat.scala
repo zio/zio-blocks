@@ -709,65 +709,86 @@ object MessagePackFormat
                   idx += 1
                 }
               }
+              // Pre-calculate offsets and map for name-based lookup
               new MessagePackBinaryCodec[A]() {
                 private[this] val deconstructor = binding.deconstructor
                 private[this] val constructor   = binding.constructor
-                private[this] val usedRegisters = offset
                 private[this] val fieldCodecs   = codecs
+
+                private[this] lazy val metadata = {
+                  val len = fieldCodecs.length
+                  val offs = new Array[Long](len)
+                  val map = new java.util.HashMap[String, Int]()
+                  var i = 0
+                  var used = 0L
+                  while (i < len) {
+                    offs(i) = used
+                    map.put(fields(i).name, i)
+                    val c = fieldCodecs(i)
+                    used = RegisterOffset.add(c.valueOffset, used)
+                    i += 1
+                  }
+                  (offs, map, used)
+                }
+
+                private[this] def offsets       = metadata._1
+                private[this] def nameMap       = metadata._2
+                private[this] def usedRegisters = metadata._3
 
                 def decodeUnsafe(unpacker: MessageUnpacker): A = {
                   val regs   = Registers(usedRegisters)
-                  var offset = 0L
-                  val len    = fieldCodecs.length
-                  // Records encoded as map with field names as keys
                   val mapSize = unpacker.unpackMapHeader()
-                  if (mapSize != len) {
-                    decodeError(s"Expected $len fields, got $mapSize")
-                  }
-                  var idx = 0
-                  try {
-                    while (idx < len) {
-                      unpacker.unpackString() // Field name - skip for now, assume order matches
+                  
+                  var i = 0
+                  while (i < mapSize) {
+                    val key = unpacker.unpackString()
+                    val idx = nameMap.getOrDefault(key, -1)
+                    if (idx != -1) {
                       val codec = fieldCodecs(idx)
-                      codec.valueType match {
-                        case MessagePackBinaryCodec.objectType =>
-                          regs.setObject(
-                            offset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[AnyRef]].decodeUnsafe(unpacker)
-                          )
-                        case MessagePackBinaryCodec.intType =>
-                          regs.setInt(offset, codec.asInstanceOf[MessagePackBinaryCodec[Int]].decodeUnsafe(unpacker))
-                        case MessagePackBinaryCodec.longType =>
-                          regs.setLong(offset, codec.asInstanceOf[MessagePackBinaryCodec[Long]].decodeUnsafe(unpacker))
-                        case MessagePackBinaryCodec.floatType =>
-                          regs
-                            .setFloat(offset, codec.asInstanceOf[MessagePackBinaryCodec[Float]].decodeUnsafe(unpacker))
-                        case MessagePackBinaryCodec.doubleType =>
-                          regs.setDouble(
-                            offset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[Double]].decodeUnsafe(unpacker)
-                          )
-                        case MessagePackBinaryCodec.booleanType =>
-                          regs.setBoolean(
-                            offset,
-                            codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].decodeUnsafe(unpacker)
-                          )
-                        case MessagePackBinaryCodec.byteType =>
-                          regs.setByte(offset, codec.asInstanceOf[MessagePackBinaryCodec[Byte]].decodeUnsafe(unpacker))
-                        case MessagePackBinaryCodec.charType =>
-                          regs.setChar(offset, codec.asInstanceOf[MessagePackBinaryCodec[Char]].decodeUnsafe(unpacker))
-                        case MessagePackBinaryCodec.shortType =>
-                          regs
-                            .setShort(offset, codec.asInstanceOf[MessagePackBinaryCodec[Short]].decodeUnsafe(unpacker))
-                        case _ => codec.asInstanceOf[MessagePackBinaryCodec[Unit]].decodeUnsafe(unpacker)
+                      val offset = offsets(idx)
+                      
+                      try {
+                        codec.valueType match {
+                          case MessagePackBinaryCodec.objectType =>
+                            regs.setObject(
+                              offset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[AnyRef]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.intType =>
+                            regs.setInt(offset, codec.asInstanceOf[MessagePackBinaryCodec[Int]].decodeUnsafe(unpacker))
+                          case MessagePackBinaryCodec.longType =>
+                            regs.setLong(offset, codec.asInstanceOf[MessagePackBinaryCodec[Long]].decodeUnsafe(unpacker))
+                          case MessagePackBinaryCodec.floatType =>
+                            regs
+                              .setFloat(offset, codec.asInstanceOf[MessagePackBinaryCodec[Float]].decodeUnsafe(unpacker))
+                          case MessagePackBinaryCodec.doubleType =>
+                            regs.setDouble(
+                              offset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[Double]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.booleanType =>
+                            regs.setBoolean(
+                              offset,
+                              codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].decodeUnsafe(unpacker)
+                            )
+                          case MessagePackBinaryCodec.byteType =>
+                            regs.setByte(offset, codec.asInstanceOf[MessagePackBinaryCodec[Byte]].decodeUnsafe(unpacker))
+                          case MessagePackBinaryCodec.charType =>
+                            regs.setChar(offset, codec.asInstanceOf[MessagePackBinaryCodec[Char]].decodeUnsafe(unpacker))
+                          case MessagePackBinaryCodec.shortType =>
+                            regs
+                              .setShort(offset, codec.asInstanceOf[MessagePackBinaryCodec[Short]].decodeUnsafe(unpacker))
+                          case _ => codec.asInstanceOf[MessagePackBinaryCodec[Unit]].decodeUnsafe(unpacker)
+                        }
+                      } catch {
+                        case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
                       }
-                      offset += codec.valueOffset
-                      idx += 1
+                    } else {
+                      unpacker.skipValue()
                     }
-                    constructor.construct(regs, 0)
-                  } catch {
-                    case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
+                    i += 1
                   }
+                  constructor.construct(regs, 0)
                 }
 
                 def encodeUnsafe(value: A, packer: MessagePacker): Unit = {

@@ -22,7 +22,7 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         }
         checkIndex(-1) && checkIndex(3) // Valid indices are 0, 1, 2
       },
-      test("BUG-005: DayOfWeek range validation") {
+      test("BUG-005a: DayOfWeek range validation") {
         val codec = Schema[java.time.DayOfWeek].derive(MessagePackFormat.deriver)
         def checkValue(v: Int) = {
           val packer = MessagePack.newDefaultBufferPacker()
@@ -32,7 +32,7 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         }
         checkValue(0) && checkValue(8)
       },
-      test("BUG-005: Month range validation") {
+      test("BUG-005b: Month range validation") {
         val codec = Schema[java.time.Month].derive(MessagePackFormat.deriver)
         def checkValue(v: Int) = {
           val packer = MessagePack.newDefaultBufferPacker()
@@ -50,6 +50,22 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         packer.packInt(2)
         val bytes = packer.toByteArray
         assert(codec.decode(bytes))(isLeft)
+      },
+      test("Regression: Nested empty maps") {
+        val schema = Schema[Map[String, Map[String, Int]]]
+        val codec  = schema.derive(MessagePackFormat.deriver)
+        val value  = Map("a" -> Map.empty[String, Int], "b" -> Map("c" -> 1))
+        val encoded = codec.encode(value)
+        val decoded = codec.decode(encoded)
+        assert(decoded)(isRight(equalTo(value)))
+      },
+      test("Regression: Nested empty lists") {
+        val schema = Schema[List[List[Int]]]
+        val codec  = schema.derive(MessagePackFormat.deriver)
+        val value  = List(List(1, 2), Nil, List(3))
+        val encoded = codec.encode(value)
+        val decoded = codec.decode(encoded)
+        assert(decoded)(isRight(equalTo(value)))
       }
     ),
     suite("primitives")(
@@ -215,6 +231,40 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
           ),
           15
         )
+      }
+    ),
+    suite("Forward Compatibility & Robustness")(
+      test("Ignore extra fields") {
+        case class Record1Extended(bl: Boolean, b: Byte, sh: Short, i: Int, l: Long, f: Float, d: Double, c: Char, s: String, extra: String)
+        implicit val schemaExt: Schema[Record1Extended] = Schema.derived
+        val codecExt = schemaExt.derive(MessagePackFormat.deriver)
+        val valExt = Record1Extended(true, 1, 2, 3, 4L, 5.0f, 6.0, '7', "VVV", "extra")
+        val bytes = codecExt.encode(valExt)
+        
+        val codec = Record1.schema.derive(MessagePackFormat.deriver)
+        val expected = Record1(true, 1, 2, 3, 4L, 5.0f, 6.0, '7', "VVV")
+        
+        assert(codec.decode(bytes))(isRight(equalTo(expected)))
+      },
+      test("Handle reordered fields") {
+         val packer = MessagePack.newDefaultBufferPacker()
+         packer.packMapHeader(9)
+         // Write "s" first (normally last)
+         packer.packString("s"); packer.packString("VVV")
+         packer.packString("bl"); packer.packBoolean(true)
+         packer.packString("b"); packer.packByte(1)
+         packer.packString("sh"); packer.packShort(2)
+         packer.packString("i"); packer.packInt(3)
+         packer.packString("l"); packer.packLong(4L)
+         packer.packString("f"); packer.packFloat(5.0f)
+         packer.packString("d"); packer.packDouble(6.0)
+         packer.packString("c"); packer.packString("7") 
+         
+         val bytes = packer.toByteArray
+         val value = Record1(true, 1, 2, 3, 4L, 5.0f, 6.0, '7', "VVV")
+         val codec = Record1.schema.derive(MessagePackFormat.deriver)
+         
+         assert(codec.decode(bytes))(isRight(equalTo(value)))
       }
     )
   )
