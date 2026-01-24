@@ -14,14 +14,7 @@ private object JsonInterpolatorMacros {
   def jsonImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Json] = {
     import c.universe._
 
-    val parts = c.prefix.tree match {
-      case Apply(_, List(Apply(_, rawParts))) =>
-        rawParts.map {
-          case Literal(Constant(part: String)) => part
-          case _                               => c.abort(c.enclosingPosition, "Expected string literal parts")
-        }
-      case _ => c.abort(c.enclosingPosition, "Expected StringContext")
-    }
+    // parts removed: not needed for Native macro (no JSON validation)
 
     // Validate arguments - must be stringable or have JsonEncoder
     args.foreach { argExpr =>
