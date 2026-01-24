@@ -3,6 +3,7 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
 import zio.blocks.schema.patch.{Patch, PatchMode}
+import zio.blocks.typeid.TypeId
 
 import java.util.concurrent.ConcurrentHashMap
 import scala.collection.immutable.ArraySeq
@@ -147,9 +148,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A): Schema[B] = new Schema(
     new Reflect.Wrapper[Binding, B, A](
       reflect,
-      reflect.typeName.asInstanceOf[TypeName[B]],
+      reflect.typeId.asInstanceOf[TypeId[B]],
       Reflect.unwrapToPrimitiveTypeOption(reflect).asInstanceOf[Option[PrimitiveType[B]]],
-      new Binding.Wrapper(to, from)
+      new Binding.Wrapper(to, from, passthroughErrors = true)
     )
   )
 }

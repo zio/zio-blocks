@@ -209,7 +209,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
           equalTo(
             SchemaError(
               errors = ::(
-                ExpectationMismatch(
+                SchemaError.ExpectationMismatch(
                   source = DynamicOptic(
                     nodes = Vector(
                       DynamicOptic.Node.Field("responseTimes"),

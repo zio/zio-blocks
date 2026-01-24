@@ -1095,8 +1095,10 @@ object Reflect {
       (wrapped.fromDynamicValue(value) match {
         case Right(unwrapped) =>
           binding.wrap(unwrapped) match {
-            case Left(error) => new Left(SchemaError.expectationMismatch(trace, s"Expected ${typeId.name}: $error"))
-            case right       => right
+            case Left(error) =>
+              if (binding.passthroughErrors) new Left(error)
+              else new Left(SchemaError.expectationMismatch(trace, s"Expected ${typeId.name}: ${error.getMessage}"))
+            case right => right
           }
         case left => left
       }).asInstanceOf[Either[SchemaError, A]]

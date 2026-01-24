@@ -1013,7 +1013,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
         typeId = unsafeTypeId[InnerId]("zio.blocks.schema.SchemaVersionSpecificSpec", "InnerId"),
         wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
-        wrapperBinding = Binding.Wrapper(s => InnerId(s), _.asInstanceOf[String])
+        wrapperBinding = Binding.Wrapper(s => InnerId(s).left.map(SchemaError.validationFailed), _.asInstanceOf[String])
       )
     )
 
@@ -1059,7 +1059,7 @@ object Id {
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
       typeId = zio.blocks.typeid.TypeId.of[Id],
       wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None).asInstanceOf[PrimitiveType[Id]]),
-      wrapperBinding = Binding.Wrapper(s => Id(s), _.asInstanceOf[String])
+      wrapperBinding = Binding.Wrapper(s => Id(s).left.map(SchemaError.validationFailed), _.asInstanceOf[String])
     )
   )
 
