@@ -3,6 +3,7 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
+import zio.blocks.schema.json.{JsonFormat, JsonSchema}
 import zio.blocks.schema.patch.{Patch, PatchMode}
 import java.util.concurrent.ConcurrentHashMap
 
@@ -63,6 +64,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def get(dynamic: DynamicOptic): Option[Reflect.Bound[?]] = reflect.get(dynamic)
 
   def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
+
+  /** Derives a JSON Schema from this Schema. */
+  def toJsonSchema: JsonSchema = derive(JsonFormat.deriver).toJsonSchema
 
   def updated(dynamic: DynamicOptic)(f: Reflect.Updater[Binding]): Option[Schema[A]] =
     reflect.updated(dynamic)(f).map(x => new Schema(x))
