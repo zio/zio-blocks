@@ -102,6 +102,247 @@ object Anchor {
 }
 
 // =============================================================================
+// Format Validation
+// =============================================================================
+
+/**
+ * Validates string values against JSON Schema format specifications.
+ *
+ * Per JSON Schema 2020-12, the `format` keyword is an annotation by default.
+ * This object provides optional validation for common formats that can be
+ * enabled when needed.
+ *
+ * Supported formats:
+ *   - date-time: RFC 3339 date-time (e.g., "2024-01-15T10:30:00Z")
+ *   - date: RFC 3339 full-date (e.g., "2024-01-15")
+ *   - time: RFC 3339 full-time (e.g., "10:30:00Z")
+ *   - email: Simplified email validation
+ *   - uuid: RFC 4122 UUID
+ *   - uri: RFC 3986 URI
+ *   - uri-reference: RFC 3986 URI-reference
+ *   - ipv4: IPv4 address
+ *   - ipv6: IPv6 address
+ *   - hostname: RFC 1123 hostname
+ *   - regex: ECMA-262 regular expression
+ */
+object FormatValidator {
+
+  /**
+   * Validates a string against a format specification. Returns None if valid,
+   * Some(error) if invalid.
+   */
+  def validate(format: String, value: String): Option[String] =
+    format match {
+      case "date-time"     => validateDateTime(value)
+      case "date"          => validateDate(value)
+      case "time"          => validateTime(value)
+      case "email"         => validateEmail(value)
+      case "uuid"          => validateUuid(value)
+      case "uri"           => validateUri(value)
+      case "uri-reference" => validateUriReference(value)
+      case "ipv4"          => validateIpv4(value)
+      case "ipv6"          => validateIpv6(value)
+      case "hostname"      => validateHostname(value)
+      case "regex"         => validateRegex(value)
+      case "duration"      => validateDuration(value)
+      case "json-pointer"  => validateJsonPointer(value)
+      case _               => None // Unknown formats pass validation (annotation-only)
+    }
+
+  private val dateTimePattern: Pattern =
+    Pattern.compile(
+      "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})$"
+    )
+
+  private val datePattern: Pattern =
+    Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$")
+
+  private val timePattern: Pattern =
+    Pattern.compile("^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})?$")
+
+  private val emailPattern: Pattern =
+    Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
+
+  private val uuidPattern: Pattern =
+    Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+  private val ipv4Pattern: Pattern =
+    Pattern.compile("^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$")
+
+  private val ipv6Pattern: Pattern =
+    Pattern.compile(
+      "^(" +
+        "([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|" +
+        "([0-9a-fA-F]{1,4}:){1,7}:|" +
+        "([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|" +
+        "([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|" +
+        "([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|" +
+        "([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|" +
+        "([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|" +
+        "[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|" +
+        ":((:[0-9a-fA-F]{1,4}){1,7}|:)|" +
+        "fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]+|" +
+        "::(ffff(:0{1,4})?:)?((25[0-5]|(2[0-4]|1?\\d)?\\d)\\.){3}(25[0-5]|(2[0-4]|1?\\d)?\\d)|" +
+        "([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1?\\d)?\\d)\\.){3}(25[0-5]|(2[0-4]|1?\\d)?\\d)" +
+        ")$"
+    )
+
+  private val hostnamePattern: Pattern =
+    Pattern.compile("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
+
+  private val durationPattern: Pattern =
+    Pattern.compile("^P(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$")
+
+  private val jsonPointerPattern: Pattern =
+    Pattern.compile("^(/([^~/]|~0|~1)*)*$")
+
+  private def validateDateTime(value: String): Option[String] =
+    if (dateTimePattern.matcher(value).matches()) {
+      validateDateTimeSemantics(value)
+    } else {
+      Some(s"String '$value' is not a valid date-time (RFC 3339)")
+    }
+
+  private def validateDateTimeSemantics(value: String): Option[String] = {
+    val datePart = value.substring(0, 10)
+    validateDateSemantics(datePart)
+  }
+
+  private def validateDate(value: String): Option[String] =
+    if (datePattern.matcher(value).matches()) {
+      validateDateSemantics(value)
+    } else {
+      Some(s"String '$value' is not a valid date (RFC 3339)")
+    }
+
+  private def validateDateSemantics(value: String): Option[String] =
+    try {
+      val year  = value.substring(0, 4).toInt
+      val month = value.substring(5, 7).toInt
+      val day   = value.substring(8, 10).toInt
+
+      if (month < 1 || month > 12) {
+        Some(s"Invalid month $month in date '$value'")
+      } else {
+        val maxDays = month match {
+          case 2                           => if (isLeapYear(year)) 29 else 28
+          case 4 | 6 | 9 | 11              => 30
+          case 1 | 3 | 5 | 7 | 8 | 10 | 12 => 31
+          case _                           => 0
+        }
+        if (day < 1 || day > maxDays) {
+          Some(s"Invalid day $day for month $month in date '$value'")
+        } else {
+          None
+        }
+      }
+    } catch {
+      case _: NumberFormatException => Some(s"String '$value' is not a valid date")
+    }
+
+  private def isLeapYear(year: Int): scala.Boolean =
+    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+
+  private def validateTime(value: String): Option[String] =
+    if (timePattern.matcher(value).matches()) {
+      validateTimeSemantics(value)
+    } else {
+      Some(s"String '$value' is not a valid time (RFC 3339)")
+    }
+
+  private def validateTimeSemantics(value: String): Option[String] =
+    try {
+      val hour   = value.substring(0, 2).toInt
+      val minute = value.substring(3, 5).toInt
+      val second = value.substring(6, 8).toInt
+
+      if (hour < 0 || hour > 23) {
+        Some(s"Invalid hour $hour in time '$value'")
+      } else if (minute < 0 || minute > 59) {
+        Some(s"Invalid minute $minute in time '$value'")
+      } else if (second < 0 || second > 60) { // 60 allowed for leap seconds
+        Some(s"Invalid second $second in time '$value'")
+      } else {
+        None
+      }
+    } catch {
+      case _: NumberFormatException => Some(s"String '$value' is not a valid time")
+    }
+
+  private def validateEmail(value: String): Option[String] =
+    if (emailPattern.matcher(value).matches() && value.length <= 254) None
+    else Some(s"String '$value' is not a valid email address")
+
+  private def validateUuid(value: String): Option[String] =
+    if (uuidPattern.matcher(value).matches()) None
+    else Some(s"String '$value' is not a valid UUID (RFC 4122)")
+
+  private def validateUri(value: String): Option[String] =
+    try {
+      val uri = new URI(value)
+      if (uri.getScheme == null) {
+        Some(s"String '$value' is not a valid URI (missing scheme)")
+      } else {
+        None
+      }
+    } catch {
+      case e if NonFatal(e) => Some(s"String '$value' is not a valid URI: ${e.getMessage}")
+    }
+
+  private def validateUriReference(value: String): Option[String] =
+    try {
+      new URI(value)
+      None
+    } catch {
+      case e if NonFatal(e) => Some(s"String '$value' is not a valid URI-reference: ${e.getMessage}")
+    }
+
+  private def validateIpv4(value: String): Option[String] =
+    if (ipv4Pattern.matcher(value).matches()) None
+    else Some(s"String '$value' is not a valid IPv4 address")
+
+  private def validateIpv6(value: String): Option[String] =
+    if (ipv6Pattern.matcher(value).matches()) None
+    else Some(s"String '$value' is not a valid IPv6 address")
+
+  private def validateHostname(value: String): Option[String] =
+    if (hostnamePattern.matcher(value).matches() && value.length <= 253) None
+    else Some(s"String '$value' is not a valid hostname (RFC 1123)")
+
+  private def validateRegex(value: String): Option[String] =
+    try {
+      Pattern.compile(value)
+      None
+    } catch {
+      case e: PatternSyntaxException => Some(s"String '$value' is not a valid regex: ${e.getMessage}")
+    }
+
+  private def validateDuration(value: String): Option[String] =
+    if (durationPattern.matcher(value).matches() && value != "P" && value != "PT") None
+    else Some(s"String '$value' is not a valid ISO 8601 duration")
+
+  private def validateJsonPointer(value: String): Option[String] =
+    if (value.isEmpty || jsonPointerPattern.matcher(value).matches()) None
+    else Some(s"String '$value' is not a valid JSON Pointer (RFC 6901)")
+}
+
+/**
+ * Options for JSON Schema validation behavior.
+ *
+ * @param validateFormats
+ *   When true, the `format` keyword is validated (format assertion vocabulary).
+ *   When false, `format` is treated as an annotation only (default per JSON
+ *   Schema 2020-12).
+ */
+final case class ValidationOptions(validateFormats: scala.Boolean = true)
+
+object ValidationOptions {
+  val default: ValidationOptions         = ValidationOptions()
+  val annotationOnly: ValidationOptions  = ValidationOptions(validateFormats = false)
+  val formatAssertion: ValidationOptions = ValidationOptions(validateFormats = true)
+}
+
+// =============================================================================
 // JSON Primitive Type Enumeration
 // =============================================================================
 
@@ -215,8 +456,25 @@ sealed trait JsonSchema extends Product with Serializable {
    */
   def check(json: Json): Option[SchemaError]
 
+  /**
+   * Validate a JSON value against this schema with custom options.
+   *
+   * @param json
+   *   The JSON value to validate
+   * @param options
+   *   Validation options controlling behavior like format validation
+   * @return
+   *   None if valid, Some(error) with accumulated failures if invalid.
+   */
+  def check(json: Json, @scala.annotation.unused options: ValidationOptions): Option[SchemaError] = check(json)
+
   /** Returns true if the JSON value conforms to this schema. */
   def conforms(json: Json): scala.Boolean = check(json).isEmpty
+
+  /**
+   * Returns true if the JSON value conforms to this schema with custom options.
+   */
+  def conforms(json: Json, options: ValidationOptions): scala.Boolean = check(json, options).isEmpty
 
   // ===========================================================================
   // Combinators
@@ -560,7 +818,9 @@ object JsonSchema {
       Json.Object(fields.result())
     }
 
-    override def check(json: Json): Option[SchemaError] = {
+    override def check(json: Json): Option[SchemaError] = check(json, ValidationOptions.default)
+
+    override def check(json: Json, options: ValidationOptions): Option[SchemaError] = {
       var errors: List[SchemaError.Single] = Nil
 
       def addError(trace: List[DynamicOptic.Node], message: String): Unit =
@@ -573,7 +833,7 @@ object JsonSchema {
             val defName = refUri.value.substring(8)
             $defs.flatMap(_.get(defName)) match {
               case Some(refSchema) =>
-                refSchema.check(j).foreach(e => errors = e.errors.toList ++ errors)
+                refSchema.check(j, options).foreach(e => errors = e.errors.toList ++ errors)
               case None =>
                 addError(trace, s"Cannot resolve $$ref: ${refUri.value}")
             }
@@ -659,6 +919,13 @@ object JsonSchema {
                 case Left(_) => () // Invalid pattern - skip validation
               }
             }
+            format.foreach { fmt =>
+              if (options.validateFormats) {
+                FormatValidator.validate(fmt, s.value).foreach { err =>
+                  addError(trace, err)
+                }
+              }
+            }
           case _ => ()
         }
 
@@ -681,7 +948,7 @@ object JsonSchema {
             prefixItems.foreach { schemas =>
               schemas.zipWithIndex.foreach { case (schema, idx) =>
                 if (idx < a.value.length) {
-                  schema.check(a.value(idx)).foreach(e => errors = e.errors.toList ++ errors)
+                  schema.check(a.value(idx), options).foreach(e => errors = e.errors.toList ++ errors)
                 }
               }
             }
@@ -689,13 +956,13 @@ object JsonSchema {
             items.foreach { itemSchema =>
               val startIdx = prefixItems.map(_.length).getOrElse(0)
               a.value.zipWithIndex.drop(startIdx).foreach { case (item, _) =>
-                itemSchema.check(item).foreach(e => errors = e.errors.toList ++ errors)
+                itemSchema.check(item, options).foreach(e => errors = e.errors.toList ++ errors)
               }
             }
 
             // Validate contains
             contains.foreach { containsSchema =>
-              val matchCount = a.value.count(item => containsSchema.check(item).isEmpty)
+              val matchCount = a.value.count(item => containsSchema.check(item, options).isEmpty)
               val minC       = minContains.map(_.value).getOrElse(1)
               val maxC       = maxContains.map(_.value)
 
@@ -742,7 +1009,7 @@ object JsonSchema {
             // Property names validation
             propertyNames.foreach { nameSchema =>
               fieldKeys.foreach { key =>
-                nameSchema.check(Json.String(key)).foreach { e =>
+                nameSchema.check(Json.String(key), options).foreach { e =>
                   addError(trace, s"Property name '$key' does not match propertyNames schema: ${e.message}")
                 }
               }
@@ -755,7 +1022,7 @@ object JsonSchema {
               props.foreach { case (propName, propSchema) =>
                 fieldMap.get(propName).foreach { propValue =>
                   evaluatedProps += propName
-                  propSchema.check(propValue).foreach(e => errors = e.errors.toList ++ errors)
+                  propSchema.check(propValue, options).foreach(e => errors = e.errors.toList ++ errors)
                 }
               }
             }
@@ -767,7 +1034,7 @@ object JsonSchema {
                     if (regex.matcher(key).find()) {
                       evaluatedProps += key
                       fieldMap.get(key).foreach { propValue =>
-                        propSchema.check(propValue).foreach(e => errors = e.errors.toList ++ errors)
+                        propSchema.check(propValue, options).foreach(e => errors = e.errors.toList ++ errors)
                       }
                     }
                   }
@@ -780,7 +1047,7 @@ object JsonSchema {
                 properties.map(_.keySet).getOrElse(Set.empty)
               additionalKeys.foreach { key =>
                 fieldMap.get(key).foreach { propValue =>
-                  addlSchema.check(propValue).foreach(e => errors = e.errors.toList ++ errors)
+                  addlSchema.check(propValue, options).foreach(e => errors = e.errors.toList ++ errors)
                 }
               }
             }
@@ -802,7 +1069,7 @@ object JsonSchema {
             dependentSchemas.foreach { deps =>
               deps.foreach { case (propName, depSchema) =>
                 if (fieldKeys.contains(propName)) {
-                  depSchema.check(obj).foreach(e => errors = e.errors.toList ++ errors)
+                  depSchema.check(obj, options).foreach(e => errors = e.errors.toList ++ errors)
                 }
               }
             }
@@ -813,19 +1080,19 @@ object JsonSchema {
         // Composition validations
         allOf.foreach { schemas =>
           schemas.foreach { schema =>
-            schema.check(j).foreach(e => errors = e.errors.toList ++ errors)
+            schema.check(j, options).foreach(e => errors = e.errors.toList ++ errors)
           }
         }
 
         anyOf.foreach { schemas =>
-          val anyValid = schemas.exists(_.check(j).isEmpty)
+          val anyValid = schemas.exists(_.check(j, options).isEmpty)
           if (!anyValid) {
             addError(trace, "Value does not match any schema in anyOf")
           }
         }
 
         oneOf.foreach { schemas =>
-          val validCount = schemas.count(_.check(j).isEmpty)
+          val validCount = schemas.count(_.check(j, options).isEmpty)
           if (validCount == 0) {
             addError(trace, "Value does not match any schema in oneOf")
           } else if (validCount > 1) {
@@ -834,21 +1101,21 @@ object JsonSchema {
         }
 
         not.foreach { notSchema =>
-          if (notSchema.check(j).isEmpty) {
+          if (notSchema.check(j, options).isEmpty) {
             addError(trace, "Value should not match the 'not' schema")
           }
         }
 
         // Conditional validation (if/then/else)
         `if`.foreach { ifSchema =>
-          val ifValid = ifSchema.check(j).isEmpty
+          val ifValid = ifSchema.check(j, options).isEmpty
           if (ifValid) {
             `then`.foreach { thenSchema =>
-              thenSchema.check(j).foreach(e => errors = e.errors.toList ++ errors)
+              thenSchema.check(j, options).foreach(e => errors = e.errors.toList ++ errors)
             }
           } else {
             `else`.foreach { elseSchema =>
-              elseSchema.check(j).foreach(e => errors = e.errors.toList ++ errors)
+              elseSchema.check(j, options).foreach(e => errors = e.errors.toList ++ errors)
             }
           }
         }

@@ -481,6 +481,211 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         val result = Schema.json.fromDynamicValue(dv)
         assertTrue(result == Right(json))
       }
+    ),
+    suite("Format validation")(
+      test("date-time format validates RFC 3339 date-times") {
+        val schema = JsonSchema.string(format = Some("date-time"))
+        assertTrue(
+          schema.conforms(Json.str("2024-01-15T10:30:00Z")),
+          schema.conforms(Json.str("2024-01-15T10:30:00+05:00")),
+          schema.conforms(Json.str("2024-01-15T10:30:00.123Z")),
+          !schema.conforms(Json.str("2024-01-15")),
+          !schema.conforms(Json.str("not-a-date-time")),
+          !schema.conforms(Json.str("2024-13-15T10:30:00Z")),
+          !schema.conforms(Json.str("2024-02-30T10:30:00Z"))
+        )
+      },
+      test("date format validates RFC 3339 dates") {
+        val schema = JsonSchema.string(format = Some("date"))
+        assertTrue(
+          schema.conforms(Json.str("2024-01-15")),
+          schema.conforms(Json.str("2024-02-29")),
+          !schema.conforms(Json.str("2023-02-29")),
+          !schema.conforms(Json.str("2024-13-01")),
+          !schema.conforms(Json.str("not-a-date"))
+        )
+      },
+      test("time format validates RFC 3339 times") {
+        val schema = JsonSchema.string(format = Some("time"))
+        assertTrue(
+          schema.conforms(Json.str("10:30:00Z")),
+          schema.conforms(Json.str("10:30:00+05:00")),
+          schema.conforms(Json.str("10:30:00.123Z")),
+          !schema.conforms(Json.str("25:00:00Z")),
+          !schema.conforms(Json.str("10:60:00Z")),
+          !schema.conforms(Json.str("not-a-time"))
+        )
+      },
+      test("email format validates email addresses") {
+        val schema = JsonSchema.string(format = Some("email"))
+        assertTrue(
+          schema.conforms(Json.str("user@example.com")),
+          schema.conforms(Json.str("user.name@sub.domain.org")),
+          !schema.conforms(Json.str("not-an-email")),
+          !schema.conforms(Json.str("@missing-local.com")),
+          !schema.conforms(Json.str("missing-at.com"))
+        )
+      },
+      test("uuid format validates RFC 4122 UUIDs") {
+        val schema = JsonSchema.string(format = Some("uuid"))
+        assertTrue(
+          schema.conforms(Json.str("550e8400-e29b-41d4-a716-446655440000")),
+          schema.conforms(Json.str("550E8400-E29B-41D4-A716-446655440000")),
+          !schema.conforms(Json.str("not-a-uuid")),
+          !schema.conforms(Json.str("550e8400-e29b-41d4-a716")),
+          !schema.conforms(Json.str("550e8400e29b41d4a716446655440000"))
+        )
+      },
+      test("uri format validates URIs with scheme") {
+        val schema = JsonSchema.string(format = Some("uri"))
+        assertTrue(
+          schema.conforms(Json.str("https://example.com")),
+          schema.conforms(Json.str("http://localhost:8080/path?query=value")),
+          schema.conforms(Json.str("mailto:user@example.com")),
+          !schema.conforms(Json.str("/relative/path")),
+          !schema.conforms(Json.str("example.com"))
+        )
+      },
+      test("uri-reference format validates URIs and relative references") {
+        val schema = JsonSchema.string(format = Some("uri-reference"))
+        assertTrue(
+          schema.conforms(Json.str("https://example.com")),
+          schema.conforms(Json.str("/relative/path")),
+          schema.conforms(Json.str("../parent")),
+          schema.conforms(Json.str("#anchor"))
+        )
+      },
+      test("ipv4 format validates IPv4 addresses") {
+        val schema = JsonSchema.string(format = Some("ipv4"))
+        assertTrue(
+          schema.conforms(Json.str("192.168.1.1")),
+          schema.conforms(Json.str("0.0.0.0")),
+          schema.conforms(Json.str("255.255.255.255")),
+          !schema.conforms(Json.str("256.1.1.1")),
+          !schema.conforms(Json.str("192.168.1")),
+          !schema.conforms(Json.str("not-an-ip"))
+        )
+      },
+      test("ipv6 format validates IPv6 addresses") {
+        val schema = JsonSchema.string(format = Some("ipv6"))
+        assertTrue(
+          schema.conforms(Json.str("2001:0db8:85a3:0000:0000:8a2e:0370:7334")),
+          schema.conforms(Json.str("2001:db8:85a3::8a2e:370:7334")),
+          schema.conforms(Json.str("::1")),
+          schema.conforms(Json.str("::")),
+          !schema.conforms(Json.str("not-an-ipv6")),
+          !schema.conforms(Json.str("192.168.1.1"))
+        )
+      },
+      test("hostname format validates RFC 1123 hostnames") {
+        val schema = JsonSchema.string(format = Some("hostname"))
+        assertTrue(
+          schema.conforms(Json.str("example.com")),
+          schema.conforms(Json.str("sub.example.com")),
+          schema.conforms(Json.str("localhost")),
+          !schema.conforms(Json.str("-invalid.com")),
+          !schema.conforms(Json.str("invalid-.com"))
+        )
+      },
+      test("regex format validates ECMA-262 regular expressions") {
+        val schema = JsonSchema.string(format = Some("regex"))
+        assertTrue(
+          schema.conforms(Json.str("^[a-z]+$")),
+          schema.conforms(Json.str("\\d{3}-\\d{4}")),
+          !schema.conforms(Json.str("[invalid"))
+        )
+      },
+      test("duration format validates ISO 8601 durations") {
+        val schema = JsonSchema.string(format = Some("duration"))
+        assertTrue(
+          schema.conforms(Json.str("P1Y")),
+          schema.conforms(Json.str("P1M")),
+          schema.conforms(Json.str("P1D")),
+          schema.conforms(Json.str("PT1H")),
+          schema.conforms(Json.str("PT1M")),
+          schema.conforms(Json.str("PT1S")),
+          schema.conforms(Json.str("P1Y2M3DT4H5M6S")),
+          !schema.conforms(Json.str("P")),
+          !schema.conforms(Json.str("PT")),
+          !schema.conforms(Json.str("not-a-duration"))
+        )
+      },
+      test("json-pointer format validates RFC 6901 JSON Pointers") {
+        val schema = JsonSchema.string(format = Some("json-pointer"))
+        assertTrue(
+          schema.conforms(Json.str("")),
+          schema.conforms(Json.str("/foo")),
+          schema.conforms(Json.str("/foo/bar")),
+          schema.conforms(Json.str("/foo~0bar")),
+          schema.conforms(Json.str("/foo~1bar")),
+          !schema.conforms(Json.str("no-leading-slash"))
+        )
+      },
+      test("unknown formats pass validation (annotation-only)") {
+        val schema = JsonSchema.string(format = Some("custom-unknown-format"))
+        assertTrue(
+          schema.conforms(Json.str("any value")),
+          schema.conforms(Json.str("passes because unknown"))
+        )
+      },
+      test("format validation is skipped with annotationOnly options") {
+        val schema  = JsonSchema.string(format = Some("email"))
+        val options = ValidationOptions.annotationOnly
+        assertTrue(
+          schema.conforms(Json.str("not-an-email"), options),
+          schema.conforms(Json.str("anything"), options)
+        )
+      },
+      test("format validation is enabled with formatAssertion options") {
+        val schema  = JsonSchema.string(format = Some("email"))
+        val options = ValidationOptions.formatAssertion
+        assertTrue(
+          schema.conforms(Json.str("user@example.com"), options),
+          !schema.conforms(Json.str("not-an-email"), options)
+        )
+      },
+      test("format validation propagates through nested schemas") {
+        val schema = JsonSchema.`object`(
+          properties = Some(
+            Map(
+              "email"    -> JsonSchema.string(format = Some("email")),
+              "website"  -> JsonSchema.string(format = Some("uri")),
+              "contacts" -> JsonSchema.array(items = Some(JsonSchema.string(format = Some("email"))))
+            )
+          )
+        )
+        assertTrue(
+          schema.conforms(
+            Json.obj(
+              "email"    -> Json.str("user@example.com"),
+              "website"  -> Json.str("https://example.com"),
+              "contacts" -> Json.arr(Json.str("a@b.com"), Json.str("c@d.org"))
+            )
+          ),
+          !schema.conforms(
+            Json.obj(
+              "email"   -> Json.str("invalid-email"),
+              "website" -> Json.str("https://example.com")
+            )
+          ),
+          !schema.conforms(
+            Json.obj(
+              "email"    -> Json.str("user@example.com"),
+              "contacts" -> Json.arr(Json.str("a@b.com"), Json.str("invalid"))
+            )
+          )
+        )
+      },
+      test("format validation only applies to strings") {
+        val schema = JsonSchema.SchemaObject(format = Some("email"))
+        assertTrue(
+          schema.conforms(Json.number(42)),
+          schema.conforms(Json.bool(true)),
+          schema.conforms(Json.Null),
+          schema.conforms(Json.arr()),
+          schema.conforms(Json.obj())
+        )
+      }
     )
   )
 }
