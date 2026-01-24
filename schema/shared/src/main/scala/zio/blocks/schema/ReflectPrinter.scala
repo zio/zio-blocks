@@ -30,7 +30,7 @@ private[schema] object ReflectPrinter {
       if (typeName.params.isEmpty) {
         typeName.name
       } else {
-        typeName.name + "[" + typeName.params.map(sdlTypeName).mkString(", ") + "]"
+        typeName.name + "[" + typeName.params.map(sdlTypeName(_)).mkString(", ") + "]"
       }
     }
   }
