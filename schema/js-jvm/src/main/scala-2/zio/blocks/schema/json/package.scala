@@ -23,6 +23,24 @@ private object JsonInterpolatorMacros {
         }
       case _ => c.abort(c.enclosingPosition, "Expected StringContext")
     }
+    
+    // Validate arguments - must be stringable or have JsonEncoder
+    args.foreach { argExpr =>
+      val argType = argExpr.actualType
+      val isStringable = isStringableType(c)(argType)
+      val hasEncoder = hasJsonEncoderImplicit(c)(argType)
+      
+      if (!isStringable && !hasEncoder) {
+        val typeName = argType.toString
+        c.error(
+          argExpr.pos,
+          s"Type '$typeName' cannot be interpolated: no JsonEncoder[A] instance found. " +
+          s"Supported in value position: types with JsonEncoder[A] (e.g., types with Schema.derived). " +
+          s"Supported in key/string positions: stringable types only (primitives, temporal types, UUID, Currency)."
+        )
+      }
+    }
+    
     try {
       JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), (2 to parts.size).map(_ => ""))
       val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
@@ -32,4 +50,52 @@ private object JsonInterpolatorMacros {
       case error if NonFatal(error) => c.abort(c.enclosingPosition, s"Invalid JSON literal: ${error.getMessage}")
     }
   }
+
+  private def isStringableType(c: blackbox.Context)(tpe: c.universe.Type): Boolean = {
+    import c.universe._
+    val stringableTypes = Set(
+      typeOf[scala.Unit].typeSymbol.fullName,
+      typeOf[scala.Boolean].typeSymbol.fullName,
+      typeOf[scala.Byte].typeSymbol.fullName,
+      typeOf[scala.Short].typeSymbol.fullName,
+      typeOf[scala.Int].typeSymbol.fullName,
+      typeOf[scala.Long].typeSymbol.fullName,
+      typeOf[scala.Float].typeSymbol.fullName,
+      typeOf[scala.Double].typeSymbol.fullName,
+      typeOf[scala.Char].typeSymbol.fullName,
+      typeOf[scala.Predef.String].typeSymbol.fullName,
+      typeOf[scala.BigInt].typeSymbol.fullName,
+      typeOf[scala.BigDecimal].typeSymbol.fullName,
+      typeOf[java.time.DayOfWeek].typeSymbol.fullName,
+      typeOf[java.time.Duration].typeSymbol.fullName,
+      typeOf[java.time.Instant].typeSymbol.fullName,
+      typeOf[java.time.LocalDate].typeSymbol.fullName,
+      typeOf[java.time.LocalDateTime].typeSymbol.fullName,
+      typeOf[java.time.LocalTime].typeSymbol.fullName,
+      typeOf[java.time.Month].typeSymbol.fullName,
+      typeOf[java.time.MonthDay].typeSymbol.fullName,
+      typeOf[java.time.OffsetDateTime].typeSymbol.fullName,
+      typeOf[java.time.OffsetTime].typeSymbol.fullName,
+      typeOf[java.time.Period].typeSymbol.fullName,
+      typeOf[java.time.Year].typeSymbol.fullName,
+      typeOf[java.time.YearMonth].typeSymbol.fullName,
+      typeOf[java.time.ZoneId].typeSymbol.fullName,
+      typeOf[java.time.ZoneOffset].typeSymbol.fullName,
+      typeOf[java.time.ZonedDateTime].typeSymbol.fullName,
+      typeOf[java.util.UUID].typeSymbol.fullName,
+      typeOf[java.util.Currency].typeSymbol.fullName
+    )
+    stringableTypes.contains(tpe.typeSymbol.fullName)
+  }
+
+  private def hasJsonEncoderImplicit(c: blackbox.Context)(tpe: c.universe.Type): Boolean = {
+    import c.universe._
+    try {
+      val encoderType = appliedType(typeOf[JsonEncoder[_]].typeConstructor, List(tpe))
+      c.inferImplicitValue(encoderType) != EmptyTree
+    } catch {
+      case _ => false
+    }
+  }
 }
+
