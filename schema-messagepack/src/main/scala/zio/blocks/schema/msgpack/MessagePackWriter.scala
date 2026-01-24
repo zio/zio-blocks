@@ -326,5 +326,5 @@ object MessagePackWriter {
     writer
   }
 
-  def fresh(): MessagePackWriter = new MessagePackWriter(new Array[Byte](256), 0)
+  def fresh(): MessagePackWriter = new MessagePackWriter(new Array[Byte](1024), 0)
 }

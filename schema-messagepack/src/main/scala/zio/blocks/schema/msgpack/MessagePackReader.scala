@@ -334,7 +334,7 @@ final class MessagePackReader private (
   }
 
   def decodeError(msg: String): Nothing =
-    throw new MessagePackCodecError(Nil, msg)
+    throw MessagePackCodecError(Nil, msg)
 }
 
 object MessagePackReader {

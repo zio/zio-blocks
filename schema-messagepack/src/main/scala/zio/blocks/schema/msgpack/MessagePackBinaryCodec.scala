@@ -154,14 +154,13 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
   }
 
   protected def decodeError(msg: String): Nothing =
-    throw new MessagePackCodecError(Nil, msg)
+    throw MessagePackCodecError(Nil, msg)
 
   protected def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: MessagePackCodecError =>
-      e.spans = span :: e.spans
-      throw e
+      throw e.copy(spans = span :: e.spans)
     case _ =>
-      throw new MessagePackCodecError(span :: Nil, error.getMessage)
+      throw MessagePackCodecError(span :: Nil, error.getMessage)
   }
 
   private def toError(error: Throwable): SchemaError = new SchemaError(
