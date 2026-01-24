@@ -1,7 +1,6 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema.SchemaBaseSpec
-import zio.blocks.schema._
 import zio.test._
 import zio.test.Assertion.{containsString, isLeft}
 import zio.test.TestAspect.exceptNative
