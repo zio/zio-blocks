@@ -3,6 +3,7 @@ package zio.blocks.schema.bson
 import org.bson.types.ObjectId
 import zio.blocks.schema._
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.TypeId
 
 /**
  * Provides Schema[ObjectId] support for BSON encoding/decoding.
@@ -16,14 +17,13 @@ object ObjectIdSupport {
   /**
    * Schema for org.bson.types.ObjectId.
    *
-   * Manually constructed with typename "ObjectId" so BsonSchemaCodec can detect
-   * it and use zio-bson's native BsonCodec[ObjectId] (encodes as
-   * BsonType.OBJECT_ID).
+   * Manually constructed with typeId so BsonSchemaCodec can detect it and use
+   * zio-bson's native BsonCodec[ObjectId] (encodes as BsonType.OBJECT_ID).
    */
   implicit val objectIdSchema: Schema[ObjectId] = new Schema(
     new Reflect.Wrapper[Binding, ObjectId, String](
       wrapped = Schema.string.reflect,
-      typeName = TypeName(Namespace(List("org", "bson", "types")), "ObjectId"),
+      typeId = TypeId.of[ObjectId],
       wrapperPrimitiveType = None,
       wrapperBinding = new Binding.Wrapper[ObjectId, String](
         wrap = str => Right(new ObjectId(str)),

@@ -17,7 +17,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
   // Recursive data structure - Linked List
   sealed trait LinkedList
   object LinkedList {
-    case object Nil                                       extends LinkedList
+    case object Empty                                     extends LinkedList
     final case class Cons(head: String, tail: LinkedList) extends LinkedList
 
     implicit val schema: Schema[LinkedList] = Schema.derived[LinkedList]
@@ -99,7 +99,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
     ),
     suite("Linked List")(
       test("encode/decode Nil") {
-        val list: LinkedList = LinkedList.Nil
+        val list: LinkedList = LinkedList.Empty
         val codec            = BsonSchemaCodec.bsonCodec(Schema[LinkedList])
 
         val encoded = codec.encoder.toBsonValue(list)
@@ -108,7 +108,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         assertTrue(decoded == list)
       },
       test("encode/decode single element") {
-        val list: LinkedList = LinkedList.Cons("first", LinkedList.Nil)
+        val list: LinkedList = LinkedList.Cons("first", LinkedList.Empty)
         val codec            = BsonSchemaCodec.bsonCodec(Schema[LinkedList])
 
         val encoded = codec.encoder.toBsonValue(list)
@@ -121,7 +121,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
           "first",
           LinkedList.Cons(
             "second",
-            LinkedList.Cons("third", LinkedList.Nil)
+            LinkedList.Cons("third", LinkedList.Empty)
           )
         )
         val codec = BsonSchemaCodec.bsonCodec(Schema[LinkedList])
