@@ -1809,6 +1809,39 @@ object SchemaSpec extends SchemaBaseSpec {
         val dv     = Schema[Int].toDynamicValue(-1)
         val result = positiveSchema.fromDynamicValue(dv)
         assert(result)(isLeft(equalTo(customError)))
+      },
+      test("creates Wrapper reflect") {
+        assertTrue(PosInt.schema.reflect.isWrapper)
+      },
+      test("works with existing PosInt wrapper schema") {
+        val dv = Schema[Int].toDynamicValue(42)
+        assert(PosInt.schema.fromDynamicValue(dv))(isRight(equalTo(PosInt.applyUnsafe(42))))
+      }
+    ),
+    suite("transform")(
+      test("transforms schema with total functions") {
+        case class UserId(value: Long)
+        val userIdSchema: Schema[UserId] = Schema[Long].transform(UserId(_), _.value)
+        val dv                           = Schema[Long].toDynamicValue(42L)
+        assert(userIdSchema.fromDynamicValue(dv))(isRight(equalTo(UserId(42L))))
+      },
+      test("round-trips correctly") {
+        case class UserId(value: Long)
+        val userIdSchema: Schema[UserId] = Schema[Long].transform(UserId(_), _.value)
+        val value                        = UserId(123L)
+        val dv                           = userIdSchema.toDynamicValue(value)
+        assert(userIdSchema.fromDynamicValue(dv))(isRight(equalTo(value)))
+      },
+      test("creates Wrapper reflect") {
+        case class UserId(value: Long)
+        val userIdSchema: Schema[UserId] = Schema[Long].transform(UserId(_), _.value)
+        assertTrue(userIdSchema.reflect.isWrapper)
+      },
+      test("works with String-based wrappers") {
+        assertTrue(Email.schema.reflect.isWrapper) &&
+        assert(Email.schema.fromDynamicValue(Schema[String].toDynamicValue("test@example.com")))(
+          isRight(equalTo(Email("test@example.com")))
+        )
       }
     ),
     test("doesn't generate schema for unsupported classes") {
@@ -1937,14 +1970,18 @@ object SchemaSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
-    val wrapped: Optional[PosInt, Int]  = $(_.wrapped[Int])
+    // Note: AnyVal classes are NOT true opaque types - they get boxed in generic contexts.
+    // Use withTypeName instead of asOpaqueType for AnyVal wrappers.
+    implicit val schema: Schema[PosInt] =
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeName[PosInt]
+    val wrapped: Optional[PosInt, Int] = $(_.wrapped[Int])
   }
 
   case class Email(value: String)
 
   object Email extends CompanionOptics[Email] {
-    implicit val schema: Schema[Email]   = Schema.derived.wrapTotal(x => new Email(x), _.value)
+    implicit val schema: Schema[Email] =
+      Schema[String].transform[Email](x => new Email(x), _.value).withTypeName[Email]
     val wrapped: Optional[Email, String] = $(_.wrapped[String])
   }
 
