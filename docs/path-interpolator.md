@@ -604,6 +604,34 @@ val dynamicPath = p".email"
 
 These limitations ensure compile-time safety and zero runtime overhead.
 
+## Debug-Friendly toString
+
+`DynamicOptic` instances have a custom `toString` that produces output matching the `p"..."` interpolator syntax. This makes debugging easier because you can copy the output directly into your code:
+
+```scala
+val optic = DynamicOptic.root.field("users").elements.field("email")
+println(optic)  // Output: .users[*].email
+
+// The output can be copy-pasted into p"..."
+val same = p".users[*].email"
+```
+
+**Examples:**
+
+| DynamicOptic Construction | toString Output |
+|---------------------------|-----------------|
+| `DynamicOptic.root.field("name")` | `.name` |
+| `DynamicOptic.root.field("address").field("street")` | `.address.street` |
+| `DynamicOptic.root.caseOf("Some")` | `<Some>` |
+| `DynamicOptic.root.at(0)` | `[0]` |
+| `DynamicOptic.root.atIndices(0, 2, 5)` | `[0,2,5]` |
+| `DynamicOptic.elements` | `[*]` |
+| `DynamicOptic.root.atKey("host")` | `{"host"}` |
+| `DynamicOptic.root.atKey(80)` | `{80}` |
+| `DynamicOptic.mapValues` | `{*}` |
+| `DynamicOptic.mapKeys` | `{*:}` |
+| `DynamicOptic.wrapped` | `.~` |
+
 ## Summary
 
 The `p"..."` path interpolator provides:
