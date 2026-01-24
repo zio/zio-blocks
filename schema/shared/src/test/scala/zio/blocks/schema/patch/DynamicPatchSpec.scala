@@ -1484,6 +1484,229 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val result = patch(original)
         assertTrue(result == Right(expected))
       }
+    ),
+    suite("DynamicPatch.toString")(
+      test("renders empty patch") {
+        val patch = DynamicPatch.empty
+        assertTrue(patch.toString == "DynamicPatch {}")
+      },
+      test("renders Set operation") {
+        val patch    = DynamicPatch.root(DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        val expected = "DynamicPatch {\n  . = 42\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders numeric delta with += operator") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("age"),
+              DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .age += 5\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders negative delta") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("count"),
+              DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(-3))
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .count += -3\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders sequence append") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("items"),
+              DynamicPatch.Operation.SequenceEdit(
+                Vector(DynamicPatch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(99)))))
+              )
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .items + 99\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders sequence insert with index") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("items"),
+              DynamicPatch.Operation.SequenceEdit(
+                Vector(DynamicPatch.SeqOp.Insert(0, Vector(DynamicValue.Primitive(PrimitiveValue.Int(42)))))
+              )
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .items + [0: 42]\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders sequence delete") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("items"),
+              DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Delete(0, 1)))
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .items - [0]\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders sequence modify with set") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("items"),
+              DynamicPatch.Operation.SequenceEdit(
+                Vector(
+                  DynamicPatch.SeqOp
+                    .Modify(2, DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(100))))
+                )
+              )
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .items[2] = 100\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders map add") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("data"),
+              DynamicPatch.Operation.MapEdit(
+                Vector(
+                  DynamicPatch.MapOp.Add(
+                    DynamicValue.Primitive(PrimitiveValue.String("key1")),
+                    DynamicValue.Primitive(PrimitiveValue.Int(42))
+                  )
+                )
+              )
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .data + {\"key1\": 42}\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders map remove") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("data"),
+              DynamicPatch.Operation
+                .MapEdit(Vector(DynamicPatch.MapOp.Remove(DynamicValue.Primitive(PrimitiveValue.String("oldKey")))))
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .data - {\"oldKey\"}\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders map modify") {
+        val nested = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("value"),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(100)))
+            )
+          )
+        )
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("data"),
+              DynamicPatch.Operation.MapEdit(
+                Vector(DynamicPatch.MapOp.Modify(DynamicValue.Primitive(PrimitiveValue.String("key1")), nested))
+              )
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .data{\"key1\"} {\n    .value = 100\n  }\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders string edit with insert") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("name"),
+              DynamicPatch.Operation.PrimitiveDelta(
+                DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Insert(0, "prefix")))
+              )
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .name string-edit(insert(0, \"prefix\"))\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders string edit with multiple operations") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("text"),
+              DynamicPatch.Operation.PrimitiveDelta(
+                DynamicPatch.PrimitiveOp.StringEdit(
+                  Vector(
+                    DynamicPatch.StringOp.Delete(0, 3),
+                    DynamicPatch.StringOp.Append("suffix"),
+                    DynamicPatch.StringOp.Modify(5, 2, "XX")
+                  )
+                )
+              )
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .text string-edit(delete(0, 3), append(\"suffix\"), modify(5, 2, \"XX\"))\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders long delta") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("bigNum"),
+              DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(9876543210L))
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .bigNum += 9876543210\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders double delta") {
+        val patch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("price"),
+              DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(3.14))
+            )
+          )
+        )
+        val expected = "DynamicPatch {\n  .price += 3.14\n}"
+        assertTrue(patch.toString == expected)
+      },
+      test("renders nested patch") {
+        val nested = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("x"),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(10)))
+            ),
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("y"),
+              DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(20)))
+            )
+          )
+        )
+        val patch = DynamicPatch(
+          Vector(DynamicPatch.DynamicPatchOp(DynamicOptic.root.field("point"), DynamicPatch.Operation.Patch(nested)))
+        )
+        val expected = "DynamicPatch {\n  .point {\n    .x = 10\n    .y = 20\n  }\n}"
+        assertTrue(patch.toString == expected)
+      }
     )
   )
 }

@@ -3258,6 +3258,97 @@ object OpticSpec extends SchemaBaseSpec {
           )
         )
       }
+    ),
+    suite("Optic.toString")(
+      test("Lens renders path style") {
+        case class Person(name: String, age: Int)
+        object Person extends CompanionOptics[Person] {
+          implicit val schema: Schema[Person] = Schema.derived
+          val name: Lens[Person, String]      = $(_.name)
+        }
+        val lens = Person.name
+        assertTrue(lens.toString == "Lens(_.name)")
+      },
+      test("Lens renders nested path") {
+        case class Address(street: String, city: String)
+        object Address extends CompanionOptics[Address] {
+          implicit val schema: Schema[Address] = Schema.derived
+        }
+        case class Company(name: String, address: Address)
+        object Company extends CompanionOptics[Company] {
+          implicit val schema: Schema[Company] = Schema.derived
+          val street: Lens[Company, String]    = $(_.address.street)
+        }
+        val lens = Company.street
+        assertTrue(lens.toString == "Lens(_.address.street)")
+      },
+      test("Prism renders when[] style") {
+        val prism = Variant1.c1
+        assertTrue(prism.toString == "Prism(_.when[Case1])")
+      },
+      test("Optional combines lens and prism styles") {
+        val optional = Variant1.c1_d
+        val str      = optional.toString
+        assertTrue(str.startsWith("Optional(_"), str.contains(".when[Case1]"), str.contains(".d"))
+      },
+      test("Traversal renders .each for sequences") {
+        case class Container(items: List[Int])
+        object Container extends CompanionOptics[Container] {
+          implicit val schema: Schema[Container] = Schema.derived
+          val items: Lens[Container, List[Int]]  = $(_.items)
+          val each: Traversal[Container, Int]    = $(_.items.each)
+        }
+        val traversal = Container.each
+        assertTrue(traversal.toString.contains(".each"))
+      },
+      test("Optional renders .atKey with actual key value") {
+        object Test extends CompanionOptics[Map[Int, Long]] {
+          val atKey42: Optional[Map[Int, Long], Long] = optic[Long](_.atKey(42))
+        }
+        assertTrue(Test.atKey42.toString == "Optional(_.atKey(42))")
+      },
+      test("Optional renders .atKey with string key quoted") {
+        object Test extends CompanionOptics[Map[String, Int]] {
+          val atKeyStr: Optional[Map[String, Int], Int] = optic[Int](_.atKey("myKey"))
+        }
+        assertTrue(Test.atKeyStr.toString == "Optional(_.atKey(\"myKey\"))")
+      },
+      test("Traversal renders .atKeys with actual key values") {
+        object Test extends CompanionOptics[Map[Int, Long]] {
+          val atKeys123: Traversal[Map[Int, Long], Long] = $(_.atKeys(1, 2, 3))
+        }
+        assertTrue(Test.atKeys123.toString == "Traversal(_.atKeys(1, 2, 3))")
+      },
+      test("Traversal renders .atKeys with string keys quoted") {
+        object Test extends CompanionOptics[Map[String, Int]] {
+          val atKeysAB: Traversal[Map[String, Int], Int] = $(_.atKeys("a", "b"))
+        }
+        assertTrue(Test.atKeysAB.toString == "Traversal(_.atKeys(\"a\", \"b\"))")
+      },
+      test("Optional renders [index] for at") {
+        object Test extends CompanionOptics[List[Int]] {
+          val at2: Optional[List[Int], Int] = optic[Int](_.at(2))
+        }
+        assertTrue(Test.at2.toString == "Optional(_[2])")
+      },
+      test("Traversal renders .eachKey for map keys") {
+        object Test extends CompanionOptics[Map[String, Int]] {
+          val keys: Traversal[Map[String, Int], String] = $(_.eachKey)
+        }
+        assertTrue(Test.keys.toString == "Traversal(_.eachKey)")
+      },
+      test("Traversal renders .eachValue for map values") {
+        object Test extends CompanionOptics[Map[String, Int]] {
+          val values: Traversal[Map[String, Int], Int] = $(_.eachValue)
+        }
+        assertTrue(Test.values.toString == "Traversal(_.eachValue)")
+      },
+      test("Traversal renders [indices] for atIndices") {
+        object Test extends CompanionOptics[List[Int]] {
+          val at123: Traversal[List[Int], Int] = $(_.atIndices(1, 2, 3))
+        }
+        assertTrue(Test.at123.toString == "Traversal(_[1,2,3])")
+      }
     )
   )
 

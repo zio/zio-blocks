@@ -1895,7 +1895,23 @@ object SchemaSpec extends SchemaBaseSpec {
           )
         )
       )
-    }
+    },
+    suite("Schema.toString")(
+      test("wraps Reflect output with Schema prefix - multi-line for records") {
+        case class Person(name: String, age: Int)
+        object Person {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+        val schema = Schema[Person]
+        val str    = schema.toString
+        assertTrue(str.startsWith("Schema {\n"), str.endsWith("\n}"), str.contains("  record Person"))
+      },
+      test("wraps Reflect output on single line for simple types") {
+        val schema = Schema[Int]
+        val str    = schema.toString
+        assertTrue(str == "Schema { Int }")
+      }
+    )
   )
 
   private[this] def hasError(message: String): Assertion[SchemaError] =

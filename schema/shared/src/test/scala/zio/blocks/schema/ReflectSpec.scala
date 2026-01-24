@@ -837,6 +837,249 @@ object ReflectSpec extends SchemaBaseSpec {
         assert(deferred1.isWrapper)(equalTo(false)) &&
         assert(deferred1.typeName)(equalTo(null))
       }
+    ),
+    suite("TypeName.toString")(
+      test("renders simple types") {
+        val tn = TypeName(Namespace(List("scala")), "Int")
+        assertTrue(tn.toString == "scala.Int")
+      },
+      test("renders generic types with type parameters") {
+        val inner = TypeName(Namespace(List("scala")), "Int")
+        val tn    = TypeName(Namespace(List("scala")), "Option", Vector(inner))
+        assertTrue(tn.toString == "scala.Option[scala.Int]")
+      },
+      test("renders nested generic types") {
+        val int    = TypeName(Namespace(List("scala")), "Int")
+        val string = TypeName(Namespace(List("scala")), "String")
+        val map    = TypeName(Namespace(List("scala", "collection", "immutable")), "Map", Vector(string, int))
+        assertTrue(map.toString == "scala.collection.immutable.Map[scala.String, scala.Int]")
+      },
+      test("renders types with empty namespace") {
+        val tn = TypeName(Namespace(Nil), "MyType")
+        assertTrue(tn.toString == "MyType")
+      },
+      test("renders deeply nested generics") {
+        val int    = TypeName(Namespace(List("scala")), "Int")
+        val list   = TypeName(Namespace(List("scala")), "List", Vector(int))
+        val option = TypeName(Namespace(List("scala")), "Option", Vector(list))
+        assertTrue(option.toString == "scala.Option[scala.List[scala.Int]]")
+      }
+    ),
+    suite("Reflect.toString (SDL-style)")(
+      test("renders scala primitive types with short name") {
+        assertTrue(
+          Reflect.int[Binding].toString == "Int",
+          Reflect.string[Binding].toString == "String",
+          Reflect.boolean[Binding].toString == "Boolean"
+        )
+      },
+      test("renders all scala primitive types") {
+        assertTrue(
+          Reflect.byte[Binding].toString == "Byte",
+          Reflect.short[Binding].toString == "Short",
+          Reflect.long[Binding].toString == "Long",
+          Reflect.float[Binding].toString == "Float",
+          Reflect.double[Binding].toString == "Double",
+          Reflect.char[Binding].toString == "Char",
+          Reflect.bigInt[Binding].toString == "BigInt",
+          Reflect.bigDecimal[Binding].toString == "BigDecimal",
+          Reflect.unit[Binding].toString == "Unit"
+        )
+      },
+      test("renders java types with fully qualified name") {
+        assertTrue(
+          Reflect.instant[Binding].toString == "java.time.Instant",
+          Reflect.uuid[Binding].toString == "java.util.UUID",
+          Reflect.duration[Binding].toString == "java.time.Duration"
+        )
+      },
+      test("renders all java time types") {
+        assertTrue(
+          Reflect.localDate[Binding].toString == "java.time.LocalDate",
+          Reflect.localTime[Binding].toString == "java.time.LocalTime",
+          Reflect.localDateTime[Binding].toString == "java.time.LocalDateTime",
+          Reflect.offsetTime[Binding].toString == "java.time.OffsetTime",
+          Reflect.offsetDateTime[Binding].toString == "java.time.OffsetDateTime",
+          Reflect.zonedDateTime[Binding].toString == "java.time.ZonedDateTime",
+          Reflect.dayOfWeek[Binding].toString == "java.time.DayOfWeek",
+          Reflect.month[Binding].toString == "java.time.Month",
+          Reflect.monthDay[Binding].toString == "java.time.MonthDay",
+          Reflect.year[Binding].toString == "java.time.Year",
+          Reflect.yearMonth[Binding].toString == "java.time.YearMonth",
+          Reflect.zoneId[Binding].toString == "java.time.ZoneId",
+          Reflect.zoneOffset[Binding].toString == "java.time.ZoneOffset",
+          Reflect.period[Binding].toString == "java.time.Period",
+          Reflect.currency[Binding].toString == "java.util.Currency"
+        )
+      },
+      test("renders record with fields") {
+        case class Person(name: String, age: Int)
+        object Person {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+        val reflect = Schema[Person].reflect
+        val str     = reflect.toString
+        assertTrue(str.contains("record Person"), str.contains("name: String"), str.contains("age: Int"))
+      },
+      test("renders empty record") {
+        case class Empty()
+        object Empty {
+          implicit val schema: Schema[Empty] = Schema.derived
+        }
+        val reflect = Schema[Empty].reflect
+        val str     = reflect.toString
+        assertTrue(str.contains("record Empty {}"))
+      },
+      test("renders nested records") {
+        case class Address(street: String, city: String)
+        object Address {
+          implicit val schema: Schema[Address] = Schema.derived
+        }
+        case class Company(name: String, address: Address)
+        object Company {
+          implicit val schema: Schema[Company] = Schema.derived
+        }
+        val reflect = Schema[Company].reflect
+        val str     = reflect.toString
+        assertTrue(str.contains("record Company"), str.contains("address:"), str.contains("record Address"))
+      },
+      test("renders variant types") {
+        val reflect  = Schema[ToStringShape].reflect
+        val str      = reflect.toString
+        val expected = """variant zio.blocks.schema.ReflectSpec.ToStringShape {
+                         |  | ToStringCircle(radius: Double)
+                         |  | ToStringRectangle(
+                         |      width: Int,
+                         |      height: Int
+                         |    )
+                         |}""".stripMargin
+        assertTrue(str == expected)
+      },
+      test("renders variant with case objects") {
+        sealed trait Color
+        case object Red   extends Color
+        case object Green extends Color
+        case object Blue  extends Color
+        object Color {
+          implicit val schema: Schema[Color] = Schema.derived
+        }
+        val reflect  = Schema[Color].reflect
+        val str      = reflect.toString
+        val expected = """variant zio.blocks.schema.ReflectSpec.spec.Color {
+                         |  | Red
+                         |  | Green
+                         |  | Blue
+                         |}""".stripMargin
+        assertTrue(str == expected)
+      },
+      test("renders variant with single-field case") {
+        val reflect  = Schema[ToStringResult].reflect
+        val str      = reflect.toString
+        val expected = """variant zio.blocks.schema.ReflectSpec.ToStringResult {
+                         |  | ToStringSuccess(value: Int)
+                         |  | ToStringFailure(error: String)
+                         |}""".stripMargin
+        assertTrue(str == expected)
+      },
+      test("renders variant with multi-field case") {
+        val reflect  = Schema[ToStringEvent].reflect
+        val str      = reflect.toString
+        val expected = """variant zio.blocks.schema.ReflectSpec.ToStringEvent {
+                         |  | ToStringClick(
+                         |      x: Int,
+                         |      y: Int,
+                         |      button: String
+                         |    )
+                         |}""".stripMargin
+        assertTrue(str == expected)
+      },
+      test("renders sequence types") {
+        val reflect = Schema[List[Int]].reflect
+        val str     = reflect.toString
+        assertTrue(str == "sequence List[Int]")
+      },
+      test("renders sequence with complex element type") {
+        case class Item(id: Int, name: String)
+        object Item {
+          implicit val schema: Schema[Item] = Schema.derived
+        }
+        val reflect  = Schema[List[Item]].reflect
+        val str      = reflect.toString
+        val expected = """sequence List[
+                         |  record Item {
+                         |    id: Int
+                         |    name: String
+                         |  }
+                         |]""".stripMargin
+        assertTrue(str == expected)
+      },
+      test("renders map types") {
+        val reflect = Schema[Map[String, Int]].reflect
+        val str     = reflect.toString
+        assertTrue(str == "map Map[String, Int]")
+      },
+      test("renders map with complex value type") {
+        case class Data(value: Double)
+        object Data {
+          implicit val schema: Schema[Data] = Schema.derived
+        }
+        val reflect  = Schema[Map[String, Data]].reflect
+        val str      = reflect.toString
+        val expected = """map Map[
+                         |  String,
+                         |  record Data {
+                         |    value: Double
+                         |  }
+                         |]""".stripMargin
+        assertTrue(str == expected)
+      },
+      test("renders wrapper type") {
+        val str = wrapperReflect.toString
+        assertTrue(str == "wrapper Wrapper(Long)")
+      },
+      test("renders DynamicValue type") {
+        val reflect = Reflect.dynamic[Binding]
+        val str     = reflect.toString
+        assertTrue(str == "DynamicValue")
+      },
+      test("renders deferred type by expanding wrapped reflect") {
+        val deferred = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        val str      = deferred.toString
+        assertTrue(str == "Int")
+      },
+      test("renders circular reference as deferred to prevent infinite recursion") {
+        case class Node(value: Int, next: Option[Node])
+        object Node {
+          implicit lazy val schema: Schema[Node] = Schema.derived
+        }
+        val str = Schema[Node].reflect.toString
+        assertTrue(str.contains("deferred =>"))
+      }
+    ),
+    suite("Term.toString")(
+      test("renders term with name and type") {
+        case class Person(name: String, age: Int)
+        object Person {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+        val reflect = Schema[Person].reflect.asInstanceOf[Reflect.Record[Binding, Person]]
+        val term    = reflect.fields(0)
+        assertTrue(term.toString == "name: String")
+      },
+      test("renders term with nested record type") {
+        case class Address(street: String, city: String)
+        object Address {
+          implicit val schema: Schema[Address] = Schema.derived
+        }
+        case class Company(name: String, address: Address)
+        object Company {
+          implicit val schema: Schema[Company] = Schema.derived
+        }
+        val reflect = Schema[Company].reflect.asInstanceOf[Reflect.Record[Binding, Company]]
+        val term    = reflect.fields(1)
+        val str     = term.toString
+        assertTrue(str.startsWith("address: record Address"))
+      }
     )
   )
 
@@ -855,4 +1098,24 @@ object ReflectSpec extends SchemaBaseSpec {
   )
 
   case class Wrapper(value: Long) extends AnyVal
+
+  sealed trait ToStringShape
+  case class ToStringCircle(radius: Double)             extends ToStringShape
+  case class ToStringRectangle(width: Int, height: Int) extends ToStringShape
+  object ToStringShape {
+    implicit val schema: Schema[ToStringShape] = Schema.derived
+  }
+
+  sealed trait ToStringResult
+  case class ToStringSuccess(value: Int)    extends ToStringResult
+  case class ToStringFailure(error: String) extends ToStringResult
+  object ToStringResult {
+    implicit val schema: Schema[ToStringResult] = Schema.derived
+  }
+
+  sealed trait ToStringEvent
+  case class ToStringClick(x: Int, y: Int, button: String) extends ToStringEvent
+  object ToStringEvent {
+    implicit val schema: Schema[ToStringEvent] = Schema.derived
+  }
 }

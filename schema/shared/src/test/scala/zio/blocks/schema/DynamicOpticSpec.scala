@@ -89,7 +89,146 @@ object DynamicOpticSpec extends SchemaBaseSpec {
         equalTo("[0,1,2]{\"X\",\"Y\",\"Z\"}")
       ) &&
       assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo("[*]{*:}{*}.~"))
-    }
+    },
+    suite("DynamicOptic.toString (path interpolator syntax)")(
+      test("renders root as dot") {
+        assert(DynamicOptic.root.toString)(equalTo("."))
+      },
+      test("renders field access") {
+        val optic = DynamicOptic.root.field("name")
+        assert(optic.toString)(equalTo(".name"))
+      },
+      test("renders multiple field accesses") {
+        val optic = DynamicOptic.root.field("address").field("street")
+        assert(optic.toString)(equalTo(".address.street"))
+      },
+      test("renders case selection with angle brackets") {
+        val optic = DynamicOptic.root.caseOf("Some")
+        assert(optic.toString)(equalTo("<Some>"))
+      },
+      test("renders case followed by field") {
+        val optic = DynamicOptic.root.caseOf("Some").field("value")
+        assert(optic.toString)(equalTo("<Some>.value"))
+      },
+      test("renders index access with brackets") {
+        val optic = DynamicOptic.root.at(0)
+        assert(optic.toString)(equalTo("[0]"))
+      },
+      test("renders negative index") {
+        val optic = DynamicOptic.root.at(-1)
+        assert(optic.toString)(equalTo("[-1]"))
+      },
+      test("renders large index") {
+        val optic = DynamicOptic.root.at(999)
+        assert(optic.toString)(equalTo("[999]"))
+      },
+      test("renders atKey with braces and quoted key") {
+        val optic = DynamicOptic.root.atKey("myKey")
+        assert(optic.toString)(equalTo("{\"myKey\"}"))
+      },
+      test("renders atIndices with comma-separated indices") {
+        val optic = DynamicOptic.root.atIndices(0, 1, 2)
+        assert(optic.toString)(equalTo("[0,1,2]"))
+      },
+      test("renders atIndices with single index") {
+        val optic = DynamicOptic.root.atIndices(5)
+        assert(optic.toString)(equalTo("[5]"))
+      },
+      test("renders atKeys with comma-separated quoted keys") {
+        val optic = DynamicOptic.root.atKeys("a", "b", "c")
+        assert(optic.toString)(equalTo("{\"a\",\"b\",\"c\"}"))
+      },
+      test("renders atKeys with single key") {
+        val optic = DynamicOptic.root.atKeys("only")
+        assert(optic.toString)(equalTo("{\"only\"}"))
+      },
+      test("renders elements traversal as [*]") {
+        val optic = DynamicOptic.elements
+        assert(optic.toString)(equalTo("[*]"))
+      },
+      test("renders mapKeys traversal as {*:}") {
+        val optic = DynamicOptic.mapKeys
+        assert(optic.toString)(equalTo("{*:}"))
+      },
+      test("renders mapValues traversal as {*}") {
+        val optic = DynamicOptic.mapValues
+        assert(optic.toString)(equalTo("{*}"))
+      },
+      test("renders wrapped as .~") {
+        val optic = DynamicOptic.wrapped
+        assert(optic.toString)(equalTo(".~"))
+      },
+      test("renders chained operations") {
+        val optic = DynamicOptic.root.field("users").at(0).field("name")
+        assert(optic.toString)(equalTo(".users[0].name"))
+      },
+      test("renders complex path with case and key") {
+        val optic = DynamicOptic.root.caseOf("Some").field("value").atKey("key1")
+        assert(optic.toString)(equalTo("<Some>.value{\"key1\"}"))
+      },
+      test("renders atKey with integer key") {
+        val optic = DynamicOptic.root.atKey(42)
+        assert(optic.toString)(equalTo("{42}"))
+      },
+      test("renders atKey with long key") {
+        val optic = DynamicOptic.root.atKey(9876543210L)
+        assert(optic.toString)(equalTo("{9876543210}"))
+      },
+      test("renders field followed by elements traversal") {
+        val optic = DynamicOptic.root.field("items").elements
+        assert(optic.toString)(equalTo(".items[*]"))
+      },
+      test("renders field followed by mapValues") {
+        val optic = DynamicOptic.root.field("config").mapValues
+        assert(optic.toString)(equalTo(".config{*}"))
+      },
+      test("renders deeply nested path") {
+        val optic = DynamicOptic.root
+          .field("level1")
+          .field("level2")
+          .field("level3")
+          .field("level4")
+        assert(optic.toString)(equalTo(".level1.level2.level3.level4"))
+      },
+      test("renders elements followed by field") {
+        val optic = DynamicOptic.root.field("users").elements.field("email")
+        assert(optic.toString)(equalTo(".users[*].email"))
+      },
+      test("renders mapValues followed by field") {
+        val optic = DynamicOptic.root.field("data").mapValues.field("count")
+        assert(optic.toString)(equalTo(".data{*}.count"))
+      },
+      test("renders wrapped in chain") {
+        val optic = DynamicOptic.root.field("wrapper").wrapped.field("inner")
+        assert(optic.toString)(equalTo(".wrapper.~.inner"))
+      },
+      test("renders case after index") {
+        val optic = DynamicOptic.root.at(0).caseOf("Left")
+        assert(optic.toString)(equalTo("[0]<Left>"))
+      },
+      test("renders atKeys followed by field") {
+        val optic = DynamicOptic.root.field("map").atKeys("a", "b").field("value")
+        assert(optic.toString)(equalTo(".map{\"a\",\"b\"}.value"))
+      },
+      test("renders atIndices followed by case") {
+        val optic = DynamicOptic.root.field("list").atIndices(0, 1).caseOf("Some")
+        assert(optic.toString)(equalTo(".list[0,1]<Some>"))
+      },
+      test("renders atKey with empty string key") {
+        val optic = DynamicOptic.root.atKey("")
+        assert(optic.toString)(equalTo("{\"\"}"))
+      },
+      test("renders atKey with key containing special chars") {
+        val optic = DynamicOptic.root.atKey("key.with.dots")
+        assert(optic.toString)(equalTo("{\"key.with.dots\"}"))
+      },
+      test("renders composition of two optics") {
+        val optic1   = DynamicOptic.root.field("a")
+        val optic2   = DynamicOptic.root.field("b")
+        val composed = optic1(optic2)
+        assert(composed.toString)(equalTo(".a.b"))
+      }
+    )
   )
 
   sealed trait A
