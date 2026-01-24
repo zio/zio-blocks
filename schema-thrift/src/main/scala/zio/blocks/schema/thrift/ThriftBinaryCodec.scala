@@ -251,7 +251,6 @@ object ThriftBinaryCodec {
     }
   }
 
-  // Date/time codecs - using ISO strings for simplicity
   val dayOfWeekCodec: ThriftBinaryCodec[DayOfWeek] = new ThriftBinaryCodec[java.time.DayOfWeek]() {
     def decodeUnsafe(protocol: TProtocol): java.time.DayOfWeek = java.time.DayOfWeek.of(protocol.readByte().toInt)
 
@@ -281,7 +280,7 @@ object ThriftBinaryCodec {
 
     def encode(value: java.time.YearMonth, protocol: TProtocol): Unit = {
       var str = value.toString
-      if (value.getYear > 10000) str = "+" + str
+      if (value.getYear >= 10000) str = "+" + str
       protocol.writeString(str)
     }
   }
