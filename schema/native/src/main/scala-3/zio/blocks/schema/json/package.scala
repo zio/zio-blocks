@@ -40,7 +40,9 @@ package object json {
     }
     
     try {
-      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), (2 to parts.size).map(_ => ""))
+      // First validate the JSON by trying to parse it with dummy arguments
+      // parts is [p0, p1, ..., pn] for n interpolations, so we need n dummy args
+      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), parts.drop(1).map(_ => ""))
       '{ JsonInterpolatorRuntime.jsonWithInterpolation($sc, $args) }
     } catch {
       case error if NonFatal(error) => report.errorAndAbort(s"Invalid JSON literal: ${error.getMessage}")
