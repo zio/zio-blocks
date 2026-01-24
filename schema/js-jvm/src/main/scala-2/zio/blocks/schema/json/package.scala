@@ -23,24 +23,24 @@ private object JsonInterpolatorMacros {
         }
       case _ => c.abort(c.enclosingPosition, "Expected StringContext")
     }
-    
+
     // Validate arguments - must be stringable or have JsonEncoder
     args.foreach { argExpr =>
-      val argType = argExpr.actualType
+      val argType      = argExpr.actualType
       val isStringable = isStringableType(c)(argType)
-      val hasEncoder = hasJsonEncoderImplicit(c)(argType)
-      
+      val hasEncoder   = hasJsonEncoderImplicit(c)(argType)
+
       if (!isStringable && !hasEncoder) {
         val typeName = argType.toString
         c.error(
           argExpr.tree.pos,
           s"Type '$typeName' cannot be interpolated: no JsonEncoder[A] instance found. " +
-          s"Supported in value position: types with JsonEncoder[A] (e.g., types with Schema.derived). " +
-          s"Supported in key/string positions: stringable types only (primitives, temporal types, UUID, Currency)."
+            s"Supported in value position: types with JsonEncoder[A] (e.g., types with Schema.derived). " +
+            s"Supported in key/string positions: stringable types only (primitives, temporal types, UUID, Currency)."
         )
       }
     }
-    
+
     try {
       // First validate the JSON by trying to parse it with dummy arguments
       JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), args.map(_ => ""))
@@ -48,7 +48,8 @@ private object JsonInterpolatorMacros {
       val argsExpr = c.Expr[Seq[Any]](q"Seq(..$args)")
       reify(JsonInterpolatorRuntime.jsonWithInterpolation(scExpr.splice, argsExpr.splice))
     } catch {
-      case error: Throwable if NonFatal(error) => c.abort(c.enclosingPosition, s"Invalid JSON literal: ${error.getMessage}")
+      case error: Throwable if NonFatal(error) =>
+        c.abort(c.enclosingPosition, s"Invalid JSON literal: ${error.getMessage}")
     }
   }
 
@@ -95,8 +96,7 @@ private object JsonInterpolatorMacros {
       val encoderType = appliedType(typeOf[JsonEncoder[_]].typeConstructor, List(tpe))
       c.inferImplicitValue(encoderType) != EmptyTree
     } catch {
-      case _ : Throwable => false
+      case _: Throwable => false
     }
   }
 }
-
