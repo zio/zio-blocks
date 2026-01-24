@@ -79,7 +79,7 @@ object BsonEncoder {
 
   val bsonValueEncoder: BsonEncoder[BsonValue] = new BsonEncoder[BsonValue] {
     def encode(writer: BsonWriter, value: BsonValue, ctx: EncoderContext): Unit = {
-      val codec = org.bson.codecs.BsonValueCodec()
+      val codec = new org.bson.codecs.BsonValueCodec()
       codec.encode(writer, value, org.bson.codecs.EncoderContext.builder().build())
     }
 
@@ -179,15 +179,15 @@ final case class BsonCodec[A](encoder: BsonEncoder[A], decoder: BsonDecoder[A]) 
     BsonCodec(encoder.contramap(from), decoder.mapOrFail(to))
 }
 
-/**
- * Extension methods for BsonValue to enable decoding.
- */
-implicit class BsonDecoderOps(private val value: BsonValue) extends AnyVal {
-  def as[A](implicit decoder: BsonDecoder[A]): Either[BsonDecoder.Error, A] =
-    decoder.fromBsonValue(value)
-}
-
 object BsonCodec {
+
+  /**
+   * Extension methods for BsonValue to enable decoding.
+   */
+  implicit class BsonDecoderOps(private val value: BsonValue) extends AnyVal {
+    def as[A](implicit decoder: BsonDecoder[A]): Either[BsonDecoder.Error, A] =
+      decoder.fromBsonValue(value)
+  }
   private def primitive[A](
     writeValue: (BsonWriter, A) => Unit,
     toBson: A => BsonValue,
