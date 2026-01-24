@@ -7,7 +7,8 @@ import java.util.{Currency, UUID}
  * A typeclass for types that have canonical string representations suitable for
  * JSON key positions and string literal interpolation.
  *
- * These are the "stringable" types corresponding to PrimitiveType in the schema.
+ * These are the "stringable" types corresponding to PrimitiveType in the
+ * schema.
  */
 trait Stringable[A] {
   def stringify(a: A): String

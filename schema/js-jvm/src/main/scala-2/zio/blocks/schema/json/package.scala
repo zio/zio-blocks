@@ -15,8 +15,8 @@ private object JsonInterpolatorMacros {
 
   sealed trait InterpolationContext
   object InterpolationContext {
-    case object Key extends InterpolationContext
-    case object Value extends InterpolationContext
+    case object Key                                          extends InterpolationContext
+    case object Value                                        extends InterpolationContext
     case class StringLiteral(prefix: String, suffix: String) extends InterpolationContext
   }
 
@@ -48,8 +48,8 @@ private object JsonInterpolatorMacros {
         val argType = arg.tree.tpe.widen
         ctx match {
           case InterpolationContext.Key =>
-            val stringableType = c.typeOf[Stringable[_]]
-            val requiredType = appliedType(stringableType.typeConstructor, argType)
+            val stringableType     = c.typeOf[Stringable[_]]
+            val requiredType       = appliedType(stringableType.typeConstructor, argType)
             val stringableInstance = c.inferImplicitValue(requiredType, silent = true)
             if (stringableInstance == EmptyTree) {
               c.abort(
@@ -62,7 +62,7 @@ private object JsonInterpolatorMacros {
           case InterpolationContext.Value =>
             if (!isRuntimeHandledType(c)(argType)) {
               val jsonEncoderType = c.typeOf[JsonEncoder[_]]
-              val requiredType = appliedType(jsonEncoderType.typeConstructor, argType)
+              val requiredType    = appliedType(jsonEncoderType.typeConstructor, argType)
               val encoderInstance = c.inferImplicitValue(requiredType, silent = true)
               if (encoderInstance == EmptyTree) {
                 c.abort(
@@ -74,8 +74,8 @@ private object JsonInterpolatorMacros {
             }
 
           case InterpolationContext.StringLiteral(_, _) =>
-            val stringableType = c.typeOf[Stringable[_]]
-            val requiredType = appliedType(stringableType.typeConstructor, argType)
+            val stringableType     = c.typeOf[Stringable[_]]
+            val requiredType       = appliedType(stringableType.typeConstructor, argType)
             val stringableInstance = c.inferImplicitValue(requiredType, silent = true)
             if (stringableInstance == EmptyTree) {
               c.abort(
@@ -89,25 +89,28 @@ private object JsonInterpolatorMacros {
 
       // Transform args that have JsonEncoder but are not runtime-handled
       // These need to be encoded to Json before passing to runtime
-      val transformedArgs: List[c.Expr[Any]] = args.zip(contexts).map { case (arg, ctx) =>
-        ctx match {
-          case InterpolationContext.Value =>
-            val argType = arg.tree.tpe.widen
-            if (!isRuntimeHandledType(c)(argType)) {
-              val jsonEncoderType = c.typeOf[JsonEncoder[_]]
-              val requiredType = appliedType(jsonEncoderType.typeConstructor, argType)
-              val encoderInstance = c.inferImplicitValue(requiredType, silent = true)
-              if (encoderInstance != EmptyTree) {
-                c.Expr[Any](q"$encoderInstance.encode(${arg.tree})")
+      val transformedArgs: List[c.Expr[Any]] = args
+        .zip(contexts)
+        .map { case (arg, ctx) =>
+          ctx match {
+            case InterpolationContext.Value =>
+              val argType = arg.tree.tpe.widen
+              if (!isRuntimeHandledType(c)(argType)) {
+                val jsonEncoderType = c.typeOf[JsonEncoder[_]]
+                val requiredType    = appliedType(jsonEncoderType.typeConstructor, argType)
+                val encoderInstance = c.inferImplicitValue(requiredType, silent = true)
+                if (encoderInstance != EmptyTree) {
+                  c.Expr[Any](q"$encoderInstance.encode(${arg.tree})")
+                } else {
+                  arg
+                }
               } else {
                 arg
               }
-            } else {
-              arg
-            }
-          case _ => arg
+            case _ => arg
+          }
         }
-      }.toList
+        .toList
 
       // Check if there are any string literal interpolations that need transformation
       val hasStringLiteral = contexts.exists(_.isInstanceOf[InterpolationContext.StringLiteral])
@@ -126,9 +129,11 @@ private object JsonInterpolatorMacros {
         }
 
         val newPartsLiterals = newParts.map(p => Literal(Constant(p)))
-        val scTree = q"new _root_.scala.StringContext(..$newPartsLiterals)"
-        val argsSeqTree = q"_root_.scala.Seq(..$newArgs)"
-        c.Expr[Json](q"_root_.zio.blocks.schema.json.JsonInterpolatorRuntime.jsonWithInterpolation($scTree, $argsSeqTree)")
+        val scTree           = q"new _root_.scala.StringContext(..$newPartsLiterals)"
+        val argsSeqTree      = q"_root_.scala.Seq(..$newArgs)"
+        c.Expr[Json](
+          q"_root_.zio.blocks.schema.json.JsonInterpolatorRuntime.jsonWithInterpolation($scTree, $argsSeqTree)"
+        )
       } else {
         try {
           JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), (2 to parts.size).map(_ => ""))
@@ -136,9 +141,9 @@ private object JsonInterpolatorMacros {
           case error if NonFatal(error) => c.abort(c.enclosingPosition, s"Invalid JSON literal: ${error.getMessage}")
         }
 
-        val scExpr = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
+        val scExpr               = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
         val transformedArgsTrees = transformedArgs.map(_.tree)
-        val argsExpr = c.Expr[Seq[Any]](q"Seq(..$transformedArgsTrees)")
+        val argsExpr             = c.Expr[Seq[Any]](q"Seq(..$transformedArgsTrees)")
         reify(JsonInterpolatorRuntime.jsonWithInterpolation(scExpr.splice, argsExpr.splice))
       }
     }
@@ -148,15 +153,37 @@ private object JsonInterpolatorMacros {
     import c.universe._
 
     val runtimeTypes = List(
-      typeOf[String], typeOf[Boolean], typeOf[Byte], typeOf[Short], typeOf[Int], typeOf[Long],
-      typeOf[Float], typeOf[Double], typeOf[Char], typeOf[BigDecimal], typeOf[BigInt],
-      typeOf[java.time.DayOfWeek], typeOf[java.time.Duration], typeOf[java.time.Instant],
-      typeOf[java.time.LocalDate], typeOf[java.time.LocalDateTime], typeOf[java.time.LocalTime],
-      typeOf[java.time.Month], typeOf[java.time.MonthDay], typeOf[java.time.OffsetDateTime],
-      typeOf[java.time.OffsetTime], typeOf[java.time.Period], typeOf[java.time.Year],
-      typeOf[java.time.YearMonth], typeOf[java.time.ZoneId], typeOf[java.time.ZoneOffset],
-      typeOf[java.time.ZonedDateTime], typeOf[java.util.Currency], typeOf[java.util.UUID],
-      typeOf[Unit], typeOf[Json]
+      typeOf[String],
+      typeOf[Boolean],
+      typeOf[Byte],
+      typeOf[Short],
+      typeOf[Int],
+      typeOf[Long],
+      typeOf[Float],
+      typeOf[Double],
+      typeOf[Char],
+      typeOf[BigDecimal],
+      typeOf[BigInt],
+      typeOf[java.time.DayOfWeek],
+      typeOf[java.time.Duration],
+      typeOf[java.time.Instant],
+      typeOf[java.time.LocalDate],
+      typeOf[java.time.LocalDateTime],
+      typeOf[java.time.LocalTime],
+      typeOf[java.time.Month],
+      typeOf[java.time.MonthDay],
+      typeOf[java.time.OffsetDateTime],
+      typeOf[java.time.OffsetTime],
+      typeOf[java.time.Period],
+      typeOf[java.time.Year],
+      typeOf[java.time.YearMonth],
+      typeOf[java.time.ZoneId],
+      typeOf[java.time.ZoneOffset],
+      typeOf[java.time.ZonedDateTime],
+      typeOf[java.util.Currency],
+      typeOf[java.util.UUID],
+      typeOf[Unit],
+      typeOf[Json]
     )
 
     if (runtimeTypes.exists(t => tpe =:= t || tpe <:< t)) return true
@@ -189,7 +216,7 @@ private object JsonInterpolatorMacros {
   private def analyzeContexts(parts: List[String]): List[InterpolationContext] = {
     if (parts.size <= 1) return Nil
 
-    val contexts = new scala.collection.mutable.ListBuffer[InterpolationContext]
+    val contexts       = new scala.collection.mutable.ListBuffer[InterpolationContext]
     var cumulativeText = ""
 
     for (i <- 0 until parts.size - 1) {
@@ -206,9 +233,9 @@ private object JsonInterpolatorMacros {
 
     if (insideString) {
       val prefixStart = findLastUnescapedQuote(allBefore) + 1
-      val prefix = allBefore.substring(prefixStart)
-      val suffixEnd = findFirstUnescapedQuote(after)
-      val suffix = if (suffixEnd >= 0) after.substring(0, suffixEnd) else after
+      val prefix      = allBefore.substring(prefixStart)
+      val suffixEnd   = findFirstUnescapedQuote(after)
+      val suffix      = if (suffixEnd >= 0) after.substring(0, suffixEnd) else after
       InterpolationContext.StringLiteral(prefix, suffix)
     } else {
       val trimmedAfter = after.dropWhile(c => c == ' ' || c == '\t' || c == '\n' || c == '\r')
@@ -225,11 +252,11 @@ private object JsonInterpolatorMacros {
 
   private def countUnescapedQuotes(s: String): Int = {
     var count = 0
-    var i = 0
+    var i     = 0
     while (i < s.length) {
       if (s.charAt(i) == '"') {
         var backslashes = 0
-        var j = i - 1
+        var j           = i - 1
         while (j >= 0 && s.charAt(j) == '\\') {
           backslashes += 1
           j -= 1
@@ -243,11 +270,11 @@ private object JsonInterpolatorMacros {
 
   private def findLastUnescapedQuote(s: String): Int = {
     var lastPos = -1
-    var i = 0
+    var i       = 0
     while (i < s.length) {
       if (s.charAt(i) == '"') {
         var backslashes = 0
-        var j = i - 1
+        var j           = i - 1
         while (j >= 0 && s.charAt(j) == '\\') {
           backslashes += 1
           j -= 1
@@ -264,7 +291,7 @@ private object JsonInterpolatorMacros {
     while (i < s.length) {
       if (s.charAt(i) == '"') {
         var backslashes = 0
-        var j = i - 1
+        var j           = i - 1
         while (j >= 0 && s.charAt(j) == '\\') {
           backslashes += 1
           j -= 1
@@ -286,7 +313,7 @@ private object JsonInterpolatorMacros {
     if (args.isEmpty) return (parts, Nil)
 
     val newParts = new scala.collection.mutable.ListBuffer[String]
-    val newArgs = new scala.collection.mutable.ListBuffer[c.Tree]
+    val newArgs  = new scala.collection.mutable.ListBuffer[c.Tree]
 
     var i = 0
     while (i < args.length) {
@@ -296,15 +323,15 @@ private object JsonInterpolatorMacros {
           val alreadyAddedLength = parts.take(i).map(_.length).sum
 
           val cumulativeBefore = parts.take(i + 1).mkString
-          val openingQuotePos = findLastUnescapedQuote(cumulativeBefore)
+          val openingQuotePos  = findLastUnescapedQuote(cumulativeBefore)
 
           // Only add the NEW content (from what we've already added to the opening quote)
           val newContent = cumulativeBefore.substring(alreadyAddedLength, openingQuotePos)
           newParts += newContent
 
           // Collect all string literal interpolations that are part of this string
-          val stringFragments = new scala.collection.mutable.ListBuffer[Either[String, c.Tree]]
-          var j = i
+          val stringFragments   = new scala.collection.mutable.ListBuffer[Either[String, c.Tree]]
+          var j                 = i
           var foundClosingQuote = false
 
           while (j < args.length && !foundClosingQuote) {
@@ -317,15 +344,15 @@ private object JsonInterpolatorMacros {
                 }
 
                 // Add the stringified argument
-                val arg = args(j)
-                val argType = arg.tree.tpe.widen
-                val stringableType = c.typeOf[Stringable[_]]
-                val requiredType = appliedType(stringableType.typeConstructor, argType)
+                val arg                = args(j)
+                val argType            = arg.tree.tpe.widen
+                val stringableType     = c.typeOf[Stringable[_]]
+                val requiredType       = appliedType(stringableType.typeConstructor, argType)
                 val stringableInstance = c.inferImplicitValue(requiredType)
                 stringFragments += Right(q"$stringableInstance.stringify(${arg.tree})")
 
                 // Check if the string ends after this interpolation
-                val nextPart = parts(j + 1)
+                val nextPart        = parts(j + 1)
                 val closingQuotePos = findFirstUnescapedQuote(nextPart)
 
                 if (closingQuotePos >= 0) {

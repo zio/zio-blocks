@@ -10,8 +10,8 @@ package object json {
 
   private sealed trait InterpolationContext
   private object InterpolationContext {
-    case object Key extends InterpolationContext
-    case object Value extends InterpolationContext
+    case object Key                                          extends InterpolationContext
+    case object Value                                        extends InterpolationContext
     case class StringLiteral(prefix: String, suffix: String) extends InterpolationContext
   }
 
@@ -92,7 +92,7 @@ package object json {
                   val encoder = success.tree.asExpr
                   argType.asType match {
                     case '[t] =>
-                      val typedArg = arg.asExprOf[t]
+                      val typedArg     = arg.asExprOf[t]
                       val typedEncoder = encoder.asExprOf[JsonEncoder[t]]
                       '{ $typedEncoder.encode($typedArg) }
                   }
@@ -111,8 +111,8 @@ package object json {
       // On Native, skip compile-time JSON validation (runtime not available at macro compile time)
       if (hasStringLiteral) {
         val (newParts, newArgs) = transformStringInterpolations(parts, transformedArgs, contexts)
-        val partsExpr = Expr(newParts)
-        val argsSeqExpr = Expr.ofSeq(newArgs)
+        val partsExpr           = Expr(newParts)
+        val argsSeqExpr         = Expr.ofSeq(newArgs)
         '{ JsonInterpolatorRuntime.jsonWithInterpolation(StringContext($partsExpr: _*), $argsSeqExpr) }
       } else {
         val transformedArgsExpr = Expr.ofSeq(transformedArgs)
@@ -125,16 +125,37 @@ package object json {
     import quotes.reflect._
 
     val runtimeTypes = List(
-      TypeRepr.of[String], TypeRepr.of[Boolean], TypeRepr.of[Byte], TypeRepr.of[Short],
-      TypeRepr.of[Int], TypeRepr.of[Long], TypeRepr.of[Float], TypeRepr.of[Double],
-      TypeRepr.of[Char], TypeRepr.of[BigDecimal], TypeRepr.of[BigInt],
-      TypeRepr.of[java.time.DayOfWeek], TypeRepr.of[java.time.Duration], TypeRepr.of[java.time.Instant],
-      TypeRepr.of[java.time.LocalDate], TypeRepr.of[java.time.LocalDateTime], TypeRepr.of[java.time.LocalTime],
-      TypeRepr.of[java.time.Month], TypeRepr.of[java.time.MonthDay], TypeRepr.of[java.time.OffsetDateTime],
-      TypeRepr.of[java.time.OffsetTime], TypeRepr.of[java.time.Period], TypeRepr.of[java.time.Year],
-      TypeRepr.of[java.time.YearMonth], TypeRepr.of[java.time.ZoneId], TypeRepr.of[java.time.ZoneOffset],
-      TypeRepr.of[java.time.ZonedDateTime], TypeRepr.of[java.util.Currency], TypeRepr.of[java.util.UUID],
-      TypeRepr.of[Unit], TypeRepr.of[Json]
+      TypeRepr.of[String],
+      TypeRepr.of[Boolean],
+      TypeRepr.of[Byte],
+      TypeRepr.of[Short],
+      TypeRepr.of[Int],
+      TypeRepr.of[Long],
+      TypeRepr.of[Float],
+      TypeRepr.of[Double],
+      TypeRepr.of[Char],
+      TypeRepr.of[BigDecimal],
+      TypeRepr.of[BigInt],
+      TypeRepr.of[java.time.DayOfWeek],
+      TypeRepr.of[java.time.Duration],
+      TypeRepr.of[java.time.Instant],
+      TypeRepr.of[java.time.LocalDate],
+      TypeRepr.of[java.time.LocalDateTime],
+      TypeRepr.of[java.time.LocalTime],
+      TypeRepr.of[java.time.Month],
+      TypeRepr.of[java.time.MonthDay],
+      TypeRepr.of[java.time.OffsetDateTime],
+      TypeRepr.of[java.time.OffsetTime],
+      TypeRepr.of[java.time.Period],
+      TypeRepr.of[java.time.Year],
+      TypeRepr.of[java.time.YearMonth],
+      TypeRepr.of[java.time.ZoneId],
+      TypeRepr.of[java.time.ZoneOffset],
+      TypeRepr.of[java.time.ZonedDateTime],
+      TypeRepr.of[java.util.Currency],
+      TypeRepr.of[java.util.UUID],
+      TypeRepr.of[Unit],
+      TypeRepr.of[Json]
     )
 
     if (runtimeTypes.exists(t => tpe =:= t || tpe <:< t)) return true
@@ -167,7 +188,7 @@ package object json {
   private def analyzeContexts(parts: List[String]): List[InterpolationContext] = {
     if (parts.size <= 1) return Nil
 
-    val contexts = new scala.collection.mutable.ListBuffer[InterpolationContext]
+    val contexts       = new scala.collection.mutable.ListBuffer[InterpolationContext]
     var cumulativeText = ""
 
     for (i <- 0 until parts.size - 1) {
@@ -184,9 +205,9 @@ package object json {
 
     if (insideString) {
       val prefixStart = findLastUnescapedQuote(allBefore) + 1
-      val prefix = allBefore.substring(prefixStart)
-      val suffixEnd = findFirstUnescapedQuote(after)
-      val suffix = if (suffixEnd >= 0) after.substring(0, suffixEnd) else after
+      val prefix      = allBefore.substring(prefixStart)
+      val suffixEnd   = findFirstUnescapedQuote(after)
+      val suffix      = if (suffixEnd >= 0) after.substring(0, suffixEnd) else after
       InterpolationContext.StringLiteral(prefix, suffix)
     } else {
       val trimmedAfter = after.dropWhile(c => c == ' ' || c == '\t' || c == '\n' || c == '\r')
@@ -203,11 +224,11 @@ package object json {
 
   private def countUnescapedQuotes(s: String): Int = {
     var count = 0
-    var i = 0
+    var i     = 0
     while (i < s.length) {
       if (s.charAt(i) == '"') {
         var backslashes = 0
-        var j = i - 1
+        var j           = i - 1
         while (j >= 0 && s.charAt(j) == '\\') {
           backslashes += 1
           j -= 1
@@ -221,11 +242,11 @@ package object json {
 
   private def findLastUnescapedQuote(s: String): Int = {
     var lastPos = -1
-    var i = 0
+    var i       = 0
     while (i < s.length) {
       if (s.charAt(i) == '"') {
         var backslashes = 0
-        var j = i - 1
+        var j           = i - 1
         while (j >= 0 && s.charAt(j) == '\\') {
           backslashes += 1
           j -= 1
@@ -242,7 +263,7 @@ package object json {
     while (i < s.length) {
       if (s.charAt(i) == '"') {
         var backslashes = 0
-        var j = i - 1
+        var j           = i - 1
         while (j >= 0 && s.charAt(j) == '\\') {
           backslashes += 1
           j -= 1
@@ -264,7 +285,7 @@ package object json {
     if (args.isEmpty) return (parts, Nil)
 
     val newParts = new scala.collection.mutable.ListBuffer[String]
-    val newArgs = new scala.collection.mutable.ListBuffer[Expr[Any]]
+    val newArgs  = new scala.collection.mutable.ListBuffer[Expr[Any]]
 
     var i = 0
     while (i < args.length) {
@@ -274,14 +295,14 @@ package object json {
           val alreadyAddedLength = parts.take(i).map(_.length).sum
 
           val cumulativeBefore = parts.take(i + 1).mkString
-          val openingQuotePos = findLastUnescapedQuote(cumulativeBefore)
+          val openingQuotePos  = findLastUnescapedQuote(cumulativeBefore)
 
           // Only add the NEW content (from what we've already added to the opening quote)
           val newContent = cumulativeBefore.substring(alreadyAddedLength, openingQuotePos)
           newParts += newContent
 
-          val stringFragments = new scala.collection.mutable.ListBuffer[Either[String, Expr[String]]]
-          var j = i
+          val stringFragments   = new scala.collection.mutable.ListBuffer[Either[String, Expr[String]]]
+          var j                 = i
           var foundClosingQuote = false
 
           while (j < args.length && !foundClosingQuote) {
@@ -293,15 +314,15 @@ package object json {
                   stringFragments += Left(prefix)
                 }
 
-                val arg = args(j)
-                val argType = arg.asTerm.tpe.widen
+                val arg            = args(j)
+                val argType        = arg.asTerm.tpe.widen
                 val stringableType = TypeRepr.of[Stringable].appliedTo(argType)
                 Implicits.search(stringableType) match {
                   case success: ImplicitSearchSuccess =>
                     val stringableExpr = success.tree.asExpr
-                    val stringifyCall = argType.asType match {
+                    val stringifyCall  = argType.asType match {
                       case '[t] =>
-                        val typedArg = arg.asExprOf[t]
+                        val typedArg        = arg.asExprOf[t]
                         val typedStringable = stringableExpr.asExprOf[Stringable[t]]
                         '{ $typedStringable.stringify($typedArg) }
                     }
@@ -310,7 +331,7 @@ package object json {
                     report.errorAndAbort(s"No Stringable instance found for ${argType.show}")
                 }
 
-                val nextPart = parts(j + 1)
+                val nextPart        = parts(j + 1)
                 val closingQuotePos = findFirstUnescapedQuote(nextPart)
 
                 if (closingQuotePos >= 0) {

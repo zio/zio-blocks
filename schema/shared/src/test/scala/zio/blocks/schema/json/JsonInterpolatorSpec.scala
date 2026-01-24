@@ -544,10 +544,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         )
       },
       test("interpolates multiple values inside JSON string") {
-        val name = "Bob"
+        val name  = "Bob"
         val count = 5
         assertTrue(
-          json"""{"message": "Hello $name, you have $count items"}""".get("message").string == Right("Hello Bob, you have 5 items")
+          json"""{"message": "Hello $name, you have $count items"}""".get("message").string == Right(
+            "Hello Bob, you have 5 items"
+          )
         )
       },
       test("interpolates UUID inside JSON string") {
@@ -588,7 +590,9 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       test("interpolates Double inside JSON string") {
         val value = 3.14159
         assertTrue(
-          json"""{"result": "Pi is approximately $value"}""".get("result").string == Right("Pi is approximately 3.14159")
+          json"""{"result": "Pi is approximately $value"}""".get("result").string == Right(
+            "Pi is approximately 3.14159"
+          )
         )
       },
       test("interpolates BigDecimal inside JSON string") {
@@ -647,8 +651,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         )
       },
       test("interpolates path-like string with multiple interpolations") {
-        val env = "production"
-        val date = LocalDate.of(2024, 1, 15)
+        val env     = "production"
+        val date    = LocalDate.of(2024, 1, 15)
         val version = 3
         assertTrue(
           json"""{"path": "/data/$env/$date/v$version"}""".get("path").string == Right("/data/production/2024-01-15/v3")
@@ -678,7 +682,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           implicit val schema: Schema[Employee] = Schema.derived
         }
         val employee = Employee("Bob", Address("NYC", "10001"))
-        val result = json"""{"employee": $employee}"""
+        val result   = json"""{"employee": $employee}"""
         assertTrue(
           result.get("employee").get("name").string == Right("Bob"),
           result.get("employee").get("address").get("city").string == Right("NYC"),
@@ -705,10 +709,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val points = List(Point(1, 2), Point(3, 4))
         val result = json"""{"points": $points}"""
         assertTrue(
-          result.get("points").one == Right(Json.arr(
-            Json.obj("x" -> Json.number(1), "y" -> Json.number(2)),
-            Json.obj("x" -> Json.number(3), "y" -> Json.number(4))
-          ))
+          result.get("points").one == Right(
+            Json.arr(
+              Json.obj("x" -> Json.number(1), "y" -> Json.number(2)),
+              Json.obj("x" -> Json.number(3), "y" -> Json.number(4))
+            )
+          )
         )
       },
       test("interpolates Set of complex types") {
@@ -716,8 +722,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         object Tag {
           implicit val schema: Schema[Tag] = Schema.derived
         }
-        val tag = Tag("scala")
-        val tags = Set(tag)
+        val tag    = Tag("scala")
+        val tags   = Set(tag)
         val result = json"""{"tags": $tags}"""
         assertTrue(
           result.get("tags").one == Right(Json.arr(Json.obj("name" -> Json.str("scala"))))
@@ -731,10 +737,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val scores = Vector(Score(100), Score(200))
         val result = json"""{"scores": $scores}"""
         assertTrue(
-          result.get("scores").one == Right(Json.arr(
-            Json.obj("value" -> Json.number(100)),
-            Json.obj("value" -> Json.number(200))
-          ))
+          result.get("scores").one == Right(
+            Json.arr(
+              Json.obj("value" -> Json.number(100)),
+              Json.obj("value" -> Json.number(200))
+            )
+          )
         )
       },
       test("interpolates Map with complex value types") {
@@ -743,7 +751,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           implicit val schema: Schema[Config] = Schema.derived
         }
         val configs = Map("feature1" -> Config(true, 10), "feature2" -> Config(false, 20))
-        val result = json"""{"configs": $configs}"""
+        val result  = json"""{"configs": $configs}"""
         assertTrue(
           result.get("configs").get("feature1").get("enabled").boolean == Right(true),
           result.get("configs").get("feature2").get("threshold").int == Right(20)
@@ -752,21 +760,23 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     ),
     suite("Mixed context tests")(
       test("array with mixed value types") {
-        val str = "hello"
-        val num = 42
-        val bool = true
+        val str    = "hello"
+        val num    = 42
+        val bool   = true
         val result = json"""{"mixed": [$str, $num, $bool]}"""
         assertTrue(
-          result.get("mixed").one == Right(Json.arr(
-            Json.str("hello"),
-            Json.number(42),
-            Json.bool(true)
-          ))
+          result.get("mixed").one == Right(
+            Json.arr(
+              Json.str("hello"),
+              Json.number(42),
+              Json.bool(true)
+            )
+          )
         )
       },
       test("multiple values in object") {
-        val name = "Alice"
-        val age = 30
+        val name   = "Alice"
+        val age    = 30
         val result = json"""{"name": $name, "age": $age}"""
         assertTrue(
           result.get("name").string == Right("Alice"),
