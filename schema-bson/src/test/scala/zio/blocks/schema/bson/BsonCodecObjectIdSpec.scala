@@ -13,7 +13,7 @@ import zio.test._
  *   - Lists of ObjectId wrappers
  *   - Config.withNativeObjectId(true) for explicit enablement
  */
-object BsonCodecObjectIdSpec extends ZIOSpecDefault {
+object BsonCodecObjectIdSpec extends SchemaBaseSpec {
 
   // Import ObjectId schema support
   import ObjectIdSupport._

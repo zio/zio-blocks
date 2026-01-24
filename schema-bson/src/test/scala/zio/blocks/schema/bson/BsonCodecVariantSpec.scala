@@ -1,10 +1,10 @@
 package zio.blocks.schema.bson
 
 import org.bson.BsonDocument
-import zio.blocks.schema.{Modifier, Schema}
+import zio.blocks.schema._
 import zio.test._
 
-object BsonCodecVariantSpec extends ZIOSpecDefault {
+object BsonCodecVariantSpec extends SchemaBaseSpec {
 
   // Test data types - Simple enum (case objects)
   sealed trait Color

@@ -31,7 +31,7 @@ object AvroTestUtils {
     val heapByteBuffer = ByteBuffer.allocate(maxBufSize)
     codec.encode(value, heapByteBuffer)
     val encodedBySchema1 = util.Arrays.copyOf(heapByteBuffer.array, heapByteBuffer.position)
-    val directByteBuffer = ByteBuffer.allocate(maxBufSize)
+    val directByteBuffer = ByteBuffer.allocateDirect(maxBufSize)
     codec.encode(value, directByteBuffer)
     val encodedBySchema2 = util.Arrays.copyOf(
       {

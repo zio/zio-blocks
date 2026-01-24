@@ -29,15 +29,15 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "schemaJVM/test; chunkJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; examples/test"
+  "chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test"
 )
 addCommandAlias(
   "testJS",
-  "schemaJS/test; chunkJS/test; streamsJS/test; schema-toonJS/test"
+  "chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test"
 )
 addCommandAlias(
   "testNative",
-  "schemaNative/test; chunkNative/test; streamsNative/test; schema-toonNative/test"
+  "chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test"
 )
 
 addCommandAlias(
@@ -73,8 +73,7 @@ lazy val root = project
     scalaNextTests.js,
     scalaNextTests.native,
     benchmarks,
-    docs,
-    examples
+    docs
   )
 
 lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -121,7 +120,9 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         )
       case _ =>
         Seq()
-    })
+    }),
+    coverageMinimumStmtTotal   := 86,
+    coverageMinimumBranchTotal := 82
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -166,7 +167,9 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
-    )
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -182,7 +185,9 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
-    )
+    ),
+    coverageMinimumStmtTotal   := 68,
+    coverageMinimumBranchTotal := 62
   )
 
 lazy val `schema-avro` = project
@@ -202,7 +207,9 @@ lazy val `schema-avro` = project
         Seq(
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
-    })
+    }),
+    coverageMinimumStmtTotal   := 94,
+    coverageMinimumBranchTotal := 87
   )
 
 lazy val `schema-thrift` = project
@@ -216,7 +223,9 @@ lazy val `schema-thrift` = project
       "jakarta.annotation" % "jakarta.annotation-api" % "3.0.0",
       "dev.zio"           %% "zio-test"               % "2.1.24" % Test,
       "dev.zio"           %% "zio-test-sbt"           % "2.1.24" % Test
-    )
+    ),
+    coverageMinimumStmtTotal   := 75,
+    coverageMinimumBranchTotal := 60
   )
 
 lazy val `schema-bson` = project
@@ -236,7 +245,9 @@ lazy val `schema-bson` = project
         Seq(
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
-    })
+    }),
+    coverageMinimumStmtTotal   := 67,
+    coverageMinimumBranchTotal := 58
   )
 
 lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -253,7 +264,9 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
-    )
+    ),
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 71
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -302,15 +315,6 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
 
-lazy val examples = project
-  .settings(stdSettings("zio-blocks-examples"))
-  .dependsOn(schema.jvm)
-  .dependsOn(streams.jvm)
-  .dependsOn(`schema-avro`)
-  .settings(
-    publish / skip := true
-  )
-
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
   .dependsOn(schema.jvm % "compile->compile;test->test")
@@ -338,10 +342,12 @@ lazy val benchmarks = project
       case x if x.endsWith("module-info.class") => MergeStrategy.discard
       case path                                 => MergeStrategy.defaultMergeStrategy(path)
     },
-    assembly / fullClasspath := (Jmh / fullClasspath).value,
-    assembly / mainClass     := Some("org.openjdk.jmh.Main"),
-    publish / skip           := true,
-    mimaPreviousArtifacts    := Set()
+    assembly / fullClasspath   := (Jmh / fullClasspath).value,
+    assembly / mainClass       := Some("org.openjdk.jmh.Main"),
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 30,
+    coverageMinimumBranchTotal := 42
   )
 
 lazy val docs = project
