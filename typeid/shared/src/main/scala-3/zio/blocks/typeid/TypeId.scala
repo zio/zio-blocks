@@ -291,6 +291,25 @@ object TypeId {
     annotations
   )
 
+  /**
+   * Creates an applied type from a type constructor and type arguments. For
+   * example: applied(TypeId.list, TypeRepr.Ref(TypeId.int)) creates List[Int]
+   */
+  def applied[A <: AnyKind](
+    typeConstructor: TypeId[?],
+    args: TypeRepr*
+  ): TypeId[A] = Impl[A](
+    typeConstructor.name,
+    typeConstructor.owner,
+    typeConstructor.typeParams,
+    args.toList,
+    typeConstructor.defKind,
+    typeConstructor.selfType,
+    typeConstructor.aliasedTo,
+    typeConstructor.representation,
+    typeConstructor.annotations
+  )
+
   // ========== Extractors ==========
 
   object Nominal {
@@ -332,7 +351,8 @@ object TypeId {
 
   // ========== Macro Derivation ==========
 
-  /** Derives a TypeId for any type or type constructor using macros. */
+  inline def of[A <: AnyKind]: TypeId[A] = TypeIdMacros.derived[A]
+
   inline def derived[A <: AnyKind]: TypeId[A] = TypeIdMacros.derived[A]
 
   // ========== Normalization and Equality ==========
@@ -502,14 +522,17 @@ object TypeId {
   given bigDecimal: TypeId[BigDecimal] = nominal[BigDecimal]("BigDecimal", Owner.scala)
 
   // Collections
-  given option: TypeId[Option]  = nominal[Option]("Option", Owner.scala, List(TypeParam.A))
-  given some: TypeId[Some]      = nominal[Some]("Some", Owner.scala, List(TypeParam.A))
-  given none: TypeId[None.type] = nominal[None.type]("None", Owner.scala)
-  given list: TypeId[List]      = nominal[List]("List", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  given vector: TypeId[Vector]  = nominal[Vector]("Vector", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  given set: TypeId[Set]        = nominal[Set]("Set", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  given map: TypeId[Map]        = nominal[Map]("Map", Owner.scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
-  given either: TypeId[Either]  = nominal[Either]("Either", Owner.scala, List(TypeParam.A, TypeParam.B))
+  given option: TypeId[Option]         = nominal[Option]("Option", Owner.scala, List(TypeParam.A))
+  given some: TypeId[Some]             = nominal[Some]("Some", Owner.scala, List(TypeParam.A))
+  given none: TypeId[None.type]        = nominal[None.type]("None", Owner.scala)
+  given list: TypeId[List]             = nominal[List]("List", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  given vector: TypeId[Vector]         = nominal[Vector]("Vector", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  given set: TypeId[Set]               = nominal[Set]("Set", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  given seq: TypeId[Seq]               = nominal[Seq]("Seq", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  given indexedSeq: TypeId[IndexedSeq] =
+    nominal[IndexedSeq]("IndexedSeq", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  given map: TypeId[Map]       = nominal[Map]("Map", Owner.scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
+  given either: TypeId[Either] = nominal[Either]("Either", Owner.scala, List(TypeParam.A, TypeParam.B))
 
   // java.time
   given dayOfWeek: TypeId[java.time.DayOfWeek]         = nominal[java.time.DayOfWeek]("DayOfWeek", Owner.javaTime)

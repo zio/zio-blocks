@@ -521,8 +521,13 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(constructor.resultObject(xs))(equalTo(Array(1, 2, 3)))
       },
       test("derives schema for array and IArray of opaque sub-types") {
-        assert(Schema.derived[Array[StructureId]])(equalTo(Schema.derived[Array[String]])) &&
-        assert(Schema.derived[IArray[StructureId]])(equalTo(Schema.derived[IArray[String]]))
+        // Opaque types have their own TypeId, so Array[StructureId] != Array[String]
+        // even though StructureId is an opaque subtype of String
+        val arrayStructureId  = Schema.derived[Array[StructureId]]
+        val iarrayStructureId = Schema.derived[IArray[StructureId]]
+        // Verify they derive correctly and have the expected typeId
+        assert(arrayStructureId.reflect.typeId)(equalTo(TypeId.derived[Array[StructureId]])) &&
+        assert(iarrayStructureId.reflect.typeId)(equalTo(TypeId.derived[IArray[StructureId]]))
       },
       test("doesn't generate schema for unsupported collections") {
         typeCheck {

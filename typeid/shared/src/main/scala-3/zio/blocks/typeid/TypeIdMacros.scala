@@ -75,15 +75,13 @@ object TypeIdMacros {
     if (typeParams.isEmpty) {
       searchOrDerive[A]
     } else {
-      val wildcardArgs    = typeParams.map(_ => TypeRepr.of[Any])
-      val existentialType = tycon.appliedTo(wildcardArgs)
-
-      existentialType.asType match {
-        case '[t] =>
-          val typeIdType = quotes.reflect.TypeRepr.of[TypeId[t]]
-          Implicits.search(typeIdType) match {
+      // Search for higher-kinded TypeId[F] before falling back to TypeId[F[Any]]
+      tycon.asType match {
+        case '[tc] =>
+          val tyconIdType = quotes.reflect.TypeRepr.of[TypeId[tc]]
+          Implicits.search(tyconIdType) match {
             case iss: ImplicitSearchSuccess =>
-              val foundTyconId = iss.tree.asExprOf[TypeId[t]]
+              val foundTyconId = iss.tree.asExprOf[TypeId[tc]]
               val typeArgsExpr = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
               '{
                 val base = $foundTyconId.asInstanceOf[TypeId[A]]
@@ -98,7 +96,34 @@ object TypeIdMacros {
                 )
               }
             case _: ImplicitSearchFailure =>
-              deriveAppliedTypeNew[A](tycon, args)
+              val wildcardArgs    = typeParams.map(_ => TypeRepr.of[Any])
+              val existentialType = tycon.appliedTo(wildcardArgs)
+
+              existentialType.asType match {
+                case '[t] =>
+                  val typeIdType = quotes.reflect.TypeRepr.of[TypeId[t]]
+                  Implicits.search(typeIdType) match {
+                    case iss: ImplicitSearchSuccess =>
+                      val foundTyconId = iss.tree.asExprOf[TypeId[t]]
+                      val typeArgsExpr = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
+                      '{
+                        val base = $foundTyconId.asInstanceOf[TypeId[A]]
+                        TypeId.nominal[A](
+                          base.name,
+                          base.owner,
+                          base.typeParams,
+                          ${ Expr.ofList(typeArgsExpr) },
+                          base.defKind,
+                          base.selfType,
+                          base.annotations
+                        )
+                      }
+                    case _: ImplicitSearchFailure =>
+                      deriveAppliedTypeNew[A](tycon, args)
+                  }
+                case _ =>
+                  deriveAppliedTypeNew[A](tycon, args)
+              }
           }
         case _ =>
           deriveAppliedTypeNew[A](tycon, args)
@@ -723,10 +748,25 @@ object TypeIdMacros {
   private def buildTypeParams(using Quotes)(sym: quotes.reflect.Symbol): Expr[List[TypeParam]] = {
     import quotes.reflect.*
 
-    val params = sym.typeMembers.filter(_.isTypeParam).zipWithIndex.map { case (p, idx) =>
-      val varianceExpr = if (p.flags.is(Flags.Covariant)) {
+    val typeParams = sym.declaredTypes.filter(_.isTypeParam)
+    val params     = typeParams.zipWithIndex.map { case (p, idx) =>
+      // For compiled classes, we need to get variance from TypeDef tree if available,
+      // otherwise fall back to symbol flags (which may not be accurate)
+      val variance: Flags = scala.util.Try(p.tree).toOption match {
+        case Some(td: TypeDef) =>
+          val defFlags = td.symbol.flags
+          if (defFlags.is(Flags.Covariant)) Flags.Covariant
+          else if (defFlags.is(Flags.Contravariant)) Flags.Contravariant
+          else Flags.EmptyFlags
+        case _ =>
+          if (p.flags.is(Flags.Covariant)) Flags.Covariant
+          else if (p.flags.is(Flags.Contravariant)) Flags.Contravariant
+          else Flags.EmptyFlags
+      }
+
+      val varianceExpr = if (variance == Flags.Covariant) {
         '{ Variance.Covariant }
-      } else if (p.flags.is(Flags.Contravariant)) {
+      } else if (variance == Flags.Contravariant) {
         '{ Variance.Contravariant }
       } else {
         '{ Variance.Invariant }

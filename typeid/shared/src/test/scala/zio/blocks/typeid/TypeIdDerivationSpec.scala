@@ -1223,6 +1223,55 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
           caseA1.hashCode() == caseA2.hashCode()
         )
       }
+    ),
+    suite("TypeId.of API")(
+      test("TypeId.of produces same result as TypeId.derived") {
+        val viaOf      = TypeId.of[String]
+        val viaDerived = TypeId.derived[String]
+
+        assertTrue(
+          viaOf == viaDerived,
+          viaOf.hashCode() == viaDerived.hashCode()
+        )
+      },
+      test("TypeId.of works for primitives") {
+        val intOf = TypeId.of[Int]
+
+        assertTrue(
+          intOf.name == "Int",
+          intOf == TypeId.int
+        )
+      },
+      test("TypeId.of works for collections") {
+        val listOf = TypeId.of[List[String]]
+
+        assertTrue(
+          listOf.name == "List",
+          listOf.typeArgs.nonEmpty
+        )
+      },
+      test("TypeId.of works for user-defined types") {
+        val simpleClassOf = TypeId.of[SimpleClass]
+
+        assertTrue(
+          simpleClassOf.name == "SimpleClass"
+        )
+      },
+      test("TypeId.of can be used as map key") {
+        val map = Map[TypeId[_], String](
+          TypeId.of[String] -> "string",
+          TypeId.of[Int]    -> "int"
+        )
+        val stringVal: String  = map(TypeId.of[String])
+        val intVal: String     = map(TypeId.of[Int])
+        val doubleVal: Boolean = map.get(TypeId.of[Double]).isEmpty
+
+        assertTrue(
+          stringVal == "string",
+          intVal == "int",
+          doubleVal
+        )
+      }
     )
   )
 }

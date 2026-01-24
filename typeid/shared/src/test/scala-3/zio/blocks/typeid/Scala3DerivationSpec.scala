@@ -288,7 +288,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
           union1.hashCode() == union2.hashCode()
         )
       },
-      test("intersection types with same members in different order are equal") {
+      test("intersection types with same members in different order are equal (TypeRepr)") {
         trait J
         trait K
         val intersection1 = TypeRepr.Intersection(
@@ -307,6 +307,17 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         assertTrue(
           intersection1 == intersection2,
           intersection1.hashCode() == intersection2.hashCode()
+        )
+      },
+      test("intersection types with same members in different order are equal (TypeId)") {
+        trait JJ
+        trait KK
+        val inter1 = TypeId.derived[JJ & KK]
+        val inter2 = TypeId.derived[KK & JJ]
+
+        assertTrue(
+          inter1 == inter2,
+          inter1.hashCode() == inter2.hashCode()
         )
       },
       test("union toString preserves declaration order") {
@@ -494,6 +505,52 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         )
       }
     ),
+    suite("Type Parameter Variance")(
+      test("user-defined covariant type has correct variance") {
+        trait MyBox[+A]
+        val derived = TypeId.derived[MyBox[Int]]
+
+        println(s"MyBox typeParams: ${derived.typeParams}")
+        println(s"MyBox variance: ${derived.typeParams.head.variance}")
+
+        assertTrue(
+          derived.typeParams.head.variance == Variance.Covariant
+        )
+      },
+      test("user-defined contravariant type has correct variance") {
+        trait MyConsumer[-A]
+        val derived = TypeId.derived[MyConsumer[Int]]
+
+        assertTrue(
+          derived.typeParams.head.variance == Variance.Contravariant
+        )
+      },
+      test("user-defined invariant type has correct variance") {
+        trait MyCell[A]
+        val derived = TypeId.derived[MyCell[Int]]
+
+        assertTrue(
+          derived.typeParams.head.variance == Variance.Invariant
+        )
+      },
+      test("stdlib Set (compiled class) has correct variance") {
+        val derived = TypeId.derived[Set[Int]]
+
+        println(s"stdlib Set typeParams: ${derived.typeParams}")
+        println(s"stdlib Set variance: ${derived.typeParams.head.variance}")
+
+        assertTrue(
+          derived.typeParams.head.variance == Variance.Covariant
+        )
+      },
+      test("stdlib List (compiled class) has correct variance") {
+        val derived = TypeId.derived[List[Int]]
+
+        assertTrue(
+          derived.typeParams.head.variance == Variance.Covariant
+        )
+      }
+    ),
     suite("Context Functions")(
       test("context function type extracts as ContextFunction TypeRepr") {
         val ctxFuncId = TypeId.derived[TypeAliases.Contextual]
@@ -513,6 +570,62 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
               })
             case _ => false
           }
+        )
+      }
+    ),
+    suite("TypeId.of API")(
+      test("TypeId.of produces same result as TypeId.derived for primitives") {
+        val viaOf      = TypeId.of[String]
+        val viaDerived = TypeId.derived[String]
+
+        assertTrue(
+          viaOf == viaDerived,
+          viaOf.hashCode() == viaDerived.hashCode()
+        )
+      },
+      test("TypeId.of works for type constructors") {
+        val listOf = TypeId.of[List]
+
+        assertTrue(
+          listOf.name == "List",
+          listOf.arity == 1,
+          listOf.typeParams.head.variance == Variance.Covariant
+        )
+      },
+      test("TypeId.of works for applied types") {
+        val listIntOf = TypeId.of[List[Int]]
+
+        assertTrue(
+          listIntOf.name == "List",
+          listIntOf.typeArgs.nonEmpty
+        )
+      },
+      test("TypeId.of works for opaque types") {
+        val emailOf = TypeId.of[OpaqueTypes.Email]
+
+        assertTrue(
+          emailOf.name == "Email",
+          emailOf.isOpaque
+        )
+      },
+      test("TypeId.of works for union types") {
+        type StringOrInt = String | Int
+        val unionOf = TypeId.of[StringOrInt]
+
+        assertTrue(
+          unionOf.isAlias,
+          unionOf.aliasedTo.exists(_.isInstanceOf[TypeRepr.Union])
+        )
+      },
+      test("TypeId.of works for intersection types") {
+        trait AA
+        trait BB
+        type AAAndBB = AA & BB
+        val interOf = TypeId.of[AAAndBB]
+
+        assertTrue(
+          interOf.isAlias,
+          interOf.aliasedTo.exists(_.isInstanceOf[TypeRepr.Intersection])
         )
       }
     )

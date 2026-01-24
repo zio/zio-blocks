@@ -214,6 +214,25 @@ object TypeId {
     annotations
   )
 
+  /**
+   * Creates an applied type from a type constructor and type arguments.
+   * For example: applied(TypeId.list, TypeRepr.Ref(TypeId.int)) creates List[Int]
+   */
+  def applied[A](
+    typeConstructor: TypeId[_],
+    args: TypeRepr*
+  ): TypeId[A] = Impl[A](
+    typeConstructor.name,
+    typeConstructor.owner,
+    typeConstructor.typeParams,
+    args.toList,
+    typeConstructor.defKind,
+    typeConstructor.selfType,
+    typeConstructor.aliasedTo,
+    typeConstructor.representation,
+    typeConstructor.annotations
+  )
+
   object Nominal {
     def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeDefKind, List[TypeRepr])] =
       if (id.aliasedTo.isEmpty && id.representation.isEmpty)
@@ -250,6 +269,8 @@ object TypeId {
         case _                          => None
       }
   }
+
+  def of[A]: TypeId[A] = macro TypeIdMacros.derivedImpl[A]
 
   def derived[A]: TypeId[A] = macro TypeIdMacros.derivedImpl[A]
 
@@ -372,6 +393,9 @@ object TypeId {
   implicit val vector: TypeId[Vector[_]] =
     nominal[Vector[_]]("Vector", Owner.scalaCollectionImmutable, List(TypeParam.A))
   implicit val set: TypeId[Set[_]]    = nominal[Set[_]]("Set", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  implicit val seq: TypeId[Seq[_]]    = nominal[Seq[_]]("Seq", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  implicit val indexedSeq: TypeId[IndexedSeq[_]] =
+    nominal[IndexedSeq[_]]("IndexedSeq", Owner.scalaCollectionImmutable, List(TypeParam.A))
   implicit val map: TypeId[Map[_, _]] =
     nominal[Map[_, _]]("Map", Owner.scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
   implicit val either: TypeId[Either[_, _]] =
