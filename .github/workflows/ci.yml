@@ -12,10 +12,14 @@ on:
     types:
       - published
 
+concurrency:
+  group: ci-pr-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Install locale data
         run: |
@@ -37,8 +41,8 @@ jobs:
         run: sbt "++2.13; check; ++3.3; check; ++3.7; check"
 
   testJVM:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -62,15 +66,19 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run tests
+      - name: Run Scala 2 tests
+        if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+      - name: Run Scala 3 tests with test coverage
+        if: ${{ startsWith(matrix.scala, '3.') }}
+        run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
       - name: Run Scala Next tests
         if: ${{ startsWith(matrix.scala, '3.') }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test
 
   testJS:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -97,8 +105,8 @@ jobs:
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test
 
   testNative:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -134,8 +142,8 @@ jobs:
         run: echo "ci passed"
 
   publish:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [ci]
     if: ${{ github.event_name != 'pull_request' }}
     steps:

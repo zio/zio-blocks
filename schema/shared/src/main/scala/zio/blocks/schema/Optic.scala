@@ -1157,7 +1157,7 @@ object Optional {
       }
     }
 
-    private[this] def toOpticCheckBuilder(idx: Int, error: String): OpticCheckBuilder =
+    private[this] def toOpticCheckBuilder(idx: Int, error: SchemaError): OpticCheckBuilder =
       new OpticCheckBuilder(toOpticCheck =
         () => new OpticCheck(new ::(new OpticCheck.WrappingError(toDynamic, toDynamic(idx), error), Nil))
       )
@@ -2822,7 +2822,7 @@ object Traversal {
       }
     }
 
-    private[this] def toOpticCheckBuilder(idx: Int, error: String): OpticCheckBuilder =
+    private[this] def toOpticCheckBuilder(idx: Int, error: SchemaError): OpticCheckBuilder =
       new OpticCheckBuilder(toOpticCheck =
         () => new OpticCheck(new ::(new OpticCheck.WrappingError(toDynamic, toDynamic(idx), error), Nil))
       )
@@ -2932,7 +2932,7 @@ private[schema] case class AtKeysBinding[K, M[_, _]](
 ) extends OpticBinding
 
 private[schema] case class WrappedBinding[A, B](
-  wrap: B => Either[String, A],
+  wrap: B => Either[SchemaError, A],
   unwrap: A => B
 ) extends OpticBinding
 

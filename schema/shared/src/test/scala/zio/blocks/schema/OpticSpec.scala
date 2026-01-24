@@ -2022,7 +2022,7 @@ object OpticSpec extends SchemaBaseSpec {
                   WrappingError(
                     full = DynamicOptic(Vector(Wrapped)),
                     prefix = DynamicOptic(Vector(Wrapped)),
-                    error = "Unexpected 'Wrapper' value"
+                    error = SchemaError.validationFailed("Unexpected 'Wrapper' value")
                   ),
                   Nil
                 )
@@ -2378,7 +2378,7 @@ object OpticSpec extends SchemaBaseSpec {
                   WrappingError(
                     full = DynamicOptic(Vector(Wrapped)),
                     prefix = DynamicOptic(Vector(Wrapped)),
-                    error = "Unexpected 'Wrapper' value"
+                    error = SchemaError.validationFailed("Unexpected 'Wrapper' value")
                   ),
                   Nil
                 )
@@ -3445,9 +3445,9 @@ object OpticSpecTypes {
   case class Wrapper private (value: Record1) extends Wrappers
 
   object Wrapper extends CompanionOptics[Wrapper] {
-    def apply(value: Record1): Either[String, Wrapper] =
+    def apply(value: Record1): Either[SchemaError, Wrapper] =
       if (value.b ^ value.f < 0 || value.f == 0) new Right(new Wrapper(value))
-      else new Left("Unexpected 'Wrapper' value")
+      else new Left(SchemaError.validationFailed("Unexpected 'Wrapper' value"))
 
     def applyUnsafe(value: Record1): Wrapper =
       if (value.b ^ value.f < 0 || value.f == 0) new Wrapper(value)

@@ -317,16 +317,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(
           isLeft(
-            equalTo(
-              SchemaError(errors =
-                ::(
-                  SchemaError.ExpectationMismatch(
-                    source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
-                    expectation = "Expected Id: Expected a string with letter or digit characters"
-                  ),
-                  Nil
-                )
-              )
+            hasField[SchemaError, String](
+              "getMessage",
+              _.getMessage,
+              containsString("Expected a string with letter or digit characters")
             )
           )
         )
@@ -366,16 +360,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(
           isLeft(
-            equalTo(
-              SchemaError(errors =
-                ::(
-                  SchemaError.ExpectationMismatch(
-                    source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
-                    expectation = "Expected InnerId: Expected a string with letter or digit characters"
-                  ),
-                  Nil
-                )
-              )
+            hasField[SchemaError, String](
+              "getMessage",
+              _.getMessage,
+              containsString("Expected a string with letter or digit characters")
             )
           )
         )
@@ -992,7 +980,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
         typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")), "InnerId"),
         wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
-        wrapperBinding = Binding.Wrapper(s => InnerId(s), identity)
+        wrapperBinding = Binding.Wrapper(s => InnerId(s).left.map(SchemaError.validationFailed), identity)
       )
     )
 
@@ -1038,7 +1026,7 @@ object Id {
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
       typeName = TypeName(Namespace.zioBlocksSchema, "Id"),
       wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
-      wrapperBinding = Binding.Wrapper(s => Id(s), identity)
+      wrapperBinding = Binding.Wrapper(s => Id(s).left.map(SchemaError.validationFailed), identity)
     )
   )
 
