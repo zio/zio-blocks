@@ -68,6 +68,72 @@ private[blocks] object Subtyping {
     case _                     => false
   }
 
+  // Helper to check if a TypeRepr represents EmptyTuple
+  private def isEmptyTuple(t: TypeRepr): Boolean = t match {
+    case TypeRepr.Ref(id, Nil) =>
+      id.fullName == "scala.EmptyTuple" || id.fullName == "scala.Tuple$package.EmptyTuple"
+    case TypeRepr.Wildcard(_) =>
+      true // wildcards at tail position match EmptyTuple structurally
+    case _ => false
+  }
+
+  // Helper to check if TypeId represents the tuple cons operator *:
+  private def isTupleCons(id: TypeId[_]): Boolean =
+    id.name == "*:" && id.owner.asString.startsWith("scala")
+
+  // Helper to check if TypeId represents a TupleN type
+  private def isTupleN(id: TypeId[_]): Boolean =
+    id.name.matches("Tuple\\d+") && id.owner.asString.startsWith("scala")
+
+  // Helper to check if TypeId represents Tuple1
+  private def isTuple1(id: TypeId[_]): Boolean =
+    id.name == "Tuple1" && id.owner.asString.startsWith("scala")
+
+  /**
+   * Flatten a *: chain into a list of element types. Returns None if the type
+   * is not a *: chain. For example: Int *: String *: EmptyTuple becomes
+   * Some(List(Int, String))
+   */
+  private def flattenTupleCons(t: TypeRepr): Option[List[TypeRepr]] = t match {
+    case TypeRepr.Ref(id, List(head, tail)) if isTupleCons(id) =>
+      flattenTupleCons(tail).map(head :: _)
+    case TypeRepr.Ref(id, Nil) if isEmptyTuple(TypeRepr.Ref(id, Nil)) =>
+      Some(Nil)
+    case TypeRepr.Wildcard(_) =>
+      Some(Nil) // Wildcards at tail position treated as EmptyTuple
+    case _ =>
+      None
+  }
+
+  /**
+   * Flatten a TupleN type into its element types. Returns None if not a TupleN.
+   * For example: Tuple2[Int, String] becomes Some(List(Int, String))
+   */
+  private def flattenTupleN(t: TypeRepr): Option[List[TypeRepr]] = t match {
+    case TypeRepr.Ref(id, args) if isTupleN(id) || isTuple1(id) =>
+      Some(args)
+    case _ =>
+      None
+  }
+
+  /**
+   * Check if two tuple representations are structurally equivalent. This
+   * handles the case where *: chains and TupleN represent the same tuple
+   * structure.
+   */
+  private def tupleStructurallyEqual(a: TypeRepr, b: TypeRepr): Boolean = {
+    val aFlat = flattenTupleCons(a).orElse(flattenTupleN(a))
+    val bFlat = flattenTupleCons(b).orElse(flattenTupleN(b))
+
+    (aFlat, bFlat) match {
+      case (Some(aElems), Some(bElems)) =>
+        aElems.size == bElems.size && aElems.zip(bElems).forall { case (x, y) =>
+          structurallyEqual(x, y) || tupleStructurallyEqual(x, y)
+        }
+      case _ => false
+    }
+  }
+
   /**
    * Structural equality check for TypeRepr that avoids triggering custom equals
    * methods. This is used to break the recursive cycle between TypeId.equals
@@ -129,7 +195,8 @@ private[blocks] object Subtyping {
     case (TypeRepr.NullType, TypeRepr.NullType)       => true
     case (TypeRepr.UnitType, TypeRepr.UnitType)       => true
 
-    case _ => false
+    // Fallback: check for tuple equivalence (*: vs TupleN)
+    case _ => tupleStructurallyEqual(a, b)
   }
 
   /**
