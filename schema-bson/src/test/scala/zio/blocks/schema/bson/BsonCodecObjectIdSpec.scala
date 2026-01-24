@@ -73,7 +73,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val oid     = new ObjectId("507f1f77bcf86cd799439011")
         val codec   = BsonSchemaCodec.bsonCodec(objectIdSchema)
         val bson    = codec.encoder.toBsonValue(oid)
-        val decoded = codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == oid)
       },
@@ -84,7 +84,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         check(gen) { oid =>
           val bson    = codec.encoder.toBsonValue(oid)
           val decoded =
-            codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+            codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
           assertTrue(decoded == oid)
         }
@@ -104,7 +104,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val codec      = BsonSchemaCodec.bsonCodec(CustomerId.schema)
         val bson       = codec.encoder.toBsonValue(customerId)
         val decoded    =
-          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == customerId)
       },
@@ -114,7 +114,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         check(Customer.genCustomerId) { customerId =>
           val bson    = codec.encoder.toBsonValue(customerId)
           val decoded =
-            codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+            codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
           assertTrue(decoded == customerId)
         }
@@ -126,7 +126,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val codec    = BsonSchemaCodec.bsonCodec(Customer.schema)
         val bson     = codec.encoder.toBsonValue(customer)
         val decoded  =
-          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == customer)
       },
@@ -165,7 +165,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         check(Customer.gen) { customer =>
           val bson    = codec.encoder.toBsonValue(customer)
           val decoded =
-            codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+            codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
           assertTrue(decoded == customer)
         }
@@ -182,7 +182,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val codec   = BsonSchemaCodec.bsonCodec(Customer.schema)
         val bson    = codec.encoder.toBsonValue(customer)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == customer)
       },
@@ -196,7 +196,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val codec   = BsonSchemaCodec.bsonCodec(Customer.schema)
         val bson    = codec.encoder.toBsonValue(customer)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded.id == customer.id && decoded.invitedFriends.length == 20)
       }
@@ -208,7 +208,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val codec   = BsonSchemaCodec.bsonCodec(objectIdSchema, config)
         val bson    = codec.encoder.toBsonValue(oid)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(
           decoded == oid,
@@ -221,7 +221,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val codec    = BsonSchemaCodec.bsonCodec(Customer.schema, config)
         val bson     = codec.encoder.toBsonValue(customer)
         val decoded  =
-          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == customer)
       },
@@ -233,7 +233,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val codec   = BsonSchemaCodec.bsonCodec(Customer.schema, config)
         val bson    = codec.encoder.toBsonValue(customer)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == customer)
       },
@@ -245,7 +245,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         val codec   = BsonSchemaCodec.bsonCodec(Customer.schema, config)
         val bson    = codec.encoder.toBsonValue(customer)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == customer)
       },
@@ -258,7 +258,7 @@ object BsonCodecObjectIdSpec extends ZIOSpecDefault {
         check(Customer.gen) { customer =>
           val bson    = codec.encoder.toBsonValue(customer)
           val decoded =
-            codec.decoder.fromBsonValueUnsafe(bson, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+            codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.BsonDecoderContext.default)
 
           assertTrue(decoded == customer)
         }

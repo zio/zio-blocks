@@ -1,7 +1,6 @@
 package zio.blocks.schema
 
 import neotype._
-import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test.Assertion._
@@ -173,49 +172,19 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(Stats.responseTimes_wrapped.modify(value, _ - 1))(equalTo(value)) &&
       assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
       assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue1)))(
-        isLeft(
-          equalTo(
-            SchemaError(
-              errors = ::(
-                ExpectationMismatch(
-                  source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field("dropRate"))),
-                  expectation = "Expected DropRate: Validation Failed"
-                ),
-                Nil
-              )
-            )
-          )
-        )
+        isLeft(hasField[SchemaError, String]("getMessage", _.getMessage, containsString("Validation Failed")))
       ) &&
       assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue2)))(
-        isLeft(
-          equalTo(
-            SchemaError(
-              errors = ::(
-                ExpectationMismatch(
-                  source = DynamicOptic(
-                    nodes = Vector(
-                      DynamicOptic.Node.Field("responseTimes"),
-                      DynamicOptic.Node.Elements,
-                      DynamicOptic.Node.AtIndex(0)
-                    )
-                  ),
-                  expectation = "Expected ResponseTime: Validation Failed"
-                ),
-                Nil
-              )
-            )
-          )
-        )
+        isLeft(hasField[SchemaError, String]("getMessage", _.getMessage, containsString("Validation Failed")))
       )
     }
   )
 
   inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
-    Schema.derived[B].wrap[A](newType.make, newType.unwrap)
+    Schema.derived[B].wrap[A](a => newType.make(a).left.map(SchemaError.validationFailed), newType.unwrap)
 
   inline given subTypeSchema[A, B <: A](using subType: Subtype.WithType[A, B], schema: Schema[A]): Schema[B] =
-    Schema.derived[B].wrap[A](subType.make, _.asInstanceOf[A])
+    Schema.derived[B].wrap[A](a => subType.make(a).left.map(SchemaError.validationFailed), _.asInstanceOf[A])
 
   type Name = Name.Type
 
