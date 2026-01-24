@@ -62,8 +62,12 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run tests
+      - name: Run Scala 2 tests
+        if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+      - name: Run Scala 3 tests with test coverage
+        if: ${{ startsWith(matrix.scala, '3.') }}
+        run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
       - name: Run Scala Next tests
         if: ${{ startsWith(matrix.scala, '3.') }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test

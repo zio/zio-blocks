@@ -153,7 +153,7 @@ object DerivedOptics {
           val b = reader(registers, offset).asInstanceOf[B]
           wrapper.binding.wrap(b) match {
             case Right(a)  => a
-            case Left(err) => throw new RuntimeException(s"Wrapper validation failed: $err")
+            case Left(err) => throw new RuntimeException(s"Wrapper validation failed: ${err.message}")
           }
         }
       },

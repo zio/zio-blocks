@@ -47,6 +47,14 @@ object SchemaError {
   def unknownCase(trace: List[DynamicOptic.Node], caseName: String): SchemaError =
     new SchemaError(new ::(new UnknownCase(toDynamicOptic(trace), caseName), Nil))
 
+  /**
+   * Creates a SchemaError from a validation failure message. Use this to
+   * convert string-based validation errors (e.g., from smart constructors) into
+   * SchemaError.
+   */
+  def validationFailed(message: String): SchemaError =
+    conversionFailed(Nil, message)
+
   private[this] def toDynamicOptic(trace: List[DynamicOptic.Node]): DynamicOptic = {
     val nodes = trace.toArray
     reverse(nodes)

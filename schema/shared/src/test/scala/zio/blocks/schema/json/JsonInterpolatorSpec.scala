@@ -2,6 +2,7 @@ package zio.blocks.schema.json
 
 import zio.blocks.schema.SchemaBaseSpec
 import zio.blocks.schema.JavaTimeGen._
+import zio.blocks.schema._
 import zio.test._
 import zio.test.Assertion.{containsString, isLeft}
 import zio.test.TestAspect.exceptNative
@@ -493,6 +494,23 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Array values") {
       val x = Array(1, 2)
       assertTrue(json"""{"x": $x}""".get("x").one == Right(Json.arr(Json.number(1), Json.number(2))))
+    },
+    test("supports interpolated keys and values of other types with overridden toString") {
+      case class Person(name: String, age: Int) {
+        override def toString: String = Person.jsonCodec.encodeToString(this)
+      }
+
+      object Person {
+        implicit val schema: Schema[Person] = Schema.derived
+
+        val jsonCodec: JsonBinaryCodec[Person] = schema.derive(JsonBinaryCodecDeriver)
+      }
+
+      val x = Person("Alice", 20)
+      assertTrue(
+        json"""{"x": $x}""".get("x").one == Right(Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(20))),
+        json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+      )
     },
     test("doesn't compile for invalid json") {
       typeCheck {
