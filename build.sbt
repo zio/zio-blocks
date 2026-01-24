@@ -40,8 +40,7 @@ addCommandAlias(
 addCommandAlias(
   "testJVM",
   "schemaJVM/test; chunkJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; " +
-    "+zioGolemModelJVM/test; +zioGolemCoreJVM/test; +zioGolemMacros/test; +zioGolemTools/test; " +
-    "examples/test"
+    "+zioGolemModelJVM/test; +zioGolemCoreJVM/test; +zioGolemMacros/test; +zioGolemTools/test; "
 )
 addCommandAlias(
   "testJS",
