@@ -1078,14 +1078,10 @@ object Reflect {
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
     ): Either[SchemaError, A] =
-      (wrapped.fromDynamicValue(value) match {
-        case Right(unwrapped) =>
-          binding.wrap(unwrapped) match {
-            case Left(error) => new Left(SchemaError.expectationMismatch(trace, s"Expected ${typeName.name}: $error"))
-            case right       => right
-          }
-        case left => left
-      }).asInstanceOf[Either[SchemaError, A]]
+      wrapped.fromDynamicValue(value, trace) match {
+        case Right(unwrapped) => binding.wrap(unwrapped)
+        case left             => left.asInstanceOf[Either[SchemaError, A]]
+      }
 
     def metadata: F[NodeBinding, A] = wrapperBinding
 
