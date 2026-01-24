@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.json._
 import scala.quoted._
-import scala.util.control.NonFatal
 
 package object json {
   extension (inline sc: StringContext) {
@@ -12,13 +11,9 @@ package object json {
   private def jsonInterpolatorImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Json] = {
     import quotes.reflect._
 
-    val parts = sc match {
-      case '{ StringContext(${ Varargs(rawParts) }: _*) } =>
-        rawParts.map { case '{ $rawPart: String } => rawPart.valueOrAbort }.toList
-      case _ => report.errorAndAbort("Expected a StringContext with string literal parts")
-    }
-    
-    // Validate arguments - must be stringable or have JsonEncoder
+    // Note: Native doesn't support compile-time JSON validation like JVM does
+    // Validation of argument types (stringable or JsonEncoder) is handled at compile-time
+    // but JSON literal validation is deferred to runtime
     args match {
       case Varargs(argExprs) =>
         argExprs.foreach { argExpr =>
@@ -39,14 +34,7 @@ package object json {
       case _ => ()
     }
     
-    try {
-      // First validate the JSON by trying to parse it with dummy arguments
-      // parts is [p0, p1, ..., pn] for n interpolations, so we need n dummy args
-      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), parts.drop(1).map(_ => ""))
-      '{ JsonInterpolatorRuntime.jsonWithInterpolation($sc, $args) }
-    } catch {
-      case error if NonFatal(error) => report.errorAndAbort(s"Invalid JSON literal: ${error.getMessage}")
-    }
+    '{ JsonInterpolatorRuntime.jsonWithInterpolation($sc, $args) }
   }
 
   private def isStringableType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
