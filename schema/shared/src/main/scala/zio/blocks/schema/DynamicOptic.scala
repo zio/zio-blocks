@@ -38,16 +38,16 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     var idx = 0
     while (idx < len) {
       nodes(idx) match {
-        case Node.Field(name)    => sb.append('.').append(name)
-        case Node.Case(name)     => sb.append(".when[").append(name).append(']')
-        case Node.AtIndex(index) => sb.append(".at(").append(index).append(')')
-        case Node.AtMapKey(_)    => sb.append(".atKey(<key>)")
-        case Node.AtIndices(_)   => sb.append(".atIndices(<indices>)")
-        case Node.AtMapKeys(_)   => sb.append(".atKeys(<keys>)")
-        case Node.Elements       => sb.append(".each")
-        case Node.MapKeys        => sb.append(".eachKey")
-        case Node.MapValues      => sb.append(".eachValue")
-        case Node.Wrapped        => sb.append(".wrapped")
+        case Node.Field(name)        => sb.append('.').append(name)
+        case Node.Case(name)         => sb.append(".when[").append(name).append(']')
+        case Node.AtIndex(index)     => sb.append(".at(").append(index).append(')')
+        case Node.AtMapKey(key)      => sb.append(".atKey(").append(key.toString).append(')')
+        case Node.AtIndices(indices) => sb.append(".atIndices(").append(indices.mkString(", ")).append(')')
+        case Node.AtMapKeys(keys)    => sb.append(".atKeys(").append(keys.map(_.toString).mkString(", ")).append(')')
+        case Node.Elements           => sb.append(".each")
+        case Node.MapKeys            => sb.append(".eachKey")
+        case Node.MapValues          => sb.append(".eachValue")
+        case Node.Wrapped            => sb.append(".wrapped")
       }
       idx += 1
     }

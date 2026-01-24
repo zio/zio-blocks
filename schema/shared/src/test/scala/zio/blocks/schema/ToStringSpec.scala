@@ -46,6 +46,7 @@ object ToStringSpec extends SchemaBaseSpec {
     reflectSuite,
     schemaSuite,
     opticSuite,
+    dynamicOpticSuite,
     dynamicPatchSuite
   )
 
@@ -273,6 +274,64 @@ object ToStringSpec extends SchemaBaseSpec {
       }
       val traversal = Container.each
       assertTrue(traversal.toString.contains(".each"))
+    }
+  )
+
+  val dynamicOpticSuite: Spec[Any, Nothing] = suite("DynamicOptic.toString")(
+    test("renders root as dot") {
+      assertTrue(DynamicOptic.root.toString == ".")
+    },
+    test("renders field access") {
+      val optic = DynamicOptic.root.field("name")
+      assertTrue(optic.toString == ".name")
+    },
+    test("renders case selection") {
+      val optic = DynamicOptic.root.caseOf("Some")
+      assertTrue(optic.toString == ".when[Some]")
+    },
+    test("renders index access") {
+      val optic = DynamicOptic.root.at(0)
+      assertTrue(optic.toString == ".at(0)")
+    },
+    test("renders atKey with actual key value") {
+      val optic = DynamicOptic.root.atKey("myKey")
+      assertTrue(optic.toString == ".atKey(\"myKey\")")
+    },
+    test("renders atIndices with actual indices") {
+      val optic = DynamicOptic.root.atIndices(0, 1, 2)
+      assertTrue(optic.toString == ".atIndices(0, 1, 2)")
+    },
+    test("renders atKeys with actual key values") {
+      val optic = DynamicOptic.root.atKeys("a", "b", "c")
+      assertTrue(optic.toString == ".atKeys(\"a\", \"b\", \"c\")")
+    },
+    test("renders elements traversal") {
+      val optic = DynamicOptic.elements
+      assertTrue(optic.toString == ".each")
+    },
+    test("renders mapKeys traversal") {
+      val optic = DynamicOptic.mapKeys
+      assertTrue(optic.toString == ".eachKey")
+    },
+    test("renders mapValues traversal") {
+      val optic = DynamicOptic.mapValues
+      assertTrue(optic.toString == ".eachValue")
+    },
+    test("renders wrapped") {
+      val optic = DynamicOptic.wrapped
+      assertTrue(optic.toString == ".wrapped")
+    },
+    test("renders chained operations") {
+      val optic = DynamicOptic.root.field("users").at(0).field("name")
+      assertTrue(optic.toString == ".users.at(0).name")
+    },
+    test("renders complex path with case and key") {
+      val optic = DynamicOptic.root.caseOf("Some").field("value").atKey("key1")
+      assertTrue(optic.toString == ".when[Some].value.atKey(\"key1\")")
+    },
+    test("renders atKey with integer key") {
+      val optic = DynamicOptic.root.atKey(42)
+      assertTrue(optic.toString == ".atKey(42)")
     }
   )
 

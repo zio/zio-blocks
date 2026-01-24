@@ -84,9 +84,9 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       assert(A.x.toDynamic.toString)(equalTo(".when[X]")) &&
       assert(A.x(X.y).toDynamic.toString)(equalTo(".when[X].y")) &&
       assert(A.x(X.y)(Y.z).toDynamic.toString)(equalTo(".when[X].y.z")) &&
-      assert(DynamicOptic.root.at(0).atKey("Z").toString)(equalTo(".at(0).atKey(<key>)")) &&
+      assert(DynamicOptic.root.at(0).atKey("Z").toString)(equalTo(".at(0).atKey(\"Z\")")) &&
       assert(DynamicOptic.root.atIndices(0, 1, 2).atKeys("X", "Y", "Z").toString)(
-        equalTo(".atIndices(<indices>).atKeys(<keys>)")
+        equalTo(".atIndices(0, 1, 2).atKeys(\"X\", \"Y\", \"Z\")")
       ) &&
       assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo(".each.eachKey.eachValue.wrapped"))
     }
