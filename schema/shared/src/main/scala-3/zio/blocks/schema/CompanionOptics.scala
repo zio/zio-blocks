@@ -511,7 +511,7 @@ private object CompanionOptics {
             case Apply(TypeApply(Select(p, "apply"), _), List(Literal(IntConstant(i)))) => (p, i)
             case _                                                                      =>
               fail(
-                s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '${term.show}'"
+                s"Expected path elements: .<field>, <<T>>, [<index>], [<indices>], {<key>}, {<keys>}, [*], {*:}, {*}, or .~, got '${term.show}'"
               )
           }
           var parentTpe = parent.tpe.widen.dealias

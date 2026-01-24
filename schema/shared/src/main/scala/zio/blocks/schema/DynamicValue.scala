@@ -16,6 +16,8 @@ sealed trait DynamicValue {
   final def <=(that: DynamicValue): Boolean = compare(that) <= 0
 
   def diff(that: DynamicValue): DynamicPatch = DynamicValue.diff(this, that)
+
+  override def toString: String = DynamicValue.toEjson(this, 0)
 }
 
 object DynamicValue {
@@ -184,4 +186,161 @@ object DynamicValue {
    */
   def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
     Differ.diff(oldValue, newValue)
+
+  /**
+   * Convert a DynamicValue to EJSON (Extended JSON) format.
+   *
+   * EJSON is a superset of JSON that handles:
+   *   - Non-string map keys
+   *   - Tagged variants (using @ metadata)
+   *   - Typed primitives (using @ metadata)
+   *   - Records (unquoted keys) vs Maps (quoted string keys or unquoted
+   *     non-string keys)
+   *
+   * @param value
+   *   The DynamicValue to convert
+   * @param indent
+   *   Current indentation level
+   * @return
+   *   EJSON string representation
+   */
+  def toEjson(value: DynamicValue, indent: Int): String = {
+    val indentStr = "  " * indent
+
+    value match {
+      case Primitive(pv) =>
+        primitiveToEjson(pv)
+
+      case Record(fields) =>
+        if (fields.isEmpty) {
+          "{}"
+        } else {
+          val sb = new StringBuilder
+          sb.append("{\n")
+          fields.zipWithIndex.foreach { case ((name, value), idx) =>
+            sb.append(indentStr).append("  ").append(name).append(": ")
+            sb.append(toEjson(value, indent + 1))
+            if (idx < fields.length - 1) sb.append(",")
+            sb.append("\n")
+          }
+          sb.append(indentStr).append("}")
+          sb.toString
+        }
+
+      case Variant(caseName, value) =>
+        // Variants use postfix @ metadata: { ... } @ {tag: "CaseName"}
+        val valueEjson = toEjson(value, indent)
+        s"$valueEjson @ {tag: ${quote(caseName)}}"
+
+      case Sequence(elements) =>
+        if (elements.isEmpty) {
+          "[]"
+        } else if (elements.length == 1 && elements(0).isInstanceOf[Primitive]) {
+          // Only inline single-element sequences if the element is a primitive
+          "[" + toEjson(elements(0), indent) + "]"
+        } else {
+          val sb = new StringBuilder
+          sb.append("[\n")
+          elements.zipWithIndex.foreach { case (elem, idx) =>
+            sb.append(indentStr).append("  ")
+            sb.append(toEjson(elem, indent + 1))
+            if (idx < elements.length - 1) sb.append(",")
+            sb.append("\n")
+          }
+          sb.append(indentStr).append("]")
+          sb.toString
+        }
+
+      case Map(entries) =>
+        if (entries.isEmpty) {
+          "{}"
+        } else {
+          val sb = new StringBuilder
+          sb.append("{\n")
+          entries.zipWithIndex.foreach { case ((key, value), idx) =>
+            sb.append(indentStr).append("  ")
+            // For string keys in maps, we quote them. For non-string keys, we don't quote them.
+            key match {
+              case Primitive(PrimitiveValue.String(str)) =>
+                sb.append(quote(str))
+              case _ =>
+                sb.append(toEjson(key, indent + 1))
+            }
+            sb.append(": ")
+            sb.append(toEjson(value, indent + 1))
+            if (idx < entries.length - 1) sb.append(",")
+            sb.append("\n")
+          }
+          sb.append(indentStr).append("}")
+          sb.toString
+        }
+    }
+  }
+
+  /**
+   * Convert a PrimitiveValue to EJSON format. Most primitives render as their
+   * JSON equivalent. Some primitives need @ metadata for type information.
+   */
+  private def primitiveToEjson(pv: PrimitiveValue): String = pv match {
+    case PrimitiveValue.Unit                  => "null"
+    case PrimitiveValue.Boolean(value)        => value.toString
+    case PrimitiveValue.Byte(value)           => value.toString
+    case PrimitiveValue.Short(value)          => value.toString
+    case PrimitiveValue.Int(value)            => value.toString
+    case PrimitiveValue.Long(value)           => value.toString
+    case PrimitiveValue.Float(value)          => value.toString
+    case PrimitiveValue.Double(value)         => value.toString
+    case PrimitiveValue.Char(value)           => quote(value.toString)
+    case PrimitiveValue.String(value)         => quote(value)
+    case PrimitiveValue.BigInt(value)         => value.toString
+    case PrimitiveValue.BigDecimal(value)     => value.toString
+    case PrimitiveValue.DayOfWeek(value)      => quote(value.toString)
+    case PrimitiveValue.Month(value)          => quote(value.toString)
+    case PrimitiveValue.Instant(value)        => s"${value.toEpochMilli} @ {type: ${quote("instant")}}"
+    case PrimitiveValue.LocalDate(value)      => s"${quote(value.toString)} @ {type: ${quote("localDate")}}"
+    case PrimitiveValue.LocalDateTime(value)  => quote(value.toString)
+    case PrimitiveValue.LocalTime(value)      => quote(value.toString)
+    case PrimitiveValue.OffsetDateTime(value) => quote(value.toString)
+    case PrimitiveValue.OffsetTime(value)     => quote(value.toString)
+    case PrimitiveValue.Year(value)           => value.getValue.toString
+    case PrimitiveValue.YearMonth(value)      => quote(value.toString)
+    case PrimitiveValue.ZoneOffset(value)     => quote(value.toString)
+    case PrimitiveValue.ZonedDateTime(value)  => quote(value.toString)
+    case PrimitiveValue.MonthDay(value)       => quote(value.toString)
+    case PrimitiveValue.Period(value)         => s"${quote(value.toString)} @ {type: ${quote("period")}}"
+    case PrimitiveValue.Duration(value)       => s"${quote(value.toString)} @ {type: ${quote("duration")}}"
+    case PrimitiveValue.ZoneId(value)         => quote(value.toString)
+    case PrimitiveValue.Currency(value)       => quote(value.getCurrencyCode)
+    case PrimitiveValue.UUID(value)           => quote(value.toString)
+  }
+
+  /**
+   * Quote a string for JSON/EJSON output, escaping special characters.
+   */
+  private def quote(s: String): String = {
+    val sb = new StringBuilder
+    sb.append('"')
+    var i = 0
+    while (i < s.length) {
+      s.charAt(i) match {
+        case '"'  => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\b' => sb.append("\\b")
+        case '\f' => sb.append("\\f")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case c    =>
+          if (c < ' ') {
+            sb.append("\\u")
+            sb.append(String.format("%04x", Integer.valueOf(c.toInt)))
+          } else {
+            sb.append(c)
+          }
+      }
+      i += 1
+    }
+    sb.append('"')
+    sb.toString
+  }
 }

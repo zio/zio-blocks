@@ -845,7 +845,7 @@ object SchemaSpec extends SchemaBaseSpec {
               .Variant("Case2", DynamicValue.Record(Vector(("s", DynamicValue.Primitive(PrimitiveValue.Int(1))))))
           )
         )(
-          isLeft(hasError("Expected String at: .when[Case2].s"))
+          isLeft(hasError("Expected String at: <Case2>.s"))
         )
       },
       test("has consistent gets for typed and dynamic optics") {
@@ -1296,47 +1296,47 @@ object SchemaSpec extends SchemaBaseSpec {
               )
             )
           )
-        )(isLeft(hasError("Expected Boolean at: .each.at(0)\nExpected Boolean at: .each.at(1)"))) &&
+        )(isLeft(hasError("Expected Boolean at: [*][0]\nExpected Boolean at: [*][1]"))) &&
         assert(
           Schema[List[Byte]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(hasError("Expected Byte at: .each.at(0)"))) &&
+        )(isLeft(hasError("Expected Byte at: [*][0]"))) &&
         assert(
           Schema[List[Char]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(hasError("Expected Char at: .each.at(0)"))) &&
+        )(isLeft(hasError("Expected Char at: [*][0]"))) &&
         assert(
           Schema[List[Short]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(hasError("Expected Short at: .each.at(0)"))) &&
+        )(isLeft(hasError("Expected Short at: [*][0]"))) &&
         assert(
           Schema[List[Int]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Long(1))))
           )
-        )(isLeft(hasError("Expected Int at: .each.at(0)"))) &&
+        )(isLeft(hasError("Expected Int at: [*][0]"))) &&
         assert(
           Schema[List[Float]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(hasError("Expected Float at: .each.at(0)"))) &&
+        )(isLeft(hasError("Expected Float at: [*][0]"))) &&
         assert(
           Schema[List[Long]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(hasError("Expected Long at: .each.at(0)"))) &&
+        )(isLeft(hasError("Expected Long at: [*][0]"))) &&
         assert(
           Schema[List[Double]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(hasError("Expected Double at: .each.at(0)"))) &&
+        )(isLeft(hasError("Expected Double at: [*][0]"))) &&
         assert(
           Schema[List[String]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(hasError("Expected String at: .each.at(0)"))) &&
+        )(isLeft(hasError("Expected String at: [*][0]"))) &&
         assert(
           Schema[List[Record]].fromDynamicValue(DynamicValue.Sequence(Vector(DynamicValue.Record(Vector.empty))))
         )(
@@ -1454,7 +1454,7 @@ object SchemaSpec extends SchemaBaseSpec {
               )
             )
           )
-        )(isLeft(hasError("Expected Int at: .eachKey"))) &&
+        )(isLeft(hasError("Expected Int at: {*:}"))) &&
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(
             DynamicValue.Map(
@@ -1534,7 +1534,7 @@ object SchemaSpec extends SchemaBaseSpec {
       test("encodes values using provided formats and outputs") {
         assert(encodeToString { out =>
           Schema[DynamicValue].encode(ToStringFormat)(out)(DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        })(equalTo("Primitive(Int(1))"))
+        })(equalTo("1"))
       }
     ),
     suite("Reflect.Deferred")(

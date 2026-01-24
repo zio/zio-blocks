@@ -37,6 +37,15 @@ final case class DynamicPatch(ops: Vector[DynamicPatch.DynamicPatchOp]) {
 
   // Check if this patch is empty (no operations).
   def isEmpty: Boolean = ops.isEmpty
+
+  override def toString: String =
+    if (ops.isEmpty) "DynamicPatch {}"
+    else {
+      val sb = new StringBuilder("DynamicPatch {\n")
+      ops.foreach(op => DynamicPatch.renderOp(sb, op, "  "))
+      sb.append("}")
+      sb.toString
+    }
 }
 
 object DynamicPatch {
@@ -51,6 +60,129 @@ object DynamicPatch {
   // Create a patch with a single operation at the given path.
   def apply(path: DynamicOptic, operation: Operation): DynamicPatch =
     DynamicPatch(Vector(DynamicPatchOp(path, operation)))
+
+  private[patch] def renderOp(sb: StringBuilder, op: DynamicPatchOp, indent: String): Unit = {
+    val pathStr = op.path.toString
+    op.operation match {
+      case Operation.Set(value) =>
+        sb.append(indent).append(pathStr).append(" = ").append(value).append("\n")
+
+      case Operation.PrimitiveDelta(primitiveOp) =>
+        renderPrimitiveDelta(sb, pathStr, primitiveOp, indent)
+
+      case Operation.SequenceEdit(seqOps) =>
+        sb.append(indent).append(pathStr).append(":\n")
+        seqOps.foreach(so => renderSeqOp(sb, so, indent + "  "))
+
+      case Operation.MapEdit(mapOps) =>
+        sb.append(indent).append(pathStr).append(":\n")
+        mapOps.foreach(mo => renderMapOp(sb, mo, indent + "  "))
+
+      case Operation.Patch(nestedPatch) =>
+        sb.append(indent).append(pathStr).append(":\n")
+        nestedPatch.ops.foreach(op => renderOp(sb, op, indent + "  "))
+    }
+  }
+
+  private def renderPrimitiveDelta(sb: StringBuilder, pathStr: String, op: PrimitiveOp, indent: String): Unit =
+    op match {
+      case PrimitiveOp.IntDelta(d) =>
+        if (d >= 0) sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+        else sb.append(indent).append(pathStr).append(" -= ").append(-d).append("\n")
+      case PrimitiveOp.LongDelta(d) =>
+        if (d >= 0) sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+        else sb.append(indent).append(pathStr).append(" -= ").append(-d).append("\n")
+      case PrimitiveOp.DoubleDelta(d) =>
+        if (d >= 0) sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+        else sb.append(indent).append(pathStr).append(" -= ").append(-d).append("\n")
+      case PrimitiveOp.FloatDelta(d) =>
+        if (d >= 0) sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+        else sb.append(indent).append(pathStr).append(" -= ").append(-d).append("\n")
+      case PrimitiveOp.ShortDelta(d) =>
+        if (d >= 0) sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+        else sb.append(indent).append(pathStr).append(" -= ").append(-d).append("\n")
+      case PrimitiveOp.ByteDelta(d) =>
+        if (d >= 0) sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+        else sb.append(indent).append(pathStr).append(" -= ").append(-d).append("\n")
+      case PrimitiveOp.BigIntDelta(d) =>
+        if (d >= BigInt(0)) sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+        else sb.append(indent).append(pathStr).append(" -= ").append(-d).append("\n")
+      case PrimitiveOp.BigDecimalDelta(d) =>
+        if (d >= BigDecimal(0)) sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+        else sb.append(indent).append(pathStr).append(" -= ").append(-d).append("\n")
+
+      case PrimitiveOp.InstantDelta(d) =>
+        sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+      case PrimitiveOp.DurationDelta(d) =>
+        sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+      case PrimitiveOp.LocalDateDelta(d) =>
+        sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+      case PrimitiveOp.LocalDateTimeDelta(p, d) =>
+        sb.append(indent).append(pathStr).append(" += ").append(p).append(", ").append(d).append("\n")
+      case PrimitiveOp.PeriodDelta(d) =>
+        sb.append(indent).append(pathStr).append(" += ").append(d).append("\n")
+
+      case PrimitiveOp.StringEdit(ops) =>
+        sb.append(indent).append(pathStr).append(":\n")
+        ops.foreach {
+          case StringOp.Insert(idx, text) =>
+            sb.append(indent).append("  + [").append(idx).append(": ").append(escapeString(text)).append("]\n")
+          case StringOp.Delete(idx, len) =>
+            sb.append(indent).append("  - [").append(idx).append(", ").append(len).append("]\n")
+          case StringOp.Append(text) =>
+            sb.append(indent).append("  + ").append(escapeString(text)).append("\n")
+          case StringOp.Modify(idx, len, text) =>
+            sb.append(indent)
+              .append("  ~ [")
+              .append(idx)
+              .append(", ")
+              .append(len)
+              .append(": ")
+              .append(escapeString(text))
+              .append("]\n")
+        }
+    }
+
+  private def renderSeqOp(sb: StringBuilder, op: SeqOp, indent: String): Unit =
+    op match {
+      case SeqOp.Insert(index, values) =>
+        values.zipWithIndex.foreach { case (v, i) =>
+          sb.append(indent).append("+ [").append(index + i).append(": ").append(v).append("]\n")
+        }
+      case SeqOp.Append(values) =>
+        values.foreach { v =>
+          sb.append(indent).append("+ ").append(v).append("\n")
+        }
+      case SeqOp.Delete(index, count) =>
+        if (count == 1) sb.append(indent).append("- [").append(index).append("]\n")
+        else {
+          val indices = (index until index + count).mkString(", ")
+          sb.append(indent).append("- [").append(indices).append("]\n")
+        }
+      case SeqOp.Modify(index, nestedOp) =>
+        nestedOp match {
+          case Operation.Set(v) =>
+            sb.append(indent).append("~ [").append(index).append(": ").append(v).append("]\n")
+          case _ =>
+            sb.append(indent).append("~ [").append(index).append("]:\n")
+            renderOp(sb, DynamicPatchOp(DynamicOptic.root, nestedOp), indent + "  ")
+        }
+    }
+
+  private def renderMapOp(sb: StringBuilder, op: MapOp, indent: String): Unit =
+    op match {
+      case MapOp.Add(k, v) =>
+        sb.append(indent).append("+ {").append(renderKey(k)).append(": ").append(v).append("}\n")
+      case MapOp.Remove(k) =>
+        sb.append(indent).append("- {").append(renderKey(k)).append("}\n")
+      case MapOp.Modify(k, patch) =>
+        sb.append(indent).append("~ {").append(renderKey(k)).append("}:\n")
+        patch.ops.foreach(op => renderOp(sb, op, indent + "  "))
+    }
+
+  private def renderKey(k: DynamicValue): String = k.toString
+
+  private def escapeString(s: String): String = "\"" + s + "\""
 
   // Apply a single operation at a path within a value.
   private[schema] def applyOp(

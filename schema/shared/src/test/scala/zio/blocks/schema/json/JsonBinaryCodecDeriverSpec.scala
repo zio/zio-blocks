@@ -1496,7 +1496,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[BigProduct]("""{"f00":true,"f69":1,"f69":1}""", "duplicated field \"f69\" at: .") &&
         decodeError[BigProduct](
           """{"f00":true,"f67":{"f69":2},"f69":1}""",
-          "missing required field \"f00\" at: .f67.when[Some].value"
+          "missing required field \"f00\" at: .f67<Some>.value"
         )
       },
       test("record with transient field") {
@@ -2054,7 +2054,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         ) &&
         decodeError(
           """{"i":"1","ln":[{"i":"2","ln":[{"i":"3"}]}]}""",
-          "missing required field \"ln\" at: .ln.at(0).ln.at(0)",
+          "missing required field \"ln\" at: .ln[0].ln[0]",
           codec
         )
       },
@@ -2098,42 +2098,42 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(Array[Boolean](true, false, true), """[true,false,true]""") &&
         decodeError[Array[Boolean]]("1", "expected '[' or null at: .") &&
         decodeError[Array[Boolean]]("[true,false,true,false}", "expected ']' or ',' at: .") &&
-        decodeError[Array[Boolean]]("[true,false,true,false", "unexpected end of input at: .at(3)") &&
+        decodeError[Array[Boolean]]("[true,false,true,false", "unexpected end of input at: [3]") &&
         roundTrip(Array[Byte](), """[]""") &&
         roundTrip(Array[Byte](1: Byte, 2: Byte, 3: Byte), """[1,2,3]""") &&
         decodeError[Array[Byte]]("true", "expected '[' or null at: .") &&
         decodeError[Array[Byte]]("[1,2,3,4}", "expected ']' or ',' at: .") &&
-        decodeError[Array[Byte]]("[1,2,3,4", "unexpected end of input at: .at(3)") &&
+        decodeError[Array[Byte]]("[1,2,3,4", "unexpected end of input at: [3]") &&
         roundTrip(Array[Short](), """[]""") &&
         roundTrip(Array[Short](1: Short, 2: Short, 3: Short), """[1,2,3]""") &&
         decodeError[Array[Short]]("true", "expected '[' or null at: .") &&
         decodeError[Array[Short]]("[1,2,3,4}", "expected ']' or ',' at: .") &&
-        decodeError[Array[Short]]("[1,2,3,4", "unexpected end of input at: .at(3)") &&
+        decodeError[Array[Short]]("[1,2,3,4", "unexpected end of input at: [3]") &&
         roundTrip(Array[Char](), """[]""") &&
         roundTrip(Array[Char]('1', '2', '3'), """["1","2","3"]""") &&
         decodeError[Array[Char]]("true", "expected '[' or null at: .") &&
         decodeError[Array[Char]]("""["1","2","3","4"}""", "expected ']' or ',' at: .") &&
-        decodeError[Array[Char]]("""["1","2","3","4""", "unexpected end of input at: .at(3)") &&
+        decodeError[Array[Char]]("""["1","2","3","4""", "unexpected end of input at: [3]") &&
         roundTrip(Array[Int](), """[]""") &&
         roundTrip(Array[Int](1, 2, 3), """[1,2,3]""") &&
         decodeError[Array[Int]]("true", "expected '[' or null at: .") &&
         decodeError[Array[Int]]("[1,2,3,4}", "expected ']' or ',' at: .") &&
-        decodeError[Array[Int]]("[1,2,3,4", "unexpected end of input at: .at(3)") &&
+        decodeError[Array[Int]]("[1,2,3,4", "unexpected end of input at: [3]") &&
         roundTrip(Array[Float](), """[]""") &&
         roundTrip(Array[Float](1.0f, 2.0f, 3.0f), """[1.0,2.0,3.0]""") &&
         decodeError[Array[Float]]("true", "expected '[' or null at: .") &&
         decodeError[Array[Float]]("[1.0,2.0,3.0,4.0}", "expected ']' or ',' at: .") &&
-        decodeError[Array[Float]]("[1.0,2.0,3.0,4.0", "unexpected end of input at: .at(3)") &&
+        decodeError[Array[Float]]("[1.0,2.0,3.0,4.0", "unexpected end of input at: [3]") &&
         roundTrip(Array[Long](), """[]""") &&
         roundTrip(Array[Long](1L, 2L, 3L), """[1,2,3]""") &&
         decodeError[Array[Long]]("true", "expected '[' or null at: .") &&
         decodeError[Array[Long]]("[1,2,3,4}", "expected ']' or ',' at: .") &&
-        decodeError[Array[Long]]("[1,2,3,4", "unexpected end of input at: .at(3)") &&
+        decodeError[Array[Long]]("[1,2,3,4", "unexpected end of input at: [3]") &&
         roundTrip(Array[Double](), """[]""") &&
         roundTrip(Array[Double](1.0, 2.0, 3.0), """[1.0,2.0,3.0]""") &&
         decodeError[Array[Double]]("true", "expected '[' or null at: .") &&
         decodeError[Array[Double]]("[1.0,2.0,3.0,4.0}", "expected ']' or ',' at: .") &&
-        decodeError[Array[Double]]("[1.0,2.0,3.0,4.0", "unexpected end of input at: .at(3)") &&
+        decodeError[Array[Double]]("[1.0,2.0,3.0,4.0", "unexpected end of input at: [3]") &&
         roundTrip((1 to 100).toList, (1 to 100).mkString("[", ",", "]")) &&
         roundTrip(Set(1L, 2L, 3L), """[1,2,3]""") &&
         roundTrip(ArraySeq(1.0f, 2.0f, 3.0f), """[1.0,2.0,3.0]""") &&
@@ -2182,8 +2182,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[List[Int]]("", "unexpected end of input at: .") &&
         decodeError[List[Int]]("true", "expected '[' or null at: .") &&
         decodeError[List[Int]]("[1,2,3,4}", "expected ']' or ',' at: .") &&
-        decodeError[List[Int]]("[1,2,3,4", "unexpected end of input at: .at(3)") &&
-        decodeError[List[Int]]("""[1,2,3,null]""", "illegal number at: .at(3)")
+        decodeError[List[Int]]("[1,2,3,4", "unexpected end of input at: [3]") &&
+        decodeError[List[Int]]("""[1,2,3,null]""", "illegal number at: [3]")
       },
       test("primitive values with custom codecs") {
         val codec1 = Schema
@@ -2285,35 +2285,35 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(Array[Boolean](true, false, true), """["true","false","true"]""", codec1) &&
         decodeError("true", "expected '[' or null at: .", codec1) &&
         decodeError("""["true","false","true","false"}""", "expected ']' or ',' at: .", codec1) &&
-        decodeError("""["true","false","true","false""", "unexpected end of input at: .at(3)", codec1) &&
+        decodeError("""["true","false","true","false""", "unexpected end of input at: [3]", codec1) &&
         roundTrip(Array[Byte](1: Byte, 2: Byte, 3: Byte), """["1","2","3"]""", codec2) &&
         decodeError("true", "expected '[' or null at: .", codec2) &&
         decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec2) &&
-        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec2) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: [3]", codec2) &&
         roundTrip(Array[Char]('1', '2', '3'), """[49,50,51]""", codec3) &&
         decodeError("true", "expected '[' or null at: .", codec3) &&
         decodeError("""[49,50,51,52}""", "expected ']' or ',' at: .", codec3) &&
-        decodeError("""[49,50,51,52""", "unexpected end of input at: .at(3)", codec3) &&
+        decodeError("""[49,50,51,52""", "unexpected end of input at: [3]", codec3) &&
         roundTrip(Array[Short](1: Short, 2: Short, 3: Short), """["1","2","3"]""", codec4) &&
         decodeError("true", "expected '[' or null at: .", codec4) &&
         decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec4) &&
-        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec4) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: [3]", codec4) &&
         roundTrip(Array[Int](1, 2, 3), """["1","2","3"]""", codec5) &&
         decodeError("true", "expected '[' or null at: .", codec5) &&
         decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec5) &&
-        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec5) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: [3]", codec5) &&
         roundTrip(Array[Float](1.0f, 2.0f, 3.0f), """["1.0","2.0","3.0"]""", codec6) &&
         decodeError("true", "expected '[' or null at: .", codec6) &&
         decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec6) &&
-        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec6) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: [3]", codec6) &&
         roundTrip(Array[Long](1L, 2L, 3L), """["1","2","3"]""", codec7) &&
         decodeError("true", "expected '[' or null at: .", codec7) &&
         decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec7) &&
-        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec7) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: [3]", codec7) &&
         roundTrip(Array[Double](1.0, 2.0, 3.0), """["1.0","2.0","3.0"]""", codec8) &&
         decodeError("true", "expected '[' or null at: .", codec8) &&
         decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec8) &&
-        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec8)
+        decodeError("""["1","2","3","4""", "unexpected end of input at: [3]", codec8)
       },
       test("complex values") {
         roundTrip(
@@ -2426,7 +2426,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         ) &&
         decodeError(
           """["2020-01-01ї12:34:56.789-08:00"]""",
-          "illegal offset date time at: .at(0)",
+          "illegal offset date time at: [0]",
           codec
         )
       }
@@ -2510,16 +2510,16 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           readerConfig = ReaderConfig,
           writerConfig = WriterConfig.withIndentionStep(2)
         ) &&
-        decodeError[Map[DayOfWeek, Long]]("""{"Mon":1}""", "illegal day of week value at: .at(0)") &&
-        decodeError[Map[Month, Long]]("""{"Jun":1}""", "illegal month value at: .at(0)") &&
-        decodeError[Map[Currency, Long]]("""{"JJJ":1}""", "illegal currency value at: .at(0)") &&
+        decodeError[Map[DayOfWeek, Long]]("""{"Mon":1}""", "illegal day of week value at: [0]") &&
+        decodeError[Map[Month, Long]]("""{"Jun":1}""", "illegal month value at: [0]") &&
+        decodeError[Map[Currency, Long]]("""{"JJJ":1}""", "illegal currency value at: [0]") &&
         decodeError[Map[Int, Long]]("", "unexpected end of input at: .") &&
         decodeError[Map[Int, Long]]("true", "expected '{' or null at: .") &&
-        decodeError[Map[Int, Long]]("""{"1"""", "unexpected end of input at: .at(0)") &&
-        decodeError[Map[Int, Long]]("""{"1":""", "unexpected end of input at: .atKey(<key>)") &&
+        decodeError[Map[Int, Long]]("""{"1"""", "unexpected end of input at: [0]") &&
+        decodeError[Map[Int, Long]]("""{"1":""", "unexpected end of input at: {1}") &&
         decodeError[Map[Int, Long]]("""{"1":2]""", "expected '}' or ',' at: .") &&
         encodeError(Map(() -> 1L), "encoding as JSON key is not supported") &&
-        decodeError[Map[Unit, Long]]("""{"null":1}""", "decoding as JSON key is not supported at: .at(0)")
+        decodeError[Map[Unit, Long]]("""{"null":1}""", "decoding as JSON key is not supported at: [0]")
       },
       test("primitive key with recursive values") {
         roundTrip(
@@ -2587,13 +2587,13 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip[GeoJSON](value, """{"Feature":{"geometry":{"Point":{"coordinates":[1.0,2.0]}}}}""") &&
         decodeError(
           """{"type":"Feature","geometry":{"type":"Point","coordinates":[01,02]}}""",
-          "illegal number with leading zero at: .when[SimpleGeoJSON].when[Feature].geometry.when[SimpleGeometry].when[Point].coordinates._1",
+          "illegal number with leading zero at: <SimpleGeoJSON><Feature>.geometry<SimpleGeometry><Point>.coordinates._1",
           codec1
         ) &&
         decodeError("""{"geometry":{"coordinates":[01,02]}}""", "expected a variant value at: .", codec2) &&
         decodeError[GeoJSON](
           """{"Feature":{"geometry":{"Point":{"coordinates":[01,02]}}}}""",
-          "illegal number with leading zero at: .when[SimpleGeoJSON].when[Feature].geometry.when[SimpleGeometry].when[Point].coordinates._1"
+          "illegal number with leading zero at: <SimpleGeoJSON><Feature>.geometry<SimpleGeometry><Point>.coordinates._1"
         )
       },
       test("ADT with case key renaming using case name mapper") {
@@ -2622,31 +2622,31 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode[RGBColor]("""{"Ultramarine":{}}""", RGBColor.Blue) &&
         decodeError[RGBColor]("""null""", "expected '{' at: .") &&
         decodeError[RGBColor]("""{"Pink":{}}""", "illegal discriminator at: .") &&
-        decodeError[RGBColor]("""{"Mixed":{"color":1]}""", "expected '}' or ',' at: .when[Mix]") &&
-        decodeError[RGBColor]("""{"Mixed":{"color":01}}""", "illegal number with leading zero at: .when[Mix].rgb") &&
+        decodeError[RGBColor]("""{"Mixed":{"color":1]}""", "expected '}' or ',' at: <Mix>") &&
+        decodeError[RGBColor]("""{"Mixed":{"color":01}}""", "illegal number with leading zero at: <Mix>.rgb") &&
         decodeError[RGBColor]("""{"Mixed":{"color":1193046}]""", "expected '}' or ',' at: .") &&
-        decodeError[RGBColor]("""{"Mixed":{"rgb":1193046}}""", "missing required field \"color\" at: .when[Mix]")
+        decodeError[RGBColor]("""{"Mixed":{"rgb":1193046}}""", "missing required field \"color\" at: <Mix>")
       },
       test("option") {
         roundTrip(Option(42), """42""") &&
         roundTrip[Option[Int]](None, """null""") &&
-        decodeError[Option[Int]]("""08""", "illegal number with leading zero at: .when[Some].value") &&
-        decodeError[Option[Int]]("""nuts""", "expected null at: .when[None]")
+        decodeError[Option[Int]]("""08""", "illegal number with leading zero at: <Some>.value") &&
+        decodeError[Option[Int]]("""nuts""", "expected null at: <None>")
       },
       test("either") {
         roundTrip[Either[String, Int]](Right(42), """{"Right":{"value":42}}""") &&
         roundTrip[Either[String, Int]](Left("VVV"), """{"Left":{"value":"VVV"}}""") &&
         decodeError[Either[String, Int]]("""null""", "expected '{' at: .") &&
         decodeError[Either[String, Int]]("""{"Middle":{"value":42}}""", "illegal discriminator at: .") &&
-        decodeError[Either[String, Int]]("""{"Right":{"value":42]}""", "expected '}' or ',' at: .when[Right]") &&
+        decodeError[Either[String, Int]]("""{"Right":{"value":42]}""", "expected '}' or ',' at: <Right>") &&
         decodeError[Either[String, Int]]("""{"Right":{"value":42}]""", "expected '}' or ',' at: .") &&
         decodeError[Either[String, Int]](
           """{"Right":{"value":02}}""",
-          "illegal number with leading zero at: .when[Right].value"
+          "illegal number with leading zero at: <Right>.value"
         ) &&
         decodeError[Either[String, Int]](
           """{"Left":{"left":"VVV"}}""",
-          "missing required field \"value\" at: .when[Left]"
+          "missing required field \"value\" at: <Left>"
         )
       },
       test("either with the discriminator field") {
@@ -2657,13 +2657,13 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(Left("VVV"), """{"$type":"Left","value":"VVV"}""", codec) &&
         decodeError("""null""", "expected '{' at: .", codec) &&
         decodeError("""{"$type":"X","value":42}}""", "illegal value of discriminator field \"$type\" at: .", codec) &&
-        decodeError("""{"$type":"Right","value":42]""", "expected '}' or ',' at: .when[Right]", codec) &&
+        decodeError("""{"$type":"Right","value":42]""", "expected '}' or ',' at: <Right>", codec) &&
         decodeError(
           """{"$type":"Right","value":02}""",
-          "illegal number with leading zero at: .when[Right].value",
+          "illegal number with leading zero at: <Right>.value",
           codec
         ) &&
-        decodeError("""{"$type":"Left","left":"VVV"}""", "unexpected field \"left\" at: .when[Left]", codec) &&
+        decodeError("""{"$type":"Left","left":"VVV"}""", "unexpected field \"left\" at: <Left>", codec) &&
         decodeError("""{"Left":{"value":"VVV"}}""", "missing required field \"$type\" at: .", codec)
       },
       test("nested ADTs") {
@@ -2744,9 +2744,9 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       test("top-level") {
         roundTrip[UserId](UserId(1234567890123456789L), "1234567890123456789") &&
         roundTrip[Email](Email("john@gmail.com"), "\"john@gmail.com\"") &&
-        decodeError[Email]("john@gmail.com", "expected '\"' at: .wrapped") &&
+        decodeError[Email]("john@gmail.com", "expected '\"' at: .~") &&
         decodeError[Email]("\"john&gmail.com\"", "expected e-mail at: .") &&
-        decodeError[Email]("\"john@gmail.com", "unexpected end of input at: .wrapped")
+        decodeError[Email]("\"john@gmail.com", "unexpected end of input at: .~")
       },
       test("as a record field") {
         roundTrip[Record3](
@@ -2767,8 +2767,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           Map(UserId(1234567890123456789L) -> Email("backup@gmail.com")),
           """{"1234567890123456789":"backup@gmail.com"}"""
         ) &&
-        decodeError[Map[Email, UserId]]("""{john@gmail.com:123}""", "expected '\"' at: .at(0).wrapped") &&
-        decodeError[Map[Email, UserId]]("""{"backup&gmail.com":123}""", "expected e-mail at: .at(0)") &&
+        decodeError[Map[Email, UserId]]("""{john@gmail.com:123}""", "expected '\"' at: [0].~") &&
+        decodeError[Map[Email, UserId]]("""{"backup&gmail.com":123}""", "expected e-mail at: [0]") &&
         decodeError[Map[Email, UserId]]("""{"backup@gmail.com":123""", "unexpected end of input at: .")
       }
     ),

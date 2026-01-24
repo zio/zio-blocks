@@ -19,6 +19,8 @@ import scala.util.control.NonFatal
  */
 sealed trait Json {
 
+  override def toString = print
+
   // ─────────────────────────────────────────────────────────────────────────
   // Type Information
   // ─────────────────────────────────────────────────────────────────────────

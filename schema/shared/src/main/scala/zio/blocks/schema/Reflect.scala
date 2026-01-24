@@ -444,6 +444,8 @@ object Reflect {
     override def asRecord: Option[Reflect.Record[F, A]] = new Some(this)
 
     override def isRecord: Boolean = true
+
+    override def toString: String = ReflectPrinter.printRecord(this)
   }
 
   object Record {
@@ -609,6 +611,8 @@ object Reflect {
     override def asVariant: Option[Reflect.Variant[F, A]] = new Some(this)
 
     override def isVariant: Boolean = true
+
+    override def toString: String = ReflectPrinter.printVariant(this)
   }
 
   object Variant {
@@ -810,6 +814,8 @@ object Reflect {
     })
 
     override def isSequence: Boolean = true
+
+    override def toString: String = ReflectPrinter.printSequence(this)
   }
 
   object Sequence {
@@ -924,6 +930,8 @@ object Reflect {
     })
 
     override def isMap: Boolean = true
+
+    override def toString: String = ReflectPrinter.printMap(this)
   }
 
   object Map {
@@ -987,6 +995,8 @@ object Reflect {
     override def asDynamic: Option[Reflect.Dynamic[F]] = new Some(this)
 
     override def isDynamic: Boolean = true
+
+    override def toString: String = typeName.toString
   }
 
   object Dynamic {
@@ -1043,6 +1053,8 @@ object Reflect {
     override def asPrimitive: Option[Reflect.Primitive[F, A]] = new Some(this)
 
     override def isPrimitive: Boolean = true
+
+    override def toString: String = typeName.toString
   }
 
   object Primitive {
@@ -1106,6 +1118,8 @@ object Reflect {
     })
 
     override def isWrapper: Boolean = true
+
+    override def toString: String = ReflectPrinter.printWrapper(this)
 
     def nodeType: Reflect.Type.Wrapper[A, B] = new Reflect.Type.Wrapper
   }
@@ -1379,6 +1393,16 @@ object Reflect {
       }
 
     def nodeType = value.nodeType
+
+    override def toString: String = {
+      val v = visited.get
+      if (v.containsKey(this)) s"deferred => ${typeName}"
+      else {
+        v.put(this, ())
+        try value.toString
+        finally v.remove(this)
+      }
+    }
   }
 
   private class IdentityTuple(val v1: AnyRef, val v2: AnyRef) {

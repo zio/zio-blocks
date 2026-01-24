@@ -234,7 +234,7 @@ private object CompanionOptics {
         q""
       case tree =>
         fail(
-          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '$tree'"
+          s"Expected path elements: .<field>, <<T>>, [<index>], [<indices>], {<key>}, {<keys>}, [*], {*:}, {*}, or .~, got '$tree'"
         )
     }
 
