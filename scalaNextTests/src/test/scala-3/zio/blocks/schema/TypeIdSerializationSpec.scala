@@ -15,7 +15,7 @@ object TypeIdSerializationSpec extends ZIOSpecDefault {
     suite("TypeId Round-Trip")(
       test("simple TypeId round-trip through DynamicValue") {
         val typeId  = TypeId.of[String]
-        val schema  = Schema.typeIdAnySchema
+        val schema  = typeIdAnySchema
         val dynamic = schema.toDynamicValue(typeId.asInstanceOf[TypeId[Any]])
         val result  = schema.fromDynamicValue(dynamic)
         assertTrue(result.isRight) &&
@@ -24,7 +24,7 @@ object TypeIdSerializationSpec extends ZIOSpecDefault {
       },
       test("generic TypeId round-trip") {
         val typeId  = TypeId.of[List[Int]]
-        val schema  = Schema.typeIdAnySchema
+        val schema  = typeIdAnySchema
         val dynamic = schema.toDynamicValue(typeId.asInstanceOf[TypeId[Any]])
         val result  = schema.fromDynamicValue(dynamic)
         assertTrue(result.isRight) &&
@@ -32,7 +32,7 @@ object TypeIdSerializationSpec extends ZIOSpecDefault {
       },
       test("nested generic TypeId round-trip") {
         val typeId  = TypeId.of[Map[String, List[Int]]]
-        val schema  = Schema.typeIdAnySchema
+        val schema  = typeIdAnySchema
         val dynamic = schema.toDynamicValue(typeId.asInstanceOf[TypeId[Any]])
         val result  = schema.fromDynamicValue(dynamic)
         assertTrue(result.isRight) &&
@@ -42,7 +42,7 @@ object TypeIdSerializationSpec extends ZIOSpecDefault {
     suite("TypeRepr Round-Trip")(
       test("simple TypeRepr round-trip") {
         val typeRepr = TypeRepr.Ref(TypeId.of[Int], Nil)
-        val schema   = Schema.typeReprSchema
+        val schema   = typeReprSchema
         val dynamic  = schema.toDynamicValue(typeRepr)
         val result   = schema.fromDynamicValue(dynamic)
         assertTrue(result.isRight)
@@ -54,7 +54,7 @@ object TypeIdSerializationSpec extends ZIOSpecDefault {
             TypeRepr.Ref(TypeId.of[String], Nil)
           )
         )
-        val schema  = Schema.typeReprSchema
+        val schema  = typeReprSchema
         val dynamic = schema.toDynamicValue(typeRepr)
         val result  = schema.fromDynamicValue(dynamic)
         assertTrue(result.isRight)
@@ -63,28 +63,28 @@ object TypeIdSerializationSpec extends ZIOSpecDefault {
     suite("Supporting Types Round-Trip")(
       test("Owner round-trip") {
         val owner   = Owner.pkgs("zio", "blocks", "schema")
-        val schema  = Schema.ownerSchema
+        val schema  = ownerSchema
         val dynamic = schema.toDynamicValue(owner)
         val result  = schema.fromDynamicValue(dynamic)
         assertTrue(result == Right(owner))
       },
       test("Variance round-trip") {
         val variance = Variance.Covariant
-        val schema   = Schema.varianceSchema
+        val schema   = varianceSchema
         val dynamic  = schema.toDynamicValue(variance)
         val result   = schema.fromDynamicValue(dynamic)
         assertTrue(result == Right(variance))
       },
       test("TypeBounds round-trip") {
         val bounds  = TypeBounds(Some(TypeRepr.NothingType), Some(TypeRepr.AnyType))
-        val schema  = Schema.typeBoundsSchema
+        val schema  = typeBoundsSchema
         val dynamic = schema.toDynamicValue(bounds)
         val result  = schema.fromDynamicValue(dynamic)
         assertTrue(result == Right(bounds))
       },
       test("TypeParam round-trip") {
         val param   = TypeParam.covariant("A", 0)
-        val schema  = Schema.typeParamSchema
+        val schema  = typeParamSchema
         val dynamic = schema.toDynamicValue(param)
         val result  = schema.fromDynamicValue(dynamic)
         assertTrue(result == Right(param))
