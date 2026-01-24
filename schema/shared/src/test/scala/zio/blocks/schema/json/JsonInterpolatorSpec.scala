@@ -512,6 +512,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
       )
     },
+    test("supports List values (special runtime handling)") {
+      val numbers = List(1, 2, 3)
+      assertTrue(
+        json"""{"nums": $numbers}""".get("nums").one == Right(Json.arr(Json.number(1), Json.number(2), Json.number(3)))
+      )
+    },
     test("doesn't compile for invalid json") {
       typeCheck {
         """json"1e""""
@@ -519,6 +525,173 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       typeCheck {
         """json"[1,02]""""
       }.map(assert(_)(isLeft(containsString("Invalid JSON literal: illegal number with leading zero at: .at(1)"))))
-    } @@ exceptNative
+    } @@ exceptNative,
+    
+    // Comprehensive string literal interpolation tests
+    suite("string literal interpolation")(
+      test("supports String interpolation in strings") {
+        val name = "Alice"
+        assertTrue(
+          json"""{"greeting": "Hello, $name!"}""".get("greeting").string == Right("Hello, Alice!")
+        )
+      },
+      
+      test("supports numeric types in strings") {
+        val x = 42
+        val y = 3.14
+        val big = BigInt("12345678901234567890")
+        
+        assertTrue(
+          json"""{"msg": "x is $x"}""".get("msg").string == Right("x is 42"),
+          json"""{"msg": "y is $y"}""".get("msg").string == Right("y is 3.14"),
+          json"""{"msg": "big is $big"}""".get("msg").string == Right("big is 12345678901234567890")
+        )
+      },
+      
+      test("supports UUID in strings") {
+        val id = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        assertTrue(
+          json"""{"ref": "user-$id"}""".get("ref").string == Right("user-550e8400-e29b-41d4-a716-446655440000")
+        )
+      },
+      
+      test("supports temporal types in strings") {
+        val date = LocalDate.of(2024, 1, 15)
+        val time = LocalTime.of(10, 30, 0)
+        val instant = Instant.parse("2024-01-15T10:30:00Z")
+        
+        assertTrue(
+          json"""{"file": "report-$date.pdf"}""".get("file").string == Right("report-2024-01-15.pdf"),
+          json"""{"log": "Event at $time"}""".get("log").string == Right("Event at 10:30"),
+          json"""{"ts": "Created: $instant"}""".get("ts").string == Right("Created: 2024-01-15T10:30:00Z")
+        )
+      },
+      
+      test("supports Currency in strings") {
+        val currency = java.util.Currency.getInstance("USD")
+        assertTrue(
+          json"""{"label": "Price in $currency"}""".get("label").string == Right("Price in USD")
+        )
+      },
+      
+      test("supports computed values in strings") {
+        val x = 10
+        val result = x * 2
+        val items = List("a", "b", "c")
+        val count = items.size
+        
+        assertTrue(
+          json"""{"result": "Result is $result"}""".get("result").string == Right("Result is 20"),
+          json"""{"count": "Found $count items"}""".get("count").string == Right("Found 3 items")
+        )
+      },
+      
+      test("supports multiple values combined in strings") {
+        val date = LocalDate.of(2024, 1, 15)
+        val filename = s"report-$date-v3.pdf"
+        
+        assertTrue(
+          json"""{"file": "$filename"}""".get("file").string == 
+            Right("report-2024-01-15-v3.pdf")
+        )
+      },
+      
+      test("handles empty interpolation results") {
+        val empty = ""
+        assertTrue(
+          json"""{"msg": "[$empty]"}""".get("msg").string == Right("[]")
+        )
+      },
+      
+      test("handles special characters in interpolated strings") {
+        val path = "foo/bar"
+        
+        assertTrue(
+          json"""{"url": "http://example.com/$path"}""".get("url").string == 
+            Right("http://example.com/foo/bar")
+        )
+      },
+      
+      test("handles multiple interpolations in same string literal") {
+        val first = "Hello"
+        val second = "World"
+        
+        assertTrue(
+          json"""{"msg": "$first $second!"}""".get("msg").string == Right("Hello World!")
+        )
+      },
+      
+      test("escapes JSON special characters in string literals") {
+        val withQuotes = """He said "hello""""
+        val withBackslash = """path\to\file"""
+        val withNewline = "line1\nline2"
+        val withTab = "col1\tcol2"
+        
+        assertTrue(
+          json"""{"quoted": "$withQuotes"}""".get("quoted").string == Right("""He said "hello""""),
+          json"""{"backslash": "$withBackslash"}""".get("backslash").string == Right("""path\to\file"""),
+          json"""{"newline": "$withNewline"}""".get("newline").string == Right("line1\nline2"),
+          json"""{"tab": "$withTab"}""".get("tab").string == Right("col1\tcol2")
+        )
+      },
+      
+      test("handles control characters in string literals") {
+        val withControl = "test\u0001\u001fend"
+        
+        assertTrue(
+          json"""{"control": "$withControl"}""".get("control").string == Right("test\u0001\u001fend")
+        )
+      }
+    ),
+    
+    // Mixed context tests
+    suite("mixed interpolation contexts")(
+      test("combines key and string interpolation") {
+        val key = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val timestamp = Instant.parse("2024-01-15T10:30:00Z")
+        
+        val result = json"""{
+          $key: {
+            "note": "Recorded at $timestamp"
+          }
+        }"""
+        
+        assertTrue(
+          result.get(key.toString).get("note").string == Right("Recorded at 2024-01-15T10:30:00Z")
+        )
+      },
+      
+      test("multiple keys with different stringable types") {
+        val intKey = 1
+        val uuidKey = java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
+        val dateKey = LocalDate.of(2024, 1, 15)
+        
+        val result = json"""{
+          $intKey: "one",
+          $uuidKey: "uuid",
+          $dateKey: "date"
+        }"""
+        
+        assertTrue(
+          result.get("1").string == Right("one"),
+          result.get(uuidKey.toString).string == Right("uuid"),
+          result.get("2024-01-15").string == Right("date")
+        )
+      },
+      
+      test("array with mixed value types") {
+        val num = 42
+        val str = "hello"
+        val bool = true
+        
+        val result = json"""[$num, $str, $bool]"""
+        
+        assertTrue(
+          result(0).int == Right(42),
+          result(1).string == Right("hello"),
+          result(2).boolean == Right(true)
+        )
+      }
+    )
   )
 }
