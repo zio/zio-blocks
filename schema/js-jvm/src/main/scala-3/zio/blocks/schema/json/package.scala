@@ -28,6 +28,7 @@ package object json {
 
     def isStringable(tpe: TypeRepr): Boolean =
       tpe <:< TypeRepr.of[String] ||
+        tpe <:< TypeRepr.of[Unit] ||
         tpe <:< TypeRepr.of[Boolean] ||
         tpe <:< TypeRepr.of[Byte] ||
         tpe <:< TypeRepr.of[Short] ||
@@ -141,7 +142,7 @@ package object json {
             report.errorAndAbort(
               s"Context: string literal\nProvided: ${tpe.show}\nRequired: PrimitiveType (stringable)\nFix: Use a primitive type or explicitly call .toString"
             )
-          newArgs += '{ JsonInterpolatorRuntime.Raw(${ argExpr }.toString) }
+          newArgs += '{ JsonInterpolatorRuntime.Raw(JsonInterpolatorRuntime.stringOf(${ argExpr })) }
           dummyArgs += JsonInterpolatorRuntime.Raw("x")
 
         case Context.Key =>
@@ -149,7 +150,7 @@ package object json {
             report.errorAndAbort(
               s"Context: key position\nProvided: ${tpe.show}\nRequired: PrimitiveType (stringable)\nFix: Use a primitive type or explicitly call .toString"
             )
-          newArgs += '{ ${ argExpr }.toString }
+          newArgs += '{ JsonInterpolatorRuntime.stringOf(${ argExpr }) }
           dummyArgs += "key"
 
         case Context.JsonValue =>

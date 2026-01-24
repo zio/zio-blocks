@@ -114,7 +114,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"""{$yearMonth: 1}""".get(yearMonth.toString).int == Right(1),
           json"""{$zoneId: 1}""".get(zoneId.toString).int == Right(1),
           json"""{$zoneOffset: 1}""".get(zoneOffset.toString).int == Right(1),
-          json"""{$currency: 1}""".get("USD").int == Right(1)
+          json"""{$currency: 1}""".get("USD").int == Right(1),
+          json"""{${()}: 1}""".get("()").int == Right(1)
         )
       },
 
@@ -286,7 +287,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"""{"k": "$yearMonth"}""".get("k").string == Right("2024-01"),
           json"""{"k": "$zoneId"}""".get("k").string == Right("UTC"),
           json"""{"k": "$zoneOffset"}""".get("k").string == Right("Z"),
-          json"""{"k": "$currency"}""".get("k").string == Right("USD")
+          json"""{"k": "$currency"}""".get("k").string == Right("USD"),
+          json"""{"k": "${()}"}""".get("k").string == Right("()")
         )
       },
 

@@ -29,6 +29,7 @@ private object JsonInterpolatorMacros {
 
     def isStringable(tpe: Type): Boolean =
       tpe <:< typeOf[String] ||
+        tpe <:< typeOf[Unit] ||
         tpe <:< typeOf[Boolean] ||
         tpe <:< typeOf[Byte] ||
         tpe <:< typeOf[Short] ||
@@ -133,7 +134,9 @@ private object JsonInterpolatorMacros {
               c.enclosingPosition,
               s"Context: string literal\nProvided: $tpe\nRequired: PrimitiveType (stringable)\nFix: Use a primitive type or explicitly call .toString"
             )
-          newArgs += c.Expr[Any](q"zio.blocks.schema.json.JsonInterpolatorRuntime.Raw($arg.toString)")
+          newArgs += c.Expr[Any](
+            q"zio.blocks.schema.json.JsonInterpolatorRuntime.Raw(zio.blocks.schema.json.JsonInterpolatorRuntime.stringOf($arg))"
+          )
           dummyArgs += JsonInterpolatorRuntime.Raw("x")
 
         case Context.Key =>
@@ -142,7 +145,7 @@ private object JsonInterpolatorMacros {
               c.enclosingPosition,
               s"Context: key position\nProvided: $tpe\nRequired: PrimitiveType (stringable)\nFix: Use a primitive type or explicitly call .toString"
             )
-          newArgs += c.Expr[Any](q"$arg.toString")
+          newArgs += c.Expr[Any](q"zio.blocks.schema.json.JsonInterpolatorRuntime.stringOf($arg)")
           dummyArgs += "key"
 
         case Context.JsonValue =>

@@ -11,6 +11,11 @@ import scala.annotation.tailrec
  */
 object JsonInterpolatorRuntime {
   final case class Raw(s: String) extends AnyVal
+  def stringOf(value: Any): String = value match {
+    case _: Unit => "()"
+    case null    => "null"
+    case _       => value.toString
+  }
 
   def jsonWithInterpolation(sc: StringContext, args: Seq[Any]): Json = {
     val parts  = sc.parts.iterator
