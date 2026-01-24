@@ -186,8 +186,8 @@ object GolemPlugin extends AutoPlugin {
           case None =>
             Nil
           case Some(basePackage) =>
-            val log         = streams.value.log
-            val managedRoot = (Compile / sourceManaged).value / "golem" / "generated" / "autoregister"
+            val log          = streams.value.log
+            val managedRoot  = (Compile / sourceManaged).value / "golem" / "generated" / "autoregister"
             val scalaSources =
               (Compile / unmanagedSourceDirectories).value
                 .flatMap(dir => (dir ** "*.scala").get)
@@ -228,8 +228,8 @@ object GolemPlugin extends AutoPlugin {
                   templ.stats.flatMap(collect(_, nextPkg))
                 case cls: Defn.Class if hasAgentImplementation(cls.mods) =>
                   val traitTypeOpt: Option[String] = cls.templ.inits.headOption.map(_.tpe.syntax)
-                  val ctorParams                  = cls.ctor.paramss.flatten
-                  val ctorTypes: List[String]     = ctorParams.map(_.decltpe.map(_.syntax).getOrElse("")).toList
+                  val ctorParams                   = cls.ctor.paramss.flatten
+                  val ctorTypes: List[String]      = ctorParams.map(_.decltpe.map(_.syntax).getOrElse("")).toList
                   traitTypeOpt match {
                     case Some(traitType) if pkg.nonEmpty && !ctorTypes.exists(_.isEmpty) =>
                       List(
