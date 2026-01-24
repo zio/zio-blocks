@@ -53,7 +53,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       ) &&
       decodeError[Planet](
         """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":-1.5E15}""",
-        "Validation Failed at: .distanceFromSun.when[Some].value"
+        "Validation Failed at: .distanceFromSun<Some>.value"
       )
     },
     test("derive schemas for cases classes and generic tuples with newtypes") {
