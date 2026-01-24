@@ -131,7 +131,7 @@ private object JsonInterpolatorMacros {
           if (!isStringable(tpe))
             c.abort(
               c.enclosingPosition,
-              s"Type $tpe is not supported in string literal interpolation. Expected a stringable type."
+              s"Context: string literal\nProvided: $tpe\nRequired: PrimitiveType (stringable)\nFix: Use a primitive type or explicitly call .toString"
             )
           newArgs += c.Expr[Any](q"zio.blocks.schema.json.JsonInterpolatorRuntime.Raw($arg.toString)")
           dummyArgs += JsonInterpolatorRuntime.Raw("x")
@@ -140,16 +140,19 @@ private object JsonInterpolatorMacros {
           if (!isStringable(tpe))
             c.abort(
               c.enclosingPosition,
-              s"Type $tpe is not supported in JSON key position. Expected a stringable type."
+              s"Context: key position\nProvided: $tpe\nRequired: PrimitiveType (stringable)\nFix: Use a primitive type or explicitly call .toString"
             )
-          newArgs += c.Expr[Any](q"$arg.toString")
+          newArgs += c.Expr[Any](q"$arg")
           dummyArgs += "key"
 
         case Context.JsonValue =>
           val encoderType = appliedType(typeOf[JsonEncoder[_]], tpe)
           val encoder     = c.inferImplicitValue(encoderType)
           if (encoder == EmptyTree)
-            c.abort(c.enclosingPosition, s"Could not find JsonEncoder for type $tpe in value position.")
+            c.abort(
+              c.enclosingPosition,
+              s"Context: value position\nProvided: $tpe\nRequired: JsonEncoder[$tpe]\nHint: encode can come from JsonBinaryCodec or derived from Schema[$tpe]"
+            )
           newArgs += c.Expr[Any](q"$encoder.encode($arg)")
           dummyArgs += "value"
 
@@ -157,7 +160,10 @@ private object JsonInterpolatorMacros {
           val encoderType = appliedType(typeOf[JsonEncoder[_]], tpe)
           val encoder     = c.inferImplicitValue(encoderType)
           if (encoder == EmptyTree)
-            c.abort(c.enclosingPosition, s"Could not find JsonEncoder for type $tpe (context undetermined).")
+            c.abort(
+              c.enclosingPosition,
+              s"Context: unknown (inferred value)\nProvided: $tpe\nRequired: JsonEncoder[$tpe]"
+            )
           newArgs += c.Expr[Any](q"$encoder.encode($arg)")
           dummyArgs += "value"
       }

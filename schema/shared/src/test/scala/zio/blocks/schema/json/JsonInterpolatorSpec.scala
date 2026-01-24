@@ -139,7 +139,10 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           object Point { implicit val schema: Schema[Point] = Schema.derived }
           val p = Point(1, 2)
           json"{ $p: \"value\" }"
-        """).map(assert(_)(isLeft(containsString("key"))))
+        """).map { result =>
+          assert(result)(isLeft(containsString("Context: key position"))) &&
+          assert(result)(isLeft(containsString("Required: PrimitiveType")))
+        }
       } @@ exceptNative
     ),
 
@@ -210,67 +213,80 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
 
       test("compile fails for types without JsonEncoder") {
-        typeCheck("""
+        typeCheck(
+          """
           case class NoSchema(x: Int)
           val v = NoSchema(1)
-          json"{"value": $v}"
-        """).map(assert(_)(isLeft))
+          json""" + "\"\"\"" + """{"value": $v}""" + "\"\"\""
+        ).map { result =>
+          assert(result)(isLeft(containsString("Context: value position"))) &&
+          assert(result)(isLeft(containsString("Required: JsonEncoder")))
+        }
       } @@ exceptNative
     ),
 
     suite("string literal interpolation")(
-      test("supports String interpolation in strings") {
-        val name = "Alice"
-        assertTrue(
-          json"""{"greeting": "Hello, $name!"}""".get("greeting").string == Right("Hello, Alice!")
-        )
-      },
-
-      test("supports numeric types in strings") {
-        val x   = 42
-        val y   = 3.14
-        val big = BigInt("12345678901234567890")
-
-        assertTrue(
-          json"""{"msg": "x is $x"}""".get("msg").string == Right("x is 42"),
-          json"""{"msg": "y is $y"}""".get("msg").string == Right("y is 3.14"),
-          json"""{"msg": "big is $big"}""".get("msg").string == Right("big is 12345678901234567890")
-        )
-      },
-
-      test("supports UUID in strings") {
-        val id = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-        assertTrue(
-          json"""{"ref": "user-$id"}""".get("ref").string == Right("user-550e8400-e29b-41d4-a716-446655440000")
-        )
-      },
-
-      test("supports temporal types in strings") {
-        val date    = LocalDate.of(2024, 1, 15)
-        val time    = LocalTime.of(10, 30, 0)
-        val instant = Instant.parse("2024-01-15T10:30:00Z")
-
-        assertTrue(
-          json"""{"file": "report-$date.pdf"}""".get("file").string == Right("report-2024-01-15.pdf"),
-          json"""{"log": "Event at $time"}""".get("log").string == Right("Event at 10:30"),
-          json"""{"ts": "Created: $instant"}""".get("ts").string == Right("Created: 2024-01-15T10:30:00Z")
-        )
-      },
-
-      test("supports Currency in strings") {
-        val currency = Currency.getInstance("USD")
-        assertTrue(
-          json"""{"label": "Price in $currency"}""".get("label").string == Right("Price in USD")
-        )
-      },
-
-      test("supports ${expr} syntax for expressions") {
-        val x     = 10
-        val items = List("a", "b", "c")
+      test("supports ALL PrimitiveType types in string literals") {
+        val s: String                      = "str"
+        val b: Boolean                     = true
+        val byte: Byte                     = 1
+        val short: Short                   = 2
+        val int: Int                       = 3
+        val long: Long                     = 4L
+        val float: Float                   = 1.5f
+        val double: Double                 = 2.5
+        val char: Char                     = 'c'
+        val bigInt: BigInt                 = BigInt("12345678901234567890")
+        val bigDec: BigDecimal             = BigDecimal("123.456")
+        val uuid: UUID                     = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
+        val instant: Instant               = Instant.parse("2024-01-15T10:30:00Z")
+        val localDate: LocalDate           = LocalDate.of(2024, 1, 15)
+        val localTime: LocalTime           = LocalTime.of(10, 30)
+        val localDateTime: LocalDateTime   = LocalDateTime.of(2024, 1, 15, 10, 30)
+        val offsetTime: OffsetTime         = OffsetTime.of(10, 30, 0, 0, ZoneOffset.UTC)
+        val offsetDateTime: OffsetDateTime = OffsetDateTime.parse("2024-01-15T10:30:00Z")
+        val zonedDateTime: ZonedDateTime   = ZonedDateTime.parse("2024-01-15T10:30:00Z")
+        val duration: Duration             = Duration.ofHours(1)
+        val period: Period                 = Period.ofDays(30)
+        val dayOfWeek: DayOfWeek           = DayOfWeek.MONDAY
+        val month: Month                   = Month.JANUARY
+        val monthDay: MonthDay             = MonthDay.of(1, 15)
+        val year: Year                     = Year.of(2024)
+        val yearMonth: YearMonth           = YearMonth.of(2024, 1)
+        val zoneId: ZoneId                 = ZoneId.of("UTC")
+        val zoneOffset: ZoneOffset         = ZoneOffset.UTC
+        val currency: Currency             = Currency.getInstance("USD")
 
         assertTrue(
-          json"""{"range": "${x * 2} to ${x * 3}"}""".get("range").string == Right("20 to 30"),
-          json"""{"count": "Found ${items.size} items"}""".get("count").string == Right("Found 3 items")
+          json"""{"k": "$s"}""".get("k").string == Right("str"),
+          json"""{"k": "$b"}""".get("k").string == Right("true"),
+          json"""{"k": "$byte"}""".get("k").string == Right("1"),
+          json"""{"k": "$short"}""".get("k").string == Right("2"),
+          json"""{"k": "$int"}""".get("k").string == Right("3"),
+          json"""{"k": "$long"}""".get("k").string == Right("4"),
+          json"""{"k": "$float"}""".get("k").string == Right("1.5"),
+          json"""{"k": "$double"}""".get("k").string == Right("2.5"),
+          json"""{"k": "$char"}""".get("k").string == Right("c"),
+          json"""{"k": "$bigInt"}""".get("k").string == Right("12345678901234567890"),
+          json"""{"k": "$bigDec"}""".get("k").string == Right("123.456"),
+          json"""{"k": "$uuid"}""".get("k").string == Right("123e4567-e89b-12d3-a456-426614174000"),
+          json"""{"k": "$instant"}""".get("k").string == Right("2024-01-15T10:30:00Z"),
+          json"""{"k": "$localDate"}""".get("k").string == Right("2024-01-15"),
+          json"""{"k": "$localTime"}""".get("k").string == Right("10:30"),
+          json"""{"k": "$localDateTime"}""".get("k").string == Right("2024-01-15T10:30"),
+          json"""{"k": "$offsetTime"}""".get("k").string == Right("10:30Z"),
+          json"""{"k": "$offsetDateTime"}""".get("k").string == Right("2024-01-15T10:30Z"),
+          json"""{"k": "$zonedDateTime"}""".get("k").string == Right("2024-01-15T10:30Z"),
+          json"""{"k": "$duration"}""".get("k").string == Right("PT1H"),
+          json"""{"k": "$period"}""".get("k").string == Right("P30D"),
+          json"""{"k": "$dayOfWeek"}""".get("k").string == Right("MONDAY"),
+          json"""{"k": "$month"}""".get("k").string == Right("JANUARY"),
+          json"""{"k": "$monthDay"}""".get("k").string == Right("--01-15"),
+          json"""{"k": "$year"}""".get("k").string == Right("2024"),
+          json"""{"k": "$yearMonth"}""".get("k").string == Right("2024-01"),
+          json"""{"k": "$zoneId"}""".get("k").string == Right("UTC"),
+          json"""{"k": "$zoneOffset"}""".get("k").string == Right("Z"),
+          json"""{"k": "$currency"}""".get("k").string == Right("USD")
         )
       },
 
@@ -302,13 +318,53 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         )
       },
 
+      test("supports ${expr} syntax for expressions") {
+        val x     = 10
+        val items = List("a", "b", "c")
+
+        assertTrue(
+          json"""{"range": "${x * 2} to ${x * 3}"}""".get("range").string == Right("20 to 30"),
+          json"""{"count": "Found ${items.size} items"}""".get("count").string == Right("Found 3 items")
+        )
+      },
+
+      test("handles empty interpolation results") {
+        val empty = ""
+        assertTrue(
+          json"""{"msg": "[$empty]"}""".get("msg").string == Right("[]")
+        )
+      },
+
+      test("handles special characters in interpolated strings") {
+        val path  = "foo/bar"
+        val query = "a=1&b=2"
+
+        assertTrue(
+          json"""{"url": "http://example.com/$path?$query"}""".get("url").string ==
+            Right("http://example.com/foo/bar?a=1&b=2")
+        )
+      },
+
+      test("supports ${expr} syntax for expressions") {
+        val x     = 10
+        val items = List("a", "b", "c")
+
+        assertTrue(
+          json"""{"range": "${x * 2} to ${x * 3}"}""".get("range").string == Right("20 to 30"),
+          json"""{"count": "Found ${items.size} items"}""".get("count").string == Right("Found 3 items")
+        )
+      },
+
       test("compile fails for non-stringable types in string literals") {
         typeCheck("""
           case class Point(x: Int, y: Int)
           object Point { implicit val schema: Schema[Point] = Schema.derived }
           val p = Point(1, 2)
-          json"{"msg": "Point is $p"}"
-        """).map(assert(_)(isLeft))
+          json"{\"msg\": \"Point is $p\"}"
+        """).map { result =>
+          assert(result)(isLeft(containsString("Context: string literal"))) &&
+          assert(result)(isLeft(containsString("Required: PrimitiveType")))
+        }
       } @@ exceptNative
     ),
 

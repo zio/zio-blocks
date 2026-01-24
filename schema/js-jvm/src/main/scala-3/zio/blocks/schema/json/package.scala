@@ -139,7 +139,7 @@ package object json {
         case Context.StringLiteral =>
           if (!isStringable(tpe))
             report.errorAndAbort(
-              s"Type ${tpe.show} is not supported in string literal interpolation. Expected a stringable type (PrimitiveType)."
+              s"Context: string literal\nProvided: ${tpe.show}\nRequired: PrimitiveType (stringable)\nFix: Use a primitive type or explicitly call .toString"
             )
           newArgs += '{ JsonInterpolatorRuntime.Raw(${ argExpr }.toString) }
           dummyArgs += JsonInterpolatorRuntime.Raw("x")
@@ -147,7 +147,7 @@ package object json {
         case Context.Key =>
           if (!isStringable(tpe))
             report.errorAndAbort(
-              s"Type ${tpe.show} is not supported in JSON key position. Expected a reasonable stringable type (PrimitiveType)."
+              s"Context: key position\nProvided: ${tpe.show}\nRequired: PrimitiveType (stringable)\nFix: Use a primitive type or explicitly call .toString"
             )
           newArgs += '{ ${ argExpr }.toString }
           dummyArgs += "key"
@@ -161,7 +161,9 @@ package object json {
                   newArgs += '{ ${ encoder }.encode($argExpr.asInstanceOf[t]) }
                   dummyArgs += "value"
                 case None =>
-                  report.errorAndAbort(s"Could not find JsonEncoder for type ${tpe.show} in value position.")
+                  report.errorAndAbort(
+                    s"Context: value position\nProvided: ${tpe.show}\nRequired: JsonEncoder[${tpe.show}]\nHint: encode can come from JsonBinaryCodec or derived from Schema[${tpe.show}]"
+                  )
               }
           }
 
@@ -174,7 +176,9 @@ package object json {
                   newArgs += '{ ${ encoder }.encode($argExpr.asInstanceOf[t]) }
                   dummyArgs += "value"
                 case None =>
-                  report.errorAndAbort(s"Could not find JsonEncoder for type ${tpe.show} (context undetermined).")
+                  report.errorAndAbort(
+                    s"Context: unknown (inferred value)\nProvided: ${tpe.show}\nRequired: JsonEncoder[${tpe.show}]"
+                  )
               }
           }
       }

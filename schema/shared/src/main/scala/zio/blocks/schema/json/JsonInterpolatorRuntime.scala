@@ -113,64 +113,47 @@ object JsonInterpolatorRuntime {
 
   private[this] def writeKey(out: ByteArrayOutputStream, key: Any): Unit = {
     key match {
-      case s: String  => JsonBinaryCodec.stringCodec.encode(s, out)
-      case b: Boolean =>
-        out.write('"')
-        JsonBinaryCodec.booleanCodec.encode(b, out)
-        out.write('"')
-      case b: Byte =>
-        out.write('"')
-        JsonBinaryCodec.byteCodec.encode(b, out)
-        out.write('"')
-      case sh: Short =>
-        out.write('"')
-        JsonBinaryCodec.shortCodec.encode(sh, out)
-        out.write('"')
-      case i: Int =>
-        out.write('"')
-        JsonBinaryCodec.intCodec.encode(i, out)
-        out.write('"')
-      case l: Long =>
-        out.write('"')
-        JsonBinaryCodec.longCodec.encode(l, out)
-        out.write('"')
-      case f: Float =>
-        out.write('"')
-        JsonBinaryCodec.floatCodec.encode(f, out)
-        out.write('"')
-      case d: Double =>
-        out.write('"')
-        JsonBinaryCodec.doubleCodec.encode(d, out)
-        out.write('"')
-      case bd: BigDecimal =>
-        out.write('"')
-        JsonBinaryCodec.bigDecimalCodec.encode(bd, out)
-        out.write('"')
-      case bi: BigInt =>
-        out.write('"')
-        JsonBinaryCodec.bigIntCodec.encode(bi, out)
-        out.write('"')
-      case d: Duration         => JsonBinaryCodec.durationCodec.encode(d, out)
-      case dow: DayOfWeek      => JsonBinaryCodec.dayOfWeekCodec.encode(dow, out)
-      case i: Instant          => JsonBinaryCodec.instantCodec.encode(i, out)
-      case ld: LocalDate       => JsonBinaryCodec.localDateCodec.encode(ld, out)
-      case ldt: LocalDateTime  => JsonBinaryCodec.localDateTimeCodec.encode(ldt, out)
-      case lt: LocalTime       => JsonBinaryCodec.localTimeCodec.encode(lt, out)
-      case m: Month            => JsonBinaryCodec.monthCodec.encode(m, out)
-      case md: MonthDay        => JsonBinaryCodec.monthDayCodec.encode(md, out)
-      case odt: OffsetDateTime => JsonBinaryCodec.offsetDateTimeCodec.encode(odt, out)
-      case ot: OffsetTime      => JsonBinaryCodec.offsetTimeCodec.encode(ot, out)
-      case p: Period           => JsonBinaryCodec.periodCodec.encode(p, out)
-      case y: Year             => JsonBinaryCodec.yearCodec.encode(y, out)
-      case ym: YearMonth       => JsonBinaryCodec.yearMonthCodec.encode(ym, out)
-      case zo: ZoneOffset      => JsonBinaryCodec.zoneOffsetCodec.encode(zo, out)
-      case zi: ZoneId          => JsonBinaryCodec.zoneIdCodec.encode(zi, out)
-      case zdt: ZonedDateTime  => JsonBinaryCodec.zonedDateTimeCodec.encode(zdt, out)
-      case c: Currency         => JsonBinaryCodec.currencyCodec.encode(c, out)
-      case uuid: UUID          => JsonBinaryCodec.uuidCodec.encode(uuid, out)
-      case x                   => JsonBinaryCodec.stringCodec.encode(x.toString, out)
+      case s: String          => JsonBinaryCodec.stringCodec.encode(s, out)
+      case b: Boolean         => writeQuoted(out)(JsonBinaryCodec.booleanCodec.encode(b, out))
+      case b: Byte            => writeQuoted(out)(JsonBinaryCodec.byteCodec.encode(b, out))
+      case sh: Short          => writeQuoted(out)(JsonBinaryCodec.shortCodec.encode(sh, out))
+      case i: Int             => writeQuoted(out)(JsonBinaryCodec.intCodec.encode(i, out))
+      case l: Long            => writeQuoted(out)(JsonBinaryCodec.longCodec.encode(l, out))
+      case f: Float           => writeQuoted(out)(JsonBinaryCodec.floatCodec.encode(f, out))
+      case d: Double          => writeQuoted(out)(JsonBinaryCodec.doubleCodec.encode(d, out))
+      case c: Char            => writeQuoted(out)(JsonBinaryCodec.charCodec.encode(c, out))
+      case bd: BigDecimal     => writeQuoted(out)(JsonBinaryCodec.bigDecimalCodec.encode(bd, out))
+      case bi: BigInt         => writeQuoted(out)(JsonBinaryCodec.bigIntCodec.encode(bi, out))
+      case d: Duration        => writeQuoted(out)(JsonBinaryCodec.durationCodec.encode(d, out))
+      case dow: DayOfWeek     => writeQuoted(out)(JsonBinaryCodec.dayOfWeekCodec.encode(dow, out))
+      case i: Instant         => writeQuoted(out)(JsonBinaryCodec.instantCodec.encode(i, out))
+      case ld: LocalDate      => writeQuoted(out)(JsonBinaryCodec.localDateCodec.encode(ld, out))
+      case ldt: LocalDateTime =>
+        writeQuoted(out)(JsonBinaryCodec.localDateTimeCodec.encode(ldt, out))
+      case lt: LocalTime       => writeQuoted(out)(JsonBinaryCodec.localTimeCodec.encode(lt, out))
+      case m: Month            => writeQuoted(out)(JsonBinaryCodec.monthCodec.encode(m, out))
+      case md: MonthDay        => writeQuoted(out)(JsonBinaryCodec.monthDayCodec.encode(md, out))
+      case odt: OffsetDateTime =>
+        writeQuoted(out)(JsonBinaryCodec.offsetDateTimeCodec.encode(odt, out))
+      case ot: OffsetTime     => writeQuoted(out)(JsonBinaryCodec.offsetTimeCodec.encode(ot, out))
+      case p: Period          => writeQuoted(out)(JsonBinaryCodec.periodCodec.encode(p, out))
+      case y: Year            => writeQuoted(out)(JsonBinaryCodec.yearCodec.encode(y, out))
+      case ym: YearMonth      => writeQuoted(out)(JsonBinaryCodec.yearMonthCodec.encode(ym, out))
+      case zo: ZoneOffset     => writeQuoted(out)(JsonBinaryCodec.zoneOffsetCodec.encode(zo, out))
+      case zi: ZoneId         => writeQuoted(out)(JsonBinaryCodec.zoneIdCodec.encode(zi, out))
+      case zdt: ZonedDateTime =>
+        writeQuoted(out)(JsonBinaryCodec.zonedDateTimeCodec.encode(zdt, out))
+      case c: Currency => writeQuoted(out)(JsonBinaryCodec.currencyCodec.encode(c, out))
+      case uuid: UUID  => writeQuoted(out)(JsonBinaryCodec.uuidCodec.encode(uuid, out))
+      case x           => JsonBinaryCodec.stringCodec.encode(x.toString, out)
     }
     out.write(':')
+  }
+
+  private[this] def writeQuoted(out: ByteArrayOutputStream)(f: => Unit): Unit = {
+    out.write('"')
+    f
+    out.write('"')
   }
 
   private[this] def writeEscapedString(out: ByteArrayOutputStream, s: String): Unit = {
