@@ -402,7 +402,7 @@ object Schema extends SchemaCompanionVersionSpecific {
           val j = Json.fromDynamicValue(dv)
           jsonSchema.check(j) match {
             case None        => Right(j)
-            case Some(error) => Left(error.message)
+            case Some(error) => Left(error)
           }
         },
         unwrap = j => j.toDynamicValue
