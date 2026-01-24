@@ -220,7 +220,7 @@ object DynamicValue {
           val sb = new StringBuilder
           sb.append("{\n")
           fields.zipWithIndex.foreach { case ((name, value), idx) =>
-            sb.append(indentStr).append("  ").append(name).append(": ")
+            sb.append(indentStr).append("  ").append(escapeFieldName(name)).append(": ")
             sb.append(toEjson(value, indent + 1))
             if (idx < fields.length - 1) sb.append(",")
             sb.append("\n")
@@ -315,6 +315,97 @@ object DynamicValue {
     case PrimitiveValue.Currency(value)       => quote(value.getCurrencyCode)
     case PrimitiveValue.UUID(value)           => quote(value.toString)
   }
+
+  /**
+   * Escape a field name for EJSON output. Valid Scala identifiers are left
+   * as-is; invalid identifiers are wrapped in backticks, with backticks doubled
+   * for escaping.
+   */
+  private def escapeFieldName(name: String): String =
+    if (isValidIdentifier(name)) name
+    else {
+      val escaped = name.replace("`", "``")
+      s"`$escaped`"
+    }
+
+  /**
+   * Check if a string is a valid Scala identifier. A valid identifier:
+   *   - Must start with a letter or underscore
+   *   - Can contain letters, digits, or underscores
+   *   - Cannot be a Scala keyword
+   *   - Cannot contain $ (discouraged in user-written code)
+   */
+  private def isValidIdentifier(s: String): Boolean = {
+    if (s.isEmpty) return false
+    if (scalaKeywords.contains(s)) return false
+
+    val first = s.charAt(0)
+    if (!Character.isLetter(first) && first != '_') return false
+
+    var i = 1
+    while (i < s.length) {
+      val c = s.charAt(i)
+      if (!Character.isLetterOrDigit(c) && c != '_') return false
+      i += 1
+    }
+    true
+  }
+
+  /**
+   * Scala keywords that cannot be used as identifiers without backticks.
+   */
+  private val scalaKeywords: Set[String] = Set(
+    "abstract",
+    "case",
+    "catch",
+    "class",
+    "def",
+    "do",
+    "else",
+    "extends",
+    "false",
+    "final",
+    "finally",
+    "for",
+    "forSome",
+    "if",
+    "implicit",
+    "import",
+    "lazy",
+    "macro",
+    "match",
+    "new",
+    "null",
+    "object",
+    "override",
+    "package",
+    "private",
+    "protected",
+    "return",
+    "sealed",
+    "super",
+    "this",
+    "throw",
+    "trait",
+    "true",
+    "try",
+    "type",
+    "val",
+    "var",
+    "while",
+    "with",
+    "yield",
+    "_",
+    ":",
+    "=",
+    "=>",
+    "<-",
+    "<:",
+    "<%",
+    ">:",
+    "#",
+    "@"
+  )
 
   /**
    * Quote a string for JSON/EJSON output, escaping special characters.

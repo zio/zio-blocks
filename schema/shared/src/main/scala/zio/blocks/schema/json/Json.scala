@@ -19,7 +19,7 @@ import scala.util.control.NonFatal
  */
 sealed trait Json {
 
-  override def toString = print
+  override def toString = print(WriterConfig.withIndentionStep(2))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Type Information

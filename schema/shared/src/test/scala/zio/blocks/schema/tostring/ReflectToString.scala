@@ -48,7 +48,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("renders record with single primitive field") {
         lazy implicit val schema: Schema[Point1D] = Schema.derived[Point1D]
-        val expected =
+        val expected                              =
           """record Point1D {
             |  x: Int
             |}""".stripMargin
@@ -56,7 +56,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("renders record with multiple primitive fields") {
         lazy implicit val schema: Schema[Point2D] = Schema.derived[Point2D]
-        val expected =
+        val expected                              =
           """record Point2D {
             |  x: Int
             |  y: Int
@@ -65,7 +65,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("renders record with mixed primitive types") {
         lazy implicit val schema: Schema[Person] = Schema.derived[Person]
-        val expected =
+        val expected                             =
           """record Person {
             |  name: String
             |  age: Int
@@ -77,7 +77,7 @@ object ReflectSpec extends ZIOSpecDefault {
 
     suite("Nested Record")(
       test("renders record with nested record field") {
-        lazy implicit val addressSchema: Schema[Address] = Schema.derived[Address]
+        lazy implicit val addressSchema: Schema[Address]                     = Schema.derived[Address]
         lazy implicit val personWithAddressSchema: Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
 
         val expected =
@@ -107,7 +107,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("renders Option[Int] variant") {
         lazy implicit val schema: Schema[Option[Int]] = Schema.optionInt
-        val expected =
+        val expected                                  =
           """variant Option[Int] {
             |  | None
             |  | Some(value: Int)
@@ -118,7 +118,7 @@ object ReflectSpec extends ZIOSpecDefault {
 
     suite("Complex Variant with Different Payloads")(
       test("renders PaymentMethod variant with mixed case structures") {
-        lazy implicit val bankAccountSchema: Schema[BankAccount] = Schema.derived[BankAccount]
+        lazy implicit val bankAccountSchema: Schema[BankAccount]     = Schema.derived[BankAccount]
         lazy implicit val paymentMethodSchema: Schema[PaymentMethod] = Schema.derived[PaymentMethod]
 
         val expected =
@@ -181,7 +181,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assertTrue(schema.reflect.toString == "sequence List[Int]")
       },
       test("renders sequence with complex element") {
-        lazy implicit val itemSchema: Schema[OrderItem] = Schema.derived[OrderItem]
+        lazy implicit val itemSchema: Schema[OrderItem]           = Schema.derived[OrderItem]
         lazy implicit val vectorSchema: Schema[Vector[OrderItem]] = Schema.vector[OrderItem]
 
         val expected =
@@ -202,7 +202,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assertTrue(schema.reflect.toString == "map Map[String, Int]")
       },
       test("renders map with complex value type") {
-        lazy implicit val configSchema: Schema[Config] = Schema.derived[Config]
+        lazy implicit val configSchema: Schema[Config]                                = Schema.derived[Config]
         lazy implicit val mapSchema: Schema[collection.immutable.Map[String, Config]] = Schema.map[String, Config]
 
         val expected =
@@ -231,7 +231,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("renders wrapper with complex underlying type") {
         // ValidatedEmail is a regular case class, so it's derived as a record (not a wrapper)
-        lazy implicit val emailPartsSchema: Schema[EmailParts] = Schema.derived[EmailParts]
+        lazy implicit val emailPartsSchema: Schema[EmailParts]         = Schema.derived[EmailParts]
         lazy implicit val validatedEmailSchema: Schema[ValidatedEmail] = Schema.derived[ValidatedEmail]
 
         val expected =
@@ -246,7 +246,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders nested wrappers") {
         // Note: Both UUID and OrderId are AnyVal but Schema.derived treats them as records
         // When bug-unrelated is fixed, this test will need updating
-        lazy implicit val uuidSchema: Schema[UUID] = Schema.derived[UUID]
+        lazy implicit val uuidSchema: Schema[UUID]       = Schema.derived[UUID]
         lazy implicit val orderIdSchema: Schema[OrderId] = Schema.derived[OrderId]
 
         // Current output (as nested records):
@@ -295,8 +295,8 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders full complex schema") {
         // This test demonstrates a real-world schema with multiple levels of nesting
         // Note: Email is an AnyVal but Schema.derived treats it as a record (see bug-unrelated in Bug.md)
-        lazy implicit val addressSchema: Schema[Address] = Schema.derived[Address]
-        lazy implicit val emailSchema: Schema[Email] = Schema.derived[Email]
+        lazy implicit val addressSchema: Schema[Address]   = Schema.derived[Address]
+        lazy implicit val emailSchema: Schema[Email]       = Schema.derived[Email]
         lazy implicit val customerSchema: Schema[Customer] = Schema.derived[Customer]
 
         // Current output (Email as record instead of wrapper):

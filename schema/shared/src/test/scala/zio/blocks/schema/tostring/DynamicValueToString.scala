@@ -684,6 +684,188 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         }
     },
 
+    suite("Field name escaping (bug-4)") {
+      test("renders valid identifier field names without escaping") {
+        val value = DynamicValue.Record(
+          Vector(
+            "validName" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            "name_123"  -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            "_leading"  -> DynamicValue.Primitive(PrimitiveValue.Int(3)),
+            "camelCase" -> DynamicValue.Primitive(PrimitiveValue.Int(4))
+          )
+        )
+        val expected =
+          """{
+            |  validName: 1,
+            |  name_123: 2,
+            |  _leading: 3,
+            |  camelCase: 4
+            |}""".stripMargin
+        assertTrue(value.toString == expected)
+      } +
+        test("renders field names with spaces using backtick escaping") {
+          val value = DynamicValue.Record(
+            Vector(
+              "field name" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+            )
+          )
+          val expected =
+            """{
+              |  `field name`: 42
+              |}""".stripMargin
+          assertTrue(value.toString == expected)
+        } +
+        test("renders field names with colons using backtick escaping") {
+          val value = DynamicValue.Record(
+            Vector(
+              "field:name" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+            )
+          )
+          val expected =
+            """{
+              |  `field:name`: 42
+              |}""".stripMargin
+          assertTrue(value.toString == expected)
+        } +
+        test("renders field names starting with digits using backtick escaping") {
+          val value = DynamicValue.Record(
+            Vector(
+              "123field" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+            )
+          )
+          val expected =
+            """{
+              |  `123field`: 42
+              |}""".stripMargin
+          assertTrue(value.toString == expected)
+        } +
+        test("renders field names with backticks by doubling them") {
+          val value = DynamicValue.Record(
+            Vector(
+              "field`name" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+            )
+          )
+          val expected =
+            """{
+              |  `field``name`: 42
+              |}""".stripMargin
+          assertTrue(value.toString == expected)
+        } +
+        test("renders field names with multiple backticks") {
+          val value = DynamicValue.Record(
+            Vector(
+              "field`name`test" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+            )
+          )
+          val expected =
+            """{
+              |  `field``name``test`: 42
+              |}""".stripMargin
+          assertTrue(value.toString == expected)
+        } +
+        test("renders Scala keyword field names using backtick escaping") {
+          val value = DynamicValue.Record(
+            Vector(
+              "type"   -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              "class"  -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
+              "def"    -> DynamicValue.Primitive(PrimitiveValue.Int(3)),
+              "val"    -> DynamicValue.Primitive(PrimitiveValue.Int(4)),
+              "var"    -> DynamicValue.Primitive(PrimitiveValue.Int(5)),
+              "if"     -> DynamicValue.Primitive(PrimitiveValue.Int(6)),
+              "else"   -> DynamicValue.Primitive(PrimitiveValue.Int(7)),
+              "match"  -> DynamicValue.Primitive(PrimitiveValue.Int(8)),
+              "case"   -> DynamicValue.Primitive(PrimitiveValue.Int(9)),
+              "for"    -> DynamicValue.Primitive(PrimitiveValue.Int(10)),
+              "while"  -> DynamicValue.Primitive(PrimitiveValue.Int(11)),
+              "return" -> DynamicValue.Primitive(PrimitiveValue.Int(12))
+            )
+          )
+          val expected =
+            """{
+              |  `type`: 1,
+              |  `class`: 2,
+              |  `def`: 3,
+              |  `val`: 4,
+              |  `var`: 5,
+              |  `if`: 6,
+              |  `else`: 7,
+              |  `match`: 8,
+              |  `case`: 9,
+              |  `for`: 10,
+              |  `while`: 11,
+              |  `return`: 12
+              |}""".stripMargin
+          assertTrue(value.toString == expected)
+        } +
+        test("renders field names with special characters") {
+          val value = DynamicValue.Record(
+            Vector(
+              "field-name"  -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              "field.name"  -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
+              "field@name"  -> DynamicValue.Primitive(PrimitiveValue.Int(3)),
+              "field#name"  -> DynamicValue.Primitive(PrimitiveValue.Int(4)),
+              "field$name"  -> DynamicValue.Primitive(PrimitiveValue.Int(5)),
+              "field%name"  -> DynamicValue.Primitive(PrimitiveValue.Int(6)),
+              "field&name"  -> DynamicValue.Primitive(PrimitiveValue.Int(7)),
+              "field*name"  -> DynamicValue.Primitive(PrimitiveValue.Int(8)),
+              "field+name"  -> DynamicValue.Primitive(PrimitiveValue.Int(9)),
+              "field=name"  -> DynamicValue.Primitive(PrimitiveValue.Int(10)),
+              "field/name"  -> DynamicValue.Primitive(PrimitiveValue.Int(11)),
+              "field\\name" -> DynamicValue.Primitive(PrimitiveValue.Int(12))
+            )
+          )
+          val str = value.toString
+          // All these field names should be backtick-escaped
+          assertTrue(
+            str.contains("`field-name`: 1"),
+            str.contains("`field.name`: 2"),
+            str.contains("`field@name`: 3"),
+            str.contains("`field#name`: 4"),
+            str.contains("`field$name`: 5"),
+            str.contains("`field%name`: 6"),
+            str.contains("`field&name`: 7"),
+            str.contains("`field*name`: 8"),
+            str.contains("`field+name`: 9"),
+            str.contains("`field=name`: 10"),
+            str.contains("`field/name`: 11"),
+            str.contains("`field\\name`: 12")
+          )
+        } +
+        test("renders empty string field name with backticks") {
+          val value = DynamicValue.Record(
+            Vector(
+              "" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+            )
+          )
+          val expected =
+            """{
+              |  ``: 42
+              |}""".stripMargin
+          assertTrue(value.toString == expected)
+        } +
+        test("renders nested record with mixed valid and invalid field names") {
+          val nested = DynamicValue.Record(
+            Vector(
+              "valid"      -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              "field name" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+            )
+          )
+          val outer = DynamicValue.Record(
+            Vector(
+              "outer-field" -> nested
+            )
+          )
+          val expected =
+            """{
+              |  `outer-field`: {
+              |    valid: 1,
+              |    `field name`: 2
+              |  }
+              |}""".stripMargin
+          assertTrue(outer.toString == expected)
+        }
+    },
+
     suite("Complex Real-World Scenarios") {
       test("renders payment method variant with multiple case types") {
         val cashVariant = DynamicValue.Variant("Cash", DynamicValue.Record(Vector.empty))

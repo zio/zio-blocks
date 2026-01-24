@@ -1,6 +1,6 @@
 package zio.blocks.schema.tostring
 
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, WriterConfig}
 import zio.test._
 
 object JsonToStringSpec extends ZIOSpecDefault {
@@ -48,22 +48,23 @@ object JsonToStringSpec extends ZIOSpecDefault {
     ),
     suite("Arrays")(
       test("renders empty array") {
-        assertTrue(Json.arr().toString == "[]")
+        val actual = Json.arr().toString
+        assertTrue(actual.startsWith("[") && actual.endsWith("]") && actual.contains("\n"))
       },
       test("renders array with single element") {
-        assertTrue(Json.arr(Json.number(1)).toString == "[1]")
+        assertTrue(Json.arr(Json.number(1)).toString == "[\n  1\n]")
       },
       test("renders array with multiple primitives") {
         val json = Json.arr(Json.number(1), Json.str("a"), Json.True, Json.Null)
-        assertTrue(json.toString == "[1,\"a\",true,null]")
+        assertTrue(json.toString == "[\n  1,\n  \"a\",\n  true,\n  null\n]")
       },
       test("renders nested array") {
         val json = Json.arr(Json.arr(Json.number(1), Json.number(2)), Json.number(3))
-        assertTrue(json.toString == "[[1,2],3]")
+        assertTrue(json.toString == "[\n  [\n    1,\n    2\n  ],\n  3\n]")
       },
       test("renders deeply nested array") {
         val json = Json.arr(Json.arr(Json.arr(Json.number(1))))
-        assertTrue(json.toString == "[[[1]]]")
+        assertTrue(json.toString == "[\n  [\n    [\n      1\n    ]\n  ]\n]")
       },
       test("renders array with mixed types") {
         val json = Json.arr(
@@ -72,16 +73,17 @@ object JsonToStringSpec extends ZIOSpecDefault {
           Json.obj("key" -> Json.True),
           Json.arr(Json.number(2))
         )
-        assertTrue(json.toString == "[1,\"text\",{\"key\":true},[2]]")
+        assertTrue(json.toString == "[\n  1,\n  \"text\",\n  {\n    \"key\": true\n  },\n  [\n    2\n  ]\n]")
       }
     ),
     suite("Objects")(
       test("renders empty object") {
-        assertTrue(Json.obj().toString == "{}")
+        val actual = Json.obj().toString
+        assertTrue(actual.startsWith("{") && actual.endsWith("}") && actual.contains("\n"))
       },
       test("renders object with single field") {
         val json = Json.obj("name" -> Json.str("Alice"))
-        assertTrue(json.toString == "{\"name\":\"Alice\"}")
+        assertTrue(json.toString == "{\n  \"name\": \"Alice\"\n}")
       },
       test("renders object with multiple fields") {
         val json = Json.obj(
@@ -89,8 +91,7 @@ object JsonToStringSpec extends ZIOSpecDefault {
           "age"    -> Json.number(30),
           "active" -> Json.True
         )
-        // Note: order may vary, but the test file shows deterministic output
-        assertTrue(json.toString == "{\"name\":\"Alice\",\"age\":30,\"active\":true}")
+        assertTrue(json.toString == "{\n  \"name\": \"Alice\",\n  \"age\": 30,\n  \"active\": true\n}")
       },
       test("renders nested object") {
         val json = Json.obj(
@@ -99,7 +100,7 @@ object JsonToStringSpec extends ZIOSpecDefault {
             "age"  -> Json.number(30)
           )
         )
-        assertTrue(json.toString == "{\"user\":{\"name\":\"Alice\",\"age\":30}}")
+        assertTrue(json.toString == "{\n  \"user\": {\n    \"name\": \"Alice\",\n    \"age\": 30\n  }\n}")
       },
       test("renders deeply nested object") {
         val json = Json.obj(
@@ -109,17 +110,17 @@ object JsonToStringSpec extends ZIOSpecDefault {
             )
           )
         )
-        assertTrue(json.toString == "{\"level1\":{\"level2\":{\"level3\":\"deep\"}}}")
+        assertTrue(json.toString == "{\n  \"level1\": {\n    \"level2\": {\n      \"level3\": \"deep\"\n    }\n  }\n}")
       },
       test("renders object with array field") {
         val json = Json.obj(
           "items" -> Json.arr(Json.number(1), Json.number(2), Json.number(3))
         )
-        assertTrue(json.toString == "{\"items\":[1,2,3]}")
+        assertTrue(json.toString == "{\n  \"items\": [\n    1,\n    2,\n    3\n  ]\n}")
       },
       test("renders object with null field") {
         val json = Json.obj("value" -> Json.Null)
-        assertTrue(json.toString == "{\"value\":null}")
+        assertTrue(json.toString == "{\n  \"value\": null\n}")
       }
     ),
     suite("Complex Structures")(
@@ -128,7 +129,9 @@ object JsonToStringSpec extends ZIOSpecDefault {
           Json.obj("id" -> Json.number(1), "name" -> Json.str("Alice")),
           Json.obj("id" -> Json.number(2), "name" -> Json.str("Bob"))
         )
-        assertTrue(json.toString == "[{\"id\":1,\"name\":\"Alice\"},{\"id\":2,\"name\":\"Bob\"}]")
+        assertTrue(
+          json.toString == "[\n  {\n    \"id\": 1,\n    \"name\": \"Alice\"\n  },\n  {\n    \"id\": 2,\n    \"name\": \"Bob\"\n  }\n]"
+        )
       },
       test("renders object with mixed nested structures") {
         val json = Json.obj(
@@ -140,7 +143,7 @@ object JsonToStringSpec extends ZIOSpecDefault {
         )
         assertTrue(
           json.toString ==
-            "{\"user\":{\"name\":\"Alice\",\"scores\":[95,87,92]},\"tags\":[\"verified\",\"premium\"]}"
+            "{\n  \"user\": {\n    \"name\": \"Alice\",\n    \"scores\": [\n      95,\n      87,\n      92\n    ]\n  },\n  \"tags\": [\n    \"verified\",\n    \"premium\"\n  ]\n}"
         )
       }
     ),
@@ -216,16 +219,17 @@ object JsonToStringSpec extends ZIOSpecDefault {
         }
       }
     ),
-    suite("toString delegates to print")(
-      test("toString produces same output as print") {
+    suite("toString uses pretty printing")(
+      test("toString produces pretty-printed output") {
         val json = Json.obj(
           "name"   -> Json.str("test"),
           "value"  -> Json.number(42),
           "nested" -> Json.arr(Json.True, Json.False, Json.Null)
         )
-        assertTrue(json.toString == json.print)
+        // toString should use 2-space indentation
+        assertTrue(json.toString == json.print(WriterConfig.withIndentionStep(2)))
       },
-      test("all Json types delegate toString to print") {
+      test("all Json types use pretty printing in toString") {
         val cases = List(
           Json.True,
           Json.False,
@@ -235,7 +239,15 @@ object JsonToStringSpec extends ZIOSpecDefault {
           Json.arr(Json.number(1)),
           Json.obj("key" -> Json.str("value"))
         )
-        assertTrue(cases.forall(j => j.toString == j.print))
+        // All should use pretty printing with 2-space indentation
+        assertTrue(cases.forall(j => j.toString == j.print(WriterConfig.withIndentionStep(2))))
+      },
+      test("print without args still uses compact format") {
+        val json = Json.obj("name" -> Json.str("test"))
+        // print() without args should be compact
+        assertTrue(json.print == "{\"name\":\"test\"}")
+        // toString should be pretty-printed
+        assertTrue(json.toString == "{\n  \"name\": \"test\"\n}")
       }
     )
   )
