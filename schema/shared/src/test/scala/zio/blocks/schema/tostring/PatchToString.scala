@@ -185,15 +185,15 @@ object PatchToStringSpec extends ZIOSpecDefault {
 
       case class DeepLevel2(nested: DeepLevel3)
       object DeepLevel2 extends CompanionOptics[DeepLevel2] {
-        implicit lazy val schema: Schema[DeepLevel2]        = Schema.derived
-        val nested: Lens[DeepLevel2, DeepLevel3]            = optic(_.nested)
+        implicit lazy val schema: Schema[DeepLevel2] = Schema.derived
+        val nested: Lens[DeepLevel2, DeepLevel3]     = optic(_.nested)
       }
 
       case class DeepLevel1(name: String, nested: DeepLevel2)
       object DeepLevel1 extends CompanionOptics[DeepLevel1] {
-        implicit lazy val schema: Schema[DeepLevel1]        = Schema.derived
-        val name: Lens[DeepLevel1, String]                  = optic(_.name)
-        val nested: Lens[DeepLevel1, DeepLevel2]            = optic(_.nested)
+        implicit lazy val schema: Schema[DeepLevel1] = Schema.derived
+        val name: Lens[DeepLevel1, String]           = optic(_.name)
+        val nested: Lens[DeepLevel1, DeepLevel2]     = optic(_.nested)
       }
 
       val patch = Patch.set(DeepLevel1.nested(DeepLevel2.nested(DeepLevel3.value)), 42)

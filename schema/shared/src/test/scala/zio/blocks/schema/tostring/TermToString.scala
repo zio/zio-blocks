@@ -175,7 +175,7 @@ object TermToString extends ZIOSpecDefault {
           typeName = TypeName(Namespace(Nil), "EmailParts"),
           recordBinding = Binding.Record(
             constructor = new Constructor[EmailParts] {
-              def usedRegisters = RegisterOffset(objects = 2)
+              def usedRegisters                                    = RegisterOffset(objects = 2)
               def construct(in: Registers, offset: RegisterOffset) =
                 EmailParts(
                   in.getObject(offset).asInstanceOf[String],
@@ -183,7 +183,7 @@ object TermToString extends ZIOSpecDefault {
                 )
             },
             deconstructor = new Deconstructor[EmailParts] {
-              def usedRegisters = RegisterOffset(objects = 2)
+              def usedRegisters                                                       = RegisterOffset(objects = 2)
               def deconstruct(out: Registers, offset: RegisterOffset, in: EmailParts) = {
                 out.setObject(offset, in.local)
                 out.setObject(offset + RegisterOffset(objects = 1), in.domain)
@@ -405,7 +405,7 @@ object TermToString extends ZIOSpecDefault {
     suite("Deferred Term")(
       test("renders deferred term (recursive type)") {
         lazy val treeReflect: Reflect.Deferred[Binding, Tree] = Reflect.Deferred(() => treeVariant)
-        lazy val treeVariant: Reflect.Variant[Binding, Tree] = Reflect.Variant[Binding, Tree](
+        lazy val treeVariant: Reflect.Variant[Binding, Tree]  = Reflect.Variant[Binding, Tree](
           cases = Vector(
             Term(
               "Leaf",
@@ -414,12 +414,12 @@ object TermToString extends ZIOSpecDefault {
                 typeName = TypeName(Namespace(Nil), "Leaf"),
                 recordBinding = Binding.Record(
                   constructor = new Constructor[Tree] {
-                    def usedRegisters = RegisterOffset(ints = 1)
+                    def usedRegisters                                    = RegisterOffset(ints = 1)
                     def construct(in: Registers, offset: RegisterOffset) =
                       Leaf(in.getInt(offset))
                   },
                   deconstructor = new Deconstructor[Tree] {
-                    def usedRegisters = RegisterOffset(ints = 1)
+                    def usedRegisters                                                 = RegisterOffset(ints = 1)
                     def deconstruct(out: Registers, offset: RegisterOffset, in: Tree) =
                       out.setInt(offset, in.asInstanceOf[Leaf].value)
                   }
@@ -437,7 +437,7 @@ object TermToString extends ZIOSpecDefault {
                 typeName = TypeName(Namespace(Nil), "Branch"),
                 recordBinding = Binding.Record(
                   constructor = new Constructor[Tree] {
-                    def usedRegisters = RegisterOffset(ints = 1, objects = 2)
+                    def usedRegisters                                    = RegisterOffset(ints = 1, objects = 2)
                     def construct(in: Registers, offset: RegisterOffset) =
                       Branch(
                         in.getInt(offset),
@@ -446,7 +446,7 @@ object TermToString extends ZIOSpecDefault {
                       )
                   },
                   deconstructor = new Deconstructor[Tree] {
-                    def usedRegisters = RegisterOffset(ints = 1, objects = 2)
+                    def usedRegisters                                                 = RegisterOffset(ints = 1, objects = 2)
                     def deconstruct(out: Registers, offset: RegisterOffset, in: Tree) = {
                       val b = in.asInstanceOf[Branch]
                       out.setInt(offset, b.value)
@@ -506,6 +506,6 @@ object TermToString extends ZIOSpecDefault {
   case class EmailParts(local: String, domain: String)
 
   sealed trait Tree
-  case class Leaf(value: Int)                              extends Tree
+  case class Leaf(value: Int)                            extends Tree
   case class Branch(value: Int, left: Tree, right: Tree) extends Tree
 }

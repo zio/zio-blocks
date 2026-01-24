@@ -354,7 +354,7 @@ object ReflectSpec extends ZIOSpecDefault {
               def construct(in: Registers, offset: RegisterOffset) = BankAccount("", "")
             },
             deconstructor = new Deconstructor[BankAccount] {
-              def usedRegisters                                                       = RegisterOffset(objects = 2)
+              def usedRegisters                                                        = RegisterOffset(objects = 2)
               def deconstruct(out: Registers, offset: RegisterOffset, in: BankAccount) = ()
             }
           )
