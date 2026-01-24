@@ -166,16 +166,58 @@ package object json {
 
     val tpe = arg.asTerm.tpe.widen
 
-    // Check for special-cased runtime types that don't need explicit JsonEncoder
-    val isSpecialType =
-      tpe <:< TypeRepr.of[scala.collection.Map[_, _]] ||
-        tpe <:< TypeRepr.of[scala.collection.Iterable[_]] ||
-        tpe <:< TypeRepr.of[Array[_]] ||
-        tpe <:< TypeRepr.of[Option[_]] ||
-        tpe <:< TypeRepr.of[Json]
+    // Json itself is always allowed
+    if (tpe <:< TypeRepr.of[Json]) {
+      return
+    }
 
-    if (isSpecialType) {
-      // These types are handled specially by the runtime
+    // For container types, validate their type parameters
+    if (tpe <:< TypeRepr.of[scala.collection.Map[_, _]]) {
+      tpe match {
+        case AppliedType(_, List(keyType, valueType)) =>
+          checkHasJsonEncoderForType(keyType, s"map key in $context")
+          checkHasJsonEncoderForType(valueType, s"map value in $context")
+        case _ => // No type args available, skip validation
+      }
+      return
+    }
+
+    if (tpe <:< TypeRepr.of[scala.collection.Iterable[_]]) {
+      tpe match {
+        case AppliedType(_, List(elemType)) =>
+          checkHasJsonEncoderForType(elemType, s"iterable element in $context")
+        case _ => // No type args available, skip validation
+      }
+      return
+    }
+
+    if (tpe <:< TypeRepr.of[Array[_]]) {
+      tpe match {
+        case AppliedType(_, List(elemType)) =>
+          checkHasJsonEncoderForType(elemType, s"array element in $context")
+        case _ => // No type args available, skip validation
+      }
+      return
+    }
+
+    if (tpe <:< TypeRepr.of[Option[_]]) {
+      tpe match {
+        case AppliedType(_, List(elemType)) =>
+          checkHasJsonEncoderForType(elemType, s"option value in $context")
+        case _ => // No type args available, skip validation
+      }
+      return
+    }
+
+    // For non-container types, require an implicit JsonEncoder[T]
+    checkHasJsonEncoderForType(tpe, context)
+  }
+
+  private def checkHasJsonEncoderForType(using Quotes)(tpe: quotes.reflect.TypeRepr, context: String): Unit = {
+    import quotes.reflect._
+
+    // Json itself is always allowed
+    if (tpe <:< TypeRepr.of[Json]) {
       return
     }
 
@@ -192,8 +234,7 @@ package object json {
             s"  Hint: Provide an implicit JsonEncoder[$typeStr] in scope.\n" +
             s"        JsonEncoders can be:\n" +
             s"        - Explicitly defined\n" +
-            s"        - Derived from Schema[$typeStr] (ensure implicit Schema[$typeStr] is in scope)\n" +
-            s"        - Provided by JsonBinaryCodec"
+            s"        - Derived from Schema[$typeStr] (ensure implicit Schema[$typeStr] is in scope)"
         )
     }
   }

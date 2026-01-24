@@ -158,16 +158,59 @@ private object JsonInterpolatorMacros {
 
     val tpe = arg.tree.tpe.widen
 
-    // Check for special-cased runtime types that don't need explicit JsonEncoder
-    val isSpecialType =
-      tpe <:< typeOf[scala.collection.Map[_, _]] ||
-        tpe <:< typeOf[scala.collection.Iterable[_]] ||
-        tpe <:< typeOf[Array[_]] ||
-        tpe <:< typeOf[Option[_]] ||
-        tpe <:< typeOf[Json]
+    // Json itself is always allowed
+    if (tpe <:< typeOf[Json]) {
+      return
+    }
 
-    if (isSpecialType) {
-      // These types are handled specially by the runtime
+    // For container types, validate their type parameters
+    if (tpe <:< typeOf[scala.collection.Map[_, _]]) {
+      val typeArgs = tpe.typeArgs
+      if (typeArgs.size == 2) {
+        val keyType   = typeArgs.head
+        val valueType = typeArgs(1)
+        checkHasJsonEncoderForType(c)(keyType, s"map key in $context")
+        checkHasJsonEncoderForType(c)(valueType, s"map value in $context")
+      }
+      return
+    }
+
+    if (tpe <:< typeOf[scala.collection.Iterable[_]]) {
+      val typeArgs = tpe.typeArgs
+      if (typeArgs.nonEmpty) {
+        val elemType = typeArgs.head
+        checkHasJsonEncoderForType(c)(elemType, s"iterable element in $context")
+      }
+      return
+    }
+
+    if (tpe <:< typeOf[Array[_]]) {
+      val typeArgs = tpe.typeArgs
+      if (typeArgs.nonEmpty) {
+        val elemType = typeArgs.head
+        checkHasJsonEncoderForType(c)(elemType, s"array element in $context")
+      }
+      return
+    }
+
+    if (tpe <:< typeOf[Option[_]]) {
+      val typeArgs = tpe.typeArgs
+      if (typeArgs.nonEmpty) {
+        val elemType = typeArgs.head
+        checkHasJsonEncoderForType(c)(elemType, s"option value in $context")
+      }
+      return
+    }
+
+    // For non-container types, require an implicit JsonEncoder[T]
+    checkHasJsonEncoderForType(c)(tpe, context)
+  }
+
+  private def checkHasJsonEncoderForType(c: blackbox.Context)(tpe: c.universe.Type, context: String): Unit = {
+    import c.universe._
+
+    // Json itself is always allowed
+    if (tpe <:< typeOf[Json]) {
       return
     }
 
@@ -184,8 +227,7 @@ private object JsonInterpolatorMacros {
           s"  Hint: Provide an implicit JsonEncoder[$typeStr] in scope.\n" +
           s"        JsonEncoders can be:\n" +
           s"        - Explicitly defined\n" +
-          s"        - Derived from Schema[$typeStr] (ensure implicit Schema[$typeStr] is in scope)\n" +
-          s"        - Provided by JsonBinaryCodec"
+          s"        - Derived via JsonBinaryCodecDeriver from Schema[$typeStr]"
       )
     }
   }

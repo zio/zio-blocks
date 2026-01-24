@@ -180,45 +180,35 @@ object JsonInterpolatorRuntime {
     case x                   => writeJsonEscapedString(out, if (x == null) "null" else x.toString) // Escape fallback
   }
 
+  /**
+   * Helper to encode a key as a JSON string. Wraps non-string primitives in
+   * quotes. Does not write the trailing colon.
+   */
   private def writeKeyOnly(out: ByteArrayOutputStream, key: Any): Unit =
     key match {
-      case s: String  => JsonBinaryCodec.stringCodec.encode(s, out)
-      case b: Boolean =>
-        out.write('"')
-        JsonBinaryCodec.booleanCodec.encode(b, out)
-        out.write('"')
-      case b: Byte =>
-        out.write('"')
-        JsonBinaryCodec.byteCodec.encode(b, out)
-        out.write('"')
-      case sh: Short =>
-        out.write('"')
-        JsonBinaryCodec.shortCodec.encode(sh, out)
-        out.write('"')
-      case i: Int =>
-        out.write('"')
-        JsonBinaryCodec.intCodec.encode(i, out)
-        out.write('"')
-      case l: Long =>
-        out.write('"')
-        JsonBinaryCodec.longCodec.encode(l, out)
-        out.write('"')
+      case null      => JsonBinaryCodec.stringCodec.encode("null", out)
+      case s: String =>
+        JsonBinaryCodec.stringCodec.encode(s, out)
       case f: Float =>
-        out.write('"')
-        JsonBinaryCodec.floatCodec.encode(f, out)
-        out.write('"')
+        // Use toString for NaN/Infinity to avoid JsonBinaryCodec throwing
+        JsonBinaryCodec.stringCodec.encode(f.toString, out)
       case d: Double =>
-        out.write('"')
-        JsonBinaryCodec.doubleCodec.encode(d, out)
-        out.write('"')
+        // Use toString for NaN/Infinity to avoid JsonBinaryCodec throwing
+        JsonBinaryCodec.stringCodec.encode(d.toString, out)
+      case b: Boolean =>
+        writeQuotedPrimitive(out, b, JsonBinaryCodec.booleanCodec)
+      case b: Byte =>
+        writeQuotedPrimitive(out, b, JsonBinaryCodec.byteCodec)
+      case sh: Short =>
+        writeQuotedPrimitive(out, sh, JsonBinaryCodec.shortCodec)
+      case i: Int =>
+        writeQuotedPrimitive(out, i, JsonBinaryCodec.intCodec)
+      case l: Long =>
+        writeQuotedPrimitive(out, l, JsonBinaryCodec.longCodec)
       case bd: BigDecimal =>
-        out.write('"')
-        JsonBinaryCodec.bigDecimalCodec.encode(bd, out)
-        out.write('"')
+        writeQuotedPrimitive(out, bd, JsonBinaryCodec.bigDecimalCodec)
       case bi: BigInt =>
-        out.write('"')
-        JsonBinaryCodec.bigIntCodec.encode(bi, out)
-        out.write('"')
+        writeQuotedPrimitive(out, bi, JsonBinaryCodec.bigIntCodec)
       case d: Duration         => JsonBinaryCodec.durationCodec.encode(d, out)
       case dow: DayOfWeek      => JsonBinaryCodec.dayOfWeekCodec.encode(dow, out)
       case i: Instant          => JsonBinaryCodec.instantCodec.encode(i, out)
@@ -239,7 +229,16 @@ object JsonInterpolatorRuntime {
       case uuid: UUID          => JsonBinaryCodec.uuidCodec.encode(uuid, out)
       case x                   => JsonBinaryCodec.stringCodec.encode(x.toString, out)
     }
-    // Don't write colon - it's in the next part
+
+  /**
+   * Helper to encode a value with wrapping quotes, e.g., "123" for numeric
+   * keys.
+   */
+  private def writeQuotedPrimitive[A](out: ByteArrayOutputStream, value: A, codec: JsonBinaryCodec[A]): Unit = {
+    out.write('"')
+    codec.encode(value, out)
+    out.write('"')
+  }
 
   private[this] def writeValue(out: ByteArrayOutputStream, value: Any): Unit = value match {
     case s: String             => JsonBinaryCodec.stringCodec.encode(s, out)
