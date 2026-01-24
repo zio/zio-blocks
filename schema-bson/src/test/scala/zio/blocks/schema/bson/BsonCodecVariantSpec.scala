@@ -53,7 +53,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val codec        = BsonSchemaCodec.bsonCodec(Schema[Shape])
 
         val encoded = codec.encoder.toBsonValue(shape)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == shape)
       },
@@ -78,7 +78,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val codec        = BsonSchemaCodec.bsonCodec(Schema[Shape])
 
         val encoded = codec.encoder.toBsonValue(shape)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == shape)
       },
@@ -87,7 +87,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val codec        = BsonSchemaCodec.bsonCodec(Schema[Shape])
 
         val encoded = codec.encoder.toBsonValue(shape)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == shape)
       },
@@ -96,7 +96,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val codec          = BsonSchemaCodec.bsonCodec(Schema[Result])
 
         val encoded = codec.encoder.toBsonValue(result)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == result)
       },
@@ -105,7 +105,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val codec          = BsonSchemaCodec.bsonCodec(Schema[Result])
 
         val encoded = codec.encoder.toBsonValue(result)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == result)
       },
@@ -114,7 +114,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val badDoc = BsonDocument.parse("""{"UnknownShape": {"radius": 5.0}}""")
 
         val result = scala.util.Try {
-          codec.decoder.fromBsonValueUnsafe(badDoc, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(badDoc, Nil, BsonDecoder.BsonDecoderContext.default)
         }
 
         assertTrue(result.isFailure)
@@ -124,7 +124,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val emptyDoc = new BsonDocument()
 
         val result = scala.util.Try {
-          codec.decoder.fromBsonValueUnsafe(emptyDoc, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(emptyDoc, Nil, BsonDecoder.BsonDecoderContext.default)
         }
 
         assertTrue(result.isFailure)
@@ -139,7 +139,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val codec = BsonSchemaCodec.bsonCodec(Schema[Shape], config)
 
         val encoded = codec.encoder.toBsonValue(shape)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == shape)
       },
@@ -167,7 +167,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val codec = BsonSchemaCodec.bsonCodec(Schema[Shape], config)
 
         val encoded = codec.encoder.toBsonValue(shape)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == shape)
       },
@@ -193,7 +193,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val badDoc = BsonDocument.parse("""{"radius": 5.0}""")
 
         val result = scala.util.Try {
-          codec.decoder.fromBsonValueUnsafe(badDoc, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(badDoc, Nil, BsonDecoder.BsonDecoderContext.default)
         }
 
         assertTrue(result.isFailure)
@@ -206,7 +206,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val badDoc = BsonDocument.parse("""{"type": "UnknownShape", "radius": 5.0}""")
 
         val result = scala.util.Try {
-          codec.decoder.fromBsonValueUnsafe(badDoc, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(badDoc, Nil, BsonDecoder.BsonDecoderContext.default)
         }
 
         assertTrue(result.isFailure)
@@ -218,7 +218,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val codec          = BsonSchemaCodec.bsonCodec(Schema[Status])
 
         val encoded = codec.encoder.toBsonValue(status)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == status)
       },
@@ -246,7 +246,7 @@ object BsonCodecVariantSpec extends ZIOSpecDefault {
         val codec        = BsonSchemaCodec.bsonCodec(Schema[Shape], config)
 
         val encoded = codec.encoder.toBsonValue(shape)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == shape)
       },

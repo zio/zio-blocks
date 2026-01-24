@@ -50,7 +50,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
 
         val encoded = codec.encoder.toBsonValue(value)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == value)
       },
@@ -61,7 +61,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
 
         val encoded = codec.encoder.toBsonValue(value)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == value)
       },
@@ -74,7 +74,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
 
           val encoded = codec.encoder.toBsonValue(value)
           val decoded =
-            codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+            codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
           assertTrue(decoded == value)
         }
@@ -88,7 +88,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
 
           val encoded = codec.encoder.toBsonValue(value)
           val decoded =
-            codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+            codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
           assertTrue(decoded == value)
         }
@@ -102,7 +102,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
 
         val encoded = codec.encoder.toBsonValue(tree)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == tree)
       },
@@ -116,7 +116,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
 
         val encoded = codec.encoder.toBsonValue(tree)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == tree)
       },
@@ -130,7 +130,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
 
         val encoded = codec.encoder.toBsonValue(tree)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == tree)
       },
@@ -141,7 +141,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
         check(GenericTree.genOf(Gen.int)) { tree =>
           val encoded = codec.encoder.toBsonValue(tree)
           val decoded =
-            codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+            codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
           assertTrue(decoded == tree)
         }
@@ -153,7 +153,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
         check(GenericTree.genOf(Gen.string)) { tree =>
           val encoded = codec.encoder.toBsonValue(tree)
           val decoded =
-            codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+            codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
           assertTrue(decoded == tree)
         }
@@ -167,7 +167,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
 
         val encoded = codec.encoder.toBsonValue(rec)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == rec)
       },
@@ -178,7 +178,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
 
         val encoded = codec.encoder.toBsonValue(rec)
         val decoded =
-          codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+          codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == rec)
       },
@@ -189,7 +189,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
         check(GenericRec.genOf(Gen.int)) { rec =>
           val encoded = codec.encoder.toBsonValue(rec)
           val decoded =
-            codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+            codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
           assertTrue(decoded == rec)
         }
@@ -201,7 +201,7 @@ object BsonCodecGenericSpec extends ZIOSpecDefault {
         check(GenericRec.genOf(Gen.string)) { rec =>
           val encoded = codec.encoder.toBsonValue(rec)
           val decoded =
-            codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+            codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
           assertTrue(decoded == rec)
         }
