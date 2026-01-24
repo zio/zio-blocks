@@ -14,8 +14,6 @@ private object JsonInterpolatorMacros {
   def jsonImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Json] = {
     import c.universe._
 
-    // parts removed: not needed for Native macro (no JSON validation)
-
     // Validate arguments - must be stringable or have JsonEncoder
     args.foreach { argExpr =>
       val argType      = argExpr.actualType

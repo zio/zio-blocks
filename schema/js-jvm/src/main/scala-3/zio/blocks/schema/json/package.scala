@@ -41,7 +41,8 @@ package object json {
 
     try {
       // Validate the JSON by trying to parse it
-      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), parts.drop(1).map(_ => ""))
+      val dummyArgs = List.fill(parts.length - 1)("")
+      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), dummyArgs)
       '{ JsonInterpolatorRuntime.jsonWithInterpolation($sc, $args) }
     } catch {
       case error if NonFatal(error) => report.errorAndAbort(s"Invalid JSON literal: ${error.getMessage}")

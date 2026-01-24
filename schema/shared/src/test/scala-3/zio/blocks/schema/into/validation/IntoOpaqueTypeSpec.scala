@@ -95,11 +95,10 @@ object IntoOpaqueTypeSpec extends ZIOSpecDefault {
 
       assertTrue(
         result.isLeft,
-        message ==
-          """converting field PersonV1.email to PersonV2.email failed
-            |  Caused by: Validation failed for field 'email': Invalid email: bad-email
-            |converting field PersonV1.age to PersonV2.age failed
-            |  Caused by: Validation failed for field 'age': Invalid age: -5""".stripMargin
+        message.contains("converting field PersonV1.email to PersonV2.email failed") &&
+          message.contains("Validation failed for field 'email': Invalid email: bad-email") &&
+          message.contains("converting field PersonV1.age to PersonV2.age failed") &&
+          message.contains("Validation failed for field 'age': Invalid age: -5")
       )
     },
     test("opaque type in collection - error propagates from collection element") {

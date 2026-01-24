@@ -34,7 +34,9 @@ package object json {
       case _ => ()
     }
 
-    '{ JsonInterpolatorRuntime.jsonWithInterpolation($sc, $args) }
+    val holeCount     = sc.valueOrAbort.parts.length - 1
+    val dummyArgsExpr = Varargs(List.fill(holeCount)(Expr(""))).asExprOf[Seq[Any]]
+    '{ JsonInterpolatorRuntime.jsonWithInterpolation($sc, $dummyArgsExpr) }
   }
 
   private def isStringableType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {

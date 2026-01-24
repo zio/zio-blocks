@@ -43,7 +43,8 @@ private object JsonInterpolatorMacros {
 
     try {
       // First validate the JSON by trying to parse it with dummy arguments
-      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), args.map(_ => ""))
+      val dummyArgs = List.fill(parts.length - 1)("")
+      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), dummyArgs)
       val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
       val argsExpr = c.Expr[Seq[Any]](q"Seq(..$args)")
       reify(JsonInterpolatorRuntime.jsonWithInterpolation(scExpr.splice, argsExpr.splice))
