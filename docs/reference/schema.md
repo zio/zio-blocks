@@ -510,7 +510,7 @@ The `wrap` method is used for types where the wrapping operation may fail (e.g.,
 Here are examples of both:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{Schema, SchemaError}
 
 // For types with validation (may fail)
 case class Email(value: String)
@@ -518,24 +518,23 @@ case class Email(value: String)
 object Email {
   private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
   
-  implicit val schema: Schema[Email] = Schema.derived[Email]
-    .wrap[String](
-      wrap = {
+  implicit val schema: Schema[Email] = Schema[String]
+    .transformOrFail(
+      {
         case x @ EmailRegex(_*) => Right(Email(x))
-        case _                  => Left("Invalid email format")
+        case _                  => Left(SchemaError.validationFailed("Invalid email format"))
       },
-      unwrap = _.value
+      _.value
     )
+    .withTypeName[Email]
 }
 
 // For total transformations (never fail)
 case class UserId(value: Long)
 
 object UserId {
-  implicit val schema: Schema[UserId] = Schema.derived[UserId]
-    .wrapTotal(
-      wrap = UserId(_),
-      unwrap = _.value
-    )
+  implicit val schema: Schema[UserId] = Schema[Long]
+    .transform(UserId(_), _.value)
+    .withTypeName[UserId]
 }
 ```

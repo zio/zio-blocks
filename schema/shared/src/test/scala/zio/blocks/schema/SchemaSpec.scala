@@ -1937,14 +1937,16 @@ object SchemaSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
-    val wrapped: Optional[PosInt, Int]  = $(_.wrapped[Int])
+    implicit val schema: Schema[PosInt] =
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeName[PosInt]
+    val wrapped: Optional[PosInt, Int] = $(_.wrapped[Int])
   }
 
   case class Email(value: String)
 
   object Email extends CompanionOptics[Email] {
-    implicit val schema: Schema[Email]   = Schema.derived.wrapTotal(x => new Email(x), _.value)
+    implicit val schema: Schema[Email] =
+      Schema[String].transform[Email](x => new Email(x), _.value).withTypeName[Email]
     val wrapped: Optional[Email, String] = $(_.wrapped[String])
   }
 

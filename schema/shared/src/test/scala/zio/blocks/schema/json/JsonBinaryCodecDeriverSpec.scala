@@ -3080,7 +3080,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   case class UserId(value: Long)
 
   object UserId {
-    implicit val schema: Schema[UserId] = Schema.derived.wrapTotal(x => new UserId(x), _.value)
+    implicit val schema: Schema[UserId] =
+      Schema[Long].transform[UserId](x => new UserId(x), _.value).withTypeName[UserId]
   }
 
   case class Email(value: String)
@@ -3394,7 +3395,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
+    implicit val schema: Schema[PosInt] =
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeName[PosInt]
   }
 
   case class Counter(value: PosInt)
