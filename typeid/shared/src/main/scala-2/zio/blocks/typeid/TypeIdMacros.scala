@@ -218,17 +218,14 @@ object TypeIdMacros {
     import c.universe._
 
     if (sym.isModule || sym.isModuleClass) {
-      // Singleton object
       buildObjectDefKind(c)(sym)
-    } else if (sym.isType && sym.asType.isAliasType) {
-      // Type alias
-      q"_root_.zio.blocks.typeid.TypeDefKind.TypeAlias"
-    } else if (sym.isType && sym.asType.isAbstract) {
-      // Abstract type member
-      q"_root_.zio.blocks.typeid.TypeDefKind.AbstractType"
     } else if (sym.isClass) {
       val classSym = sym.asClass
       buildClassDefKind(c)(classSym)
+    } else if (sym.isType && sym.asType.isAliasType) {
+      q"_root_.zio.blocks.typeid.TypeDefKind.TypeAlias"
+    } else if (sym.isType && sym.asType.isAbstract && !sym.isClass) {
+      q"_root_.zio.blocks.typeid.TypeDefKind.AbstractType"
     } else {
       q"_root_.zio.blocks.typeid.TypeDefKind.Unknown"
     }

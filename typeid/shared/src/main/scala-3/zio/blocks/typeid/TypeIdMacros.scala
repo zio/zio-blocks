@@ -314,14 +314,12 @@ object TypeIdMacros {
         )
       }
     } else {
-      val parentsExpr = buildBaseTypes(typeSymbol)
       '{
         TypeId.nominal[A](
           ${ Expr(name) },
           ${ ownerExpr },
           ${ typeParamsExpr },
           ${ defKindExpr },
-          ${ parentsExpr },
           None, // selfType
           Nil   // annotations
         )

@@ -25,11 +25,12 @@ sealed trait TypeId[A] {
   def owner: Owner
   def typeParams: List[TypeParam]
   def defKind: TypeDefKind
-  def parents: List[TypeRepr]
   def selfType: Option[TypeRepr]
   def aliasedTo: Option[TypeRepr]
   def representation: Option[TypeRepr]
   def annotations: List[Annotation]
+
+  final def parents: List[TypeRepr] = defKind.baseTypes
 
   final def arity: Int = typeParams.size
 
@@ -101,7 +102,8 @@ sealed trait TypeId[A] {
   def isSubtypeOf(other: TypeId[_]): Boolean = {
     if (TypeId.structurallyEqual(this, other)) return true
 
-    TypeId.checkParents(this.parents, other, Set(this.fullName))
+    // Use defKind.baseTypes which is populated by the macro, not parents which defaults to Nil
+    TypeId.checkParents(this.defKind.baseTypes, other, Set(this.fullName))
   }
 
   def isSupertypeOf(other: TypeId[_]): Boolean = other.isSubtypeOf(this)
@@ -132,7 +134,6 @@ object TypeId {
     owner: Owner,
     typeParams: List[TypeParam],
     defKind: TypeDefKind,
-    parents: List[TypeRepr],
     selfType: Option[TypeRepr],
     aliasedTo: Option[TypeRepr],
     representation: Option[TypeRepr],
@@ -144,7 +145,6 @@ object TypeId {
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
     defKind: TypeDefKind = TypeDefKind.Unknown,
-    parents: List[TypeRepr] = Nil,
     selfType: Option[TypeRepr] = None,
     annotations: List[Annotation] = Nil
   ): TypeId[A] = Impl[A](
@@ -152,7 +152,6 @@ object TypeId {
     owner,
     typeParams,
     defKind,
-    parents,
     selfType,
     None,
     None,
@@ -170,7 +169,6 @@ object TypeId {
     owner,
     typeParams,
     TypeDefKind.TypeAlias,
-    Nil,
     None,
     Some(aliased),
     None,
@@ -189,7 +187,6 @@ object TypeId {
     owner,
     typeParams,
     TypeDefKind.OpaqueType(publicBounds),
-    Nil,
     None,
     None,
     Some(representation),
@@ -269,11 +266,11 @@ object TypeId {
         case TypeRepr.Ref(id) =>
           if (visited.contains(id.fullName)) false
           else if (structurallyEqual(id, target)) true
-          else checkParents(id.parents, target, visited + id.fullName)
+          else checkParents(id.defKind.baseTypes, target, visited + id.fullName)
         case TypeRepr.Applied(TypeRepr.Ref(id), _) =>
           if (visited.contains(id.fullName)) false
           else if (id.fullName == target.fullName) true
-          else checkParents(id.parents, target, visited + id.fullName)
+          else checkParents(id.defKind.baseTypes, target, visited + id.fullName)
         case _ => false
       }
     }

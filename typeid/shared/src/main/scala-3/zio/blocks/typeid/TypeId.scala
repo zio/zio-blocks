@@ -25,11 +25,12 @@ sealed trait TypeId[A <: AnyKind] {
   def owner: Owner
   def typeParams: List[TypeParam]
   def defKind: TypeDefKind
-  def parents: List[TypeRepr]
   def selfType: Option[TypeRepr]
   def aliasedTo: Option[TypeRepr]      // For type aliases
   def representation: Option[TypeRepr] // For opaque types
   def annotations: List[Annotation]
+
+  final def parents: List[TypeRepr] = defKind.baseTypes
 
   // Derived properties
   final def arity: Int = typeParams.size
@@ -43,7 +44,7 @@ sealed trait TypeId[A <: AnyKind] {
 
   final def isClass: Boolean    = defKind.isInstanceOf[TypeDefKind.Class]
   final def isTrait: Boolean    = defKind.isInstanceOf[TypeDefKind.Trait]
-  final def isObject: Boolean   = defKind == TypeDefKind.Object
+  final def isObject: Boolean   = defKind.isInstanceOf[TypeDefKind.Object]
   final def isEnum: Boolean     = defKind.isInstanceOf[TypeDefKind.Enum]
   final def isAlias: Boolean    = defKind == TypeDefKind.TypeAlias
   final def isOpaque: Boolean   = defKind.isInstanceOf[TypeDefKind.OpaqueType]
@@ -140,7 +141,8 @@ sealed trait TypeId[A <: AnyKind] {
         }
       case _ =>
         // Check if other appears in our parent types (transitive)
-        TypeId.checkParents(this.parents, other, Set(this.fullName))
+        // Use defKind.baseTypes which is populated by the macro, not parents which defaults to Nil
+        TypeId.checkParents(this.defKind.baseTypes, other, Set(this.fullName))
     }
   }
 
@@ -190,7 +192,6 @@ object TypeId {
     owner: Owner,
     typeParams: List[TypeParam],
     defKind: TypeDefKind,
-    parents: List[TypeRepr],
     selfType: Option[TypeRepr],
     aliasedTo: Option[TypeRepr],
     representation: Option[TypeRepr],
@@ -204,7 +205,6 @@ object TypeId {
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
     defKind: TypeDefKind = TypeDefKind.Unknown,
-    parents: List[TypeRepr] = Nil,
     selfType: Option[TypeRepr] = None,
     annotations: List[Annotation] = Nil
   ): TypeId[A] = Impl[A](
@@ -212,7 +212,6 @@ object TypeId {
     owner,
     typeParams,
     defKind,
-    parents,
     selfType,
     None,
     None,
@@ -230,7 +229,6 @@ object TypeId {
     owner,
     typeParams,
     TypeDefKind.TypeAlias,
-    Nil,
     None,
     Some(aliased),
     None,
@@ -249,7 +247,6 @@ object TypeId {
     owner,
     typeParams,
     TypeDefKind.OpaqueType(publicBounds),
-    Nil,
     None,
     None,
     Some(representation),
@@ -358,11 +355,11 @@ object TypeId {
       case TypeRepr.Ref(id) =>
         if (visited.contains(id.fullName)) false
         else if (structurallyEqual(id, target)) true
-        else checkParents(id.parents, target, visited + id.fullName)
+        else checkParents(id.defKind.baseTypes, target, visited + id.fullName)
       case TypeRepr.Applied(TypeRepr.Ref(id), _) =>
         if (visited.contains(id.fullName)) false
         else if (id.fullName == target.fullName) true
-        else checkParents(id.parents, target, visited + id.fullName)
+        else checkParents(id.defKind.baseTypes, target, visited + id.fullName)
       case _ => false
     }
 
