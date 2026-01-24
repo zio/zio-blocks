@@ -519,6 +519,282 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       typeCheck {
         """json"[1,02]""""
       }.map(assert(_)(isLeft(containsString("Invalid JSON literal: illegal number with leading zero at: .at(1)"))))
-    } @@ exceptNative
+    } @@ exceptNative,
+    test("doesn't compile for non-stringable types in key position") {
+      // This test verifies that non-stringable types fail at compile time in key position
+      typeCheck(
+        """import zio.blocks.schema._
+           import zio.blocks.schema.json._
+           case class Point(x: Int, y: Int)
+           val p = Point(1, 2)
+           StringContext("{", ": 1}").json(p)"""
+      ).map(assert(_)(isLeft))
+    } @@ exceptNative,
+    suite("String literal interpolation")(
+      test("interpolates String inside JSON string") {
+        val name = "Alice"
+        assertTrue(
+          json"""{"greeting": "Hello $name!"}""".get("greeting").string == Right("Hello Alice!")
+        )
+      },
+      test("interpolates Int inside JSON string") {
+        val count = 42
+        assertTrue(
+          json"""{"message": "You have $count items"}""".get("message").string == Right("You have 42 items")
+        )
+      },
+      test("interpolates multiple values inside JSON string") {
+        val name = "Bob"
+        val count = 5
+        assertTrue(
+          json"""{"message": "Hello $name, you have $count items"}""".get("message").string == Right("Hello Bob, you have 5 items")
+        )
+      },
+      test("interpolates UUID inside JSON string") {
+        check(Gen.uuid)(uuid =>
+          assertTrue(
+            json"""{"id": "User-$uuid"}""".get("id").string == Right(s"User-$uuid")
+          )
+        )
+      },
+      test("interpolates LocalDate inside JSON string") {
+        check(genLocalDate)(date =>
+          assertTrue(
+            json"""{"log": "Created on $date"}""".get("log").string == Right(s"Created on $date")
+          )
+        )
+      },
+      test("interpolates LocalTime inside JSON string") {
+        check(genLocalTime)(time =>
+          assertTrue(
+            json"""{"log": "Event at $time"}""".get("log").string == Right(s"Event at $time")
+          )
+        )
+      },
+      test("interpolates Instant inside JSON string") {
+        check(genInstant)(instant =>
+          assertTrue(
+            json"""{"timestamp": "Recorded: $instant"}""".get("timestamp").string == Right(s"Recorded: $instant")
+          )
+        )
+      },
+      test("interpolates Currency inside JSON string") {
+        check(Gen.currency)(currency =>
+          assertTrue(
+            json"""{"price": "Amount in $currency"}""".get("price").string == Right(s"Amount in $currency")
+          )
+        )
+      },
+      test("interpolates Double inside JSON string") {
+        val value = 3.14159
+        assertTrue(
+          json"""{"result": "Pi is approximately $value"}""".get("result").string == Right("Pi is approximately 3.14159")
+        )
+      },
+      test("interpolates BigDecimal inside JSON string") {
+        val amount = BigDecimal("12345.67")
+        assertTrue(
+          json"""{"total": "Total: $amount"}""".get("total").string == Right("Total: 12345.67")
+        )
+      },
+      test("interpolates expression syntax inside JSON string") {
+        val x = 10
+        val y = 20
+        assertTrue(
+          json"""{"sum": "Result: ${x + y}"}""".get("sum").string == Right("Result: 30")
+        )
+      },
+      test("interpolates empty string") {
+        val empty = ""
+        assertTrue(
+          json"""{"value": "before${empty}after"}""".get("value").string == Right("beforeafter")
+        )
+      },
+      test("interpolates at beginning of string") {
+        val prefix = "START"
+        assertTrue(
+          json"""{"value": "$prefix-end"}""".get("value").string == Right("START-end")
+        )
+      },
+      test("interpolates at end of string") {
+        val suffix = "END"
+        assertTrue(
+          json"""{"value": "start-$suffix"}""".get("value").string == Right("start-END")
+        )
+      },
+      test("interpolates entire string content") {
+        val content = "entire content"
+        assertTrue(
+          json"""{"value": "$content"}""".get("value").string == Right("entire content")
+        )
+      },
+      test("interpolates Boolean inside JSON string") {
+        val flag = true
+        assertTrue(
+          json"""{"status": "Active: $flag"}""".get("status").string == Right("Active: true")
+        )
+      },
+      test("interpolates Char inside JSON string") {
+        val grade = 'A'
+        assertTrue(
+          json"""{"grade": "Grade: $grade"}""".get("grade").string == Right("Grade: A")
+        )
+      },
+      test("interpolates Long inside JSON string") {
+        val bigNum = 9223372036854775807L
+        assertTrue(
+          json"""{"id": "ID-$bigNum"}""".get("id").string == Right(s"ID-$bigNum")
+        )
+      },
+      test("interpolates path-like string with multiple interpolations") {
+        val env = "production"
+        val date = LocalDate.of(2024, 1, 15)
+        val version = 3
+        assertTrue(
+          json"""{"path": "/data/$env/$date/v$version"}""".get("path").string == Right("/data/production/2024-01-15/v3")
+        )
+      }
+    ),
+    suite("Value position with Schema-derived types")(
+      test("interpolates case class with Schema") {
+        case class Person(name: String, age: Int)
+        object Person {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+        val person = Person("Alice", 30)
+        val result = json"""{"person": $person}"""
+        assertTrue(
+          result.get("person").get("name").string == Right("Alice"),
+          result.get("person").get("age").int == Right(30)
+        )
+      },
+      test("interpolates nested case classes with Schema") {
+        case class Address(city: String, zip: String)
+        object Address {
+          implicit val schema: Schema[Address] = Schema.derived
+        }
+        case class Employee(name: String, address: Address)
+        object Employee {
+          implicit val schema: Schema[Employee] = Schema.derived
+        }
+        val employee = Employee("Bob", Address("NYC", "10001"))
+        val result = json"""{"employee": $employee}"""
+        assertTrue(
+          result.get("employee").get("name").string == Right("Bob"),
+          result.get("employee").get("address").get("city").string == Right("NYC"),
+          result.get("employee").get("address").get("zip").string == Right("10001")
+        )
+      },
+      test("interpolates Option of complex type") {
+        case class Item(id: Int, name: String)
+        object Item {
+          implicit val schema: Schema[Item] = Schema.derived
+        }
+        val someItem: Option[Item] = Some(Item(1, "Widget"))
+        val noneItem: Option[Item] = None
+        assertTrue(
+          json"""{"item": $someItem}""".get("item").get("id").int == Right(1),
+          json"""{"item": $noneItem}""".get("item").one == Right(Json.Null)
+        )
+      },
+      test("interpolates List of complex types") {
+        case class Point(x: Int, y: Int)
+        object Point {
+          implicit val schema: Schema[Point] = Schema.derived
+        }
+        val points = List(Point(1, 2), Point(3, 4))
+        val result = json"""{"points": $points}"""
+        assertTrue(
+          result.get("points").one == Right(Json.arr(
+            Json.obj("x" -> Json.number(1), "y" -> Json.number(2)),
+            Json.obj("x" -> Json.number(3), "y" -> Json.number(4))
+          ))
+        )
+      },
+      test("interpolates Set of complex types") {
+        case class Tag(name: String)
+        object Tag {
+          implicit val schema: Schema[Tag] = Schema.derived
+        }
+        val tag = Tag("scala")
+        val tags = Set(tag)
+        val result = json"""{"tags": $tags}"""
+        assertTrue(
+          result.get("tags").one == Right(Json.arr(Json.obj("name" -> Json.str("scala"))))
+        )
+      },
+      test("interpolates Vector of complex types") {
+        case class Score(value: Int)
+        object Score {
+          implicit val schema: Schema[Score] = Schema.derived
+        }
+        val scores = Vector(Score(100), Score(200))
+        val result = json"""{"scores": $scores}"""
+        assertTrue(
+          result.get("scores").one == Right(Json.arr(
+            Json.obj("value" -> Json.number(100)),
+            Json.obj("value" -> Json.number(200))
+          ))
+        )
+      },
+      test("interpolates Map with complex value types") {
+        case class Config(enabled: Boolean, threshold: Int)
+        object Config {
+          implicit val schema: Schema[Config] = Schema.derived
+        }
+        val configs = Map("feature1" -> Config(true, 10), "feature2" -> Config(false, 20))
+        val result = json"""{"configs": $configs}"""
+        assertTrue(
+          result.get("configs").get("feature1").get("enabled").boolean == Right(true),
+          result.get("configs").get("feature2").get("threshold").int == Right(20)
+        )
+      }
+    ),
+    suite("Mixed context tests")(
+      test("array with mixed value types") {
+        val str = "hello"
+        val num = 42
+        val bool = true
+        val result = json"""{"mixed": [$str, $num, $bool]}"""
+        assertTrue(
+          result.get("mixed").one == Right(Json.arr(
+            Json.str("hello"),
+            Json.number(42),
+            Json.bool(true)
+          ))
+        )
+      },
+      test("multiple values in object") {
+        val name = "Alice"
+        val age = 30
+        val result = json"""{"name": $name, "age": $age}"""
+        assertTrue(
+          result.get("name").string == Right("Alice"),
+          result.get("age").int == Right(30)
+        )
+      }
+    ),
+    suite("Compile-time error tests")(
+      test("doesn't compile for non-stringable type in string literal position") {
+        // This test verifies that non-stringable types fail at compile time in string literal position
+        typeCheck(
+          """import zio.blocks.schema._
+             import zio.blocks.schema.json._
+             case class Point(x: Int, y: Int)
+             val p = Point(1, 2)
+             StringContext("{\"message\": \"Point is ", "\"}").json(p)"""
+        ).map(assert(_)(isLeft))
+      } @@ exceptNative,
+      test("doesn't compile for type without JsonEncoder in value position") {
+        // This test verifies that types without JsonEncoder fail at compile time in value position
+        typeCheck(
+          """import zio.blocks.schema._
+             import zio.blocks.schema.json._
+             class NoEncoder(val x: Int)
+             val obj = new NoEncoder(42)
+             StringContext("{\"value\": ", "}").json(obj)"""
+        ).map(assert(_)(isLeft))
+      } @@ exceptNative
+    )
   )
 }
