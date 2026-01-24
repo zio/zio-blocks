@@ -494,8 +494,9 @@ private[schema] object DerivedOpticsMacros {
           child.typeRef
         }
       } else {
-        // For case objects, get the type
-        child.termRef.widen
+        // For case objects / enum singletons, use termRef without widening
+        // to preserve the singleton type (e.g., Status.Active.type instead of Status)
+        child.termRef
       }
       val prismType    = TypeRepr.of[Prism].appliedTo(List(tpeCast, childType))
       val baseName     = lowerFirst(child.name)

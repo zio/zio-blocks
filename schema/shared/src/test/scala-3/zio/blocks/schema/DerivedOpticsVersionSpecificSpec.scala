@@ -82,9 +82,8 @@ object DerivedOpticsVersionSpecificSpec extends SchemaBaseSpec {
 
         object Status extends DerivedOptics
 
-        // The conversion provides direct field access, but enum singleton cases
-        // are typed as Prism[Status, Status] rather than Prism[Status, Status.Active.type]
-        val activePrism = Status.active
+        // Enum singleton cases should have singleton type: Prism[Status, Status.Active.type]
+        val activePrism: Prism[Status, Status.Active.type] = Status.active
         assertTrue(
           activePrism.getOption(Status.Active) == Some(Status.Active),
           activePrism.getOption(Status.Inactive) == None

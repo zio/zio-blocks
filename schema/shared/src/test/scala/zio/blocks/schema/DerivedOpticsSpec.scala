@@ -337,6 +337,18 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
           SpecialCases.optics.`my-special-case`.getOption(case1) == Some(`my-special-case`(5)),
           SpecialCases.optics.`another special case`.getOption(case2) == Some(`another special case`("VVV"))
         )
+      },
+      test("prism for case object has correct singleton type") {
+        // Case objects should have singleton type in the prism:
+        // Prism[Shape, Point.type] not Prism[Shape, Shape]
+        val pointPrism: Prism[Shape, Point.type] = Shape.optics.point
+
+        val s1: Shape = Point
+        val s2: Shape = Circle(1.0)
+        assertTrue(
+          pointPrism.getOption(s1) == Some(Point),
+          pointPrism.getOption(s2) == None
+        )
       }
     ),
     suite("Lens generation for wrappers")(
