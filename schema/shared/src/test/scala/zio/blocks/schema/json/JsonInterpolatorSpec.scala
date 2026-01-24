@@ -66,7 +66,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val char: Char                     = 'k'
         val bigInt: BigInt                 = BigInt("12345678901234567890")
         val bigDec: BigDecimal             = BigDecimal("123.456")
-        val uuid: UUID                     = UUID.randomUUID()
+        val uuid: UUID                     = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
         val instant: Instant               = Instant.now()
         val localDate: LocalDate           = LocalDate.of(2024, 1, 15)
         val localTime: LocalTime           = LocalTime.of(10, 30)
@@ -119,7 +119,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
 
       test("property: stringable types work as keys") {
-        check(Gen.uuid) { uuid =>
+        check(Gen.long.zip(Gen.long).map { case (m, l) => new UUID(m, l) }) { uuid =>
           assertTrue(json"""{$uuid: "v"}""".get(uuid.toString).string == Right("v"))
         } &&
         check(Gen.int) { n =>
@@ -314,7 +314,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
 
     suite("mixed interpolation contexts")(
       test("combines key, value, and string interpolation") {
-        val key       = UUID.randomUUID()
+        val key       = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
         val data      = Data(42)
         val timestamp = Instant.now()
 
@@ -333,7 +333,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
 
       test("multiple keys with different stringable types") {
         val intKey  = 1
-        val uuidKey = UUID.randomUUID()
+        val uuidKey = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
         val dateKey = LocalDate.of(2024, 1, 15)
 
         val result = json"""{
