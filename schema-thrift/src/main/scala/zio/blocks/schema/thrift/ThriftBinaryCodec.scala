@@ -1,14 +1,16 @@
 package zio.blocks.schema.thrift
 
-import org.apache.thrift.protocol.{TBinaryProtocol, TProtocol}
+import org.apache.thrift.protocol._
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
-
 import java.nio.ByteBuffer
+import java.time._
+import java.util.{Currency, UUID}
 import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
+import java.math.{BigInteger, MathContext}
 
 /**
  * Base class for Thrift binary codecs. Provides encoding and decoding of values
@@ -49,13 +51,12 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
   def encode(value: A, protocol: TProtocol): Unit
 
   /**
-   * Throws a decode error with the given message.
+   * Throws decode error with the given message.
    */
-  def decodeError(expectation: String): Nothing =
-    throw new ThriftBinaryCodecError(Nil, expectation)
+  def decodeError(expectation: String): Nothing = throw new ThriftBinaryCodecError(Nil, expectation)
 
   /**
-   * Throws a decode error with a path span and underlying error.
+   * Throws decode error with a path span and underlying error.
    */
   def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: ThriftBinaryCodecError =>
@@ -66,7 +67,7 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
   }
 
   /**
-   * Throws a decode error with two path spans and underlying error.
+   * Throws decode error with two path spans and an underlying error.
    */
   def decodeError(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: ThriftBinaryCodecError =>
@@ -89,10 +90,7 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
     decode(java.util.Arrays.copyOfRange(bs, pos, pos + len))
   }
 
-  override def encode(value: A, output: ByteBuffer): Unit = {
-    val bytes = encode(value)
-    output.put(bytes)
-  }
+  override def encode(value: A, output: ByteBuffer): Unit = output.put(encode(value))
 
   /**
    * Decodes from a byte array.
@@ -111,8 +109,7 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
    */
   def encode(value: A): Array[Byte] = {
     val transport = new ChunkTransport.Write()
-    val protocol  = new TBinaryProtocol(transport)
-    encode(value, protocol)
+    encode(value, new TBinaryProtocol(transport))
     transport.toByteArray
   }
 
@@ -155,10 +152,225 @@ object ThriftBinaryCodec {
   val unitType    = 9
 
   val maxCollectionSize: Int = Integer.MAX_VALUE - 8
+
+  val unitCodec: ThriftBinaryCodec[Unit] = new ThriftBinaryCodec[Unit](ThriftBinaryCodec.unitType) {
+    def decodeUnsafe(protocol: TProtocol): Unit = ()
+
+    def encode(value: Unit, protocol: TProtocol): Unit = ()
+  }
+
+  val booleanCodec: ThriftBinaryCodec[Boolean] = new ThriftBinaryCodec[Boolean](ThriftBinaryCodec.booleanType) {
+    def decodeUnsafe(protocol: TProtocol): Boolean = protocol.readBool()
+
+    def encode(value: Boolean, protocol: TProtocol): Unit = protocol.writeBool(value)
+  }
+
+  val byteCodec: ThriftBinaryCodec[Byte] = new ThriftBinaryCodec[Byte](ThriftBinaryCodec.byteType) {
+    def decodeUnsafe(protocol: TProtocol): Byte = protocol.readByte()
+
+    def encode(value: Byte, protocol: TProtocol): Unit = protocol.writeByte(value)
+  }
+
+  val shortCodec: ThriftBinaryCodec[Short] = new ThriftBinaryCodec[Short](ThriftBinaryCodec.shortType) {
+    def decodeUnsafe(protocol: TProtocol): Short = protocol.readI16()
+
+    def encode(value: Short, protocol: TProtocol): Unit = protocol.writeI16(value)
+  }
+
+  val intCodec: ThriftBinaryCodec[Int] = new ThriftBinaryCodec[Int](ThriftBinaryCodec.intType) {
+    def decodeUnsafe(protocol: TProtocol): Int = protocol.readI32()
+
+    def encode(value: Int, protocol: TProtocol): Unit = protocol.writeI32(value)
+  }
+
+  val longCodec: ThriftBinaryCodec[Long] = new ThriftBinaryCodec[Long](ThriftBinaryCodec.longType) {
+    def decodeUnsafe(protocol: TProtocol): Long = protocol.readI64()
+
+    def encode(value: Long, protocol: TProtocol): Unit = protocol.writeI64(value)
+  }
+
+  val floatCodec: ThriftBinaryCodec[Float] = new ThriftBinaryCodec[Float](ThriftBinaryCodec.floatType) {
+    def decodeUnsafe(protocol: TProtocol): Float = protocol.readDouble().toFloat
+
+    def encode(value: Float, protocol: TProtocol): Unit = protocol.writeDouble(value.toDouble)
+  }
+
+  val doubleCodec: ThriftBinaryCodec[Double] = new ThriftBinaryCodec[Double](ThriftBinaryCodec.doubleType) {
+    def decodeUnsafe(protocol: TProtocol): Double = protocol.readDouble()
+
+    def encode(value: Double, protocol: TProtocol): Unit = protocol.writeDouble(value)
+  }
+
+  val charCodec: ThriftBinaryCodec[Char] = new ThriftBinaryCodec[Char](ThriftBinaryCodec.charType) {
+    def decodeUnsafe(protocol: TProtocol): Char = protocol.readI16().toChar
+
+    def encode(value: Char, protocol: TProtocol): Unit = protocol.writeI16(value.toShort)
+  }
+
+  val stringCodec: ThriftBinaryCodec[String] = new ThriftBinaryCodec[String]() {
+    def decodeUnsafe(protocol: TProtocol): String = protocol.readString()
+
+    def encode(value: String, protocol: TProtocol): Unit = protocol.writeString(value)
+  }
+
+  val bigIntCodec: ThriftBinaryCodec[BigInt] = new ThriftBinaryCodec[BigInt]() {
+    def decodeUnsafe(protocol: TProtocol): BigInt = {
+      val buf = protocol.readBinary()
+      val arr = new Array[Byte](buf.remaining())
+      buf.get(arr)
+      BigInt(new BigInteger(arr))
+    }
+
+    def encode(value: BigInt, protocol: TProtocol): Unit = protocol.writeBinary(ByteBuffer.wrap(value.toByteArray))
+  }
+
+  val bigDecimalCodec: ThriftBinaryCodec[BigDecimal] = new ThriftBinaryCodec[BigDecimal]() {
+    def decodeUnsafe(protocol: TProtocol): BigDecimal = {
+      protocol.readFieldBegin()
+      val unscaledBuf = protocol.readBinary()
+      val unscaledArr = new Array[Byte](unscaledBuf.remaining())
+      unscaledBuf.get(unscaledArr)
+      val unscaled = new BigInteger(unscaledArr)
+      protocol.readFieldBegin()
+      val precision = protocol.readI32()
+      protocol.readFieldBegin()
+      val scale = protocol.readI32()
+      protocol.readFieldBegin() // read STOP
+      new BigDecimal(new java.math.BigDecimal(unscaled, scale, new MathContext(precision)))
+    }
+
+    def encode(value: BigDecimal, protocol: TProtocol): Unit = {
+      val bd = value.underlying()
+      protocol.writeFieldBegin(new TField("unscaled", TType.STRING, 1))
+      protocol.writeBinary(ByteBuffer.wrap(bd.unscaledValue().toByteArray))
+      protocol.writeFieldBegin(new TField("precision", TType.I32, 2))
+      protocol.writeI32(bd.precision())
+      protocol.writeFieldBegin(new TField("scale", TType.I32, 3))
+      protocol.writeI32(bd.scale())
+      protocol.writeFieldStop()
+    }
+  }
+
+  // Date/time codecs - using ISO strings for simplicity
+  val dayOfWeekCodec: ThriftBinaryCodec[DayOfWeek] = new ThriftBinaryCodec[java.time.DayOfWeek]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.DayOfWeek = java.time.DayOfWeek.of(protocol.readByte().toInt)
+
+    def encode(value: java.time.DayOfWeek, protocol: TProtocol): Unit = protocol.writeByte(value.getValue.toByte)
+  }
+
+  val monthCodec: ThriftBinaryCodec[Month] = new ThriftBinaryCodec[java.time.Month]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.Month = java.time.Month.of(protocol.readByte().toInt)
+
+    def encode(value: java.time.Month, protocol: TProtocol): Unit = protocol.writeByte(value.getValue.toByte)
+  }
+
+  val yearCodec: ThriftBinaryCodec[Year] = new ThriftBinaryCodec[java.time.Year]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.Year = java.time.Year.of(protocol.readI32())
+
+    def encode(value: java.time.Year, protocol: TProtocol): Unit = protocol.writeI32(value.getValue)
+  }
+
+  val monthDayCodec: ThriftBinaryCodec[MonthDay] = new ThriftBinaryCodec[java.time.MonthDay]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.MonthDay = java.time.MonthDay.parse(protocol.readString())
+
+    def encode(value: java.time.MonthDay, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
+
+  val yearMonthCodec: ThriftBinaryCodec[YearMonth] = new ThriftBinaryCodec[java.time.YearMonth]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.YearMonth = java.time.YearMonth.parse(protocol.readString())
+
+    def encode(value: java.time.YearMonth, protocol: TProtocol): Unit = {
+      var str = value.toString
+      if (value.getYear > 10000) str = "+" + str
+      protocol.writeString(str)
+    }
+  }
+
+  val periodCodec: ThriftBinaryCodec[Period] = new ThriftBinaryCodec[java.time.Period]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.Period = java.time.Period.parse(protocol.readString())
+
+    def encode(value: java.time.Period, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
+
+  val durationCodec: ThriftBinaryCodec[Duration] = new ThriftBinaryCodec[java.time.Duration]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.Duration = java.time.Duration.parse(protocol.readString())
+
+    def encode(value: java.time.Duration, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
+
+  val instantCodec: ThriftBinaryCodec[Instant] = new ThriftBinaryCodec[java.time.Instant]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.Instant = java.time.Instant.parse(protocol.readString())
+
+    def encode(value: java.time.Instant, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
+
+  val localDateCodec: ThriftBinaryCodec[LocalDate] = new ThriftBinaryCodec[java.time.LocalDate]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.LocalDate = java.time.LocalDate.parse(protocol.readString())
+
+    def encode(value: java.time.LocalDate, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
+
+  val localTimeCodec: ThriftBinaryCodec[LocalTime] = new ThriftBinaryCodec[java.time.LocalTime]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.LocalTime = java.time.LocalTime.parse(protocol.readString())
+
+    def encode(value: java.time.LocalTime, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
+
+  val localDateTimeCodec: ThriftBinaryCodec[LocalDateTime] = new ThriftBinaryCodec[java.time.LocalDateTime]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.LocalDateTime =
+      java.time.LocalDateTime.parse(protocol.readString())
+
+    def encode(value: java.time.LocalDateTime, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
+
+  val offsetTimeCodec: ThriftBinaryCodec[OffsetTime] = new ThriftBinaryCodec[java.time.OffsetTime]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.OffsetTime = java.time.OffsetTime.parse(protocol.readString())
+
+    def encode(value: java.time.OffsetTime, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
+
+  val offsetDateTimeCodec: ThriftBinaryCodec[OffsetDateTime] = new ThriftBinaryCodec[java.time.OffsetDateTime]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.OffsetDateTime =
+      java.time.OffsetDateTime.parse(protocol.readString())
+
+    def encode(value: java.time.OffsetDateTime, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
+
+  val zonedDateTimeCodec: ThriftBinaryCodec[ZonedDateTime] = new ThriftBinaryCodec[java.time.ZonedDateTime]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.ZonedDateTime =
+      java.time.ZonedDateTime.parse(protocol.readString())
+
+    def encode(value: java.time.ZonedDateTime, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
+
+  val zoneIdCodec: ThriftBinaryCodec[ZoneId] = new ThriftBinaryCodec[java.time.ZoneId]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.ZoneId = java.time.ZoneId.of(protocol.readString())
+
+    def encode(value: java.time.ZoneId, protocol: TProtocol): Unit = protocol.writeString(value.getId)
+  }
+
+  val zoneOffsetCodec: ThriftBinaryCodec[ZoneOffset] = new ThriftBinaryCodec[java.time.ZoneOffset]() {
+    def decodeUnsafe(protocol: TProtocol): java.time.ZoneOffset =
+      java.time.ZoneOffset.ofTotalSeconds(protocol.readI32())
+
+    def encode(value: java.time.ZoneOffset, protocol: TProtocol): Unit = protocol.writeI32(value.getTotalSeconds)
+  }
+
+  val currencyCodec: ThriftBinaryCodec[Currency] = new ThriftBinaryCodec[java.util.Currency]() {
+    def decodeUnsafe(protocol: TProtocol): java.util.Currency = java.util.Currency.getInstance(protocol.readString())
+
+    def encode(value: java.util.Currency, protocol: TProtocol): Unit = protocol.writeString(value.getCurrencyCode)
+  }
+
+  val uuidCodec: ThriftBinaryCodec[UUID] = new ThriftBinaryCodec[java.util.UUID]() {
+    def decodeUnsafe(protocol: TProtocol): java.util.UUID = java.util.UUID.fromString(protocol.readString())
+
+    def encode(value: java.util.UUID, protocol: TProtocol): Unit = protocol.writeString(value.toString)
+  }
 }
 
 /**
- * Internal error class for tracking decode path during error propagation.
+ * Internal error class for tracking the decode path during error propagation.
  */
 private[thrift] class ThriftBinaryCodecError(var spans: List[DynamicOptic.Node], message: String)
     extends Throwable(message, null, false, false) {
