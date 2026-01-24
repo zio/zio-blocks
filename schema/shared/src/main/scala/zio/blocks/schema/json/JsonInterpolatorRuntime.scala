@@ -197,14 +197,14 @@ object JsonInterpolatorRuntime {
 
     override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
       val limit = count + len
-      if (limit > buf.length) buf = java.util.Arrays.copyOf(buf, math.max(math.max(buf.length << 1, limit), 16))
+      if (limit > buf.length) buf = java.util.Arrays.copyOf(buf, math.max(buf.length << 1, limit))
       System.arraycopy(bytes, off, buf, count, len)
       count = limit
     }
 
     override def write(b: Int): Unit = {
       val pos = count
-      if (pos >= buf.length) buf = java.util.Arrays.copyOf(buf, math.max(buf.length << 1, 16))
+      if (pos >= buf.length) buf = java.util.Arrays.copyOf(buf, buf.length << 1)
       buf(pos) = b.toByte
       count = pos + 1
     }
@@ -217,8 +217,7 @@ object JsonInterpolatorRuntime {
     private[this] def write(s: String, from: Int, to: Int, pos: Int, posLim: Int): Int =
       if (from >= to) pos
       else if (pos >= posLim) {
-        val newCapacity = math.max(math.max(buf.length << 1, pos + (to - from) * 4), 16)
-        buf = java.util.Arrays.copyOf(buf, newCapacity)
+        buf = java.util.Arrays.copyOf(buf, Math.max(buf.length << 1, count + (to - from) * 3))
         write(s, from, to, pos, buf.length - 4)
       } else {
         val ch1 = s.charAt(from).toInt

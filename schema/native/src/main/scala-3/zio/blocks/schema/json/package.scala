@@ -3,6 +3,8 @@ package zio.blocks.schema
 import zio.blocks.schema.json._
 import scala.quoted._
 
+import scala.util.control.NonFatal
+
 package object json {
   extension (inline sc: StringContext) {
     inline def json(inline args: Any*): Json = ${ jsonInterpolatorImpl('sc, 'args) }
@@ -177,10 +179,13 @@ package object json {
       }
     }
 
-    // Note: Compile-time JSON validation is skipped here because the macro expansion
-    // environment has issues evaluating JsonBinaryCodec at compile time with dummy values.
-    // Runtime validation will catch any JSON syntax errors when the code executes.
-    val newArgsSeq = Varargs(newArgs.toList)
-    '{ JsonInterpolatorRuntime.jsonWithInterpolation($sc, $newArgsSeq) }
+    try {
+      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), dummyArgs.toSeq)
+
+      val newArgsSeq = Varargs(newArgs.toList)
+      '{ JsonInterpolatorRuntime.jsonWithInterpolation($sc, $newArgsSeq) }
+    } catch {
+      case error if NonFatal(error) => report.errorAndAbort(s"Invalid JSON literal: ${error.getMessage}")
+    }
   }
 }
