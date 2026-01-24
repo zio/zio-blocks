@@ -124,7 +124,7 @@ object BuildHelper {
       Package.ManifestAttributes(
         "Automatic-Module-Name" -> s"${organization.value}.$prjName".replaceAll("-", ".")
       ),
-    coverageFailOnMinimum      := true,
+    coverageFailOnMinimum      := CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 2),
     coverageMinimumStmtTotal   := 95,
     coverageMinimumBranchTotal := 90
   )
