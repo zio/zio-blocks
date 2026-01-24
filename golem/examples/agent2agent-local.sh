@@ -1,49 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+cd "$script_dir/../.."
 
-if ! command -v golem-cli >/dev/null 2>&1; then
-  echo "[agent2agent-local] error: golem-cli not found on PATH" >&2
-  exit 1
-fi
+source "$script_dir/lib.sh"
 
-GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
-read -r -a flags <<<"$GOLEM_CLI_FLAGS"
-
-is_cloud=0
-for f in "${flags[@]}"; do
-  [[ "$f" == "--cloud" ]] && is_cloud=1
-done
-
-if [[ "$is_cloud" -eq 0 ]]; then
-  host="${GOLEM_ROUTER_HOST:-127.0.0.1}"
-  port="${GOLEM_ROUTER_PORT:-9881}"
-  if ! timeout 1 bash -lc "cat < /dev/null > /dev/tcp/$host/$port" 2>/dev/null; then
-    echo "[agent2agent-local] Local router not reachable at $host:$port." >&2
-    echo "[agent2agent-local] Start it in another terminal, then rerun:" >&2
-    echo "  golem server run --clean --data-dir .golem-local --router-port $port" >&2
-    exit 1
-  fi
-fi
+name="agent2agent-local"
+examples_require_cli "$name"
+examples_parse_flags
+examples_check_router "$name"
 
 app_dir="$PWD/golem/examples"
 script_file="$PWD/golem/examples/samples/agent-to-agent/repl-minimal-agent-to-agent.rib"
 
-build_log="$(mktemp)"
-trap 'rm -f "$build_log"' EXIT
-if ! ( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" ) >"$build_log" 2>&1; then
-  cat "$build_log" >&2
-  echo "[agent2agent-local] sbt failed; see output above." >&2
-  exit 1
-fi
-
-(
-  cd "$app_dir"
-  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
-  if [[ -n "${REPL_TIMEOUT_SECS:-}" ]]; then
-    timeout "$REPL_TIMEOUT_SECS" env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$script_file" --disable-stream < /dev/null
-  else
-    env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" repl scala:examples --script-file "$script_file" --disable-stream < /dev/null
-  fi
-)
+examples_build_js "$name"
+examples_run_repl "$app_dir" "$script_file"

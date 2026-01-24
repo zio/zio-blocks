@@ -30,13 +30,28 @@ private[golem] object WitValueCodec {
           Right(IntValue(node.selectDynamic("val").asInstanceOf[Int]))
         case (IntType, "prim-float64") =>
           val raw = node.selectDynamic("val").asInstanceOf[Double]
-          Right(IntValue(raw.toInt))
+          if (!isWholeNumber(raw))
+            Left(s"Non-integral numeric value $raw cannot be decoded as IntType")
+          else if (!inIntRange(raw))
+            Left(s"Value $raw is out of Int range for IntType")
+          else
+            Right(IntValue(raw.toInt))
         case (LongType, "prim-s64") =>
           val raw = node.selectDynamic("val").asInstanceOf[Double]
-          Right(LongValue(raw.toLong))
+          if (!isWholeNumber(raw))
+            Left(s"Non-integral numeric value $raw cannot be decoded as LongType (prim-s64)")
+          else if (!inLongRange(raw))
+            Left(s"Value $raw is out of Long range for LongType (prim-s64)")
+          else
+            Right(LongValue(raw.toLong))
         case (LongType, "prim-float64") =>
           val raw = node.selectDynamic("val").asInstanceOf[Double]
-          Right(LongValue(raw.toLong))
+          if (!isWholeNumber(raw))
+            Left(s"Non-integral numeric value $raw cannot be decoded as LongType (prim-float64)")
+          else if (!inLongRange(raw))
+            Left(s"Value $raw is out of Long range for LongType (prim-float64)")
+          else
+            Right(LongValue(raw.toLong))
         case (DoubleType, "prim-float64") =>
           Right(DoubleValue(node.selectDynamic("val").asInstanceOf[Double]))
         case (BigDecimalType, "prim-string") =>
@@ -140,6 +155,15 @@ private[golem] object WitValueCodec {
       }
     }
   }
+
+  private def isWholeNumber(raw: Double): Boolean =
+    !raw.isNaN && !raw.isInfinity && raw.isWhole
+
+  private def inIntRange(raw: Double): Boolean =
+    raw >= Int.MinValue.toDouble && raw <= Int.MaxValue.toDouble
+
+  private def inLongRange(raw: Double): Boolean =
+    raw >= Long.MinValue.toDouble && raw <= Long.MaxValue.toDouble
 
   private def decodeTuple(
     elements: List[DataType],

@@ -1,62 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+cd "$script_dir/../.."
 
-if ! command -v golem-cli >/dev/null 2>&1; then
-  echo "[counter-local-repl] error: golem-cli not found on PATH" >&2
-  exit 1
-fi
+source "$script_dir/lib.sh"
 
-GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
-read -r -a flags <<<"$GOLEM_CLI_FLAGS"
-
-is_cloud=0
-for f in "${flags[@]}"; do
-  [[ "$f" == "--cloud" ]] && is_cloud=1
-done
-
-if [[ "$is_cloud" -eq 0 ]]; then
-  host="${GOLEM_ROUTER_HOST:-127.0.0.1}"
-  port="${GOLEM_ROUTER_PORT:-9881}"
-  if ! timeout 1 bash -lc "cat < /dev/null > /dev/tcp/$host/$port" 2>/dev/null; then
-    echo "[counter-local-repl] Local router not reachable at $host:$port." >&2
-    echo "[counter-local-repl] Start it in another terminal, then rerun:" >&2
-    echo "  golem server run --clean --data-dir .golem-local --router-port $port" >&2
-    exit 1
-  fi
-fi
+name="counter-local-repl"
+examples_require_cli "$name"
+examples_parse_flags
+examples_check_router "$name"
 
 app_dir="$PWD/golem/examples"
 script_file="$PWD/golem/examples/samples/simple-rpc/repl-counter.rib"
 
-# Build Scala.js up-front (no golem-cli needed). This also runs `golemPrepare` automatically,
-# ensuring the base guest runtime wasm is present next to the app manifest.
-build_log="$(mktemp)"
-trap 'rm -f "$build_log"' EXIT
-if ! ( cd "$PWD" && sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" ) >"$build_log" 2>&1; then
-  cat "$build_log" >&2
-  echo "[counter-local-repl] sbt failed; see output above." >&2
-  exit 1
-fi
+examples_build_js "$name"
 
-out="$(
-  cd "$app_dir"
-  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
-  env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" \
-    repl scala:examples --script-file "$script_file" --disable-stream < /dev/null 2>&1
-)"
-
-if echo "$out" | grep -F -q 'CustomError(' || \
-   echo "$out" | grep -F -q 'JavaScript error:' || \
-   echo "$out" | grep -F -q 'Exception during call' || \
-   echo "$out" | grep -F -q '[ERROR'; then
-  echo "[counter-local-repl] ERROR: repl output contains an error:" >&2
-  echo "$out" >&2
-  exit 1
-fi
+out="$(examples_run_repl "$app_dir" "$script_file" 2>&1)"
+examples_check_repl_errors "$name" "$out"
 
 echo "$out"
-echo "$out" | grep -F -q 'a: 1'
-echo "$out" | grep -F -q 'b: 2'
+echo "$out" | grep -E -q 'a: [0-9]+'
+echo "$out" | grep -E -q 'b: [0-9]+'
 

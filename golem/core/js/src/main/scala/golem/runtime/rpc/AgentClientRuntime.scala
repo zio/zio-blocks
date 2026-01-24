@@ -7,7 +7,6 @@ import golem.Uuid
 import golem.Datetime
 
 import scala.concurrent.Future
-import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 
 object AgentClientRuntime {
@@ -80,9 +79,7 @@ object AgentClientRuntime {
         case MethodInvocation.Awaitable =>
           runAwaitable(method, input)
         case MethodInvocation.FireAndForget =>
-          runFireAndForget(method, input).map(_ =>
-            throw new IllegalStateException("Fire-and-forget methods return Unit")
-          )
+          runFireAndForget(method, input).asInstanceOf[Future[Out]]
       }
 
     private[golem] def callByName[In, Out](methodName: String, input: In): Future[Out] = {

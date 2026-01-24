@@ -87,8 +87,7 @@ lazy val root = project
     zioGolemExamples.js,
     zioGolemQuickstart.js,
     zioGolemQuickstart.jvm,
-    zioGolemSbt,
-    examples
+    zioGolemSbt
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)

@@ -81,13 +81,19 @@ private[autowire] object HostValueDecoder {
         val innerTag =
           if (tag == "unstructured-text") payload.selectDynamic("tag").asInstanceOf[String]
           else tag
-        decodeTextValue(innerTag, payload.selectDynamic("val")).map(ElementValue.UnstructuredText.apply)
+        val innerPayload =
+          if (tag == "unstructured-text") payload.selectDynamic("val")
+          else payload
+        decodeTextValue(innerTag, innerPayload).map(ElementValue.UnstructuredText.apply)
       case ElementSchema.UnstructuredBinary(_) =>
         val payload  = value.selectDynamic("val")
         val innerTag =
           if (tag == "unstructured-binary") payload.selectDynamic("tag").asInstanceOf[String]
           else tag
-        decodeBinaryValue(innerTag, payload.selectDynamic("val")).map(ElementValue.UnstructuredBinary.apply)
+        val innerPayload =
+          if (tag == "unstructured-binary") payload.selectDynamic("val")
+          else payload
+        decodeBinaryValue(innerTag, innerPayload).map(ElementValue.UnstructuredBinary.apply)
     }
   }
 
