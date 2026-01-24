@@ -1977,7 +1977,7 @@ object SchemaSpec extends SchemaBaseSpec {
         val value = PosInt.applyUnsafe(1)
         assert(Schema[PosInt].fromDynamicValue(Schema[PosInt].toDynamicValue(value)))(isRight(equalTo(value))) &&
         assert(Schema[PosInt].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(-1))))(
-          isLeft(hasError("Expected PosInt: Expected positive value at: ."))
+          isLeft(hasError("Expected positive value"))
         ) &&
         assert(Schema[PosInt].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("WWW"))))(
           isLeft(hasError("Expected Int at: ."))
@@ -1995,6 +1995,55 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(encodeToString { out =>
           Schema[PosInt].encode(ToStringFormat)(out)(PosInt.applyUnsafe(1))
         })(equalTo("PosInt(1)"))
+      }
+    ),
+    suite("transformOrFail")(
+      test("succeeds when transformation succeeds") {
+        case class Positive(value: Int)
+        val positiveSchema: Schema[Positive] = Schema[Int].transformOrFail(
+          to = n =>
+            if (n > 0) Right(Positive(n))
+            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+          from = _.value
+        )
+        val dv = Schema[Int].toDynamicValue(42)
+        assert(positiveSchema.fromDynamicValue(dv))(isRight(equalTo(Positive(42))))
+      },
+      test("fails with SchemaError when transformation fails") {
+        case class Positive(value: Int)
+        val positiveSchema: Schema[Positive] = Schema[Int].transformOrFail(
+          to = n =>
+            if (n > 0) Right(Positive(n))
+            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+          from = _.value
+        )
+        val dv = Schema[Int].toDynamicValue(-1)
+        assert(positiveSchema.fromDynamicValue(dv))(isLeft(hasError("Expected positive, got -1")))
+      },
+      test("round-trips correctly") {
+        case class Positive(value: Int)
+        val positiveSchema: Schema[Positive] = Schema[Int].transformOrFail(
+          to = n =>
+            if (n > 0) Right(Positive(n))
+            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+          from = _.value
+        )
+        val value = Positive(42)
+        val dv    = positiveSchema.toDynamicValue(value)
+        assert(positiveSchema.fromDynamicValue(dv))(isRight(equalTo(value)))
+      },
+      test("preserves SchemaError details") {
+        case class Positive(value: Int)
+        val customError                      = SchemaError.conversionFailed(Nil, "Custom validation error with details")
+        val positiveSchema: Schema[Positive] = Schema[Int].transformOrFail(
+          to = n =>
+            if (n > 0) Right(Positive(n))
+            else Left(customError),
+          from = _.value
+        )
+        val dv     = Schema[Int].toDynamicValue(-1)
+        val result = positiveSchema.fromDynamicValue(dv)
+        assert(result)(isLeft(equalTo(customError)))
       }
     ),
     test("doesn't generate schema for unsupported classes") {

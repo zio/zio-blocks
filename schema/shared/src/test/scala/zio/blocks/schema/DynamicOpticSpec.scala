@@ -117,9 +117,9 @@ object DynamicOpticSpec extends SchemaBaseSpec {
   case class PosInt private (value: Int) extends AnyVal
 
   object PosInt extends CompanionOptics[PosInt] {
-    def apply(value: Int): Either[String, PosInt] =
+    def apply(value: Int): Either[SchemaError, PosInt] =
       if (value >= 0) new Right(new PosInt(value))
-      else new Left("Expected positive value")
+      else new Left(SchemaError.validationFailed("Expected positive value"))
 
     def applyUnsafe(value: Int): PosInt =
       if (value >= 0) new PosInt(value)

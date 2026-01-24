@@ -1,7 +1,6 @@
 package zio.blocks.schema.bson
 
 import org.bson.{BsonReader, BsonWriter, BsonValue}
-import zio.bson._
 import zio.blocks.schema._
 import zio.blocks.schema.binding.Registers
 
@@ -767,15 +766,13 @@ object BsonSchemaCodec {
                     case org.bson.BsonType.BOOLEAN  => writer.writeBoolean(entry.getValue().asBoolean().getValue())
                     case org.bson.BsonType.NULL     => writer.writeNull()
                     case org.bson.BsonType.DOCUMENT =>
-                      // For nested documents, we can write them directly
-                      zio.bson.BsonEncoder.bsonValueEncoder
+                      BsonEncoder.bsonValueEncoder
                         .encode(writer, entry.getValue(), BsonEncoder.EncoderContext.default)
                     case org.bson.BsonType.ARRAY =>
-                      zio.bson.BsonEncoder.bsonValueEncoder
+                      BsonEncoder.bsonValueEncoder
                         .encode(writer, entry.getValue(), BsonEncoder.EncoderContext.default)
                     case _ =>
-                      // For other types, use the generic BsonValue encoder
-                      zio.bson.BsonEncoder.bsonValueEncoder
+                      BsonEncoder.bsonValueEncoder
                         .encode(writer, entry.getValue(), BsonEncoder.EncoderContext.default)
                   }
                 }
@@ -1052,7 +1049,7 @@ object BsonSchemaCodec {
           val unwrapped = wrappedCodec.decoder.decodeUnsafe(reader, trace, ctx)
           binding.wrap(unwrapped) match {
             case Right(wrapped) => wrapped
-            case Left(error)    => throw BsonDecoder.Error(trace, s"Failed to wrap value: $error")
+            case Left(error)    => throw BsonDecoder.Error(trace, s"Failed to wrap value: ${error.message}")
           }
         }
 
@@ -1060,7 +1057,7 @@ object BsonSchemaCodec {
           val unwrapped = wrappedCodec.decoder.fromBsonValueUnsafe(value, trace, ctx)
           binding.wrap(unwrapped) match {
             case Right(wrapped) => wrapped
-            case Left(error)    => throw BsonDecoder.Error(trace, s"Failed to wrap value: $error")
+            case Left(error)    => throw BsonDecoder.Error(trace, s"Failed to wrap value: ${error.message}")
           }
         }
       }
@@ -1135,6 +1132,30 @@ object BsonSchemaCodec {
     )
 
     /**
+     * Scala BigDecimal codec - wraps Java BigDecimal codec
+     */
+    val bigDecimalCodec: BsonCodec[BigDecimal] = BsonCodec(
+      new BsonEncoder[BigDecimal] {
+        private val jEncoder                                                                     = BsonCodec.bigDecimal.encoder
+        def encode(writer: BsonWriter, value: BigDecimal, ctx: BsonEncoder.EncoderContext): Unit =
+          jEncoder.encode(writer, value.bigDecimal, ctx)
+        def toBsonValue(value: BigDecimal): BsonValue =
+          jEncoder.toBsonValue(value.bigDecimal)
+      },
+      new BsonDecoder[BigDecimal] {
+        private val jDecoder                                                                                          = BsonCodec.bigDecimal.decoder
+        def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): BigDecimal =
+          BigDecimal(jDecoder.decodeUnsafe(reader, trace, ctx))
+        def fromBsonValueUnsafe(
+          value: BsonValue,
+          trace: List[BsonTrace],
+          ctx: BsonDecoder.BsonDecoderContext
+        ): BigDecimal =
+          BigDecimal(jDecoder.fromBsonValueUnsafe(value, trace, ctx))
+      }
+    )
+
+    /**
      * Maps a zio-blocks PrimitiveType to the corresponding zio-bson BsonCodec.
      */
     def primitiveCodec[A](primitiveType: PrimitiveType[A]): BsonCodec[A] =
@@ -1150,7 +1171,7 @@ object BsonSchemaCodec {
         case PrimitiveType.Char(_)           => BsonCodec.char
         case PrimitiveType.String(_)         => BsonCodec.string
         case PrimitiveType.BigInt(_)         => bigIntCodec
-        case PrimitiveType.BigDecimal(_)     => BsonCodec.bigDecimal
+        case PrimitiveType.BigDecimal(_)     => bigDecimalCodec
         case PrimitiveType.DayOfWeek(_)      => BsonCodec.dayOfWeek
         case PrimitiveType.Duration(_)       => BsonCodec.duration
         case PrimitiveType.Instant(_)        => BsonCodec.instant

@@ -3150,7 +3150,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         new Binding.Wrapper(
           {
             case x @ EmailRegex(_*) => new Right(new Email(x))
-            case _                  => new Left("expected e-mail")
+            case _                  => new Left(SchemaError.validationFailed("expected e-mail"))
           },
           _.value
         )
@@ -3440,9 +3440,9 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   case class PosInt private (value: Int) extends AnyVal
 
   object PosInt {
-    def apply(value: Int): Either[String, PosInt] =
+    def apply(value: Int): Either[SchemaError, PosInt] =
       if (value >= 0) Right(new PosInt(value))
-      else Left("Expected positive value")
+      else Left(SchemaError.validationFailed("Expected positive value"))
 
     def applyUnsafe(value: Int): PosInt =
       if (value >= 0) new PosInt(value)

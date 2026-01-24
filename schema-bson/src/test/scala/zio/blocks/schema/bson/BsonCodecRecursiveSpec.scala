@@ -49,7 +49,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec      = BsonSchemaCodec.bsonCodec(Schema[Tree])
 
         val encoded = codec.encoder.toBsonValue(tree)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == tree)
       },
@@ -58,7 +58,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec      = BsonSchemaCodec.bsonCodec(Schema[Tree])
 
         val encoded = codec.encoder.toBsonValue(tree)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == tree)
       },
@@ -71,7 +71,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec = BsonSchemaCodec.bsonCodec(Schema[Tree])
 
         val encoded = codec.encoder.toBsonValue(tree)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == tree)
       },
@@ -92,7 +92,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec = BsonSchemaCodec.bsonCodec(Schema[Tree])
 
         val encoded = codec.encoder.toBsonValue(tree)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == tree)
       }
@@ -103,7 +103,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec            = BsonSchemaCodec.bsonCodec(Schema[LinkedList])
 
         val encoded = codec.encoder.toBsonValue(list)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == list)
       },
@@ -112,7 +112,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec            = BsonSchemaCodec.bsonCodec(Schema[LinkedList])
 
         val encoded = codec.encoder.toBsonValue(list)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == list)
       },
@@ -127,7 +127,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec = BsonSchemaCodec.bsonCodec(Schema[LinkedList])
 
         val encoded = codec.encoder.toBsonValue(list)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == list)
       }
@@ -138,7 +138,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec      = BsonSchemaCodec.bsonCodec(Schema[Expr])
 
         val encoded = codec.encoder.toBsonValue(expr)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == expr)
       },
@@ -150,7 +150,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec = BsonSchemaCodec.bsonCodec(Schema[Expr])
 
         val encoded = codec.encoder.toBsonValue(expr)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == expr)
       },
@@ -164,7 +164,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec = BsonSchemaCodec.bsonCodec(Schema[Expr])
 
         val encoded = codec.encoder.toBsonValue(expr)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == expr)
       },
@@ -179,7 +179,7 @@ object BsonCodecRecursiveSpec extends ZIOSpecDefault {
         val codec = BsonSchemaCodec.bsonCodec(Schema[Statement])
 
         val encoded = codec.encoder.toBsonValue(stmt)
-        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, zio.bson.BsonDecoder.BsonDecoderContext.default)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == stmt)
       }

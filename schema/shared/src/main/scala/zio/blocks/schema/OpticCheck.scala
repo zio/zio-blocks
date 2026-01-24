@@ -63,7 +63,7 @@ object OpticCheck {
     def message: String = s"During attempted access at $full, encountered an empty map at $prefix"
   }
 
-  case class WrappingError(full: DynamicOptic, prefix: DynamicOptic, error: String) extends Error {
-    def message: String = s"During attempted access at $full, encountered an error at $prefix: $error"
+  case class WrappingError(full: DynamicOptic, prefix: DynamicOptic, error: SchemaError) extends Error {
+    def message: String = s"During attempted access at $full, encountered an error at $prefix: ${error.message}"
   }
 }

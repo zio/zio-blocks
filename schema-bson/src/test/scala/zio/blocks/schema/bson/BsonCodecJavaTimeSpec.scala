@@ -1,7 +1,7 @@
 package zio.blocks.schema.bson
 
 import zio.blocks.schema.Schema
-import zio.bson.BsonDecoderOps
+
 import zio.test._
 import java.time._
 import java.util.{Currency, UUID}

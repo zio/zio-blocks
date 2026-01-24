@@ -382,7 +382,7 @@ class ToonBinaryCodecDeriver private[toon] (
             }
           ) match {
             case Right(x)    => x
-            case Left(error) => in.decodeError(error)
+            case Left(error) => in.decodeError(error.message)
           }
 
         override def encodeValue(x: A, out: ToonWriter): Unit = wrappedCodec.encodeValue(unwrap(x), out)
@@ -395,7 +395,7 @@ class ToonBinaryCodecDeriver private[toon] (
             }
           ) match {
             case Right(x)    => x
-            case Left(error) => in.decodeError(error)
+            case Left(error) => in.decodeError(error.message)
           }
 
         override def encodeKey(x: A, out: ToonWriter): Unit = wrappedCodec.encodeKey(unwrap(x), out)

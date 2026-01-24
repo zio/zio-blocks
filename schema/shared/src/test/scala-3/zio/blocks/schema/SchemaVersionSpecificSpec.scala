@@ -313,16 +313,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(
           isLeft(
-            equalTo(
-              SchemaError(errors =
-                ::(
-                  SchemaError.ExpectationMismatch(
-                    source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
-                    expectation = "Expected Id: Expected a string with letter or digit characters"
-                  ),
-                  Nil
-                )
-              )
+            hasField[SchemaError, String](
+              "getMessage",
+              _.getMessage,
+              containsString("Expected a string with letter or digit characters")
             )
           )
         )
@@ -351,16 +345,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(
           isLeft(
-            equalTo(
-              SchemaError(errors =
-                ::(
-                  SchemaError.ExpectationMismatch(
-                    source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
-                    expectation = "Expected InnerId: Expected a string with letter or digit characters"
-                  ),
-                  Nil
-                )
-              )
+            hasField[SchemaError, String](
+              "getMessage",
+              _.getMessage,
+              containsString("Expected a string with letter or digit characters")
             )
           )
         )

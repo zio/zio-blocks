@@ -1890,7 +1890,7 @@ class JsonBinaryCodecDeriver private[json] (
               }
             ) match {
               case Right(x)    => x
-              case Left(error) => in.decodeError(error)
+              case Left(error) => in.decodeError(error.message)
             }
 
           override def encodeValue(x: A, out: JsonWriter): Unit = wrappedCodec.encodeValue(unwrap(x), out)
@@ -1903,7 +1903,7 @@ class JsonBinaryCodecDeriver private[json] (
               }
             ) match {
               case Right(x)    => x
-              case Left(error) => in.decodeError(error)
+              case Left(error) => in.decodeError(error.message)
             }
 
           override def encodeKey(x: A, out: JsonWriter): Unit = wrappedCodec.encodeKey(unwrap(x), out)

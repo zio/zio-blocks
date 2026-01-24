@@ -1,7 +1,7 @@
 package zio.blocks.schema.bson
 
 import org.bson.{BsonArray, BsonDocument, BsonInt32, BsonString}
-import zio.bson._
+
 import zio.blocks.schema._
 import zio.test._
 

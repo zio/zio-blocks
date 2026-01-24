@@ -89,7 +89,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def patch(value: A, patch: Patch[A]): Either[SchemaError, A] =
     patch.apply(value, PatchMode.Strict)
 
-  def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
+  def wrap[B: Schema](wrap: B => Either[SchemaError, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
       reflect.typeId,
@@ -104,6 +104,52 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
+    )
+  )
+
+  /**
+   * Transforms this schema from type `A` to type `B` using the provided partial
+   * transformation function and its inverse.
+   *
+   * This is useful for creating schemas for wrapper types, validated newtypes,
+   * or any type that can be derived from another type with possible validation.
+   *
+   * The `to` function is called during decoding (e.g., `fromDynamicValue`) to
+   * convert the underlying `A` value to `B`. If it returns `Left`, decoding
+   * fails with the provided `SchemaError`.
+   *
+   * The `from` function is called during encoding (e.g., `toDynamicValue`) to
+   * convert `B` back to `A` for serialization.
+   *
+   * @example
+   *   {{{
+   * case class PositiveInt private (value: Int)
+   * object PositiveInt {
+   *   def make(n: Int): Either[SchemaError, PositiveInt] =
+   *     if (n > 0) Right(PositiveInt(n))
+   *     else Left(SchemaError.validationFailed("must be positive"))
+   *
+   *   implicit val schema: Schema[PositiveInt] =
+   *     Schema[Int].transformOrFail(make, _.value)
+   * }
+   *   }}}
+   *
+   * @param to
+   *   Partial function to transform `A` to `B`, returning `Left` on validation
+   *   failure
+   * @param from
+   *   Total function to transform `B` back to `A`
+   * @tparam B
+   *   The target type
+   * @return
+   *   A new schema for type `B`
+   */
+  def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A): Schema[B] = new Schema(
+    new Reflect.Wrapper[Binding, B, A](
+      reflect,
+      reflect.typeName.asInstanceOf[TypeName[B]],
+      Reflect.unwrapToPrimitiveTypeOption(reflect).asInstanceOf[Option[PrimitiveType[B]]],
+      new Binding.Wrapper(to, from)
     )
   )
 }

@@ -168,7 +168,7 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       .wrap[String](
         s => {
           if (s.length > 0) new Right(s.asInstanceOf[Name])
-          else new Left("String must not be empty")
+          else new Left(SchemaError.validationFailed("String must not be empty"))
         },
         _.asInstanceOf[String]
       )

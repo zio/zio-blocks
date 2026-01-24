@@ -795,7 +795,7 @@ object ThriftFormat
                     }
                   wrap(wrapped) match {
                     case Right(x)  => x
-                    case Left(err) => decodeError(err)
+                    case Left(err) => decodeError(err.message)
                   }
                 }
 
