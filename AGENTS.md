@@ -26,7 +26,7 @@ grep -n "error" /tmp/sbt-compile.txt
 **Wrap-up workflow** - when finishing work, do this ONCE (no interleaving):
 ```bash
 # Step 1: Format all code first (both versions)
-sbt "++3.3.7; fmt" && sbt "++2.13.18; fmt"
+sbt "++3.3.7; fmt" 2>&1 | tee /tmp/sbt-fmt-3.txt && sbt "++2.13.18; fmt" 2>&1 | tee /tmp/sbt-fmt-2.txt
 
 # Step 2: Then run all tests once (both versions)
 sbt "++3.3.7; testJVM" 2>&1 | tee /tmp/sbt-test-3.txt && sbt "++2.13.18; testJVM" 2>&1 | tee /tmp/sbt-test-2.txt
