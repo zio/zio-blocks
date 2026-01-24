@@ -244,9 +244,7 @@ object DynamicValue {
     case Primitive(PrimitiveValue.String(s)) =>
       sb.append('"').append(escapeString(s)).append('"')
     case other =>
-      sb.append('"')
       renderToStringBuilder(other, sb)
-      sb.append('"')
   }
 
   private def renderPrimitiveValue(pv: PrimitiveValue, sb: StringBuilder): Unit = pv match {
