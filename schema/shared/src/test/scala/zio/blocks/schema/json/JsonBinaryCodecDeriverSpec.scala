@@ -3395,8 +3395,10 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
+    // Note: AnyVal classes are NOT true opaque types - they get boxed in generic contexts.
+    // Use withTypeName instead of asOpaqueType for AnyVal wrappers.
     implicit val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).asOpaqueType[PosInt]
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeName[PosInt]
   }
 
   case class Counter(value: PosInt)
