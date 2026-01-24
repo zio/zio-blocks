@@ -1,7 +1,6 @@
 package zio.blocks.schema.bson
 
-import zio.blocks.schema.Schema
-
+import zio.blocks.schema._
 import zio.test._
 import java.time._
 import java.util.{Currency, UUID}
@@ -10,7 +9,7 @@ import java.util.{Currency, UUID}
  * Comprehensive tests for BSON codec support of java.time types and other
  * standard types.
  */
-object BsonCodecJavaTimeSpec extends ZIOSpecDefault {
+object BsonCodecJavaTimeSpec extends SchemaBaseSpec {
 
   def spec = suite("BsonCodecJavaTimeSpec")(
     suite("UUID type")(
