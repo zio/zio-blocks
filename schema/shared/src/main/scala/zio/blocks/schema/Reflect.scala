@@ -1382,7 +1382,7 @@ object Reflect {
       }
     }
 
-    private[this] val visited =
+    private[schema] val visited =
       new ThreadLocal[java.util.IdentityHashMap[AnyRef, Unit]] {
         override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] = new java.util.IdentityHashMap
       }

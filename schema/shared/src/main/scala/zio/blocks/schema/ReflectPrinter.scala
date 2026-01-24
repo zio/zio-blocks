@@ -208,9 +208,7 @@ private[schema] object ReflectPrinter {
       case d: Reflect.Deferred[F, A] =>
         // Check visited for the deferred's value, not the deferred itself
         // This allows us to detect recursion through deferred wrappers
-        val v = d.getClass.getDeclaredField("visited")
-        v.setAccessible(true)
-        val deferredVisited = v.get(d).asInstanceOf[ThreadLocal[java.util.IdentityHashMap[AnyRef, Unit]]].get
+        val deferredVisited = d.visited.get
         if (deferredVisited.containsKey(d)) {
           s"deferred => ${d.value.typeName}"
         } else {
