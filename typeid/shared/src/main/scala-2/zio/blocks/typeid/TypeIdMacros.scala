@@ -14,6 +14,11 @@ object TypeIdMacros {
         case TypeRef(_, sym, args) =>
           makeTypeId(sym, args, deep = true)
 
+        case SingleType(_, sym) =>
+          // Singleton types like None.type, Elements.type
+          // Get the type of the singleton object
+          makeTypeId(sym.typeSignature.typeSymbol, Nil, deep = true)
+
         case RefinedType(parents, _) =>
           makeSyntheticTypeId("Intersection", parents)
 
