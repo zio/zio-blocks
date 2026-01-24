@@ -2391,8 +2391,10 @@ private class CaseLeafInfo(
 
 private class CaseNodeInfo[A](
   private[this] val discriminator: Discriminator[A],
-  val caseInfos: Array[CaseInfo]
+  private[this] val caseInfos: Array[CaseInfo]
 ) extends CaseInfo {
+
+  def getCaseInfos: Array[CaseInfo] = caseInfos
   @tailrec
   final def discriminate(x: A): CaseLeafInfo = caseInfos(discriminator.discriminate(x)) match {
     case eli: CaseLeafInfo => eli
@@ -2415,7 +2417,7 @@ private class EnumLeafInfo(name: String, val constructor: Constructor[?]) extend
 
 private class EnumNodeInfo[A](
   private[this] val discriminator: Discriminator[A],
-  val enumInfos: Array[EnumInfo]
+  enumInfos: Array[EnumInfo]
 ) extends EnumInfo {
   @tailrec
   final def discriminate(x: A): EnumLeafInfo = enumInfos(discriminator.discriminate(x)) match {
