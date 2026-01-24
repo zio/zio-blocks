@@ -24,6 +24,7 @@ sealed trait TypeId[A <: AnyKind] {
   def name: String
   def owner: Owner
   def typeParams: List[TypeParam]
+  def typeArgs: List[TypeRepr]
   def defKind: TypeDefKind
   def selfType: Option[TypeRepr]
   def aliasedTo: Option[TypeRepr]      // For type aliases
@@ -31,6 +32,9 @@ sealed trait TypeId[A <: AnyKind] {
   def annotations: List[Annotation]
 
   final def parents: List[TypeRepr] = defKind.baseTypes
+
+  /** Returns true if this is an applied type (has type arguments) */
+  final def isApplied: Boolean = typeArgs.nonEmpty
 
   // Derived properties
   final def arity: Int = typeParams.size
@@ -116,6 +120,8 @@ sealed trait TypeId[A <: AnyKind] {
    *   - Enum cases being subtypes of their parent enum
    *   - Sealed trait subtypes
    *   - Transitive inheritance
+   *   - Variance-aware subtyping for applied types (List[Dog] <: List[Animal]
+   *     for covariant)
    *
    * Note: This is a best-effort check based on compile-time extracted
    * information. For complex cases involving type parameters or implicit
@@ -130,6 +136,31 @@ sealed trait TypeId[A <: AnyKind] {
   def isSubtypeOf(other: TypeId[?]): Boolean = {
     // A type is a subtype of itself
     if (TypeId.structurallyEqual(this, other)) return true
+
+    // Special case: Nothing is subtype of everything
+    if (this.fullName == "scala.Nothing") return true
+
+    // Special case: Everything is subtype of Any
+    if (other.fullName == "scala.Any") return true
+
+    // Check if this type appears in a union type (A <: A | B)
+    other.aliasedTo match {
+      case Some(TypeRepr.Union(members)) =>
+        if (TypeId.appearsInUnion(this, members)) return true
+      case _ => ()
+    }
+
+    // Check if this is an intersection type that is subtype of its members (A & B <: A)
+    this.aliasedTo match {
+      case Some(TypeRepr.Intersection(members)) =>
+        if (members.exists(m => TypeId.typeReprContains(m, other))) return true
+      case _ => ()
+    }
+
+    // Check applied types with variance
+    if (this.isApplied && other.isApplied && this.fullName == other.fullName) {
+      return TypeId.checkAppliedSubtyping(this, other)
+    }
 
     // Check enum case -> parent enum relationship
     defKind match {
@@ -191,6 +222,7 @@ object TypeId {
     name: String,
     owner: Owner,
     typeParams: List[TypeParam],
+    typeArgs: List[TypeRepr],
     defKind: TypeDefKind,
     selfType: Option[TypeRepr],
     aliasedTo: Option[TypeRepr],
@@ -204,6 +236,7 @@ object TypeId {
     name: String,
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
+    typeArgs: List[TypeRepr] = Nil,
     defKind: TypeDefKind = TypeDefKind.Unknown,
     selfType: Option[TypeRepr] = None,
     annotations: List[Annotation] = Nil
@@ -211,6 +244,7 @@ object TypeId {
     name,
     owner,
     typeParams,
+    typeArgs,
     defKind,
     selfType,
     None,
@@ -223,11 +257,13 @@ object TypeId {
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
     aliased: TypeRepr,
+    typeArgs: List[TypeRepr] = Nil,
     annotations: List[Annotation] = Nil
   ): TypeId[A] = Impl[A](
     name,
     owner,
     typeParams,
+    typeArgs,
     TypeDefKind.TypeAlias,
     None,
     Some(aliased),
@@ -240,12 +276,14 @@ object TypeId {
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
     representation: TypeRepr,
+    typeArgs: List[TypeRepr] = Nil,
     publicBounds: TypeBounds = TypeBounds.Unbounded,
     annotations: List[Annotation] = Nil
   ): TypeId[A] = Impl[A](
     name,
     owner,
     typeParams,
+    typeArgs,
     TypeDefKind.OpaqueType(publicBounds),
     None,
     None,
@@ -313,43 +351,45 @@ object TypeId {
   /**
    * Compares two TypeIds for structural equality. Type aliases are transparent:
    * TypeId.derived[Age] == TypeId.derived[Int] where type Age = Int. Opaque
-   * types maintain nominal identity.
+   * types maintain nominal identity. Applied types with different type
+   * arguments are NOT equal (List[Int] != List[String]).
    */
   def structurallyEqual(a: TypeId[?], b: TypeId[?]): Boolean = {
     val normA = normalize(a)
     val normB = normalize(b)
 
-    // Opaque types only equal if they have the same fullName (nominal identity)
     if (normA.isOpaque && normB.isOpaque) {
-      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams
+      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams && normA.typeArgs == normB.typeArgs
     } else if (normA.isOpaque || normB.isOpaque) {
-      // Opaque type is never equal to non-opaque
       false
     } else {
-      // For nominal types and resolved aliases, compare by fullName and typeParams
-      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams
+      val basicEqual =
+        normA.fullName == normB.fullName && normA.typeParams == normB.typeParams && normA.typeArgs == normB.typeArgs
+      if (!basicEqual) return false
+
+      (normA.aliasedTo, normB.aliasedTo) match {
+        case (Some(aAlias), Some(bAlias)) => aAlias == bAlias
+        case (None, None)                 => true
+        case _                            => false
+      }
     }
   }
 
   /**
    * Computes a hash code for a TypeId that is consistent with structural
-   * equality.
+   * equality. Includes typeArgs for applied types and aliasedTo for aliases.
    */
   def structuralHash(id: TypeId[?]): Int = {
     val norm = normalize(id)
     if (norm.isOpaque) {
-      // Include "opaque" marker to distinguish from nominal with same name
-      ("opaque", norm.fullName, norm.typeParams).hashCode()
+      ("opaque", norm.fullName, norm.typeParams, norm.typeArgs).hashCode()
     } else {
-      (norm.fullName, norm.typeParams).hashCode()
+      (norm.fullName, norm.typeParams, norm.typeArgs, norm.aliasedTo).hashCode()
     }
   }
 
   // ========== Subtyping Helpers (private) ==========
 
-  /**
-   * Recursively checks if any parent type matches the target TypeId.
-   */
   private def checkParents(parents: List[TypeRepr], target: TypeId[?], visited: Set[String]): Boolean =
     parents.exists {
       case TypeRepr.Ref(id) =>
@@ -363,19 +403,101 @@ object TypeId {
       case _ => false
     }
 
+  private def appearsInUnion(id: TypeId[?], members: List[TypeRepr]): Boolean =
+    members.exists {
+      case TypeRepr.Ref(memberId)   => structurallyEqual(id, memberId)
+      case TypeRepr.Applied(ref, _) =>
+        ref match {
+          case TypeRepr.Ref(memberId) => id.fullName == memberId.fullName
+          case _                      => false
+        }
+      case TypeRepr.Union(nestedMembers) => appearsInUnion(id, nestedMembers)
+      case _                             => false
+    }
+
+  /**
+   * Checks variance-aware subtyping for applied types. For
+   * List[Dog].isSubtypeOf(List[Animal]) to be true, requires covariance.
+   */
+  private def checkAppliedSubtyping(sub: TypeId[?], sup: TypeId[?]): Boolean = {
+    if (sub.fullName != sup.fullName) return false
+    if (sub.typeArgs.size != sup.typeArgs.size) return false
+    if (sub.typeParams.size != sub.typeArgs.size) return false
+
+    sub.typeParams.zip(sub.typeArgs.zip(sup.typeArgs)).forall { case (param, (subArg, supArg)) =>
+      param.variance match {
+        case Variance.Covariant =>
+          isTypeReprSubtypeOf(subArg, supArg)
+        case Variance.Contravariant =>
+          isTypeReprSubtypeOf(supArg, subArg)
+        case Variance.Invariant =>
+          subArg == supArg
+      }
+    }
+  }
+
+  private def isTypeReprSubtypeOf(sub: TypeRepr, sup: TypeRepr): Boolean = (sub, sup) match {
+    case (TypeRepr.Ref(subId), TypeRepr.Ref(supId)) =>
+      subId.isSubtypeOf(supId)
+    case (TypeRepr.Applied(TypeRepr.Ref(subTycon), subArgs), TypeRepr.Applied(TypeRepr.Ref(supTycon), supArgs)) =>
+      if (subTycon.fullName != supTycon.fullName) false
+      else if (subArgs.size != supArgs.size) false
+      else if (subTycon.typeParams.size != subArgs.size) false
+      else {
+        subTycon.typeParams.zip(subArgs.zip(supArgs)).forall { case (param, (subArg, supArg)) =>
+          param.variance match {
+            case Variance.Covariant     => isTypeReprSubtypeOf(subArg, supArg)
+            case Variance.Contravariant => isTypeReprSubtypeOf(supArg, subArg)
+            case Variance.Invariant     => subArg == supArg
+          }
+        }
+      }
+    case _ => sub == sup
+  }
+
+  private def typeReprContains(repr: TypeRepr, target: TypeId[?]): Boolean = repr match {
+    case TypeRepr.Ref(id)                      => structurallyEqual(id, target)
+    case TypeRepr.Applied(TypeRepr.Ref(id), _) => id.fullName == target.fullName
+    case TypeRepr.Intersection(members)        => members.exists(m => typeReprContains(m, target))
+    case TypeRepr.Union(members)               => members.exists(m => typeReprContains(m, target))
+    case _                                     => false
+  }
+
   // ========== Predefined TypeIds for Common Types ==========
 
+  // Java interfaces
+  given charSequence: TypeId[CharSequence] =
+    nominal[CharSequence]("CharSequence", Owner.javaLang, defKind = TypeDefKind.Trait(isSealed = false))
+  given comparable: TypeId[Comparable[?]] =
+    nominal[Comparable[?]]("Comparable", Owner.javaLang, List(TypeParam("T", 0, Variance.Invariant)))
+  given serializable: TypeId[java.io.Serializable] =
+    nominal[java.io.Serializable]("Serializable", Owner.javaIo, defKind = TypeDefKind.Trait(isSealed = false))
+
   // Primitives
-  given unit: TypeId[Unit]             = nominal[Unit]("Unit", Owner.scala)
-  given boolean: TypeId[Boolean]       = nominal[Boolean]("Boolean", Owner.scala)
-  given byte: TypeId[Byte]             = nominal[Byte]("Byte", Owner.scala)
-  given short: TypeId[Short]           = nominal[Short]("Short", Owner.scala)
-  given int: TypeId[Int]               = nominal[Int]("Int", Owner.scala)
-  given long: TypeId[Long]             = nominal[Long]("Long", Owner.scala)
-  given float: TypeId[Float]           = nominal[Float]("Float", Owner.scala)
-  given double: TypeId[Double]         = nominal[Double]("Double", Owner.scala)
-  given char: TypeId[Char]             = nominal[Char]("Char", Owner.scala)
-  given string: TypeId[String]         = nominal[String]("String", Owner.javaLang)
+  given unit: TypeId[Unit]       = nominal[Unit]("Unit", Owner.scala)
+  given boolean: TypeId[Boolean] = nominal[Boolean]("Boolean", Owner.scala)
+  given byte: TypeId[Byte]       = nominal[Byte]("Byte", Owner.scala)
+  given short: TypeId[Short]     = nominal[Short]("Short", Owner.scala)
+  given int: TypeId[Int]         = nominal[Int]("Int", Owner.scala)
+  given long: TypeId[Long]       = nominal[Long]("Long", Owner.scala)
+  given float: TypeId[Float]     = nominal[Float]("Float", Owner.scala)
+  given double: TypeId[Double]   = nominal[Double]("Double", Owner.scala)
+  given char: TypeId[Char]       = nominal[Char]("Char", Owner.scala)
+  given string: TypeId[String]   = nominal[String](
+    "String",
+    Owner.javaLang,
+    defKind = TypeDefKind.Class(
+      isFinal = true,
+      isAbstract = false,
+      isCase = false,
+      isValue = false,
+      bases = List(
+        TypeRepr.Ref(charSequence),
+        TypeRepr.Ref(comparable.asInstanceOf[TypeId[?]]),
+        TypeRepr.Ref(serializable)
+      )
+    )
+  )
   given bigInt: TypeId[BigInt]         = nominal[BigInt]("BigInt", Owner.scala)
   given bigDecimal: TypeId[BigDecimal] = nominal[BigDecimal]("BigDecimal", Owner.scala)
 
@@ -420,6 +542,7 @@ object TypeId {
     val scalaCollectionImmutable: zio.blocks.typeid.Owner =
       zio.blocks.typeid.Owner.fromPackagePath("scala.collection.immutable")
     val javaLang: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
+    val javaIo: zio.blocks.typeid.Owner   = zio.blocks.typeid.Owner.fromPackagePath("java.io")
     val javaTime: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.time")
     val javaUtil: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.util")
   }

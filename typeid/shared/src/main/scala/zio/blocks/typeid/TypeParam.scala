@@ -81,13 +81,14 @@ final case class TypeParam(
 
 object TypeParam {
 
-  // Internal predefined type parameters for common usage like Options, Either, Maps, etc.
-  private[typeid] val A: TypeParam = TypeParam("A", 0)
-  private[typeid] val B: TypeParam = TypeParam("B", 1)
-  private[typeid] val C: TypeParam = TypeParam("C", 2)
-  private[typeid] val K: TypeParam = TypeParam("K", 0)
-  private[typeid] val V: TypeParam = TypeParam("V", 1)
-  private[typeid] val F: TypeParam = TypeParam("F", 0, kind = Kind.Star1)
+  private[typeid] val A: TypeParam        = TypeParam("A", 0, Variance.Covariant)
+  private[typeid] val B: TypeParam        = TypeParam("B", 1, Variance.Covariant)
+  private[typeid] val C: TypeParam        = TypeParam("C", 2, Variance.Covariant)
+  private[typeid] val K: TypeParam        = TypeParam("K", 0, Variance.Invariant)
+  private[typeid] val V: TypeParam        = TypeParam("V", 1, Variance.Covariant)
+  private[typeid] val F: TypeParam        = TypeParam("F", 0, Variance.Invariant, kind = Kind.Star1)
+  private[typeid] val Contra: TypeParam   = TypeParam("T", 0, Variance.Contravariant)
+  private[typeid] val CoResult: TypeParam = TypeParam("R", 1, Variance.Covariant)
 
   /**
    * Creates a covariant type parameter.

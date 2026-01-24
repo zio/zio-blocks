@@ -242,6 +242,17 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
           !unionId.isSubtypeOf(intId)
         )
       },
+      test("member types are subtypes of union - A <: A | B and B <: A | B") {
+        type StringOrInt = String | Int
+        val unionId  = TypeId.derived[StringOrInt]
+        val stringId = TypeId.derived[String]
+        val intId    = TypeId.derived[Int]
+
+        assertTrue(
+          stringId.isSubtypeOf(unionId),
+          intId.isSubtypeOf(unionId)
+        )
+      },
       test("intersection type is not supertype of its member types") {
         trait H
         trait I
@@ -250,10 +261,22 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         val hId            = TypeId.derived[H]
         val iId            = TypeId.derived[I]
 
-        // An intersection type alias is a distinct type, not a supertype of its members
         assertTrue(
           !intersectionId.isSupertypeOf(hId),
           !intersectionId.isSupertypeOf(iId)
+        )
+      },
+      test("intersection type is subtype of its member types - A & B <: A and A & B <: B") {
+        trait H2
+        trait I2
+        type H2AndI2 = H2 & I2
+        val intersectionId = TypeId.derived[H2AndI2]
+        val h2Id           = TypeId.derived[H2]
+        val i2Id           = TypeId.derived[I2]
+
+        assertTrue(
+          intersectionId.isSubtypeOf(h2Id),
+          intersectionId.isSubtypeOf(i2Id)
         )
       },
       test("union types with same members in different order are equal") {
@@ -333,6 +356,96 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
           repr1.contains("L") && repr1.contains("M"),
           repr2.contains("M") && repr2.contains("L"),
           intersection1 == intersection2
+        )
+      },
+      test("anonymous union types with different members are NOT equal") {
+        val union1 = TypeId.derived[Int | String]
+        val union2 = TypeId.derived[Int | Double]
+
+        assertTrue(
+          union1 != union2,
+          union1.hashCode() != union2.hashCode()
+        )
+      },
+      test("anonymous intersection types with different members are NOT equal") {
+        trait P
+        trait Q
+        trait R
+
+        val inter1 = TypeId.derived[P & Q]
+        val inter2 = TypeId.derived[P & R]
+
+        assertTrue(
+          inter1 != inter2,
+          inter1.hashCode() != inter2.hashCode()
+        )
+      },
+      test("named union type aliases with different members are NOT equal") {
+        type IntOrString = Int | String
+        type IntOrDouble = Int | Double
+
+        val union1 = TypeId.derived[IntOrString]
+        val union2 = TypeId.derived[IntOrDouble]
+
+        assertTrue(
+          union1 != union2,
+          union1.name != union2.name
+        )
+      },
+      test("union aliasedTo with different members are NOT equal") {
+        type StringOrInt    = String | Int
+        type StringOrDouble = String | Double
+
+        val union1 = TypeId.derived[StringOrInt]
+        val union2 = TypeId.derived[StringOrDouble]
+
+        assertTrue(
+          union1.aliasedTo.isDefined,
+          union2.aliasedTo.isDefined,
+          union1.aliasedTo != union2.aliasedTo
+        )
+      },
+      test("intersection aliasedTo with different members are NOT equal") {
+        trait X1
+        trait Y1
+        trait Z1
+        type X1AndY1 = X1 & Y1
+        type X1AndZ1 = X1 & Z1
+
+        val inter1 = TypeId.derived[X1AndY1]
+        val inter2 = TypeId.derived[X1AndZ1]
+
+        assertTrue(
+          inter1.aliasedTo.isDefined,
+          inter2.aliasedTo.isDefined,
+          inter1.aliasedTo != inter2.aliasedTo
+        )
+      },
+      test("union with 3 members differs from union with 2 members") {
+        type TwoMember   = Int | String
+        type ThreeMember = Int | String | Double
+
+        val union2 = TypeId.derived[TwoMember]
+        val union3 = TypeId.derived[ThreeMember]
+
+        assertTrue(
+          union2 != union3,
+          union2.aliasedTo != union3.aliasedTo
+        )
+      },
+      test("intersection with 3 members differs from intersection with 2 members") {
+        trait M1
+        trait M2
+        trait M3
+        type TwoMember   = M1 & M2
+        type ThreeMember = M1 & M2 & M3
+
+        val inter2 = TypeId.derived[TwoMember]
+        val inter3 = TypeId.derived[ThreeMember]
+
+        assertTrue(
+          inter2 != inter3,
+          inter2.aliasedTo != inter3.aliasedTo
         )
       }
     ),

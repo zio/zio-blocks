@@ -148,6 +148,20 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
       test("derives TypeId for Unit") {
         val id = TypeId.derived[Unit]
         assertTrue(id.name == "Unit")
+      },
+      test("derived primitive TypeIds are the same instances as predefined") {
+        assertTrue(
+          TypeId.derived[Int] eq TypeId.int,
+          TypeId.derived[String] eq TypeId.string,
+          TypeId.derived[Boolean] eq TypeId.boolean,
+          TypeId.derived[Long] eq TypeId.long,
+          TypeId.derived[Double] eq TypeId.double,
+          TypeId.derived[Float] eq TypeId.float,
+          TypeId.derived[Short] eq TypeId.short,
+          TypeId.derived[Byte] eq TypeId.byte,
+          TypeId.derived[Char] eq TypeId.char,
+          TypeId.derived[Unit] eq TypeId.unit
+        )
       }
     ),
     suite("Standard Library Collection Types")(
@@ -332,6 +346,13 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         val id = TypeId.derived[java.time.Duration]
         assertTrue(
           id.name == "Duration"
+        )
+      },
+      test("derives TypeId for java.util.ArrayList with type parameter") {
+        val id = TypeId.derived[java.util.ArrayList[String]]
+        assertTrue(
+          id.name == "ArrayList",
+          id.owner == Owner.javaUtil
         )
       }
     ),
@@ -643,6 +664,32 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
       test("reflexivity with derived type") {
         val caseAId = TypeId.derived[SimpleSealed.CaseA]
         assertTrue(caseAId.isSubtypeOf(caseAId))
+      },
+      test("Nothing is subtype of everything") {
+        val nothingId = TypeId.derived[Nothing]
+        val intId     = TypeId.derived[Int]
+        val stringId  = TypeId.derived[String]
+        val anyId     = TypeId.derived[Any]
+        val listIntId = TypeId.derived[List[Int]]
+
+        assertTrue(
+          nothingId.isSubtypeOf(intId),
+          nothingId.isSubtypeOf(stringId),
+          nothingId.isSubtypeOf(anyId),
+          nothingId.isSubtypeOf(listIntId)
+        )
+      },
+      test("everything is subtype of Any") {
+        val intId     = TypeId.derived[Int]
+        val stringId  = TypeId.derived[String]
+        val listIntId = TypeId.derived[List[Int]]
+        val anyId     = TypeId.derived[Any]
+
+        assertTrue(
+          intId.isSubtypeOf(anyId),
+          stringId.isSubtypeOf(anyId),
+          listIntId.isSubtypeOf(anyId)
+        )
       }
     ),
     suite("Nominal Hierarchy Subtyping")(
@@ -684,6 +731,15 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         assertTrue(
           !dogId.isSubtypeOf(catId),
           !catId.isSubtypeOf(dogId)
+        )
+      },
+      test("String is subtype of CharSequence") {
+        val stringId       = TypeId.derived[String]
+        val charSequenceId = TypeId.derived[CharSequence]
+
+        assertTrue(
+          stringId.isSubtypeOf(charSequenceId),
+          !charSequenceId.isSubtypeOf(stringId)
         )
       }
     ),
@@ -905,6 +961,206 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         assertTrue(
           typeMap.get(nodeId).contains("node constructor"),
           typeMap.get(emptyId).contains("empty list")
+        )
+      }
+    ),
+    suite("Applied Type Inequality")(
+      test("List[Int] and List[String] are NOT equal") {
+        val listInt    = TypeId.derived[List[Int]]
+        val listString = TypeId.derived[List[String]]
+
+        assertTrue(
+          listInt != listString,
+          listInt.hashCode() != listString.hashCode(),
+          listInt.name == "List",
+          listString.name == "List",
+          listInt.arity == 1,
+          listString.arity == 1,
+          listInt.isApplied,
+          listString.isApplied
+        )
+      },
+      test("Option[Int] and Option[String] are NOT equal") {
+        val optInt    = TypeId.derived[Option[Int]]
+        val optString = TypeId.derived[Option[String]]
+
+        assertTrue(
+          optInt != optString,
+          optInt.hashCode() != optString.hashCode(),
+          optInt.name == "Option"
+        )
+      },
+      test("Map[String, Int] and Map[String, Double] are NOT equal") {
+        val mapInt    = TypeId.derived[Map[String, Int]]
+        val mapDouble = TypeId.derived[Map[String, Double]]
+
+        assertTrue(
+          mapInt != mapDouble,
+          mapInt.hashCode() != mapDouble.hashCode(),
+          mapInt.name == "Map",
+          mapInt.arity == 2
+        )
+      },
+      test("Either[String, Int] and Either[Int, String] are NOT equal") {
+        val either1 = TypeId.derived[Either[String, Int]]
+        val either2 = TypeId.derived[Either[Int, String]]
+
+        assertTrue(
+          either1 != either2,
+          either1.hashCode() != either2.hashCode(),
+          either1.name == "Either"
+        )
+      },
+      test("GenericClass[Int] and GenericClass[String] are NOT equal") {
+        val genInt    = TypeId.derived[GenericClass[Int]]
+        val genString = TypeId.derived[GenericClass[String]]
+
+        assertTrue(
+          genInt != genString,
+          genInt.hashCode() != genString.hashCode(),
+          genInt.name == "GenericClass"
+        )
+      },
+      test("MultiParamClass[Int, String] and MultiParamClass[Double, Boolean] are NOT equal") {
+        val multi1 = TypeId.derived[MultiParamClass[Int, String]]
+        val multi2 = TypeId.derived[MultiParamClass[Double, Boolean]]
+
+        assertTrue(
+          multi1 != multi2,
+          multi1.hashCode() != multi2.hashCode(),
+          multi1.name == "MultiParamClass"
+        )
+      },
+      test("Box[Int] and Box[String] are NOT equal") {
+        val boxInt    = TypeId.derived[Box[Int]]
+        val boxString = TypeId.derived[Box[String]]
+
+        assertTrue(
+          boxInt != boxString,
+          boxInt.hashCode() != boxString.hashCode(),
+          boxInt.name == "Box"
+        )
+      },
+      test("LinkedList[Int] and LinkedList[String] are NOT equal") {
+        val listInt    = TypeId.derived[LinkedList[Int]]
+        val listString = TypeId.derived[LinkedList[String]]
+
+        assertTrue(
+          listInt != listString,
+          listInt.hashCode() != listString.hashCode(),
+          listInt.name == "LinkedList"
+        )
+      },
+      test("Tree[Int] and Tree[String] are NOT equal") {
+        val treeInt    = TypeId.derived[Tree[Int]]
+        val treeString = TypeId.derived[Tree[String]]
+
+        assertTrue(
+          treeInt != treeString,
+          treeInt.hashCode() != treeString.hashCode(),
+          treeInt.name == "Tree"
+        )
+      },
+      test("applied type has typeArgs while type constructor has none") {
+        val listInt = TypeId.derived[List[Int]]
+
+        assertTrue(
+          listInt.isApplied,
+          listInt.typeArgs.nonEmpty,
+          listInt.name == "List"
+        )
+      },
+      test("nested applied types are NOT equal when args differ") {
+        val nestedInt    = TypeId.derived[List[Option[Int]]]
+        val nestedString = TypeId.derived[List[Option[String]]]
+
+        assertTrue(
+          nestedInt != nestedString,
+          nestedInt.name == "List"
+        )
+      },
+      test("same applied type is equal to itself") {
+        val listInt1 = TypeId.derived[List[Int]]
+        val listInt2 = TypeId.derived[List[Int]]
+
+        assertTrue(
+          listInt1 == listInt2,
+          listInt1.hashCode() == listInt2.hashCode()
+        )
+      },
+      test("deeply nested generics are equal when structure matches") {
+        val id1 = TypeId.derived[List[Map[String, Option[Either[Int, List[String]]]]]]
+        val id2 = TypeId.derived[List[Map[String, Option[Either[Int, List[String]]]]]]
+
+        assertTrue(
+          id1 == id2,
+          id1.hashCode() == id2.hashCode()
+        )
+      },
+      test("deeply nested generics are NOT equal when inner args differ") {
+        val id1 = TypeId.derived[List[Map[String, Option[Either[Int, List[String]]]]]]
+        val id2 = TypeId.derived[List[Map[String, Option[Either[Int, List[Int]]]]]]
+
+        assertTrue(
+          id1 != id2,
+          id1.hashCode() != id2.hashCode()
+        )
+      }
+    ),
+    suite("Variance-Aware Subtyping for Applied Types")(
+      test("List[Dog] is subtype of List[Animal] (covariant)") {
+        val listDog    = TypeId.derived[List[Dog]]
+        val listAnimal = TypeId.derived[List[Animal]]
+
+        assertTrue(
+          listDog.isSubtypeOf(listAnimal),
+          !listAnimal.isSubtypeOf(listDog),
+          listDog != listAnimal
+        )
+      },
+      test("Option[Dog] is subtype of Option[Animal] (covariant)") {
+        val optDog    = TypeId.derived[Option[Dog]]
+        val optAnimal = TypeId.derived[Option[Animal]]
+
+        assertTrue(
+          optDog.isSubtypeOf(optAnimal),
+          !optAnimal.isSubtypeOf(optDog)
+        )
+      },
+      test("List[Cat] is NOT subtype of List[Dog] (siblings)") {
+        val listCat = TypeId.derived[List[Cat]]
+        val listDog = TypeId.derived[List[Dog]]
+
+        assertTrue(
+          !listCat.isSubtypeOf(listDog),
+          !listDog.isSubtypeOf(listCat)
+        )
+      },
+      test("contravariant type parameter subtyping - (Animal => Int) <: (Dog => Int)") {
+        val fnAnimal = TypeId.derived[Animal => Int]
+        val fnDog    = TypeId.derived[Dog => Int]
+
+        assertTrue(
+          fnAnimal.isSubtypeOf(fnDog),
+          !fnDog.isSubtypeOf(fnAnimal)
+        )
+      },
+      test("invariant type parameter subtyping - Array is invariant") {
+        val arrayDog    = TypeId.derived[Array[Dog]]
+        val arrayAnimal = TypeId.derived[Array[Animal]]
+
+        assertTrue(
+          !arrayDog.isSubtypeOf(arrayAnimal),
+          !arrayAnimal.isSubtypeOf(arrayDog)
+        )
+      },
+      test("mixed variance - Function1 is contravariant in input, covariant in output") {
+        val fnAnimalToDog = TypeId.derived[Animal => Dog]
+        val fnDogToAnimal = TypeId.derived[Dog => Animal]
+
+        assertTrue(
+          fnAnimalToDog.isSubtypeOf(fnDogToAnimal),
+          !fnDogToAnimal.isSubtypeOf(fnAnimalToDog)
         )
       }
     ),

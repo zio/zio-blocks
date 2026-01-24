@@ -27,21 +27,9 @@ object TypeIdMacros {
     tpe match {
       case TypeRef(_, sym, args) =>
         if (sym.isType && sym.asType.isAliasType && isUserDefinedAlias(c)(sym)) {
-          // This is a user-defined type alias - derive it directly
           deriveNew[A](c)
         } else if (args.nonEmpty) {
-          // Applied type (e.g., List[Int], Map[String, Int]) - try wildcard search
-          val wildcardArgs    = args.map(_ => WildcardType)
-          val existentialType = appliedType(sym, wildcardArgs)
-          val typeIdType      = appliedType(typeOf[TypeId[_]].typeConstructor, existentialType)
-          val implicitSearch  = c.inferImplicitValue(typeIdType, silent = true)
-
-          if (implicitSearch != EmptyTree) {
-            // Found an existing implicit instance for the type constructor
-            c.Expr[TypeId[A]](q"$implicitSearch.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]")
-          } else {
-            searchOrDerive[A](c)
-          }
+          deriveAppliedType[A](c)(sym, args)
         } else {
           searchOrDerive[A](c)
         }
@@ -55,17 +43,72 @@ object TypeIdMacros {
 
     val tpe = weakTypeOf[A]
 
-    // First, try to find an existing implicit TypeId[A]
     val typeIdType     = appliedType(typeOf[TypeId[_]].typeConstructor, tpe)
     val implicitSearch = c.inferImplicitValue(typeIdType, silent = true)
 
     if (implicitSearch != EmptyTree) {
-      // Found an existing implicit instance, use it
       c.Expr[TypeId[A]](implicitSearch)
     } else {
-      // No implicit found, derive one
       deriveNew[A](c)
     }
+  }
+
+  private def deriveAppliedType[A: c.WeakTypeTag](c: blackbox.Context)(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
+    import c.universe._
+
+    val tpe             = weakTypeOf[A]
+    val wildcardArgs    = args.map(_ => WildcardType)
+    val existentialType = appliedType(sym, wildcardArgs)
+    val typeIdType      = appliedType(typeOf[TypeId[_]].typeConstructor, existentialType)
+    val implicitSearch  = c.inferImplicitValue(typeIdType, silent = true)
+
+    val typeArgsExprs = args.map(buildTypeReprFromType(c)(_))
+
+    if (implicitSearch != EmptyTree) {
+      c.Expr[TypeId[A]](
+        q"""
+          {
+            val base = $implicitSearch.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]
+            _root_.zio.blocks.typeid.TypeId.nominal[$tpe](
+              base.name,
+              base.owner,
+              base.typeParams,
+              _root_.scala.List(..$typeArgsExprs),
+              base.defKind,
+              base.selfType,
+              base.annotations
+            )
+          }
+        """
+      )
+    } else {
+      deriveAppliedTypeNew[A](c)(sym, args)
+    }
+  }
+
+  private def deriveAppliedTypeNew[A: c.WeakTypeTag](c: blackbox.Context)(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
+    import c.universe._
+
+    val tpe            = weakTypeOf[A]
+    val name           = sym.name.decodedName.toString
+    val ownerExpr      = buildOwner(c)(sym.owner)
+    val typeParamsExpr = buildTypeParams(c)(sym)
+    val typeArgsExpr   = args.map(buildTypeReprFromType(c)(_))
+    val defKindExpr    = buildDefKind(c)(sym)
+
+    c.Expr[TypeId[A]](
+      q"""
+        _root_.zio.blocks.typeid.TypeId.nominal[$tpe](
+          $name,
+          $ownerExpr,
+          $typeParamsExpr,
+          _root_.scala.List(..$typeArgsExpr),
+          $defKindExpr,
+          _root_.scala.None,
+          _root_.scala.Nil
+        )
+      """
+    )
   }
 
   private def isUserDefinedAlias(c: blackbox.Context)(sym: c.Symbol): Boolean = {
@@ -100,7 +143,9 @@ object TypeIdMacros {
               $aliasName,
               $ownerExpr,
               $typeParamsExpr,
-              $aliasedExpr
+              $aliasedExpr,
+              _root_.scala.Nil,
+              _root_.scala.Nil
             )
           """
         )
@@ -118,6 +163,7 @@ object TypeIdMacros {
               $name,
               $ownerExpr,
               $typeParamsExpr,
+              _root_.scala.Nil,
               $defKindExpr
             )
           """
@@ -164,11 +210,14 @@ object TypeIdMacros {
       case "Either"  => q"_root_.zio.blocks.typeid.TypeId.either"
       case "Set"     => q"_root_.zio.blocks.typeid.TypeId.set"
       case "Vector"  => q"_root_.zio.blocks.typeid.TypeId.vector"
+      case "Any"     => return q"_root_.zio.blocks.typeid.TypeRepr.AnyType"
+      case "Nothing" => return q"_root_.zio.blocks.typeid.TypeRepr.NothingType"
+      case "Null"    => return q"_root_.zio.blocks.typeid.TypeRepr.NullType"
       case _         =>
-        // Create a nominal type reference with type parameters
         val ownerExpr      = buildOwner(c)(sym.owner)
         val typeParamsExpr = if (sym.isType) buildTypeParams(c)(sym) else q"_root_.scala.Nil"
-        q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, $typeParamsExpr)"
+        val defKindExpr    = buildDefKindShallow(c)(sym)
+        q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, $typeParamsExpr, _root_.scala.Nil, $defKindExpr)"
     }
     q"_root_.zio.blocks.typeid.TypeRepr.Ref($typeIdExpr)"
   }
@@ -204,7 +253,15 @@ object TypeIdMacros {
 
     val params = sym.asType.typeParams.zipWithIndex.map { case (p, idx) =>
       val paramName = p.name.decodedName.toString
-      q"_root_.zio.blocks.typeid.TypeParam($paramName, $idx)"
+      val typeSym = p.asType
+      val varianceExpr = if (typeSym.isCovariant) {
+        q"_root_.zio.blocks.typeid.Variance.Covariant"
+      } else if (typeSym.isContravariant) {
+        q"_root_.zio.blocks.typeid.Variance.Contravariant"
+      } else {
+        q"_root_.zio.blocks.typeid.Variance.Invariant"
+      }
+      q"_root_.zio.blocks.typeid.TypeParam($paramName, $idx, $varianceExpr)"
     }
 
     q"_root_.scala.List(..$params)"
@@ -305,6 +362,117 @@ object TypeIdMacros {
           bases = $basesExpr
         )
       """
+    }
+  }
+
+  private def buildDefKindShallow(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
+    import c.universe._
+
+    if (sym.isModule || sym.isModuleClass) {
+      q"_root_.zio.blocks.typeid.TypeDefKind.Unknown"
+    } else if (sym.isClass) {
+      val classSym = sym.asClass
+      buildClassDefKindShallow(c)(classSym)
+    } else if (sym.isType && sym.asType.isAliasType) {
+      q"_root_.zio.blocks.typeid.TypeDefKind.TypeAlias"
+    } else if (sym.isType && sym.asType.isAbstract && !sym.isClass) {
+      q"_root_.zio.blocks.typeid.TypeDefKind.AbstractType"
+    } else {
+      q"_root_.zio.blocks.typeid.TypeDefKind.Unknown"
+    }
+  }
+
+  private def buildClassDefKindShallow(c: blackbox.Context)(classSym: c.universe.ClassSymbol): c.Tree = {
+    import c.universe._
+
+    val basesExpr = buildBaseTypesMinimal(c)(classSym)
+
+    if (classSym.isTrait) {
+      val isSealed = classSym.isSealed
+      if (isSealed) {
+        val children     = classSym.knownDirectSubclasses.toList
+        val subtypeExprs = children.map { child =>
+          buildTypeReprMinimal(c)(child)
+        }
+        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, knownSubtypes = _root_.scala.List(..$subtypeExprs), bases = $basesExpr)"
+      } else {
+        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
+      }
+    } else {
+      val isFinal    = classSym.isFinal
+      val isAbstract = classSym.isAbstract && !classSym.isTrait
+      val isCase     = classSym.isCaseClass
+      val isValue    = classSym.baseClasses.exists(_.fullName == "scala.AnyVal")
+
+      q"""
+        _root_.zio.blocks.typeid.TypeDefKind.Class(
+          isFinal = $isFinal,
+          isAbstract = $isAbstract,
+          isCase = $isCase,
+          isValue = $isValue,
+          bases = $basesExpr
+        )
+      """
+    }
+  }
+
+  private def buildBaseTypesMinimal(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
+    import c.universe._
+
+    val baseClasses = if (sym.isClass) {
+      sym.asClass.baseClasses.filterNot { base =>
+        base == sym ||
+        base.fullName == "scala.Any" ||
+        base.fullName == "scala.AnyRef" ||
+        base.fullName == "java.lang.Object" ||
+        base.fullName == "scala.Matchable"
+      }
+    } else if (sym.isModule) {
+      sym.asModule.moduleClass.asClass.baseClasses.filterNot { base =>
+        base == sym ||
+        base.fullName == "scala.Any" ||
+        base.fullName == "scala.AnyRef" ||
+        base.fullName == "java.lang.Object" ||
+        base.fullName == "scala.Matchable"
+      }
+    } else {
+      Nil
+    }
+
+    val baseExprs = baseClasses.map { base =>
+      buildTypeReprMinimal(c)(base)
+    }
+
+    q"_root_.scala.List(..$baseExprs)"
+  }
+
+  private def buildTypeReprMinimal(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
+    import c.universe._
+
+    val name = sym.name.decodedName.toString
+    name match {
+      case "Int"     => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.int)"
+      case "String"  => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.string)"
+      case "Long"    => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.long)"
+      case "Boolean" => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.boolean)"
+      case "Double"  => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.double)"
+      case "Float"   => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.float)"
+      case "Byte"    => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.byte)"
+      case "Short"   => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.short)"
+      case "Char"    => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.char)"
+      case "Unit"    => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.unit)"
+      case "List"    => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.list)"
+      case "Option"  => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.option)"
+      case "Map"     => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.map)"
+      case "Either"  => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.either)"
+      case "Set"     => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.set)"
+      case "Vector"  => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.vector)"
+      case "Any"     => q"_root_.zio.blocks.typeid.TypeRepr.AnyType"
+      case "Nothing" => q"_root_.zio.blocks.typeid.TypeRepr.NothingType"
+      case "Null"    => q"_root_.zio.blocks.typeid.TypeRepr.NullType"
+      case _         =>
+        val ownerExpr = buildOwner(c)(sym.owner)
+        q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, _root_.scala.Nil))"
     }
   }
 }

@@ -35,8 +35,8 @@ object TypeIdMacros {
             // This is an applied type alias (e.g., StringMap[Int])
             deriveAppliedTypeAlias[A](tr, args)
           case _ =>
-            // Regular applied type - try to find implicit for the type constructor
-            deriveAppliedType[A](tycon)
+            // Regular applied type - derive with actual type arguments preserved
+            deriveAppliedType[A](tycon, args)
         }
       case _ =>
         searchOrDerive[A]
@@ -64,7 +64,8 @@ object TypeIdMacros {
   private def deriveAppliedType[A <: AnyKind: Type](using
     Quotes
   )(
-    tycon: quotes.reflect.TypeRepr
+    tycon: quotes.reflect.TypeRepr,
+    args: List[quotes.reflect.TypeRepr]
   ): Expr[TypeId[A]] = {
     import quotes.reflect.*
 
@@ -74,24 +75,60 @@ object TypeIdMacros {
     if (typeParams.isEmpty) {
       searchOrDerive[A]
     } else {
-      // Create existential type with wildcards (e.g., List[_])
       val wildcardArgs    = typeParams.map(_ => TypeRepr.of[Any])
       val existentialType = tycon.appliedTo(wildcardArgs)
 
-      // Try to find implicit for the existential type
       existentialType.asType match {
         case '[t] =>
           val typeIdType = quotes.reflect.TypeRepr.of[TypeId[t]]
           Implicits.search(typeIdType) match {
             case iss: ImplicitSearchSuccess =>
-              val found = iss.tree.asExprOf[TypeId[t]]
-              '{ $found.asInstanceOf[TypeId[A]] }
+              val foundTyconId = iss.tree.asExprOf[TypeId[t]]
+              val typeArgsExpr = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
+              '{
+                val base = $foundTyconId.asInstanceOf[TypeId[A]]
+                TypeId.nominal[A](
+                  base.name,
+                  base.owner,
+                  base.typeParams,
+                  ${ Expr.ofList(typeArgsExpr) },
+                  base.defKind,
+                  base.selfType,
+                  base.annotations
+                )
+              }
             case _: ImplicitSearchFailure =>
-              searchOrDerive[A]
+              deriveAppliedTypeNew[A](tycon, args)
           }
         case _ =>
-          searchOrDerive[A]
+          deriveAppliedTypeNew[A](tycon, args)
       }
+    }
+  }
+
+  private def deriveAppliedTypeNew[A <: AnyKind: Type](using
+    Quotes
+  )(
+    tycon: quotes.reflect.TypeRepr,
+    args: List[quotes.reflect.TypeRepr]
+  ): Expr[TypeId[A]] = {
+    val tyconSym       = tycon.typeSymbol
+    val name           = tyconSym.name
+    val ownerExpr      = buildOwner(tyconSym.owner)
+    val typeParamsExpr = buildTypeParams(tyconSym)
+    val typeArgsExpr   = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
+    val defKindExpr    = buildDefKind(tyconSym)
+
+    '{
+      TypeId.nominal[A](
+        ${ Expr(name) },
+        $ownerExpr,
+        $typeParamsExpr,
+        ${ Expr.ofList(typeArgsExpr) },
+        $defKindExpr,
+        None,
+        Nil
+      )
     }
   }
 
@@ -117,7 +154,8 @@ object TypeIdMacros {
         ${ ownerExpr },
         ${ typeParamsExpr },
         ${ aliasedExpr },
-        Nil // annotations
+        Nil,
+        Nil
       )
     }
   }
@@ -132,12 +170,13 @@ object TypeIdMacros {
     val typeReprs = types.map(t => buildTypeReprFromTypeRepr(t, Set.empty[String]))
 
     '{
-      // Create a synthetic TypeId for the union
       TypeId.alias[A](
         "Union",
         Owner.Root,
         Nil,
-        zio.blocks.typeid.TypeRepr.Union(${ Expr.ofList(typeReprs) })
+        zio.blocks.typeid.TypeRepr.Union(${ Expr.ofList(typeReprs) }),
+        Nil,
+        Nil
       )
     }
   }
@@ -152,12 +191,13 @@ object TypeIdMacros {
     val typeReprs = types.map(t => buildTypeReprFromTypeRepr(t, Set.empty[String]))
 
     '{
-      // Create a synthetic TypeId for the intersection
       TypeId.alias[A](
         "Intersection",
         Owner.Root,
         Nil,
-        zio.blocks.typeid.TypeRepr.Intersection(${ Expr.ofList(typeReprs) })
+        zio.blocks.typeid.TypeRepr.Intersection(${ Expr.ofList(typeReprs) }),
+        Nil,
+        Nil
       )
     }
   }
@@ -256,7 +296,8 @@ object TypeIdMacros {
         ${ ownerExpr },
         ${ typeParamsExpr },
         ${ aliasedExpr },
-        Nil // annotations
+        Nil,
+        Nil
       )
     }
   }
@@ -309,8 +350,9 @@ object TypeIdMacros {
           ${ ownerExpr },
           ${ typeParamsExpr },
           ${ reprExpr },
+          Nil,
           ${ publicBounds },
-          Nil // annotations
+          Nil
         )
       }
     } else {
@@ -319,9 +361,10 @@ object TypeIdMacros {
           ${ Expr(name) },
           ${ ownerExpr },
           ${ typeParamsExpr },
+          Nil,
           ${ defKindExpr },
-          None, // selfType
-          Nil   // annotations
+          None,
+          Nil
         )
       }
     }
@@ -484,7 +527,6 @@ object TypeIdMacros {
     val rawName = sym.name
     val name    = if (sym.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
 
-    // Check for common predefined types
     val typeIdExpr = name match {
       case "Int"     => '{ TypeId.int }
       case "String"  => '{ TypeId.string }
@@ -506,10 +548,137 @@ object TypeIdMacros {
       case "Nothing" => return '{ zio.blocks.typeid.TypeRepr.NothingType }
       case "Null"    => return '{ zio.blocks.typeid.TypeRepr.NullType }
       case _         =>
-        val ownerExpr = buildOwner(sym.owner)
-        '{ TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil) }
+        val ownerExpr   = buildOwner(sym.owner)
+        val defKindExpr = buildDefKindShallow(sym)
+        '{ TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil, Nil, $defKindExpr) }
     }
     '{ zio.blocks.typeid.TypeRepr.Ref($typeIdExpr) }
+  }
+
+  private def buildDefKindShallow(using Quotes)(sym: quotes.reflect.Symbol): Expr[TypeDefKind] = {
+    import quotes.reflect.*
+
+    val flags = sym.flags
+
+    if (flags.is(Flags.Enum) && !flags.is(Flags.Case)) {
+      '{ TypeDefKind.Unknown }
+    } else if (flags.is(Flags.Enum) && flags.is(Flags.Case)) {
+      '{ TypeDefKind.Unknown }
+    } else if (flags.is(Flags.Module)) {
+      '{ TypeDefKind.Unknown }
+    } else if (flags.is(Flags.Trait)) {
+      buildTraitDefKindShallow(sym)
+    } else if (sym.isClassDef) {
+      buildClassDefKindShallow(sym, flags)
+    } else if (flags.is(Flags.Opaque)) {
+      '{ TypeDefKind.OpaqueType() }
+    } else if (sym.isAliasType) {
+      '{ TypeDefKind.TypeAlias }
+    } else if (sym.isAbstractType) {
+      '{ TypeDefKind.AbstractType }
+    } else {
+      '{ TypeDefKind.Unknown }
+    }
+  }
+
+  private def buildClassDefKindShallow(using
+    Quotes
+  )(
+    sym: quotes.reflect.Symbol,
+    flags: quotes.reflect.Flags
+  ): Expr[TypeDefKind] = {
+    import quotes.reflect.*
+
+    val isFinal    = flags.is(Flags.Final)
+    val isAbstract = flags.is(Flags.Abstract)
+    val isCase     = flags.is(Flags.Case)
+    val isValue    = sym.typeRef.baseClasses.exists(_.fullName == "scala.AnyVal")
+    val basesExpr  = buildBaseTypesMinimal(sym)
+
+    '{
+      TypeDefKind.Class(
+        isFinal = ${ Expr(isFinal) },
+        isAbstract = ${ Expr(isAbstract) },
+        isCase = ${ Expr(isCase) },
+        isValue = ${ Expr(isValue) },
+        bases = $basesExpr
+      )
+    }
+  }
+
+  private def buildTraitDefKindShallow(using Quotes)(sym: quotes.reflect.Symbol): Expr[TypeDefKind] = {
+    import quotes.reflect.*
+
+    val flags    = sym.flags
+    val isSealed = flags.is(Flags.Sealed)
+
+    val basesExpr = buildBaseTypesMinimal(sym)
+
+    if (isSealed) {
+      val children     = sym.children
+      val subtypeExprs = children.map { child =>
+        buildTypeReprMinimal(child.typeRef)
+      }
+      '{ TypeDefKind.Trait(isSealed = true, knownSubtypes = ${ Expr.ofList(subtypeExprs) }, bases = $basesExpr) }
+    } else {
+      '{ TypeDefKind.Trait(isSealed = false, bases = $basesExpr) }
+    }
+  }
+
+  private def buildBaseTypesMinimal(using Quotes)(sym: quotes.reflect.Symbol): Expr[List[TypeRepr]] = {
+    val baseClasses = sym.typeRef.baseClasses.filterNot { base =>
+      base == sym ||
+      base.fullName == "scala.Any" ||
+      base.fullName == "scala.AnyRef" ||
+      base.fullName == "java.lang.Object" ||
+      base.fullName == "scala.Matchable"
+    }
+
+    val baseExprs = baseClasses.map { base =>
+      buildTypeReprMinimal(base.typeRef)
+    }
+
+    Expr.ofList(baseExprs)
+  }
+
+  private def buildTypeReprMinimal(using Quotes)(tpe: quotes.reflect.TypeRepr): Expr[zio.blocks.typeid.TypeRepr] = {
+    import quotes.reflect.*
+
+    tpe match {
+      case tref: TypeRef =>
+        val sym     = tref.typeSymbol
+        val rawName = sym.name
+        val name    = if (sym.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
+
+        name match {
+          case "Int"     => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.int) }
+          case "String"  => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.string) }
+          case "Long"    => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.long) }
+          case "Boolean" => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.boolean) }
+          case "Double"  => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.double) }
+          case "Float"   => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.float) }
+          case "Byte"    => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.byte) }
+          case "Short"   => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.short) }
+          case "Char"    => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.char) }
+          case "Unit"    => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.unit) }
+          case "List"    => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.list) }
+          case "Option"  => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.option) }
+          case "Map"     => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.map) }
+          case "Either"  => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.either) }
+          case "Set"     => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.set) }
+          case "Vector"  => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.vector) }
+          case "Any"     => '{ zio.blocks.typeid.TypeRepr.AnyType }
+          case "Nothing" => '{ zio.blocks.typeid.TypeRepr.NothingType }
+          case "Null"    => '{ zio.blocks.typeid.TypeRepr.NullType }
+          case _         =>
+            val ownerExpr = buildOwner(sym.owner)
+            '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil)) }
+        }
+      case _ =>
+        val sym  = tpe.typeSymbol
+        val name = if (sym.isNoSymbol) "Unknown" else sym.name
+        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, Owner.Root, Nil)) }
+    }
   }
 
   private def buildTermPath(using Quotes)(tref: quotes.reflect.TermRef): Expr[TermPath] = {

@@ -24,6 +24,7 @@ sealed trait TypeId[A] {
   def name: String
   def owner: Owner
   def typeParams: List[TypeParam]
+  def typeArgs: List[TypeRepr]
   def defKind: TypeDefKind
   def selfType: Option[TypeRepr]
   def aliasedTo: Option[TypeRepr]
@@ -31,6 +32,8 @@ sealed trait TypeId[A] {
   def annotations: List[Annotation]
 
   final def parents: List[TypeRepr] = defKind.baseTypes
+
+  final def isApplied: Boolean = typeArgs.nonEmpty
 
   final def arity: Int = typeParams.size
 
@@ -102,6 +105,17 @@ sealed trait TypeId[A] {
   def isSubtypeOf(other: TypeId[_]): Boolean = {
     if (TypeId.structurallyEqual(this, other)) return true
 
+    // Special case: Nothing is subtype of everything
+    if (this.fullName == "scala.Nothing") return true
+
+    // Special case: Everything is subtype of Any
+    if (other.fullName == "scala.Any") return true
+
+    // Check applied types with variance
+    if (this.isApplied && other.isApplied && this.fullName == other.fullName) {
+      return TypeId.checkAppliedSubtyping(this, other)
+    }
+
     // Use defKind.baseTypes which is populated by the macro, not parents which defaults to Nil
     TypeId.checkParents(this.defKind.baseTypes, other, Set(this.fullName))
   }
@@ -133,6 +147,7 @@ object TypeId {
     name: String,
     owner: Owner,
     typeParams: List[TypeParam],
+    typeArgs: List[TypeRepr],
     defKind: TypeDefKind,
     selfType: Option[TypeRepr],
     aliasedTo: Option[TypeRepr],
@@ -144,6 +159,7 @@ object TypeId {
     name: String,
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
+    typeArgs: List[TypeRepr] = Nil,
     defKind: TypeDefKind = TypeDefKind.Unknown,
     selfType: Option[TypeRepr] = None,
     annotations: List[Annotation] = Nil
@@ -151,6 +167,7 @@ object TypeId {
     name,
     owner,
     typeParams,
+    typeArgs,
     defKind,
     selfType,
     None,
@@ -163,11 +180,13 @@ object TypeId {
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
     aliased: TypeRepr,
+    typeArgs: List[TypeRepr] = Nil,
     annotations: List[Annotation] = Nil
   ): TypeId[A] = Impl[A](
     name,
     owner,
     typeParams,
+    typeArgs,
     TypeDefKind.TypeAlias,
     None,
     Some(aliased),
@@ -180,12 +199,14 @@ object TypeId {
     owner: Owner,
     typeParams: List[TypeParam] = Nil,
     representation: TypeRepr,
+    typeArgs: List[TypeRepr] = Nil,
     publicBounds: TypeBounds = TypeBounds.Unbounded,
     annotations: List[Annotation] = Nil
   ): TypeId[A] = Impl[A](
     name,
     owner,
     typeParams,
+    typeArgs,
     TypeDefKind.OpaqueType(publicBounds),
     None,
     None,
@@ -243,20 +264,20 @@ object TypeId {
     val normB = normalize(b)
 
     if (normA.isOpaque && normB.isOpaque) {
-      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams
+      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams && normA.typeArgs == normB.typeArgs
     } else if (normA.isOpaque || normB.isOpaque) {
       false
     } else {
-      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams
+      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams && normA.typeArgs == normB.typeArgs
     }
   }
 
   def structuralHash(id: TypeId[_]): Int = {
     val norm = normalize(id)
     if (norm.isOpaque) {
-      ("opaque", norm.fullName, norm.typeParams).hashCode()
+      ("opaque", norm.fullName, norm.typeParams, norm.typeArgs).hashCode()
     } else {
-      (norm.fullName, norm.typeParams).hashCode()
+      (norm.fullName, norm.typeParams, norm.typeArgs).hashCode()
     }
   }
 
@@ -275,6 +296,42 @@ object TypeId {
       }
     }
 
+  private def checkAppliedSubtyping(sub: TypeId[_], sup: TypeId[_]): Boolean = {
+    if (sub.fullName != sup.fullName) return false
+    if (sub.typeArgs.size != sup.typeArgs.size) return false
+    if (sub.typeParams.size != sub.typeArgs.size) return false
+
+    sub.typeParams.zip(sub.typeArgs.zip(sup.typeArgs)).forall { case (param, (subArg, supArg)) =>
+      param.variance match {
+        case Variance.Covariant =>
+          isTypeReprSubtypeOf(subArg, supArg)
+        case Variance.Contravariant =>
+          isTypeReprSubtypeOf(supArg, subArg)
+        case Variance.Invariant =>
+          subArg == supArg
+      }
+    }
+  }
+
+  private def isTypeReprSubtypeOf(sub: TypeRepr, sup: TypeRepr): Boolean = (sub, sup) match {
+    case (TypeRepr.Ref(subId), TypeRepr.Ref(supId)) =>
+      subId.isSubtypeOf(supId)
+    case (TypeRepr.Applied(TypeRepr.Ref(subTycon), subArgs), TypeRepr.Applied(TypeRepr.Ref(supTycon), supArgs)) =>
+      if (subTycon.fullName != supTycon.fullName) false
+      else if (subArgs.size != supArgs.size) false
+      else if (subTycon.typeParams.size != subArgs.size) false
+      else {
+        subTycon.typeParams.zip(subArgs.zip(supArgs)).forall { case (param, (subArg, supArg)) =>
+          param.variance match {
+            case Variance.Covariant     => isTypeReprSubtypeOf(subArg, supArg)
+            case Variance.Contravariant => isTypeReprSubtypeOf(supArg, subArg)
+            case Variance.Invariant     => subArg == supArg
+          }
+        }
+      }
+    case _ => sub == sup
+  }
+
   implicit val unit: TypeId[Unit]             = nominal[Unit]("Unit", Owner.scala)
   implicit val boolean: TypeId[Boolean]       = nominal[Boolean]("Boolean", Owner.scala)
   implicit val byte: TypeId[Byte]             = nominal[Byte]("Byte", Owner.scala)
@@ -284,7 +341,27 @@ object TypeId {
   implicit val float: TypeId[Float]           = nominal[Float]("Float", Owner.scala)
   implicit val double: TypeId[Double]         = nominal[Double]("Double", Owner.scala)
   implicit val char: TypeId[Char]             = nominal[Char]("Char", Owner.scala)
-  implicit val string: TypeId[String]         = nominal[String]("String", Owner.javaLang)
+  implicit val charSequence: TypeId[CharSequence] =
+    nominal[CharSequence]("CharSequence", Owner.javaLang, defKind = TypeDefKind.Trait(isSealed = false))
+  implicit val comparable: TypeId[Comparable[_]] =
+    nominal[Comparable[_]]("Comparable", Owner.javaLang, List(TypeParam("T", 0, Variance.Invariant)))
+  implicit val serializable: TypeId[java.io.Serializable] =
+    nominal[java.io.Serializable]("Serializable", Owner.javaIo, defKind = TypeDefKind.Trait(isSealed = false))
+  implicit val string: TypeId[String] = nominal[String](
+    "String",
+    Owner.javaLang,
+    defKind = TypeDefKind.Class(
+      isFinal = true,
+      isAbstract = false,
+      isCase = false,
+      isValue = false,
+      bases = List(
+        TypeRepr.Ref(charSequence),
+        TypeRepr.Ref(comparable.asInstanceOf[TypeId[_]]),
+        TypeRepr.Ref(serializable)
+      )
+    )
+  )
   implicit val bigInt: TypeId[BigInt]         = nominal[BigInt]("BigInt", Owner.scala)
   implicit val bigDecimal: TypeId[BigDecimal] = nominal[BigDecimal]("BigDecimal", Owner.scala)
 
@@ -329,5 +406,6 @@ object TypeId {
     val javaLang: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
     val javaTime: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.time")
     val javaUtil: zio.blocks.typeid.Owner                 = zio.blocks.typeid.Owner.fromPackagePath("java.util")
+    val javaIo: zio.blocks.typeid.Owner                   = zio.blocks.typeid.Owner.fromPackagePath("java.io")
   }
 }
