@@ -7,18 +7,16 @@ trait TypeNameCompanionVersionSpecific {
   inline implicit def derived[A]: TypeName[A] = ${ TypeNameMacros.derived[A] }
 }
 
-private[schema] object TypeNameMacros {
-  def derived[A: Type](using Quotes): Expr[TypeName[A]] = new TypeNameMacrosImpl().deriveTypeName[A]
-}
+private object TypeNameMacros {
+  def derived[A: Type](using Quotes): Expr[TypeName[A]] = {
+    import quotes.reflect._
 
-private class TypeNameMacrosImpl(using Quotes) {
-  import quotes.reflect._
+    val typeNameCache = new mutable.HashMap[TypeRepr, TypeName[?]]
 
-  private val typeNameCache = new mutable.HashMap[TypeRepr, TypeName[?]]
+    def typeName[T: Type](tpe: TypeRepr): TypeName[T] = CommonMacroOps.typeName(typeNameCache, tpe)
 
-  private def typeName[T: Type](tpe: TypeRepr): TypeName[T] = CommonMacroOps.typeName(typeNameCache, tpe)
+    def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = CommonMacroOps.toExpr(tpeName)
 
-  private def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = CommonMacroOps.toExpr(tpeName)
-
-  def deriveTypeName[A: Type]: Expr[TypeName[A]] = toExpr(typeName[A](TypeRepr.of[A].dealias))
+    toExpr(typeName[A](TypeRepr.of[A].dealias))
+  }
 }

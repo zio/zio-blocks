@@ -9,7 +9,7 @@ trait TypeNameCompanionVersionSpecific {
   implicit def derived[A]: SchemaTypeName[A] = macro TypeNameMacros.derived[A]
 }
 
-private[schema] object TypeNameMacros {
+private object TypeNameMacros {
   def derived[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[SchemaTypeName[A]] = {
     import c.universe._
 
