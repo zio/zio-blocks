@@ -955,8 +955,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("interpolates sealed trait with case classes") {
         sealed trait Shape
-        case class Circle(radius: Double)  extends Shape
-        case class Square(side: Double)    extends Shape
+        case class Circle(radius: Double)          extends Shape
+        case class Square(side: Double)            extends Shape
         case class Rectangle(w: Double, h: Double) extends Shape
         object Shape {
           implicit val schema: Schema[Shape] = Schema.derived
