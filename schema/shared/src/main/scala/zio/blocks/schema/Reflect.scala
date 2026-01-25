@@ -1628,6 +1628,23 @@ object Reflect {
       F.fromBinding(Binding.Variant.option)
     )
 
+  private[this] def left[F[_, _], A, B](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Left[A, B]] =
+    new Record(Vector(new Term("value", element)), TypeName.left(element.typeName), F.fromBinding(Binding.Record.left))
+
+  private[this] def right[F[_, _], A, B](element: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, Right[A, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.right)
+    )
+
+  def either[F[_, _], A, B](l: Reflect[F, A], r: Reflect[F, B])(implicit F: FromBinding[F]): Variant[F, Either[A, B]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, B](l)), new Term("Right", right[F, A, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
+    )
+
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] =
     new Sequence(element, TypeName.set(element.typeName), F.fromBinding(Binding.Seq.set))
 

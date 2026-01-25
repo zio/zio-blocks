@@ -29,15 +29,15 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test"
+  "chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test"
 )
 addCommandAlias(
   "testJS",
-  "chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test"
+  "chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
 )
 addCommandAlias(
   "testNative",
-  "chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test"
+  "chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test; schema-messagepackNative/test"
 )
 
 lazy val root = project
@@ -50,6 +50,9 @@ lazy val root = project
     schema.js,
     schema.native,
     `schema-avro`,
+    `schema-messagepack`.jvm,
+    `schema-messagepack`.js,
+    `schema-messagepack`.native,
     `schema-thrift`,
     `schema-bson`,
     `schema-toon`.jvm,
@@ -219,6 +222,37 @@ lazy val `schema-bson` = project
     }),
     coverageMinimumStmtTotal   := 67,
     coverageMinimumBranchTotal := 58
+  )
+
+lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-schema-messagepack"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.schema.msgpack"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .dependsOn(schema % "compile->compile;test->test")
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 76,
+    coverageMinimumBranchTotal := 66
+  )
+  .jsSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
+  )
+  .nativeSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
   )
 
 lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)

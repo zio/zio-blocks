@@ -9,5 +9,6 @@ object Namespace {
   private[schema] val javaUtil: Namespace                 = new Namespace("java" :: "util" :: Nil)
   private[schema] val scala: Namespace                    = new Namespace("scala" :: Nil)
   private[schema] val scalaCollectionImmutable: Namespace = new Namespace("scala" :: "collection" :: "immutable" :: Nil)
+  private[schema] val scalaUtil: Namespace                = new Namespace("scala" :: "util" :: Nil)
   private[schema] val zioBlocksSchema: Namespace          = new Namespace("zio" :: "blocks" :: "schema" :: Nil)
 }
