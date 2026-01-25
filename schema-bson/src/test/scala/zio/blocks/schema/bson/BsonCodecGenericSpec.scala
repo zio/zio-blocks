@@ -1,9 +1,9 @@
 package zio.blocks.schema.bson
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema._
 import zio.test._
 
-object BsonCodecGenericSpec extends ZIOSpecDefault {
+object BsonCodecGenericSpec extends SchemaBaseSpec {
 
   // Simple generic wrapper
   case class SimpleGeneric[T](value: T)

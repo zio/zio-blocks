@@ -41,7 +41,9 @@ private[schema] object CommonMacroOps {
       .sortInPlace()
       .foreach { symbol =>
         val classSymbol = symbol.asClass
-        var classType   = classSymbol.toType
+        // For modules (case objects), use the singleton type (.type) to preserve
+        // the specific type (e.g., Status.Active.type instead of Status)
+        var classType = if (classSymbol.isModuleClass) classSymbol.module.typeSignature else classSymbol.toType
         if (tpeTypeArgs ne Nil) {
           val typeParams = classSymbol.typeParams
           if (typeParams.nonEmpty) {
