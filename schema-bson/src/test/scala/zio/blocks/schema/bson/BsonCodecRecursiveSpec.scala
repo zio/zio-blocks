@@ -1,9 +1,9 @@
 package zio.blocks.schema.bson
 
-import zio.blocks.schema._
+import zio.blocks.schema.Schema
 import zio.test._
 
-object BsonCodecRecursiveSpec extends SchemaBaseSpec {
+object BsonCodecRecursiveSpec extends ZIOSpecDefault {
 
   // Recursive data structure - Binary Tree
   sealed trait Tree

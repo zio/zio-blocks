@@ -1,6 +1,6 @@
 package zio.blocks.schema.bson
 
-import zio.blocks.schema._
+import zio.blocks.schema.Schema
 import zio.test._
 
 /**
@@ -16,7 +16,7 @@ import zio.test._
  *   - Options
  *   - Recursive types
  */
-object BsonCodecEnhancedSpec extends SchemaBaseSpec {
+object BsonCodecEnhancedSpec extends ZIOSpecDefault {
 
   case class Person(name: String, age: Int)
   object Person {

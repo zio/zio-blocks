@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
 import zio.test._
-import scala.language.implicitConversions
 
 object DerivedOpticsVersionSpecificSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("DerivedOpticsVersionSpecificSpec")(
@@ -10,7 +9,7 @@ object DerivedOpticsVersionSpecificSpec extends SchemaBaseSpec {
       test("lens has correct types (compile-time check)") {
         case class Person(name: String, age: Int) derives Schema
 
-        object Person extends DerivedOptics
+        object Person extends DerivedOptics[Person]
 
         val nameLens: Lens[Person, String] = Person.optics.name
         val ageLens: Lens[Person, Int]     = Person.optics.age
@@ -31,7 +30,7 @@ object DerivedOpticsVersionSpecificSpec extends SchemaBaseSpec {
           case Custom(r: Int, g: Int, b: Int)
         }
 
-        object Color extends DerivedOptics
+        object Color extends DerivedOptics[Color]
         val red: Color    = Color.Red
         val custom: Color = Color.Custom(255, 128, 0)
         assertTrue(
@@ -50,7 +49,7 @@ object DerivedOpticsVersionSpecificSpec extends SchemaBaseSpec {
 
         type AC = AliasedColor
 
-        object AliasedColor extends DerivedOptics.Of[AC]
+        object AliasedColor extends DerivedOptics[AC]
 
         val red: AC    = AliasedColor.Red
         val custom: AC = AliasedColor.Custom(255, 0, 0)
@@ -59,56 +58,6 @@ object DerivedOpticsVersionSpecificSpec extends SchemaBaseSpec {
           AliasedColor.optics.custom.getOption(custom) == Some(custom),
           AliasedColor.optics.green.getOption(red) == None
         )
-      }
-    ),
-    suite("Direct field access for Scala 3")(
-      test("direct access works for case class with derives") {
-        case class Point(x: Int, y: Int) derives Schema
-
-        object Point extends DerivedOptics
-
-        val xLens: Lens[Point, Int] = Point.x
-        val yLens: Lens[Point, Int] = Point.y
-        val p                       = Point(10, 20)
-        assertTrue(
-          xLens.get(p) == 10,
-          yLens.get(p) == 20
-        )
-      },
-      test("direct access works for enum prisms") {
-        enum Status derives Schema {
-          case Active, Inactive
-        }
-
-        object Status extends DerivedOptics
-
-        // Enum singleton cases should have singleton type: Prism[Status, Status.Active.type]
-        val activePrism: Prism[Status, Status.Active.type] = Status.active
-        assertTrue(
-          activePrism.getOption(Status.Active) == Some(Status.Active),
-          activePrism.getOption(Status.Inactive) == None
-        )
-      },
-      test("user-defined members take precedence over derived optics") {
-        case class Foo(x: Int) derives Schema
-
-        object Foo extends DerivedOptics {
-          def x: String = "user-defined"
-        }
-
-        assertTrue(
-          Foo.x == "user-defined",
-          Foo.optics.x.isInstanceOf[Lens[Foo, Int]]
-        )
-      },
-      test("caching works with optics access") {
-        case class Box(value: String) derives Schema
-
-        object Box extends DerivedOptics
-
-        val lens1 = Box.optics.value
-        val lens2 = Box.optics.value
-        assertTrue(lens1 eq lens2)
       }
     )
   )

@@ -4,7 +4,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.bson.BsonBuilder._
 import zio.test._
 
-object BsonCodecConfigSpec extends SchemaBaseSpec {
+object BsonCodecConfigSpec extends ZIOSpecDefault {
 
   // Test cases for extra field validation
   case class SimpleRecord(a: String)

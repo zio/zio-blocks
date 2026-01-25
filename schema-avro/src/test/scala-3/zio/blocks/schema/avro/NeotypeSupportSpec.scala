@@ -18,9 +18,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
   )
 
   inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
-    Schema[A]
-      .transformOrFail(a => newType.make(a).left.map(SchemaError.validationFailed), newType.unwrap)
-      .asOpaqueType[B]
+    Schema.derived[B].wrap[A](a => newType.make(a).left.map(SchemaError.validationFailed), newType.unwrap)
 
   type Name = Name.Type
 

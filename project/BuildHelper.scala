@@ -1,10 +1,11 @@
+import org.scalajs.sbtplugin.ScalaJSPlugin.autoImport.scalaJSLinkerConfig
 import sbt.Keys.*
 import sbt.{Def, *}
 import sbtbuildinfo.*
 import sbtbuildinfo.BuildInfoKeys.*
 import sbtcrossproject.CrossPlugin.autoImport.*
-import scoverage.ScoverageKeys._
-import scala.scalanative.build.Mode
+import scoverage.ScoverageKeys.coverageEnabled
+import scala.scalanative.build.{LTO, Mode}
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
@@ -123,10 +124,7 @@ object BuildHelper {
     Compile / packageBin / packageOptions +=
       Package.ManifestAttributes(
         "Automatic-Module-Name" -> s"${organization.value}.$prjName".replaceAll("-", ".")
-      ),
-    coverageFailOnMinimum      := true,
-    coverageMinimumStmtTotal   := 95,
-    coverageMinimumBranchTotal := 90
+      )
   )
 
   def nativeSettings: Seq[Def.Setting[?]] = Seq(

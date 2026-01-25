@@ -1,9 +1,9 @@
 package zio.blocks.schema.bson
 
-import zio.blocks.schema._
+import zio.blocks.schema.Schema
 import zio.test._
 
-object BsonCodecOptionEitherSpec extends SchemaBaseSpec {
+object BsonCodecOptionEitherSpec extends ZIOSpecDefault {
 
   // Test data types
   final case class Person(name: String, age: Option[Int])

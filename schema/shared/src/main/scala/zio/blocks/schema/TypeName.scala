@@ -4,7 +4,7 @@ import scala.collection.immutable.ArraySeq
 
 final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil)
 
-object TypeName extends TypeNameCompanionVersionSpecific {
+object TypeName {
   val unit: TypeName[Unit] = new TypeName(Namespace.scala, "Unit")
 
   val boolean: TypeName[Boolean] = new TypeName(Namespace.scala, "Boolean")

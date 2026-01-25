@@ -1,10 +1,11 @@
 package zio.blocks.schema.bson
 
 import org.bson.{BsonArray, BsonDocument, BsonInt32, BsonString}
+
 import zio.blocks.schema._
 import zio.test._
 
-object BsonCodecSequenceSpec extends SchemaBaseSpec {
+object BsonCodecSequenceSpec extends ZIOSpecDefault {
 
   case class RecordWithList(items: List[String])
 

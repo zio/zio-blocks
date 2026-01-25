@@ -85,7 +85,12 @@ final class ToonReader private[toon] (
   def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = reset(new String(bytes, offset, length, UTF_8))
 
   def reset(content: String): Unit = {
-    lines = content.split('\n')
+    // Normalize line endings so decoding behaves consistently across platforms.
+    // (Windows files often contain CRLF which would otherwise leak '\r' into tokens.)
+    val normalized =
+      if (content.indexOf('\r') >= 0) content.replace("\r\n", "\n").replace("\r", "")
+      else content
+    lines = normalized.split('\n')
     lineIndex = 0
     inlineContext = false
     if (lines.length > 0) {

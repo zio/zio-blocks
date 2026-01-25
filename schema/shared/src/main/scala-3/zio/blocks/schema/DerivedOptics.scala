@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import scala.quoted.*
 import scala.language.dynamics
-import scala.language.implicitConversions
 
 /**
  * A trait that can be extended by companion objects to automatically derive
@@ -11,14 +10,11 @@ import scala.language.implicitConversions
  * Usage:
  * {{{
  * case class Person(name: String, age: Int) derives Schema
- * object Person extends DerivedOptics
+ * object Person extends DerivedOptics[Person]
  *
- * // Direct access to optics (recommended):
- * val nameLens: Lens[Person, String] = Person.name
- * val ageLens: Lens[Person, Int] = Person.age
- *
- * // Alternative explicit access (backward compatible):
- * val nameLens2: Lens[Person, String] = Person.optics.name
+ * // Access optics via the `optics` member:
+ * val nameLens: Lens[Person, String] = Person.optics.name
+ * val ageLens: Lens[Person, Int] = Person.optics.age
  * }}}
  *
  * For sealed traits/enums:
@@ -26,19 +22,16 @@ import scala.language.implicitConversions
  * sealed trait Shape derives Schema
  * case class Circle(radius: Double) extends Shape
  * case class Rectangle(width: Double, height: Double) extends Shape
- * object Shape extends DerivedOptics
+ * object Shape extends DerivedOptics[Shape]
  *
- * // Direct access to prisms (recommended):
- * val circlePrism: Prism[Shape, Circle] = Shape.circle
- *
- * // Alternative explicit access (backward compatible):
- * val circlePrism2: Prism[Shape, Circle] = Shape.optics.circle
+ * // Access prisms via the `optics` member:
+ * val circlePrism: Prism[Shape, Circle] = Shape.optics.circle
  * }}}
  *
  * For opaque types / value classes:
  * {{{
  * opaque type Age = Int
- * object Age extends DerivedOptics {
+ * object Age extends DerivedOptics[Age] {
  *   // Ensure a Wrapper schema is available (e.g. using wrapTotal)
  *   given schema: Schema[Age] = Schema.int.wrapTotal(Age.apply, _.value)
  *
@@ -46,109 +39,29 @@ import scala.language.implicitConversions
  *   extension (a: Age) def value: Int = a
  * }
  *
- * // Direct access to the wrapper lens:
- * val valueLens: Lens[Age, Int] = Age.value
- *
- * // Alternative explicit access (backward compatible):
- * val valueLens2: Lens[Age, Int] = Age.optics.value
+ * // Access the wrapper lens via `.value`:
+ * val valueLens: Lens[Age, Int] = Age.optics.value
  * }}}
  *
- * User-defined members on the companion object always take precedence over
- * derived optics. For example, if you define `def name: String` in your
- * companion, `Person.name` will return your custom implementation, and the lens
- * remains accessible via `Person.optics.name`.
- *
- * Credit: Kit Langton discovered the companion-object conversion trick used to
- * enable direct field access in Scala 3.
- *
  * The optics object is cached to avoid recreation on every access.
+ *
+ * @tparam S
+ *   The type for which to derive optics
  */
-trait DerivedOptics {
+trait DerivedOptics[S] {
 
   /**
-   * Provides access to the derived optics for the companion class type. For
-   * case classes, returns an object with Lens accessors for each field. For
-   * sealed traits/enums, returns an object with Prism accessors for each
-   * variant.
+   * Provides access to the derived optics for type S. For case classes, returns
+   * an object with Lens accessors for each field. For sealed traits/enums,
+   * returns an object with Prism accessors for each variant.
    *
    * The returned object uses structural typing, so you get compile-time type
    * checking and IDE completion for the accessor names.
    */
-  transparent inline def optics: Any = ${ DerivedOpticsMacros.opticsFromThisTypeImpl('this) }
-
-  /**
-   * Enables direct field access: `Person.name` instead of `Person.optics.name`.
-   * User-defined members on the companion object always take precedence.
-   *
-   * This uses Kit Langton's companion-object conversion trick: a regular given
-   * conversion with type class parameters that carry the refined type
-   * information.
-   */
-  given toDerivedOptics(using
-    cc: CompanionClass[this.type],
-    opticsFor: OpticsFor[cc.Type]
-  ): Conversion[this.type, opticsFor.Out] =
-    _ => opticsFor.optics
-
-}
-
-/**
- * Type class that extracts the companion class type from a companion object
- * type. For example, for `Person.type` (the companion object), this extracts
- * `Person` (the case class).
- */
-trait CompanionClass[A] {
-  type Type
-}
-
-object CompanionClass {
-  transparent inline given [A]: CompanionClass[A] = ${ companionClassImpl[A] }
-
-  private def companionClassImpl[A: Type](using Quotes): Expr[CompanionClass[A]] = {
-    import quotes.reflect.*
-    val typeReprA   = TypeRepr.of[A]
-    val classSymOpt = typeReprA.classSymbol
-    classSymOpt match {
-      case Some(classSym) =>
-        val companionClass = classSym.companionClass
-        if companionClass.isNoSymbol then report.errorAndAbort(s"Cannot find companion class for ${Type.show[A]}")
-        else
-          companionClass.typeRef.asType match {
-            case '[t] =>
-              '{
-                new CompanionClass[A] {
-                  type Type = t
-                }
-              }
-          }
-      case None =>
-        report.errorAndAbort(s"Cannot find class symbol for ${Type.show[A]}")
-    }
-  }
+  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema, false) }
 }
 
 object DerivedOptics {
-
-  /**
-   * Use `DerivedOptics.Of[T]` when you need to explicitly specify the type, for
-   * example with generic types or type aliases.
-   *
-   * Example:
-   * {{{
-   * case class Box[A](value: A)
-   * object BoxInt extends DerivedOptics.Of[Box[Int]] {
-   *   given schema: Schema[Box[Int]] = Schema.derived
-   * }
-   * }}}
-   */
-  trait Of[S] {
-    transparent inline def optics(using schema: Schema[S]): Any =
-      ${ DerivedOpticsMacros.opticsImpl[S]('schema, false) }
-
-    given toDerivedOptics(using opticsFor: OpticsFor[S]): Conversion[this.type, opticsFor.Out] =
-      _ => opticsFor.optics
-  }
-
   // Adapter to treat a Wrapper as a Record with one field named "value".
   // This allows reusing the optimized LensImpl logic without modifying Optic.scala.
   private[schema] def wrapperAsRecord[A, B](wrapper: Reflect.Wrapper.Bound[A, B]): Reflect.Record.Bound[A] = {
@@ -275,33 +188,6 @@ final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic with S
     members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
 }
 
-/**
- * Type class that provides derived optics for type S. Used internally to enable
- * the `given Conversion` pattern for direct field access.
- */
-private[schema] trait OpticsFor[S] {
-  type Out
-  def optics: Out
-}
-
-private[schema] object OpticsFor {
-  transparent inline given derived[S](using schema: Schema[S]): OpticsFor[S] = ${ opticsForImpl[S]('schema) }
-
-  private def opticsForImpl[S: Type](schema: Expr[Schema[S]])(using Quotes): Expr[OpticsFor[S]] = {
-    import quotes.reflect.*
-    val opticsExpr = DerivedOpticsMacros.opticsImpl[S](schema, false)
-    opticsExpr.asTerm.tpe.asType match {
-      case '[t] =>
-        '{
-          new OpticsFor[S] {
-            type Out = t
-            def optics: t = $opticsExpr.asInstanceOf[t]
-          }
-        }
-    }
-  }
-}
-
 private[schema] object DerivedOpticsMacros {
   import java.util.concurrent.ConcurrentHashMap
 
@@ -322,37 +208,6 @@ private[schema] object DerivedOpticsMacros {
     }
     result
   }
-
-  def opticsFromThisTypeImpl(self: Expr[Any])(using q: Quotes): Expr[Any] = {
-    import q.reflect.*
-
-    // Get the type of `this` (e.g., Person.type)
-    val selfType = self.asTerm.tpe.widen
-
-    // Find the companion class
-    val classSymOpt    = selfType.classSymbol
-    val companionClass = classSymOpt
-      .map(_.companionClass)
-      .filter(!_.isNoSymbol)
-      .getOrElse(report.errorAndAbort(s"Cannot find companion class for ${selfType.show}"))
-
-    val companionType = companionClass.typeRef
-    companionType.asType match {
-      case '[s] =>
-        // Look for implicit Schema[s] in scope
-        Expr.summon[Schema[s]] match {
-          case Some(schema) => opticsImpl[s](schema, false)
-          case None         =>
-            report.errorAndAbort(
-              s"Cannot find implicit Schema[${Type.show[s]}]. " +
-                s"Make sure you have defined: given schema: Schema[${companionClass.name}] = Schema.derived"
-            )
-        }
-    }
-  }
-
-  def opticsFromCompanionImpl[S: Type](schema: Expr[Schema[S]], prefixUnderscore: Boolean)(using q: Quotes): Expr[Any] =
-    opticsImpl[S](schema, prefixUnderscore)
 
   def opticsImpl[S: Type](schema: Expr[Schema[S]], prefixUnderscore: Boolean)(using q: Quotes): Expr[Any] = {
     import q.reflect.*
@@ -494,9 +349,8 @@ private[schema] object DerivedOpticsMacros {
           child.typeRef
         }
       } else {
-        // For case objects / enum singletons, use termRef without widening
-        // to preserve the singleton type (e.g., Status.Active.type instead of Status)
-        child.termRef
+        // For case objects, get the type
+        child.termRef.widen
       }
       val prismType    = TypeRepr.of[Prism].appliedTo(List(tpeCast, childType))
       val baseName     = lowerFirst(child.name)

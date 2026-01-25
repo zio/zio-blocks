@@ -1,7 +1,8 @@
 package zio.blocks.schema.bson
 
 import org.bson.BsonDocument
-import zio.blocks.schema._
+
+import zio.blocks.schema.Schema
 import zio.test._
 
 /**
@@ -11,7 +12,7 @@ import zio.test._
  *   - Edge cases (min/max values, special values)
  *   - Proper BSON type mapping
  */
-object BsonCodecPrimitivesSpec extends SchemaBaseSpec {
+object BsonCodecPrimitivesSpec extends ZIOSpecDefault {
 
   def spec = suite("BsonCodecPrimitivesSpec")(
     suite("Unit type")(

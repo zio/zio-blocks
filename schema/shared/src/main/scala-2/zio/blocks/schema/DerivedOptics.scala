@@ -11,7 +11,7 @@ import scala.reflect.macros.whitebox
  * Usage:
  * {{{
  * case class Person(name: String, age: Int)
- * object Person extends DerivedOptics {
+ * object Person extends DerivedOptics[Person] {
  *   implicit val schema: Schema[Person] = Schema.derived
  * }
  *
@@ -25,7 +25,7 @@ import scala.reflect.macros.whitebox
  * sealed trait Shape
  * case class Circle(radius: Double) extends Shape
  * case class Rectangle(width: Double, height: Double) extends Shape
- * object Shape extends DerivedOptics {
+ * object Shape extends DerivedOptics[Shape] {
  *   implicit val schema: Schema[Shape] = Schema.derived
  * }
  *
@@ -33,52 +33,25 @@ import scala.reflect.macros.whitebox
  * val circlePrism: Prism[Shape, Circle] = Shape.optics.circle
  * }}}
  *
- * Note: In Scala 3, direct field access is also supported (e.g., `Person.name`
- * instead of `Person.optics.name`). This is not available in Scala 2.
- *
  * The optics object is cached to avoid recreation on every access.
+ *
+ * @tparam S
+ *   The type for which to derive optics
  */
-trait DerivedOptics {
+trait DerivedOptics[S] {
 
   /**
-   * Provides access to the derived optics for the companion class type. For
-   * case classes, returns an object with Lens accessors for each field. For
-   * sealed traits, returns an object with Prism accessors for each variant.
+   * Provides access to the derived optics for type S. For case classes, returns
+   * an object with Lens accessors for each field. For sealed traits, returns an
+   * object with Prism accessors for each variant.
    *
    * The returned object uses structural typing, so you get compile-time type
    * checking and IDE completion for the accessor names.
-   *
-   * This macro infers the type from the companion object.
    */
-  def optics: Any = macro DerivedOpticsMacros.opticsFromCompanionImpl
+  def optics(implicit schema: Schema[S]): Any = macro DerivedOpticsMacros.opticsImpl[S]
 }
 
-/**
- * A parameterized version of DerivedOptics for cases where the type cannot be
- * automatically inferred from the companion object, such as:
- *   - Generic instantiations:
- *     `object BoxInt extends DerivedOptics.Of[Box[Int]]`
- *   - Type aliases: `object AliasedPerson extends DerivedOptics.Of[AP]`
- *   - Non-companion objects providing optics for a type
- */
 object DerivedOptics {
-
-  /**
-   * Use `DerivedOptics.Of[T]` when you need to explicitly specify the type, for
-   * example with generic types or type aliases.
-   *
-   * Example:
-   * {{{
-   * case class Box[A](value: A)
-   * object BoxInt extends DerivedOptics.Of[Box[Int]] {
-   *   implicit val schema: Schema[Box[Int]] = Schema.derived
-   * }
-   * }}}
-   */
-  trait Of[S] {
-    def optics(implicit schema: Schema[S]): Any = macro DerivedOpticsMacros.opticsImpl[S]
-  }
-
   final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic {
     def selectDynamic(name: String): Any =
       members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
@@ -222,45 +195,18 @@ private[schema] object DerivedOpticsMacros {
     result.asInstanceOf[T]
   }
 
-  def opticsFromCompanionImpl(c: whitebox.Context): c.Tree = {
-    import c.universe._
-
-    // Get the companion object type from c.prefix (e.g., Person.type)
-    val companionType = c.prefix.tree.tpe
-
-    // Find the companion class (e.g., Person from Person.type)
-    val companionClassType = companionType.typeSymbol.companion match {
-      case NoSymbol =>
-        c.abort(c.enclosingPosition, s"Cannot find companion class for ${companionType.typeSymbol.name}")
-      case sym => sym.asType.toType
-    }
-
-    // Look for an implicit Schema[CompanionClass] in scope
-    val schemaType     = appliedType(typeOf[Schema[_]].typeConstructor, List(companionClassType))
-    val schemaImplicit = c.inferImplicitValue(schemaType)
-    if (schemaImplicit.isEmpty) {
-      c.abort(
-        c.enclosingPosition,
-        s"Cannot find implicit Schema[${companionClassType}]. " +
-          s"Make sure you have defined: implicit val schema: Schema[${companionClassType.typeSymbol.name}] = Schema.derived"
-      )
-    }
-
-    // Now call opticsImplWithSchema with the inferred types
-    opticsImplWithSchema(c)(companionClassType, schemaImplicit, prefixUnderscore = false)
-  }
-
   def opticsImpl[S: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[S]]): c.Tree =
-    opticsImplWithSchema(c)(c.universe.weakTypeOf[S], schema.tree, prefixUnderscore = false)
+    opticsImplWithPrefix[S](c)(schema, prefixUnderscore = false)
 
-  private def opticsImplWithSchema(c: whitebox.Context)(
-    tpe: c.universe.Type,
-    schemaTree: c.universe.Tree,
+  private def opticsImplWithPrefix[S: c.WeakTypeTag](c: whitebox.Context)(
+    schema: c.Expr[Schema[S]],
     prefixUnderscore: Boolean
   ): c.Tree = {
-    val originalType = tpe
-    val dealiased    = originalType.dealias
-    val typeSym      = dealiased.typeSymbol.asClass
+    import c.universe._
+
+    val originalType = weakTypeOf[S]
+    val tpe          = originalType.dealias
+    val typeSym      = tpe.typeSymbol.asClass
     val isCaseClass  = typeSym.isCaseClass
     val isSealed     = typeSym.isSealed
     val baseClasses  = originalType.baseClasses
@@ -269,18 +215,22 @@ private[schema] object DerivedOpticsMacros {
       fullName == "zio.prelude.Newtype" || fullName == "zio.prelude.Subtype"
     }
     if (isCaseClass) {
-      buildCaseClassOpticsWithTree(c)(schemaTree, dealiased, prefixUnderscore)
+      buildCaseClassOptics(c)(schema, tpe, prefixUnderscore)
     } else if (isSealed) {
-      buildSealedTraitOpticsWithTree(c)(schemaTree, dealiased, prefixUnderscore)
+      buildSealedTraitOptics(c)(schema, tpe, prefixUnderscore)
     } else if (isPrelude) {
-      buildWrapperOpticsWithTree(c)(schemaTree, originalType, dealiased, prefixUnderscore)
+      // Treat ZIO Prelude newtypes as wrappers
+      // We need to find the underlying type. Usually it's the first type argument of the Newtype/Subtype trait
+      // But extracting that reflectively in the macro might be hard without TypeTag for the newtype instance.
+      // Fortunately, buildWrapperOptics mostly relies on the Schema structure at runtime.
+      buildWrapperOptics(c)(schema, originalType, tpe, prefixUnderscore)
     } else {
-      buildWrapperOpticsWithTree(c)(schemaTree, originalType, dealiased, prefixUnderscore)
+      buildWrapperOptics(c)(schema, originalType, tpe, prefixUnderscore)
     }
   }
 
-  private def buildCaseClassOpticsWithTree(c: whitebox.Context)(
-    schemaTree: c.universe.Tree,
+  private def buildCaseClassOptics[S](c: whitebox.Context)(
+    schema: c.Expr[Schema[S]],
     tpe: c.universe.Type,
     prefixUnderscore: Boolean
   ): c.Tree = {
@@ -315,15 +265,15 @@ private[schema] object DerivedOpticsMacros {
       _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
         $cacheKey,
         new {
-          private val _schema: _root_.zio.blocks.schema.Schema[$tpe] = $schemaTree
+          private val _schema: _root_.zio.blocks.schema.Schema[$tpe] = $schema
           ..$lensAccessors
         }
       )
     """
   }
 
-  private def buildSealedTraitOpticsWithTree(c: whitebox.Context)(
-    schemaTree: c.universe.Tree,
+  private def buildSealedTraitOptics[S](c: whitebox.Context)(
+    schema: c.Expr[Schema[S]],
     tpe: c.universe.Type,
     prefixUnderscore: Boolean
   ): c.Tree = {
@@ -350,15 +300,15 @@ private[schema] object DerivedOpticsMacros {
       _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
         $cacheKey,
         new {
-          private val _schema: _root_.zio.blocks.schema.Schema[$tpe] = $schemaTree
+          private val _schema: _root_.zio.blocks.schema.Schema[$tpe] = $schema
           ..$prismAccessors
         }
       )
     """
   }
 
-  private def buildWrapperOpticsWithTree(c: whitebox.Context)(
-    schemaTree: c.universe.Tree,
+  private def buildWrapperOptics[S: c.WeakTypeTag](c: whitebox.Context)(
+    schema: c.Expr[Schema[S]],
     originalType: c.Type,
     underlyingType: c.Type,
     prefixUnderscore: Boolean
@@ -367,12 +317,12 @@ private[schema] object DerivedOpticsMacros {
 
     val fieldNameStr = if (prefixUnderscore) "_value" else "value"
     val fieldName    = TermName(fieldNameStr)
-    val sType        = originalType
+    val sType        = weakTypeOf[S]
     val cacheKey     = originalType.toString + (if (prefixUnderscore) "_" else "")
     q"""
       _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
         $cacheKey, {
-           val mapOpt = $schemaTree.reflect match {
+           val mapOpt = $schema.reflect match {
              case w: _root_.zio.blocks.schema.Reflect.Wrapper => 
                // Convert Wrapper to Fake Record
                val record = _root_.zio.blocks.schema.DerivedOptics.wrapperAsRecord(w.asInstanceOf[_root_.zio.blocks.schema.Reflect.Wrapper.Bound[$sType, $underlyingType]])

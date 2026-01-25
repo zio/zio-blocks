@@ -1,12 +1,12 @@
 package zio.blocks.schema.bson
 
-import zio.blocks.schema._
+import zio.blocks.schema.Schema
 import zio.test._
 
 /**
  * Scala 3-specific tests for BSON codec. Either.
  */
-object BsonCodecVersionSpecificSpec extends SchemaBaseSpec {
+object BsonCodecVersionSpecificSpec extends ZIOSpecDefault {
 
   final case class Result(value: Either[String, Int])
   object Result {

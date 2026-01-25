@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import scala.annotation.tailrec
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 import scala.quoted._
 
 private[schema] object CommonMacroOps {
@@ -20,15 +21,15 @@ private[schema] object CommonMacroOps {
     }
   }
 
+  // === Type Classification Utilities ===
+
   def isProductType(using q: Quotes)(symbol: q.reflect.Symbol): Boolean = {
     import q.reflect._
-
     symbol.flags.is(Flags.Case) && !symbol.flags.is(Flags.Abstract)
   }
 
   def isSealedTraitOrAbstractClass(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect._
-
     tpe.classSymbol.fold(false) { symbol =>
       val flags = symbol.flags
       flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
@@ -37,7 +38,6 @@ private[schema] object CommonMacroOps {
 
   def isNonAbstractScalaClass(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect._
-
     tpe.classSymbol.fold(false) { symbol =>
       val flags = symbol.flags
       !(flags.is(Flags.Abstract) || flags.is(Flags.JavaDefined) || flags.is(Flags.Trait))
@@ -46,28 +46,18 @@ private[schema] object CommonMacroOps {
 
   def isEnumValue(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect._
-
     tpe.termSymbol.flags.is(Flags.Enum)
   }
 
   def isEnumOrModuleValue(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect._
-
     isEnumValue(tpe) || tpe.typeSymbol.flags.is(Flags.Module)
   }
 
-  def isNamedTuple(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
-    import q.reflect._
-
-    tpe match {
-      case AppliedType(ntTpe, _) => ntTpe.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple"
-      case _                     => false
-    }
-  }
+  // === Opaque and Newtype Utilities ===
 
   def isOpaque(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect._
-
     tpe.typeSymbol.flags.is(Flags.Opaque)
   }
 
@@ -91,7 +81,6 @@ private[schema] object CommonMacroOps {
 
   def isZioPreludeNewtype(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect._
-
     tpe match {
       case TypeRef(compTpe, "Type") => compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
       case _                        => false
@@ -100,7 +89,6 @@ private[schema] object CommonMacroOps {
 
   def zioPreludeNewtypeDealias(using q: Quotes)(tpe: q.reflect.TypeRepr): q.reflect.TypeRepr = {
     import q.reflect._
-
     tpe match {
       case TypeRef(compTpe, _) =>
         compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
@@ -113,7 +101,6 @@ private[schema] object CommonMacroOps {
 
   def isTypeRef(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect._
-
     tpe match {
       case trTpe: TypeRef =>
         val typeSymbol = trTpe.typeSymbol
@@ -124,7 +111,6 @@ private[schema] object CommonMacroOps {
 
   def typeRefDealias(using q: Quotes)(tpe: q.reflect.TypeRepr): q.reflect.TypeRepr = {
     import q.reflect._
-
     tpe match {
       case trTpe: TypeRef =>
         val sTpe = trTpe.translucentSuperType.dealias
@@ -140,11 +126,15 @@ private[schema] object CommonMacroOps {
     else if (isTypeRef(tpe)) typeRefDealias(tpe)
     else tpe
 
+  // === Tuple Utilities ===
+
   def isGenericTuple(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect._
 
     tpe <:< TypeRepr.of[Tuple] && !defn.isTupleClass(tpe.typeSymbol)
   }
+
+  // ...existing code...
 
   // Borrowed from an amazing work of Aleksander Rainko:
   // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L253-L270
@@ -187,7 +177,7 @@ private[schema] object CommonMacroOps {
     import q.reflect._
 
     val seen  = new mutable.HashSet[TypeRepr]
-    val types = new mutable.ListBuffer[TypeRepr]
+    val types = new ListBuffer[TypeRepr]
 
     def loop(tpe: TypeRepr): Unit = tpe.dealias match {
       case OrType(left, right) => loop(left); loop(right)
@@ -228,92 +218,5 @@ private[schema] object CommonMacroOps {
     }
     if (tpe <:< TypeRepr.of[Option[?]]) subTypes.sortBy(_.typeSymbol.fullName)
     else subTypes
-  }
-
-  def typeName[T: Type](using
-    q: Quotes
-  )(
-    typeNameCache: mutable.HashMap[q.reflect.TypeRepr, TypeName[?]],
-    tpe: q.reflect.TypeRepr,
-    nestedTpes: List[q.reflect.TypeRepr] = Nil
-  ): TypeName[T] = {
-    import q.reflect._
-
-    def calculateTypeName(tpe: TypeRepr): TypeName[?] =
-      if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string
-      else {
-        var packages: List[String] = Nil
-        var values: List[String]   = Nil
-        var name: String           = null
-        val isUnionTpe             = isUnion(tpe)
-        if (isUnionTpe) name = "|"
-        else {
-          val tpeTypeSymbol = tpe.typeSymbol
-          name = tpeTypeSymbol.name
-          if (isEnumValue(tpe)) {
-            values = name :: values
-            name = tpe.termSymbol.name
-          } else if (tpeTypeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
-          var owner = tpeTypeSymbol.owner
-          while (owner != defn.RootClass) {
-            val ownerName = owner.name
-            if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
-            else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
-            else values = ownerName :: values
-            owner = owner.owner
-          }
-        }
-        val tpeTypeArgs =
-          if (isUnionTpe) allUnionTypes(tpe)
-          else if (isNamedTuple(tpe)) {
-            val tpeTypeArgs = typeArgs(tpe)
-            val nTpe        = tpeTypeArgs.head
-            val tTpe        = tpeTypeArgs.last
-            val nTypeArgs   =
-              if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
-              else typeArgs(nTpe)
-            var comma  = false
-            val labels = new java.lang.StringBuilder(name)
-            labels.append('[')
-            nTypeArgs.foreach { case ConstantType(StringConstant(str)) =>
-              if (comma) labels.append(',')
-              else comma = true
-              labels.append(str)
-            }
-            labels.append(']')
-            name = labels.toString
-            if (isGenericTuple(tTpe)) genericTupleTypeArgs(tTpe)
-            else typeArgs(tTpe)
-          } else if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe)
-          else typeArgs(tpe)
-        new TypeName(
-          new Namespace(packages, values),
-          name,
-          tpeTypeArgs.map { x =>
-            if (nestedTpes.contains(x)) typeName[Any](typeNameCache, defn.AnyClass.typeRef)
-            else typeName(typeNameCache, x, x :: nestedTpes)
-          }
-        )
-      }
-
-    typeNameCache
-      .getOrElseUpdate(
-        tpe,
-        calculateTypeName(tpe match {
-          case TypeRef(compTpe, "Type") => compTpe
-          case _                        => tpe
-        })
-      )
-      .asInstanceOf[TypeName[T]]
-  }
-
-  def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = {
-    val packages = Varargs(tpeName.namespace.packages.map(Expr(_)))
-    val vs       = tpeName.namespace.values
-    val values   = if (vs.isEmpty) '{ Nil } else Varargs(vs.map(Expr(_)))
-    val name     = Expr(tpeName.name)
-    val ps       = tpeName.params
-    val params   = if (ps.isEmpty) '{ Nil } else Varargs(ps.map(param => toExpr(param.asInstanceOf[TypeName[T]])))
-    '{ new TypeName[T](new Namespace($packages, $values), $name, $params) }
   }
 }
