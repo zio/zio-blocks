@@ -33,6 +33,37 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(json.isNull, !json.isObject, !json.isArray, !json.isString, !json.isNumber, !json.isBoolean)
         }
       ),
+      suite("jsonType")(
+        test("jsonType returns correct type for each Json subtype") {
+          assertTrue(
+            Json.Object().jsonType == JsonType.Object,
+            Json.Array().jsonType == JsonType.Array,
+            Json.String("test").jsonType == JsonType.String,
+            new Json.Number("42").jsonType == JsonType.Number,
+            Json.Boolean(true).jsonType == JsonType.Boolean,
+            Json.Null.jsonType == JsonType.Null
+          )
+        },
+        test("JsonType.typeIndex matches Json.typeIndex") {
+          assertTrue(
+            Json.Null.typeIndex == JsonType.Null.typeIndex,
+            Json.Boolean(true).typeIndex == JsonType.Boolean.typeIndex,
+            new Json.Number("1").typeIndex == JsonType.Number.typeIndex,
+            Json.String("s").typeIndex == JsonType.String.typeIndex,
+            Json.Array().typeIndex == JsonType.Array.typeIndex,
+            Json.Object().typeIndex == JsonType.Object.typeIndex
+          )
+        },
+        test("JsonType ordering is Null < Boolean < Number < String < Array < Object") {
+          assertTrue(
+            JsonType.Null.typeIndex < JsonType.Boolean.typeIndex,
+            JsonType.Boolean.typeIndex < JsonType.Number.typeIndex,
+            JsonType.Number.typeIndex < JsonType.String.typeIndex,
+            JsonType.String.typeIndex < JsonType.Array.typeIndex,
+            JsonType.Array.typeIndex < JsonType.Object.typeIndex
+          )
+        }
+      ),
       suite("direct accessors")(
         test("fields returns non-empty Seq for objects") {
           val json = Json.Object("a" -> new Json.Number("1"), "b" -> new Json.Number("2"))
@@ -300,11 +331,61 @@ object JsonSpec extends SchemaBaseSpec {
           val merged = left.merge(right, MergeStrategy.Replace)
           assertTrue(merged == right)
         },
-        test("merge arrays concatenates them") {
+        test("merge arrays by index with Auto") {
           val left   = Json.Array(new Json.Number("1"), new Json.Number("2"))
           val right  = Json.Array(new Json.Number("3"), new Json.Number("4"))
           val merged = left.merge(right)
+          assertTrue(merged.elements == Chunk(new Json.Number("3"), new Json.Number("4")))
+        },
+        test("merge arrays concatenates them with Concat") {
+          val left   = Json.Array(new Json.Number("1"), new Json.Number("2"))
+          val right  = Json.Array(new Json.Number("3"), new Json.Number("4"))
+          val merged = left.merge(right, MergeStrategy.Concat)
           assertTrue(merged.elements.length == 4)
+        },
+        test("merge arrays by index preserves extra elements from longer array") {
+          val left   = Json.Array(new Json.Number("1"), new Json.Number("2"), new Json.Number("3"))
+          val right  = Json.Array(new Json.Number("10"), new Json.Number("20"))
+          val merged = left.merge(right)
+          assertTrue(
+            merged.elements == Chunk(new Json.Number("10"), new Json.Number("20"), new Json.Number("3"))
+          )
+        },
+        test("merge arrays by index with right longer than left") {
+          val left   = Json.Array(new Json.Number("1"))
+          val right  = Json.Array(new Json.Number("10"), new Json.Number("20"), new Json.Number("30"))
+          val merged = left.merge(right)
+          assertTrue(
+            merged.elements == Chunk(new Json.Number("10"), new Json.Number("20"), new Json.Number("30"))
+          )
+        },
+        test("merge nested arrays recursively with Auto") {
+          val left   = Json.Object("arr" -> Json.Array(new Json.Number("1"), new Json.Number("2")))
+          val right  = Json.Object("arr" -> Json.Array(new Json.Number("10")))
+          val merged = left.merge(right)
+          assertTrue(
+            merged.get("arr").single.map(_.elements) == Right(Chunk(new Json.Number("10"), new Json.Number("2")))
+          )
+        },
+        test("merge with Shallow only merges at root level") {
+          val left = Json.Object(
+            "a" -> Json.Object("x" -> new Json.Number("1"), "y" -> new Json.Number("2"))
+          )
+          val right = Json.Object(
+            "a" -> Json.Object("z" -> new Json.Number("3"))
+          )
+          val merged = left.merge(right, MergeStrategy.Shallow)
+          assertTrue(
+            merged.get("a").get("z").number == Right(BigDecimal(3)),
+            merged.get("a").get("x").isFailure,
+            merged.get("a").get("y").isFailure
+          )
+        },
+        test("merge with Shallow on nested arrays replaces at root") {
+          val left   = Json.Array(Json.Object("a" -> new Json.Number("1")))
+          val right  = Json.Array(Json.Object("b" -> new Json.Number("2")))
+          val merged = left.merge(right, MergeStrategy.Shallow)
+          assertTrue(merged.get(0).get("b").number == Right(BigDecimal(2)))
         }
       ),
       suite("parsing and encoding")(
@@ -749,10 +830,10 @@ object JsonSpec extends SchemaBaseSpec {
     ),
     suite("additional coverage")(
       suite("merge strategies")(
-        test("merge with Deep strategy merges objects deeply") {
+        test("merge with Auto strategy merges objects deeply") {
           val left   = Json.Object("a" -> Json.Object("x" -> new Json.Number("1"), "y" -> new Json.Number("2")))
           val right  = Json.Object("a" -> Json.Object("y" -> new Json.Number("3"), "z" -> new Json.Number("4")))
-          val merged = left.merge(right, MergeStrategy.Deep)
+          val merged = left.merge(right, MergeStrategy.Auto)
           assertTrue(
             merged.get("a").get("x").number == Right(BigDecimal(1)),
             merged.get("a").get("y").number == Right(BigDecimal(3)),
@@ -1664,14 +1745,24 @@ object JsonSpec extends SchemaBaseSpec {
         test("Custom merge strategy falls back to user function for non-objects") {
           val left           = Json.Array(new Json.Number("1"))
           val right          = Json.Array(new Json.Number("2"))
-          val customStrategy = MergeStrategy.Custom { (_, l, r) =>
-            (l, r) match {
-              case (Json.Array(lv), Json.Array(rv)) => Json.Array((lv ++ rv): _*)
-              case _                                => r
-            }
-          }
+          val customStrategy = MergeStrategy.Custom(
+            f = { (_, l, r) =>
+              (l, r) match {
+                case (Json.Array(lv), Json.Array(rv)) => Json.Array((lv ++ rv): _*)
+                case _                                => r
+              }
+            },
+            r = (_, _) => false
+          )
           val result = left.merge(right, customStrategy)
           assertTrue(result == Json.Array(new Json.Number("1"), new Json.Number("2")))
+        },
+        test("Custom merge strategy with default recursion behaves like Auto for arrays") {
+          val left           = Json.Array(new Json.Number("1"))
+          val right          = Json.Array(new Json.Number("2"))
+          val customStrategy = MergeStrategy.Custom((_, _, r) => r)
+          val result         = left.merge(right, customStrategy)
+          assertTrue(result == Json.Array(new Json.Number("2")))
         }
       )
     )

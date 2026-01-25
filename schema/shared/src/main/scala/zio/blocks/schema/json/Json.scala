@@ -20,6 +20,13 @@ import scala.util.control.NonFatal
 sealed trait Json {
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Type Information
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** Returns the [[JsonType]] of this JSON value. */
+  def jsonType: JsonType
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Type Testing
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -406,6 +413,8 @@ object Json {
    * order-independent (compared as sorted key-value pairs).
    */
   final case class Object(value: Chunk[(java.lang.String, Json)]) extends Json {
+    override def jsonType: JsonType = JsonType.Object
+
     override def isObject: scala.Boolean = true
 
     override def asObject: JsonSelection = JsonSelection.succeed(this)
@@ -487,6 +496,8 @@ object Json {
    * Represents a JSON array.
    */
   final case class Array(value: Chunk[Json]) extends Json {
+    override def jsonType: JsonType = JsonType.Array
+
     override def isArray: scala.Boolean = true
 
     override def asArray: JsonSelection = JsonSelection.succeed(this)
@@ -536,6 +547,8 @@ object Json {
    * Represents a JSON string.
    */
   final case class String(value: java.lang.String) extends Json {
+    override def jsonType: JsonType = JsonType.String
+
     override def isString: scala.Boolean = true
 
     override def asString: JsonSelection = JsonSelection.succeed(this)
@@ -553,6 +566,8 @@ object Json {
    * representation.
    */
   final case class Number(value: java.lang.String) extends Json {
+    override def jsonType: JsonType = JsonType.Number
+
     override def isNumber: scala.Boolean = true
 
     override def asNumber: JsonSelection = JsonSelection.succeed(this)
@@ -581,6 +596,8 @@ object Json {
    * Represents a JSON boolean.
    */
   final case class Boolean(value: scala.Boolean) extends Json {
+    override def jsonType: JsonType = JsonType.Boolean
+
     override def isBoolean: scala.Boolean = true
 
     override def asBoolean: JsonSelection = JsonSelection.succeed(this)
@@ -603,6 +620,7 @@ object Json {
    * Represents JSON null.
    */
   case object Null extends Json {
+    override def jsonType: JsonType = JsonType.Null
 
     override def isNull: scala.Boolean = true
 
@@ -775,67 +793,58 @@ object Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Merges two JSON values using the specified strategy. */
-  private[json] def merge(left: Json, right: Json, strategy: MergeStrategy): Json = strategy match {
-    case _: MergeStrategy.Replace.type => right
-    case _: MergeStrategy.Shallow.type =>
-      (left, right) match {
-        case (lo: Object, ro: Object) => mergeObjects(lo.value, ro.value, deep = false)
-        case (la: Array, ra: Array)   => new Array(la.value ++ ra.value)
-        case _                        => right
-      }
-    case _: MergeStrategy.Custom =>
-      mergeWithCustom(left, right, DynamicOptic.root, strategy.asInstanceOf[MergeStrategy.Custom].f)
-    case _ => // Auto (default)
-      (left, right) match {
-        case (lo: Object, ro: Object) => mergeObjects(lo.value, ro.value, deep = true)
-        case (la: Array, ra: Array)   => new Array(la.value ++ ra.value)
-        case _                        => right
-      }
-  }
+  private[json] def merge(left: Json, right: Json, strategy: MergeStrategy): Json =
+    mergeImpl(DynamicOptic.root, left, right, strategy)
 
-  private def mergeWithCustom(
+  private def mergeImpl(
+    path: DynamicOptic,
     left: Json,
     right: Json,
-    path: DynamicOptic,
-    f: (DynamicOptic, Json, Json) => Json
+    s: MergeStrategy
   ): Json =
     (left, right) match {
-      case (lo: Object, ro: Object) =>
-        val leftMap  = lo.value.toMap
-        val rightMap = ro.value.toMap
-        val allKeys  = (lo.value.map(_._1) ++ ro.value.map(_._1)).distinct
-        new Object(Chunk.from(allKeys.map { key =>
-          val fieldPath = path.field(key)
-          (leftMap.get(key), rightMap.get(key)) match {
-            case (Some(lv), Some(rv)) => (key, mergeWithCustom(lv, rv, fieldPath, f))
-            case (Some(lv), None)     => (key, lv)
-            case (None, Some(rv))     => (key, rv)
-            case (None, None)         => throw new IllegalStateException("Key should exist in at least one map")
-          }
-        }))
-      case _ => f(path, left, right)
+      case (lo: Object, ro: Object) if s.recurse(path, JsonType.Object) =>
+        mergeByKey(path, lo, ro, s)
+      case (la: Array, ra: Array) if s.recurse(path, JsonType.Array) =>
+        mergeByIndex(path, la, ra, s)
+      case _ =>
+        s(path, left, right)
     }
 
-  private def mergeObjects(
-    left: Chunk[(java.lang.String, Json)],
-    right: Chunk[(java.lang.String, Json)],
-    deep: scala.Boolean
+  private def mergeByKey(
+    path: DynamicOptic,
+    left: Object,
+    right: Object,
+    s: MergeStrategy
   ): Object = {
-    val leftMap  = left.toMap
-    val rightMap = right.toMap
-    val allKeys  = (left.map(_._1) ++ right.map(_._1)).distinct
+    val leftMap  = left.value.toMap
+    val rightMap = right.value.toMap
+    val allKeys  = (left.value.map(_._1) ++ right.value.map(_._1)).distinct
     new Object(Chunk.from(allKeys.map { key =>
+      val childPath = path.field(key)
       (leftMap.get(key), rightMap.get(key)) match {
-        case (Some(lv), Some(rv)) =>
-          if (deep) {
-            (lv, rv) match {
-              case (lo: Object, ro: Object) => (key, mergeObjects(lo.value, ro.value, deep = true))
-              case _                        => (key, rv)
-            }
-          } else (key, rv)
-        case (Some(lv), None) => (key, lv)
-        case (None, Some(rv)) => (key, rv)
-        case (None, None)     => throw new IllegalStateException("Key should exist in at least one map")
+        case (Some(lv), Some(rv)) => (key, mergeImpl(childPath, lv, rv, s))
+        case (Some(lv), None)     => (key, lv)
+        case (None, Some(rv))     => (key, rv)
+        case (None, None)         => throw new IllegalStateException("Key should exist in at least one map")
+      }
+    }))
+  }
+
+  private def mergeByIndex(
+    path: DynamicOptic,
+    left: Array,
+    right: Array,
+    s: MergeStrategy
+  ): Array = {
+    val maxLen = Math.max(left.value.length, right.value.length)
+    new Array(Chunk.from((0 until maxLen).map { i =>
+      val childPath = path.at(i)
+      (left.value.lift(i), right.value.lift(i)) match {
+        case (Some(lv), Some(rv)) => mergeImpl(childPath, lv, rv, s)
+        case (Some(lv), None)     => lv
+        case (None, Some(rv))     => rv
+        case (None, None)         => throw new IllegalStateException("Index should exist in at least one array")
       }
     }))
   }
