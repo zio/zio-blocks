@@ -27,6 +27,30 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     }
   }
 
+  class MyAnnotation(val message: String) extends scala.annotation.StaticAnnotation
+  class MarkerAnnotation                  extends scala.annotation.StaticAnnotation
+
+  @MyAnnotation("test message")
+  case class AnnotatedClass(value: Int)
+
+  @MarkerAnnotation
+  trait AnnotatedTrait
+
+  @SerialVersionUID(12345L)
+  class SerializableClass extends Serializable
+
+  trait Logger {
+    def log(msg: String): Unit
+  }
+
+  trait SelfTypedTrait { self: Logger =>
+    def doWork(): Unit = log("working")
+  }
+
+  trait NoSelfType {
+    def simple(): Unit = ()
+  }
+
   def spec = suite("TypeId Advanced")(
     sealedExtractorSuite,
     typeDefKindDerivedSuite,
@@ -37,7 +61,14 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     termPathSuite,
     typeReprSuite,
     containsParamSuite,
-    wildcardSuite
+    wildcardSuite,
+    annotationSuite,
+    selfTypeSuite,
+    enumCaseInfoSuite,
+    memberSuite,
+    kindSuite,
+    typeIdMethodsSuite,
+    typeIdExtractorsSuite
   )
 
   val sealedExtractorSuite = suite("Sealed Extractor (derived)")(
@@ -436,6 +467,488 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
         lower.bounds.hasOnlyLower,
         lower.bounds.lower == Some(TypeRepr.Ref(TypeId.int))
       )
+    }
+  )
+
+  val annotationSuite = suite("Annotation")(
+    test("derived TypeId extracts custom annotation from class") {
+      val id = TypeId.of[AnnotatedClass]
+      assertTrue(
+        id.annotations.nonEmpty,
+        id.annotations.exists(_.name == "MyAnnotation")
+      )
+    },
+    test("derived TypeId extracts marker annotation from trait") {
+      val id = TypeId.of[AnnotatedTrait]
+      assertTrue(
+        id.annotations.nonEmpty,
+        id.annotations.exists(_.name == "MarkerAnnotation")
+      )
+    },
+    test("derived TypeId extracts annotation arguments") {
+      val id           = TypeId.of[AnnotatedClass]
+      val myAnnotation = id.annotations.find(_.name == "MyAnnotation")
+      assertTrue(myAnnotation.exists(_.args.nonEmpty))
+    },
+    test("derived TypeId extracts @SerialVersionUID annotation") {
+      val id = TypeId.of[SerializableClass]
+      assertTrue(id.annotations.exists(_.name == "SerialVersionUID"))
+    },
+    test("unannotated type has empty annotations") {
+      val id = TypeId.of[SimpleCaseClass]
+      assertTrue(id.annotations.isEmpty)
+    },
+    test("Annotation name returns simple name") {
+      val annot = Annotation(TypeId.of[SimpleTrait])
+      assertTrue(annot.name == "SimpleTrait")
+    },
+    test("Annotation fullName returns qualified name") {
+      val annot = Annotation(TypeId.of[SimpleTrait])
+      assertTrue(annot.fullName.contains("SimpleTrait"))
+    },
+    test("Annotation with empty args") {
+      val annot = Annotation(TypeId.of[MarkerTrait], Nil)
+      assertTrue(annot.args.isEmpty)
+    },
+    test("AnnotationArg.Const holds constant values") {
+      val constInt    = AnnotationArg.Const(42)
+      val constString = AnnotationArg.Const("hello")
+      val constBool   = AnnotationArg.Const(true)
+      assertTrue(
+        constInt.value == 42,
+        constString.value == "hello",
+        constBool.value == true
+      )
+    },
+    test("AnnotationArg.ArrayArg holds multiple args") {
+      val arr = AnnotationArg.ArrayArg(List(AnnotationArg.Const(1), AnnotationArg.Const(2)))
+      assertTrue(arr.values.size == 2)
+    },
+    test("AnnotationArg.Named holds name-value pairs") {
+      val named = AnnotationArg.Named("message", AnnotationArg.Const("deprecated"))
+      assertTrue(named.name == "message")
+    },
+    test("AnnotationArg.Nested holds nested annotation") {
+      val inner  = Annotation(TypeId.of[MarkerTrait])
+      val nested = AnnotationArg.Nested(inner)
+      assertTrue(nested.annotation.name == "MarkerTrait")
+    },
+    test("AnnotationArg.ClassOf holds type reference") {
+      val classOf = AnnotationArg.ClassOf(TypeRepr.Ref(TypeId.string))
+      classOf.tpe match {
+        case TypeRepr.Ref(id) => assertTrue(id.name == "String")
+        case _                => assertTrue(false)
+      }
+    },
+    test("AnnotationArg.EnumValue holds enum reference") {
+      val enumVal = AnnotationArg.EnumValue(TypeId.of[Animal], "Dog")
+      assertTrue(enumVal.valueName == "Dog")
+    }
+  )
+
+  val selfTypeSuite = suite("SelfType (derived)")(
+    test("derived TypeId extracts selfType from self-typed trait") {
+      val id = TypeId.of[SelfTypedTrait]
+      assertTrue(id.selfType.isDefined)
+    },
+    test("derived TypeId selfType references the required type") {
+      val id = TypeId.of[SelfTypedTrait]
+      id.selfType match {
+        case Some(selfType) =>
+          selfType match {
+            case TypeRepr.Ref(refId) =>
+              assertTrue(refId.name == "Logger")
+            case TypeRepr.Intersection(types) =>
+              assertTrue(types.exists {
+                case TypeRepr.Ref(refId) => refId.name == "Logger"
+                case _                   => false
+              })
+            case _ =>
+              assertTrue(false)
+          }
+        case None => assertTrue(false)
+      }
+    },
+    test("trait without self-type has None selfType") {
+      val id = TypeId.of[NoSelfType]
+      assertTrue(id.selfType.isEmpty)
+    },
+    test("regular trait has None selfType") {
+      val id = TypeId.of[SimpleTrait]
+      assertTrue(id.selfType.isEmpty)
+    }
+  )
+
+  val enumCaseInfoSuite = suite("EnumCaseInfo")(
+    test("EnumCaseInfo with no params has arity 0") {
+      val info = EnumCaseInfo("Red", 0, Nil, isObjectCase = true)
+      assertTrue(info.arity == 0, info.isObjectCase)
+    },
+    test("EnumCaseInfo with params has correct arity") {
+      val params = List(
+        EnumCaseParam("r", TypeRepr.Ref(TypeId.int)),
+        EnumCaseParam("g", TypeRepr.Ref(TypeId.int)),
+        EnumCaseParam("b", TypeRepr.Ref(TypeId.int))
+      )
+      val info = EnumCaseInfo("RGB", 1, params, isObjectCase = false)
+      assertTrue(info.arity == 3, !info.isObjectCase)
+    },
+    test("EnumCaseParam holds name and type") {
+      val param = EnumCaseParam("value", TypeRepr.Ref(TypeId.string))
+      assertTrue(param.name == "value")
+      param.tpe match {
+        case TypeRepr.Ref(id) => assertTrue(id.name == "String")
+        case _                => assertTrue(false)
+      }
+    },
+    test("TypeDefKind.Enum has cases and baseTypes") {
+      val cases    = List(EnumCaseInfo("A", 0), EnumCaseInfo("B", 1))
+      val bases    = List(TypeRepr.Ref(TypeId.of[SimpleTrait]))
+      val enumKind = TypeDefKind.Enum(cases, bases)
+      assertTrue(enumKind.cases.size == 2, enumKind.baseTypes.size == 1)
+    },
+    test("TypeDefKind.EnumCase has parentEnum and ordinal") {
+      val parentRef = TypeRepr.Ref(TypeId.of[Animal])
+      val enumCase  = TypeDefKind.EnumCase(parentRef, ordinal = 0, isObjectCase = true)
+      assertTrue(
+        enumCase.ordinal == 0,
+        enumCase.isObjectCase,
+        enumCase.baseTypes == List(parentRef)
+      )
+    },
+    test("TypeDefKind.Object has baseTypes") {
+      val bases = List(TypeRepr.Ref(TypeId.of[SimpleTrait]))
+      val obj   = TypeDefKind.Object(bases)
+      assertTrue(obj.baseTypes == bases)
+    },
+    test("TypeDefKind case objects") {
+      assertTrue(
+        TypeDefKind.TypeAlias.baseTypes.isEmpty,
+        TypeDefKind.AbstractType.baseTypes.isEmpty,
+        TypeDefKind.Unknown.baseTypes.isEmpty
+      )
+    }
+  )
+
+  val memberSuite = suite("Member")(
+    test("Member.Val holds val information") {
+      val valMember = Member.Val("x", TypeRepr.Ref(TypeId.int), isVar = false)
+      assertTrue(valMember.name == "x", !valMember.isVar)
+    },
+    test("Member.Val with isVar=true for var") {
+      val varMember = Member.Val("y", TypeRepr.Ref(TypeId.string), isVar = true)
+      assertTrue(varMember.isVar)
+    },
+    test("Member.Def holds method information") {
+      val defMember = Member.Def(
+        name = "foo",
+        typeParams = List(TypeParam("T", 0)),
+        paramLists = List(List(Param("x", TypeRepr.Ref(TypeId.int)))),
+        result = TypeRepr.Ref(TypeId.string)
+      )
+      assertTrue(
+        defMember.name == "foo",
+        defMember.typeParams.size == 1,
+        defMember.paramLists.size == 1,
+        defMember.paramLists.head.size == 1
+      )
+    },
+    test("Member.Def with empty type params and param lists") {
+      val simpleDef = Member.Def("bar", Nil, Nil, TypeRepr.Ref(TypeId.unit))
+      assertTrue(
+        simpleDef.name == "bar",
+        simpleDef.typeParams.isEmpty,
+        simpleDef.paramLists.isEmpty
+      )
+    },
+    test("Member.Def with curried params") {
+      val curriedDef = Member.Def(
+        "curried",
+        Nil,
+        List(
+          List(Param("a", TypeRepr.Ref(TypeId.int))),
+          List(Param("b", TypeRepr.Ref(TypeId.string)))
+        ),
+        TypeRepr.Ref(TypeId.boolean)
+      )
+      assertTrue(curriedDef.paramLists.size == 2)
+    },
+    test("Param holds parameter information") {
+      val param = Param("arg", TypeRepr.Ref(TypeId.int), isImplicit = true, hasDefault = true)
+      assertTrue(param.name == "arg", param.isImplicit, param.hasDefault)
+    },
+    test("Param default values") {
+      val param = Param("simple", TypeRepr.Ref(TypeId.string))
+      assertTrue(!param.isImplicit, !param.hasDefault)
+    }
+  )
+
+  val kindSuite = suite("Kind")(
+    test("Kind.Type is proper type with arity 0") {
+      assertTrue(Kind.Type.isProperType, Kind.Type.arity == 0)
+    },
+    test("Kind.Star is alias for Type") {
+      assertTrue(Kind.Star == Kind.Type)
+    },
+    test("Kind.Star1 has arity 1") {
+      assertTrue(Kind.Star1.arity == 1, !Kind.Star1.isProperType)
+    },
+    test("Kind.Star2 has arity 2") {
+      assertTrue(Kind.Star2.arity == 2)
+    },
+    test("Kind.HigherStar1 is higher-kinded") {
+      assertTrue(Kind.HigherStar1.arity == 1)
+      Kind.HigherStar1 match {
+        case Kind.Arrow(params, _) =>
+          assertTrue(params.head == Kind.Star1)
+        case _ => assertTrue(false)
+      }
+    },
+    test("Kind.constructor creates n-ary constructor") {
+      assertTrue(
+        Kind.constructor(0) == Kind.Type,
+        Kind.constructor(1) == Kind.Star1,
+        Kind.constructor(2) == Kind.Star2,
+        Kind.constructor(3).arity == 3,
+        Kind.constructor(-1) == Kind.Type
+      )
+    },
+    test("Kind.Arrow stores params and result") {
+      val arrow = Kind.Arrow(List(Kind.Type, Kind.Type), Kind.Type)
+      assertTrue(
+        arrow.arity == 2,
+        arrow.params.size == 2,
+        arrow.result == Kind.Type
+      )
+    }
+  )
+
+  val typeIdMethodsSuite = suite("TypeId methods")(
+    test("isApplied returns true for applied types") {
+      val listInt = TypeId.of[List[Int]]
+      assertTrue(listInt.isApplied, listInt.typeArgs.nonEmpty)
+    },
+    test("arity returns number of type params") {
+      val list  = TypeId.of[List[_]]
+      val map   = TypeId.of[Map[_, _]]
+      val intId = TypeId.of[Int]
+      assertTrue(list.arity == 1, map.arity == 2, intId.arity == 0)
+    },
+    test("fullName includes owner path") {
+      val intId = TypeId.of[Int]
+      assertTrue(intId.fullName == "scala.Int")
+    },
+    test("isProperType and isTypeConstructor") {
+      val intId = TypeId.of[Int]
+      val list  = TypeId.of[List[_]]
+      assertTrue(
+        intId.isProperType && !intId.isTypeConstructor,
+        list.isTypeConstructor && !list.isProperType
+      )
+    },
+    test("isClass/isTrait/isObject") {
+      val classId  = TypeId.of[SimpleCaseClass]
+      val traitId  = TypeId.of[SimpleTrait]
+      val objectId = TypeId.of[UnknownAnimal.type]
+      assertTrue(classId.isClass, traitId.isTrait, objectId.isObject)
+    },
+    test("isSealed returns true for sealed traits") {
+      val sealedId    = TypeId.of[Animal]
+      val notSealedId = TypeId.of[SimpleTrait]
+      assertTrue(sealedId.isSealed, !notSealedId.isSealed)
+    },
+    test("isCaseClass returns true for case classes") {
+      val caseClass    = TypeId.of[Dog]
+      val regularClass = TypeId.of[RegularClass]
+      assertTrue(caseClass.isCaseClass, !regularClass.isCaseClass)
+    },
+    test("enumCases returns empty for non-enum") {
+      val traitId = TypeId.of[Animal]
+      assertTrue(traitId.enumCases.isEmpty)
+    },
+    test("knownSubtypes returns subtypes for sealed trait") {
+      val sealedId = TypeId.of[Animal]
+      assertTrue(sealedId.knownSubtypes.nonEmpty)
+    },
+    test("knownSubtypes returns empty for non-sealed") {
+      val notSealed = TypeId.of[SimpleTrait]
+      assertTrue(notSealed.knownSubtypes.isEmpty)
+    },
+    test("isTuple returns true for scala tuples") {
+      val tuple2 = TypeId.of[(Int, String)]
+      assertTrue(tuple2.isTuple)
+    },
+    test("isOption returns true for Option") {
+      val opt = TypeId.of[Option[Int]]
+      assertTrue(opt.isOption)
+    },
+    test("toString contains kind and fullName") {
+      val intId = TypeId.of[Int]
+      assertTrue(intId.toString.contains("TypeId."), intId.toString.contains("Int"))
+    },
+    test("TypeId.applied creates applied type") {
+      val applied = TypeId.applied[List[Int]](TypeId.of[List[_]], TypeRepr.Ref(TypeId.int))
+      assertTrue(applied.isApplied, applied.typeArgs.size == 1)
+    }
+  )
+
+  val typeIdExtractorsSuite = suite("TypeId Extractors")(
+    test("Enum extractor matches enum TypeDefKind") {
+      val enumDefKind = TypeDefKind.Enum(List(EnumCaseInfo("A", 0)), Nil)
+      val id          = TypeId.nominal[Animal]("TestEnum", Owner.Root, defKind = enumDefKind)
+      id match {
+        case TypeId.Enum(name, _, cases) =>
+          assertTrue(name == "TestEnum", cases.size == 1)
+        case _ => assertTrue(false)
+      }
+    },
+    test("Enum extractor does not match non-enum") {
+      val id     = TypeId.of[Animal]
+      val isEnum = id match {
+        case TypeId.Enum(_, _, _) => true
+        case _                    => false
+      }
+      assertTrue(!isEnum)
+    },
+    test("Opaque extractor does not match nominal type") {
+      val id       = TypeId.of[Int]
+      val isOpaque = id match {
+        case TypeId.Opaque(_, _, _, _, _) => true
+        case _                            => false
+      }
+      assertTrue(!isOpaque)
+    },
+    test("Alias extractor does not match nominal type") {
+      val id      = TypeId.of[Int]
+      val isAlias = id match {
+        case TypeId.Alias(_, _, _, _) => true
+        case _                        => false
+      }
+      assertTrue(!isAlias)
+    },
+    test("Alias extractor matches alias TypeId") {
+      val aliasId = TypeId.alias[Int]("MyInt", Owner.Root, Nil, TypeRepr.Ref(TypeId.int))
+      aliasId match {
+        case TypeId.Alias(name, _, _, aliased) =>
+          assertTrue(name == "MyInt")
+          aliased match {
+            case TypeRepr.Ref(id) => assertTrue(id.name == "Int")
+            case _                => assertTrue(false)
+          }
+        case _ => assertTrue(false)
+      }
+    },
+    test("Opaque extractor matches opaque TypeId") {
+      val opaqueId = TypeId.opaque[Int]("Secret", Owner.Root, Nil, TypeRepr.Ref(TypeId.string))
+      opaqueId match {
+        case TypeId.Opaque(name, _, _, repr, bounds) =>
+          assertTrue(name == "Secret", bounds.isUnbounded)
+          repr match {
+            case TypeRepr.Ref(id) => assertTrue(id.name == "String")
+            case _                => assertTrue(false)
+          }
+        case _ => assertTrue(false)
+      }
+    },
+    test("Nominal extractor matches nominal TypeId") {
+      val id = TypeId.of[Int]
+      id match {
+        case TypeId.Nominal(name, owner, _, _, _) =>
+          assertTrue(name == "Int", owner == Owner.scala)
+        case _ => assertTrue(false)
+      }
+    }
+  )
+
+  val additionalCoverageSuite = suite("Additional Coverage")(
+    test("TypeDefKind.Class with isValue=true") {
+      val valueClass = TypeDefKind.Class(isValue = true)
+      assertTrue(valueClass.isValue, valueClass.baseTypes.isEmpty)
+    },
+    test("TypeId.isValueClass returns true for value class") {
+      val valueDefKind = TypeDefKind.Class(isValue = true)
+      val id           = TypeId.nominal[Int]("MyValue", Owner.Root, defKind = valueDefKind)
+      assertTrue(id.isValueClass)
+    },
+    test("TypeId.isValueClass returns false for regular class") {
+      val id = TypeId.of[SimpleCaseClass]
+      assertTrue(!id.isValueClass)
+    },
+    test("TypeId.isAbstract returns true for abstract type") {
+      val id = TypeId.nominal[Int]("T", Owner.Root, defKind = TypeDefKind.AbstractType)
+      assertTrue(id.isAbstract)
+    },
+    test("TypeId.isAlias returns true for type alias") {
+      val id = TypeId.alias[Int]("MyInt", Owner.Root, Nil, TypeRepr.Ref(TypeId.int))
+      assertTrue(id.isAlias)
+    },
+    test("TypeId.isEnum returns true for enum") {
+      val enumKind = TypeDefKind.Enum(List(EnumCaseInfo("A", 0)), Nil)
+      val id       = TypeId.nominal[Animal]("MyEnum", Owner.Root, defKind = enumKind)
+      assertTrue(id.isEnum)
+    },
+    test("TypeId.isProduct returns true for Product types") {
+      val productKind = TypeDefKind.Class(isCase = true)
+      val id          = TypeId.nominal[Int]("Product1", Owner.scala, defKind = productKind)
+      assertTrue(id.isProduct)
+    },
+    test("TypeId.isSum returns true for Either") {
+      val eitherKind = TypeDefKind.Trait(isSealed = true)
+      val id         = TypeId.nominal[Int]("Either", Owner.scala, defKind = eitherKind)
+      assertTrue(id.isSum)
+    },
+    test("TypeId.isEither checks specific path") {
+      val id = TypeId.nominal[Int]("Either", Owner.fromPackagePath("scala.util"))
+      assertTrue(id.isEither)
+    },
+    test("TypeId equals and hashCode work correctly") {
+      val id1 = TypeId.of[Int]
+      val id2 = TypeId.of[Int]
+      assertTrue(id1 == id2, id1.hashCode == id2.hashCode)
+    },
+    test("TypeId with different typeArgs are not equal") {
+      val listInt    = TypeId.of[List[Int]]
+      val listString = TypeId.of[List[String]]
+      assertTrue(listInt != listString)
+    },
+    test("Member.Def name accessor") {
+      val defMember = Member.Def("testMethod", Nil, Nil, TypeRepr.Ref(TypeId.unit))
+      assertTrue(defMember.name == "testMethod")
+    },
+    test("Member.TypeMember name accessor") {
+      val typeMember = Member.TypeMember("T", Nil, None, None)
+      assertTrue(typeMember.name == "T")
+    },
+    test("TypeDefKind.Trait with knownSubtypes") {
+      val subtypes  = List(TypeRepr.Ref(TypeId.of[Dog]), TypeRepr.Ref(TypeId.of[Cat]))
+      val traitKind = TypeDefKind.Trait(isSealed = true, knownSubtypes = subtypes)
+      assertTrue(traitKind.knownSubtypes.size == 2)
+    },
+    test("TermPath Package and Term segments") {
+      val pkg  = TermPath.Package("com")
+      val term = TermPath.Term("value")
+      assertTrue(pkg.name == "com", term.name == "value")
+    },
+    test("TypeRepr.Structural members and parents") {
+      val parent = TypeRepr.Ref(TypeId.of[SimpleTrait])
+      val member = Member.Val("x", TypeRepr.Ref(TypeId.int))
+      val struct = TypeRepr.Structural(List(parent), List(member))
+      assertTrue(struct.parents.size == 1, struct.members.size == 1)
+    },
+    test("TypeRepr.Annotated underlying and annotations") {
+      val underlying = TypeRepr.Ref(TypeId.int)
+      val annot      = Annotation(TypeId.of[MarkerTrait])
+      val annotated  = TypeRepr.Annotated(underlying, List(annot))
+      assertTrue(annotated.annotations.size == 1)
+      annotated.underlying match {
+        case TypeRepr.Ref(id) => assertTrue(id.name == "Int")
+        case _                => assertTrue(false)
+      }
+    },
+    test("OpaqueType with non-default bounds") {
+      val bounds     = TypeBounds.upper(TypeRepr.Ref(TypeId.string))
+      val opaqueKind = TypeDefKind.OpaqueType(bounds)
+      assertTrue(!opaqueKind.publicBounds.isUnbounded)
     }
   )
 }

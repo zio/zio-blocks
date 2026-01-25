@@ -93,12 +93,13 @@ object TypeIdMacros {
   )(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
     import c.universe._
 
-    val tpe            = weakTypeOf[A]
-    val name           = sym.name.decodedName.toString
-    val ownerExpr      = buildOwner(c)(sym.owner)
-    val typeParamsExpr = buildTypeParams(c)(sym)
-    val typeArgsExpr   = args.map(buildTypeReprFromType(c)(_))
-    val defKindExpr    = buildDefKind(c)(sym)
+    val tpe             = weakTypeOf[A]
+    val name            = sym.name.decodedName.toString
+    val ownerExpr       = buildOwner(c)(sym.owner)
+    val typeParamsExpr  = buildTypeParams(c)(sym)
+    val typeArgsExpr    = args.map(buildTypeReprFromType(c)(_))
+    val defKindExpr     = buildDefKind(c)(sym)
+    val annotationsExpr = buildAnnotations(c)(sym)
 
     c.Expr[TypeId[A]](
       q"""
@@ -109,7 +110,7 @@ object TypeIdMacros {
           _root_.scala.List(..$typeArgsExpr),
           $defKindExpr,
           _root_.scala.None,
-          _root_.scala.Nil
+          $annotationsExpr
         )
       """
     )
@@ -131,9 +132,10 @@ object TypeIdMacros {
 
     tpe match {
       case tr @ TypeRef(pre, sym, _) if sym.isType && sym.asType.isAliasType =>
-        val aliasName      = sym.name.decodedName.toString
-        val ownerExpr      = resolveOwnerExprFromTypeRef(c)(tr, pre, sym.owner)
-        val typeParamsExpr = buildTypeParams(c)(sym)
+        val aliasName       = sym.name.decodedName.toString
+        val ownerExpr       = resolveOwnerExprFromTypeRef(c)(tr, pre, sym.owner)
+        val typeParamsExpr  = buildTypeParams(c)(sym)
+        val annotationsExpr = buildAnnotations(c)(sym)
 
         val aliasedType = tpe.dealias
         val aliasedExpr = buildTypeReprFromType(c)(aliasedType)
@@ -146,16 +148,18 @@ object TypeIdMacros {
               $typeParamsExpr,
               $aliasedExpr,
               _root_.scala.Nil,
-              _root_.scala.Nil
+              $annotationsExpr
             )
           """
         )
       case tr @ TypeRef(pre, _, _) =>
-        val typeSymbol     = tpe.typeSymbol
-        val name           = typeSymbol.name.decodedName.toString
-        val ownerExpr      = resolveOwnerExprFromTypeRef(c)(tr, pre, typeSymbol.owner)
-        val typeParamsExpr = buildTypeParams(c)(typeSymbol)
-        val defKindExpr    = buildDefKind(c)(typeSymbol)
+        val typeSymbol      = tpe.typeSymbol
+        val name            = typeSymbol.name.decodedName.toString
+        val ownerExpr       = resolveOwnerExprFromTypeRef(c)(tr, pre, typeSymbol.owner)
+        val typeParamsExpr  = buildTypeParams(c)(typeSymbol)
+        val defKindExpr     = buildDefKind(c)(typeSymbol)
+        val annotationsExpr = buildAnnotations(c)(typeSymbol)
+        val selfTypeExpr    = extractSelfType(c)(typeSymbol)
 
         c.Expr[TypeId[A]](
           q"""
@@ -164,16 +168,20 @@ object TypeIdMacros {
               $ownerExpr,
               $typeParamsExpr,
               _root_.scala.Nil,
-              $defKindExpr
+              $defKindExpr,
+              $selfTypeExpr,
+              $annotationsExpr
             )
           """
         )
       case _ =>
-        val typeSymbol     = tpe.typeSymbol
-        val name           = typeSymbol.name.decodedName.toString
-        val ownerExpr      = buildOwner(c)(typeSymbol.owner)
-        val typeParamsExpr = buildTypeParams(c)(typeSymbol)
-        val defKindExpr    = buildDefKind(c)(typeSymbol)
+        val typeSymbol      = tpe.typeSymbol
+        val name            = typeSymbol.name.decodedName.toString
+        val ownerExpr       = buildOwner(c)(typeSymbol.owner)
+        val typeParamsExpr  = buildTypeParams(c)(typeSymbol)
+        val defKindExpr     = buildDefKind(c)(typeSymbol)
+        val annotationsExpr = buildAnnotations(c)(typeSymbol)
+        val selfTypeExpr    = extractSelfType(c)(typeSymbol)
 
         c.Expr[TypeId[A]](
           q"""
@@ -182,7 +190,9 @@ object TypeIdMacros {
               $ownerExpr,
               $typeParamsExpr,
               _root_.scala.Nil,
-              $defKindExpr
+              $defKindExpr,
+              $selfTypeExpr,
+              $annotationsExpr
             )
           """
         )
@@ -548,6 +558,165 @@ object TypeIdMacros {
       case _         =>
         val ownerExpr = buildOwner(c)(sym.owner)
         q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, _root_.scala.Nil))"
+    }
+  }
+
+  // ============================================================================
+  // Annotation Extraction (Scala 2)
+  // ============================================================================
+
+  private def buildAnnotations(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
+    import c.universe._
+
+    val annotations = sym.annotations.filterNot { annot =>
+      val fullName = annot.tree.tpe.typeSymbol.fullName
+      fullName.startsWith("scala.annotation.internal.") ||
+      fullName.startsWith("scala.annotation.unchecked.") ||
+      fullName == "scala.annotation.nowarn" ||
+      fullName == "scala.annotation.tailcall" ||
+      fullName == "scala.specialized"
+    }
+
+    val annotExprs = annotations.flatMap { annot =>
+      buildAnnotation(c)(annot)
+    }
+
+    q"_root_.scala.List(..$annotExprs)"
+  }
+
+  private def buildAnnotation(c: blackbox.Context)(annot: c.universe.Annotation): Option[c.Tree] = {
+    import c.universe._
+
+    val annotTpe = annot.tree.tpe
+    val annotSym = annotTpe.typeSymbol
+
+    if (annotSym == NoSymbol) return None
+
+    val annotName       = annotSym.name.decodedName.toString
+    val annotOwnerExpr  = buildOwner(c)(annotSym.owner)
+    val annotTypeIdExpr =
+      q"""
+        _root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](
+          $annotName,
+          $annotOwnerExpr,
+          _root_.scala.Nil,
+          _root_.scala.Nil,
+          _root_.zio.blocks.typeid.TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+        )
+      """
+
+    val argsExpr = annot.tree match {
+      case Apply(_, args) =>
+        val argExprs = args.flatMap(arg => buildAnnotationArg(c)(arg))
+        q"_root_.scala.List(..$argExprs)"
+      case _ =>
+        q"_root_.scala.Nil"
+    }
+
+    Some(q"_root_.zio.blocks.typeid.Annotation($annotTypeIdExpr, $argsExpr)")
+  }
+
+  private def buildAnnotationArg(c: blackbox.Context)(arg: c.Tree): Option[c.Tree] = {
+    import c.universe._
+
+    arg match {
+      case Literal(Constant(v: String)) =>
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.Const($v)")
+      case Literal(Constant(v: Int)) =>
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.Const($v)")
+      case Literal(Constant(v: Long)) =>
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.Const($v)")
+      case Literal(Constant(v: Double)) =>
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.Const($v)")
+      case Literal(Constant(v: Float)) =>
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.Const($v)")
+      case Literal(Constant(v: Boolean)) =>
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.Const($v)")
+      case Literal(Constant(v: Char)) =>
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.Const($v)")
+      case Literal(Constant(v: Byte)) =>
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.Const($v: _root_.scala.Byte)")
+      case Literal(Constant(v: Short)) =>
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.Const($v: _root_.scala.Short)")
+      case Literal(Constant(null)) =>
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.Const(null)")
+
+      case NamedArg(Ident(TermName(name)), value) =>
+        buildAnnotationArg(c)(value).map { valueExpr =>
+          q"_root_.zio.blocks.typeid.AnnotationArg.Named($name, $valueExpr)"
+        }
+
+      case Typed(expr, _) =>
+        buildAnnotationArg(c)(expr)
+
+      case Apply(TypeApply(Select(Ident(TermName("Array")), TermName("apply")), _), elems) =>
+        val elemExprs = elems.flatMap(e => buildAnnotationArg(c)(e))
+        Some(q"_root_.zio.blocks.typeid.AnnotationArg.ArrayArg(_root_.scala.List(..$elemExprs))")
+
+      case Apply(Select(New(tpt), termNames.CONSTRUCTOR), nestedArgs) =>
+        val nestedAnnotSym   = tpt.tpe.typeSymbol
+        val nestedOwnerExpr  = buildOwner(c)(nestedAnnotSym.owner)
+        val nestedTypeIdExpr =
+          q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](${nestedAnnotSym.name.decodedName.toString}, $nestedOwnerExpr, _root_.scala.Nil)"
+        val nestedArgsExpr = nestedArgs.flatMap(a => buildAnnotationArg(c)(a))
+        Some(
+          q"_root_.zio.blocks.typeid.AnnotationArg.Nested(_root_.zio.blocks.typeid.Annotation($nestedTypeIdExpr, _root_.scala.List(..$nestedArgsExpr)))"
+        )
+
+      case _ =>
+        None
+    }
+  }
+
+  // ============================================================================
+  // Self Type Extraction (Scala 2)
+  // ============================================================================
+
+  private def extractSelfType(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
+    import c.universe._
+
+    if (!sym.isClass) {
+      return q"_root_.scala.None"
+    }
+
+    val classSym  = sym.asClass
+    val selfType  = classSym.selfType
+    val classType = classSym.toType
+
+    // No self-type annotation if selfType equals the class type
+    if (selfType =:= classType) {
+      return q"_root_.scala.None"
+    }
+
+    // In Scala 2, selfType for `trait Foo { self: Bar => }` is a refinement type
+    // representing `this.type with Bar`. We need to extract `Bar` by looking at
+    // the base types and filtering out the trait itself and standard types.
+    val baseTypes = selfType.baseType(classSym) match {
+      case NoType => selfType.baseClasses.map(selfType.baseType).filter(_ != NoType)
+      case _      => selfType.baseClasses.map(selfType.baseType).filter(_ != NoType)
+    }
+
+    // Filter out:
+    // 1. The class/trait itself
+    // 2. AnyRef and Any (not meaningful for self-type annotation)
+    val meaningfulBases = baseTypes.filter { tpe =>
+      val typeSym = tpe.typeSymbol
+      typeSym != classSym &&
+      typeSym.fullName != "scala.Any" &&
+      typeSym.fullName != "scala.AnyRef" &&
+      typeSym.fullName != "java.lang.Object"
+    }
+
+    if (meaningfulBases.isEmpty) {
+      q"_root_.scala.None"
+    } else if (meaningfulBases.size == 1) {
+      val selfTypeRepr = buildTypeReprFromType(c)(meaningfulBases.head)
+      q"_root_.scala.Some($selfTypeRepr)"
+    } else {
+      // Multiple base types -> create Intersection
+      val reprTrees = meaningfulBases.map(t => buildTypeReprFromType(c)(t))
+      val reprList  = reprTrees.foldRight(q"_root_.scala.Nil": c.Tree)((elem, acc) => q"$elem :: $acc")
+      q"_root_.scala.Some(_root_.zio.blocks.typeid.TypeRepr.Intersection($reprList))"
     }
   }
 }

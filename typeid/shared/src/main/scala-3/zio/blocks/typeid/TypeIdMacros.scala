@@ -137,12 +137,13 @@ object TypeIdMacros {
     tycon: quotes.reflect.TypeRepr,
     args: List[quotes.reflect.TypeRepr]
   ): Expr[TypeId[A]] = {
-    val tyconSym       = tycon.typeSymbol
-    val name           = tyconSym.name
-    val ownerExpr      = buildOwner(tyconSym.owner)
-    val typeParamsExpr = buildTypeParams(tyconSym)
-    val typeArgsExpr   = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
-    val defKindExpr    = buildDefKind(tyconSym)
+    val tyconSym        = tycon.typeSymbol
+    val name            = tyconSym.name
+    val ownerExpr       = buildOwner(tyconSym.owner)
+    val typeParamsExpr  = buildTypeParams(tyconSym)
+    val typeArgsExpr    = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
+    val defKindExpr     = buildDefKind(tyconSym)
+    val annotationsExpr = buildAnnotations(tyconSym)
 
     '{
       TypeId.nominal[A](
@@ -152,7 +153,7 @@ object TypeIdMacros {
         ${ Expr.ofList(typeArgsExpr) },
         $defKindExpr,
         None,
-        Nil
+        $annotationsExpr
       )
     }
   }
@@ -164,12 +165,12 @@ object TypeIdMacros {
     @annotation.unused args: List[quotes.reflect.TypeRepr]
   ): Expr[TypeId[A]] = {
 
-    val typeSymbol     = tr.typeSymbol
-    val name           = typeSymbol.name
-    val ownerExpr      = buildOwner(typeSymbol.owner)
-    val typeParamsExpr = buildTypeParams(typeSymbol)
+    val typeSymbol      = tr.typeSymbol
+    val name            = typeSymbol.name
+    val ownerExpr       = buildOwner(typeSymbol.owner)
+    val typeParamsExpr  = buildTypeParams(typeSymbol)
+    val annotationsExpr = buildAnnotations(typeSymbol)
 
-    // Get the aliased type (with args applied)
     val aliasedType = tr.translucentSuperType.dealias
     val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set.empty[String])
 
@@ -180,7 +181,7 @@ object TypeIdMacros {
         ${ typeParamsExpr },
         ${ aliasedExpr },
         Nil,
-        Nil
+        $annotationsExpr
       )
     }
   }
@@ -307,10 +308,11 @@ object TypeIdMacros {
     tr: quotes.reflect.TypeRef
   ): Expr[TypeId[A]] = {
 
-    val typeSymbol     = tr.typeSymbol
-    val name           = typeSymbol.name
-    val ownerExpr      = buildOwner(typeSymbol.owner)
-    val typeParamsExpr = buildTypeParams(typeSymbol)
+    val typeSymbol      = tr.typeSymbol
+    val name            = typeSymbol.name
+    val ownerExpr       = buildOwner(typeSymbol.owner)
+    val typeParamsExpr  = buildTypeParams(typeSymbol)
+    val annotationsExpr = buildAnnotations(typeSymbol)
 
     val aliasedType = tr.translucentSuperType.dealias
     val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set(typeSymbol.fullName))
@@ -322,7 +324,7 @@ object TypeIdMacros {
         ${ typeParamsExpr },
         ${ aliasedExpr },
         Nil,
-        Nil
+        $annotationsExpr
       )
     }
   }
@@ -358,7 +360,9 @@ object TypeIdMacros {
       (nm, resolvedOwnerExpr)
     }
 
-    val typeParamsExpr = buildTypeParams(typeSymbol)
+    val typeParamsExpr  = buildTypeParams(typeSymbol)
+    val annotationsExpr = buildAnnotations(if (isEnumValue) termSymbol else typeSymbol)
+    val selfTypeExpr    = extractSelfType(typeSymbol)
 
     val flags = typeSymbol.flags
 
@@ -380,7 +384,7 @@ object TypeIdMacros {
           ${ reprExpr },
           Nil,
           ${ publicBounds },
-          Nil
+          $annotationsExpr
         )
       }
     } else {
@@ -391,8 +395,8 @@ object TypeIdMacros {
           ${ typeParamsExpr },
           Nil,
           ${ defKindExpr },
-          None,
-          Nil
+          $selfTypeExpr,
+          $annotationsExpr
         )
       }
     }
@@ -1150,4 +1154,197 @@ object TypeIdMacros {
 
     '{ TypeDefKind.EnumCase($parentTypeRepr, ${ Expr(ordinal) }, ${ Expr(isObjectCase) }) }
   }
+
+  // ============================================================================
+  // Self Type Extraction
+  // ============================================================================
+
+  private def extractSelfType(using
+    Quotes
+  )(
+    sym: quotes.reflect.Symbol
+  ): Expr[Option[zio.blocks.typeid.TypeRepr]] = {
+    import quotes.reflect.*
+
+    if (!sym.isClassDef) return '{ None }
+
+    scala.util.Try(sym.tree).toOption match {
+      case Some(classDef: ClassDef) =>
+        classDef.self match {
+          case Some(selfDef) =>
+            val selfTpt = selfDef.tpt
+            if (selfTpt.tpe =:= sym.typeRef || selfTpt.tpe.typeSymbol == sym) {
+              '{ None }
+            } else {
+              val selfTypeReprExpr = buildTypeReprFromTypeRepr(selfTpt.tpe, Set.empty[String])
+              '{ Some($selfTypeReprExpr) }
+            }
+          case None => '{ None }
+        }
+      case _ => '{ None }
+    }
+  }
+
+  // ============================================================================
+  // Annotation Extraction
+  // ============================================================================
+
+  private def buildAnnotations(using
+    Quotes
+  )(
+    sym: quotes.reflect.Symbol
+  ): Expr[List[Annotation]] = {
+    val annotations = sym.annotations.filterNot { annot =>
+      // Filter out internal/compiler annotations that aren't useful at runtime
+      val annotSym = annot.tpe.typeSymbol
+      val fullName = annotSym.fullName
+      fullName.startsWith("scala.annotation.internal.") ||
+      fullName.startsWith("scala.annotation.unchecked.") ||
+      fullName == "scala.annotation.nowarn" ||
+      fullName == "scala.annotation.targetName"
+    }
+
+    val annotExprs = annotations.flatMap { annot =>
+      buildAnnotation(annot)
+    }
+
+    Expr.ofList(annotExprs)
+  }
+
+  /**
+   * Builds an Annotation expression from a compile-time annotation Term.
+   */
+  private def buildAnnotation(using
+    Quotes
+  )(
+    annot: quotes.reflect.Term
+  ): Option[Expr[Annotation]] = {
+    import quotes.reflect.*
+
+    val annotTpe = annot.tpe
+    val annotSym = annotTpe.typeSymbol
+
+    // Skip if we can't determine the annotation type
+    if (annotSym.isNoSymbol) return None
+
+    // Build TypeId for the annotation class
+    val annotName                        = annotSym.name
+    val annotOwnerExpr                   = buildOwner(annotSym.owner)
+    val annotTypeIdExpr: Expr[TypeId[?]] = '{
+      TypeId.nominal[Any](
+        ${ Expr(annotName) },
+        $annotOwnerExpr,
+        Nil,
+        Nil,
+        TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+      )
+    }
+
+    // Extract annotation arguments
+    val argsExpr = annot match {
+      case Apply(_, args) =>
+        val argExprs = args.flatMap(arg => buildAnnotationArg(arg))
+        Expr.ofList(argExprs)
+      case _ =>
+        '{ Nil }
+    }
+
+    Some('{ Annotation($annotTypeIdExpr, $argsExpr) })
+  }
+
+  /**
+   * Converts an annotation argument Term to an AnnotationArg expression.
+   */
+  private def buildAnnotationArg(using
+    Quotes
+  )(
+    arg: quotes.reflect.Term
+  ): Option[Expr[AnnotationArg]] = {
+    import quotes.reflect.*
+
+    arg match {
+      // Literal constant values
+      case Literal(const) =>
+        val constExpr = buildAnnotationConstant(const)
+        constExpr.map(c => '{ AnnotationArg.Const($c) })
+
+      // Named argument: name = value
+      case NamedArg(name, value) =>
+        buildAnnotationArg(value).map { valueExpr =>
+          '{ AnnotationArg.Named(${ Expr(name) }, $valueExpr) }
+        }
+
+      // Typed wrapper - extract the underlying expression
+      case Typed(expr, _) =>
+        buildAnnotationArg(expr)
+
+      // Array of values
+      case Apply(TypeApply(Select(Ident("Array"), "apply"), _), List(Typed(Repeated(elems, _), _))) =>
+        val elemExprs = elems.flatMap(e => buildAnnotationArg(e))
+        Some('{ AnnotationArg.ArrayArg(${ Expr.ofList(elemExprs) }) })
+
+      // Seq/List of values (varargs)
+      case Repeated(elems, _) =>
+        val elemExprs = elems.flatMap(e => buildAnnotationArg(e))
+        Some('{ AnnotationArg.ArrayArg(${ Expr.ofList(elemExprs) }) })
+
+      // classOf[T] reference
+      case TypeApply(Select(Ident("Predef"), "classOf"), List(tpt)) =>
+        val typeReprExpr = buildTypeReprFromTypeRepr(tpt.tpe, Set.empty[String])
+        Some('{ AnnotationArg.ClassOf($typeReprExpr) })
+
+      // Enum value reference (e.g., RetentionPolicy.RUNTIME)
+      case Select(qualifier, name) if arg.tpe.typeSymbol.flags.is(Flags.Enum) =>
+        val enumTypeSym                     = qualifier.tpe.typeSymbol
+        val enumOwnerExpr                   = buildOwner(enumTypeSym.owner)
+        val enumTypeIdExpr: Expr[TypeId[?]] = '{
+          TypeId.nominal[Any](${ Expr(enumTypeSym.name) }, $enumOwnerExpr, Nil)
+        }
+        Some('{ AnnotationArg.EnumValue($enumTypeIdExpr, ${ Expr(name) }) })
+
+      // Nested annotation
+      case Apply(Select(New(tpt), _), nestedArgs) =>
+        val nestedAnnotSym                    = tpt.tpe.typeSymbol
+        val nestedOwnerExpr                   = buildOwner(nestedAnnotSym.owner)
+        val nestedTypeIdExpr: Expr[TypeId[?]] = '{
+          TypeId.nominal[Any](${ Expr(nestedAnnotSym.name) }, $nestedOwnerExpr, Nil)
+        }
+        val nestedArgsExpr = Expr.ofList(nestedArgs.flatMap(a => buildAnnotationArg(a)))
+        Some('{ AnnotationArg.Nested(Annotation($nestedTypeIdExpr, $nestedArgsExpr)) })
+
+      // String interpolation or other expressions - try to evaluate as constant
+      case _ =>
+        // Try to extract as a constant if possible
+        arg.tpe.widenTermRefByName match {
+          case ConstantType(const) =>
+            buildAnnotationConstant(const).map(c => '{ AnnotationArg.Const($c) })
+          case _ =>
+            // Fallback: represent unknown args as string representation
+            None
+        }
+    }
+  }
+
+  /**
+   * Converts a compile-time Constant to a runtime Any expression.
+   */
+  private def buildAnnotationConstant(using
+    Quotes
+  )(
+    const: quotes.reflect.Constant
+  ): Option[Expr[Any]] =
+    const.value match {
+      case s: String  => Some(Expr(s))
+      case i: Int     => Some(Expr(i))
+      case l: Long    => Some(Expr(l))
+      case f: Float   => Some(Expr(f))
+      case d: Double  => Some(Expr(d))
+      case b: Boolean => Some(Expr(b))
+      case c: Char    => Some(Expr(c))
+      case b: Byte    => Some(Expr(b))
+      case s: Short   => Some(Expr(s))
+      case null       => Some('{ null })
+      case ()         => Some('{ () })
+      case _          => None
+    }
 }
