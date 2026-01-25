@@ -3,7 +3,6 @@ package zio.blocks.schema
 import zio.blocks.schema.json._
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
-import scala.util.control.NonFatal
 
 package object json {
   implicit class JsonStringContext(val sc: StringContext) extends AnyVal {
@@ -24,12 +23,9 @@ private object JsonInterpolatorMacros {
       case _ => c.abort(c.enclosingPosition, "Expected StringContext")
     }
 
-    // Validate JSON structure
-    try {
-      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), (2 to parts.size).map(_ => ""))
-    } catch {
-      case error if NonFatal(error) => c.abort(c.enclosingPosition, s"Invalid JSON literal: ${error.getMessage}")
-    }
+    // Note: We skip compile-time JSON validation on Native because the compiler
+    // cannot invoke the runtime JsonInterpolatorRuntime class during macro expansion.
+    // JSON structure validation will happen at runtime instead.
 
     // Analyze contexts and validate types at compile time
     if (args.nonEmpty) {

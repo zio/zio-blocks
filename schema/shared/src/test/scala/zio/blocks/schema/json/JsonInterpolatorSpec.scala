@@ -551,6 +551,80 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"""{"event": "Meeting on $date"}""".get("event").string == Right("Meeting on 2024-01-15")
         )
       },
+      test("interpolates more temporal types inside string literal") {
+        val time           = LocalTime.of(14, 30, 0)
+        val dateTime       = LocalDateTime.of(2024, 1, 15, 14, 30, 0)
+        val instant        = Instant.parse("2024-01-15T14:30:00Z")
+        val duration       = Duration.ofHours(2)
+        val period         = Period.ofDays(30)
+        val month          = Month.JANUARY
+        val dayOfWeek      = DayOfWeek.MONDAY
+        val monthDay       = MonthDay.of(1, 15)
+        val year           = Year.of(2024)
+        val yearMonth      = YearMonth.of(2024, 1)
+        val zoneId         = ZoneId.of("UTC")
+        val zoneOffset     = ZoneOffset.ofHours(2)
+        val offsetTime     = OffsetTime.of(14, 30, 0, 0, ZoneOffset.UTC)
+        val offsetDateTime = OffsetDateTime.of(2024, 1, 15, 14, 30, 0, 0, ZoneOffset.UTC)
+        val zonedDateTime  = ZonedDateTime.of(2024, 1, 15, 14, 30, 0, 0, ZoneId.of("UTC"))
+        assertTrue(
+          json"""{"t": "Time: $time"}""".get("t").string == Right("Time: 14:30"),
+          json"""{"dt": "DateTime: $dateTime"}""".get("dt").string == Right("DateTime: 2024-01-15T14:30"),
+          json"""{"i": "Instant: $instant"}""".get("i").string == Right("Instant: 2024-01-15T14:30:00Z"),
+          json"""{"d": "Duration: $duration"}""".get("d").string == Right("Duration: PT2H"),
+          json"""{"p": "Period: $period"}""".get("p").string == Right("Period: P30D"),
+          json"""{"m": "Month: $month"}""".get("m").string == Right("Month: JANUARY"),
+          json"""{"dow": "Day: $dayOfWeek"}""".get("dow").string == Right("Day: MONDAY"),
+          json"""{"md": "MonthDay: $monthDay"}""".get("md").string == Right("MonthDay: --01-15"),
+          json"""{"y": "Year: $year"}""".get("y").string == Right("Year: 2024"),
+          json"""{"ym": "YearMonth: $yearMonth"}""".get("ym").string == Right("YearMonth: 2024-01"),
+          json"""{"zi": "Zone: $zoneId"}""".get("zi").string == Right("Zone: UTC"),
+          json"""{"zo": "Offset: $zoneOffset"}""".get("zo").string == Right("Offset: +02:00"),
+          json"""{"ot": "OffsetTime: $offsetTime"}""".get("ot").string == Right("OffsetTime: 14:30Z"),
+          json"""{"odt": "OffsetDateTime: $offsetDateTime"}""".get("odt").string == Right(
+            "OffsetDateTime: 2024-01-15T14:30Z"
+          ),
+          json"""{"zdt": "ZonedDateTime: $zonedDateTime"}""".get("zdt").string == Right(
+            "ZonedDateTime: 2024-01-15T14:30Z[UTC]"
+          )
+        )
+      },
+      test("interpolates Byte inside string literal") {
+        val b: Byte = 42
+        assertTrue(
+          json"""{"msg": "Byte value: $b"}""".get("msg").string == Right("Byte value: 42")
+        )
+      },
+      test("interpolates Short inside string literal") {
+        val s: Short = 1000
+        assertTrue(
+          json"""{"msg": "Short value: $s"}""".get("msg").string == Right("Short value: 1000")
+        )
+      },
+      test("interpolates Long inside string literal") {
+        val l: Long = 9876543210L
+        assertTrue(
+          json"""{"msg": "Long value: $l"}""".get("msg").string == Right("Long value: 9876543210")
+        )
+      },
+      test("interpolates Float inside string literal") {
+        val f: Float = 3.14f
+        assertTrue(
+          json"""{"msg": "Float value: $f"}""".get("msg").string == Right("Float value: 3.14")
+        )
+      },
+      test("interpolates Double inside string literal") {
+        val d: Double = 2.71828
+        assertTrue(
+          json"""{"msg": "Double value: $d"}""".get("msg").string == Right("Double value: 2.71828")
+        )
+      },
+      test("interpolates Char inside string literal") {
+        val c: Char = 'X'
+        assertTrue(
+          json"""{"msg": "Char value: $c"}""".get("msg").string == Right("Char value: X")
+        )
+      },
       test("escapes special characters in string literal interpolation") {
         val text = "line1\nline2\ttabbed"
         assertTrue(
@@ -611,6 +685,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val amount = BigDecimal("123.456")
         assertTrue(
           json"""{"price": "Cost: $amount USD"}""".get("price").string == Right("Cost: 123.456 USD")
+        )
+      },
+      test("interpolates BigInt inside string literal") {
+        val big = BigInt("123456789012345678901234567890")
+        assertTrue(
+          json"""{"msg": "Big number: $big"}""".get("msg").string == Right("Big number: 123456789012345678901234567890")
         )
       },
       test("interpolates Currency inside string literal") {
