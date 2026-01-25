@@ -79,6 +79,61 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def isOpaque(tpe: TypeRepr): Boolean = tpe.typeSymbol.flags.is(Flags.Opaque)
 
+  // === Structural Type Support (JVM only) ===
+
+  private def isStructuralType(tpe: TypeRepr): Boolean = tpe.dealias match {
+    case Refinement(_, _, _) => true
+    // Empty structural type {} dealiases to java.lang.Object
+    case t if t =:= TypeRepr.of[AnyRef] => true
+    case _                              => false
+  }
+
+  private def getStructuralMembers(tpe: TypeRepr): List[(String, TypeRepr)] = {
+    def collectMembers(t: TypeRepr): List[(String, TypeRepr)] = t match {
+      case Refinement(parent, name, info) =>
+        val memberType = info match {
+          case MethodType(_, _, returnType) => returnType
+          case ByNameType(underlying)       => underlying
+          case other                        => other
+        }
+        (name, memberType) :: collectMembers(parent)
+      case _ => Nil
+    }
+    collectMembers(tpe.dealias).reverse
+  }
+
+  private def normalizeStructuralTypeName[T](members: List[(String, TypeRepr)]): TypeName[T] = {
+    // Sort fields alphabetically for deterministic naming
+    val sorted     = members.sortBy(_._1)
+    val nameString = sorted.map { case (name, tpe) =>
+      s"$name:${normalizeTypeForName(tpe)}"
+    }.mkString("{", ",", "}")
+    new TypeName[T](new Namespace(Nil, Nil), nameString, Nil)
+  }
+
+  private def normalizeTypeForName(tpe: TypeRepr): String = {
+    val dealiased = tpe.dealias
+    if (dealiased =:= intTpe) "Int"
+    else if (dealiased =:= longTpe) "Long"
+    else if (dealiased =:= floatTpe) "Float"
+    else if (dealiased =:= doubleTpe) "Double"
+    else if (dealiased =:= booleanTpe) "Boolean"
+    else if (dealiased =:= byteTpe) "Byte"
+    else if (dealiased =:= charTpe) "Char"
+    else if (dealiased =:= shortTpe) "Short"
+    else if (dealiased =:= stringTpe) "String"
+    else if (dealiased =:= unitTpe) "Unit"
+    else if (isStructuralType(dealiased)) {
+      val members = getStructuralMembers(dealiased)
+      val sorted  = members.sortBy(_._1)
+      sorted.map { case (name, t) => s"$name:${normalizeTypeForName(t)}" }.mkString("{", ",", "}")
+    } else {
+      val typeArgs = CommonMacroOps.typeArgs(dealiased)
+      if (typeArgs.isEmpty) dealiased.typeSymbol.name
+      else s"${dealiased.typeSymbol.name}[${typeArgs.map(normalizeTypeForName).mkString(",")}]"
+    }
+  }
+
   private def opaqueDealias(tpe: TypeRepr): TypeRepr = {
     @tailrec
     def loop(tpe: TypeRepr): TypeRepr = tpe match {
@@ -156,7 +211,10 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private def normalizeGenericTuple(tpe: TypeRepr): TypeRepr =
     CommonMacroOps.normalizeGenericTuple(genericTupleTypeArgs(tpe))
 
-  private def isNamedTuple(tpe: TypeRepr): Boolean = CommonMacroOps.isNamedTuple(tpe)
+  private def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
+    case AppliedType(ntTpe, _) => ntTpe.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple"
+    case _                     => false
+  }
 
   private def isJavaTime(tpe: TypeRepr): Boolean = tpe.typeSymbol.fullName.startsWith("java.time.") &&
     (tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount])
@@ -210,9 +268,84 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private val typeNameCache = new mutable.HashMap[TypeRepr, TypeName[?]]
 
-  private def typeName[T: Type](tpe: TypeRepr): TypeName[T] = CommonMacroOps.typeName(typeNameCache, tpe)
+  private def typeName[T: Type](tpe: TypeRepr, nestedTpes: List[TypeRepr] = Nil): TypeName[T] = {
+    def calculateTypeName(tpe: TypeRepr): TypeName[?] =
+      if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string
+      else {
+        var packages: List[String] = Nil
+        var values: List[String]   = Nil
+        var name: String           = null
+        val isUnionTpe             = isUnion(tpe)
+        if (isUnionTpe) name = "|"
+        else {
+          val tpeTypeSymbol = tpe.typeSymbol
+          name = tpeTypeSymbol.name
+          if (isEnumValue(tpe)) {
+            values = name :: values
+            name = tpe.termSymbol.name
+          } else if (tpeTypeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
+          var owner = tpeTypeSymbol.owner
+          while (owner != defn.RootClass) {
+            val ownerName = owner.name
+            if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
+            else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
+            else values = ownerName :: values
+            owner = owner.owner
+          }
+        }
+        val tpeTypeArgs =
+          if (isUnionTpe) allUnionTypes(tpe)
+          else if (isNamedTuple(tpe)) {
+            val tpeTypeArgs = typeArgs(tpe)
+            val nTpe        = tpeTypeArgs.head
+            val tTpe        = tpeTypeArgs.last
+            val nTypeArgs   =
+              if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
+              else typeArgs(nTpe)
+            var comma  = false
+            val labels = new java.lang.StringBuilder(name)
+            labels.append('[')
+            nTypeArgs.foreach { case ConstantType(StringConstant(str)) =>
+              if (comma) labels.append(',')
+              else comma = true
+              labels.append(str)
+            }
+            labels.append(']')
+            name = labels.toString
+            if (isGenericTuple(tTpe)) genericTupleTypeArgs(tTpe)
+            else typeArgs(tTpe)
+          } else if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe)
+          else typeArgs(tpe)
+        new TypeName(
+          new Namespace(packages, values),
+          name,
+          tpeTypeArgs.map { x =>
+            if (nestedTpes.contains(x)) typeName[Any](anyTpe)
+            else typeName(x, x :: nestedTpes)
+          }
+        )
+      }
 
-  private def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = CommonMacroOps.toExpr(tpeName)
+    typeNameCache
+      .getOrElseUpdate(
+        tpe,
+        calculateTypeName(tpe match {
+          case TypeRef(compTpe, "Type") => compTpe
+          case _                        => tpe
+        })
+      )
+      .asInstanceOf[TypeName[T]]
+  }
+
+  private def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = {
+    val packages = Varargs(tpeName.namespace.packages.map(Expr(_)))
+    val vs       = tpeName.namespace.values
+    val values   = if (vs.isEmpty) '{ Nil } else Varargs(vs.map(Expr(_)))
+    val name     = Expr(tpeName.name)
+    val ps       = tpeName.params
+    val params   = if (ps.isEmpty) '{ Nil } else Varargs(ps.map(param => toExpr(param.asInstanceOf[TypeName[T]])))
+    '{ new TypeName[T](new Namespace($packages, $values), $name, $params) }
+  }
 
   private def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
     if (isEnumValue(tpe)) tpe.termSymbol
@@ -889,6 +1022,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             )
           }
       }
+    } else if (isStructuralType(tpe)) {
+      deriveSchemaForStructuralType(tpe)
     } else if (isNonAbstractScalaClass(tpe)) {
       deriveSchemaForNonAbstractScalaClass(tpe)
     } else if (isOpaque(tpe)) {
@@ -1094,6 +1229,203 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       idx += 1
     }
     str.toString
+  }
+
+  // === Structural Type Schema Derivation (JVM only) ===
+
+  private class StructuralFieldInfo(
+    val name: String,
+    val tpe: TypeRepr,
+    val usedRegisters: RegisterOffset
+  )
+
+  // NOTE: Empty structural types like `type Empty = {}` dealias to java.lang.Object.
+  // We now treat AnyRef as an empty structural type, which allows Schema.derived[{}] to work.
+
+  private def deriveSchemaForStructuralType[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
+    // Pure structural types require runtime reflection (JVM only)
+    if (!Platform.supportsReflection) {
+      fail(
+        s"""Cannot derive Schema for structural type '${tpe.show}' on ${Platform.name}.
+           |
+           |Structural types require reflection which is only available on JVM.
+           |
+           |Consider using a case class instead.""".stripMargin
+      )
+    }
+
+    val members = getStructuralMembers(tpe)
+
+    // Handle empty structural type (no members)
+    if (members.isEmpty) {
+      val tpeName = toExpr(normalizeStructuralTypeName[T](members))
+      '{
+        new Schema(
+          reflect = new Reflect.Record[Binding, T](
+            fields = Vector.empty,
+            typeName = $tpeName,
+            recordBinding = new Binding.Record(
+              constructor = new Constructor {
+                def usedRegisters: RegisterOffset                           = RegisterOffset.Zero
+                def construct(in: Registers, baseOffset: RegisterOffset): T = {
+                  val emptyInstance = new Object {}
+                  emptyInstance.asInstanceOf[T]
+                }
+              },
+              deconstructor = new Deconstructor {
+                def usedRegisters: RegisterOffset                                        = RegisterOffset.Zero
+                def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ()
+              }
+            )
+          )
+        )
+      }
+    } else {
+      // Non-empty structural type - use reflection (JVM only)
+      deriveSchemaForPureStructuralType[T](tpe, members)
+    }
+  }
+
+  @scala.annotation.nowarn("msg=unused explicit parameter")
+  private def deriveSchemaForPureStructuralType[T: Type](tpe: TypeRepr, members: List[(String, TypeRepr)])(using
+    Quotes
+  ): Expr[Schema[T]] = {
+
+    var currentOffset                                           = RegisterOffset.Zero
+    val fieldInfos: List[(StructuralFieldInfo, RegisterOffset)] = members.map { case (name, memberTpe) =>
+      val offset     = structuralFieldOffset(memberTpe)
+      val baseOffset = currentOffset
+      currentOffset = currentOffset + offset
+      (new StructuralFieldInfo(name, memberTpe, offset), baseOffset)
+    }
+
+    val totalRegisters     = currentOffset
+    val totalRegistersExpr = '{
+      RegisterOffset(
+        objects = ${ Expr(RegisterOffset.getObjects(totalRegisters)) },
+        bytes = ${ Expr(RegisterOffset.getBytes(totalRegisters)) }
+      )
+    }
+
+    val fieldTerms = Varargs(fieldInfos.map { case (fi, _) =>
+      fi.tpe.asType match {
+        case '[ft] =>
+          val fieldName   = Expr(fi.name)
+          val fieldSchema = findImplicitOrDeriveSchema[ft](fi.tpe)
+          '{ $fieldSchema.reflect.asTerm[T]($fieldName).asInstanceOf[SchemaTerm[Binding, T, ?]] }
+      }
+    })
+
+    val tpeName = toExpr(normalizeStructuralTypeName[T](members))
+
+    val fieldInfoForRuntime: List[(String, Int, Int, Int)] = fieldInfos.map { case (fi, baseOffset) =>
+      val typeIndicator =
+        if (fi.tpe.dealias <:< intTpe) 1
+        else if (fi.tpe.dealias <:< longTpe) 2
+        else if (fi.tpe.dealias <:< floatTpe) 3
+        else if (fi.tpe.dealias <:< doubleTpe) 4
+        else if (fi.tpe.dealias <:< booleanTpe) 5
+        else if (fi.tpe.dealias <:< byteTpe) 6
+        else if (fi.tpe.dealias <:< charTpe) 7
+        else if (fi.tpe.dealias <:< shortTpe) 8
+        else 0 // object
+      (fi.name, typeIndicator, RegisterOffset.getBytes(baseOffset), RegisterOffset.getObjects(baseOffset))
+    }
+
+    val fieldNamesExpr   = Expr(fieldInfoForRuntime.map(_._1).toArray)
+    val fieldTypesExpr   = Expr(fieldInfoForRuntime.map(_._2).toArray)
+    val fieldBytesExpr   = Expr(fieldInfoForRuntime.map(_._3).toArray)
+    val fieldObjectsExpr = Expr(fieldInfoForRuntime.map(_._4).toArray)
+
+    '{
+      val _fieldNames: Array[String] = $fieldNamesExpr
+      val _fieldTypes: Array[Int]    = $fieldTypesExpr
+      val _fieldBytes: Array[Int]    = $fieldBytesExpr
+      val _fieldObjects: Array[Int]  = $fieldObjectsExpr
+
+      new Schema(
+        reflect = new Reflect.Record[Binding, T](
+          fields = Vector($fieldTerms*),
+          typeName = $tpeName,
+          recordBinding = new Binding.Record(
+            constructor = new Constructor {
+              def usedRegisters: RegisterOffset = $totalRegistersExpr
+
+              def construct(in: Registers, baseOffset: RegisterOffset): T = {
+                // Build a Map from registers and create a Selectable
+                val values = new scala.collection.mutable.HashMap[String, Any]()
+                var idx    = 0
+                val len    = _fieldNames.length
+                while (idx < len) {
+                  val fieldOffset = RegisterOffset(objects = _fieldObjects(idx), bytes = _fieldBytes(idx))
+                  val value: Any  = _fieldTypes(idx) match {
+                    case 1 => in.getInt(baseOffset + fieldOffset)
+                    case 2 => in.getLong(baseOffset + fieldOffset)
+                    case 3 => in.getFloat(baseOffset + fieldOffset)
+                    case 4 => in.getDouble(baseOffset + fieldOffset)
+                    case 5 => in.getBoolean(baseOffset + fieldOffset)
+                    case 6 => in.getByte(baseOffset + fieldOffset)
+                    case 7 => in.getChar(baseOffset + fieldOffset)
+                    case 8 => in.getShort(baseOffset + fieldOffset)
+                    case _ => in.getObject(baseOffset + fieldOffset)
+                  }
+                  values.put(_fieldNames(idx), value)
+                  idx += 1
+                }
+                (new scala.Selectable {
+                  private val fields = values.toMap
+                  @scala.annotation.nowarn("msg=unused private member")
+                  def selectDynamic(name: String): Any = fields(name)
+                }).asInstanceOf[T]
+              }
+            },
+            deconstructor = new Deconstructor {
+              def usedRegisters: RegisterOffset = $totalRegistersExpr
+
+              def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = {
+                // Extract values from structural type using reflection
+                var idx = 0
+                val len = _fieldNames.length
+                while (idx < len) {
+                  val method      = in.getClass.getMethod(_fieldNames(idx))
+                  val value       = method.invoke(in)
+                  val fieldOffset = RegisterOffset(objects = _fieldObjects(idx), bytes = _fieldBytes(idx))
+                  _fieldTypes(idx) match {
+                    case 1 => out.setInt(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Integer].intValue)
+                    case 2 => out.setLong(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Long].longValue)
+                    case 3 => out.setFloat(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Float].floatValue)
+                    case 4 =>
+                      out.setDouble(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Double].doubleValue)
+                    case 5 =>
+                      out.setBoolean(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Boolean].booleanValue)
+                    case 6 => out.setByte(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Byte].byteValue)
+                    case 7 =>
+                      out.setChar(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Character].charValue)
+                    case 8 => out.setShort(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Short].shortValue)
+                    case _ => out.setObject(baseOffset + fieldOffset, value.asInstanceOf[AnyRef])
+                  }
+                  idx += 1
+                }
+              }
+            }
+          )
+        )
+      )
+    }
+  }
+
+  private def structuralFieldOffset(tpe: TypeRepr): RegisterOffset = {
+    val dealiased = tpe.dealias
+    if (dealiased <:< intTpe) RegisterOffset(ints = 1)
+    else if (dealiased <:< floatTpe) RegisterOffset(floats = 1)
+    else if (dealiased <:< longTpe) RegisterOffset(longs = 1)
+    else if (dealiased <:< doubleTpe) RegisterOffset(doubles = 1)
+    else if (dealiased <:< booleanTpe) RegisterOffset(booleans = 1)
+    else if (dealiased <:< byteTpe) RegisterOffset(bytes = 1)
+    else if (dealiased <:< charTpe) RegisterOffset(chars = 1)
+    else if (dealiased <:< shortTpe) RegisterOffset(shorts = 1)
+    else if (dealiased <:< unitTpe) RegisterOffset.Zero
+    else RegisterOffset(objects = 1)
   }
 
   private def cannotDeriveSchema(tpe: TypeRepr): Nothing = fail(s"Cannot derive schema for '${tpe.show}'.")

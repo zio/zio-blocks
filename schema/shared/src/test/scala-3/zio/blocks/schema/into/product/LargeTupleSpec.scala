@@ -1,5 +1,7 @@
 package zio.blocks.schema.into.product
 
+import scala.annotation.nowarn
+
 import zio.blocks.schema._
 import zio.test._
 
@@ -255,8 +257,7 @@ object LargeTupleSpec extends ZIOSpecDefault {
     suite("Nested Large Tuples")(
       test("converts case class with nested large tuple field") {
         case class Outer(name: String, data: MixedTuple30)
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class OuterB(name: String, data: Mixed30)
+        @nowarn("msg=unused") case class OuterB(name: String, data: Mixed30)
 
         given Into[MixedTuple30, Mixed30] = Into.derived[MixedTuple30, Mixed30]
 

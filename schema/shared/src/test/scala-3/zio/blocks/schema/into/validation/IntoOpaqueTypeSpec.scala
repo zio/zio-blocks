@@ -1,5 +1,7 @@
 package zio.blocks.schema.into.validation
 
+import scala.annotation.nowarn
+
 import zio.blocks.schema.Into
 import zio.test.*
 
@@ -104,8 +106,7 @@ object IntoOpaqueTypeSpec extends ZIOSpecDefault {
     },
     test("opaque type in collection - error propagates from collection element") {
       case class AgeList(ages: List[Int])
-      @scala.annotation.nowarn("msg=unused local definition")
-      case class ValidatedAgeList(ages: List[SimpleAge])
+      @nowarn("msg=unused") case class ValidatedAgeList(ages: List[SimpleAge])
 
       val ageList = AgeList(List(30, 200, 40))
       val result  = Into.derived[AgeList, ValidatedAgeList].into(ageList)
@@ -120,8 +121,7 @@ object IntoOpaqueTypeSpec extends ZIOSpecDefault {
       case class CreateV1(name: String, age: Int) extends RequestV1
 
       sealed trait RequestV2
-      @scala.annotation.nowarn("msg=unused local definition")
-      case class CreateV2(name: String, age: SimpleAge) extends RequestV2
+      @nowarn("msg=unused") case class CreateV2(name: String, age: SimpleAge) extends RequestV2
 
       val request: RequestV1 = CreateV1("Alice", -5)
       val result             = Into.derived[RequestV1, RequestV2].into(request)

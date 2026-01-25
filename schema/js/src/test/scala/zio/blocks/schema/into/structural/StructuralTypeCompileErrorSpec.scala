@@ -5,12 +5,12 @@ import zio.test._
 /**
  * Tests for structural type conversions on Scala.js.
  *
- *   - Structural → Product: Requires reflection, fails at compile time on JS
+ *   - Structural types require reflection and fail at compile time on JS
  */
 object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
 
   def spec = suite("StructuralTypeCompileErrorSpec")(
-    suite("Structural to Product - Compile Error on JS")(
+    suite("Structural types - Compile Error on JS")(
       test("structural type to case class fails to compile") {
         typeCheck {
           """
@@ -24,8 +24,8 @@ object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            // Structural type conversions require reflection, not supported on JS
-            result.swap.exists(_.toLowerCase.contains("structural type conversions are not supported on js"))
+            // Structural types require reflection, not supported on JS
+            result.swap.exists(_.toLowerCase.contains("structural types require reflection"))
           )
         }
       },
@@ -42,7 +42,7 @@ object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.swap.exists(_.toLowerCase.contains("structural type conversions are not supported on js"))
+            result.swap.exists(_.toLowerCase.contains("structural types require reflection"))
           )
         }
       }
