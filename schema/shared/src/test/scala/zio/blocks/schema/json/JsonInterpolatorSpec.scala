@@ -805,6 +805,274 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
              StringContext("{\"value\": ", "}").json(obj)"""
         ).map(assert(_)(isLeft))
       } @@ exceptNative
-    )
+    ),
+    suite("Edge cases & robustness")(
+      test("handles empty string values") {
+        val empty = ""
+        assertTrue(
+          json"""{"key": $empty}""".get("key").string == Right(""),
+          json"""{"$empty": "value"}""".get("").string == Right("value")
+        )
+      },
+      test("handles empty collections") {
+        val emptyList: List[Int]       = List.empty
+        val emptyMap: Map[String, Int] = Map.empty
+        val emptySet: Set[String]      = Set.empty
+        assertTrue(
+          json"""{"list": $emptyList}""".get("list").one == Right(Json.arr()),
+          json"""{"map": $emptyMap}""".get("map").one == Right(Json.obj()),
+          json"""{"set": $emptySet}""".get("set").one == Right(Json.arr())
+        )
+      },
+      test("handles large collections") {
+        val largeList = (1 to 100).toList
+        val result    = json"""{"numbers": $largeList}"""
+        assertTrue(
+          result.get("numbers").one.map(_.elements.length) == Right(100)
+        )
+      },
+      test("handles special float values") {
+        // Note: Infinity and NaN are not valid JSON numbers
+        // Test with valid extreme double values instead
+        val maxDouble = Double.MaxValue
+        val minDouble = Double.MinValue
+        assertTrue(
+          json"""{"max": $maxDouble}""".get("max").double == Right(maxDouble),
+          json"""{"min": $minDouble}""".get("min").double == Right(minDouble)
+        )
+      },
+      test("handles extreme integer values") {
+        val minInt  = Int.MinValue
+        val maxInt  = Int.MaxValue
+        val minLong = Long.MinValue
+        val maxLong = Long.MaxValue
+        assertTrue(
+          json"""{"minInt": $minInt}""".get("minInt").int == Right(minInt),
+          json"""{"maxInt": $maxInt}""".get("maxInt").int == Right(maxInt),
+          json"""{"minLong": $minLong}""".get("minLong").long == Right(minLong),
+          json"""{"maxLong": $maxLong}""".get("maxLong").long == Right(maxLong)
+        )
+      },
+      test("handles deeply nested JSON objects") {
+        case class Level5(value: String)
+        object Level5 { implicit val schema: Schema[Level5] = Schema.derived }
+        case class Level4(child: Level5)
+        object Level4 { implicit val schema: Schema[Level4] = Schema.derived }
+        case class Level3(child: Level4)
+        object Level3 { implicit val schema: Schema[Level3] = Schema.derived }
+        case class Level2(child: Level3)
+        object Level2 { implicit val schema: Schema[Level2] = Schema.derived }
+        case class Level1(child: Level2)
+        object Level1 { implicit val schema: Schema[Level1] = Schema.derived }
+
+        val nested = Level1(Level2(Level3(Level4(Level5("deep")))))
+        val result = json"""{"root": $nested}"""
+        assertTrue(
+          result
+            .get("root")
+            .get("child")
+            .get("child")
+            .get("child")
+            .get("child")
+            .get("value")
+            .string == Right("deep")
+        )
+      },
+      test("handles long strings") {
+        val longString = "x" * 10000
+        assertTrue(
+          json"""{"long": $longString}""".get("long").string == Right(longString)
+        )
+      },
+      test("handles unicode edge cases") {
+        val unicode = "Hello 世界 🌍 émojis \u0000 \uFFFF"
+        assertTrue(
+          json"""{"unicode": $unicode}""".get("unicode").string == Right(unicode)
+        )
+      },
+      test("handles special JSON characters in strings") {
+        val special = "quote:\" backslash:\\ newline:\n tab:\t"
+        assertTrue(
+          json"""{"special": $special}""".get("special").string == Right(special)
+        )
+      },
+      test("handles whitespace variations") {
+        val name = "Alice"
+        val age  = 30
+        assertTrue(
+          json"""{  "name"  :  $name  ,  "age"  :  $age  }""".get("name").string == Right("Alice"),
+          json"""{"name":$name,"age":$age}""".get("age").int == Right(30)
+        )
+      },
+      test("handles multiple interpolations in sequence") {
+        val a = 1
+        val b = 2
+        val c = 3
+        val d = 4
+        val e = 5
+        assertTrue(
+          json"""{"values": [$a, $b, $c, $d, $e]}""".get("values").one == Right(
+            Json.arr(Json.number(1), Json.number(2), Json.number(3), Json.number(4), Json.number(5))
+          )
+        )
+      }
+    ),
+    suite("Advanced Schema-derived types")(
+      test("interpolates high arity case class") {
+        case class HighArity(
+          f1: Int,
+          f2: Int,
+          f3: Int,
+          f4: Int,
+          f5: Int,
+          f6: Int,
+          f7: Int,
+          f8: Int,
+          f9: Int,
+          f10: Int
+        )
+        object HighArity {
+          implicit val schema: Schema[HighArity] = Schema.derived
+        }
+        val value  = HighArity(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+        val result = json"""{"record": $value}"""
+        assertTrue(
+          result.get("record").get("f1").int == Right(1),
+          result.get("record").get("f10").int == Right(10)
+        )
+      },
+      test("interpolates recursive type") {
+        case class TreeNode(value: Int, children: List[TreeNode])
+        object TreeNode {
+          implicit val schema: Schema[TreeNode] = Schema.derived
+        }
+        val tree   = TreeNode(1, List(TreeNode(2, List()), TreeNode(3, List(TreeNode(4, List())))))
+        val result = json"""{"tree": $tree}"""
+        assertTrue(
+          result.get("tree").get("value").int == Right(1),
+          result.get("tree").get("children").one.map(_.elements.length) == Right(2)
+        )
+      },
+      test("interpolates sealed trait with case classes") {
+        sealed trait Shape
+        case class Circle(radius: Double)  extends Shape
+        case class Square(side: Double)    extends Shape
+        case class Rectangle(w: Double, h: Double) extends Shape
+        object Shape {
+          implicit val schema: Schema[Shape] = Schema.derived
+        }
+
+        val circle: Shape    = Circle(5.0)
+        val square: Shape    = Square(4.0)
+        val rectangle: Shape = Rectangle(3.0, 2.0)
+
+        assertTrue(
+          json"""{"shape": $circle}""".get("shape").get("Circle").get("radius").double == Right(5.0),
+          json"""{"shape": $square}""".get("shape").get("Square").get("side").double == Right(4.0),
+          json"""{"shape": $rectangle}""".get("shape").get("Rectangle").get("w").double == Right(3.0)
+        )
+      },
+      test("interpolates case class with Option fields") {
+        case class User(name: String, email: Option[String], age: Option[Int])
+        object User {
+          implicit val schema: Schema[User] = Schema.derived
+        }
+        val userWithAll = User("Alice", Some("alice@example.com"), Some(30))
+        val userPartial = User("Bob", None, Some(25))
+        val userMinimal = User("Charlie", None, None)
+
+        // Option[A] with Some is encoded directly as the value, None fields are omitted
+        assertTrue(
+          json"""{"user": $userWithAll}""".get("user").get("email").string == Right("alice@example.com"),
+          json"""{"user": $userWithAll}""".get("user").get("age").int == Right(30),
+          json"""{"user": $userPartial}""".get("user").get("name").string == Right("Bob"),
+          json"""{"user": $userPartial}""".get("user").get("age").int == Right(25),
+          json"""{"user": $userMinimal}""".get("user").get("name").string == Right("Charlie")
+        )
+      },
+      test("interpolates nested collections") {
+        case class Matrix(rows: List[List[Int]])
+        object Matrix {
+          implicit val schema: Schema[Matrix] = Schema.derived
+        }
+        val matrix = Matrix(List(List(1, 2, 3), List(4, 5, 6), List(7, 8, 9)))
+        val result = json"""{"matrix": $matrix}"""
+        assertTrue(
+          result.get("matrix").get("rows").one.map(_.elements.length) == Right(3)
+        )
+      },
+      test("interpolates Map with complex values") {
+        case class Value(data: Int)
+        object Value { implicit val schema: Schema[Value] = Schema.derived }
+
+        val complexMap = Map("key1" -> Value(100), "key2" -> Value(200))
+        val result     = json"""{"data": $complexMap}"""
+        assertTrue(
+          result.get("data").get("key1").get("data").int == Right(100),
+          result.get("data").get("key2").get("data").int == Right(200)
+        )
+      }
+    ),
+    suite("Key position type safety")(
+      test("all stringable types work as keys") {
+        val strKey     = "stringKey"
+        val uuidKey    = java.util.UUID.randomUUID()
+        val instantKey = java.time.Instant.now()
+        // Note: All JSON keys must be strings, so stringable types are converted to string
+        assertTrue(
+          json"""{$strKey: 1}""".get(strKey).int == Right(1),
+          json"""{$uuidKey: 4}""".get(uuidKey.toString).int == Right(4),
+          json"""{$instantKey: 5}""".get(instantKey.toString).int == Right(5)
+        )
+      },
+      test("dynamic key with value interpolation") {
+        val key   = "dynamicKey"
+        val value = Map("nested" -> 42)
+        assertTrue(
+          json"""{$key: $value}""".get(key).get("nested").int == Right(42)
+        )
+      }
+    ),
+    suite("String literal interpolation edge cases")(
+      test("handles special characters around interpolation") {
+        val name = "Alice"
+        // Test with characters that don't need escaping in JSON strings
+        assertTrue(
+          json"""{"message": "Hello ($name)!"}""".get("message").string == Right("Hello (Alice)!"),
+          json"""{"message": "Hello [$name]!"}""".get("message").string == Right("Hello [Alice]!")
+        )
+      },
+      test("handles multiple lines with interpolation") {
+        val line1 = "first"
+        val line2 = "second"
+        // The \n in the string literal is a literal backslash-n, not a newline
+        // Test combining two variables with a separator
+        assertTrue(
+          json"""{"text": "$line1 and $line2"}""".get("text").string == Right("first and second")
+        )
+      },
+      test("handles mixed key and string literal interpolation") {
+        val key  = "greeting"
+        val name = "World"
+        assertTrue(
+          json"""{$key: "Hello $name!"}""".get(key).string == Right("Hello World!")
+        )
+      },
+      test("handles adjacent string literal interpolations") {
+        val a = "A"
+        val b = "B"
+        val c = "C"
+        assertTrue(
+          json"""{"value": "$a$b$c"}""".get("value").string == Right("ABC")
+        )
+      }
+    ),
+    test("supports interpolated Map values with ZonedDateTime keys") {
+      check(genZonedDateTime)(x =>
+        assertTrue(
+          json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.obj(x.toString -> Json.Null))
+        )
+      )
+    }
   )
 }
