@@ -137,6 +137,42 @@ object EnumToUnionSpec extends ZIOSpecDefault {
         )
       }
     ),
+    suite("Structural Conversion")(
+      test("simple enum converts to structural union type") {
+        val schema     = Schema.derived[Color]
+        val structural = schema.structural
+        val typeName   = structural.reflect.typeName.name
+        assertTrue(
+          typeName.contains("Blue") || typeName.contains("Red") || typeName.contains("Green"),
+          typeName.contains("|") || typeName.contains("Tag")
+        )
+      },
+      test("parameterized enum converts to structural union type") {
+        val schema     = Schema.derived[Shape]
+        val structural = schema.structural
+        val typeName   = structural.reflect.typeName.name
+        assertTrue(
+          typeName.contains("Circle") || typeName.contains("Rectangle") || typeName.contains("Triangle"),
+          typeName.contains("radius") || typeName.contains("width") || typeName.contains("base")
+        )
+      },
+      test("structural enum schema is still a Variant") {
+        val schema     = Schema.derived[Status]
+        val structural = schema.structural
+        val isVariant  = (structural.reflect: @unchecked) match {
+          case _: Reflect.Variant[_, _] => true
+        }
+        assertTrue(isVariant)
+      },
+      test("structural enum preserves case count") {
+        val schema     = Schema.derived[Status]
+        val structural = schema.structural
+        val caseCount  = (structural.reflect: @unchecked) match {
+          case v: Reflect.Variant[_, _] => v.cases.size
+        }
+        assertTrue(caseCount == 3)
+      }
+    ),
     suite("DynamicValue Structure")(
       test("simple enum produces Variant DynamicValue") {
         val schema       = Schema.derived[Color]

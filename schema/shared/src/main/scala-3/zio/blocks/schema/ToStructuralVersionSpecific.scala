@@ -108,18 +108,23 @@ private[schema] object ToStructuralMacro {
     import quotes.reflect.*
 
     val dealiased = tpe.dealias
-    val unpacked  = CommonMacroOps.dealiasOnDemand(dealiased)
 
-    if (unpacked != dealiased && !(unpacked =:= dealiased)) {
-      fullyUnpackType(unpacked)
-    } else {
-      dealiased match {
-        case AppliedType(tycon, args) if args.nonEmpty =>
-          val unpackedArgs = args.map(fullyUnpackType)
-          if (unpackedArgs != args) tycon.appliedTo(unpackedArgs)
-          else dealiased
-        case _ => dealiased
-      }
+    dealiased match {
+      case trTpe: TypeRef if trTpe.isOpaqueAlias =>
+        fullyUnpackType(trTpe.translucentSuperType.dealias)
+      case _ =>
+        val unpacked = CommonMacroOps.dealiasOnDemand(dealiased)
+        if (unpacked != dealiased && !(unpacked =:= dealiased)) {
+          fullyUnpackType(unpacked)
+        } else {
+          dealiased match {
+            case AppliedType(tycon, args) if args.nonEmpty =>
+              val unpackedArgs = args.map(fullyUnpackType)
+              if (unpackedArgs != args) tycon.appliedTo(unpackedArgs)
+              else dealiased
+            case _ => dealiased
+          }
+        }
     }
   }
 
