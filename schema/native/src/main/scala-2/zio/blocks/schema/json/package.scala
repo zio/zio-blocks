@@ -81,8 +81,12 @@ private object JsonInterpolatorMacros {
 
     val ctxTrees: List[Tree] = contexts.toList.map(b => Literal(Constant(b.toInt.toByte)))
     val ctxArrayTree         = q"Array[Byte](..$ctxTrees)"
-    val argsExpr             = c.Expr[Seq[JsonInterpolatorRuntime.Arg]](q"Seq[_root_.zio.blocks.schema.json.JsonInterpolatorRuntime.Arg](..$wrappedArgTrees)")
-    c.Expr[Json](q"_root_.zio.blocks.schema.json.JsonInterpolatorRuntime.jsonWithInterpolation($scExpr, $argsExpr, $ctxArrayTree)")
+    val argsExpr             = c.Expr[Seq[JsonInterpolatorRuntime.Arg]](
+      q"Seq[_root_.zio.blocks.schema.json.JsonInterpolatorRuntime.Arg](..$wrappedArgTrees)"
+    )
+    c.Expr[Json](
+      q"_root_.zio.blocks.schema.json.JsonInterpolatorRuntime.jsonWithInterpolation($scExpr, $argsExpr, $ctxArrayTree)"
+    )
   }
 
   private def computeHoleContexts(parts: List[String]): Array[Byte] = {

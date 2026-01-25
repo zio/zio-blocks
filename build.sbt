@@ -40,7 +40,6 @@ addCommandAlias(
   "schemaNative/test; chunkNative/test; streamsNative/test; schema-toonNative/test; schema-messagepackNative/test"
 )
 
-
 lazy val root = project
   .in(file("."))
   .settings(
