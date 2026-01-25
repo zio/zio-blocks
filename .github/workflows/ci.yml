@@ -114,7 +114,7 @@ jobs:
         platform: ['Native']
         scala: ['2.13.x', '3.x']
     env:
-      SCALANATIVE_THREAD_STACK_SIZE: 64m
+      SCALANATIVE_THREAD_STACK_SIZE: 128m
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.1
