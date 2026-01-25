@@ -13,7 +13,7 @@ object JsonSpec extends SchemaBaseSpec {
           assert(Json.Object.empty.is(JsonType.Object))(equalTo(true)) &&
           assert(Json.Array.empty.is(JsonType.Array))(equalTo(true)) &&
           assert(Json.String("test").is(JsonType.String))(equalTo(true)) &&
-          assert(Json.Number("42").is(JsonType.Number))(equalTo(true)) &&
+          assert(Json.Number(42).is(JsonType.Number))(equalTo(true)) &&
           assert(Json.Boolean(true).is(JsonType.Boolean))(equalTo(true)) &&
           assert(Json.Null.is(JsonType.Null))(equalTo(true))
         },
@@ -26,10 +26,10 @@ object JsonSpec extends SchemaBaseSpec {
           assert(obj.is(JsonType.Null))(equalTo(false))
         },
         test("as returns Some when type matches") {
-          val obj: Json                 = Json.Object("a" -> Json.Number("1"))
-          val arr: Json                 = Json.Array(Json.Number("1"))
+          val obj: Json                 = Json.Object("a" -> Json.Number(1))
+          val arr: Json                 = Json.Array(Json.Number(1))
           val str: Json                 = Json.String("hello")
-          val num: Json                 = Json.Number("42")
+          val num: Json                 = Json.Number(42)
           val bool: Json                = Json.Boolean(true)
           val nul: Json                 = Json.Null
           val objResult                 = obj.as(JsonType.Object)
@@ -60,10 +60,10 @@ object JsonSpec extends SchemaBaseSpec {
           assert(obj.as(JsonType.Null).isEmpty)(equalTo(true))
         },
         test("unwrap returns Some with correct inner value when type matches") {
-          val obj: Json                        = Json.Object("a" -> Json.Number("1"))
-          val arr: Json                        = Json.Array(Json.Number("1"), Json.Number("2"))
+          val obj: Json                        = Json.Object("a" -> Json.Number(1))
+          val arr: Json                        = Json.Array(Json.Number(1), Json.Number(2))
           val str: Json                        = Json.String("hello")
-          val num: Json                        = Json.Number("42")
+          val num: Json                        = Json.Number(42)
           val bool: Json                       = Json.Boolean(true)
           val nul: Json                        = Json.Null
           val objUnwrap                        = obj.unwrap(JsonType.Object)
@@ -78,8 +78,8 @@ object JsonSpec extends SchemaBaseSpec {
           val _: Option[BigDecimal]            = numUnwrap
           val _: Option[Boolean]               = boolUnwrap
           val _: Option[Unit]                  = nullUnwrap
-          assert(objUnwrap)(equalTo(Some(Chunk(("a", Json.Number("1")))))) &&
-          assert(arrUnwrap)(equalTo(Some(Chunk(Json.Number("1"), Json.Number("2"))))) &&
+          assert(objUnwrap)(equalTo(Some(Chunk(("a", Json.Number(1)))))) &&
+          assert(arrUnwrap)(equalTo(Some(Chunk(Json.Number(1), Json.Number(2))))) &&
           assert(strUnwrap)(equalTo(Some("hello"))) &&
           assert(numUnwrap)(equalTo(Some(BigDecimal(42)))) &&
           assert(boolUnwrap)(equalTo(Some(true))) &&
@@ -96,6 +96,117 @@ object JsonSpec extends SchemaBaseSpec {
         test("unwrap for Number returns None when value is not parseable") {
           val invalidNum: Json = Json.Number("not-a-number")
           assert(invalidNum.unwrap(JsonType.Number).isEmpty)(equalTo(true))
+        },
+        test("JsonType.apply works as a predicate function") {
+          val obj: Json  = Json.Object.empty
+          val arr: Json  = Json.Array.empty
+          val str: Json  = Json.String("test")
+          val num: Json  = Json.Number("42")
+          val bool: Json = Json.Boolean(true)
+          val nul: Json  = Json.Null
+          assert(JsonType.Object(obj))(equalTo(true)) &&
+          assert(JsonType.Object(arr))(equalTo(false)) &&
+          assert(JsonType.Array(arr))(equalTo(true)) &&
+          assert(JsonType.Array(str))(equalTo(false)) &&
+          assert(JsonType.String(str))(equalTo(true)) &&
+          assert(JsonType.String(num))(equalTo(false)) &&
+          assert(JsonType.Number(num))(equalTo(true)) &&
+          assert(JsonType.Number(bool))(equalTo(false)) &&
+          assert(JsonType.Boolean(bool))(equalTo(true)) &&
+          assert(JsonType.Boolean(nul))(equalTo(false)) &&
+          assert(JsonType.Null(nul))(equalTo(true)) &&
+          assert(JsonType.Null(obj))(equalTo(false))
+        },
+        test("query with JsonType as predicate finds all matching values") {
+          val json = Json.Object(
+            "name"  -> Json.String("Alice"),
+            "age"   -> Json.Number("30"),
+            "items" -> Json.Array(
+              Json.String("apple"),
+              Json.Number("42"),
+              Json.String("banana")
+            )
+          )
+          val strings = json.query(JsonType.String).toVector
+          assert(strings.length)(equalTo(3)) &&
+          assert(strings.contains(Json.String("Alice")))(equalTo(true)) &&
+          assert(strings.contains(Json.String("apple")))(equalTo(true)) &&
+          assert(strings.contains(Json.String("banana")))(equalTo(true))
+        },
+        test("query with value predicate finds matching values") {
+          val json = Json.Array(
+            Json.Number("1"),
+            Json.Number("10"),
+            Json.Number("5"),
+            Json.Number("20")
+          )
+          val largeNumbers = json.query { j =>
+            j.unwrap(JsonType.Number).exists(_ > 5)
+          }.toVector
+          assert(largeNumbers.length)(equalTo(2)) &&
+          assert(largeNumbers.contains(Json.Number("10")))(equalTo(true)) &&
+          assert(largeNumbers.contains(Json.Number("20")))(equalTo(true))
+        },
+        test("queryPath finds values at paths matching predicate") {
+          val json = Json.Object(
+            "user" -> Json.Object(
+              "name" -> Json.String("Alice"),
+              "age"  -> Json.Number("30")
+            ),
+            "metadata" -> Json.Object(
+              "created" -> Json.String("2024-01-01")
+            )
+          )
+          val userFields = json.queryPath { path =>
+            path.nodes.headOption.exists {
+              case f: DynamicOptic.Node.Field => f.name == "user"
+              case _                          => false
+            }
+          }.toVector
+          assert(userFields.nonEmpty)(equalTo(true))
+        },
+        test("queryPath finds values at specific indices") {
+          val json = Json.Array(
+            Json.String("zero"),
+            Json.String("one"),
+            Json.String("two")
+          )
+          val atIndexOne = json.queryPath { path =>
+            path.nodes.exists {
+              case idx: DynamicOptic.Node.AtIndex => idx.index == 1
+              case _                              => false
+            }
+          }.toVector
+          assert(atIndexOne)(equalTo(Vector(Json.String("one"))))
+        },
+        test("queryBoth finds values matching both path and value predicates") {
+          val json = Json.Object(
+            "numbers" -> Json.Array(
+              Json.Number("1"),
+              Json.Number("100"),
+              Json.Number("5")
+            ),
+            "strings" -> Json.Array(
+              Json.String("a"),
+              Json.String("b")
+            )
+          )
+          val largeNumbersInNumbersField = json.queryBoth { (path, value) =>
+            val inNumbersField = path.nodes.exists {
+              case f: DynamicOptic.Node.Field => f.name == "numbers"
+              case _                          => false
+            }
+            val isLargeNumber = value.unwrap(JsonType.Number).exists(_ > 10)
+            inNumbersField && isLargeNumber
+          }.toVector
+          assert(largeNumbersInNumbersField)(equalTo(Vector(Json.Number("100"))))
+        },
+        test("queryBoth returns empty when no matches") {
+          val json    = Json.Object("a" -> Json.Number("1"))
+          val results = json.queryBoth { (_, value) =>
+            value.is(JsonType.String)
+          }.toVector
+          assert(results.isEmpty)(equalTo(true))
         }
       ),
       suite("jsonType")(
@@ -1201,7 +1312,7 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(json.elements.length == 2)
         },
         test("toDynamicValue converts Long when out of Int range") {
-          val json = Json.Number(Long.MaxValue.toString)
+          val json = Json.Number(Long.MaxValue)
           val dv   = json.toDynamicValue
           dv match {
             case DynamicValue.Primitive(pv: PrimitiveValue.Long) =>

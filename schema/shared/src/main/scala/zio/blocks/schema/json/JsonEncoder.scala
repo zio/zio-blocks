@@ -57,35 +57,35 @@ object JsonEncoder {
   }
 
   implicit val intEncoder: JsonEncoder[Int] = new JsonEncoder[Int] {
-    def encode(i: Int): Json = new Json.Number(i.toString)
+    def encode(i: Int): Json = Json.Number(i)
   }
 
   implicit val longEncoder: JsonEncoder[Long] = new JsonEncoder[Long] {
-    def encode(l: Long): Json = new Json.Number(l.toString)
+    def encode(l: Long): Json = Json.Number(l)
   }
 
   implicit val floatEncoder: JsonEncoder[Float] = new JsonEncoder[Float] {
-    def encode(f: Float): Json = new Json.Number(f.toString)
+    def encode(f: Float): Json = Json.Number(f)
   }
 
   implicit val doubleEncoder: JsonEncoder[Double] = new JsonEncoder[Double] {
-    def encode(d: Double): Json = new Json.Number(d.toString)
+    def encode(d: Double): Json = Json.Number(d)
   }
 
   implicit val bigDecimalEncoder: JsonEncoder[BigDecimal] = new JsonEncoder[BigDecimal] {
-    def encode(bd: BigDecimal): Json = new Json.Number(bd.toString)
+    def encode(bd: BigDecimal): Json = Json.Number(bd)
   }
 
   implicit val bigIntEncoder: JsonEncoder[BigInt] = new JsonEncoder[BigInt] {
-    def encode(bi: BigInt): Json = new Json.Number(bi.toString)
+    def encode(bi: BigInt): Json = Json.Number(bi)
   }
 
   implicit val byteEncoder: JsonEncoder[Byte] = new JsonEncoder[Byte] {
-    def encode(b: Byte): Json = new Json.Number(b.toString)
+    def encode(b: Byte): Json = Json.Number(b)
   }
 
   implicit val shortEncoder: JsonEncoder[Short] = new JsonEncoder[Short] {
-    def encode(s: Short): Json = new Json.Number(s.toString)
+    def encode(s: Short): Json = Json.Number(s)
   }
 
   implicit val charEncoder: JsonEncoder[Char] = new JsonEncoder[Char] {

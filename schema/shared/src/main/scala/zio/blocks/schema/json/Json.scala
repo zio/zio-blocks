@@ -570,6 +570,33 @@ object Json {
     }
   }
 
+  object Number {
+
+    /** Creates a JSON number from an Int. */
+    def apply(value: Int): Number = new Number(value.toString)
+
+    /** Creates a JSON number from a Long. */
+    def apply(value: Long): Number = new Number(value.toString)
+
+    /** Creates a JSON number from a Float. */
+    def apply(value: Float): Number = new Number(value.toString)
+
+    /** Creates a JSON number from a Double. */
+    def apply(value: Double): Number = new Number(value.toString)
+
+    /** Creates a JSON number from a BigDecimal. */
+    def apply(value: BigDecimal): Number = new Number(value.toString)
+
+    /** Creates a JSON number from a BigInt. */
+    def apply(value: BigInt): Number = new Number(value.toString)
+
+    /** Creates a JSON number from a Byte. */
+    def apply(value: Byte): Number = new Number(value.toString)
+
+    /** Creates a JSON number from a Short. */
+    def apply(value: Short): Number = new Number(value.toString)
+  }
+
   /**
    * Represents a JSON boolean.
    */

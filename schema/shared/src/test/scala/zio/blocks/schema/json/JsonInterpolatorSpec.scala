@@ -15,11 +15,11 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         json""" "hello"""" == Json.String("hello"),
         json""""Привіт" """ == Json.String("Привіт"),
         json""" "★🎸🎧⋆｡°⋆" """ == Json.String("★🎸🎧⋆｡°⋆"),
-        json"""42""" == Json.Number("42"),
+        json"""42""" == Json.Number(42),
         json"""true""" == Json.Boolean(true),
-        json"""[1,0,-1]""" == Json.Array(Json.Number("1"), Json.Number("0"), Json.Number("-1")),
+        json"""[1,0,-1]""" == Json.Array(Json.Number(1), Json.Number(0), Json.Number(-1)),
         json"""{"name": "Alice", "age": 20}""" == Json
-          .Object("name" -> Json.String("Alice"), "age" -> Json.Number("20")),
+          .Object("name" -> Json.String("Alice"), "age" -> Json.Number(20)),
         json"""null""" == Json.Null
       )
     },
@@ -286,7 +286,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       assertTrue(json"""{"x": $x}""".get("x").one == Right(Json.Object.empty))
     },
     test("supports interpolated Json values") {
-      val x = Json.Object("y" -> Json.Number("1"))
+      val x = Json.Object("y" -> Json.Number(1))
       assertTrue(json"""{"x": $x}""".get("x").get("y").as[Int] == Right(1))
     },
     test("supports interpolated Map values with String keys") {
@@ -490,11 +490,11 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated Iterable values") {
       val x = Iterable(1, 2)
-      assertTrue(json"""{"x": $x}""".get("x").one == Right(Json.Array(Json.Number("1"), Json.Number("2"))))
+      assertTrue(json"""{"x": $x}""".get("x").one == Right(Json.Array(Json.Number(1), Json.Number(2))))
     },
     test("supports interpolated Array values") {
       val x = Array(1, 2)
-      assertTrue(json"""{"x": $x}""".get("x").one == Right(Json.Array(Json.Number("1"), Json.Number("2"))))
+      assertTrue(json"""{"x": $x}""".get("x").one == Right(Json.Array(Json.Number(1), Json.Number(2))))
     },
     test("supports interpolated keys and values of other types with overridden toString") {
       case class Person(name: String, age: Int) {
@@ -510,7 +510,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       val x = Person("Alice", 20)
       assertTrue(
         json"""{"x": $x}""".get("x").one == Right(
-          Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number("20"))
+          Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(20))
         ),
         json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
       )
