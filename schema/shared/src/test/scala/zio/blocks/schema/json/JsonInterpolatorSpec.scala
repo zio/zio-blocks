@@ -42,28 +42,28 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         Gen.string(Gen.char.filter(x => x <= 0xd800 || x >= 0xdfff)) // excluding surrogate chars
       )(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x),
-          json"""{$x: "v"}""".get(x).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x),
+          json"""{$x: "v"}""".get(x).as[String] == Right("v")
         )
       ) && {
         val x = "★🎸🎧⋆｡°⋆"
         assertTrue(
-          json"""{"★🎸🎧⋆｡°⋆": $x}""".get("★🎸🎧⋆｡°⋆").string == Right(x),
-          json"""{$x: "★🎸🎧⋆｡°⋆"}""".get(x).string == Right("★🎸🎧⋆｡°⋆")
+          json"""{"★🎸🎧⋆｡°⋆": $x}""".get("★🎸🎧⋆｡°⋆").as[String] == Right(x),
+          json"""{$x: "★🎸🎧⋆｡°⋆"}""".get(x).as[String] == Right("★🎸🎧⋆｡°⋆")
         )
       } && {
         val x = "★" * 100
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x),
-          json"""{$x: "v"}""".get(x).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x),
+          json"""{$x: "v"}""".get(x).as[String] == Right("v")
         )
       }
     },
     test("supports interpolated Boolean keys and values") {
       check(Gen.boolean)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").boolean == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[Boolean] == Right(x),
+          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -71,8 +71,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Byte keys and values") {
       check(Gen.byte)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").int.map(_.toByte) == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[Int].map(_.toByte) == Right(x),
+          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -80,8 +80,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Short keys and values") {
       check(Gen.short)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").int.map(_.toShort) == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[Int].map(_.toShort) == Right(x),
+          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -89,8 +89,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Int keys and values") {
       check(Gen.int)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").int == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[Int] == Right(x),
+          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -98,8 +98,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Long keys and values") {
       check(Gen.long)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").long == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[Long] == Right(x),
+          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -107,8 +107,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Float keys and values") {
       check(Gen.float)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").float == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[Float] == Right(x),
+          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -116,8 +116,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Double keys and values") {
       check(Gen.double)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").double == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[Double] == Right(x),
+          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -125,8 +125,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Char keys and values") {
       check(Gen.char.filter(x => x <= 0xd800 || x >= 0xdfff))(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -134,8 +134,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated BigDecimal keys and values") {
       check(Gen.bigDecimal(BigDecimal("-" + "9" * 100), BigDecimal("9" * 100)))(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").number == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[BigDecimal] == Right(x),
+          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -143,8 +143,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated BigInt keys and values") {
       check(Gen.bigInt(BigInt("-" + "9" * 100), BigInt("9" * 100)))(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").number.map(_.toBigInt) == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[BigDecimal].map(_.toBigInt) == Right(x),
+          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -153,8 +153,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated DayOfWeek keys and values") {
       check(genDayOfWeek)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -162,8 +162,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Duration keys and values") {
       check(genDuration)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -171,8 +171,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Instant keys and values") {
       check(genInstant)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -180,8 +180,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated LocalDate keys and values") {
       check(genLocalDate)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -189,8 +189,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated LocalDateTime keys and values") {
       check(genLocalDateTime)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -198,8 +198,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated LocalTime keys and values") {
       check(genLocalTime)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -207,8 +207,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Month keys and values") {
       check(genMonth)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -216,8 +216,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated MonthDay keys and values") {
       check(genMonthDay)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -225,8 +225,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated OffsetDateTime keys and values") {
       check(genOffsetDateTime)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -234,8 +234,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated OffsetTime keys and values") {
       check(genOffsetTime)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -243,8 +243,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Period keys and values") {
       check(genPeriod)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -252,7 +252,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Year values") {
       check(genYear)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string.map(_.toInt) == Right(x.getValue)
+          json"""{"x": $x}""".get("x").as[String].map(_.toInt) == Right(x.getValue)
         )
       )
     },
@@ -260,11 +260,15 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated YearMonth values") {
       check(genYearMonth)(x =>
         assertTrue(
+<<<<<<< HEAD
           json"""{"x": $x}""".get("x").string.map { s =>
             // `YearMonth.toString` omits '+' for years > 9999, but `YearMonth.parse` requires it.
             val normalized = if (s.length > 7 && s.charAt(0).isDigit) "+" + s else s
             YearMonth.parse(normalized)
           } == Right(x)
+=======
+          json"""{"x": $x}""".get("x").as[String].map(YearMonth.parse) == Right(x)
+>>>>>>> origin/main
         )
       )
     },
@@ -272,8 +276,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated ZoneOffset keys and values") {
       check(genZoneOffset)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -281,8 +285,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated ZoneId keys and values") {
       check(genZoneId)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -290,8 +294,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated ZonedDateTime keys and values") {
       check(genZonedDateTime)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -299,16 +303,16 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Currency keys and values") {
       check(Gen.currency)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
     test("supports interpolated UUID keys and values") {
       check(genUuid)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").string == Right(x.toString),
-          json"""{$x: "v"}""".get(x.toString).string == Right("v")
+          json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -330,7 +334,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated Json values") {
       val x = Json.obj("y" -> Json.number(1))
-      assertTrue(json"""{"x": $x}""".get("x").get("y").int == Right(1))
+      assertTrue(json"""{"x": $x}""".get("x").get("y").as[Int] == Right(1))
     },
     test("supports interpolated Map values with String keys") {
       check(
@@ -553,7 +557,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       val x = Person("Alice", 20)
       assertTrue(
         json"""{"x": $x}""".get("x").one == Right(Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(20))),
-        json"""{${x.toString}: "v"}""".get(x.toString).string == Right("v")
+        json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
       )
     },
     test("doesn't compile for invalid json") {

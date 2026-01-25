@@ -251,4 +251,7 @@ object Schema extends SchemaCompanionVersionSpecific {
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
+
+  implicit def either[A, B](implicit l: Schema[A], r: Schema[B]): Schema[Either[A, B]] =
+    new Schema(Reflect.either(l.reflect, r.reflect))
 }
