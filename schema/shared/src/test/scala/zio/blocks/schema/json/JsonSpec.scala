@@ -658,7 +658,7 @@ object JsonSpec extends SchemaBaseSpec {
         val multiple = JsonSelection.succeedMany(Vector(Json.number(1), Json.number(2)))
         assertTrue(single.all == Right(Json.number(1)), multiple.all == Right(Json.arr(Json.number(1), Json.number(2))))
       },
-      test("first returns first value") {
+      test("any returns first value") {
         val multiple = JsonSelection.succeedMany(Vector(Json.number(1), Json.number(2), Json.number(3)))
         assertTrue(multiple.any == Right(Json.number(1)))
       },
@@ -889,15 +889,15 @@ object JsonSpec extends SchemaBaseSpec {
         }
       ),
       suite("JsonSelection additional methods")(
-        test("single returns error for empty selection") {
+        test("one returns error for empty selection") {
           val empty = JsonSelection.empty
           assertTrue(empty.one.isLeft)
         },
-        test("single returns error for multiple values") {
+        test("one returns error for multiple values") {
           val multiple = JsonSelection.succeedMany(Vector(Json.number(1), Json.number(2)))
           assertTrue(multiple.one.isLeft)
         },
-        test("single returns value for single element") {
+        test("one returns value for single element") {
           val single = JsonSelection.succeed(Json.number(42))
           assertTrue(single.one == Right(Json.number(42)))
         },
@@ -972,7 +972,7 @@ object JsonSpec extends SchemaBaseSpec {
           val empty = JsonSelection.empty
           assertTrue(empty.one.isLeft)
         },
-        test("first fails on empty selection") {
+        test("any fails on empty selection") {
           val empty = JsonSelection.empty
           assertTrue(empty.any.isLeft)
         },
@@ -992,11 +992,11 @@ object JsonSpec extends SchemaBaseSpec {
           val failed = JsonSelection.fail(JsonError("error"))
           assertTrue(failed.values.isEmpty)
         },
-        test("headOption returns first value") {
+        test("any.toOption returns first value") {
           val selection = JsonSelection.succeedMany(Vector(Json.number(1), Json.number(2)))
           assertTrue(selection.any.toOption.contains(Json.number(1)))
         },
-        test("headOption returns None for empty") {
+        test("any.toOption returns None for empty") {
           val empty = JsonSelection.empty
           assertTrue(empty.any.toOption.isEmpty)
         },
@@ -1004,7 +1004,7 @@ object JsonSpec extends SchemaBaseSpec {
           val failed = JsonSelection.fail(JsonError("error"))
           assertTrue(failed.toVector.isEmpty)
         },
-        test("asNumber/asBoolean/asNull type checks") {
+        test("asNumbers/asBooleans/asNulls type checks") {
           val numSel  = JsonSelection.succeed(Json.number(42))
           val boolSel = JsonSelection.succeed(Json.bool(true))
           val nullSel = JsonSelection.succeed(Json.Null)
