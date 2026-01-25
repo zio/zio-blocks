@@ -60,9 +60,10 @@ object Person {
 }
 
 // Derive codecs for any format:
-val jsonCodec = Schema[Person].derive(JsonFormat.deriver)      // JSON
-val avroCodec = Schema[Person].derive(AvroFormat.deriver)      // Avro
-val toonCodec = Schema[Person].derive(ToonFormat.deriver)      // TOON (LLM-optimized)
+val jsonCodec    = Schema[Person].derive(JsonFormat.deriver)        // JSON
+val avroCodec    = Schema[Person].derive(AvroFormat.deriver)        // Avro
+val toonCodec    = Schema[Person].derive(ToonFormat.deriver)        // TOON (LLM-optimized)
+val msgpackCodec = Schema[Person].derive(MessagePackFormat.deriver) // MessagePack
 ```
 
 ### Key Features
@@ -80,6 +81,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 // Optional format modules:
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
 ```
 
 ### Example: Optics

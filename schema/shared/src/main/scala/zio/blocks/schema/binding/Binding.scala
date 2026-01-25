@@ -259,6 +259,36 @@ object Binding {
         def deconstruct(out: Registers, offset: RegisterOffset, in: None.type): Unit = ()
       }
     )
+
+    def left[A, B]: Record[Left[A, B]] = new Record(
+      constructor = new Constructor[Left[A, B]] {
+        def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+        def construct(in: Registers, offset: RegisterOffset): Left[A, B] =
+          new Left(in.getObject(offset).asInstanceOf[A])
+      },
+      deconstructor = new Deconstructor[Left[A, B]] {
+        def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Left[A, B]): Unit =
+          out.setObject(offset, in.value.asInstanceOf[AnyRef])
+      }
+    )
+
+    def right[A, B]: Record[Right[A, B]] = new Record(
+      constructor = new Constructor[Right[A, B]] {
+        def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+        def construct(in: Registers, offset: RegisterOffset): Right[A, B] =
+          new Right(in.getObject(offset).asInstanceOf[B])
+      },
+      deconstructor = new Deconstructor[Right[A, B]] {
+        def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Right[A, B]): Unit =
+          out.setObject(offset, in.value.asInstanceOf[AnyRef])
+      }
+    )
   }
 
   final case class Variant[A](
@@ -290,6 +320,26 @@ object Binding {
           override def downcastOrNull(any: Any): Some[A] = any match {
             case x: Some[A] @scala.unchecked => x
             case _                           => null.asInstanceOf[Some[A]]
+          }
+        }
+      )
+    )
+
+    def either[A, B]: Variant[Either[A, B]] = new Variant(
+      discriminator = new Discriminator[Either[A, B]] {
+        def discriminate(a: Either[A, B]): Int = if (a.isLeft) 0 else 1
+      },
+      matchers = Matchers(
+        new Matcher[Left[A, B]] {
+          override def downcastOrNull(any: Any): Left[A, B] = any match {
+            case x: Left[A, B] @scala.unchecked => x
+            case _                              => null.asInstanceOf[Left[A, B]]
+          }
+        },
+        new Matcher[Right[A, B]] {
+          override def downcastOrNull(any: Any): Right[A, B] = any match {
+            case x: Right[A, B] @scala.unchecked => x
+            case _                               => null.asInstanceOf[Right[A, B]]
           }
         }
       )

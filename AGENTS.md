@@ -5,46 +5,37 @@ Zero-dependency building blocks for Scala. Supports Scala 2.13 and 3.3+ with sou
 ## Development Workflow
 
 **IMPORTANT: Command execution rules**
-- All commands run from workspace root. Do NOT use `cd` in command strings (triggers permission prompts and blocks execution).
-- For ANY slow command (compile/test/format), ALWAYS capture output to a temp file via `tee`. Do NOT pipe directly to `tail`/`head`/`grep` in a way that discards output.
-- If you need more context from a previous run, read/grep/slice the saved log file. Only re-run the command if inputs changed or the prior run was incomplete/invalid.
+- Use explicit paths from workspace root. Never `cd`; verify with `pwd` if unsure.
+- Requires bash (for `pipefail`). If your runner uses `sh`, wrap with `bash -c '...'`.
 
-**Fast loop** - stay in one project, one Scala version:
+**Slow command workflow** (compile/test/format, or anything >200 lines output):
+
+Step 1: Run and save output (nothing streams into context)
 ```bash
-# Run tests for current project (default Scala 3)
-sbt schemaJVM/test 2>&1 | tee /tmp/sbt-test.txt
-sbt "schemaJVM/testOnly zio.blocks.schema.SchemaSpec" 2>&1 | tee /tmp/sbt-test.txt
-
-# Compile to check for errors quickly
-sbt schemaJVM/compile 2>&1 | tee /tmp/sbt-compile.txt
-
-# If you need more context later, read from the file:
-tail -n 100 /tmp/sbt-test.txt
-grep -n "error" /tmp/sbt-compile.txt
+ROOT="$(git rev-parse --show-toplevel)" || exit 1
+mkdir -p "$ROOT/.git/agent-logs"
+LOG="$ROOT/.git/agent-logs/sbt-$(date +%s)-$$.log"; echo "LOG=$LOG"
+set -o pipefail
+sbt -Dsbt.color=false testJVM >"$LOG" 2>&1
+status=$?; echo "Exit: $status"; exit "$status"
 ```
 
-**Wrap-up workflow** - when finishing work, do this ONCE (no interleaving):
+Step 2: Query the log (paste the absolute LOG path from Step 1)
 ```bash
-# Step 1: Format all code first (both versions)
-sbt "++3.3.7; fmt" 2>&1 | tee /tmp/sbt-fmt-3.txt && sbt "++2.13.18; fmt" 2>&1 | tee /tmp/sbt-fmt-2.txt
+LOG=/absolute/path/from/step1.log  # paste actual path
 
-# Step 2: Then run all tests once (both versions)
-sbt "++3.3.7; testJVM" 2>&1 | tee /tmp/sbt-test-3.txt && sbt "++2.13.18; testJVM" 2>&1 | tee /tmp/sbt-test-2.txt
-
-# If a test fails, fix it, then re-run only the failing version
-# Do NOT repeat format/test cycles unnecessarily
+tail -n 50 "$LOG"                                                          # last 50 lines
+grep -n -i -E 'error|exception|failed|failure' "$LOG" | head -30 || true   # find errors
+sed -n '130,170p' "$LOG"                                                   # lines around N
 ```
 
-**Slow operations** - always save output:
-```bash
-# ALWAYS use tee for slow commands:
-sbt testJVM 2>&1 | tee /tmp/test-output.txt
+Step 3: Re-run only if source code changed — otherwise query the log again.
 
-# Then inspect without re-running:
-grep -i "error" /tmp/test-output.txt
-sed -n '1,200p' /tmp/test-output.txt
-tail -n 200 /tmp/test-output.txt
-```
+**Anti-patterns:**
+- `sbt test | grep error` — loses full log
+- Using `$LOG` without re-setting it — fresh shell loses variables
+- Relying on streamed output instead of querying the file
+- Forgetting `pipefail` — masks sbt failures
 
 ## All Commands
 
@@ -149,6 +140,24 @@ Test utilities: `schema/shared/src/test/scala/zio/blocks/schema/json/JsonTestUti
 - Commit without formatting
 - Delete or skip tests to make CI pass
 - Reduce code coverage below minimums
+
+### Maintaining AGENTS.md
+
+Update only when **all true**: general (not task-specific), verified (you ran it), actionable (1–5 lines), not documented elsewhere.
+
+**Update for:**
+- Wrong/outdated commands or workflows
+- New verified reusable patterns
+- Build/tooling/CI changes affecting workflow
+- New subprojects (update structure section)
+- Recurring pitfalls worth preventing
+
+**Do NOT update for:**
+- One-off notes, workarounds, guesses, style opinions
+- Long logs or non-recurring troubleshooting
+- Content belonging in docs/ or module READMEs
+
+**Approval:** Self-update OK for factual fixes. Ask first before changing normative rules (Always/Never/Ask first).
 
 ## PR Checklist
 
