@@ -1016,8 +1016,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     suite("Key position type safety")(
       test("all stringable types work as keys") {
         val strKey     = "stringKey"
-        val uuidKey    = java.util.UUID.randomUUID()
-        val instantKey = java.time.Instant.now()
+        val uuidKey    = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val instantKey = java.time.Instant.parse("2024-01-15T10:30:00Z")
         // Note: All JSON keys must be strings, so stringable types are converted to string
         assertTrue(
           json"""{$strKey: 1}""".get(strKey).int == Right(1),
