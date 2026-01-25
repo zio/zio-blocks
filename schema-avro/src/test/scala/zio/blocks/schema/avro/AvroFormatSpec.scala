@@ -1,16 +1,15 @@
 package zio.blocks.schema.avro
 
-import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import org.apache.avro.{Schema => AvroSchema}
-import zio.blocks.chunk.Chunk
+import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import zio.blocks.schema._
 import zio.blocks.schema.avro.AvroTestUtils._
 import zio.blocks.schema.binding.Binding
 import zio.blocks.typeid.{Owner, TypeId}
 import zio.test._
+
 import java.time._
-import java.util.UUID
-import java.util.Currency
+import java.util.{Currency, UUID}
 import scala.collection.immutable.ArraySeq
 
 object AvroFormatSpec extends SchemaBaseSpec {
@@ -940,7 +939,11 @@ object AvroFormatSpec extends SchemaBaseSpec {
 
   object UserId {
     implicit val schema: Schema[UserId] =
-      Schema[Long].transform[UserId](x => new UserId(x), _.value).withTypeName[UserId]
+      Schema[Long]
+        .transform[UserId](x => new UserId(x), _.value)
+        .withTypeId(
+          TypeId.nominal[UserId]("UserId", Owner.fromPackagePath("zio.blocks.schema.avro").term("AvroFormatSpec"))
+        )
   }
 
   case class Email(value: String)
@@ -953,7 +956,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         Schema[String].reflect,
         TypeId.nominal[Email]("Email", Owner.fromPackagePath("zio.blocks.avro").term("AvroFormatSpec")),
         None,
-        new Binding.Wrapper(
+        Binding.Wrapper(
           {
             case x @ EmailRegex(_*) => new Right(new Email(x))
             case _                  => new Left(SchemaError.validationFailed("Expected Email"))

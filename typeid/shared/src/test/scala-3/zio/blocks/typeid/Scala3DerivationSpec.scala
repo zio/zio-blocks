@@ -28,9 +28,9 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
   def spec = suite("Scala 3 TypeId Derivation")(
     suite("Opaque Types")(
       test("opaque types are detected correctly") {
-        val emailId = TypeId.derived[OpaqueTypes.Email]
-        val ageId   = TypeId.derived[OpaqueTypes.Age]
-        val listId  = TypeId.derived[OpaqueTypes.SafeList[Any]]
+        val emailId = TypeId.of[OpaqueTypes.Email]
+        val ageId   = TypeId.of[OpaqueTypes.Age]
+        val listId  = TypeId.of[OpaqueTypes.SafeList[Any]]
 
         assertTrue(
           emailId.name == "Email" && emailId.isOpaque,
@@ -39,8 +39,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         )
       },
       test("opaque type representations are extracted correctly") {
-        val emailId = TypeId.derived[OpaqueTypes.Email]
-        val ageId   = TypeId.derived[OpaqueTypes.Age]
+        val emailId = TypeId.of[OpaqueTypes.Email]
+        val ageId   = TypeId.of[OpaqueTypes.Age]
 
         assertTrue(
           emailId.representation.exists {
@@ -54,7 +54,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         )
       },
       test("opaque type TypeDefKind is OpaqueType") {
-        val emailId = TypeId.derived[OpaqueTypes.Email]
+        val emailId = TypeId.of[OpaqueTypes.Email]
         assertTrue(emailId.defKind.isInstanceOf[TypeDefKind.OpaqueType])
       }
     ),
@@ -65,7 +65,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
           case Active
           case Completed
         }
-        val statusId = TypeId.derived[Status]
+        val statusId = TypeId.of[Status]
 
         assertTrue(
           statusId.isEnum,
@@ -85,7 +85,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
           case Success(value: T)
           case Failure(error: String)
         }
-        val resultId = TypeId.derived[Result[Any]]
+        val resultId = TypeId.of[Result[Any]]
 
         assertTrue(
           resultId.isEnum,
@@ -102,7 +102,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         enum Direction {
           case North, South, East, West
         }
-        val dirId = TypeId.derived[Direction]
+        val dirId = TypeId.of[Direction]
 
         assertTrue(
           dirId.isEnum,
@@ -112,8 +112,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       test("enum case is subtype of parent enum") {
         enum Status { case Pending, Active }
 
-        val pendingId = TypeId.derived[Status.Pending.type]
-        val statusId  = TypeId.derived[Status]
+        val pendingId = TypeId.of[Status.Pending.type]
+        val statusId  = TypeId.of[Status]
 
         assertTrue(pendingId.isSubtypeOf(statusId))
       }
@@ -121,7 +121,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
     suite("Union and Intersection Types")(
       test("union type alias works correctly") {
         type StringOrInt = String | Int
-        val unionId = TypeId.derived[StringOrInt]
+        val unionId = TypeId.of[StringOrInt]
 
         assertTrue(
           unionId.name == "StringOrInt" && unionId.isAlias
@@ -131,7 +131,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         trait A
         trait B
         type AAndB = A & B
-        val intersectionId = TypeId.derived[AAndB]
+        val intersectionId = TypeId.of[AAndB]
 
         assertTrue(
           intersectionId.name == "AAndB" && intersectionId.isAlias
@@ -139,7 +139,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       },
       test("union type aliased type is Union TypeRepr") {
         type StringOrInt = String | Int
-        val unionId = TypeId.derived[StringOrInt]
+        val unionId = TypeId.of[StringOrInt]
 
         assertTrue(
           unionId.aliasedTo.exists {
@@ -161,7 +161,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         trait A
         trait B
         type AAndB = A & B
-        val intersectionId = TypeId.derived[AAndB]
+        val intersectionId = TypeId.of[AAndB]
 
         assertTrue(
           intersectionId.aliasedTo.exists {
@@ -181,8 +181,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       },
       test("union type is equivalent to itself") {
         type StringOrInt = String | Int
-        val unionId1 = TypeId.derived[StringOrInt]
-        val unionId2 = TypeId.derived[StringOrInt]
+        val unionId1 = TypeId.of[StringOrInt]
+        val unionId2 = TypeId.of[StringOrInt]
 
         assertTrue(
           unionId1.isEquivalentTo(unionId2),
@@ -194,8 +194,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         trait C
         trait D
         type CAndD = C & D
-        val intersectionId1 = TypeId.derived[CAndD]
-        val intersectionId2 = TypeId.derived[CAndD]
+        val intersectionId1 = TypeId.of[CAndD]
+        val intersectionId2 = TypeId.of[CAndD]
 
         assertTrue(
           intersectionId1.isEquivalentTo(intersectionId2),
@@ -206,8 +206,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       test("different union types are not equivalent") {
         type StringOrInt    = String | Int
         type StringOrDouble = String | Double
-        val unionId1 = TypeId.derived[StringOrInt]
-        val unionId2 = TypeId.derived[StringOrDouble]
+        val unionId1 = TypeId.of[StringOrInt]
+        val unionId2 = TypeId.of[StringOrDouble]
 
         assertTrue(
           !unionId1.isEquivalentTo(unionId2),
@@ -221,8 +221,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         trait G
         type EAndF = E & F
         type EAndG = E & G
-        val intersectionId1 = TypeId.derived[EAndF]
-        val intersectionId2 = TypeId.derived[EAndG]
+        val intersectionId1 = TypeId.of[EAndF]
+        val intersectionId2 = TypeId.of[EAndG]
 
         assertTrue(
           !intersectionId1.isEquivalentTo(intersectionId2),
@@ -232,9 +232,9 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       },
       test("union type is not subtype of its member types") {
         type StringOrInt = String | Int
-        val unionId  = TypeId.derived[StringOrInt]
-        val stringId = TypeId.derived[String]
-        val intId    = TypeId.derived[Int]
+        val unionId  = TypeId.of[StringOrInt]
+        val stringId = TypeId.of[String]
+        val intId    = TypeId.of[Int]
 
         // A union type alias is a distinct type, not a subtype of its members
         assertTrue(
@@ -244,9 +244,9 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       },
       test("member types are subtypes of union - A <: A | B and B <: A | B") {
         type StringOrInt = String | Int
-        val unionId  = TypeId.derived[StringOrInt]
-        val stringId = TypeId.derived[String]
-        val intId    = TypeId.derived[Int]
+        val unionId  = TypeId.of[StringOrInt]
+        val stringId = TypeId.of[String]
+        val intId    = TypeId.of[Int]
 
         assertTrue(
           stringId.isSubtypeOf(unionId),
@@ -257,9 +257,9 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         trait H
         trait I
         type HAndI = H & I
-        val intersectionId = TypeId.derived[HAndI]
-        val hId            = TypeId.derived[H]
-        val iId            = TypeId.derived[I]
+        val intersectionId = TypeId.of[HAndI]
+        val hId            = TypeId.of[H]
+        val iId            = TypeId.of[I]
 
         assertTrue(
           !intersectionId.isSupertypeOf(hId),
@@ -270,9 +270,9 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         trait H2
         trait I2
         type H2AndI2 = H2 & I2
-        val intersectionId = TypeId.derived[H2AndI2]
-        val h2Id           = TypeId.derived[H2]
-        val i2Id           = TypeId.derived[I2]
+        val intersectionId = TypeId.of[H2AndI2]
+        val h2Id           = TypeId.of[H2]
+        val i2Id           = TypeId.of[I2]
 
         assertTrue(
           intersectionId.isSubtypeOf(h2Id),
@@ -280,8 +280,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         )
       },
       test("union types with same members in different order are equal") {
-        val union1 = TypeId.derived[Int | String]
-        val union2 = TypeId.derived[String | Int]
+        val union1 = TypeId.of[Int | String]
+        val union2 = TypeId.of[String | Int]
 
         assertTrue(
           union1 == union2,
@@ -293,14 +293,14 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         trait K
         val intersection1 = TypeRepr.Intersection(
           List(
-            TypeRepr.Ref(TypeId.derived[J]),
-            TypeRepr.Ref(TypeId.derived[K])
+            TypeRepr.Ref(TypeId.of[J]),
+            TypeRepr.Ref(TypeId.of[K])
           )
         )
         val intersection2 = TypeRepr.Intersection(
           List(
-            TypeRepr.Ref(TypeId.derived[K]),
-            TypeRepr.Ref(TypeId.derived[J])
+            TypeRepr.Ref(TypeId.of[K]),
+            TypeRepr.Ref(TypeId.of[J])
           )
         )
 
@@ -312,8 +312,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       test("intersection types with same members in different order are equal (TypeId)") {
         trait JJ
         trait KK
-        val inter1 = TypeId.derived[JJ & KK]
-        val inter2 = TypeId.derived[KK & JJ]
+        val inter1 = TypeId.of[JJ & KK]
+        val inter2 = TypeId.of[KK & JJ]
 
         assertTrue(
           inter1 == inter2,
@@ -323,8 +323,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       test("union toString preserves declaration order") {
         type StringOrInt = String | Int
         type IntOrString = Int | String
-        val stringOrInt = TypeId.derived[StringOrInt]
-        val intOrString = TypeId.derived[IntOrString]
+        val stringOrInt = TypeId.of[StringOrInt]
+        val intOrString = TypeId.of[IntOrString]
 
         // The TypeIds are different (different names: StringOrInt vs IntOrString)
         assertTrue(stringOrInt != intOrString)
@@ -345,14 +345,14 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
 
         val intersection1 = TypeRepr.Intersection(
           List(
-            TypeRepr.Ref(TypeId.derived[L]),
-            TypeRepr.Ref(TypeId.derived[M])
+            TypeRepr.Ref(TypeId.of[L]),
+            TypeRepr.Ref(TypeId.of[M])
           )
         )
         val intersection2 = TypeRepr.Intersection(
           List(
-            TypeRepr.Ref(TypeId.derived[M]),
-            TypeRepr.Ref(TypeId.derived[L])
+            TypeRepr.Ref(TypeId.of[M]),
+            TypeRepr.Ref(TypeId.of[L])
           )
         )
 
@@ -370,8 +370,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         )
       },
       test("anonymous union types with different members are NOT equal") {
-        val union1 = TypeId.derived[Int | String]
-        val union2 = TypeId.derived[Int | Double]
+        val union1 = TypeId.of[Int | String]
+        val union2 = TypeId.of[Int | Double]
 
         assertTrue(
           union1 != union2,
@@ -383,8 +383,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         trait Q
         trait R
 
-        val inter1 = TypeId.derived[P & Q]
-        val inter2 = TypeId.derived[P & R]
+        val inter1 = TypeId.of[P & Q]
+        val inter2 = TypeId.of[P & R]
 
         assertTrue(
           inter1 != inter2,
@@ -395,8 +395,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         type IntOrString = Int | String
         type IntOrDouble = Int | Double
 
-        val union1 = TypeId.derived[IntOrString]
-        val union2 = TypeId.derived[IntOrDouble]
+        val union1 = TypeId.of[IntOrString]
+        val union2 = TypeId.of[IntOrDouble]
 
         assertTrue(
           union1 != union2,
@@ -407,8 +407,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         type StringOrInt    = String | Int
         type StringOrDouble = String | Double
 
-        val union1 = TypeId.derived[StringOrInt]
-        val union2 = TypeId.derived[StringOrDouble]
+        val union1 = TypeId.of[StringOrInt]
+        val union2 = TypeId.of[StringOrDouble]
 
         assertTrue(
           union1.aliasedTo.isDefined,
@@ -423,8 +423,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         type X1AndY1 = X1 & Y1
         type X1AndZ1 = X1 & Z1
 
-        val inter1 = TypeId.derived[X1AndY1]
-        val inter2 = TypeId.derived[X1AndZ1]
+        val inter1 = TypeId.of[X1AndY1]
+        val inter2 = TypeId.of[X1AndZ1]
 
         assertTrue(
           inter1.aliasedTo.isDefined,
@@ -436,8 +436,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         type TwoMember   = Int | String
         type ThreeMember = Int | String | Double
 
-        val union2 = TypeId.derived[TwoMember]
-        val union3 = TypeId.derived[ThreeMember]
+        val union2 = TypeId.of[TwoMember]
+        val union3 = TypeId.of[ThreeMember]
 
         assertTrue(
           union2 != union3,
@@ -451,8 +451,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         type TwoMember   = M1 & M2
         type ThreeMember = M1 & M2 & M3
 
-        val inter2 = TypeId.derived[TwoMember]
-        val inter3 = TypeId.derived[ThreeMember]
+        val inter2 = TypeId.of[TwoMember]
+        val inter3 = TypeId.of[ThreeMember]
 
         assertTrue(
           inter2 != inter3,
@@ -462,8 +462,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
     ),
     suite("Opaque Type Nominality")(
       test("opaque types are nominally distinct from their underlying type") {
-        val emailId  = TypeId.derived[OpaqueTypes.Email]
-        val stringId = TypeId.derived[String]
+        val emailId  = TypeId.of[OpaqueTypes.Email]
+        val stringId = TypeId.of[String]
 
         // Opaque types should NOT be subtypes of their underlying type (outside defining scope)
         assertTrue(
@@ -474,8 +474,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       },
       test("different opaque types with same underlying type are not equivalent") {
         // Create another opaque type with String underlying type for comparison
-        val emailId = TypeId.derived[OpaqueTypes.Email]
-        val ageId   = TypeId.derived[OpaqueTypes.Age]
+        val emailId = TypeId.of[OpaqueTypes.Email]
+        val ageId   = TypeId.of[OpaqueTypes.Age]
 
         assertTrue(
           !emailId.isSubtypeOf(ageId),
@@ -484,8 +484,8 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         )
       },
       test("opaque type is equivalent to itself") {
-        val emailId1 = TypeId.derived[OpaqueTypes.Email]
-        val emailId2 = TypeId.derived[OpaqueTypes.Email]
+        val emailId1 = TypeId.of[OpaqueTypes.Email]
+        val emailId2 = TypeId.of[OpaqueTypes.Email]
 
         assertTrue(
           emailId1.isEquivalentTo(emailId2),
@@ -494,7 +494,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         )
       },
       test("opaque type representation is accessible") {
-        val emailId = TypeId.derived[OpaqueTypes.Email]
+        val emailId = TypeId.of[OpaqueTypes.Email]
 
         // The representation can be accessed to know the underlying type
         assertTrue(
@@ -508,7 +508,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
     suite("Type Parameter Variance")(
       test("user-defined covariant type has correct variance") {
         trait MyBox[+A]
-        val derived = TypeId.derived[MyBox[Int]]
+        val derived = TypeId.of[MyBox[Int]]
 
         println(s"MyBox typeParams: ${derived.typeParams}")
         println(s"MyBox variance: ${derived.typeParams.head.variance}")
@@ -519,7 +519,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       },
       test("user-defined contravariant type has correct variance") {
         trait MyConsumer[-A]
-        val derived = TypeId.derived[MyConsumer[Int]]
+        val derived = TypeId.of[MyConsumer[Int]]
 
         assertTrue(
           derived.typeParams.head.variance == Variance.Contravariant
@@ -527,14 +527,14 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       },
       test("user-defined invariant type has correct variance") {
         trait MyCell[A]
-        val derived = TypeId.derived[MyCell[Int]]
+        val derived = TypeId.of[MyCell[Int]]
 
         assertTrue(
           derived.typeParams.head.variance == Variance.Invariant
         )
       },
       test("stdlib Set (compiled class) has correct variance") {
-        val derived = TypeId.derived[Set[Int]]
+        val derived = TypeId.of[Set[Int]]
 
         println(s"stdlib Set typeParams: ${derived.typeParams}")
         println(s"stdlib Set variance: ${derived.typeParams.head.variance}")
@@ -544,7 +544,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         )
       },
       test("stdlib List (compiled class) has correct variance") {
-        val derived = TypeId.derived[List[Int]]
+        val derived = TypeId.of[List[Int]]
 
         assertTrue(
           derived.typeParams.head.variance == Variance.Covariant
@@ -553,7 +553,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
     ),
     suite("Context Functions")(
       test("context function type extracts as ContextFunction TypeRepr") {
-        val ctxFuncId = TypeId.derived[TypeAliases.Contextual]
+        val ctxFuncId = TypeId.of[TypeAliases.Contextual]
 
         assertTrue(
           ctxFuncId.isAlias,
@@ -574,9 +574,9 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       }
     ),
     suite("TypeId.of API")(
-      test("TypeId.of produces same result as TypeId.derived for primitives") {
+      test("TypeId.of produces same result as TypeId.of for primitives") {
         val viaOf      = TypeId.of[String]
-        val viaDerived = TypeId.derived[String]
+        val viaDerived = TypeId.of[String]
 
         assertTrue(
           viaOf == viaDerived,

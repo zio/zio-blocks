@@ -35,7 +35,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
         equalTo(TypeId.nominal[Meter]("Meter", Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec")))
       ) &&
       assert(Planet.distanceFromSun.focus.typeId)(
-        equalTo(TypeId.derived[Option[Meter]])
+        equalTo(TypeId.of[Option[Meter]])
       ) &&
       roundTrip[Planet](value, """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""") &&
       decodeError[Planet](
@@ -85,16 +85,16 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(schema1.reflect.typeId)(
-        equalTo(TypeId.derived[Option[Name]])
+        equalTo(TypeId.of[Option[Name]])
       ) &&
       assert(schema2.reflect.typeId)(
-        equalTo(TypeId.derived[Option[Kilogram]])
+        equalTo(TypeId.of[Option[Kilogram]])
       ) &&
       assert(schema3.reflect.typeId)(
-        equalTo(TypeId.derived[Option[Meter]])
+        equalTo(TypeId.of[Option[Meter]])
       ) &&
       assert(schema4.reflect.typeId)(
-        equalTo(TypeId.derived[Option[EmojiDataId]])
+        equalTo(TypeId.of[Option[EmojiDataId]])
       )
     },
     test("derive schemas for collections with newtypes and subtypes") {
@@ -106,21 +106,22 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       val value2  = Vector(Kilogram(5.97e24), Kilogram(5.970001e24))
       val value3  = Set(Meter(6378000.0))
       val value4  = Map(EmojiDataId(123) -> Name("Batmen"))
+
       assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(schema1.reflect.typeId)(
-        equalTo(TypeId.derived[List[Name]])
+        equalTo(TypeId.of[List[Name]])
       ) &&
       assert(schema2.reflect.typeId)(
-        equalTo(TypeId.derived[Vector[Kilogram]])
+        equalTo(TypeId.of[Vector[Kilogram]])
       ) &&
       assert(schema3.reflect.typeId)(
-        equalTo(TypeId.derived[Set[Meter]])
+        equalTo(TypeId.of[Set[Meter]])
       ) &&
       assert(schema4.reflect.typeId)(
-        equalTo(TypeId.derived[Map[EmojiDataId, Name]])
+        equalTo(TypeId.of[Map[EmojiDataId, Name]])
       )
     },
     test("derive schemas for cases classes and collections with newtypes for primitives") {
@@ -146,32 +147,45 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
     }
   )
 
-  inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
+  inline given newTypeSchema[A, B](using
+    newType: Newtype.WithType[A, B],
+    schema: Schema[A],
+    typeId: TypeId[B]
+  ): Schema[B] =
     Schema[A]
       .transformOrFail(a => newType.make(a).left.map(SchemaError.validationFailed), newType.unwrap)
       .asOpaqueType[B]
 
-  inline given subTypeSchema[A, B <: A](using subType: Subtype.WithType[A, B], schema: Schema[A]): Schema[B] =
+  inline given subTypeSchema[A, B <: A](using
+    subType: Subtype.WithType[A, B],
+    schema: Schema[A],
+    typeId: TypeId[B]
+  ): Schema[B] =
     Schema[A]
       .transformOrFail(a => subType.make(a).left.map(SchemaError.validationFailed), _.asInstanceOf[A])
       .asOpaqueType[B]
+
+  private val neotypeSupportOwner: Owner = Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec")
 
   type Name = Name.Type
 
   object Name extends Newtype[String] {
     override inline def validate(string: String): Boolean = string.length > 0
+    given TypeId[Name]                                    = TypeId.nominal("Name", neotypeSupportOwner)
   }
 
   type Kilogram = Kilogram.Type
 
   object Kilogram extends Subtype[Double] {
     override inline def validate(value: Double): Boolean = value >= 0.0
+    given TypeId[Kilogram]                               = TypeId.nominal("Kilogram", neotypeSupportOwner)
   }
 
   type Meter = Meter.Type
 
   object Meter extends Newtype[Double] {
     override inline def validate(value: Double): Boolean = value >= 0.0
+    given TypeId[Meter]                                  = TypeId.nominal("Meter", neotypeSupportOwner)
   }
 
   case class Planet(name: Name, mass: Kilogram, radius: Meter, distanceFromSun: Option[Meter])
@@ -187,41 +201,52 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
 
   object NInt extends Newtype[Int] {
     override inline def validate(value: Int): Boolean = value >= 0
+    given TypeId[NInt.Type]                           = TypeId.of
   }
 
   object NFloat extends Newtype[Float] {
     override inline def validate(value: Float): Boolean = value >= 0.0f
+    given TypeId[NFloat.Type]                           = TypeId.of
   }
 
   object NLong extends Newtype[Long] {
     override inline def validate(value: Long): Boolean = value >= 0L
+    given TypeId[NLong.Type]                           = TypeId.of
   }
 
   object NDouble extends Newtype[Double] {
     override inline def validate(value: Double): Boolean = value >= 0.0
+    given TypeId[NDouble.Type]                           = TypeId.of
   }
 
   object NBoolean extends Newtype[Boolean] {
     override inline def validate(value: Boolean): Boolean = value
+    given TypeId[NBoolean.Type]                           = TypeId.of
   }
 
   object NByte extends Newtype[Byte] {
     override inline def validate(value: Byte): Boolean = value >= 0
+    given TypeId[NByte.Type]                           = TypeId.of
   }
 
   object NChar extends Newtype[Char] {
     override inline def validate(value: Char): Boolean = value >= ' '
+    given TypeId[NChar.Type]                           = TypeId.of
   }
 
   object NShort extends Newtype[Short] {
     override inline def validate(value: Short): Boolean = value >= 0
+    given TypeId[NShort.Type]                           = TypeId.of
   }
 
   object NUnit extends Newtype[Unit] {
     override inline def validate(value: Unit): Boolean = true
+    given TypeId[NUnit.Type]                           = TypeId.of
   }
 
-  object NString extends Newtype[String]
+  object NString extends Newtype[String] {
+    given TypeId[NString.Type] = TypeId.of
+  }
 
   case class NRecord(
     i: NInt.Type,
@@ -242,18 +267,22 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
 
   type Id = Id.Type
 
-  object Id extends Subtype[Int]
+  object Id extends Subtype[Int] {
+    given TypeId[Id] = TypeId.of
+  }
 
   type DropRate = DropRate.Type
 
   object DropRate extends Newtype[Double] {
     override inline def validate(input: Double): Boolean = input >= 0 && input <= 1
+    given TypeId[DropRate]                               = TypeId.of
   }
 
   type ResponseTime = ResponseTime.Type
 
   object ResponseTime extends Newtype[Double] {
     override inline def validate(input: Double): Boolean = input > 0
+    given TypeId[ResponseTime]                           = TypeId.of
   }
 
   case class Stats(id: Option[Id], dropRate: DropRate, responseTimes: Array[ResponseTime]) derives Schema {
@@ -278,5 +307,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
 
   type EmojiDataId = EmojiDataId.Type
 
-  object EmojiDataId extends Subtype[Int]
+  object EmojiDataId extends Subtype[Int] {
+    given TypeId[EmojiDataId] = TypeId.nominal("EmojiDataId", neotypeSupportOwner)
+  }
 }

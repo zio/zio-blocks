@@ -270,7 +270,7 @@ primitiveBinding = Binding.Primitive[Long](),
       },
       test("gets and updates record type name") {
         assert(tuple4Reflect.typeId)(
-          equalTo(TypeId.derived[(Byte, Short, Int, Long)])
+          equalTo(TypeId.of[(Byte, Short, Int, Long)])
         ) &&
         assert(
           tuple4Reflect
@@ -367,7 +367,7 @@ primitiveBinding = Binding.Primitive[Long](),
       },
       test("gets and updates variant type name") {
         assert(eitherReflect.typeId)(
-          equalTo(TypeId.derived[Either[Int, Long]])
+          equalTo(TypeId.of[Either[Int, Long]])
         ) &&
         assert(
           eitherReflect
@@ -439,7 +439,7 @@ primitiveBinding = Binding.Primitive[Long](),
       test("has consistent equals and hashCode") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
           element = Reflect.double,
-          typeId = TypeId.derived[List[Double]],
+          typeId = TypeId.of[List[Double]],
           seqBinding = null // should be ignored in equals and hashCode
         )
         val sequence2 = sequence1.copy(element =
@@ -486,7 +486,7 @@ primitiveBinding = Binding.Primitive[Long](),
       test("gets and updates sequence type name") {
         val sequence1 = Reflect.vector(Reflect.int[Binding])
         assert(sequence1.typeId)(
-          equalTo(TypeId.derived[Vector[Int]])
+          equalTo(TypeId.of[Vector[Int]])
         ) &&
         assert(
           sequence1
@@ -514,7 +514,7 @@ primitiveBinding = Binding.Primitive[Long](),
       test("gets and updates sequence examples") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
           element = Reflect.double,
-          typeId = TypeId.derived[List[Double]],
+          typeId = TypeId.of[List[Double]],
           seqBinding = Binding.Seq[List, Double](
             constructor = SeqConstructor.listConstructor,
             deconstructor = SeqDeconstructor.listDeconstructor
@@ -548,7 +548,7 @@ primitiveBinding = Binding.Primitive[Long](),
         val map1 = Reflect.Map[Binding, Short, Float, Map](
           key = Reflect.short,
           value = Reflect.float,
-          typeId = TypeId.derived[Map[Short, Float]],
+          typeId = TypeId.of[Map[Short, Float]],
           mapBinding = null // should be ignored in equals and hashCode
         )
         val map2 = map1.copy(key =
@@ -589,7 +589,7 @@ primitiveBinding = Binding.Primitive[Long](),
       test("gets and updates map type name") {
         val map1 = Reflect.map(Reflect.int[Binding], Reflect.long[Binding])
         assert(map1.typeId)(
-          equalTo(TypeId.derived[Map[Int, Long]])
+          equalTo(TypeId.of[Map[Int, Long]])
         ) &&
         assert(
           map1
@@ -613,7 +613,7 @@ primitiveBinding = Binding.Primitive[Long](),
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
-          typeId = TypeId.derived[Map[Int, Long]],
+          typeId = TypeId.of[Map[Int, Long]],
           mapBinding = null, // should be ignored in equals and hashCode
           doc = Doc("Map of Int to Long")
         )
@@ -626,7 +626,7 @@ primitiveBinding = Binding.Primitive[Long](),
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
-          typeId = TypeId.derived[Map[Int, Long]],
+          typeId = TypeId.of[Map[Int, Long]],
           mapBinding = Binding.Map[Map, Int, Long](
             constructor = MapConstructor.map,
             deconstructor = MapDeconstructor.map
@@ -685,7 +685,7 @@ primitiveBinding = Binding.Primitive[Long](),
       },
       test("gets and updates dynamic type name") {
         val dynamic1 = Reflect.dynamic[Binding]
-        assert(dynamic1.typeId)(equalTo(TypeId.derived[DynamicValue])) &&
+        assert(dynamic1.typeId)(equalTo(TypeId.of[DynamicValue])) &&
         assert(
           dynamic1
             .typeId(

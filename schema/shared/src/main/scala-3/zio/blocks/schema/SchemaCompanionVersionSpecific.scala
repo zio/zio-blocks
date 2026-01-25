@@ -707,7 +707,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeId = zio.blocks.typeid.TypeId.derived[Array[et]],
+                  typeId = zio.blocks.typeid.TypeId.of[Array[et]],
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArrayConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -755,7 +755,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeId = zio.blocks.typeid.TypeId.derived[IArray[et]],
+                  typeId = zio.blocks.typeid.TypeId.of[IArray[et]],
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.IArrayConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -803,7 +803,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeId = zio.blocks.typeid.TypeId.derived[ArraySeq[et]],
+                  typeId = zio.blocks.typeid.TypeId.of[ArraySeq[et]],
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArraySeqConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -901,7 +901,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             new Schema(
               reflect = new Reflect.Record[Binding, tt](
                 fields = Vector($fields*),
-                typeId = zio.blocks.typeid.TypeId.derived[tt],
+                typeId = zio.blocks.typeid.TypeId.of[tt],
                 recordBinding = new Binding.Record(
                   constructor = new Constructor[tt] {
                     def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -970,7 +970,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             new Schema(
               reflect = new Reflect.Record[Binding, T](
                 fields = Vector($fields*),
-                typeId = zio.blocks.typeid.TypeId.derived[T],
+                typeId = zio.blocks.typeid.TypeId.of[T],
                 recordBinding = new Binding.Record(
                   constructor = new Constructor {
                     def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -1020,7 +1020,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       sTpe.asType match {
         case '[s] =>
           val schema    = findImplicitOrDeriveSchema[s](sTpe)
-          val opaqueIdT = '{ zio.blocks.typeid.TypeId.derived[T] }
+          val opaqueIdT = '{ zio.blocks.typeid.TypeId.of[T] }
           val opaqueIdS = '{ $opaqueIdT.asInstanceOf[zio.blocks.typeid.TypeId[s]] }
           '{ new Schema($schema.reflect.typeId($opaqueIdS)).asInstanceOf[Schema[T]] }
       }
@@ -1029,7 +1029,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       sTpe.asType match {
         case '[s] =>
           val schema  = findImplicitOrDeriveSchema[s](sTpe)
-          val aliasId = '{ zio.blocks.typeid.TypeId.derived[T].asInstanceOf[zio.blocks.typeid.TypeId[s]] }
+          val aliasId = '{ zio.blocks.typeid.TypeId.of[T].asInstanceOf[zio.blocks.typeid.TypeId[s]] }
           '{ new Schema($schema.reflect.typeId($aliasId)).asInstanceOf[Schema[T]] }
       }
     } else cannotDeriveSchema(tpe)
@@ -1040,7 +1040,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector.empty,
-          typeId = zio.blocks.typeid.TypeId.derived[T],
+          typeId = zio.blocks.typeid.TypeId.of[T],
           recordBinding = new Binding.Record(
             constructor = new ConstantConstructor(${
               Ref(
@@ -1063,7 +1063,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector($fields*),
-          typeId = zio.blocks.typeid.TypeId.derived[T],
+          typeId = zio.blocks.typeid.TypeId.of[T],
           recordBinding = new Binding.Record(
             constructor = new Constructor {
               def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }
@@ -1138,7 +1138,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       new Schema(
         reflect = new Reflect.Variant[Binding, T](
           cases = Vector($cases*),
-          typeId = zio.blocks.typeid.TypeId.derived[T],
+          typeId = zio.blocks.typeid.TypeId.of[T],
           variantBinding = new Binding.Variant(
             discriminator = new Discriminator {
               def discriminate(a: T): Int = ${

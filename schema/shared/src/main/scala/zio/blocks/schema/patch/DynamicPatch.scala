@@ -1011,7 +1011,7 @@ object DynamicPatch {
           Schema[Int].reflect.asTerm("index"),
           Schema[String].reflect.asTerm("text")
         ),
-        typeId = TypeId.derived[StringOp.Insert],
+        typeId = TypeId.of[StringOp.Insert],
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Insert] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 1, objects = 1)
@@ -1040,7 +1040,7 @@ object DynamicPatch {
           Schema[Int].reflect.asTerm("index"),
           Schema[Int].reflect.asTerm("length")
         ),
-        typeId = TypeId.derived[StringOp.Delete],
+        typeId = TypeId.of[StringOp.Delete],
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Delete] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 2)
@@ -1071,7 +1071,7 @@ object DynamicPatch {
         fields = Vector(
           Schema[String].reflect.asTerm("text")
         ),
-        typeId = TypeId.derived[StringOp.Append],
+        typeId = TypeId.of[StringOp.Append],
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Append] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 1)
@@ -1099,7 +1099,7 @@ object DynamicPatch {
           Schema[Int].reflect.asTerm("length"),
           Schema[String].reflect.asTerm("text")
         ),
-        typeId = TypeId.derived[StringOp.Modify],
+        typeId = TypeId.of[StringOp.Modify],
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Modify] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 2, objects = 1)
@@ -1132,7 +1132,7 @@ object DynamicPatch {
         stringOpAppendSchema.reflect.asTerm("Append"),
         stringOpModifySchema.reflect.asTerm("Modify")
       ),
-      typeId = TypeId.derived[StringOp],
+      typeId = TypeId.of[StringOp],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[StringOp] {
           def discriminate(a: StringOp): Int = a match {
@@ -1177,7 +1177,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.IntDelta](
         fields = Vector(Schema[Int].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.IntDelta],
+        typeId = TypeId.of[PrimitiveOp.IntDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.IntDelta] {
             def usedRegisters: RegisterOffset                                          = RegisterOffset(ints = 1)
@@ -1200,7 +1200,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LongDelta](
         fields = Vector(Schema[Long].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.LongDelta],
+        typeId = TypeId.of[PrimitiveOp.LongDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.LongDelta] {
             def usedRegisters: RegisterOffset                                           = RegisterOffset(longs = 1)
@@ -1223,7 +1223,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.DoubleDelta](
         fields = Vector(Schema[Double].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.DoubleDelta],
+        typeId = TypeId.of[PrimitiveOp.DoubleDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.DoubleDelta] {
             def usedRegisters: RegisterOffset                                             = RegisterOffset(doubles = 1)
@@ -1246,7 +1246,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.FloatDelta](
         fields = Vector(Schema[Float].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.FloatDelta],
+        typeId = TypeId.of[PrimitiveOp.FloatDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.FloatDelta] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(floats = 1)
@@ -1269,7 +1269,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.ShortDelta](
         fields = Vector(Schema[Short].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.ShortDelta],
+        typeId = TypeId.of[PrimitiveOp.ShortDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.ShortDelta] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(shorts = 1)
@@ -1292,7 +1292,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.ByteDelta](
         fields = Vector(Schema[Byte].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.ByteDelta],
+        typeId = TypeId.of[PrimitiveOp.ByteDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.ByteDelta] {
             def usedRegisters: RegisterOffset                                           = RegisterOffset(bytes = 1)
@@ -1315,7 +1315,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.BigIntDelta](
         fields = Vector(Schema[BigInt].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.BigIntDelta],
+        typeId = TypeId.of[PrimitiveOp.BigIntDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.BigIntDelta] {
             def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 1)
@@ -1338,7 +1338,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.BigDecimalDelta](
         fields = Vector(Schema[BigDecimal].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.BigDecimalDelta],
+        typeId = TypeId.of[PrimitiveOp.BigDecimalDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.BigDecimalDelta] {
             def usedRegisters: RegisterOffset                                                 = RegisterOffset(objects = 1)
@@ -1361,7 +1361,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.StringEdit](
         fields = Vector(Schema[Vector[StringOp]].reflect.asTerm("ops")),
-        typeId = TypeId.derived[PrimitiveOp.StringEdit],
+        typeId = TypeId.of[PrimitiveOp.StringEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
@@ -1384,7 +1384,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.InstantDelta](
         fields = Vector(Schema[java.time.Duration].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.InstantDelta],
+        typeId = TypeId.of[PrimitiveOp.InstantDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.InstantDelta] {
             def usedRegisters: RegisterOffset                                              = RegisterOffset(objects = 1)
@@ -1407,7 +1407,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.DurationDelta](
         fields = Vector(Schema[java.time.Duration].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.DurationDelta],
+        typeId = TypeId.of[PrimitiveOp.DurationDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.DurationDelta] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -1430,7 +1430,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LocalDateDelta](
         fields = Vector(Schema[java.time.Period].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.LocalDateDelta],
+        typeId = TypeId.of[PrimitiveOp.LocalDateDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.LocalDateDelta] {
             def usedRegisters: RegisterOffset                                                = RegisterOffset(objects = 1)
@@ -1456,7 +1456,7 @@ object DynamicPatch {
           Schema[java.time.Period].reflect.asTerm("periodDelta"),
           Schema[java.time.Duration].reflect.asTerm("durationDelta")
         ),
-        typeId = TypeId.derived[PrimitiveOp.LocalDateTimeDelta],
+        typeId = TypeId.of[PrimitiveOp.LocalDateTimeDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.LocalDateTimeDelta] {
             def usedRegisters: RegisterOffset                                                    = RegisterOffset(objects = 2)
@@ -1484,7 +1484,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.PeriodDelta](
         fields = Vector(Schema[java.time.Period].reflect.asTerm("delta")),
-        typeId = TypeId.derived[PrimitiveOp.PeriodDelta],
+        typeId = TypeId.of[PrimitiveOp.PeriodDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.PeriodDelta] {
             def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 1)
@@ -1520,7 +1520,7 @@ object DynamicPatch {
         primitiveOpLocalDateTimeDeltaSchema.reflect.asTerm("LocalDateTimeDelta"),
         primitiveOpPeriodDeltaSchema.reflect.asTerm("PeriodDelta")
       ),
-      typeId = TypeId.derived[PrimitiveOp],
+      typeId = TypeId.of[PrimitiveOp],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[PrimitiveOp] {
           def discriminate(a: PrimitiveOp): Int = a match {
@@ -1639,7 +1639,7 @@ object DynamicPatch {
           Schema[Int].reflect.asTerm("index"),
           Schema[Chunk[DynamicValue]].reflect.asTerm("values")
         ),
-        typeId = TypeId.derived[SeqOp.Insert],
+        typeId = TypeId.of[SeqOp.Insert],
         recordBinding = new Binding.Record(
           constructor = new Constructor[SeqOp.Insert] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(ints = 1, objects = 1)
@@ -1664,7 +1664,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Append](
         fields = Vector(Schema[Chunk[DynamicValue]].reflect.asTerm("values")),
-        typeId = TypeId.derived[SeqOp.Append],
+        typeId = TypeId.of[SeqOp.Append],
         recordBinding = new Binding.Record(
           constructor = new Constructor[SeqOp.Append] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)
@@ -1690,7 +1690,7 @@ object DynamicPatch {
           Schema[Int].reflect.asTerm("index"),
           Schema[Int].reflect.asTerm("count")
         ),
-        typeId = TypeId.derived[SeqOp.Delete],
+        typeId = TypeId.of[SeqOp.Delete],
         recordBinding = new Binding.Record(
           constructor = new Constructor[SeqOp.Delete] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(ints = 2)
@@ -1718,7 +1718,7 @@ object DynamicPatch {
           Schema[Int].reflect.asTerm("index"),
           Reflect.Deferred(() => operationSchema.reflect).asTerm("op")
         ),
-        typeId = TypeId.derived[SeqOp.Modify],
+        typeId = TypeId.of[SeqOp.Modify],
         recordBinding = new Binding.Record(
           constructor = new Constructor[SeqOp.Modify] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(ints = 1, objects = 1)
@@ -1746,7 +1746,7 @@ object DynamicPatch {
         seqOpDeleteSchema.reflect.asTerm("Delete"),
         Reflect.Deferred(() => seqOpModifySchema.reflect).asTerm("Modify")
       ),
-      typeId = TypeId.derived[SeqOp],
+      typeId = TypeId.of[SeqOp],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[SeqOp] {
           def discriminate(a: SeqOp): Int = a match {
@@ -1795,7 +1795,7 @@ object DynamicPatch {
           Schema[DynamicValue].reflect.asTerm("key"),
           Schema[DynamicValue].reflect.asTerm("value")
         ),
-        typeId = TypeId.derived[MapOp.Add],
+        typeId = TypeId.of[MapOp.Add],
         recordBinding = new Binding.Record(
           constructor = new Constructor[MapOp.Add] {
             def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 2)
@@ -1823,7 +1823,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, MapOp.Remove](
         fields = Vector(Schema[DynamicValue].reflect.asTerm("key")),
-        typeId = TypeId.derived[MapOp.Remove],
+        typeId = TypeId.of[MapOp.Remove],
         recordBinding = new Binding.Record(
           constructor = new Constructor[MapOp.Remove] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)
@@ -1849,7 +1849,7 @@ object DynamicPatch {
           Schema[DynamicValue].reflect.asTerm("key"),
           Reflect.Deferred(() => dynamicPatchSchema.reflect).asTerm("patch")
         ),
-        typeId = TypeId.derived[MapOp.Modify],
+        typeId = TypeId.of[MapOp.Modify],
         recordBinding = new Binding.Record(
           constructor = new Constructor[MapOp.Modify] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 2)
@@ -1879,7 +1879,7 @@ object DynamicPatch {
         mapOpRemoveSchema.reflect.asTerm("Remove"),
         Reflect.Deferred(() => mapOpModifySchema.reflect).asTerm("Modify")
       ),
-      typeId = TypeId.derived[MapOp],
+      typeId = TypeId.of[MapOp],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[MapOp] {
           def discriminate(a: MapOp): Int = a match {
@@ -1918,7 +1918,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.Set](
         fields = Vector(Schema[DynamicValue].reflect.asTerm("value")),
-        typeId = TypeId.derived[Operation.Set],
+        typeId = TypeId.of[Operation.Set],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.Set] {
             def usedRegisters: RegisterOffset                                   = RegisterOffset(objects = 1)
@@ -1941,7 +1941,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.PrimitiveDelta](
         fields = Vector(primitiveOpSchema.reflect.asTerm("op")),
-        typeId = TypeId.derived[Operation.PrimitiveDelta],
+        typeId = TypeId.of[Operation.PrimitiveDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.PrimitiveDelta] {
             def usedRegisters: RegisterOffset                                              = RegisterOffset(objects = 1)
@@ -1964,7 +1964,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.SequenceEdit](
         fields = Vector(Reflect.Deferred(() => Schema[Vector[SeqOp]].reflect).asTerm("ops")),
-        typeId = TypeId.derived[Operation.SequenceEdit],
+        typeId = TypeId.of[Operation.SequenceEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.SequenceEdit] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
@@ -1987,7 +1987,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.MapEdit](
         fields = Vector(Reflect.Deferred(() => Schema[Vector[MapOp]].reflect).asTerm("ops")),
-        typeId = TypeId.derived[Operation.MapEdit],
+        typeId = TypeId.of[Operation.MapEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.MapEdit] {
             def usedRegisters: RegisterOffset                                       = RegisterOffset(objects = 1)
@@ -2010,7 +2010,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.Patch](
         fields = Vector(Reflect.Deferred(() => dynamicPatchSchema.reflect).asTerm("patch")),
-        typeId = TypeId.derived[Operation.Patch],
+        typeId = TypeId.of[Operation.Patch],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.Patch] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 1)
@@ -2037,7 +2037,7 @@ object DynamicPatch {
         operationMapEditSchema.reflect.asTerm("MapEdit"),
         Reflect.Deferred(() => operationPatchSchema.reflect).asTerm("Patch")
       ),
-      typeId = TypeId.derived[Operation],
+      typeId = TypeId.of[Operation],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Operation] {
           def discriminate(a: Operation): Int = a match {
@@ -2093,7 +2093,7 @@ object DynamicPatch {
           Schema[DynamicOptic].reflect.asTerm("path"),
           Reflect.Deferred(() => operationSchema.reflect).asTerm("operation")
         ),
-        typeId = TypeId.derived[DynamicPatchOp],
+        typeId = TypeId.of[DynamicPatchOp],
         recordBinding = new Binding.Record(
           constructor = new Constructor[DynamicPatchOp] {
             def usedRegisters: RegisterOffset                                    = RegisterOffset(objects = 2)
@@ -2121,7 +2121,7 @@ object DynamicPatch {
     new Schema(
       reflect = new Reflect.Record[Binding, DynamicPatch](
         fields = Vector(Reflect.Deferred(() => Schema[Vector[DynamicPatchOp]].reflect).asTerm("ops")),
-        typeId = TypeId.derived[DynamicPatch],
+        typeId = TypeId.of[DynamicPatch],
         recordBinding = new Binding.Record(
           constructor = new Constructor[DynamicPatch] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)

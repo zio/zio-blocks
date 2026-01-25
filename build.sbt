@@ -94,7 +94,9 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         )
       case _ =>
         Seq()
-    })
+    }),
+    coverageMinimumStmtTotal   := 60,
+    coverageMinimumBranchTotal := 52
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)

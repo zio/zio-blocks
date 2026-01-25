@@ -129,15 +129,12 @@ object TypeIdMacros {
 
     val tpe = weakTypeOf[A]
 
-    // Check if this is a type alias using proper TypeRef pattern matching
     tpe match {
-      case TypeRef(_, sym, _) if sym.isType && sym.asType.isAliasType =>
-        // This is a type alias - extract alias information
+      case tr @ TypeRef(pre, sym, _) if sym.isType && sym.asType.isAliasType =>
         val aliasName      = sym.name.decodedName.toString
-        val ownerExpr      = buildOwner(c)(sym.owner)
+        val ownerExpr      = resolveOwnerExprFromTypeRef(c)(tr, pre, sym.owner)
         val typeParamsExpr = buildTypeParams(c)(sym)
 
-        // Get the aliased (underlying) type
         val aliasedType = tpe.dealias
         val aliasedExpr = buildTypeReprFromType(c)(aliasedType)
 
@@ -153,8 +150,25 @@ object TypeIdMacros {
             )
           """
         )
+      case tr @ TypeRef(pre, _, _) =>
+        val typeSymbol     = tpe.typeSymbol
+        val name           = typeSymbol.name.decodedName.toString
+        val ownerExpr      = resolveOwnerExprFromTypeRef(c)(tr, pre, typeSymbol.owner)
+        val typeParamsExpr = buildTypeParams(c)(typeSymbol)
+        val defKindExpr    = buildDefKind(c)(typeSymbol)
+
+        c.Expr[TypeId[A]](
+          q"""
+            _root_.zio.blocks.typeid.TypeId.nominal[$tpe](
+              $name,
+              $ownerExpr,
+              $typeParamsExpr,
+              _root_.scala.Nil,
+              $defKindExpr
+            )
+          """
+        )
       case _ =>
-        // Not a type alias - create nominal type
         val typeSymbol     = tpe.typeSymbol
         val name           = typeSymbol.name.decodedName.toString
         val ownerExpr      = buildOwner(c)(typeSymbol.owner)
@@ -218,12 +232,69 @@ object TypeIdMacros {
       case "Nothing" => return q"_root_.zio.blocks.typeid.TypeRepr.NothingType"
       case "Null"    => return q"_root_.zio.blocks.typeid.TypeRepr.NullType"
       case _         =>
-        val ownerExpr      = buildOwner(c)(sym.owner)
-        val typeParamsExpr = if (sym.isType) buildTypeParams(c)(sym) else q"_root_.scala.Nil"
-        val defKindExpr    = buildDefKindShallow(c)(sym)
-        q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, $typeParamsExpr, _root_.scala.Nil, $defKindExpr)"
+        val symType        = if (sym.isType) sym.asType.toType else sym.typeSignature
+        val typeIdType     = appliedType(typeOf[TypeId[_]].typeConstructor, symType)
+        val implicitSearch = c.inferImplicitValue(typeIdType, silent = true)
+
+        if (implicitSearch != EmptyTree) {
+          implicitSearch
+        } else {
+          val ownerExpr = buildOwner(c)(sym.owner)
+          if (sym.isType && sym.asType.isAliasType) {
+            val aliasedType = sym.asType.toType.dealias
+            val aliasedExpr = buildTypeReprFromType(c)(aliasedType)
+            q"_root_.zio.blocks.typeid.TypeId.alias[_root_.scala.Nothing]($name, $ownerExpr, _root_.scala.Nil, $aliasedExpr, _root_.scala.Nil, _root_.scala.Nil)"
+          } else {
+            val typeParamsExpr = if (sym.isType) buildTypeParams(c)(sym) else q"_root_.scala.Nil"
+            val defKindExpr    = buildDefKindShallow(c)(sym)
+            q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, $typeParamsExpr, _root_.scala.Nil, $defKindExpr)"
+          }
+        }
     }
     q"_root_.zio.blocks.typeid.TypeRepr.Ref($typeIdExpr)"
+  }
+
+  private val zioPreludeNewtypeBases = Set(
+    "zio.prelude.NewtypeCustom",
+    "zio.prelude.SubtypeCustom",
+    "zio.prelude.Newtype",
+    "zio.prelude.Subtype",
+    "zio.prelude.NewtypeVersionSpecific"
+  )
+
+  private def isZioPreludeNewtypeBase(c: blackbox.Context)(sym: c.Symbol): Boolean =
+    sym != c.universe.NoSymbol && zioPreludeNewtypeBases.contains(sym.fullName)
+
+  private def resolveOwnerExprFromTypeRef(
+    c: blackbox.Context
+  )(
+    tr: c.universe.TypeRef,
+    pre: c.Type,
+    fallback: c.Symbol
+  ): c.Tree = {
+    import c.universe._
+
+    val directOwner = tr.sym.owner
+    val ownerBases  =
+      if (directOwner.isClass) directOwner.asClass.baseClasses.map(_.fullName)
+      else if (directOwner.isModule) directOwner.asModule.moduleClass.asClass.baseClasses.map(_.fullName)
+      else Nil
+
+    val isPreludeNewtypeOwner = ownerBases.exists(zioPreludeNewtypeBases.contains) ||
+      isZioPreludeNewtypeBase(c)(directOwner)
+
+    if (isPreludeNewtypeOwner) {
+      pre match {
+        case SingleType(_, termSym) if termSym.isModule =>
+          val termName    = termSym.name.decodedName.toString.stripSuffix("$")
+          val parentOwner = buildOwner(c)(termSym.owner)
+          q"_root_.zio.blocks.typeid.Owner($parentOwner.segments :+ _root_.zio.blocks.typeid.Owner.Term($termName))"
+        case _ =>
+          buildOwner(c)(fallback)
+      }
+    } else {
+      buildOwner(c)(fallback)
+    }
   }
 
   private def buildOwner(c: blackbox.Context)(sym: c.Symbol): c.Tree = {

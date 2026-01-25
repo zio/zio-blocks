@@ -267,7 +267,7 @@ new Reflect.Map(
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Dynamic[G]] = Lazy {
-val instance = getCustomInstance[DynamicValue](path, zio.blocks.typeid.TypeId.derived[DynamicValue])
+val instance = getCustomInstance[DynamicValue](path, zio.blocks.typeid.TypeId.of[DynamicValue])
               .getOrElse(deriver.deriveDynamic[G](metadata, doc, prependCombinedModifiers(modifiers, path, typeId)))
             new Reflect.Dynamic(
               new BindingInstance(metadata, instance),

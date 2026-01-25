@@ -275,10 +275,72 @@ object TypeId {
 
   def derived[A]: TypeId[A] = macro TypeIdMacros.derivedImpl[A]
 
-  def normalize(id: TypeId[_]): TypeId[_] = id.aliasedTo match {
-    case Some(TypeRepr.Ref(aliased))                      => normalize(aliased)
-    case Some(TypeRepr.Applied(TypeRepr.Ref(aliased), _)) => normalize(aliased)
-    case _                                                => id
+  /**
+   * Normalizes a TypeId by following type alias chains and preserving applied
+   * type arguments. When an alias points to an Applied type (e.g., type Foo[A] =
+   * Bar[A]), the normalized result will have the underlying type with the
+   * applied type arguments resolved through the alias chain.
+   */
+  def normalize(id: TypeId[_]): TypeId[_] = normalizeWithArgs(id, id.typeArgs)
+
+  private def normalizeWithArgs(id: TypeId[_], accumulatedArgs: List[TypeRepr]): TypeId[_] = id.aliasedTo match {
+    case Some(TypeRepr.Ref(aliased)) =>
+      // Simple alias (e.g., type Foo = Bar), continue with accumulated args
+      normalizeWithArgs(aliased, accumulatedArgs)
+    case Some(TypeRepr.Applied(TypeRepr.Ref(aliased), appliedArgs)) =>
+      // Applied alias (e.g., type Foo[A] = Bar[A]), resolve args through the alias
+      val resolvedArgs = resolveTypeArgs(id.typeParams, accumulatedArgs, appliedArgs)
+      normalizeWithArgs(aliased, resolvedArgs)
+    case _ =>
+      // End of alias chain - return with accumulated type args if different from original
+      if (accumulatedArgs == id.typeArgs) id
+      else
+        Impl(
+          id.name,
+          id.owner,
+          id.typeParams,
+          accumulatedArgs,
+          id.defKind,
+          id.selfType,
+          id.aliasedTo,
+          id.representation,
+          id.annotations
+        )
+  }
+
+  /**
+   * Resolves type arguments through a type alias. Given an alias like
+   * `type Foo[A, B] = Bar[B, A]`, when applied as `Foo[Int, String]`, this
+   * resolves the Bar's args to `[String, Int]`.
+   */
+  private def resolveTypeArgs(
+    aliasParams: List[TypeParam],
+    actualArgs: List[TypeRepr],
+    targetArgs: List[TypeRepr]
+  ): List[TypeRepr] =
+    if (aliasParams.isEmpty || actualArgs.isEmpty) targetArgs
+    else {
+      // Build a substitution map from param index to actual arg
+      val paramToArg: Map[Int, TypeRepr] = aliasParams
+        .zip(actualArgs)
+        .map { case (param, arg) =>
+          param.index -> arg
+        }
+        .toMap
+
+      // Substitute each target arg
+      targetArgs.map(substituteTypeRepr(_, paramToArg))
+    }
+
+  private def substituteTypeRepr(repr: TypeRepr, subst: Map[Int, TypeRepr]): TypeRepr = repr match {
+    case TypeRepr.ParamRef(param, _) =>
+      subst.getOrElse(param.index, repr)
+    case TypeRepr.Applied(tycon, args) =>
+      TypeRepr.Applied(substituteTypeRepr(tycon, subst), args.map(substituteTypeRepr(_, subst)))
+    case TypeRepr.Ref(id) if id.isAlias =>
+      val normId = normalize(id)
+      if (normId eq id) repr else TypeRepr.Ref(normId)
+    case _ => repr
   }
 
   def structurallyEqual(a: TypeId[_], b: TypeId[_]): Boolean = {
@@ -286,21 +348,67 @@ object TypeId {
     val normB = normalize(b)
 
     if (normA.isOpaque && normB.isOpaque) {
-      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams && normA.typeArgs == normB.typeArgs
+      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams &&
+      typeArgsEqual(normA.typeArgs, normB.typeArgs)
     } else if (normA.isOpaque || normB.isOpaque) {
       false
     } else {
-      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams && normA.typeArgs == normB.typeArgs
+      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams &&
+      typeArgsEqual(normA.typeArgs, normB.typeArgs) &&
+      aliasedToEqual(normA.aliasedTo, normB.aliasedTo)
     }
   }
+
+  private def aliasedToEqual(a: Option[TypeRepr], b: Option[TypeRepr]): Boolean = (a, b) match {
+    case (Some(reprA), Some(reprB)) => typeReprEqual(reprA, reprB)
+    case (None, None)               => true
+    case _                          => false
+  }
+
+  private def typeArgsEqual(argsA: List[TypeRepr], argsB: List[TypeRepr]): Boolean =
+    if (argsA.size != argsB.size) false
+    else argsA.zip(argsB).forall { case (a, b) => typeReprEqual(a, b) }
+
+  private def typeReprEqual(a: TypeRepr, b: TypeRepr): Boolean = (a, b) match {
+    case (TypeRepr.Ref(idA), TypeRepr.Ref(idB)) =>
+      structurallyEqual(idA, idB)
+    case (TypeRepr.Applied(tyconA, argsA), TypeRepr.Applied(tyconB, argsB)) =>
+      typeReprEqual(tyconA, tyconB) && typeArgsEqual(argsA, argsB)
+    case (TypeRepr.ParamRef(paramA, depthA), TypeRepr.ParamRef(paramB, depthB)) =>
+      paramA.name == paramB.name && paramA.index == paramB.index && depthA == depthB
+    case (TypeRepr.Union(typesA), TypeRepr.Union(typesB)) =>
+      typeReprsEqualAsSet(typesA, typesB)
+    case (TypeRepr.Intersection(typesA), TypeRepr.Intersection(typesB)) =>
+      typeReprsEqualAsSet(typesA, typesB)
+    case _ =>
+      a == b
+  }
+
+  private def typeReprsEqualAsSet(as: List[TypeRepr], bs: List[TypeRepr]): Boolean =
+    as.size == bs.size && as.forall(a => bs.exists(b => typeReprEqual(a, b)))
 
   def structuralHash(id: TypeId[_]): Int = {
     val norm = normalize(id)
     if (norm.isOpaque) {
-      ("opaque", norm.fullName, norm.typeParams, norm.typeArgs).hashCode()
+      ("opaque", norm.fullName, norm.typeParams, typeArgsHash(norm.typeArgs)).hashCode()
     } else {
-      (norm.fullName, norm.typeParams, norm.typeArgs).hashCode()
+      (norm.fullName, norm.typeParams, typeArgsHash(norm.typeArgs), aliasedToHash(norm.aliasedTo)).hashCode()
     }
+  }
+
+  private def aliasedToHash(aliasedTo: Option[TypeRepr]): Int =
+    aliasedTo.map(typeReprHash).getOrElse(0)
+
+  private def typeArgsHash(args: List[TypeRepr]): Int =
+    args.map(typeReprHash).hashCode()
+
+  private def typeReprHash(repr: TypeRepr): Int = repr match {
+    case TypeRepr.Ref(id)              => structuralHash(id)
+    case TypeRepr.Applied(tycon, args) =>
+      (typeReprHash(tycon), typeArgsHash(args)).hashCode()
+    case TypeRepr.Union(types)        => ("union", types.map(typeReprHash).toSet).hashCode()
+    case TypeRepr.Intersection(types) => ("intersection", types.map(typeReprHash).toSet).hashCode()
+    case _                            => repr.hashCode()
   }
 
   private def checkParents(parents: List[TypeRepr], target: TypeId[_], visited: Set[String]): Boolean =

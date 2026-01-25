@@ -160,7 +160,7 @@ object ThriftFormat
           defaultValue: Option[DynamicValue],
           examples: Seq[DynamicValue]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ThriftBinaryCodec[DynamicValue]] =
-          Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.derived[DynamicValue], doc, modifiers)))
+          Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)))
 
         override def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],

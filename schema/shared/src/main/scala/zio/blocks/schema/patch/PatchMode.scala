@@ -24,7 +24,7 @@ object PatchMode {
   implicit lazy val strictSchema: Schema[Strict.type] = new Schema(
     reflect = new Reflect.Record[Binding, Strict.type](
       fields = Vector.empty,
-      typeId = TypeId.derived[Strict.type],
+      typeId = TypeId.of[Strict.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Strict.type](Strict),
         deconstructor = new ConstantDeconstructor[Strict.type]
@@ -36,7 +36,7 @@ object PatchMode {
   implicit lazy val lenientSchema: Schema[Lenient.type] = new Schema(
     reflect = new Reflect.Record[Binding, Lenient.type](
       fields = Vector.empty,
-      typeId = TypeId.derived[Lenient.type],
+      typeId = TypeId.of[Lenient.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Lenient.type](Lenient),
         deconstructor = new ConstantDeconstructor[Lenient.type]
@@ -48,7 +48,7 @@ object PatchMode {
   implicit lazy val clobberSchema: Schema[Clobber.type] = new Schema(
     reflect = new Reflect.Record[Binding, Clobber.type](
       fields = Vector.empty,
-      typeId = TypeId.derived[Clobber.type],
+      typeId = TypeId.of[Clobber.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Clobber.type](Clobber),
         deconstructor = new ConstantDeconstructor[Clobber.type]
@@ -68,7 +68,7 @@ object PatchMode {
           lenientSchema.reflect.asTerm("Lenient"),
           clobberSchema.reflect.asTerm("Clobber")
         ),
-        typeId = TypeId.derived[PatchMode],
+        typeId = TypeId.of[PatchMode],
         variantBinding = new Binding.Variant(
           discriminator = new Discriminator[PatchMode] {
             def discriminate(a: PatchMode): Int = a match {

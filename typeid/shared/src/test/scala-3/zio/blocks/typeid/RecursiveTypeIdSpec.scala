@@ -10,26 +10,26 @@ object RecursiveTypeIdSpec extends ZIOSpecDefault {
 
   def spec = suite("RecursiveTypeId")(
     test("derives TypeId for recursive type alias") {
-      val typeId = TypeId.derived[RecursiveAlias]
+      val typeId = TypeId.of[RecursiveAlias]
       assertTrue(
         typeId.fullName.contains("RecursiveAlias"),
         typeId.isAlias
       )
     },
     test("derives TypeId for recursive case class") {
-      val typeId = TypeId.derived[RecursiveCase]
+      val typeId = TypeId.of[RecursiveCase]
       assertTrue(
         typeId.fullName.contains("RecursiveCase"),
         typeId.isCaseClass
       )
     },
     test("recursive alias has valid aliasedTo") {
-      val typeId    = TypeId.derived[RecursiveAlias]
+      val typeId    = TypeId.of[RecursiveAlias]
       val aliasedTo = typeId.aliasedTo
       assertTrue(aliasedTo.isDefined)
     },
     test("recursive alias contains self-reference") {
-      val typeId    = TypeId.derived[RecursiveAlias]
+      val typeId    = TypeId.of[RecursiveAlias]
       val aliasedTo = typeId.aliasedTo.get
 
       def containsRefTo(name: String)(repr: TypeRepr): Boolean = repr match {
@@ -45,7 +45,7 @@ object RecursiveTypeIdSpec extends ZIOSpecDefault {
       assertTrue(containsRefTo("RecursiveAlias")(aliasedTo))
     },
     test("recursive alias structure is correct") {
-      val typeId    = TypeId.derived[RecursiveAlias]
+      val typeId    = TypeId.of[RecursiveAlias]
       val aliasedTo = typeId.aliasedTo.get
 
       aliasedTo match {

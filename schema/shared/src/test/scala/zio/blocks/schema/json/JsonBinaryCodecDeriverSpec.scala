@@ -3083,8 +3083,9 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   case class UserId(value: Long)
 
   object UserId {
+    val typeId: TypeId[UserId]          = TypeId.of
     implicit val schema: Schema[UserId] =
-      Schema[Long].transform[UserId](x => new UserId(x), _.value).withTypeName[UserId]
+      Schema[Long].transform[UserId](x => new UserId(x), _.value).withTypeId[UserId](typeId)
   }
 
   case class Email(value: String)
@@ -3095,7 +3096,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Email] = new Schema(
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
-        TypeId.derived[Email],
+        TypeId.of[Email],
         None,
         new Binding.Wrapper(
           {
@@ -3398,10 +3399,9 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    // Note: AnyVal classes are NOT true opaque types - they get boxed in generic contexts.
-    // Use withTypeName instead of asOpaqueType for AnyVal wrappers.
+    val typeId: TypeId[PosInt]          = TypeId.of
     implicit val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeName[PosInt]
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeId[PosInt](typeId)
   }
 
   case class Counter(value: PosInt)

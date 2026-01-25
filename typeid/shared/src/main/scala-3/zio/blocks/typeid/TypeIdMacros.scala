@@ -337,23 +337,26 @@ object TypeIdMacros {
     val typeSymbol = tpe.typeSymbol
     val termSymbol = tpe.termSymbol
 
-    // Check if this is an enum case value (like TrafficLight.Red)
-    // For enum values, termSymbol has the Enum flag and contains the case name
     val isEnumValue = !termSymbol.isNoSymbol && termSymbol.flags.is(Flags.Enum)
 
-    // Extract the simple name
-    val (name, ownerSymbol) = if (isEnumValue) {
-      // For enum cases, use the term symbol's name (e.g., "Red")
-      // The owner is the parent enum (e.g., TrafficLight)
-      (termSymbol.name, termSymbol.owner)
+    val (name, ownerExpr) = if (isEnumValue) {
+      (termSymbol.name, buildOwner(termSymbol.owner))
     } else {
-      // For regular types, use the type symbol's name
-      val rawName = typeSymbol.name
-      val nm      = if (typeSymbol.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
-      (nm, typeSymbol.owner)
-    }
+      val rawName     = typeSymbol.name
+      val nm          = if (typeSymbol.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
+      val directOwner = typeSymbol.owner
 
-    val ownerExpr = buildOwner(ownerSymbol)
+      // Special case: ZIO Prelude newtypes/subtypes
+      // For path-dependent types like NInt.Type, extract owner from TypeRef qualifier
+      val resolvedOwnerExpr = tpe match {
+        case tr: TypeRef =>
+          resolveOwnerExprFromTypeRef(tr, directOwner)
+        case _ =>
+          buildOwner(directOwner)
+      }
+
+      (nm, resolvedOwnerExpr)
+    }
 
     val typeParamsExpr = buildTypeParams(typeSymbol)
 
@@ -573,9 +576,30 @@ object TypeIdMacros {
       case "Nothing" => return '{ zio.blocks.typeid.TypeRepr.NothingType }
       case "Null"    => return '{ zio.blocks.typeid.TypeRepr.NullType }
       case _         =>
-        val ownerExpr   = buildOwner(sym.owner)
-        val defKindExpr = buildDefKindShallow(sym)
-        '{ TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil, Nil, $defKindExpr) }
+        def createFreshTypeId(): Expr[TypeId[Nothing]] = {
+          val ownerExpr = buildOwner(sym.owner)
+          if (sym.isAliasType) {
+            val aliasedType = tref.translucentSuperType.dealias
+            val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set(sym.fullName))
+            '{ TypeId.alias[Nothing](${ Expr(name) }, $ownerExpr, Nil, $aliasedExpr, Nil, Nil) }
+          } else {
+            val defKindExpr = buildDefKindShallow(sym)
+            '{ TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil, Nil, $defKindExpr) }
+          }
+        }
+
+        tref.asType match {
+          case '[t] =>
+            val typeIdType = quotes.reflect.TypeRepr.of[TypeId[t]]
+            Implicits.search(typeIdType) match {
+              case iss: ImplicitSearchSuccess =>
+                iss.tree.asExprOf[TypeId[t]].asInstanceOf[Expr[TypeId[Nothing]]]
+              case _: ImplicitSearchFailure =>
+                createFreshTypeId()
+            }
+          case _ =>
+            createFreshTypeId()
+        }
     }
     '{ zio.blocks.typeid.TypeRepr.Ref($typeIdExpr) }
   }
@@ -723,6 +747,46 @@ object TypeIdMacros {
 
     val segments = loop(tref, Nil)
     '{ TermPath(${ Expr.ofList(segments) }) }
+  }
+
+  private val zioPreludeNewtypeBases = Set(
+    "zio.prelude.NewtypeCustom",
+    "zio.prelude.SubtypeCustom",
+    "zio.prelude.Newtype",
+    "zio.prelude.Subtype",
+    "zio.prelude.NewtypeVersionSpecific"
+  )
+
+  private def isZioPreludeNewtypeBase(using Quotes)(sym: quotes.reflect.Symbol): Boolean =
+    !sym.isNoSymbol && zioPreludeNewtypeBases.contains(sym.fullName)
+
+  private def resolveOwnerExprFromTypeRef(using
+    Quotes
+  )(
+    tr: quotes.reflect.TypeRef,
+    fallback: quotes.reflect.Symbol
+  ): Expr[Owner] = {
+    import quotes.reflect.*
+
+    val directOwner           = tr.typeSymbol.owner
+    val ownerBases            = directOwner.typeRef.baseClasses.map(_.fullName)
+    val isPreludeNewtypeOwner = ownerBases.exists(zioPreludeNewtypeBases.contains) ||
+      isZioPreludeNewtypeBase(directOwner)
+
+    if (isPreludeNewtypeOwner) {
+      tr.qualifier match {
+        case termRef: TermRef =>
+          val termSym       = termRef.termSymbol
+          val termName      = termSym.name.stripSuffix("$")
+          val parentSegment = '{ Owner.Term(${ Expr(termName) }) }
+          val parentOwner   = buildOwner(termSym.owner)
+          '{ Owner($parentOwner.segments :+ $parentSegment) }
+        case _ =>
+          buildOwner(fallback)
+      }
+    } else {
+      buildOwner(fallback)
+    }
   }
 
   private def buildOwner(using Quotes)(sym: quotes.reflect.Symbol): Expr[Owner] = {

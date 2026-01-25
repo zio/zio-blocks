@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.TypeId
 import zio.test.Assertion.{equalTo, isNone, isSome}
 import zio.test.{Spec, TestEnvironment, assert}
 
@@ -125,7 +126,8 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
+    val typeId: TypeId[PosInt]          = TypeId.of
     implicit val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).asOpaqueType[PosInt]
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).asOpaqueType[PosInt](typeId)
   }
 }

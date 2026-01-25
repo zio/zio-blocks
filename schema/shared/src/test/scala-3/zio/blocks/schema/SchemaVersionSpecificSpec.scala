@@ -34,7 +34,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(record.map(_.fields.map(_.name)))(isSome(equalTo(Vector("c", "d")))) &&
         assert(record.map(_.typeId))(
           isSome(
-            equalTo(TypeId.derived[Record1])
+            equalTo(TypeId.of[Record1])
           )
         ) &&
         assert(record.map(_.doc))(isSome(equalTo(Doc("/** Record: Record1 */"))))
@@ -101,7 +101,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeId = TypeId.derived[(Byte, Short, Int, Long)],
+                typeId = TypeId.of[(Byte, Short, Int, Long)],
                 recordBinding = null
               )
             )
@@ -145,7 +145,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeId = TypeId.derived[(Byte, Short, Int, Long)],
+                typeId = TypeId.of[(Byte, Short, Int, Long)],
                 recordBinding = null
               )
             )
@@ -178,7 +178,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[Int].reflect.asTerm("_1"),
                   Schema[String].reflect.asTerm("_2")
                 ),
-                typeId = TypeId.derived[(Int, String)],
+                typeId = TypeId.of[(Int, String)],
                 recordBinding = null
               )
             )
@@ -199,26 +199,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema.derived[(Int, Long)].reflect.asTerm("_1"),
                   Schema.derived[(String, String)].reflect.asTerm("_2")
                 ),
-                typeId = TypeId.derived[((Int, Long), (String, String))],
+                typeId = TypeId.of[((Int, Long), (String, String))],
                 recordBinding = null
               )
             )
           )
         ) &&
-        assert(schema10)(
-          equalTo(
-            new Schema[(Int, String)](
-              reflect = Reflect.Record[Binding, (Int, String)](
-                fields = Vector(
-                  Schema[Option[Int]].reflect.asTerm("_1"),
-                  Schema[Option[String]].reflect.asTerm("_2")
-                ),
-                typeId = TypeId.derived[(Int, String)],
-                recordBinding = null
-              )
-            )
-          )
-        ) &&
+        assert(schema10.reflect.typeId.fullName)(equalTo("scala.Tuple2")) &&
+        assert(schema10.reflect.asRecord.map(_.fields.map(_.name)))(isSome(equalTo(Vector("_1", "_2")))) &&
         assert(schema11.reflect.asRecord.map(_.fields))(isSome(equalTo(Vector.empty))) &&
         assert(schema11.reflect.typeId.fullName)(equalTo("scala.Tuple$package.EmptyTuple")) &&
         assert(schema12)(equalTo(schema11)) &&
@@ -267,7 +255,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                   Schema[Id].reflect.asTerm("id"),
                   Schema.derived[Value].reflect.asTerm("value")
                 ),
-                typeId = TypeId.derived[Opaque],
+                typeId = TypeId.of[Opaque],
                 recordBinding = null
               )
             )
@@ -302,10 +290,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                 fields = Vector(
                   Schema[InnerId].reflect.asTerm("id"),
                   Schema[Int].reflect
-                    .typeId(TypeId.derived[InnerValue])
+                    .typeId(TypeId.of[InnerValue])
                     .asTerm("value")
                 ),
-                typeId = TypeId.derived[InnerOpaque],
+                typeId = TypeId.of[InnerOpaque],
                 recordBinding = null
               )
             )
@@ -465,15 +453,15 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           Traversal.seqValues(
             schema9.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Double, IArray]]
           )
-        assert(schema1.reflect.typeId)(equalTo(TypeId.derived[IArray[Int]])) &&
-        assert(schema2.reflect.typeId)(equalTo(TypeId.derived[IArray[Long]])) &&
-        assert(schema3.reflect.typeId)(equalTo(TypeId.derived[IArray[Char]])) &&
-        assert(schema4.reflect.typeId)(equalTo(TypeId.derived[IArray[String]])) &&
-        assert(schema5.reflect.typeId)(equalTo(TypeId.derived[IArray[Boolean]])) &&
-        assert(schema6.reflect.typeId)(equalTo(TypeId.derived[IArray[Byte]])) &&
-        assert(schema7.reflect.typeId)(equalTo(TypeId.derived[IArray[Short]])) &&
-        assert(schema8.reflect.typeId)(equalTo(TypeId.derived[IArray[Float]])) &&
-        assert(schema9.reflect.typeId)(equalTo(TypeId.derived[IArray[Double]])) &&
+        assert(schema1.reflect.typeId)(equalTo(TypeId.of[IArray[Int]])) &&
+        assert(schema2.reflect.typeId)(equalTo(TypeId.of[IArray[Long]])) &&
+        assert(schema3.reflect.typeId)(equalTo(TypeId.of[IArray[Char]])) &&
+        assert(schema4.reflect.typeId)(equalTo(TypeId.of[IArray[String]])) &&
+        assert(schema5.reflect.typeId)(equalTo(TypeId.of[IArray[Boolean]])) &&
+        assert(schema6.reflect.typeId)(equalTo(TypeId.of[IArray[Byte]])) &&
+        assert(schema7.reflect.typeId)(equalTo(TypeId.of[IArray[Short]])) &&
+        assert(schema8.reflect.typeId)(equalTo(TypeId.of[IArray[Float]])) &&
+        assert(schema9.reflect.typeId)(equalTo(TypeId.of[IArray[Double]])) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(IArray(1, 2, 3))).map(_.toSeq))(
           isRight(equalTo(Seq(1, 2, 3)))
         ) &&
@@ -526,8 +514,8 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val arrayStructureId  = Schema.derived[Array[StructureId]]
         val iarrayStructureId = Schema.derived[IArray[StructureId]]
         // Verify they derive correctly and have the expected typeId
-        assert(arrayStructureId.reflect.typeId)(equalTo(TypeId.derived[Array[StructureId]])) &&
-        assert(iarrayStructureId.reflect.typeId)(equalTo(TypeId.derived[IArray[StructureId]]))
+        assert(arrayStructureId.reflect.typeId)(equalTo(TypeId.of[Array[StructureId]])) &&
+        assert(iarrayStructureId.reflect.typeId)(equalTo(TypeId.of[IArray[StructureId]]))
       },
       test("doesn't generate schema for unsupported collections") {
         typeCheck {
@@ -577,7 +565,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Case3)))(isRight(equalTo(Case3))) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case1", "Case2", "Case3")))) &&
         assert(variant.map(_.typeId))(
-          isSome(equalTo(TypeId.derived[Variant1]))
+          isSome(equalTo(TypeId.of[Variant1]))
         ) &&
         assert(variant.map(_.doc))(isSome(equalTo(Doc("/** Variant: Variant1 */"))))
       },
@@ -626,7 +614,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Red", "Green", "Blue", "Mix")))) &&
         assert(variant.map(_.typeId))(
-          isSome(equalTo(TypeId.derived[Color]))
+          isSome(equalTo(TypeId.of[Color]))
         ) &&
         assert(variant.map(_.doc))(isSome(equalTo(Doc("/** Variant: Color */"))))
       },
@@ -637,7 +625,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
       },
       test("derives schema for options of opaque sub-types") {
         val schema = Schema.derived[Option[StructureId]]
-        assert(schema.reflect.typeId)(equalTo(TypeId.derived[Option[StructureId]]))
+        assert(schema.reflect.typeId)(equalTo(TypeId.of[Option[StructureId]]))
       },
       test("derives schema for type recursive Scala 3 enums") {
         val schema  = Schema.derived[FruitEnum[?]]
@@ -650,7 +638,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Apple", "Banana")))) &&
         assert(variant.map(_.typeId))(
-          isSome(equalTo(TypeId.derived[FruitEnum[?]]))
+          isSome(equalTo(TypeId.of[FruitEnum[?]]))
         )
       },
       test("derives schema for Scala 3 unions") {
@@ -708,7 +696,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isSome(equalTo(Vector("scala.Int", "java.lang.String", "scala.Boolean")))
         ) &&
         assert(variant.map(_.typeId))(
-          isSome(equalTo(TypeId.derived[Variant]))
+          isSome(equalTo(TypeId.of[Variant]))
         )
       },
       test("derives schema for case classes with fields of Scala 3 union types that have duplicated sub-types") {
@@ -755,7 +743,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           )
         ) &&
         assert(variant.map(_.typeId))(
-          isSome(equalTo(TypeId.derived[LinkedList[Int]]))
+          isSome(equalTo(TypeId.of[LinkedList[Int]]))
         )
       },
       test("derives schema for higher-kinded Scala 3 enums") {
@@ -769,7 +757,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case1", "Case2")))) &&
         assert(variant.map(_.typeId))(
-          isSome(equalTo(TypeId.derived[HKEnum[Option]]))
+          isSome(equalTo(TypeId.of[HKEnum[Option]]))
         )
       },
       test("doesn't generate codecs for non-concrete ADTs with at least one free type parameter") {
@@ -805,56 +793,64 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         )
       }
     ),
-    suite("withTypeName")(
-      test("sets the correct TypeName on transformed schema") {
+    suite("withTypeId")(
+      test("sets the correct TypeId on transformed schema") {
         case class Age(value: Int)
-        val ageSchema: Schema[Age] = Schema[Int].transform(Age(_), _.value).withTypeName[Age]
+        val ageTypeId: TypeId[Age] = TypeId.of
+        val ageSchema: Schema[Age] = Schema[Int].transform(Age(_), _.value).withTypeId[Age](ageTypeId)
         val wrapper                = ageSchema.reflect.asWrapperUnknown
-        assert(wrapper.map(_.wrapper.typeName.name))(isSome(equalTo("Age")))
+        assert(wrapper.map(_.wrapper.typeId.name))(isSome(equalTo("Age")))
       },
-      test("preserves transformation behavior after setting TypeName") {
+      test("preserves transformation behavior after setting TypeId") {
         case class Age(value: Int)
-        val ageSchema: Schema[Age] = Schema[Int].transform(Age(_), _.value).withTypeName[Age]
+        val ageTypeId: TypeId[Age] = TypeId.of
+        val ageSchema: Schema[Age] = Schema[Int].transform(Age(_), _.value).withTypeId[Age](ageTypeId)
         val dv                     = Schema[Int].toDynamicValue(25)
         assert(ageSchema.fromDynamicValue(dv))(isRight(equalTo(Age(25))))
       }
     ),
     suite("asOpaqueType")(
-      test("sets TypeName and primitive type on Wrapper reflect") {
+      test("sets TypeId and primitive type on Wrapper reflect") {
         case class Score(value: Int)
-        val scoreSchema: Schema[Score] = Schema[Int].transform(Score(_), _.value).asOpaqueType[Score]
+        val scoreTypeId: TypeId[Score] = TypeId.of
+        val scoreSchema: Schema[Score] = Schema[Int].transform(Score(_), _.value).asOpaqueType[Score](scoreTypeId)
         val wrapper                    = scoreSchema.reflect.asWrapperUnknown
-        assert(wrapper.map(_.wrapper.typeName.name))(isSome(equalTo("Score"))) &&
+        assert(wrapper.map(_.wrapper.typeId.name))(isSome(equalTo("Score"))) &&
         assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Int(Validation.None))))
       },
       test("round-trips correctly with asOpaqueType") {
         case class Score(value: Int)
-        val scoreSchema: Schema[Score] = Schema[Int].transform(Score(_), _.value).asOpaqueType[Score]
+        val scoreTypeId: TypeId[Score] = TypeId.of
+        val scoreSchema: Schema[Score] = Schema[Int].transform(Score(_), _.value).asOpaqueType[Score](scoreTypeId)
         val value                      = Score(100)
         val dv                         = scoreSchema.toDynamicValue(value)
         assert(scoreSchema.fromDynamicValue(dv))(isRight(equalTo(value)))
       },
-      test("falls back to withTypeName behavior when called on non-Wrapper reflect") {
+      test("falls back to withTypeId behavior when called on non-Wrapper reflect") {
         val intSchema: Schema[Int] = Schema[Int].asOpaqueType[Int]
-        assert(intSchema.reflect.typeName.name)(equalTo("Int"))
+        assert(intSchema.reflect.typeId.name)(equalTo("Int"))
       },
       test("works with Long primitive type") {
         case class LongWrapper(value: Long)
-        val schema: Schema[LongWrapper] = Schema[Long].transform(LongWrapper(_), _.value).asOpaqueType[LongWrapper]
-        val wrapper                     = schema.reflect.asWrapperUnknown
+        val lwTypeId: TypeId[LongWrapper] = TypeId.of
+        val schema: Schema[LongWrapper]   =
+          Schema[Long].transform(LongWrapper(_), _.value).asOpaqueType[LongWrapper](lwTypeId)
+        val wrapper = schema.reflect.asWrapperUnknown
         assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Long(Validation.None))))
       },
       test("works with String primitive type") {
         case class StringWrapper(value: String)
-        val schema: Schema[StringWrapper] =
-          Schema[String].transform(StringWrapper(_), _.value).asOpaqueType[StringWrapper]
+        val swTypeId: TypeId[StringWrapper] = TypeId.of
+        val schema: Schema[StringWrapper]   =
+          Schema[String].transform(StringWrapper(_), _.value).asOpaqueType[StringWrapper](swTypeId)
         val wrapper = schema.reflect.asWrapperUnknown
         assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.String(Validation.None))))
       },
       test("works with Double primitive type") {
         case class DoubleWrapper(value: Double)
-        val schema: Schema[DoubleWrapper] =
-          Schema[Double].transform(DoubleWrapper(_), _.value).asOpaqueType[DoubleWrapper]
+        val dwTypeId: TypeId[DoubleWrapper] = TypeId.of
+        val schema: Schema[DoubleWrapper]   =
+          Schema[Double].transform(DoubleWrapper(_), _.value).asOpaqueType[DoubleWrapper](dwTypeId)
         val wrapper = schema.reflect.asWrapperUnknown
         assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Double(Validation.None))))
       }
@@ -917,7 +913,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
     implicit val schema: Schema[InnerId] = Schema(
       Reflect.Wrapper(
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
-        typeId = TypeId.derived[InnerId],
+        typeId = TypeId.of[InnerId],
         wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
         wrapperBinding = Binding.Wrapper(s => InnerId(s).left.map(SchemaError.validationFailed), identity)
       )
@@ -963,7 +959,7 @@ object Id {
   implicit val schema: Schema[Id] = Schema(
     Reflect.Wrapper(
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
-      typeId = TypeId.derived[Id],
+      typeId = TypeId.of[Id],
       wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
       wrapperBinding = Binding.Wrapper(s => Id(s).left.map(SchemaError.validationFailed), identity)
     )

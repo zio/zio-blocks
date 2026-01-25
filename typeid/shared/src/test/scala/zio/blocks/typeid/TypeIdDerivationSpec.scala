@@ -88,7 +88,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
   def spec = suite("TypeId Derivation")(
     suite("Primitive Types")(
       test("derives TypeId for Int") {
-        val id = TypeId.derived[Int]
+        val id = TypeId.of[Int]
         assertTrue(
           id.name == "Int",
           id.owner == Owner.scala,
@@ -97,7 +97,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for String") {
-        val id = TypeId.derived[String]
+        val id = TypeId.of[String]
         assertTrue(
           id.name == "String",
           id.owner == Owner.javaLang,
@@ -106,7 +106,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for Boolean") {
-        val id = TypeId.derived[Boolean]
+        val id = TypeId.of[Boolean]
         assertTrue(
           id.name == "Boolean",
           id.owner == Owner.scala,
@@ -114,7 +114,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for Long") {
-        val id = TypeId.derived[Long]
+        val id = TypeId.of[Long]
         assertTrue(
           id.name == "Long",
           id.owner == Owner.scala,
@@ -122,7 +122,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for Double") {
-        val id = TypeId.derived[Double]
+        val id = TypeId.of[Double]
         assertTrue(
           id.name == "Double",
           id.owner == Owner.scala,
@@ -130,43 +130,43 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for Byte") {
-        val id = TypeId.derived[Byte]
+        val id = TypeId.of[Byte]
         assertTrue(id.name == "Byte")
       },
       test("derives TypeId for Short") {
-        val id = TypeId.derived[Short]
+        val id = TypeId.of[Short]
         assertTrue(id.name == "Short")
       },
       test("derives TypeId for Float") {
-        val id = TypeId.derived[Float]
+        val id = TypeId.of[Float]
         assertTrue(id.name == "Float")
       },
       test("derives TypeId for Char") {
-        val id = TypeId.derived[Char]
+        val id = TypeId.of[Char]
         assertTrue(id.name == "Char")
       },
       test("derives TypeId for Unit") {
-        val id = TypeId.derived[Unit]
+        val id = TypeId.of[Unit]
         assertTrue(id.name == "Unit")
       },
       test("derived primitive TypeIds are the same instances as predefined") {
         assertTrue(
-          TypeId.derived[Int] eq TypeId.int,
-          TypeId.derived[String] eq TypeId.string,
-          TypeId.derived[Boolean] eq TypeId.boolean,
-          TypeId.derived[Long] eq TypeId.long,
-          TypeId.derived[Double] eq TypeId.double,
-          TypeId.derived[Float] eq TypeId.float,
-          TypeId.derived[Short] eq TypeId.short,
-          TypeId.derived[Byte] eq TypeId.byte,
-          TypeId.derived[Char] eq TypeId.char,
-          TypeId.derived[Unit] eq TypeId.unit
+          TypeId.of[Int] eq TypeId.int,
+          TypeId.of[String] eq TypeId.string,
+          TypeId.of[Boolean] eq TypeId.boolean,
+          TypeId.of[Long] eq TypeId.long,
+          TypeId.of[Double] eq TypeId.double,
+          TypeId.of[Float] eq TypeId.float,
+          TypeId.of[Short] eq TypeId.short,
+          TypeId.of[Byte] eq TypeId.byte,
+          TypeId.of[Char] eq TypeId.char,
+          TypeId.of[Unit] eq TypeId.unit
         )
       }
     ),
     suite("Standard Library Collection Types")(
       test("derives TypeId for List (type constructor)") {
-        val id = TypeId.derived[List[_]]
+        val id = TypeId.of[List[_]]
         assertTrue(
           id.name == "List",
           id.arity == 1,
@@ -174,69 +174,69 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for Option (type constructor)") {
-        val id = TypeId.derived[Option[_]]
+        val id = TypeId.of[Option[_]]
         assertTrue(
           id.name == "Option",
           id.arity == 1
         )
       },
       test("derives TypeId for Map (type constructor with arity 2)") {
-        val id = TypeId.derived[Map[_, _]]
+        val id = TypeId.of[Map[_, _]]
         assertTrue(
           id.name == "Map",
           id.arity == 2
         )
       },
       test("derives TypeId for Either (type constructor with arity 2)") {
-        val id = TypeId.derived[Either[_, _]]
+        val id = TypeId.of[Either[_, _]]
         assertTrue(
           id.name == "Either",
           id.arity == 2
         )
       },
       test("derives TypeId for Vector") {
-        val id = TypeId.derived[Vector[_]]
+        val id = TypeId.of[Vector[_]]
         assertTrue(
           id.name == "Vector",
           id.arity == 1
         )
       },
       test("derives TypeId for Set") {
-        val id = TypeId.derived[Set[_]]
+        val id = TypeId.of[Set[_]]
         assertTrue(
           id.name == "Set",
           id.arity == 1
         )
       },
       test("derives TypeId for Seq") {
-        val id = TypeId.derived[Seq[_]]
+        val id = TypeId.of[Seq[_]]
         assertTrue(id.name == "Seq")
       }
     ),
     suite("Applied Types")(
       test("derives TypeId for List[Int]") {
-        val id = TypeId.derived[List[Int]]
+        val id = TypeId.of[List[Int]]
         assertTrue(
           id.name == "List",
           id.arity == 1
         )
       },
       test("derives TypeId for Option[String]") {
-        val id = TypeId.derived[Option[String]]
+        val id = TypeId.of[Option[String]]
         assertTrue(
           id.name == "Option",
           id.arity == 1
         )
       },
       test("derives TypeId for Map[String, Int]") {
-        val id = TypeId.derived[Map[String, Int]]
+        val id = TypeId.of[Map[String, Int]]
         assertTrue(
           id.name == "Map",
           id.arity == 2
         )
       },
       test("derives TypeId for Either[String, Int]") {
-        val id = TypeId.derived[Either[String, Int]]
+        val id = TypeId.of[Either[String, Int]]
         assertTrue(
           id.name == "Either",
           id.arity == 2
@@ -245,7 +245,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("User-Defined Case Classes")(
       test("derives TypeId for simple case class") {
-        val id = TypeId.derived[SimpleClass]
+        val id = TypeId.of[SimpleClass]
         assertTrue(
           id.name == "SimpleClass",
           id.arity == 0,
@@ -253,21 +253,21 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for generic case class") {
-        val id = TypeId.derived[GenericClass[_]]
+        val id = TypeId.of[GenericClass[_]]
         assertTrue(
           id.name == "GenericClass",
           id.arity == 1
         )
       },
       test("derives TypeId for multi-param generic case class") {
-        val id = TypeId.derived[MultiParamClass[_, _]]
+        val id = TypeId.of[MultiParamClass[_, _]]
         assertTrue(
           id.name == "MultiParamClass",
           id.arity == 2
         )
       },
       test("derives TypeId for applied generic case class") {
-        val id = TypeId.derived[GenericClass[Int]]
+        val id = TypeId.of[GenericClass[Int]]
         assertTrue(
           id.name == "GenericClass",
           id.arity == 1
@@ -276,20 +276,20 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Sealed Traits and ADTs")(
       test("derives TypeId for sealed trait") {
-        val id = TypeId.derived[SimpleSealed]
+        val id = TypeId.of[SimpleSealed]
         assertTrue(
           id.name == "SimpleSealed",
           !id.isAlias && !id.isOpaque
         )
       },
       test("derives TypeId for case class extending sealed trait") {
-        val id = TypeId.derived[SimpleSealed.CaseA]
+        val id = TypeId.of[SimpleSealed.CaseA]
         assertTrue(
           id.name == "CaseA"
         )
       },
       test("derives TypeId for case object extending sealed trait") {
-        val id = TypeId.derived[SimpleSealed.CaseC.type]
+        val id = TypeId.of[SimpleSealed.CaseC.type]
         assertTrue(
           id.name == "CaseC"
         )
@@ -297,14 +297,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Nested Types")(
       test("derives TypeId for nested case class") {
-        val id = TypeId.derived[Outer.Nested]
+        val id = TypeId.of[Outer.Nested]
         assertTrue(
           id.name == "Nested",
           id.fullName.contains("Outer")
         )
       },
       test("derives TypeId for deeply nested case class") {
-        val id = TypeId.derived[Outer.Inner.DeepNested]
+        val id = TypeId.of[Outer.Inner.DeepNested]
         assertTrue(
           id.name == "DeepNested",
           id.fullName.contains("Inner")
@@ -313,14 +313,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Traits and Abstract Classes")(
       test("derives TypeId for trait") {
-        val id = TypeId.derived[SimpleTrait]
+        val id = TypeId.of[SimpleTrait]
         assertTrue(
           id.name == "SimpleTrait",
           !id.isAlias && !id.isOpaque
         )
       },
       test("derives TypeId for abstract class") {
-        val id = TypeId.derived[AbstractClass]
+        val id = TypeId.of[AbstractClass]
         assertTrue(
           id.name == "AbstractClass",
           !id.isAlias && !id.isOpaque
@@ -329,27 +329,27 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Java Types")(
       test("derives TypeId for java.util.UUID") {
-        val id = TypeId.derived[java.util.UUID]
+        val id = TypeId.of[java.util.UUID]
         assertTrue(
           id.name == "UUID",
           id.owner == Owner.javaUtil
         )
       },
       test("derives TypeId for java.time.Instant") {
-        val id = TypeId.derived[java.time.Instant]
+        val id = TypeId.of[java.time.Instant]
         assertTrue(
           id.name == "Instant",
           id.owner == Owner.javaTime
         )
       },
       test("derives TypeId for java.time.Duration") {
-        val id = TypeId.derived[java.time.Duration]
+        val id = TypeId.of[java.time.Duration]
         assertTrue(
           id.name == "Duration"
         )
       },
       test("derives TypeId for java.util.ArrayList with type parameter") {
-        val id = TypeId.derived[java.util.ArrayList[String]]
+        val id = TypeId.of[java.util.ArrayList[String]]
         assertTrue(
           id.name == "ArrayList",
           id.owner == Owner.javaUtil
@@ -358,14 +358,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Scala BigInt/BigDecimal")(
       test("derives TypeId for BigInt") {
-        val id = TypeId.derived[BigInt]
+        val id = TypeId.of[BigInt]
         assertTrue(
           id.name == "BigInt",
           id.owner == Owner.scala
         )
       },
       test("derives TypeId for BigDecimal") {
-        val id = TypeId.derived[BigDecimal]
+        val id = TypeId.of[BigDecimal]
         assertTrue(
           id.name == "BigDecimal",
           id.owner == Owner.scala
@@ -374,21 +374,21 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Tuple Types")(
       test("derives TypeId for Tuple2") {
-        val id = TypeId.derived[Tuple2[_, _]]
+        val id = TypeId.of[Tuple2[_, _]]
         assertTrue(
           id.name == "Tuple2",
           id.arity == 2
         )
       },
       test("derives TypeId for Tuple3") {
-        val id = TypeId.derived[Tuple3[_, _, _]]
+        val id = TypeId.of[Tuple3[_, _, _]]
         assertTrue(
           id.name == "Tuple3",
           id.arity == 3
         )
       },
       test("derives TypeId for applied tuple (Int, String)") {
-        val id = TypeId.derived[(Int, String)]
+        val id = TypeId.of[(Int, String)]
         assertTrue(
           id.name == "Tuple2",
           id.arity == 2
@@ -397,14 +397,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Function Types")(
       test("derives TypeId for Function1") {
-        val id = TypeId.derived[Function1[_, _]]
+        val id = TypeId.of[Function1[_, _]]
         assertTrue(
           id.name == "Function1",
           id.arity == 2
         )
       },
       test("derives TypeId for Function2") {
-        val id = TypeId.derived[Function2[_, _, _]]
+        val id = TypeId.of[Function2[_, _, _]]
         assertTrue(
           id.name == "Function2",
           id.arity == 3
@@ -413,21 +413,21 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Owner Path Verification")(
       test("scala primitives have correct owner") {
-        val intId  = TypeId.derived[Int]
-        val longId = TypeId.derived[Long]
+        val intId  = TypeId.of[Int]
+        val longId = TypeId.of[Long]
         assertTrue(
           intId.owner == Owner.scala,
           longId.owner == Owner.scala
         )
       },
       test("java.lang types have correct owner") {
-        val stringId = TypeId.derived[String]
+        val stringId = TypeId.of[String]
         assertTrue(
           stringId.owner == Owner.javaLang
         )
       },
       test("collection types have correct owner") {
-        val listId = TypeId.derived[List[_]]
+        val listId = TypeId.of[List[_]]
         assertTrue(
           listId.owner == Owner.scalaCollectionImmutable
         )
@@ -435,14 +435,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Type Parameter Verification")(
       test("List has one type parameter named A") {
-        val id = TypeId.derived[List[_]]
+        val id = TypeId.of[List[_]]
         assertTrue(
           id.typeParams.size == 1,
           id.typeParams.head.index == 0
         )
       },
       test("Map has two type parameters") {
-        val id = TypeId.derived[Map[_, _]]
+        val id = TypeId.of[Map[_, _]]
         assertTrue(
           id.typeParams.size == 2,
           id.typeParams(0).index == 0,
@@ -450,7 +450,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Either has two type parameters") {
-        val id = TypeId.derived[Either[_, _]]
+        val id = TypeId.of[Either[_, _]]
         assertTrue(
           id.typeParams.size == 2
         )
@@ -458,19 +458,19 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("FullName Verification")(
       test("scala.Int has correct fullName") {
-        val id = TypeId.derived[Int]
+        val id = TypeId.of[Int]
         assertTrue(
           id.fullName == "scala.Int"
         )
       },
       test("java.lang.String has correct fullName") {
-        val id = TypeId.derived[String]
+        val id = TypeId.of[String]
         assertTrue(
           id.fullName == "java.lang.String"
         )
       },
       test("nested type has correct fullName with owner path") {
-        val id = TypeId.derived[Outer.Nested]
+        val id = TypeId.of[Outer.Nested]
         assertTrue(
           id.fullName.endsWith("Nested")
         )
@@ -478,7 +478,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Pattern Matching Support")(
       test("derived TypeId matches Nominal extractor") {
-        val id      = TypeId.derived[Int]
+        val id      = TypeId.of[Int]
         val matches = id match {
           case TypeId.Nominal(name, _, _, _, _) => name == "Int"
           case _                                => false
@@ -488,7 +488,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Consistency with Predefined TypeIds")(
       test("derive[Int] equals predefined TypeId.int") {
-        val derived    = TypeId.derived[Int]
+        val derived    = TypeId.of[Int]
         val predefined = TypeId.int
         assertTrue(
           derived.name == predefined.name,
@@ -497,7 +497,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derive[String] equals predefined TypeId.string") {
-        val derived    = TypeId.derived[String]
+        val derived    = TypeId.of[String]
         val predefined = TypeId.string
         assertTrue(
           derived.name == predefined.name,
@@ -505,7 +505,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derive[List[_]] equals predefined TypeId.list") {
-        val derived    = TypeId.derived[List[_]]
+        val derived    = TypeId.of[List[_]]
         val predefined = TypeId.list
         assertTrue(
           derived.name == predefined.name,
@@ -515,7 +515,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Parent Types")(
       test("class extending trait has correct parents") {
-        val id = TypeId.derived[SimpleSealed.CaseA]
+        val id = TypeId.of[SimpleSealed.CaseA]
         assertTrue(
           id.parents.exists {
             case TypeRepr.Ref(tid) => tid.name == "SimpleSealed"
@@ -524,17 +524,17 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("sealed trait subtypes have parent in parents") {
-        val caseAId = TypeId.derived[SimpleSealed.CaseA]
-        val caseBId = TypeId.derived[SimpleSealed.CaseB]
+        val caseAId = TypeId.of[SimpleSealed.CaseA]
+        val caseBId = TypeId.of[SimpleSealed.CaseB]
         assertTrue(
           caseAId.parents.nonEmpty,
           caseBId.parents.nonEmpty
         )
       },
       test("parents is accessible on all types") {
-        val intId   = TypeId.derived[Int]
-        val listId  = TypeId.derived[List[_]]
-        val classId = TypeId.derived[SimpleClass]
+        val intId   = TypeId.of[Int]
+        val listId  = TypeId.of[List[_]]
+        val classId = TypeId.of[SimpleClass]
         assertTrue(
           intId.parents.isInstanceOf[List[TypeRepr]],
           listId.parents.isInstanceOf[List[TypeRepr]],
@@ -544,33 +544,33 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("isSubtypeOf")(
       test("type is subtype of itself") {
-        val id = TypeId.derived[SimpleTrait]
+        val id = TypeId.of[SimpleTrait]
         assertTrue(id.isSubtypeOf(id))
       },
       test("case class is subtype of its sealed trait") {
-        val caseAId  = TypeId.derived[SimpleSealed.CaseA]
-        val sealedId = TypeId.derived[SimpleSealed]
+        val caseAId  = TypeId.of[SimpleSealed.CaseA]
+        val sealedId = TypeId.of[SimpleSealed]
         assertTrue(
           caseAId.isSubtypeOf(sealedId),
           !sealedId.isSubtypeOf(caseAId)
         )
       },
       test("case object is subtype of its sealed trait") {
-        val caseCId  = TypeId.derived[SimpleSealed.CaseC.type]
-        val sealedId = TypeId.derived[SimpleSealed]
+        val caseCId  = TypeId.of[SimpleSealed.CaseC.type]
+        val sealedId = TypeId.of[SimpleSealed]
         assertTrue(caseCId.isSubtypeOf(sealedId))
       },
       test("unrelated types are not subtypes of each other") {
-        val intId    = TypeId.derived[Int]
-        val stringId = TypeId.derived[String]
+        val intId    = TypeId.of[Int]
+        val stringId = TypeId.of[String]
         assertTrue(
           !intId.isSubtypeOf(stringId),
           !stringId.isSubtypeOf(intId)
         )
       },
       test("sibling subtypes are not subtypes of each other") {
-        val caseAId = TypeId.derived[SimpleSealed.CaseA]
-        val caseBId = TypeId.derived[SimpleSealed.CaseB]
+        val caseAId = TypeId.of[SimpleSealed.CaseA]
+        val caseBId = TypeId.of[SimpleSealed.CaseB]
         assertTrue(
           !caseAId.isSubtypeOf(caseBId),
           !caseBId.isSubtypeOf(caseAId)
@@ -579,38 +579,38 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("isSupertypeOf")(
       test("sealed trait is supertype of its case class") {
-        val sealedId = TypeId.derived[SimpleSealed]
-        val caseAId  = TypeId.derived[SimpleSealed.CaseA]
+        val sealedId = TypeId.of[SimpleSealed]
+        val caseAId  = TypeId.of[SimpleSealed.CaseA]
         assertTrue(
           sealedId.isSupertypeOf(caseAId),
           !caseAId.isSupertypeOf(sealedId)
         )
       },
       test("type is supertype of itself") {
-        val id = TypeId.derived[SimpleClass]
+        val id = TypeId.of[SimpleClass]
         assertTrue(id.isSupertypeOf(id))
       }
     ),
     suite("isEquivalentTo")(
       test("type is equivalent to itself") {
-        val id = TypeId.derived[SimpleClass]
+        val id = TypeId.of[SimpleClass]
         assertTrue(id.isEquivalentTo(id))
       },
       test("unrelated types are not equivalent") {
-        val intId    = TypeId.derived[Int]
-        val stringId = TypeId.derived[String]
+        val intId    = TypeId.of[Int]
+        val stringId = TypeId.of[String]
         assertTrue(!intId.isEquivalentTo(stringId))
       },
       test("subtype and supertype are not equivalent") {
-        val sealedId = TypeId.derived[SimpleSealed]
-        val caseAId  = TypeId.derived[SimpleSealed.CaseA]
+        val sealedId = TypeId.of[SimpleSealed]
+        val caseAId  = TypeId.of[SimpleSealed.CaseA]
         assertTrue(!sealedId.isEquivalentTo(caseAId))
       }
     ),
     suite("Type Aliases")(
       test("type aliases are detected correctly") {
-        val ageId = TypeId.derived[TypeAliases.Age]
-        val mapId = TypeId.derived[TypeAliases.StringMap[Int]]
+        val ageId = TypeId.of[TypeAliases.Age]
+        val mapId = TypeId.of[TypeAliases.StringMap[Int]]
 
         assertTrue(
           ageId.name == "Age" && ageId.isAlias,
@@ -618,7 +618,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("aliased types are extracted correctly") {
-        val ageId = TypeId.derived[TypeAliases.Age]
+        val ageId = TypeId.of[TypeAliases.Age]
 
         assertTrue(
           ageId.aliasedTo.exists {
@@ -628,7 +628,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("generic type alias has aliased type") {
-        val mapId = TypeId.derived[TypeAliases.StringMap[Int]]
+        val mapId = TypeId.of[TypeAliases.StringMap[Int]]
 
         // Generic type aliases may be represented as TypeLambda or Applied depending on Scala version
         assertTrue(
@@ -641,8 +641,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("type alias is equivalent to its underlying type") {
-        val ageId = TypeId.derived[TypeAliases.Age]
-        val intId = TypeId.derived[Int]
+        val ageId = TypeId.of[TypeAliases.Age]
+        val intId = TypeId.of[Int]
 
         assertTrue(
           ageId.isEquivalentTo(intId),
@@ -653,8 +653,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Basic Subtyping")(
       test("reflexivity - type is subtype of itself") {
-        val stringId = TypeId.derived[String]
-        val dogId    = TypeId.derived[Dog]
+        val stringId = TypeId.of[String]
+        val dogId    = TypeId.of[Dog]
 
         assertTrue(
           stringId.isSubtypeOf(stringId),
@@ -662,15 +662,15 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("reflexivity with derived type") {
-        val caseAId = TypeId.derived[SimpleSealed.CaseA]
+        val caseAId = TypeId.of[SimpleSealed.CaseA]
         assertTrue(caseAId.isSubtypeOf(caseAId))
       },
       test("Nothing is subtype of everything") {
-        val nothingId = TypeId.derived[Nothing]
-        val intId     = TypeId.derived[Int]
-        val stringId  = TypeId.derived[String]
-        val anyId     = TypeId.derived[Any]
-        val listIntId = TypeId.derived[List[Int]]
+        val nothingId = TypeId.of[Nothing]
+        val intId     = TypeId.of[Int]
+        val stringId  = TypeId.of[String]
+        val anyId     = TypeId.of[Any]
+        val listIntId = TypeId.of[List[Int]]
 
         assertTrue(
           nothingId.isSubtypeOf(intId),
@@ -680,10 +680,10 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("everything is subtype of Any") {
-        val intId     = TypeId.derived[Int]
-        val stringId  = TypeId.derived[String]
-        val listIntId = TypeId.derived[List[Int]]
-        val anyId     = TypeId.derived[Any]
+        val intId     = TypeId.of[Int]
+        val stringId  = TypeId.of[String]
+        val listIntId = TypeId.of[List[Int]]
+        val anyId     = TypeId.of[Any]
 
         assertTrue(
           intId.isSubtypeOf(anyId),
@@ -694,9 +694,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Nominal Hierarchy Subtyping")(
       test("class hierarchy subtyping") {
-        val dogId    = TypeId.derived[Dog]
-        val mammalId = TypeId.derived[Mammal]
-        val animalId = TypeId.derived[Animal]
+        val dogId    = TypeId.of[Dog]
+        val mammalId = TypeId.of[Mammal]
+        val animalId = TypeId.of[Animal]
 
         assertTrue(
           dogId.isSubtypeOf(mammalId),
@@ -705,10 +705,10 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("transitive subtyping through multiple levels") {
-        val germanShepherdId = TypeId.derived[GermanShepherd]
-        val dogId            = TypeId.derived[Dog]
-        val mammalId         = TypeId.derived[Mammal]
-        val animalId         = TypeId.derived[Animal]
+        val germanShepherdId = TypeId.of[GermanShepherd]
+        val dogId            = TypeId.of[Dog]
+        val mammalId         = TypeId.of[Mammal]
+        val animalId         = TypeId.of[Animal]
 
         assertTrue(
           germanShepherdId.isSubtypeOf(dogId),
@@ -717,16 +717,16 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("supertype is not subtype of subtype") {
-        val dogId    = TypeId.derived[Dog]
-        val animalId = TypeId.derived[Animal]
+        val dogId    = TypeId.of[Dog]
+        val animalId = TypeId.of[Animal]
 
         assertTrue(
           !animalId.isSubtypeOf(dogId)
         )
       },
       test("siblings are not subtypes of each other") {
-        val dogId = TypeId.derived[Dog]
-        val catId = TypeId.derived[Cat]
+        val dogId = TypeId.of[Dog]
+        val catId = TypeId.of[Cat]
 
         assertTrue(
           !dogId.isSubtypeOf(catId),
@@ -734,8 +734,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("String is subtype of CharSequence") {
-        val stringId       = TypeId.derived[String]
-        val charSequenceId = TypeId.derived[CharSequence]
+        val stringId       = TypeId.of[String]
+        val charSequenceId = TypeId.of[CharSequence]
 
         assertTrue(
           stringId.isSubtypeOf(charSequenceId),
@@ -745,8 +745,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("isSupertypeOf and isEquivalentTo")(
       test("Animal is supertype of Dog") {
-        val animalId = TypeId.derived[Animal]
-        val dogId    = TypeId.derived[Dog]
+        val animalId = TypeId.of[Animal]
+        val dogId    = TypeId.of[Dog]
 
         assertTrue(
           animalId.isSupertypeOf(dogId),
@@ -754,8 +754,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("equivalent types are mutual subtypes") {
-        val id1 = TypeId.derived[Dog]
-        val id2 = TypeId.derived[Dog]
+        val id1 = TypeId.of[Dog]
+        val id2 = TypeId.of[Dog]
 
         assertTrue(
           id1.isEquivalentTo(id2),
@@ -764,8 +764,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("non-equivalent types in hierarchy") {
-        val dogId    = TypeId.derived[Dog]
-        val animalId = TypeId.derived[Animal]
+        val dogId    = TypeId.of[Dog]
+        val animalId = TypeId.of[Animal]
 
         assertTrue(
           !dogId.isEquivalentTo(animalId),
@@ -777,14 +777,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
       test("intersection types with same members in different order are equal") {
         val intersection1 = TypeRepr.Intersection(
           List(
-            TypeRepr.Ref(TypeId.derived[Serializable]),
-            TypeRepr.Ref(TypeId.derived[Comparable[String]])
+            TypeRepr.Ref(TypeId.of[Serializable]),
+            TypeRepr.Ref(TypeId.of[Comparable[String]])
           )
         )
         val intersection2 = TypeRepr.Intersection(
           List(
-            TypeRepr.Ref(TypeId.derived[Comparable[String]]),
-            TypeRepr.Ref(TypeId.derived[Serializable])
+            TypeRepr.Ref(TypeId.of[Comparable[String]]),
+            TypeRepr.Ref(TypeId.of[Serializable])
           )
         )
 
@@ -796,14 +796,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
       test("intersection types with different members are not equal") {
         val intersection1 = TypeRepr.Intersection(
           List(
-            TypeRepr.Ref(TypeId.derived[Serializable]),
-            TypeRepr.Ref(TypeId.derived[Animal])
+            TypeRepr.Ref(TypeId.of[Serializable]),
+            TypeRepr.Ref(TypeId.of[Animal])
           )
         )
         val intersection2 = TypeRepr.Intersection(
           List(
-            TypeRepr.Ref(TypeId.derived[Serializable]),
-            TypeRepr.Ref(TypeId.derived[Mammal])
+            TypeRepr.Ref(TypeId.of[Serializable]),
+            TypeRepr.Ref(TypeId.of[Mammal])
           )
         )
 
@@ -812,9 +812,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Map and Set Keys")(
       test("TypeId can be used as Map keys") {
-        val intId    = TypeId.derived[Int]
-        val stringId = TypeId.derived[String]
-        val dogId    = TypeId.derived[Dog]
+        val intId    = TypeId.of[Int]
+        val stringId = TypeId.of[String]
+        val dogId    = TypeId.of[Dog]
 
         val typeMap: Map[TypeId[_], String] = Map(
           intId    -> "integer type",
@@ -830,9 +830,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("TypeId can be used as Set elements") {
-        val intId    = TypeId.derived[Int]
-        val stringId = TypeId.derived[String]
-        val dogId    = TypeId.derived[Dog]
+        val intId    = TypeId.of[Int]
+        val stringId = TypeId.of[String]
+        val dogId    = TypeId.of[Dog]
 
         val typeSet: Set[TypeId[_]] = Set(intId, stringId, dogId)
 
@@ -844,8 +844,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("TypeId equality works correctly in Map lookups") {
-        val id1 = TypeId.derived[String]
-        val id2 = TypeId.derived[String]
+        val id1 = TypeId.of[String]
+        val id2 = TypeId.of[String]
 
         val typeMap: Map[TypeId[_], String] = Map(id1 -> "first")
 
@@ -855,8 +855,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("TypeId equality works correctly in Set membership") {
-        val id1 = TypeId.derived[Dog]
-        val id2 = TypeId.derived[Dog]
+        val id1 = TypeId.of[Dog]
+        val id2 = TypeId.of[Dog]
 
         val typeSet: Set[TypeId[_]] = Set(id1)
 
@@ -866,8 +866,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Different TypeIds are distinct in Map") {
-        val intId    = TypeId.derived[Int]
-        val stringId = TypeId.derived[String]
+        val intId    = TypeId.of[Int]
+        val stringId = TypeId.of[String]
 
         val typeMap: Map[TypeId[_], String] = Map(intId -> "int", stringId -> "string")
         val intValue                        = typeMap.get(intId)
@@ -881,8 +881,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Type alias equals underlying type in Map") {
-        val ageId = TypeId.derived[TypeAliases.Age]
-        val intId = TypeId.derived[Int]
+        val ageId = TypeId.of[TypeAliases.Age]
+        val intId = TypeId.of[Int]
 
         val typeMap: Map[TypeId[_], String] = Map(intId -> "integer")
 
@@ -894,9 +894,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Recursive Types")(
       test("derives TypeId for recursive linked list") {
-        val nodeId  = TypeId.derived[LinkedList.Node[Int]]
-        val emptyId = TypeId.derived[LinkedList.Empty.type]
-        val listId  = TypeId.derived[LinkedList[Int]]
+        val nodeId  = TypeId.of[LinkedList.Node[Int]]
+        val emptyId = TypeId.of[LinkedList.Empty.type]
+        val listId  = TypeId.of[LinkedList[Int]]
 
         assertTrue(
           nodeId.name == "Node",
@@ -905,9 +905,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for recursive tree") {
-        val branchId = TypeId.derived[Tree.Branch[String]]
-        val leafId   = TypeId.derived[Tree.Leaf.type]
-        val treeId   = TypeId.derived[Tree[String]]
+        val branchId = TypeId.of[Tree.Branch[String]]
+        val leafId   = TypeId.of[Tree.Leaf.type]
+        val treeId   = TypeId.of[Tree[String]]
 
         assertTrue(
           branchId.name == "Branch",
@@ -916,7 +916,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("recursive type has correct parent in hierarchy") {
-        val nodeId = TypeId.derived[LinkedList.Node[Int]]
+        val nodeId = TypeId.of[LinkedList.Node[Int]]
 
         assertTrue(
           nodeId.parents.exists {
@@ -927,10 +927,10 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for mutually recursive types") {
-        val exprId    = TypeId.derived[Expr]
-        val literalId = TypeId.derived[Literal]
-        val binOpId   = TypeId.derived[BinOp]
-        val opId      = TypeId.derived[Op]
+        val exprId    = TypeId.of[Expr]
+        val literalId = TypeId.of[Literal]
+        val binOpId   = TypeId.of[BinOp]
+        val opId      = TypeId.of[Op]
 
         assertTrue(
           exprId.name == "Expr",
@@ -940,9 +940,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("mutually recursive types have correct relationships") {
-        val literalId = TypeId.derived[Literal]
-        val binOpId   = TypeId.derived[BinOp]
-        val exprId    = TypeId.derived[Expr]
+        val literalId = TypeId.of[Literal]
+        val binOpId   = TypeId.of[BinOp]
+        val exprId    = TypeId.of[Expr]
 
         assertTrue(
           literalId.isSubtypeOf(exprId),
@@ -950,8 +950,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("recursive type can be used as Map key") {
-        val nodeId  = TypeId.derived[LinkedList.Node[Int]]
-        val emptyId = TypeId.derived[LinkedList.Empty.type]
+        val nodeId  = TypeId.of[LinkedList.Node[Int]]
+        val emptyId = TypeId.of[LinkedList.Empty.type]
 
         val typeMap: Map[TypeId[_], String] = Map(
           nodeId  -> "node constructor",
@@ -966,8 +966,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Applied Type Inequality")(
       test("List[Int] and List[String] are NOT equal") {
-        val listInt    = TypeId.derived[List[Int]]
-        val listString = TypeId.derived[List[String]]
+        val listInt    = TypeId.of[List[Int]]
+        val listString = TypeId.of[List[String]]
 
         assertTrue(
           listInt != listString,
@@ -981,8 +981,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Option[Int] and Option[String] are NOT equal") {
-        val optInt    = TypeId.derived[Option[Int]]
-        val optString = TypeId.derived[Option[String]]
+        val optInt    = TypeId.of[Option[Int]]
+        val optString = TypeId.of[Option[String]]
 
         assertTrue(
           optInt != optString,
@@ -991,8 +991,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Map[String, Int] and Map[String, Double] are NOT equal") {
-        val mapInt    = TypeId.derived[Map[String, Int]]
-        val mapDouble = TypeId.derived[Map[String, Double]]
+        val mapInt    = TypeId.of[Map[String, Int]]
+        val mapDouble = TypeId.of[Map[String, Double]]
 
         assertTrue(
           mapInt != mapDouble,
@@ -1002,8 +1002,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Either[String, Int] and Either[Int, String] are NOT equal") {
-        val either1 = TypeId.derived[Either[String, Int]]
-        val either2 = TypeId.derived[Either[Int, String]]
+        val either1 = TypeId.of[Either[String, Int]]
+        val either2 = TypeId.of[Either[Int, String]]
 
         assertTrue(
           either1 != either2,
@@ -1012,8 +1012,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("GenericClass[Int] and GenericClass[String] are NOT equal") {
-        val genInt    = TypeId.derived[GenericClass[Int]]
-        val genString = TypeId.derived[GenericClass[String]]
+        val genInt    = TypeId.of[GenericClass[Int]]
+        val genString = TypeId.of[GenericClass[String]]
 
         assertTrue(
           genInt != genString,
@@ -1022,8 +1022,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("MultiParamClass[Int, String] and MultiParamClass[Double, Boolean] are NOT equal") {
-        val multi1 = TypeId.derived[MultiParamClass[Int, String]]
-        val multi2 = TypeId.derived[MultiParamClass[Double, Boolean]]
+        val multi1 = TypeId.of[MultiParamClass[Int, String]]
+        val multi2 = TypeId.of[MultiParamClass[Double, Boolean]]
 
         assertTrue(
           multi1 != multi2,
@@ -1032,8 +1032,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Box[Int] and Box[String] are NOT equal") {
-        val boxInt    = TypeId.derived[Box[Int]]
-        val boxString = TypeId.derived[Box[String]]
+        val boxInt    = TypeId.of[Box[Int]]
+        val boxString = TypeId.of[Box[String]]
 
         assertTrue(
           boxInt != boxString,
@@ -1042,8 +1042,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("LinkedList[Int] and LinkedList[String] are NOT equal") {
-        val listInt    = TypeId.derived[LinkedList[Int]]
-        val listString = TypeId.derived[LinkedList[String]]
+        val listInt    = TypeId.of[LinkedList[Int]]
+        val listString = TypeId.of[LinkedList[String]]
 
         assertTrue(
           listInt != listString,
@@ -1052,8 +1052,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Tree[Int] and Tree[String] are NOT equal") {
-        val treeInt    = TypeId.derived[Tree[Int]]
-        val treeString = TypeId.derived[Tree[String]]
+        val treeInt    = TypeId.of[Tree[Int]]
+        val treeString = TypeId.of[Tree[String]]
 
         assertTrue(
           treeInt != treeString,
@@ -1062,7 +1062,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("applied type has typeArgs while type constructor has none") {
-        val listInt = TypeId.derived[List[Int]]
+        val listInt = TypeId.of[List[Int]]
 
         assertTrue(
           listInt.isApplied,
@@ -1071,8 +1071,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("nested applied types are NOT equal when args differ") {
-        val nestedInt    = TypeId.derived[List[Option[Int]]]
-        val nestedString = TypeId.derived[List[Option[String]]]
+        val nestedInt    = TypeId.of[List[Option[Int]]]
+        val nestedString = TypeId.of[List[Option[String]]]
 
         assertTrue(
           nestedInt != nestedString,
@@ -1080,8 +1080,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("same applied type is equal to itself") {
-        val listInt1 = TypeId.derived[List[Int]]
-        val listInt2 = TypeId.derived[List[Int]]
+        val listInt1 = TypeId.of[List[Int]]
+        val listInt2 = TypeId.of[List[Int]]
 
         assertTrue(
           listInt1 == listInt2,
@@ -1089,8 +1089,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("deeply nested generics are equal when structure matches") {
-        val id1 = TypeId.derived[List[Map[String, Option[Either[Int, List[String]]]]]]
-        val id2 = TypeId.derived[List[Map[String, Option[Either[Int, List[String]]]]]]
+        val id1 = TypeId.of[List[Map[String, Option[Either[Int, List[String]]]]]]
+        val id2 = TypeId.of[List[Map[String, Option[Either[Int, List[String]]]]]]
 
         assertTrue(
           id1 == id2,
@@ -1098,8 +1098,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("deeply nested generics are NOT equal when inner args differ") {
-        val id1 = TypeId.derived[List[Map[String, Option[Either[Int, List[String]]]]]]
-        val id2 = TypeId.derived[List[Map[String, Option[Either[Int, List[Int]]]]]]
+        val id1 = TypeId.of[List[Map[String, Option[Either[Int, List[String]]]]]]
+        val id2 = TypeId.of[List[Map[String, Option[Either[Int, List[Int]]]]]]
 
         assertTrue(
           id1 != id2,
@@ -1109,8 +1109,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Variance-Aware Subtyping for Applied Types")(
       test("List[Dog] is subtype of List[Animal] (covariant)") {
-        val listDog    = TypeId.derived[List[Dog]]
-        val listAnimal = TypeId.derived[List[Animal]]
+        val listDog    = TypeId.of[List[Dog]]
+        val listAnimal = TypeId.of[List[Animal]]
 
         assertTrue(
           listDog.isSubtypeOf(listAnimal),
@@ -1119,8 +1119,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Option[Dog] is subtype of Option[Animal] (covariant)") {
-        val optDog    = TypeId.derived[Option[Dog]]
-        val optAnimal = TypeId.derived[Option[Animal]]
+        val optDog    = TypeId.of[Option[Dog]]
+        val optAnimal = TypeId.of[Option[Animal]]
 
         assertTrue(
           optDog.isSubtypeOf(optAnimal),
@@ -1128,8 +1128,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("List[Cat] is NOT subtype of List[Dog] (siblings)") {
-        val listCat = TypeId.derived[List[Cat]]
-        val listDog = TypeId.derived[List[Dog]]
+        val listCat = TypeId.of[List[Cat]]
+        val listDog = TypeId.of[List[Dog]]
 
         assertTrue(
           !listCat.isSubtypeOf(listDog),
@@ -1137,8 +1137,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("contravariant type parameter subtyping - (Animal => Int) <: (Dog => Int)") {
-        val fnAnimal = TypeId.derived[Animal => Int]
-        val fnDog    = TypeId.derived[Dog => Int]
+        val fnAnimal = TypeId.of[Animal => Int]
+        val fnDog    = TypeId.of[Dog => Int]
 
         assertTrue(
           fnAnimal.isSubtypeOf(fnDog),
@@ -1146,8 +1146,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("invariant type parameter subtyping - Array is invariant") {
-        val arrayDog    = TypeId.derived[Array[Dog]]
-        val arrayAnimal = TypeId.derived[Array[Animal]]
+        val arrayDog    = TypeId.of[Array[Dog]]
+        val arrayAnimal = TypeId.of[Array[Animal]]
 
         assertTrue(
           !arrayDog.isSubtypeOf(arrayAnimal),
@@ -1155,8 +1155,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("mixed variance - Function1 is contravariant in input, covariant in output") {
-        val fnAnimalToDog = TypeId.derived[Animal => Dog]
-        val fnDogToAnimal = TypeId.derived[Dog => Animal]
+        val fnAnimalToDog = TypeId.of[Animal => Dog]
+        val fnDogToAnimal = TypeId.of[Dog => Animal]
 
         assertTrue(
           fnAnimalToDog.isSubtypeOf(fnDogToAnimal),
@@ -1166,9 +1166,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Cross-Compilation Equality")(
       test("same type derived multiple times equals itself") {
-        val id1 = TypeId.derived[String]
-        val id2 = TypeId.derived[String]
-        val id3 = TypeId.derived[String]
+        val id1 = TypeId.of[String]
+        val id2 = TypeId.of[String]
+        val id3 = TypeId.of[String]
 
         assertTrue(
           id1 == id2,
@@ -1179,8 +1179,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("generic types derived with same type arguments are equal") {
-        val list1 = TypeId.derived[List[Int]]
-        val list2 = TypeId.derived[List[Int]]
+        val list1 = TypeId.of[List[Int]]
+        val list2 = TypeId.of[List[Int]]
 
         assertTrue(
           list1 == list2,
@@ -1188,8 +1188,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("user-defined types are equal across derivations") {
-        val dog1 = TypeId.derived[Dog]
-        val dog2 = TypeId.derived[Dog]
+        val dog1 = TypeId.of[Dog]
+        val dog2 = TypeId.of[Dog]
 
         assertTrue(
           dog1 == dog2,
@@ -1197,8 +1197,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("type constructors are equal across derivations") {
-        val list1 = TypeId.derived[List[_]]
-        val list2 = TypeId.derived[List[_]]
+        val list1 = TypeId.of[List[_]]
+        val list2 = TypeId.of[List[_]]
 
         assertTrue(
           list1 == list2,
@@ -1206,8 +1206,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("nested types are equal across derivations") {
-        val nested1 = TypeId.derived[Outer.Nested]
-        val nested2 = TypeId.derived[Outer.Nested]
+        val nested1 = TypeId.of[Outer.Nested]
+        val nested2 = TypeId.of[Outer.Nested]
 
         assertTrue(
           nested1 == nested2,
@@ -1215,8 +1215,8 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("sealed trait subtypes are equal across derivations") {
-        val caseA1 = TypeId.derived[SimpleSealed.CaseA]
-        val caseA2 = TypeId.derived[SimpleSealed.CaseA]
+        val caseA1 = TypeId.of[SimpleSealed.CaseA]
+        val caseA2 = TypeId.of[SimpleSealed.CaseA]
 
         assertTrue(
           caseA1 == caseA2,
@@ -1225,9 +1225,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
       }
     ),
     suite("TypeId.of API")(
-      test("TypeId.of produces same result as TypeId.derived") {
+      test("TypeId.of produces same result as TypeId.of") {
         val viaOf      = TypeId.of[String]
-        val viaDerived = TypeId.derived[String]
+        val viaDerived = TypeId.of[String]
 
         assertTrue(
           viaOf == viaDerived,

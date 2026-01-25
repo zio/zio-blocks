@@ -360,7 +360,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
           implicit val schema: Schema[CustomWrapper] = new Schema(
             new Reflect.Wrapper[Binding, CustomWrapper, String](
               Schema[String].reflect,
-              TypeId.derived[CustomWrapper],
+              TypeId.of[CustomWrapper],
               None,
               new Binding.Wrapper[CustomWrapper, String](
                 (s: String) => Right(CustomWrapper(s)),
