@@ -117,96 +117,166 @@ object JsonSpec extends SchemaBaseSpec {
           assert(JsonType.Null(nul))(equalTo(true)) &&
           assert(JsonType.Null(obj))(equalTo(false))
         },
-        test("query with JsonType as predicate finds all matching values") {
-          val json = Json.Object(
-            "name"  -> Json.String("Alice"),
-            "age"   -> Json.Number("30"),
-            "items" -> Json.Array(
-              Json.String("apple"),
-              Json.Number("42"),
-              Json.String("banana")
-            )
+        test("select wraps json in selection") {
+          val json      = Json.String("hello")
+          val selection = json.select
+          assertTrue(
+            selection.isSuccess,
+            selection.one == Right(Json.String("hello"))
           )
-          val strings = json.query(JsonType.String).toVector
-          assert(strings.length)(equalTo(3)) &&
-          assert(strings.contains(Json.String("Alice")))(equalTo(true)) &&
-          assert(strings.contains(Json.String("apple")))(equalTo(true)) &&
-          assert(strings.contains(Json.String("banana")))(equalTo(true))
         },
-        test("query with value predicate finds matching values") {
+        test("select(jsonType) returns selection when type matches") {
+          val json = Json.Object("a" -> Json.Number("1"))
+          assertTrue(
+            json.select(JsonType.Object).isSuccess,
+            json.select(JsonType.Object).one == Right(json)
+          )
+        },
+        test("select(jsonType) returns empty when type does not match") {
+          val json = Json.Object("a" -> Json.Number("1"))
+          assertTrue(
+            json.select(JsonType.Array).isEmpty,
+            json.select(JsonType.String).isEmpty,
+            json.select(JsonType.Number).isEmpty
+          )
+        }
+      ),
+      suite("prune/retain methods")(
+        test("prune removes matching values from object") {
+          val json = Json.Object(
+            "a" -> Json.Number("1"),
+            "b" -> Json.Null,
+            "c" -> Json.Number("2")
+          )
+          val pruned  = json.prune(_.is(JsonType.Null))
+          val pruned2 = pruned.as(JsonType.Object).get
+          assertTrue(
+            pruned2.fields.length == 2,
+            pruned2.get("a").isSuccess,
+            pruned2.get("b").isFailure,
+            pruned2.get("c").isSuccess
+          )
+        },
+        test("prune removes matching values from array") {
           val json = Json.Array(
             Json.Number("1"),
-            Json.Number("10"),
-            Json.Number("5"),
-            Json.Number("20")
+            Json.Null,
+            Json.Number("2"),
+            Json.Null
           )
-          val largeNumbers = json.query { j =>
-            j.unwrap(JsonType.Number).exists(_ > 5)
-          }.toVector
-          assert(largeNumbers.length)(equalTo(2)) &&
-          assert(largeNumbers.contains(Json.Number("10")))(equalTo(true)) &&
-          assert(largeNumbers.contains(Json.Number("20")))(equalTo(true))
+          val pruned = json.prune(_.is(JsonType.Null))
+          assertTrue(
+            pruned.elements.length == 2,
+            pruned.elements == Chunk(Json.Number("1"), Json.Number("2"))
+          )
         },
-        test("queryPath finds values at paths matching predicate") {
+        test("prune works recursively") {
           val json = Json.Object(
             "user" -> Json.Object(
               "name" -> Json.String("Alice"),
-              "age"  -> Json.Number("30")
-            ),
-            "metadata" -> Json.Object(
-              "created" -> Json.String("2024-01-01")
+              "age"  -> Json.Null
             )
           )
-          val userFields = json.queryPath { path =>
-            path.nodes.headOption.exists {
-              case f: DynamicOptic.Node.Field => f.name == "user"
-              case _                          => false
-            }
-          }.toVector
-          assert(userFields.nonEmpty)(equalTo(true))
-        },
-        test("queryPath finds values at specific indices") {
-          val json = Json.Array(
-            Json.String("zero"),
-            Json.String("one"),
-            Json.String("two")
+          val pruned = json.prune(_.is(JsonType.Null))
+          assertTrue(
+            pruned.get("user").get("name").isSuccess,
+            pruned.get("user").get("age").isFailure
           )
-          val atIndexOne = json.queryPath { path =>
-            path.nodes.exists {
-              case idx: DynamicOptic.Node.AtIndex => idx.index == 1
-              case _                              => false
-            }
-          }.toVector
-          assert(atIndexOne)(equalTo(Vector(Json.String("one"))))
         },
-        test("queryBoth finds values matching both path and value predicates") {
+        test("prunePath removes values at matching paths") {
           val json = Json.Object(
-            "numbers" -> Json.Array(
-              Json.Number("1"),
-              Json.Number("100"),
-              Json.Number("5")
-            ),
-            "strings" -> Json.Array(
-              Json.String("a"),
-              Json.String("b")
-            )
+            "keep" -> Json.Number("1"),
+            "drop" -> Json.Number("2")
           )
-          val largeNumbersInNumbersField = json.queryBoth { (path, value) =>
-            val inNumbersField = path.nodes.exists {
-              case f: DynamicOptic.Node.Field => f.name == "numbers"
+          val pruned = json.prunePath { path =>
+            path.nodes.exists {
+              case f: DynamicOptic.Node.Field => f.name == "drop"
               case _                          => false
             }
-            val isLargeNumber = value.unwrap(JsonType.Number).exists(_ > 10)
-            inNumbersField && isLargeNumber
-          }.toVector
-          assert(largeNumbersInNumbersField)(equalTo(Vector(Json.Number("100"))))
+          }
+          assertTrue(
+            pruned.get("keep").isSuccess,
+            pruned.get("drop").isFailure
+          )
         },
-        test("queryBoth returns empty when no matches") {
-          val json    = Json.Object("a" -> Json.Number("1"))
-          val results = json.queryBoth { (_, value) =>
-            value.is(JsonType.String)
-          }.toVector
-          assert(results.isEmpty)(equalTo(true))
+        test("pruneBoth removes values matching both path and value predicates") {
+          val json = Json.Object(
+            "nums" -> Json.Array(Json.Number("1"), Json.Number("100"), Json.Number("5")),
+            "strs" -> Json.Array(Json.String("a"))
+          )
+          val pruned = json.pruneBoth { (path, value) =>
+            val inNums = path.nodes.exists {
+              case f: DynamicOptic.Node.Field => f.name == "nums"
+              case _                          => false
+            }
+            val isLarge = value.unwrap(JsonType.Number).exists(_ > 10)
+            inNums && isLarge
+          }
+          assertTrue(
+            pruned.get("nums").as[Vector[Int]] == Right(Vector(1, 5)),
+            pruned.get("strs").isSuccess
+          )
+        },
+        test("retain keeps only matching values in object") {
+          val json = Json.Object(
+            "a" -> Json.Number("1"),
+            "b" -> Json.String("hi"),
+            "c" -> Json.Number("2")
+          )
+          val retained = json.retain(_.is(JsonType.Number))
+          val fields   = retained.as(JsonType.Object).get.fields
+          assertTrue(
+            fields.length == 2,
+            retained.get("a").isSuccess,
+            retained.get("b").isFailure,
+            retained.get("c").isSuccess
+          )
+        },
+        test("retain keeps only matching values in array") {
+          val json = Json.Array(
+            Json.Number("1"),
+            Json.String("x"),
+            Json.Number("2")
+          )
+          val retained = json.retain(_.is(JsonType.Number))
+          assertTrue(
+            retained.elements.length == 2,
+            retained.elements == Chunk(Json.Number("1"), Json.Number("2"))
+          )
+        },
+        test("retainPath keeps values at matching paths") {
+          val json = Json.Object(
+            "keep" -> Json.Number("1"),
+            "drop" -> Json.Number("2")
+          )
+          val retained = json.retainPath { path =>
+            path.nodes.exists {
+              case f: DynamicOptic.Node.Field => f.name == "keep"
+              case _                          => false
+            }
+          }
+          assertTrue(
+            retained.get("keep").isSuccess,
+            retained.get("drop").isFailure
+          )
+        },
+        test("retainBoth keeps values matching both path and value predicates") {
+          val json = Json.Object(
+            "keep" -> Json.Number("100"),
+            "drop" -> Json.Number("5")
+          )
+          val retained = json.retainBoth { (path, value) =>
+            val hasKeepField = path.nodes.exists {
+              case f: DynamicOptic.Node.Field => f.name == "keep"
+              case _                          => false
+            }
+            val isLarge = value.unwrap(JsonType.Number).exists(_ > 10)
+            hasKeepField && isLarge
+          }
+          assertTrue(
+            retained.get("keep").isSuccess,
+            retained.get("drop").isFailure
+          )
         }
       ),
       suite("jsonType")(
@@ -686,31 +756,31 @@ object JsonSpec extends SchemaBaseSpec {
           )
         }
       ),
-      suite("filtering methods")(
-        test("filter keeps matching elements in arrays") {
+      suite("prune/retain methods")(
+        test("retain keeps matching elements in arrays") {
           val json     = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3"), Json.Number("4"))
-          val filtered = json.filter { (_, j) =>
+          val retained = json.retainBoth { (_, j) =>
             j match {
               case Json.Number(n) => BigDecimal(n) > BigDecimal(2)
               case _              => true
             }
           }
-          assertTrue(filtered.elements == Chunk(Json.Number("3"), Json.Number("4")))
+          assertTrue(retained.elements == Chunk(Json.Number("3"), Json.Number("4")))
         },
-        test("filter keeps matching fields in objects") {
+        test("retain keeps matching fields in objects") {
           val json     = Json.Object("a" -> Json.Number("1"), "b" -> Json.Number("2"), "c" -> Json.Number("3"))
-          val filtered = json.filter { (_, j) =>
+          val retained = json.retainBoth { (_, j) =>
             j match {
               case Json.Number(n) => BigDecimal(n) >= BigDecimal(2)
               case _              => true
             }
           }
-          assertTrue(filtered.get("a").isFailure, filtered.get("b").isSuccess, filtered.get("c").isSuccess)
+          assertTrue(retained.get("a").isFailure, retained.get("b").isSuccess, retained.get("c").isSuccess)
         },
-        test("filterNot removes matching elements") {
-          val json     = Json.Array(Json.Number("1"), Json.Null, Json.Number("2"), Json.Null)
-          val filtered = json.filterNot((_, j) => j.is(JsonType.Null))
-          assertTrue(filtered.elements == Chunk(Json.Number("1"), Json.Number("2")))
+        test("prune removes matching elements") {
+          val json   = Json.Array(Json.Number("1"), Json.Null, Json.Number("2"), Json.Null)
+          val pruned = json.prune(j => j.is(JsonType.Null))
+          assertTrue(pruned.elements == Chunk(Json.Number("1"), Json.Number("2")))
         },
         test("partition splits by predicate") {
           val json          = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3"), Json.Number("4"))
@@ -791,7 +861,7 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(result.isLeft)
         }
       ),
-      suite("query methods")(
+      suite("query methods (via JsonSelection)")(
         test("query finds matching values") {
           val json = Json.Object(
             "users" -> Json.Array(
@@ -800,8 +870,7 @@ object JsonSpec extends SchemaBaseSpec {
               Json.Object("name" -> Json.String("Charlie"), "active" -> Json.Boolean(true))
             )
           )
-          // Find all active=true values
-          val activeUsers = json.query {
+          val activeUsers = json.select.query {
             case Json.Boolean(true) => true
             case _                  => false
           }
@@ -809,7 +878,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("query returns empty selection when nothing matches") {
           val json   = Json.Object("a" -> Json.Number("1"))
-          val result = json.query(JsonType.String)
+          val result = json.select.query(JsonType.String)
           assertTrue(result.isEmpty)
         },
         test("toKV converts to path-value pairs") {
@@ -860,11 +929,11 @@ object JsonSpec extends SchemaBaseSpec {
           json.get("data").get("users")(1).get("age").as[Int] == Right(25)
         )
       },
-      test("query type filtering") {
+      test("select type filtering") {
         val json = Json.Object("name" -> Json.String("test"))
         assertTrue(
-          json.query(JsonType.Object).isSuccess,
-          json.query(JsonType.Array).isEmpty,
+          json.select(JsonType.Object).isSuccess,
+          json.select(JsonType.Array).isEmpty,
           json.get("name").strings.isSuccess
         )
       },
@@ -1268,6 +1337,101 @@ object JsonSpec extends SchemaBaseSpec {
             nullSel.nulls.isSuccess,
             nullSel.numbers.isEmpty
           )
+        },
+        test("query with predicate finds all matching values recursively") {
+          val json = Json.Object(
+            "name"  -> Json.String("Alice"),
+            "age"   -> Json.Number("30"),
+            "items" -> Json.Array(
+              Json.String("apple"),
+              Json.Number("42"),
+              Json.String("banana")
+            )
+          )
+          val strings = json.select.query(JsonType.String).toVector
+          assertTrue(
+            strings.length == 3,
+            strings.contains(Json.String("Alice")),
+            strings.contains(Json.String("apple")),
+            strings.contains(Json.String("banana"))
+          )
+        },
+        test("query with value predicate finds matching values") {
+          val json = Json.Array(
+            Json.Number("1"),
+            Json.Number("10"),
+            Json.Number("5"),
+            Json.Number("20")
+          )
+          val largeNumbers = json.select.query { j =>
+            j.unwrap(JsonType.Number).exists(_ > 5)
+          }.toVector
+          assertTrue(
+            largeNumbers.length == 2,
+            largeNumbers.contains(Json.Number("10")),
+            largeNumbers.contains(Json.Number("20"))
+          )
+        },
+        test("queryPath finds values at paths matching predicate") {
+          val json = Json.Object(
+            "user" -> Json.Object(
+              "name" -> Json.String("Alice"),
+              "age"  -> Json.Number("30")
+            ),
+            "metadata" -> Json.Object(
+              "created" -> Json.String("2024-01-01")
+            )
+          )
+          val userFields = json.select.queryPath { path =>
+            path.nodes.headOption.exists {
+              case f: DynamicOptic.Node.Field => f.name == "user"
+              case _                          => false
+            }
+          }.toVector
+          assertTrue(userFields.nonEmpty)
+        },
+        test("queryPath finds values at specific indices") {
+          val json = Json.Array(
+            Json.String("zero"),
+            Json.String("one"),
+            Json.String("two")
+          )
+          val atIndexOne = json.select.queryPath { path =>
+            path.nodes.exists {
+              case idx: DynamicOptic.Node.AtIndex => idx.index == 1
+              case _                              => false
+            }
+          }.toVector
+          assertTrue(atIndexOne == Vector(Json.String("one")))
+        },
+        test("queryBoth finds values matching both path and value predicates") {
+          val json = Json.Object(
+            "numbers" -> Json.Array(
+              Json.Number("1"),
+              Json.Number("100"),
+              Json.Number("5")
+            ),
+            "strings" -> Json.Array(
+              Json.String("a"),
+              Json.String("b")
+            )
+          )
+          val largeNumbersInNumbersField = json.select.queryBoth { (path, value) =>
+            val inNumbersField = path.nodes.exists {
+              case f: DynamicOptic.Node.Field => f.name == "numbers"
+              case _                          => false
+            }
+            val isLargeNumber = value.unwrap(JsonType.Number).exists(_ > 10)
+            inNumbersField && isLargeNumber
+          }.toVector
+          assertTrue(largeNumbersInNumbersField == Vector(Json.Number("100")))
+        },
+        test("queryBoth returns empty when no matches") {
+          val json    = Json.Object("a" -> Json.Number("1"))
+          val results = json.select.queryBoth { (_, value) =>
+            value.is(JsonType.String)
+          }.toVector
+          assertTrue(results.isEmpty)
         }
       ),
       suite("DynamicValue conversion edge cases")(
@@ -1432,11 +1596,16 @@ object JsonSpec extends SchemaBaseSpec {
           )
         }
       ),
-      suite("filter/partition edge cases")(
-        test("filter on primitives returns unchanged") {
+      suite("retain/prune/partition edge cases")(
+        test("retain on primitives returns unchanged") {
           val json     = Json.Number("42")
-          val filtered = json.filter((_, _) => true)
-          assertTrue(filtered == json)
+          val retained = json.retainBoth((_, _) => true)
+          assertTrue(retained == json)
+        },
+        test("prune on primitives returns unchanged") {
+          val json   = Json.Number("42")
+          val pruned = json.pruneBoth((_, _) => false)
+          assertTrue(pruned == json)
         },
         test("partition on primitives") {
           val json                    = Json.String("hello")

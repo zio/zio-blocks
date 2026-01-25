@@ -265,20 +265,78 @@ sealed trait Json {
   def transformKeys(f: (DynamicOptic, String) => String): Json = Json.transformKeysImpl(this, DynamicOptic.root, f)
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Filtering Methods
+  // Selection Methods (flat, lift to JsonSelection)
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Filters elements/fields based on a predicate. The function receives the
-   * current path and the JSON value at that path. Only values for which the
-   * predicate returns true are kept.
+   * Wraps this JSON value in a [[JsonSelection]].
+   *
+   * @example
+   *   {{{json.select // JsonSelection containing this value}}}
    */
-  def filter(p: (DynamicOptic, Json) => Boolean): Json = Json.filterImpl(this, DynamicOptic.root, p)
+  def select: JsonSelection = JsonSelection.succeed(this)
 
   /**
-   * Filters elements/fields based on the negation of a predicate.
+   * Wraps this JSON value in a [[JsonSelection]] if its type matches the
+   * specified [[JsonType]], otherwise returns an empty selection.
+   *
+   * This is a flat (non-recursive) type check on the current node only.
+   *
+   * @example
+   *   {{{json.select(JsonType.Object) // selection if json is object, else empty}}}
    */
-  def filterNot(p: (DynamicOptic, Json) => Boolean): Json = filter((path, json) => !p(path, json))
+  def select(jsonType: JsonType): JsonSelection =
+    if (this.jsonType == jsonType) JsonSelection.succeed(this)
+    else JsonSelection.empty
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Pruning Methods (remove matching nodes)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Recursively removes elements/fields for which the predicate returns true.
+   *
+   * @example
+   *   {{{json.prune(_.is(JsonType.Null)) // removes all null values}}}
+   */
+  def prune(p: Json => Boolean): Json = Json.pruneImpl(this, DynamicOptic.root, (_, json) => p(json))
+
+  /**
+   * Recursively removes elements/fields at paths for which the predicate
+   * returns true.
+   */
+  def prunePath(p: DynamicOptic => Boolean): Json = Json.pruneImpl(this, DynamicOptic.root, (path, _) => p(path))
+
+  /**
+   * Recursively removes elements/fields for which the predicate on both path
+   * and value returns true.
+   */
+  def pruneBoth(p: (DynamicOptic, Json) => Boolean): Json = Json.pruneImpl(this, DynamicOptic.root, p)
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Retention Methods (keep only matching nodes)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Recursively keeps only elements/fields for which the predicate returns
+   * true.
+   *
+   * @example
+   *   {{{json.retain(_.is(JsonType.Number)) // keeps only numbers}}}
+   */
+  def retain(p: Json => Boolean): Json = Json.retainImpl(this, DynamicOptic.root, (_, json) => p(json))
+
+  /**
+   * Recursively keeps only elements/fields at paths for which the predicate
+   * returns true.
+   */
+  def retainPath(p: DynamicOptic => Boolean): Json = Json.retainImpl(this, DynamicOptic.root, (path, _) => p(path))
+
+  /**
+   * Recursively keeps only elements/fields for which the predicate on both path
+   * and value returns true.
+   */
+  def retainBoth(p: (DynamicOptic, Json) => Boolean): Json = Json.retainImpl(this, DynamicOptic.root, p)
 
   /**
    * Projects only the specified paths from this JSON value. Creates a new JSON
@@ -321,33 +379,6 @@ sealed trait Json {
    */
   def foldDownOrFail[B](z: B)(f: (DynamicOptic, Json, B) => Either[JsonError, B]): Either[JsonError, B] =
     Json.foldDownOrFailImpl(this, DynamicOptic.root, z, f)
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Query Methods
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /**
-   * Queries the JSON using a predicate on values. Returns a JsonSelection
-   * containing all values for which the predicate returns true.
-   *
-   * @example
-   *   {{{ json.query(JsonType.String) // all string values
-   *   json.query(_.is(JsonType.Number)) // all number values }}}
-   */
-  def query(p: Json => Boolean): JsonSelection = Json.queryImpl(this, DynamicOptic.root, (_, json) => p(json))
-
-  /**
-   * Queries the JSON using a predicate on paths. Returns a JsonSelection
-   * containing all values at paths for which the predicate returns true.
-   */
-  def queryPath(p: DynamicOptic => Boolean): JsonSelection =
-    Json.queryImpl(this, DynamicOptic.root, (path, _) => p(path))
-
-  /**
-   * Queries the JSON using a predicate on both path and value. Returns a
-   * JsonSelection containing all values for which the predicate returns true.
-   */
-  def queryBoth(p: (DynamicOptic, Json) => Boolean): JsonSelection = Json.queryImpl(this, DynamicOptic.root, p)
 
   /**
    * Converts this JSON to a Chunk of path-value pairs. Each pair contains the
@@ -918,20 +949,35 @@ object Json {
     }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Filter Implementations
+  // Prune/Retain Implementations
   // ─────────────────────────────────────────────────────────────────────────
 
-  private def filterImpl(json: Json, path: DynamicOptic, p: (DynamicOptic, Json) => scala.Boolean): Json =
+  private[json] def pruneImpl(json: Json, path: DynamicOptic, p: (DynamicOptic, Json) => scala.Boolean): Json =
+    json match {
+      case obj: Object =>
+        new Object(obj.value.collect {
+          case (k, v) if !p(path.field(k), v) =>
+            (k, pruneImpl(v, path.field(k), p))
+        })
+      case arr: Array =>
+        new Array(arr.value.zipWithIndex.collect {
+          case (elem, i) if !p(path.at(i), elem) =>
+            pruneImpl(elem, path.at(i), p)
+        })
+      case other => other
+    }
+
+  private[json] def retainImpl(json: Json, path: DynamicOptic, p: (DynamicOptic, Json) => scala.Boolean): Json =
     json match {
       case obj: Object =>
         new Object(obj.value.collect {
           case (k, v) if p(path.field(k), v) =>
-            (k, filterImpl(v, path.field(k), p))
+            (k, retainImpl(v, path.field(k), p))
         })
       case arr: Array =>
         new Array(arr.value.zipWithIndex.collect {
           case (elem, i) if p(path.at(i), elem) =>
-            filterImpl(elem, path.at(i), p)
+            retainImpl(elem, path.at(i), p)
         })
       case other => other
     }
@@ -1043,7 +1089,11 @@ object Json {
   // Query Implementations
   // ─────────────────────────────────────────────────────────────────────────
 
-  private def queryImpl(json: Json, path: DynamicOptic, p: (DynamicOptic, Json) => scala.Boolean): JsonSelection = {
+  private[json] def queryImpl(
+    json: Json,
+    path: DynamicOptic,
+    p: (DynamicOptic, Json) => scala.Boolean
+  ): JsonSelection = {
     val results = Vector.newBuilder[Json]
 
     def collect(j: Json, currentPath: DynamicOptic): Unit = {

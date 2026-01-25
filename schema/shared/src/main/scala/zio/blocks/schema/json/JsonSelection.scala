@@ -191,6 +191,34 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
     }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Query Methods (recursive search within selection)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Recursively searches each JSON in the selection, collecting all values for
+   * which the predicate returns true.
+   *
+   * @example
+   *   {{{selection.query(JsonType.String) // all string values in selection}}}
+   */
+  def query(p: Json => Boolean): JsonSelection =
+    flatMap(json => Json.queryImpl(json, DynamicOptic.root, (_, j) => p(j)))
+
+  /**
+   * Recursively searches each JSON in the selection, collecting all values at
+   * paths for which the predicate returns true.
+   */
+  def queryPath(p: DynamicOptic => Boolean): JsonSelection =
+    flatMap(json => Json.queryImpl(json, DynamicOptic.root, (path, _) => p(path)))
+
+  /**
+   * Recursively searches each JSON in the selection, collecting all values for
+   * which the predicate on both path and value returns true.
+   */
+  def queryBoth(p: (DynamicOptic, Json) => Boolean): JsonSelection =
+    flatMap(json => Json.queryImpl(json, DynamicOptic.root, p))
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Decoding
   // ─────────────────────────────────────────────────────────────────────────
 
