@@ -58,9 +58,9 @@ object Stringable {
 
   implicit val longStringable: Stringable[Long] = instance(_.toString)
 
-  implicit val floatStringable: Stringable[Float] = instance(_.toString)
+  implicit val floatStringable: Stringable[Float] = instance(java.lang.Float.toString)
 
-  implicit val doubleStringable: Stringable[Double] = instance(_.toString)
+  implicit val doubleStringable: Stringable[Double] = instance(java.lang.Double.toString)
 
   implicit val charStringable: Stringable[Char] = instance(_.toString)
 

@@ -132,8 +132,8 @@ object JsonInterpolatorRuntime {
     case sh: Short           => sh.toString
     case i: Int              => i.toString
     case l: Long             => l.toString
-    case f: Float            => f.toString
-    case d: Double           => d.toString
+    case f: Float            => java.lang.Float.toString(f)
+    case d: Double           => java.lang.Double.toString(d)
     case c: Char             => c.toString
     case bd: BigDecimal      => bd.toString
     case bi: BigInt          => bi.toString

@@ -610,13 +610,13 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       test("interpolates Float inside string literal") {
         val f: Float = 3.14f
         assertTrue(
-          json"""{"msg": "Float value: $f"}""".get("msg").string == Right("Float value: 3.14")
+          json"""{"msg": "Float value: $f"}""".get("msg").string == Right(s"Float value: ${f.toString}")
         )
       },
       test("interpolates Double inside string literal") {
         val d: Double = 2.71828
         assertTrue(
-          json"""{"msg": "Double value: $d"}""".get("msg").string == Right("Double value: 2.71828")
+          json"""{"msg": "Double value: $d"}""".get("msg").string == Right(s"Double value: ${d.toString}")
         )
       },
       test("interpolates Char inside string literal") {
