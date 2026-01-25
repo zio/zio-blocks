@@ -84,7 +84,7 @@ json"""{"point": $p}"""          // ✅ Works in value position
 
 | File | Description |
 |------|-------------|
-| `Stringable.scala` | Type class with 28 implicit instances |
+| `Stringable.scala` | Type class with 29 implicit instances |
 | `JsonInterpolatorRuntime.scala` | Context-aware value writing |
 | `json/package.scala` (×4) | Macro updates for all platforms |
 | `JsonInterpolatorSpec.scala` | 29 new tests |

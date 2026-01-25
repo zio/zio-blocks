@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.json._
 import scala.quoted._
-import scala.util.control.NonFatal
 
 package object json {
   extension (inline sc: StringContext) {
@@ -23,12 +22,9 @@ package object json {
       case _ => report.errorAndAbort("Expected a StringContext with string literal parts")
     }
 
-    // Validate JSON structure
-    try {
-      JsonInterpolatorRuntime.jsonWithInterpolation(new StringContext(parts: _*), (2 to parts.size).map(_ => ""))
-    } catch {
-      case error if NonFatal(error) => report.errorAndAbort(s"Invalid JSON literal: ${error.getMessage}")
-    }
+    // Note: We skip compile-time JSON validation on Native because the compiler
+    // cannot invoke the runtime JsonInterpolatorRuntime class during macro expansion.
+    // JSON structure validation will happen at runtime instead.
 
     // Extract individual argument expressions for type checking
     val argExprs: List[Expr[Any]] = args match {
@@ -101,26 +97,48 @@ package object json {
    */
   private def analyzeContexts(parts: List[String]): List[String] =
     if (parts.length <= 1) Nil
-    else
-      parts
-        .sliding(2)
-        .collect { case Seq(before, after) =>
-          determineContext(before, after)
-        }
-        .toList
+    else {
+      val builder  = List.newBuilder[String]
+      var inString = false
+      var i        = 0
+      while (i < parts.length - 1) {
+        val before = parts(i)
+        val after  = parts(i + 1)
+        // Update string state by processing the current part
+        inString = updateStringState(before, inString)
+        val ctx =
+          if (inString) "string"
+          else if (isKeyPosition(before, after)) "key"
+          else "value"
+        builder += ctx
+        i += 1
+      }
+      builder.result()
+    }
 
-  private def determineContext(before: String, after: String): String =
-    if (isInsideString(before)) "string"
-    else if (isKeyPosition(before, after)) "key"
-    else "value"
-
-  private def isInsideString(before: String): Boolean = {
-    var inString = false
+  /**
+   * Updates the string state by scanning the segment, starting from the given
+   * initial state. Returns true if we end up inside a string literal, false
+   * otherwise.
+   */
+  private def updateStringState(segment: String, initialInString: Boolean): Boolean = {
+    var inString = initialInString
     var i        = 0
-    while (i < before.length) {
-      val c = before.charAt(i)
-      if (c == '"' && (i == 0 || before.charAt(i - 1) != '\\')) {
-        inString = !inString
+    while (i < segment.length) {
+      val c = segment.charAt(i)
+      if (c == '"') {
+        // Count consecutive backslashes immediately preceding this quote.
+        // If the count is even (including zero), the quote is not escaped.
+        // If the count is odd, the quote is escaped.
+        var backslashCount = 0
+        var j              = i - 1
+        while (j >= 0 && segment.charAt(j) == '\\') {
+          backslashCount += 1
+          j -= 1
+        }
+        if ((backslashCount & 1) == 0) {
+          inString = !inString
+        }
       }
       i += 1
     }

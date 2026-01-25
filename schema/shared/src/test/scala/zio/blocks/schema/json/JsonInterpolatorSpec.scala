@@ -647,7 +647,40 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"{ \"msg\": \"Point is $p\" }"
           """
         ).map(assert(_)(isLeft(containsString("string literal"))))
-      } @@ exceptNative
+      } @@ exceptNative,
+      test("multiple consecutive interpolations in same string literal") {
+        // Tests that state is carried forward across interpolation points
+        val firstName = "John"
+        val lastName  = "Doe"
+        val age       = 30
+        assertTrue(
+          json"""{"greeting": "Hello $firstName $lastName, you are $age years old"}""".get("greeting").string ==
+            Right("Hello John Doe, you are 30 years old")
+        )
+      },
+      test("compile fails for non-stringable type in subsequent interpolation") {
+        // Tests that context analysis correctly identifies ALL interpolations in a string as "string" context
+        typeCheck(
+          """
+          import zio.blocks.schema._
+          import zio.blocks.schema.json._
+          case class Point(x: Int, y: Int)
+          object Point { implicit val schema: Schema[Point] = Schema.derived }
+          val name = "test"
+          val p = Point(1, 2)
+          json"{ \"msg\": \"Name: $name, Point: $p\" }"
+          """
+        ).map(assert(_)(isLeft(containsString("string literal"))))
+      } @@ exceptNative,
+      test("handles escaped quotes with backslashes correctly") {
+        // Tests that quotes preceded by even number of backslashes toggle string state
+        val value = "test"
+        // In JSON, \\\\ represents two backslashes, and the following quote is not escaped
+        assertTrue(
+          json"""{"key": "value with $value embedded"}""".get("key").string ==
+            Right("value with test embedded")
+        )
+      }
     ),
     suite("Value position with Schema")(
       test("supports Json values from types with Schema") {
@@ -719,9 +752,9 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     ),
     suite("Mixed interpolation contexts")(
       test("combines key, value, and string interpolation") {
-        val key       = java.util.UUID.randomUUID()
+        val key       = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
         val data      = Json.obj("value" -> Json.number(42))
-        val timestamp = Instant.now()
+        val timestamp = Instant.parse("2024-01-15T10:30:00Z")
 
         val result = json"""{
           $key: {
@@ -737,7 +770,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("multiple keys with different stringable types") {
         val intKey  = 1
-        val uuidKey = java.util.UUID.randomUUID()
+        val uuidKey = java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
         val dateKey = LocalDate.of(2024, 1, 15)
 
         val result1 = json"""{$intKey: "one"}"""

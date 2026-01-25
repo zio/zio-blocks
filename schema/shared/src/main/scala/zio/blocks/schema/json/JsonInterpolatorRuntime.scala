@@ -92,8 +92,19 @@ object JsonInterpolatorRuntime {
     var i        = 0
     while (i < part.length) {
       val c = part.charAt(i)
-      if (c == '"' && (i == 0 || part.charAt(i - 1) != '\\')) {
-        inString = !inString
+      if (c == '"') {
+        // Count consecutive backslashes immediately preceding this quote.
+        // If the count is even (including zero), the quote is not escaped.
+        // If the count is odd, the quote is escaped.
+        var backslashCount = 0
+        var j              = i - 1
+        while (j >= 0 && part.charAt(j) == '\\') {
+          backslashCount += 1
+          j -= 1
+        }
+        if ((backslashCount & 1) == 0) {
+          inString = !inString
+        }
       }
       i += 1
     }
