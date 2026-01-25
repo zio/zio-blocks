@@ -449,6 +449,10 @@ class JsonBinaryCodecDeriver private[json] (
 
               override def nullValue: Option[String] = None
 
+              override def toJsonSchema: JsonSchema = JsonSchema.SchemaObject(
+                anyOf = Some(::(codec.toJsonSchema, List(JsonSchema.`null`)))
+              )
+
               private[this] def decodeError(in: JsonReader, error: Throwable, isNull: Boolean): Nothing =
                 if (isNull) in.decodeError(new DynamicOptic.Node.Case("None"), error)
                 else in.decodeError(new DynamicOptic.Node.Case("Some"), new DynamicOptic.Node.Field("value"), error)
@@ -504,6 +508,15 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 def encodeValue(x: A, out: JsonWriter): Unit = root.discriminate(x).writeVal(out)
+
+                override def toJsonSchema: JsonSchema = {
+                  def collectNames(info: EnumInfo): Seq[String] = info match {
+                    case leaf: EnumLeafInfo    => Seq(leaf.name)
+                    case node: EnumNodeInfo[?] => node.infos.flatMap(collectNames)
+                  }
+                  val names = root.infos.flatMap(collectNames).map(Json.str(_))
+                  JsonSchema.enumOf(::(names.head, names.tail.toList))
+                }
               }
             } else {
               discriminatorKind match {
@@ -569,6 +582,23 @@ class JsonBinaryCodecDeriver private[json] (
 
                     def encodeValue(x: A, out: JsonWriter): Unit =
                       root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+
+                    override def toJsonSchema: JsonSchema = {
+                      val schemas = variant.cases.toList.map { term =>
+                        val name = term.modifiers.collectFirst { case m: Modifier.rename => m.name }.getOrElse(caseNameMapper(term.name))
+                        val codec = deriveCodec(term.value)
+                        val schema = codec.toJsonSchema
+                        schema match {
+                          case so: JsonSchema.SchemaObject =>
+                            so.copy(
+                              properties = Some(so.properties.getOrElse(Map.empty) + (discriminatorFieldName -> JsonSchema.constOf(Json.str(name)))),
+                              required = Some(so.required.getOrElse(Set.empty) + discriminatorFieldName)
+                            )
+                          case _ => schema
+                        }
+                      }
+                      JsonSchema.SchemaObject(oneOf = Some(::(schemas.head, schemas.tail)))
+                    }
                   }
                 case DiscriminatorKind.None =>
                   val codecs = Array.newBuilder[JsonBinaryCodec[?]]
@@ -616,6 +646,11 @@ class JsonBinaryCodecDeriver private[json] (
 
                     def encodeValue(x: A, out: JsonWriter): Unit =
                       root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+
+                    override def toJsonSchema: JsonSchema = {
+                      val schemas = caseLeafCodecs.toList.map(_.toJsonSchema)
+                      JsonSchema.SchemaObject(anyOf = Some(::(schemas.head, schemas.tail)))
+                    }
                   }
                 case _ =>
                   val map = new StringMap[CaseLeafInfo](variant.cases.length)
@@ -683,6 +718,19 @@ class JsonBinaryCodecDeriver private[json] (
                       caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
                       out.writeObjectEnd()
                     }
+
+                    override def toJsonSchema: JsonSchema = {
+                      val schemas = variant.cases.toList.map { term =>
+                        val name = term.modifiers.collectFirst { case m: Modifier.rename => m.name }.getOrElse(caseNameMapper(term.name))
+                        val codec = deriveCodec(term.value)
+                        JsonSchema.`object`(
+                          properties = Some(Map(name -> codec.toJsonSchema)),
+                          required = Some(Set(name)),
+                          additionalProperties = Some(JsonSchema.False)
+                        )
+                      }
+                      JsonSchema.SchemaObject(oneOf = Some(::(schemas.head, schemas.tail)))
+                    }
                   }
               }
             }
@@ -736,6 +784,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Int] = constructor.emptyInt
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(JsonBinaryCodec.intCodec.toJsonSchema))
               }
             } else {
               new JsonBinaryCodec[Col[Int]]() {
@@ -779,6 +829,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Int] = constructor.emptyInt
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(elementCodec.toJsonSchema))
               }
             }
           case JsonBinaryCodec.longType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -823,6 +875,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Long] = constructor.emptyLong
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(JsonBinaryCodec.longCodec.toJsonSchema))
               }
             } else {
               new JsonBinaryCodec[Col[Long]]() {
@@ -866,6 +920,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Long] = constructor.emptyLong
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(elementCodec.toJsonSchema))
               }
             }
           case JsonBinaryCodec.floatType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -910,6 +966,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Float] = constructor.emptyFloat
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(JsonBinaryCodec.floatCodec.toJsonSchema))
               }
             } else {
               new JsonBinaryCodec[Col[Float]]() {
@@ -953,6 +1011,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Float] = constructor.emptyFloat
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(elementCodec.toJsonSchema))
               }
             }
           case JsonBinaryCodec.doubleType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -997,6 +1057,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Double] = constructor.emptyDouble
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(JsonBinaryCodec.doubleCodec.toJsonSchema))
               }
             } else {
               new JsonBinaryCodec[Col[Double]]() {
@@ -1040,6 +1102,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Double] = constructor.emptyDouble
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(elementCodec.toJsonSchema))
               }
             }
           case JsonBinaryCodec.booleanType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1084,6 +1148,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Boolean] = constructor.emptyBoolean
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(JsonBinaryCodec.booleanCodec.toJsonSchema))
               }
             } else {
               new JsonBinaryCodec[Col[Boolean]]() {
@@ -1127,6 +1193,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Boolean] = constructor.emptyBoolean
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(elementCodec.toJsonSchema))
               }
             }
           case JsonBinaryCodec.byteType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1171,6 +1239,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Byte] = constructor.emptyByte
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(JsonBinaryCodec.byteCodec.toJsonSchema))
               }
             } else {
               new JsonBinaryCodec[Col[Byte]]() {
@@ -1214,6 +1284,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Byte] = constructor.emptyByte
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(elementCodec.toJsonSchema))
               }
             }
           case JsonBinaryCodec.charType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1258,6 +1330,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Char] = constructor.emptyChar
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(JsonBinaryCodec.charCodec.toJsonSchema))
               }
             } else {
               new JsonBinaryCodec[Col[Char]]() {
@@ -1301,6 +1375,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Char] = constructor.emptyChar
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(elementCodec.toJsonSchema))
               }
             }
           case JsonBinaryCodec.shortType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1345,6 +1421,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Short] = constructor.emptyShort
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(JsonBinaryCodec.shortCodec.toJsonSchema))
               }
             } else {
               new JsonBinaryCodec[Col[Short]]() {
@@ -1388,6 +1466,8 @@ class JsonBinaryCodecDeriver private[json] (
                 }
 
                 override def nullValue: Col[Short] = constructor.emptyShort
+
+                override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(elementCodec.toJsonSchema))
               }
             }
           case _ =>
@@ -1428,6 +1508,8 @@ class JsonBinaryCodecDeriver private[json] (
               }
 
               override def nullValue: Col[Elem] = constructor.emptyObject[Elem]
+
+              override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(elementCodec.toJsonSchema))
             }
         }
       } else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -1487,6 +1569,10 @@ class JsonBinaryCodecDeriver private[json] (
           }
 
           override def nullValue: Map[Key, Value] = constructor.emptyObject[Key, Value]
+
+          override def toJsonSchema: JsonSchema = JsonSchema.`object`(
+            additionalProperties = Some(valueCodec.toJsonSchema)
+          )
         }
       } else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isRecord) {
@@ -1679,6 +1765,14 @@ class JsonBinaryCodecDeriver private[json] (
               } finally out.pop(usedRegisters)
               out.writeArrayEnd()
             }
+
+            override def toJsonSchema: JsonSchema = {
+              val schemas = fieldCodecs.toList.map(_.toJsonSchema)
+              JsonSchema.SchemaObject(
+                `type` = Some(SchemaType.Single(JsonType.Array)),
+                prefixItems = if (schemas.isEmpty) None else Some(::(schemas.head, schemas.tail))
+              )
+            }
           }
         } else {
           val isRecursive = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
@@ -1838,6 +1932,18 @@ class JsonBinaryCodecDeriver private[json] (
               out.writeObjectEnd()
             }
 
+            override def toJsonSchema: JsonSchema = {
+              val props = fieldInfos.toList.map { info =>
+                info.getName -> info.getCodec.toJsonSchema
+              }
+              val req = fieldInfos.toList.filter(!_.isOptional).map(_.getName)
+              JsonSchema.`object`(
+                properties = Some(props.toMap),
+                required = if (req.isEmpty) None else Some(req.toSet),
+                additionalProperties = if (doReject) Some(JsonSchema.False) else None
+              )
+            }
+
             private[this] def skipOrReject(in: JsonReader, keyLen: Int): Unit =
               if (doReject && ((discriminatorField eq null) || !discriminatorField.nameMatch(in, keyLen))) {
                 in.unexpectedKeyError(keyLen)
@@ -1862,17 +1968,17 @@ class JsonBinaryCodecDeriver private[json] (
           case _: PrimitiveType.Unit.type => JsonBinaryCodec.unitType
           case _                          => JsonBinaryCodec.objectType
         }) {
-          private[this] val unwrap       = binding.unwrap
-          private[this] val wrap         = binding.wrap
+          private[this] val g            = binding.g
+          private[this] val f            = binding.f
           private[this] val wrappedCodec = codec
 
           override def decodeValue(in: JsonReader, default: A): A =
-            wrap(
+            f(
               try {
                 wrappedCodec.decodeValue(
                   in, {
                     if (default == null) null
-                    else unwrap(default)
+                    else g(default)
                   }.asInstanceOf[Wrapped]
                 )
               } catch {
@@ -1883,10 +1989,10 @@ class JsonBinaryCodecDeriver private[json] (
               case Left(error) => in.decodeError(error)
             }
 
-          override def encodeValue(x: A, out: JsonWriter): Unit = wrappedCodec.encodeValue(unwrap(x), out)
+          override def encodeValue(x: A, out: JsonWriter): Unit = wrappedCodec.encodeValue(g(x), out)
 
           override def decodeKey(in: JsonReader): A =
-            wrap(
+            f(
               try wrappedCodec.decodeKey(in)
               catch {
                 case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
@@ -1896,7 +2002,9 @@ class JsonBinaryCodecDeriver private[json] (
               case Left(error) => in.decodeError(error)
             }
 
-          override def encodeKey(x: A, out: JsonWriter): Unit = wrappedCodec.encodeKey(unwrap(x), out)
+          override def encodeKey(x: A, out: JsonWriter): Unit = wrappedCodec.encodeKey(g(x), out)
+
+          override def toJsonSchema: JsonSchema = wrappedCodec.toJsonSchema
         }
       } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else {
@@ -1986,6 +2094,10 @@ private class FieldInfo(
         (codec eq booleanCodec) || (codec eq byteCodec) || (codec eq charCodec) || (codec eq shortCodec)
     this.codec = codec
   }
+
+  def getName: String = name
+
+  def getCodec: JsonBinaryCodec[?] = codec
 
   def setOffset(offset: RegisterOffset): Unit = this.offset = offset
 
@@ -2300,7 +2412,7 @@ private class CaseNodeInfo[A](
 
 trait EnumInfo
 
-private class EnumLeafInfo(name: String, val constructor: Constructor[?]) extends EnumInfo {
+private class EnumLeafInfo(val name: String, val constructor: Constructor[?]) extends EnumInfo {
   private[this] val isNonEscapedAsciiName = JsonWriter.isNonEscapedAscii(name)
 
   @inline
@@ -2310,11 +2422,11 @@ private class EnumLeafInfo(name: String, val constructor: Constructor[?]) extend
 }
 
 private class EnumNodeInfo[A](
-  private[this] val discriminator: Discriminator[A],
-  private[this] val enumInfos: Array[EnumInfo]
+  val discriminator: Discriminator[A],
+  val infos: Array[EnumInfo]
 ) extends EnumInfo {
   @tailrec
-  final def discriminate(x: A): EnumLeafInfo = enumInfos(discriminator.discriminate(x)) match {
+  final def discriminate(x: A): EnumLeafInfo = infos(discriminator.discriminate(x)) match {
     case eli: EnumLeafInfo => eli
     case eni               => eni.asInstanceOf[EnumNodeInfo[A]].discriminate(x)
   }

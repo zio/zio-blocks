@@ -87,23 +87,29 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def patch(value: A, patch: Patch[A]): Either[SchemaError, A] =
     patch.apply(value, PatchMode.Strict)
 
-  def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
-    new Reflect.Wrapper[Binding, A, B](
-      Schema[B].reflect,
-      reflect.typeName,
-      Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(wrap, unwrap)
-    )
-  )
+  def transform[B](f: A => B, g: B => A): Schema[B] =
+    transformOrFail(a => Right(f(a)), g)
 
-  def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
-    new Reflect.Wrapper[Binding, A, B](
-      Schema[B].reflect,
-      reflect.typeName,
-      Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
+  def transformOrFail[B](f: A => Either[String, B], g: B => A): Schema[B] = new Schema(
+    new Reflect.Wrapper[Binding, B, A](
+      reflect,
+      reflect.typeName.asInstanceOf[TypeName[B]],
+      Reflect.unwrapToPrimitiveTypeOption(reflect).asInstanceOf[Option[PrimitiveType[B]]],
+      new Binding.Wrapper(f, g)
     )
   )
+  def wrap[B](f: A => Either[String, B], g: B => A): Schema[B] = transformOrFail(f, g)
+
+  def wrapTotal[B](f: A => B, g: B => A): Schema[B] = transform(f, g)
+
+  def typeName(value: TypeName[A]): Schema[A] = new Schema(reflect.typeName(value))
+
+  /**
+   * Convert this schema to a JsonSchema representation.
+   * This always succeeds—every Schema structure has a JsonSchema equivalent.
+   */
+  def toJsonSchema: zio.blocks.schema.json.JsonSchema =
+    derive(zio.blocks.schema.json.JsonBinaryCodecDeriver).toJsonSchema
 }
 
 object Schema extends SchemaCompanionVersionSpecific {
@@ -205,4 +211,27 @@ object Schema extends SchemaCompanionVersionSpecific {
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
+
+  /** Schema for Json values (no validation, accepts any Json). */
+  implicit val json: Schema[zio.blocks.schema.json.Json] =
+    Schema.dynamic.transform(
+      zio.blocks.schema.json.Json.fromDynamicValue,
+      _.toDynamicValue
+    )
+
+  /**
+   * Construct a Schema[Json] from a JsonSchema.
+   * Values are validated against the JsonSchema during construction.
+   */
+  def fromJsonSchema(jsonSchema: zio.blocks.schema.json.JsonSchema): Schema[zio.blocks.schema.json.Json] =
+    Schema.dynamic.transformOrFail(
+      dv => {
+        val j = zio.blocks.schema.json.Json.fromDynamicValue(dv)
+        jsonSchema.check(j) match {
+          case None        => Right(j)
+          case Some(error) => Left(error.message)
+        }
+      },
+      _.toDynamicValue
+    )
 }
