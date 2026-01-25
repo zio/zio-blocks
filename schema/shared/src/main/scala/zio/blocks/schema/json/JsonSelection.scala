@@ -128,16 +128,16 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
   def arrays: JsonSelection = filter(_.isArray)
 
   /** Keeps only string values. */
-  def stringValues: JsonSelection = filter(_.isString)
+  def strings: JsonSelection = filter(_.isString)
 
   /** Keeps only number values. */
-  def numberValues: JsonSelection = filter(_.isNumber)
+  def numbers: JsonSelection = filter(_.isNumber)
 
   /** Keeps only boolean values. */
-  def booleanValues: JsonSelection = filter(_.isBoolean)
+  def booleans: JsonSelection = filter(_.isBoolean)
 
   /** Keeps only null values. */
-  def nullValues: JsonSelection = filter(_.isNull)
+  def nulls: JsonSelection = filter(_.isNull)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Type Filtering (for chaining - fails on mismatch)
@@ -179,91 +179,6 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
 
   /** Navigates using a DynamicOptic path (alias for get). */
   def apply(path: DynamicOptic): JsonSelection = get(path)
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Extraction
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /** Extracts string values from all selections. */
-  def strings: Either[JsonError, Vector[String]] =
-    value.flatMap { jsons =>
-      jsons.zipWithIndex.foldLeft[Either[JsonError, Vector[String]]](Right(Vector.empty)) {
-        case (Right(acc), (json, idx)) =>
-          json.stringValue match {
-            case Some(s) => Right(acc :+ s)
-            case None    => Left(JsonError(s"Expected string at index $idx"))
-          }
-        case (left, _) => left
-      }
-    }
-
-  /** Extracts a single string value. */
-  def string: Either[JsonError, String] = single.flatMap { json =>
-    json.stringValue match {
-      case Some(s) => Right(s)
-      case None    => Left(JsonError("Expected string value"))
-    }
-  }
-
-  /** Extracts number values from all selections. */
-  def numbers: Either[JsonError, Vector[BigDecimal]] =
-    value.flatMap { jsons =>
-      jsons.zipWithIndex.foldLeft[Either[JsonError, Vector[BigDecimal]]](Right(Vector.empty)) {
-        case (Right(acc), (json, idx)) =>
-          json.numberValue match {
-            case Some(n) => Right(acc :+ n)
-            case None    => Left(JsonError(s"Expected number at index $idx"))
-          }
-        case (left, _) => left
-      }
-    }
-
-  /** Extracts a single number value. */
-  def number: Either[JsonError, BigDecimal] = single.flatMap { json =>
-    json.numberValue match {
-      case Some(n) => Right(n)
-      case None    => Left(JsonError("Expected number value"))
-    }
-  }
-
-  /** Extracts boolean values from all selections. */
-  def booleans: Either[JsonError, Vector[Boolean]] =
-    value.flatMap { jsons =>
-      jsons.zipWithIndex.foldLeft[Either[JsonError, Vector[Boolean]]](Right(Vector.empty)) {
-        case (Right(acc), (json, idx)) =>
-          json.booleanValue match {
-            case Some(b) => Right(acc :+ b)
-            case None    => Left(JsonError(s"Expected boolean at index $idx"))
-          }
-        case (left, _) => left
-      }
-    }
-
-  /** Extracts a single boolean value. */
-  def boolean: Either[JsonError, Boolean] = single.flatMap { json =>
-    json.booleanValue match {
-      case Some(b) => Right(b)
-      case None    => Left(JsonError("Expected boolean value"))
-    }
-  }
-
-  /** Extracts a single int value (fails if not representable as Int). */
-  def int: Either[JsonError, Int] = number.flatMap { n =>
-    if (n.isValidInt) Right(n.toInt)
-    else Left(JsonError(s"Number $n is not a valid Int"))
-  }
-
-  /** Extracts a single long value (fails if not representable as Long). */
-  def long: Either[JsonError, Long] = number.flatMap { n =>
-    if (n.isValidLong) Right(n.toLong)
-    else Left(JsonError(s"Number $n is not a valid Long"))
-  }
-
-  /** Extracts a single float value. */
-  def float: Either[JsonError, Float] = number.map(_.toFloat)
-
-  /** Extracts a single double value. */
-  def double: Either[JsonError, Double] = number.map(_.toDouble)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Combinators

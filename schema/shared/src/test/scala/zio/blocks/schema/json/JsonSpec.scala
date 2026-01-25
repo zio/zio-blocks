@@ -73,7 +73,7 @@ object JsonSpec extends SchemaBaseSpec {
             )
           )
           val path = p".users[1].name"
-          assertTrue(j.get(path).string == Right("Bob"))
+          assertTrue(j.get(path).as[String] == Right("Bob"))
         },
         test("get retrieves field from object") {
           val json = Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))
@@ -105,7 +105,7 @@ object JsonSpec extends SchemaBaseSpec {
               Json.obj("name" -> Json.str("Bob"))
             )
           )
-          assertTrue(json.get("users")(0).get("name").string == Right("Alice"))
+          assertTrue(json.get("users")(0).get("name").as[String] == Right("Alice"))
         }
       ),
       suite("modification with DynamicOptic")(
@@ -163,7 +163,7 @@ object JsonSpec extends SchemaBaseSpec {
             case Json.Number(n) => Json.Number((BigDecimal(n) * 2).toString)
             case other          => other
           }
-          assertTrue(updated.get("count").number == Right(BigDecimal(10)))
+          assertTrue(updated.get("count").as[BigDecimal] == Right(BigDecimal(10)))
         },
         test("modifyOrFail fails when partial function not defined") {
           val json   = Json.obj("name" -> Json.str("Alice"))
@@ -207,7 +207,7 @@ object JsonSpec extends SchemaBaseSpec {
           )
           val path    = DynamicOptic.root.field("user").field("profile").field("age")
           val updated = json.set(path, Json.number(26))
-          assertTrue(updated.get("user").get("profile").get("age").number == Right(BigDecimal(26)))
+          assertTrue(updated.get("user").get("profile").get("age").as[BigDecimal] == Right(BigDecimal(26)))
         },
         test("get with DynamicOptic navigates nested structure") {
           val json = Json.obj(
@@ -217,7 +217,7 @@ object JsonSpec extends SchemaBaseSpec {
             )
           )
           val path = DynamicOptic.root.field("users").at(0).field("name")
-          assertTrue(json.get(path).string == Right("Alice"))
+          assertTrue(json.get(path).as[String] == Right("Alice"))
         },
         test("get with elements returns all array elements") {
           val json      = Json.arr(Json.number(1), Json.number(2), Json.number(3))
@@ -311,8 +311,8 @@ object JsonSpec extends SchemaBaseSpec {
           val result = Json.parse("""{"name": "Alice", "age": 30}""")
           assertTrue(
             result.isRight,
-            result.toOption.get.get("name").string == Right("Alice"),
-            result.toOption.get.get("age").number == Right(BigDecimal(30))
+            result.toOption.get.get("name").as[String] == Right("Alice"),
+            result.toOption.get.get("age").as[BigDecimal] == Right(BigDecimal(30))
           )
         },
         test("parse JSON array") {
@@ -395,7 +395,10 @@ object JsonSpec extends SchemaBaseSpec {
             )
           )
           val json = Json.fromDynamicValue(dv)
-          assertTrue(json.get("name").string == Right("test"), json.get("count").number == Right(BigDecimal(10)))
+          assertTrue(
+            json.get("name").as[String] == Right("test"),
+            json.get("count").as[BigDecimal] == Right(BigDecimal(10))
+          )
         }
       ),
       suite("transformation methods")(
@@ -412,8 +415,8 @@ object JsonSpec extends SchemaBaseSpec {
             }
           }
           assertTrue(
-            transformed.get("a").get("b").number == Right(BigDecimal(2)),
-            transformed.get("c").number == Right(BigDecimal(4))
+            transformed.get("a").get("b").as[BigDecimal] == Right(BigDecimal(2)),
+            transformed.get("c").as[BigDecimal] == Right(BigDecimal(4))
           )
         },
         test("transformDown applies function top-down") {
@@ -490,8 +493,8 @@ object JsonSpec extends SchemaBaseSpec {
           val agePath   = DynamicOptic.root.field("user").field("age")
           val projected = json.project(namePath, agePath)
           assertTrue(
-            projected.get("user").get("name").string == Right("Alice"),
-            projected.get("user").get("age").number == Right(BigDecimal(30)),
+            projected.get("user").get("name").as[String] == Right("Alice"),
+            projected.get("user").get("age").as[BigDecimal] == Right(BigDecimal(30)),
             projected.get("user").get("email").isFailure,
             projected.get("extra").isFailure
           )
@@ -583,8 +586,8 @@ object JsonSpec extends SchemaBaseSpec {
           val reconstructed = Json.fromKV(kvs)
           assertTrue(
             reconstructed.isRight,
-            reconstructed.toOption.get.get("a").number == Right(BigDecimal(1)),
-            reconstructed.toOption.get.get("b").get("c").number == Right(BigDecimal(2))
+            reconstructed.toOption.get.get("a").as[BigDecimal] == Right(BigDecimal(1)),
+            reconstructed.toOption.get.get("b").get("c").as[BigDecimal] == Right(BigDecimal(2))
           )
         }
       ),
@@ -610,8 +613,8 @@ object JsonSpec extends SchemaBaseSpec {
           )
         )
         assertTrue(
-          json.get("data").get("users")(0).get("name").string == Right("Alice"),
-          json.get("data").get("users")(1).get("age").int == Right(25)
+          json.get("data").get("users")(0).get("name").as[String] == Right("Alice"),
+          json.get("data").get("users")(1).get("age").as[Int] == Right(25)
         )
       },
       test("asObject/asArray/asString type filtering") {
@@ -673,7 +676,7 @@ object JsonSpec extends SchemaBaseSpec {
         )
         assertTrue(mixed.objects.size == 2, mixed.arrays.size == 1)
       },
-      test("stringValues/numberValues/booleanValues filters by type") {
+      test("strings/numbers/booleans filters by type") {
         val mixed = JsonSelection.succeedMany(
           Vector(
             Json.str("hello"),
@@ -682,7 +685,7 @@ object JsonSpec extends SchemaBaseSpec {
             Json.str("world")
           )
         )
-        assertTrue(mixed.stringValues.size == 2, mixed.numberValues.size == 1, mixed.booleanValues.size == 1)
+        assertTrue(mixed.strings.size == 2, mixed.numbers.size == 1, mixed.booleans.size == 1)
       }
     ),
     suite("JsonDecoder")(
@@ -731,8 +734,8 @@ object JsonSpec extends SchemaBaseSpec {
         val encoded = JsonEncoder[Map[String, Int]].encode(Map("a" -> 1, "b" -> 2))
         assertTrue(
           encoded.isObject,
-          encoded.get("a").number == Right(BigDecimal(1)),
-          encoded.get("b").number == Right(BigDecimal(2))
+          encoded.get("a").as[BigDecimal] == Right(BigDecimal(1)),
+          encoded.get("b").as[BigDecimal] == Right(BigDecimal(2))
         )
       }
     ),
@@ -743,9 +746,9 @@ object JsonSpec extends SchemaBaseSpec {
           val right  = Json.obj("a" -> Json.obj("y" -> Json.number(3), "z" -> Json.number(4)))
           val merged = left.merge(right, MergeStrategy.Deep)
           assertTrue(
-            merged.get("a").get("x").number == Right(BigDecimal(1)),
-            merged.get("a").get("y").number == Right(BigDecimal(3)),
-            merged.get("a").get("z").number == Right(BigDecimal(4))
+            merged.get("a").get("x").as[BigDecimal] == Right(BigDecimal(1)),
+            merged.get("a").get("y").as[BigDecimal] == Right(BigDecimal(3)),
+            merged.get("a").get("z").as[BigDecimal] == Right(BigDecimal(4))
           )
         },
         test("merge with Shallow strategy replaces nested objects") {
@@ -754,7 +757,7 @@ object JsonSpec extends SchemaBaseSpec {
           val merged = left.merge(right, MergeStrategy.Shallow)
           assertTrue(
             merged.get("a").get("x").isFailure,
-            merged.get("a").get("z").number == Right(BigDecimal(3))
+            merged.get("a").get("z").as[BigDecimal] == Right(BigDecimal(3))
           )
         },
         test("merge with Concat strategy concatenates arrays") {
@@ -781,7 +784,7 @@ object JsonSpec extends SchemaBaseSpec {
           val jsonStr = """{"name":"Alice"}"""
           val bytes   = jsonStr.getBytes("UTF-8")
           val parsed  = Json.parse(bytes)
-          assertTrue(parsed.isRight, parsed.toOption.get.get("name").string == Right("Alice"))
+          assertTrue(parsed.isRight, parsed.toOption.get.get("name").as[String] == Right("Alice"))
         }
       ),
       suite("normalization")(
@@ -832,8 +835,8 @@ object JsonSpec extends SchemaBaseSpec {
             case other          => other
           }
           assertTrue(
-            updated.get("a").number == Right(BigDecimal(10)),
-            updated.get("b").number == Right(BigDecimal(20))
+            updated.get("a").as[BigDecimal] == Right(BigDecimal(10)),
+            updated.get("b").as[BigDecimal] == Right(BigDecimal(20))
           )
         },
         test("get with atIndices returns multiple elements") {
@@ -875,8 +878,8 @@ object JsonSpec extends SchemaBaseSpec {
           )
           val json = Json.fromKVUnsafe(kvs)
           assertTrue(
-            json.get("a").number == Right(BigDecimal(1)),
-            json.get("b").get("c").number == Right(BigDecimal(2))
+            json.get("a").as[BigDecimal] == Right(BigDecimal(1)),
+            json.get("b").get("c").as[BigDecimal] == Right(BigDecimal(2))
           )
         },
         test("fromKV with empty seq returns Null") {
@@ -960,21 +963,9 @@ object JsonSpec extends SchemaBaseSpec {
           val selection = JsonSelection.succeedMany(Vector(Json.number(1), Json.number(2), Json.number(3)))
           assertTrue(selection.asAll[Int] == Right(Vector(1, 2, 3)))
         },
-        test("long extraction works") {
-          val selection = JsonSelection.succeed(Json.number(9876543210L))
-          assertTrue(selection.long == Right(9876543210L))
-        },
-        test("double extraction works") {
-          val selection = JsonSelection.succeed(Json.number(3.14159))
-          assertTrue(selection.double.isRight)
-        },
-        test("int extraction fails for non-int numbers") {
-          val selection = JsonSelection.succeed(Json.number(BigDecimal("9999999999999")))
-          assertTrue(selection.int.isLeft)
-        },
-        test("nullValues filters to only nulls") {
+        test("nulls filters to only nulls") {
           val selection = JsonSelection.succeedMany(Vector(Json.Null, Json.number(1), Json.Null))
-          assertTrue(selection.nullValues.size == 2)
+          assertTrue(selection.nulls.size == 2)
         },
         test("one fails on empty selection") {
           val empty = JsonSelection.empty
@@ -1031,7 +1022,7 @@ object JsonSpec extends SchemaBaseSpec {
         test("fromDynamicValue handles Variant") {
           val dv   = DynamicValue.Variant("SomeCase", DynamicValue.Primitive(PrimitiveValue.Int(42)))
           val json = Json.fromDynamicValue(dv)
-          assertTrue(json.get("SomeCase").number == Right(BigDecimal(42)))
+          assertTrue(json.get("SomeCase").as[BigDecimal] == Right(BigDecimal(42)))
         },
         test("fromDynamicValue handles Sequence") {
           val dv = DynamicValue.Sequence(
@@ -1053,8 +1044,8 @@ object JsonSpec extends SchemaBaseSpec {
           val json = Json.fromDynamicValue(dv)
           assertTrue(
             json.isObject,
-            json.get("a").number == Right(BigDecimal(1)),
-            json.get("b").number == Right(BigDecimal(2))
+            json.get("a").as[BigDecimal] == Right(BigDecimal(1)),
+            json.get("b").as[BigDecimal] == Right(BigDecimal(2))
           )
         },
         test("fromDynamicValue handles Map with non-string keys as array of pairs") {
@@ -1237,8 +1228,8 @@ object JsonSpec extends SchemaBaseSpec {
             case other          => other
           }
           assertTrue(
-            updated.get("alice").number == Right(BigDecimal(10)),
-            updated.get("bob").number == Right(BigDecimal(2))
+            updated.get("alice").as[BigDecimal] == Right(BigDecimal(10)),
+            updated.get("bob").as[BigDecimal] == Right(BigDecimal(2))
           )
         },
         test("modify with atKey does nothing for missing key") {
@@ -1269,9 +1260,9 @@ object JsonSpec extends SchemaBaseSpec {
             case other          => other
           }
           assertTrue(
-            updated.get("a").number == Right(BigDecimal(10)),
-            updated.get("b").number == Right(BigDecimal(2)),
-            updated.get("c").number == Right(BigDecimal(30))
+            updated.get("a").as[BigDecimal] == Right(BigDecimal(10)),
+            updated.get("b").as[BigDecimal] == Right(BigDecimal(2)),
+            updated.get("c").as[BigDecimal] == Right(BigDecimal(30))
           )
         },
         test("get with atKeys on non-object returns empty") {
@@ -1314,7 +1305,7 @@ object JsonSpec extends SchemaBaseSpec {
           val path    = DynamicOptic.root.field("user").field("name")
           val deleted = json.delete(path)
           assertTrue(
-            deleted.get("user").get("age").number == Right(BigDecimal(30)),
+            deleted.get("user").get("age").as[BigDecimal] == Right(BigDecimal(30)),
             deleted.get("user").get("name").toVector.isEmpty
           )
         },
@@ -1340,7 +1331,7 @@ object JsonSpec extends SchemaBaseSpec {
           val path    = DynamicOptic.root.field("a").field("b").field("c")
           val deleted = json.delete(path)
           assertTrue(
-            deleted.get("a").get("b").get("d").number == Right(BigDecimal(2)),
+            deleted.get("a").get("b").get("d").as[BigDecimal] == Right(BigDecimal(2)),
             deleted.get("a").get("b").get("c").toVector.isEmpty
           )
         }
@@ -1369,8 +1360,8 @@ object JsonSpec extends SchemaBaseSpec {
             Json.Number((BigDecimal(n) * 10).toString)
           }
           assertTrue(
-            result.map(_.get("a").number) == Right(Right(BigDecimal(10))),
-            result.map(_.get("b").number) == Right(Right(BigDecimal(20)))
+            result.map(_.get("a").as[BigDecimal]) == Right(Right(BigDecimal(10))),
+            result.map(_.get("b").as[BigDecimal]) == Right(Right(BigDecimal(20)))
           )
         },
         test("modifyOrFail with mapValues fails when partial function not defined") {
