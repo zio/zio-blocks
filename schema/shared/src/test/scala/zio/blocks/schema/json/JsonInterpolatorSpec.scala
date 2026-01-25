@@ -782,6 +782,48 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           result.get("name").string == Right("Alice"),
           result.get("age").int == Right(30)
         )
+      },
+      test("top-level Schema-derived type") {
+        case class Person(name: String, age: Int)
+        object Person {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+        val person = Person("Alice", 30)
+        val result = json"""$person"""
+        assertTrue(
+          result.get("name").string == Right("Alice"),
+          result.get("age").int == Right(30)
+        )
+      },
+      test("array elements with Schema-derived types") {
+        case class Point(x: Int, y: Int)
+        object Point {
+          implicit val schema: Schema[Point] = Schema.derived
+        }
+        val p1     = Point(1, 2)
+        val p2     = Point(3, 4)
+        val result = json"""[$p1, $p2]"""
+        assertTrue(
+          result.elements.length == 2,
+          result.elements(0).get("x").int == Right(1),
+          result.elements(1).get("x").int == Right(3)
+        )
+      },
+      test("array with mixed primitives and Schema-derived types") {
+        case class Item(id: Int)
+        object Item {
+          implicit val schema: Schema[Item] = Schema.derived
+        }
+        val item   = Item(42)
+        val str    = "hello"
+        val num    = 123
+        val result = json"""[$item, $str, $num]"""
+        assertTrue(
+          result.elements.length == 3,
+          result.elements(0).get("id").int == Right(42),
+          result.elements(1) == Json.str("hello"),
+          result.elements(2) == Json.number(123)
+        )
       }
     ),
     suite("Compile-time error tests")(
@@ -1014,22 +1056,61 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       }
     ),
     suite("Key position type safety")(
-      test("all stringable types work as keys") {
-        val strKey     = "stringKey"
-        val uuidKey    = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-        val instantKey = java.time.Instant.parse("2024-01-15T10:30:00Z")
-        // Note: All JSON keys must be strings, so stringable types are converted to string
-        assertTrue(
-          json"""{$strKey: 1}""".get(strKey).int == Right(1),
-          json"""{$uuidKey: 4}""".get(uuidKey.toString).int == Right(4),
-          json"""{$instantKey: 5}""".get(instantKey.toString).int == Right(5)
-        )
+      test("String as key") {
+        val key = "myKey"
+        assertTrue(json"""{$key: "value"}""".get(key).string == Right("value"))
+      },
+      test("UUID as key") {
+        val key = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        assertTrue(json"""{$key: "value"}""".get(key.toString).string == Right("value"))
+      },
+      test("Instant as key") {
+        val key = java.time.Instant.parse("2024-01-15T10:30:00Z")
+        assertTrue(json"""{$key: "value"}""".get(key.toString).string == Right("value"))
+      },
+      test("LocalDate as key") {
+        val key = java.time.LocalDate.of(2024, 1, 15)
+        assertTrue(json"""{$key: "value"}""".get("2024-01-15").string == Right("value"))
+      },
+      test("LocalTime as key") {
+        val key = java.time.LocalTime.of(10, 30, 0)
+        assertTrue(json"""{$key: "value"}""".get("10:30").string == Right("value"))
+      },
+      test("LocalDateTime as key") {
+        val key = java.time.LocalDateTime.of(2024, 1, 15, 10, 30, 0)
+        assertTrue(json"""{$key: "value"}""".get("2024-01-15T10:30").string == Right("value"))
+      },
+      test("DayOfWeek as key") {
+        val key = java.time.DayOfWeek.MONDAY
+        assertTrue(json"""{$key: "value"}""".get("MONDAY").string == Right("value"))
+      },
+      test("Month as key") {
+        val key = java.time.Month.JANUARY
+        assertTrue(json"""{$key: "value"}""".get("JANUARY").string == Right("value"))
+      },
+      test("Currency as key") {
+        val key = java.util.Currency.getInstance("USD")
+        assertTrue(json"""{$key: "value"}""".get("USD").string == Right("value"))
+      },
+      test("Char as key") {
+        val key = 'X'
+        assertTrue(json"""{$key: "value"}""".get("X").string == Right("value"))
       },
       test("dynamic key with value interpolation") {
         val key   = "dynamicKey"
         val value = Map("nested" -> 42)
         assertTrue(
           json"""{$key: $value}""".get(key).get("nested").int == Right(42)
+        )
+      },
+      test("multiple dynamic keys in same object") {
+        val key1 = "first"
+        val key2 = "second"
+        val key3 = "third"
+        assertTrue(
+          json"""{$key1: 1, $key2: 2, $key3: 3}""".get("first").int == Right(1),
+          json"""{$key1: 1, $key2: 2, $key3: 3}""".get("second").int == Right(2),
+          json"""{$key1: 1, $key2: 2, $key3: 3}""".get("third").int == Right(3)
         )
       }
     ),
