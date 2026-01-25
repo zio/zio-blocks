@@ -975,7 +975,12 @@ object JsonSchema {
               if (value >= max) addError(s"Value $value is not less than exclusiveMaximum $max")
             }
             multipleOf.foreach { m =>
-              if (value % m.value != 0) addError(s"Value $value is not a multiple of ${m.value}")
+              try {
+                if (value % m.value != 0) addError(s"Value $value is not a multiple of ${m.value}")
+              } catch {
+                case _: ArithmeticException =>
+                  addError(s"Value $value cannot be checked against multipleOf ${m.value}")
+              }
             }
           }
         case _ => ()
