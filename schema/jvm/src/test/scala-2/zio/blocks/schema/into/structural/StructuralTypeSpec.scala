@@ -17,12 +17,10 @@ import scala.language.reflectiveCalls
  */
 object StructuralTypeSpec extends SchemaBaseSpec {
 
-  // === Target Case Classes ===
   case class Person(name: String, age: Int)
   case class Point(x: Int, y: Int)
   case class Employee(name: String, age: Int, department: String)
 
-  // === Helper to create structural type instances ===
   def makePersonStruct(n: String, a: Int): { def name: String; def age: Int } = new {
     def name: String = n
     def age: Int     = a
