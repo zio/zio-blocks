@@ -260,15 +260,11 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated YearMonth values") {
       check(genYearMonth)(x =>
         assertTrue(
-<<<<<<< HEAD
           json"""{"x": $x}""".get("x").string.map { s =>
             // `YearMonth.toString` omits '+' for years > 9999, but `YearMonth.parse` requires it.
             val normalized = if (s.length > 7 && s.charAt(0).isDigit) "+" + s else s
             YearMonth.parse(normalized)
           } == Right(x)
-=======
-          json"""{"x": $x}""".get("x").as[String].map(YearMonth.parse) == Right(x)
->>>>>>> origin/main
         )
       )
     },

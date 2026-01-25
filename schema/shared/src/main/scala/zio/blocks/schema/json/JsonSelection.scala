@@ -36,6 +36,9 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
   /** Returns the selected values as a Vector, or an empty Vector on failure. */
   def toVector: Vector[Json] = either.getOrElse(Vector.empty)
 
+  /** Returns the first selected value if present, or None on error/empty. */
+  def headOption: Option[Json] = either.toOption.flatMap(_.headOption)
+
   /**
    * Returns the single selected value, or fails if there are 0 or more than 1
    * values.
@@ -219,6 +222,12 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
   /** Decodes the single selected value to type A. */
   def as[A](implicit decoder: JsonDecoder[A]): Either[JsonError, A] =
     one.flatMap(decoder.decode)
+
+  /** Decodes the single selected value as a string. */
+  def string: Either[JsonError, String] = as[String]
+
+  /** Decodes the single selected value as an int. */
+  def int: Either[JsonError, Int] = as[Int]
 
   /** Decodes all selected values to type A. */
   def asAll[A](implicit decoder: JsonDecoder[A]): Either[JsonError, Vector[A]] =
