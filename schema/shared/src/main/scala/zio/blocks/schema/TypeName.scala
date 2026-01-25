@@ -69,6 +69,14 @@ object TypeName {
 
   val dynamicValue: TypeName[DynamicValue] = new TypeName(Namespace.zioBlocksSchema, "DynamicValue")
 
+  /**
+   * Returns the derived type name for `A` using the implicit `Schema[A]`.
+   *
+   * This is a compatibility shim for the former macro-based `TypeName.derived`.
+   */
+  def derived[A](implicit schema: Schema[A]): TypeName[A] =
+    schema.reflect.typeName.asInstanceOf[TypeName[A]]
+
   def some[A](element: TypeName[A]): TypeName[Some[A]] =
     _some.copy(params = Seq(element)).asInstanceOf[TypeName[Some[A]]]
 

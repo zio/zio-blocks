@@ -1,7 +1,6 @@
 package zio.blocks.schema
 
 import scala.quoted.*
-import scala.language.dynamics
 
 /**
  * A trait that can be extended by companion objects to automatically derive
@@ -48,7 +47,7 @@ import scala.language.dynamics
  * @tparam S
  *   The type for which to derive optics
  */
-trait DerivedOptics[S] {
+trait DerivedOptics[S] extends Selectable {
 
   /**
    * Provides access to the derived optics for type S. For case classes, returns
@@ -59,6 +58,14 @@ trait DerivedOptics[S] {
    * checking and IDE completion for the accessor names.
    */
   transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema, false) }
+
+  /**
+   * Enables direct member access, e.g. `Person.name` instead of
+   * `Person.optics.name`. User-defined members on the companion object take
+   * precedence.
+   */
+  transparent inline def selectDynamic(name: String)(using schema: Schema[S]): Any =
+    optics.asInstanceOf[OpticsHolder].selectDynamic(name)
 }
 
 object DerivedOptics {
@@ -183,7 +190,7 @@ object DerivedOptics {
  * An optics holder that stores lenses/prisms in a map and provides dynamic
  * access. This is an implementation detail and should not be used directly.
  */
-final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic with Selectable {
+final class OpticsHolder(members: Map[String, Any]) extends Selectable {
   def selectDynamic(name: String): Any =
     members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
 }
