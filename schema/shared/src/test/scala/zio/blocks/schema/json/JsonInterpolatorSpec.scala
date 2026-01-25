@@ -1966,6 +1966,73 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           result.get("msg").string == Right(s"period is $zero")
         )
       }
+    ),
+    suite("top-level string interpolation")(
+      test("supports string interpolation at top level") {
+        val name = "Alice"
+        assertTrue(
+          json""""Hello $name"""" == Json.str("Hello Alice")
+        )
+      },
+      test("supports multiple interpolations in top-level string") {
+        val name = "Alice"
+        val age  = 30
+        assertTrue(
+          json""""Name: $name, Age: $age"""" == Json.str("Name: Alice, Age: 30")
+        )
+      },
+      test("supports interpolation at start of top-level string") {
+        val greeting = "Hello"
+        assertTrue(
+          json""""$greeting world"""" == Json.str("Hello world")
+        )
+      },
+      test("supports interpolation at end of top-level string") {
+        val name = "Alice"
+        assertTrue(
+          json""""Hello $name"""" == Json.str("Hello Alice")
+        )
+      },
+      test("supports only interpolation in top-level string") {
+        val value = "test"
+        assertTrue(
+          json""""$value"""" == Json.str("test")
+        )
+      },
+      test("supports adjacent interpolations in top-level string") {
+        val a = "A"
+        val b = "B"
+        val c = "C"
+        assertTrue(
+          json""""$a$b$c"""" == Json.str("ABC")
+        )
+      },
+      test("supports expression syntax in top-level string") {
+        val x = 10
+        assertTrue(
+          json""""Result: ${x * 2}"""" == Json.str("Result: 20")
+        )
+      },
+      test("supports UUID in top-level string") {
+        val id = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        assertTrue(
+          json""""id-$id"""" == Json.str("id-550e8400-e29b-41d4-a716-446655440000")
+        )
+      },
+      test("supports java.time types in top-level string") {
+        val date    = LocalDate.of(2024, 1, 15)
+        val instant = Instant.parse("2024-01-15T10:30:00Z")
+        assertTrue(
+          json""""Date: $date"""" == Json.str("Date: 2024-01-15"),
+          json""""Time: $instant"""" == Json.str("Time: 2024-01-15T10:30:00Z")
+        )
+      },
+      test("handles special characters in top-level string interpolation") {
+        val text = "with \"quotes\" and \\backslash"
+        assertTrue(
+          json""""Text: $text"""" == Json.str("Text: with \"quotes\" and \\backslash")
+        )
+      }
     )
   )
 }

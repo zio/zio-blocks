@@ -393,6 +393,46 @@ object JsonContextDetectionSpec extends SchemaBaseSpec {
           )
         )
       }
+    ),
+    suite("top-level string interpolation")(
+      test("detects InString in top-level string: \"hello $name\"") {
+        val parts  = Seq("\"hello ", "\"")
+        val result = ContextDetector.detectContexts(parts)
+        assertTrue(result == Right(List(InterpolationContext.InString)))
+      },
+      test("detects InString at start of top-level string: \"$name says hi\"") {
+        val parts  = Seq("\"", " says hi\"")
+        val result = ContextDetector.detectContexts(parts)
+        assertTrue(result == Right(List(InterpolationContext.InString)))
+      },
+      test("detects InString at end of top-level string: \"hi $name\"") {
+        val parts  = Seq("\"hi ", "\"")
+        val result = ContextDetector.detectContexts(parts)
+        assertTrue(result == Right(List(InterpolationContext.InString)))
+      },
+      test("detects multiple InString in top-level string: \"$a and $b\"") {
+        val parts  = Seq("\"", " and ", "\"")
+        val result = ContextDetector.detectContexts(parts)
+        assertTrue(result == Right(List(InterpolationContext.InString, InterpolationContext.InString)))
+      },
+      test("detects only interpolation in top-level string: \"$name\"") {
+        val parts  = Seq("\"", "\"")
+        val result = ContextDetector.detectContexts(parts)
+        assertTrue(result == Right(List(InterpolationContext.InString)))
+      },
+      test("detects adjacent InString in top-level string: \"$a$b$c\"") {
+        val parts  = Seq("\"", "", "", "\"")
+        val result = ContextDetector.detectContexts(parts)
+        assertTrue(
+          result == Right(
+            List(
+              InterpolationContext.InString,
+              InterpolationContext.InString,
+              InterpolationContext.InString
+            )
+          )
+        )
+      }
     )
   )
 }
