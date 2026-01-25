@@ -1968,41 +1968,41 @@ class JsonBinaryCodecDeriver private[json] (
           case _: PrimitiveType.Unit.type => JsonBinaryCodec.unitType
           case _                          => JsonBinaryCodec.objectType
         }) {
-          private[this] val g            = binding.g
-          private[this] val f            = binding.f
+          private[this] val unwrap       = binding.unwrap
+          private[this] val wrap         = binding.wrap
           private[this] val wrappedCodec = codec
 
           override def decodeValue(in: JsonReader, default: A): A =
-            f(
+            wrap(
               try {
                 wrappedCodec.decodeValue(
                   in, {
                     if (default == null) null
-                    else g(default)
+                    else unwrap(default)
                   }.asInstanceOf[Wrapped]
                 )
               } catch {
                 case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
               }
             ) match {
-              case Right(x)    => x
-              case Left(error) => in.decodeError(error)
+              case scala.util.Right(x)    => x
+              case scala.util.Left(error) => in.decodeError(error)
             }
 
-          override def encodeValue(x: A, out: JsonWriter): Unit = wrappedCodec.encodeValue(g(x), out)
+          override def encodeValue(x: A, out: JsonWriter): Unit = wrappedCodec.encodeValue(unwrap(x), out)
 
           override def decodeKey(in: JsonReader): A =
-            f(
+            wrap(
               try wrappedCodec.decodeKey(in)
               catch {
                 case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
               }
             ) match {
-              case Right(x)    => x
-              case Left(error) => in.decodeError(error)
+              case scala.util.Right(x)    => x
+              case scala.util.Left(error) => in.decodeError(error)
             }
 
-          override def encodeKey(x: A, out: JsonWriter): Unit = wrappedCodec.encodeKey(g(x), out)
+          override def encodeKey(x: A, out: JsonWriter): Unit = wrappedCodec.encodeKey(unwrap(x), out)
 
           override def toJsonSchema: JsonSchema = wrappedCodec.toJsonSchema
         }

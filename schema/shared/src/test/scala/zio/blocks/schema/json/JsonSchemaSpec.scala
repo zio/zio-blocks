@@ -61,6 +61,26 @@ object JsonSchemaSpec extends ZIOSpecDefault {
       )))) &&
       assertTrue(anyOfElements.contains(Json.Object(Chunk("type" -> Json.str("null")))))
     },
+    test("combinators and factories") {
+      val isString = JsonSchema.string()
+      val isInt = JsonSchema.integer()
+      val isNull = JsonSchema.`null`
+      
+      val stringOrInt = isString || isInt
+      val nullableString = isString.withNullable
+      val notString = !isString
+      val stringAndLength = isString && JsonSchema.string(minLength = NonNegativeInt(1))
+      
+      assertTrue(stringOrInt.conforms(Json.str("hi"))) &&
+      assertTrue(stringOrInt.conforms(Json.number(1))) &&
+      assertTrue(!stringOrInt.conforms(Json.bool(true))) &&
+      assertTrue(nullableString.conforms(Json.Null)) &&
+      assertTrue(nullableString.conforms(Json.str("hi"))) &&
+      assertTrue(!notString.conforms(Json.str("hi"))) &&
+      assertTrue(notString.conforms(Json.number(1))) &&
+      assertTrue(stringAndLength.conforms(Json.str("a"))) &&
+      assertTrue(!stringAndLength.conforms(Json.str("")))
+    },
     test("enum schema (as strings)") {
        sealed trait Color
        case object Red extends Color

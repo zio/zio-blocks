@@ -7,8 +7,8 @@ import zio.blocks.chunk.Chunk
 object SharedSchemas {
   implicit val uriSchema: Schema[URI] = Schema.string.transformOrFail(
     (s: String) =>
-      try Right(new URI(s))
-      catch { case e: Exception => Left(e.getMessage) },
+      try scala.util.Right(new URI(s))
+      catch { case e: Exception => scala.util.Left(e.getMessage) },
     (uri: URI) => uri.toString
   )
 
@@ -16,8 +16,8 @@ object SharedSchemas {
     Schema.list(element).transformOrFail(
       (l: List[A]) =>
         l match {
-          case h :: t => Right(::(h, t))
-          case Nil    => Left("List must not be empty")
+          case h :: t => scala.util.Right(::(h, t))
+          case Nil    => scala.util.Left("List must not be empty")
         },
       (l: ::[A]) => l
     )
@@ -128,9 +128,9 @@ object SchemaType {
     case s: Json.String => JsonType.fromString(s.value).map(Single(_)).toRight(SchemaError.expectationMismatch(Nil, s"Unknown JSON type: ${s.value}"))
     case arr: Json.Array => 
       val types = arr.value.collect { case s: Json.String => JsonType.fromString(s.value) }.flatten.toList
-      if (types.isEmpty) Left(SchemaError.expectationMismatch(Nil, "Empty type array"))
-      else Right(Union(types))
-    case _ => Left(SchemaError.expectationMismatch(Nil, "Expected string or string array for 'type' keyword"))
+      if (types.isEmpty) scala.util.Left(SchemaError.expectationMismatch(Nil, "Empty type array"))
+      else scala.util.Right(Union(types))
+    case _ => scala.util.Left(SchemaError.expectationMismatch(Nil, "Expected string or string array for 'type' keyword"))
   }
 
   implicit val schema: Schema[SchemaType] =
@@ -190,6 +190,9 @@ sealed trait JsonSchema extends Product with Serializable {
 
   /** Negate this schema. */
   def unary_! : JsonSchema = JsonSchema.SchemaObject(not = Some(this))
+
+  /** Make this schema nullable (accepts the original value or null). */
+  def withNullable: JsonSchema = this || JsonSchema.`null`
 }
 
 object JsonSchema {
@@ -200,8 +203,9 @@ object JsonSchema {
 
   /** Parse a JsonSchema from its JSON representation. */
   def fromJson(json: Json): Either[SchemaError, JsonSchema] = json match {
-    case Json.True     => Right(True)
-    case Json.False    => Right(False)
+    case Json.True     => scala.util.Right(True)
+    case Json.False    => scala.util.Right(False)
+    case j if j.isBoolean => scala.util.Right(if (j.booleanValue.getOrElse(false)) True else False)
     case obj: Json.Object =>
       val fields = obj.value.toMap
       
@@ -292,20 +296,20 @@ object JsonSchema {
           }
         }
       }
-    case _ => Left(SchemaError.expectationMismatch(Nil, "Expected boolean or object for JsonSchema"))
+    case _ => scala.util.Left(SchemaError.expectationMismatch(Nil, "Expected boolean or object for JsonSchema"))
   }
 
   private def parseSchemaList(json: Json): Either[SchemaError, List[JsonSchema]] = json match {
     case arr: Json.Array if arr.value.nonEmpty =>
       val results = arr.value.map(j => fromJson(j))
-      val errors  = results.collect { case Left(e) => e }
-      if (errors.nonEmpty) Left(SchemaError(::(errors.head.errors.head, errors.flatMap(_.errors.tail).toList)))
+      val errors  = results.collect { case scala.util.Left(e) => e }
+      if (errors.nonEmpty) scala.util.Left(SchemaError(::(errors.head.errors.head, errors.flatMap(_.errors.tail).toList)))
       else {
-        val successes = results.collect { case Right(a) => a }
-        Right(successes.toList)
+        val successes = results.collect { case scala.util.Right(a) => a }
+        scala.util.Right(successes.toList)
       }
-    case _: Json.Array => Left(SchemaError.expectationMismatch(Nil, "Expected non-empty array"))
-    case _             => Left(SchemaError.expectationMismatch(Nil, "Expected array"))
+    case _: Json.Array => scala.util.Left(SchemaError.expectationMismatch(Nil, "Expected non-empty array"))
+    case _             => scala.util.Left(SchemaError.expectationMismatch(Nil, "Expected array"))
   }
 
 
@@ -343,13 +347,13 @@ object JsonSchema {
     for {
         properties           <- parseOpt(fields, "properties", parseMap(_, j => fromJson(j)))
         patternProps         <- fields.get("patternProperties") match {
-                                  case Some(obj: Json.Object) =>
-                                    val results = obj.value.map { case (k, v) => fromJson(v).map(s => (RegexPattern(k), s)) }
-                                    val errors = results.collect { case Left(e) => e }
-                                    if (errors.nonEmpty) Left(SchemaError(::(errors.head.errors.head, errors.flatMap(_.errors.tail).toList)))
-                                    else Right(Some(results.collect { case Right(r) => r }.toMap))
-                                  case _ => Right(None)
-                                }
+                                   case Some(obj: Json.Object) =>
+                                     val results = obj.value.map { case (k, v) => fromJson(v).map(s => (RegexPattern(k), s)) }
+                                     val errors = results.collect { case scala.util.Left(e) => e }
+                                     if (errors.nonEmpty) scala.util.Left(SchemaError(::(errors.head.errors.head, errors.flatMap(_.errors.tail).toList)))
+                                     else scala.util.Right(Some(results.collect { case scala.util.Right(r) => r }.toMap))
+                                   case _ => scala.util.Right(None)
+                                 }
         additionalProperties <- parseOpt(fields, "additionalProperties", j => fromJson(j))
         propertyNames        <- parseOpt(fields, "propertyNames", j => fromJson(j))
         dependentSchemas     <- parseOpt(fields, "dependentSchemas", parseMap(_, j => fromJson(j)))
@@ -368,10 +372,10 @@ object JsonSchema {
     for {
         `type`               <- parseOpt(fields, "type", SchemaType.fromJson)
         `enum`               <- parseOpt(fields, "enum", {
-                                  case arr: Json.Array => Right(arr.value.toList)
-                                  case _ => Left(SchemaError.expectationMismatch(Nil, "Expected array for enum"))
-                                })
-        const                <- Right(fields.get("const"))
+                                   case arr: Json.Array => scala.util.Right(arr.value.toList)
+                                   case _ => scala.util.Left(SchemaError.expectationMismatch(Nil, "Expected array for enum"))
+                                 })
+        const                <- scala.util.Right(fields.get("const"))
     } yield (`type`, `enum`, const)
 
   private def parseValidationNumeric(fields: Map[String, Json]): (Option[PositiveNumber], Option[BigDecimal], Option[BigDecimal], Option[BigDecimal], Option[BigDecimal]) = {
@@ -409,28 +413,28 @@ object JsonSchema {
 
   private def parseValidationFormat(fields: Map[String, Json]): Either[SchemaError, (Option[String], Option[String], Option[String], Option[JsonSchema])] =
     for {
-        format               <- Right(parseOptStr(fields, "format"))
-        contentEncoding      <- Right(parseOptStr(fields, "contentEncoding"))
-        contentMediaType     <- Right(parseOptStr(fields, "contentMediaType"))
+        format               <- scala.util.Right(parseOptStr(fields, "format"))
+        contentEncoding      <- scala.util.Right(parseOptStr(fields, "contentEncoding"))
+        contentMediaType     <- scala.util.Right(parseOptStr(fields, "contentMediaType"))
         contentSchema        <- parseOpt(fields, "contentSchema", j => fromJson(j))
     } yield (format, contentEncoding, contentMediaType, contentSchema)
 
   private def parseMeta(fields: Map[String, Json]): Either[SchemaError, (Option[String], Option[String], Option[Json], Option[Boolean], Option[Boolean], Option[Boolean], Option[List[Json]], Map[String, Json])] =
     for {
-        title                <- Right(parseOptStr(fields, "title"))
-        description          <- Right(parseOptStr(fields, "description"))
-        default              <- Right(fields.get("default"))
-        deprecated           <- Right(parseOptBool(fields, "deprecated"))
-        readOnly             <- Right(parseOptBool(fields, "readOnly"))
-        writeOnly            <- Right(parseOptBool(fields, "writeOnly"))
+        title                <- scala.util.Right(parseOptStr(fields, "title"))
+        description          <- scala.util.Right(parseOptStr(fields, "description"))
+        default              <- scala.util.Right(fields.get("default"))
+        deprecated           <- scala.util.Right(parseOptBool(fields, "deprecated"))
+        readOnly             <- scala.util.Right(parseOptBool(fields, "readOnly"))
+        writeOnly            <- scala.util.Right(parseOptBool(fields, "writeOnly"))
         examples             <- parseOpt(fields, "examples", {
-                                  case arr: Json.Array if arr.value.nonEmpty => Right(arr.value.toList)
-                                  case _ => Left(SchemaError.expectationMismatch(Nil, "Expected non-empty array for examples"))
-                                })
+                                   case arr: Json.Array if arr.value.nonEmpty => scala.util.Right(arr.value.toList)
+                                   case _ => scala.util.Left(SchemaError.expectationMismatch(Nil, "Expected non-empty array for examples"))
+                                 })
     } yield (title, description, default, deprecated, readOnly, writeOnly, examples, Map.empty)
 
   private def parseOpt[A](fields: Map[String, Json], key: String, f: Json => Either[SchemaError, A]): Either[SchemaError, Option[A]] =
-    fields.get(key).map(f).map(_.map(Some(_))).getOrElse(Right(None))
+    fields.get(key).map(f).map(_.map(Some(_))).getOrElse(scala.util.Right(None))
 
   private def parseOptRef[A](fields: Map[String, Json], key: String, f: String => A): Option[A] =
     fields.get(key).flatMap(_.stringValue).map(f)
@@ -462,10 +466,10 @@ object JsonSchema {
   private def parseMap[A](json: Json, f: Json => Either[SchemaError, A]): Either[SchemaError, Map[String, A]] = json match {
     case obj: Json.Object =>
       val results = obj.value.map { case (k, v) => f(v).map(k -> _) }
-      val errors  = results.collect { case Left(e) => e }
-      if (errors.nonEmpty) Left(SchemaError(::(errors.head.errors.head, errors.flatMap(_.errors.tail).toList)))
-      else Right(results.collect { case Right(kv) => kv }.toMap)
-    case _ => Left(SchemaError.expectationMismatch(Nil, "Expected object"))
+      val errors  = results.collect { case scala.util.Left(e) => e }
+      if (errors.nonEmpty) scala.util.Left(SchemaError(::(errors.head.errors.head, errors.flatMap(_.errors.tail).toList)))
+      else scala.util.Right(results.collect { case scala.util.Right(kv) => kv }.toMap)
+    case _ => scala.util.Left(SchemaError.expectationMismatch(Nil, "Expected object"))
   }
 
   private def asObjectOption(json: Json): Option[Map[String, Json]] = json match {
@@ -879,27 +883,33 @@ object JsonSchema {
   )
 
   def number(
+    multipleOf: Option[PositiveNumber] = None,
     minimum: Option[BigDecimal] = None,
     maximum: Option[BigDecimal] = None,
     exclusiveMinimum: Option[BigDecimal] = None,
-    exclusiveMaximum: Option[BigDecimal] = None,
-    multipleOf: Option[PositiveNumber] = None
+    exclusiveMaximum: Option[BigDecimal] = None
   ): JsonSchema = SchemaObject(
     `type` = Some(SchemaType.Single(JsonType.Number)),
+    multipleOf = multipleOf,
     minimum = minimum,
     maximum = maximum,
     exclusiveMinimum = exclusiveMinimum,
-    exclusiveMaximum = exclusiveMaximum,
-    multipleOf = multipleOf
+    exclusiveMaximum = exclusiveMaximum
   )
 
   def integer(
+    multipleOf: Option[PositiveNumber] = None,
     minimum: Option[BigDecimal] = None,
-    maximum: Option[BigDecimal] = None
+    maximum: Option[BigDecimal] = None,
+    exclusiveMinimum: Option[BigDecimal] = None,
+    exclusiveMaximum: Option[BigDecimal] = None
   ): JsonSchema = SchemaObject(
     `type` = Some(SchemaType.Single(JsonType.Integer)),
+    multipleOf = multipleOf,
     minimum = minimum,
-    maximum = maximum
+    maximum = maximum,
+    exclusiveMinimum = exclusiveMinimum,
+    exclusiveMaximum = exclusiveMaximum
   )
 
   def array(
@@ -926,7 +936,8 @@ object JsonSchema {
     additionalProperties = additionalProperties
   )
 
-  def enumOf(values: ::[Json]): JsonSchema = SchemaObject(`enum` = Some(values))
+  def enumOf(values: List[Json]): JsonSchema =
+    SchemaObject(`enum` = if (values.isEmpty) None else Some(values))
 
   def constOf(value: Json): JsonSchema = SchemaObject(const = Some(value))
 
