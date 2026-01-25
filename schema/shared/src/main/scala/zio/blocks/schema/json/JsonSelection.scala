@@ -111,44 +111,22 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Keeps only object values. */
-  def objects: JsonSelection = filter(_.isObject)
+  def objects: JsonSelection = filter(JsonType.Object)
 
   /** Keeps only array values. */
-  def arrays: JsonSelection = filter(_.isArray)
+  def arrays: JsonSelection = filter(JsonType.Array)
 
   /** Keeps only string values. */
-  def strings: JsonSelection = filter(_.isString)
+  def strings: JsonSelection = filter(JsonType.String)
 
   /** Keeps only number values. */
-  def numbers: JsonSelection = filter(_.isNumber)
+  def numbers: JsonSelection = filter(JsonType.Number)
 
   /** Keeps only boolean values. */
-  def booleans: JsonSelection = filter(_.isBoolean)
+  def booleans: JsonSelection = filter(JsonType.Boolean)
 
   /** Keeps only null values. */
-  def nulls: JsonSelection = filter(_.isNull)
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Type Filtering (for chaining - fails on mismatch)
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /** Filters to only object values, failing if any value is not an object. */
-  def asObjects: JsonSelection = flatMap(_.asObject)
-
-  /** Filters to only array values, failing if any value is not an array. */
-  def asArrays: JsonSelection = flatMap(_.asArray)
-
-  /** Filters to only string values, failing if any value is not a string. */
-  def asStrings: JsonSelection = flatMap(_.asString)
-
-  /** Filters to only number values, failing if any value is not a number. */
-  def asNumbers: JsonSelection = flatMap(_.asNumber)
-
-  /** Filters to only boolean values, failing if any value is not a boolean. */
-  def asBooleans: JsonSelection = flatMap(_.asBoolean)
-
-  /** Filters to only null values, failing if any value is not null. */
-  def asNulls: JsonSelection = flatMap(_.asNull)
+  def nulls: JsonSelection = filter(JsonType.Null)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Navigation

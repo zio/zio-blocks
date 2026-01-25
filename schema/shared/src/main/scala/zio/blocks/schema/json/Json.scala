@@ -27,66 +27,39 @@ sealed trait Json {
   def jsonType: JsonType
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Type Testing
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /** Returns true if this is a JSON object. */
-  def isObject: Boolean = false
-
-  /** Returns true if this is a JSON array. */
-  def isArray: Boolean = false
-
-  /** Returns true if this is a JSON string. */
-  def isString: Boolean = false
-
-  /** Returns true if this is a JSON number. */
-  def isNumber: Boolean = false
-
-  /** Returns true if this is a JSON boolean. */
-  def isBoolean: Boolean = false
-
-  /** Returns true if this is JSON null. */
-  def isNull: Boolean = false
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Type Filtering (returns JsonSelection for fluent chaining)
+  // Unified Type Operations
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * If this is an object, returns it wrapped in a JsonSelection, otherwise
-   * returns an empty selection.
+   * Returns true if this JSON value is of the specified type.
+   *
+   * @example
+   *   {{{ json.is(JsonType.Object) // true if json is an object
+   *   json.is(JsonType.String) // true if json is a string }}}
    */
-  def asObject: JsonSelection = JsonSelection.empty
+  def is(jsonType: JsonType): Boolean = this.jsonType == jsonType
 
   /**
-   * If this is an array, returns it wrapped in a JsonSelection, otherwise
-   * returns an empty selection.
+   * Narrows this JSON value to the specified type, returning `Some` if the
+   * types match or `None` otherwise. The return type is path-dependent on the
+   * `jsonType` parameter.
+   *
+   * @example
+   *   {{{ json.as(JsonType.Object) // Option[Json.Object]
+   *   json.as(JsonType.String) // Option[Json.String] }}}
    */
-  def asArray: JsonSelection = JsonSelection.empty
+  def as(jsonType: JsonType): Option[jsonType.Type] = None
 
   /**
-   * If this is a string, returns it wrapped in a JsonSelection, otherwise
-   * returns an empty selection.
+   * Extracts the underlying value from this JSON if it matches the specified
+   * type. The return type is path-dependent on the `jsonType` parameter.
+   *
+   * @example
+   *   {{{ json.unwrap(JsonType.String) // Option[String]
+   *   json.unwrap(JsonType.Number) // Option[BigDecimal]
+   *   json.unwrap(JsonType.Object) // Option[Chunk[(String, Json)]] }}}
    */
-  def asString: JsonSelection = JsonSelection.empty
-
-  /**
-   * If this is a number, returns it wrapped in a JsonSelection, otherwise
-   * returns an empty selection.
-   */
-  def asNumber: JsonSelection = JsonSelection.empty
-
-  /**
-   * If this is a boolean, returns it wrapped in a JsonSelection, otherwise
-   * returns an empty selection.
-   */
-  def asBoolean: JsonSelection = JsonSelection.empty
-
-  /**
-   * If this is null, returns it wrapped in a JsonSelection, otherwise returns
-   * an empty selection.
-   */
-  def asNull: JsonSelection = JsonSelection.empty
+  def unwrap(jsonType: JsonType): Option[jsonType.Unwrap] = None
 
   // ─────────────────────────────────────────────────────────────────────────
   // Direct Accessors
@@ -251,26 +224,6 @@ sealed trait Json {
    */
   def asUnsafe[A](implicit decoder: JsonDecoder[A]): A = as[A].fold(e => throw e, identity)
 
-  /** Extracts the string value if this is a string, otherwise returns None. */
-  def stringValue: Option[String] = this match {
-    case s: Json.String => Some(s.value)
-    case _              => None
-  }
-
-  /** Extracts the number value if this is a number, otherwise returns None. */
-  def numberValue: Option[BigDecimal] = this match {
-    case n: Json.Number => n.toBigDecimalOption
-    case _              => None
-  }
-
-  /**
-   * Extracts the boolean value if this is a boolean, otherwise returns None.
-   */
-  def booleanValue: Option[Boolean] = this match {
-    case b: Json.Boolean => Some(b.value)
-    case _               => None
-  }
-
   // ─────────────────────────────────────────────────────────────────────────
   // Comparison
   // ─────────────────────────────────────────────────────────────────────────
@@ -374,10 +327,27 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Queries the JSON using a predicate function. Returns a JsonSelection
+   * Queries the JSON using a predicate on values. Returns a JsonSelection
    * containing all values for which the predicate returns true.
+   *
+   * @example
+   *   {{{ json.query(JsonType.String) // all string values
+   *   json.query(_.is(JsonType.Number)) // all number values }}}
    */
-  def query(p: (DynamicOptic, Json) => Boolean): JsonSelection = Json.queryImpl(this, DynamicOptic.root, p)
+  def query(p: Json => Boolean): JsonSelection = Json.queryImpl(this, DynamicOptic.root, (_, json) => p(json))
+
+  /**
+   * Queries the JSON using a predicate on paths. Returns a JsonSelection
+   * containing all values at paths for which the predicate returns true.
+   */
+  def queryPath(p: DynamicOptic => Boolean): JsonSelection =
+    Json.queryImpl(this, DynamicOptic.root, (path, _) => p(path))
+
+  /**
+   * Queries the JSON using a predicate on both path and value. Returns a
+   * JsonSelection containing all values for which the predicate returns true.
+   */
+  def queryBoth(p: (DynamicOptic, Json) => Boolean): JsonSelection = Json.queryImpl(this, DynamicOptic.root, p)
 
   /**
    * Converts this JSON to a Chunk of path-value pairs. Each pair contains the
@@ -415,9 +385,11 @@ object Json {
   final case class Object(value: Chunk[(java.lang.String, Json)]) extends Json {
     override def jsonType: JsonType = JsonType.Object
 
-    override def isObject: scala.Boolean = true
+    override def as(jsonType: JsonType): Option[jsonType.Type] =
+      if (jsonType == JsonType.Object) Some(this.asInstanceOf[jsonType.Type]) else None
 
-    override def asObject: JsonSelection = JsonSelection.succeed(this)
+    override def unwrap(jsonType: JsonType): Option[jsonType.Unwrap] =
+      if (jsonType == JsonType.Object) Some(value.asInstanceOf[jsonType.Unwrap]) else None
 
     override def fields: Chunk[(java.lang.String, Json)] = value
 
@@ -438,7 +410,7 @@ object Json {
       new Object(value.map { case (k, v) => (k, v.sortKeys) }.sortBy(_._1)(Ordering.String))
 
     override def dropNulls: Json =
-      new Object(value.filterNot(_._2.isNull).map { case (k, v) => (k, v.dropNulls) })
+      new Object(value.filterNot(_._2.is(JsonType.Null)).map { case (k, v) => (k, v.dropNulls) })
 
     override def dropEmpty: Json = {
       val processed = value.map { case (k, v) => (k, v.dropEmpty) }
@@ -498,9 +470,11 @@ object Json {
   final case class Array(value: Chunk[Json]) extends Json {
     override def jsonType: JsonType = JsonType.Array
 
-    override def isArray: scala.Boolean = true
+    override def as(jsonType: JsonType): Option[jsonType.Type] =
+      if (jsonType == JsonType.Array) Some(this.asInstanceOf[jsonType.Type]) else None
 
-    override def asArray: JsonSelection = JsonSelection.succeed(this)
+    override def unwrap(jsonType: JsonType): Option[jsonType.Unwrap] =
+      if (jsonType == JsonType.Array) Some(value.asInstanceOf[jsonType.Unwrap]) else None
 
     override def elements: Chunk[Json] = value
 
@@ -512,7 +486,7 @@ object Json {
 
     override def sortKeys: Json = new Array(value.map(_.sortKeys))
 
-    override def dropNulls: Json = new Array(value.collect { case x if !x.isNull => x.dropNulls })
+    override def dropNulls: Json = new Array(value.collect { case x if !x.is(JsonType.Null) => x.dropNulls })
 
     override def dropEmpty: Json = {
       val processed = value.map(_.dropEmpty)
@@ -549,9 +523,11 @@ object Json {
   final case class String(value: java.lang.String) extends Json {
     override def jsonType: JsonType = JsonType.String
 
-    override def isString: scala.Boolean = true
+    override def as(jsonType: JsonType): Option[jsonType.Type] =
+      if (jsonType == JsonType.String) Some(this.asInstanceOf[jsonType.Type]) else None
 
-    override def asString: JsonSelection = JsonSelection.succeed(this)
+    override def unwrap(jsonType: JsonType): Option[jsonType.Unwrap] =
+      if (jsonType == JsonType.String) Some(value.asInstanceOf[jsonType.Unwrap]) else None
 
     override def typeIndex: Int = 3
 
@@ -568,9 +544,11 @@ object Json {
   final case class Number(value: java.lang.String) extends Json {
     override def jsonType: JsonType = JsonType.Number
 
-    override def isNumber: scala.Boolean = true
+    override def as(jsonType: JsonType): Option[jsonType.Type] =
+      if (jsonType == JsonType.Number) Some(this.asInstanceOf[jsonType.Type]) else None
 
-    override def asNumber: JsonSelection = JsonSelection.succeed(this)
+    override def unwrap(jsonType: JsonType): Option[jsonType.Unwrap] =
+      if (jsonType == JsonType.Number) toBigDecimalOption.asInstanceOf[Option[jsonType.Unwrap]] else None
 
     override def typeIndex: Int = 2
 
@@ -598,9 +576,11 @@ object Json {
   final case class Boolean(value: scala.Boolean) extends Json {
     override def jsonType: JsonType = JsonType.Boolean
 
-    override def isBoolean: scala.Boolean = true
+    override def as(jsonType: JsonType): Option[jsonType.Type] =
+      if (jsonType == JsonType.Boolean) Some(this.asInstanceOf[jsonType.Type]) else None
 
-    override def asBoolean: JsonSelection = JsonSelection.succeed(this)
+    override def unwrap(jsonType: JsonType): Option[jsonType.Unwrap] =
+      if (jsonType == JsonType.Boolean) Some(value.asInstanceOf[jsonType.Unwrap]) else None
 
     override def typeIndex: Int = 1
 
@@ -622,9 +602,11 @@ object Json {
   case object Null extends Json {
     override def jsonType: JsonType = JsonType.Null
 
-    override def isNull: scala.Boolean = true
+    override def as(jsonType: JsonType): Option[jsonType.Type] =
+      if (jsonType == JsonType.Null) Some(this.asInstanceOf[jsonType.Type]) else None
 
-    override def asNull: JsonSelection = JsonSelection.succeed(this)
+    override def unwrap(jsonType: JsonType): Option[jsonType.Unwrap] =
+      if (jsonType == JsonType.Null) Some(().asInstanceOf[jsonType.Unwrap]) else None
 
     override def typeIndex: Int = 0
 

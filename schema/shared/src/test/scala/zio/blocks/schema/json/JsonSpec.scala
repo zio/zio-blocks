@@ -3,34 +3,99 @@ package zio.blocks.schema.json
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
+import zio.test.Assertion.equalTo
 
 object JsonSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonSpec")(
     suite("Json ADT")(
-      suite("type testing")(
-        test("isObject returns true for objects") {
-          val json = Json.Object("key" -> Json.String("value"))
-          assertTrue(json.isObject, !json.isArray, !json.isString, !json.isNumber, !json.isBoolean, !json.isNull)
+      suite("unified type operations")(
+        test("is returns true when type matches") {
+          assert(Json.Object.empty.is(JsonType.Object))(equalTo(true)) &&
+          assert(Json.Array.empty.is(JsonType.Array))(equalTo(true)) &&
+          assert(Json.String("test").is(JsonType.String))(equalTo(true)) &&
+          assert(Json.Number("42").is(JsonType.Number))(equalTo(true)) &&
+          assert(Json.Boolean(true).is(JsonType.Boolean))(equalTo(true)) &&
+          assert(Json.Null.is(JsonType.Null))(equalTo(true))
         },
-        test("isArray returns true for arrays") {
-          val json = Json.Array(Json.Number("1"), Json.Number("2"))
-          assertTrue(json.isArray, !json.isObject, !json.isString, !json.isNumber, !json.isBoolean, !json.isNull)
+        test("is returns false when type does not match") {
+          val obj = Json.Object.empty
+          assert(obj.is(JsonType.Array))(equalTo(false)) &&
+          assert(obj.is(JsonType.String))(equalTo(false)) &&
+          assert(obj.is(JsonType.Number))(equalTo(false)) &&
+          assert(obj.is(JsonType.Boolean))(equalTo(false)) &&
+          assert(obj.is(JsonType.Null))(equalTo(false))
         },
-        test("isString returns true for strings") {
-          val json = Json.String("hello")
-          assertTrue(json.isString, !json.isObject, !json.isArray, !json.isNumber, !json.isBoolean, !json.isNull)
+        test("as returns Some when type matches") {
+          val obj: Json                 = Json.Object("a" -> Json.Number("1"))
+          val arr: Json                 = Json.Array(Json.Number("1"))
+          val str: Json                 = Json.String("hello")
+          val num: Json                 = Json.Number("42")
+          val bool: Json                = Json.Boolean(true)
+          val nul: Json                 = Json.Null
+          val objResult                 = obj.as(JsonType.Object)
+          val arrResult                 = arr.as(JsonType.Array)
+          val strResult                 = str.as(JsonType.String)
+          val numResult                 = num.as(JsonType.Number)
+          val boolResult                = bool.as(JsonType.Boolean)
+          val nullResult                = nul.as(JsonType.Null)
+          val _: Option[Json.Object]    = objResult
+          val _: Option[Json.Array]     = arrResult
+          val _: Option[Json.String]    = strResult
+          val _: Option[Json.Number]    = numResult
+          val _: Option[Json.Boolean]   = boolResult
+          val _: Option[Json.Null.type] = nullResult
+          assert(objResult.isDefined)(equalTo(true)) &&
+          assert(arrResult.isDefined)(equalTo(true)) &&
+          assert(strResult.isDefined)(equalTo(true)) &&
+          assert(numResult.isDefined)(equalTo(true)) &&
+          assert(boolResult.isDefined)(equalTo(true)) &&
+          assert(nullResult.isDefined)(equalTo(true))
         },
-        test("isNumber returns true for numbers") {
-          val json = Json.Number("42")
-          assertTrue(json.isNumber, !json.isObject, !json.isArray, !json.isString, !json.isBoolean, !json.isNull)
+        test("as returns None when type does not match") {
+          val obj: Json = Json.Object.empty
+          assert(obj.as(JsonType.Array).isEmpty)(equalTo(true)) &&
+          assert(obj.as(JsonType.String).isEmpty)(equalTo(true)) &&
+          assert(obj.as(JsonType.Number).isEmpty)(equalTo(true)) &&
+          assert(obj.as(JsonType.Boolean).isEmpty)(equalTo(true)) &&
+          assert(obj.as(JsonType.Null).isEmpty)(equalTo(true))
         },
-        test("isBoolean returns true for booleans") {
-          val json = Json.Boolean(true)
-          assertTrue(json.isBoolean, !json.isObject, !json.isArray, !json.isString, !json.isNumber, !json.isNull)
+        test("unwrap returns Some with correct inner value when type matches") {
+          val obj: Json                        = Json.Object("a" -> Json.Number("1"))
+          val arr: Json                        = Json.Array(Json.Number("1"), Json.Number("2"))
+          val str: Json                        = Json.String("hello")
+          val num: Json                        = Json.Number("42")
+          val bool: Json                       = Json.Boolean(true)
+          val nul: Json                        = Json.Null
+          val objUnwrap                        = obj.unwrap(JsonType.Object)
+          val arrUnwrap                        = arr.unwrap(JsonType.Array)
+          val strUnwrap                        = str.unwrap(JsonType.String)
+          val numUnwrap                        = num.unwrap(JsonType.Number)
+          val boolUnwrap                       = bool.unwrap(JsonType.Boolean)
+          val nullUnwrap                       = nul.unwrap(JsonType.Null)
+          val _: Option[Chunk[(String, Json)]] = objUnwrap
+          val _: Option[Chunk[Json]]           = arrUnwrap
+          val _: Option[String]                = strUnwrap
+          val _: Option[BigDecimal]            = numUnwrap
+          val _: Option[Boolean]               = boolUnwrap
+          val _: Option[Unit]                  = nullUnwrap
+          assert(objUnwrap)(equalTo(Some(Chunk(("a", Json.Number("1")))))) &&
+          assert(arrUnwrap)(equalTo(Some(Chunk(Json.Number("1"), Json.Number("2"))))) &&
+          assert(strUnwrap)(equalTo(Some("hello"))) &&
+          assert(numUnwrap)(equalTo(Some(BigDecimal(42)))) &&
+          assert(boolUnwrap)(equalTo(Some(true))) &&
+          assert(nullUnwrap)(equalTo(Some(())))
         },
-        test("isNull returns true for null") {
-          val json = Json.Null
-          assertTrue(json.isNull, !json.isObject, !json.isArray, !json.isString, !json.isNumber, !json.isBoolean)
+        test("unwrap returns None when type does not match") {
+          val obj: Json = Json.Object.empty
+          assert(obj.unwrap(JsonType.Array).isEmpty)(equalTo(true)) &&
+          assert(obj.unwrap(JsonType.String).isEmpty)(equalTo(true)) &&
+          assert(obj.unwrap(JsonType.Number).isEmpty)(equalTo(true)) &&
+          assert(obj.unwrap(JsonType.Boolean).isEmpty)(equalTo(true)) &&
+          assert(obj.unwrap(JsonType.Null).isEmpty)(equalTo(true))
+        },
+        test("unwrap for Number returns None when value is not parseable") {
+          val invalidNum: Json = Json.Number("not-a-number")
+          assert(invalidNum.unwrap(JsonType.Number).isEmpty)(equalTo(true))
         }
       ),
       suite("jsonType")(
@@ -81,19 +146,6 @@ object JsonSpec extends SchemaBaseSpec {
         test("elements returns non-empty Seq for arrays") {
           val json = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3"))
           assertTrue(json.elements.nonEmpty, json.elements.length == 3)
-        },
-        test("stringValue returns Some for strings") {
-          assertTrue(Json.String("hello").stringValue.contains("hello"), Json.Number("42").stringValue.isEmpty)
-        },
-        test("numberValue returns Some for numbers") {
-          assertTrue(Json.Number("42").numberValue.contains(BigDecimal(42)), Json.String("42").numberValue.isEmpty)
-        },
-        test("booleanValue returns Some for booleans") {
-          assertTrue(
-            Json.Boolean(true).booleanValue.contains(true),
-            Json.Boolean(false).booleanValue.contains(false),
-            Json.Number("1").booleanValue.isEmpty
-          )
         }
       ),
       suite("navigation")(
@@ -546,7 +598,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("filterNot removes matching elements") {
           val json     = Json.Array(Json.Number("1"), Json.Null, Json.Number("2"), Json.Null)
-          val filtered = json.filterNot((_, j) => j.isNull)
+          val filtered = json.filterNot((_, j) => j.is(JsonType.Null))
           assertTrue(filtered.elements == Chunk(Json.Number("1"), Json.Number("2")))
         },
         test("partition splits by predicate") {
@@ -638,17 +690,15 @@ object JsonSpec extends SchemaBaseSpec {
             )
           )
           // Find all active=true values
-          val activeUsers = json.query { (_, j) =>
-            j match {
-              case Json.Boolean(true) => true
-              case _                  => false
-            }
+          val activeUsers = json.query {
+            case Json.Boolean(true) => true
+            case _                  => false
           }
           assertTrue(activeUsers.size == 2)
         },
         test("query returns empty selection when nothing matches") {
           val json   = Json.Object("a" -> Json.Number("1"))
-          val result = json.query((_, j) => j.isString)
+          val result = json.query(JsonType.String)
           assertTrue(result.isEmpty)
         },
         test("toKV converts to path-value pairs") {
@@ -699,17 +749,20 @@ object JsonSpec extends SchemaBaseSpec {
           json.get("data").get("users")(1).get("age").as[Int] == Right(25)
         )
       },
-      test("asObjects/asArrays/asStrings type filtering") {
+      test("query type filtering") {
         val json = Json.Object("name" -> Json.String("test"))
-        // Type filtering returns empty selection instead of failure for non-matching types
-        assertTrue(json.asObject.isSuccess, json.asArray.isEmpty, json.get("name").asStrings.isSuccess)
+        assertTrue(
+          json.query(JsonType.Object).isSuccess,
+          json.query(JsonType.Array).isEmpty,
+          json.get("name").strings.isSuccess
+        )
       },
       test("extraction methods") {
         val json = Json.Array(Json.String("a"), Json.String("b"), Json.String("c"))
         assertTrue(
           JsonSelection
             .succeed(json)
-            .asArrays
+            .arrays
             .any
             .toOption
             .map(_.elements)
@@ -819,8 +872,8 @@ object JsonSpec extends SchemaBaseSpec {
       },
       test("encode Map") {
         val encoded = JsonEncoder[Map[String, Int]].encode(Map("a" -> 1, "b" -> 2))
+        assert(encoded.is(JsonType.Object))(equalTo(true)) &&
         assertTrue(
-          encoded.isObject,
           encoded.get("a").as[BigDecimal] == Right(BigDecimal(1)),
           encoded.get("b").as[BigDecimal] == Right(BigDecimal(2))
         )
@@ -1092,18 +1145,17 @@ object JsonSpec extends SchemaBaseSpec {
           val failed = JsonSelection.fail(JsonError("error"))
           assertTrue(failed.toVector.isEmpty)
         },
-        test("asNumbers/asBooleans/asNulls type checks") {
+        test("numbers/booleans/nulls type filtering") {
           val numSel  = JsonSelection.succeed(Json.Number("42"))
           val boolSel = JsonSelection.succeed(Json.Boolean(true))
           val nullSel = JsonSelection.succeed(Json.Null)
-          // Type filtering returns empty selection instead of failure for non-matching types
           assertTrue(
-            numSel.asNumbers.isSuccess,
-            numSel.asBooleans.isEmpty,
-            boolSel.asBooleans.isSuccess,
-            boolSel.asNulls.isEmpty,
-            nullSel.asNulls.isSuccess,
-            nullSel.asNumbers.isEmpty
+            numSel.numbers.isSuccess,
+            numSel.booleans.isEmpty,
+            boolSel.booleans.isSuccess,
+            boolSel.nulls.isEmpty,
+            nullSel.nulls.isSuccess,
+            nullSel.numbers.isEmpty
           )
         }
       ),
@@ -1131,8 +1183,8 @@ object JsonSpec extends SchemaBaseSpec {
             )
           )
           val json = Json.fromDynamicValue(dv)
+          assert(json.is(JsonType.Object))(equalTo(true)) &&
           assertTrue(
-            json.isObject,
             json.get("a").as[BigDecimal] == Right(BigDecimal(1)),
             json.get("b").as[BigDecimal] == Right(BigDecimal(2))
           )
@@ -1145,10 +1197,8 @@ object JsonSpec extends SchemaBaseSpec {
             )
           )
           val json = Json.fromDynamicValue(dv)
-          assertTrue(
-            json.isArray,
-            json.elements.length == 2
-          )
+          assert(json.is(JsonType.Array))(equalTo(true)) &&
+          assertTrue(json.elements.length == 2)
         },
         test("toDynamicValue converts Long when out of Int range") {
           val json = Json.Number(Long.MaxValue.toString)
@@ -1279,7 +1329,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("partition on primitives") {
           val json                    = Json.String("hello")
-          val (matching, nonMatching) = json.partition((_, j) => j.isString)
+          val (matching, nonMatching) = json.partition((_, j) => j.is(JsonType.String))
           assertTrue(matching == json, nonMatching == Json.Null)
         }
       ),
