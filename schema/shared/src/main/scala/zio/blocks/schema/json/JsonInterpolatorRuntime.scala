@@ -10,21 +10,6 @@ import scala.annotation.tailrec
  * and Scala 3 macro implementations.
  */
 object JsonInterpolatorRuntime {
-  def jsonWithInterpolation(sc: StringContext, args: Seq[Any]): Json = {
-    val parts  = sc.parts.iterator
-    val argsIt = args.iterator
-    val str    = parts.next()
-    val out    = new ByteArrayOutputStream(str.length << 1)
-    out.write(str)
-    while (argsIt.hasNext) {
-      writeValue(out, argsIt.next())
-      out.write(parts.next())
-    }
-    Json.jsonCodec.decode(out.toByteArray) match {
-      case Right(json) => json
-      case Left(error) => throw error
-    }
-  }
 
   /**
    * Validates a JSON literal at compile time with context-aware placeholder
@@ -152,8 +137,8 @@ object JsonInterpolatorRuntime {
     case zi: ZoneId            => JsonBinaryCodec.zoneIdCodec.encode(zi, out)
     case zdt: ZonedDateTime    => JsonBinaryCodec.zonedDateTimeCodec.encode(zdt, out)
     case c: java.util.Currency => JsonBinaryCodec.currencyCodec.encode(c, out)
-    case uuid: java.util.UUID => JsonBinaryCodec.uuidCodec.encode(uuid, out)
-    case x =>
+    case uuid: java.util.UUID  => JsonBinaryCodec.uuidCodec.encode(uuid, out)
+    case x                     =>
       throw new IllegalArgumentException(
         s"Unexpected type in key position: ${x.getClass.getName}. This should have been caught at compile time."
       )
@@ -194,7 +179,7 @@ object JsonInterpolatorRuntime {
     case zdt: ZonedDateTime    => writeRawString(out, zdt.toString)
     case c: java.util.Currency => writeRawString(out, c.getCurrencyCode)
     case uuid: java.util.UUID  => writeRawString(out, uuid.toString)
-    case x =>
+    case x                     =>
       throw new IllegalArgumentException(
         s"Unexpected type in string literal: ${x.getClass.getName}. This should have been caught at compile time."
       )
