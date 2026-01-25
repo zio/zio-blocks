@@ -1053,6 +1053,73 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           result.get("data").get("key1").get("data").int == Right(100),
           result.get("data").get("key2").get("data").int == Right(200)
         )
+      },
+      test("interpolates tuple type") {
+        case class TupleRecord(pair: (String, Int))
+        object TupleRecord {
+          implicit val schema: Schema[TupleRecord] = Schema.derived
+        }
+        val record = TupleRecord(("hello", 42))
+        val result = json"""{"record": $record}"""
+        // Tuples are encoded as arrays: ["hello", 42]
+        assertTrue(
+          result.get("record").get("pair").one.map(_.elements(0)) == Right(Json.str("hello")),
+          result.get("record").get("pair").one.map(_.elements(1)) == Right(Json.number(42))
+        )
+      },
+      test("interpolates sealed trait with case objects") {
+        sealed trait Status
+        case object Pending                extends Status
+        case object Active                 extends Status
+        case class Custom(message: String) extends Status
+        object Status {
+          implicit val schema: Schema[Status] = Schema.derived
+        }
+
+        val pending: Status = Pending
+        val active: Status  = Active
+        val custom: Status  = Custom("test")
+        assertTrue(
+          json"""{"status": $pending}""".get("status").get("Pending").one.isRight,
+          json"""{"status": $active}""".get("status").get("Active").one.isRight,
+          json"""{"status": $custom}""".get("status").get("Custom").get("message").string == Right("test")
+        )
+      },
+      test("interpolates standalone List as top-level") {
+        case class Item(id: Int)
+        object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+        val items  = List(Item(1), Item(2), Item(3))
+        val result = json"""$items"""
+        assertTrue(
+          result.elements.length == 3,
+          result.elements(0).get("id").int == Right(1),
+          result.elements(2).get("id").int == Right(3)
+        )
+      },
+      test("interpolates standalone Option as top-level") {
+        case class Data(value: Int)
+        object Data { implicit val schema: Schema[Data] = Schema.derived }
+
+        val some: Option[Data] = Some(Data(42))
+        val none: Option[Data] = None
+        assertTrue(
+          json"""$some""".get("value").int == Right(42),
+          json"""$none""" == Json.Null
+        )
+      },
+      test("interpolates Option in array") {
+        case class Item(id: Int)
+        object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+        val some: Option[Item] = Some(Item(1))
+        val none: Option[Item] = None
+        val result             = json"""[$some, $none]"""
+        assertTrue(
+          result.elements.length == 2,
+          result.elements(0).get("id").int == Right(1),
+          result.elements(1) == Json.Null
+        )
       }
     ),
     suite("Key position type safety")(
