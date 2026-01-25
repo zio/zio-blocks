@@ -93,7 +93,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         Seq()
     }),
     coverageMinimumStmtTotal   := 86,
-    coverageMinimumBranchTotal := 82
+    coverageMinimumBranchTotal := 83
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
