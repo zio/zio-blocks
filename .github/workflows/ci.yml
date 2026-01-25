@@ -106,11 +106,7 @@ jobs:
         platform: ['Native']
         scala: ['2.13.x', '3.x']
     env:
-<<<<<<< HEAD
-      SCALANATIVE_THREAD_STACK_SIZE: 32m    
-=======
       SCALANATIVE_THREAD_STACK_SIZE: 128m
->>>>>>> origin/main
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.1
@@ -160,3 +156,4 @@ jobs:
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
 
+# Resolved CI workflow
