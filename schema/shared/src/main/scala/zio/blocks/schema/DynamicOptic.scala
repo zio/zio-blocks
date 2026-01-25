@@ -33,40 +33,40 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   def wrapped: DynamicOptic = new DynamicOptic(nodes :+ Node.Wrapped)
 
   override lazy val toString: String = {
-  val sb = new StringBuilder
-  nodes.foreach {
-    case Node.Field(name) =>
-      sb.append('.').append(name)
+    val sb = new StringBuilder
+    nodes.foreach {
+      case Node.Field(name) =>
+        sb.append('.').append(name)
 
-    case Node.Case(name) =>
-      sb.append(".when[").append(name).append(']')
+      case Node.Case(name) =>
+        sb.append(".when[").append(name).append(']')
 
-    case Node.AtIndex(index) =>
-      sb.append(".at(").append(index).append(')')
+      case Node.AtIndex(index) =>
+        sb.append(".at(").append(index).append(')')
 
-    case Node.AtIndices(_) =>
-      sb.append(".atIndices(<indices>)")
+      case Node.AtIndices(_) =>
+        sb.append(".atIndices(<indices>)")
 
-    case Node.AtMapKey(_) =>
-      sb.append(".atKey(<key>)")
+      case Node.AtMapKey(_) =>
+        sb.append(".atKey(<key>)")
 
-    case Node.AtMapKeys(_) =>
-      sb.append(".atKeys(<keys>)")
+      case Node.AtMapKeys(_) =>
+        sb.append(".atKeys(<keys>)")
 
-    case Node.Elements =>
-      sb.append(".each")
+      case Node.Elements =>
+        sb.append(".each")
 
-    case Node.MapKeys =>
-      sb.append(".eachKey")
+      case Node.MapKeys =>
+        sb.append(".eachKey")
 
-    case Node.MapValues =>
-      sb.append(".eachValue")
+      case Node.MapValues =>
+        sb.append(".eachValue")
 
-    case Node.Wrapped =>
-      sb.append(".wrapped")
+      case Node.Wrapped =>
+        sb.append(".wrapped")
+    }
+    if (sb.isEmpty) "." else sb.toString
   }
-  if (sb.isEmpty) "." else sb.toString
-}
 }
 object DynamicOptic {
   val root: DynamicOptic = new DynamicOptic(Vector.empty)
