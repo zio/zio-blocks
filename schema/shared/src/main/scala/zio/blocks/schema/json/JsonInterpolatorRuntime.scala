@@ -313,8 +313,13 @@ object JsonInterpolatorRuntime {
           out.write('0')
           out.write('0')
           val hex = Integer.toHexString(c.toInt)
-          if (hex.length == 1) out.write('0')
-          out.write(hex.charAt(hex.length - 1))
+          if (hex.length == 1) {
+            out.write('0')
+            out.write(hex.charAt(0))
+          } else {
+            out.write(hex.charAt(hex.length - 2))
+            out.write(hex.charAt(hex.length - 1))
+          }
         case other =>
           out.write(other.toString)
       }

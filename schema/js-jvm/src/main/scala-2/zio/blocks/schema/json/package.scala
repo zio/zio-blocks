@@ -81,11 +81,10 @@ private object JsonInterpolatorMacros {
         if (ctx == JsonInterpolatorRuntime.CtxKey || ctx == JsonInterpolatorRuntime.CtxString) {
           q"_root_.zio.blocks.schema.json.JsonInterpolatorRuntime.StringableArg(${argExpr.tree})"
         } else {
-          if (isStringableType(c)(tpe) || isRuntimeSupportedType(c)(tpe)) {
-            q"_root_.zio.blocks.schema.json.JsonInterpolatorRuntime.RuntimeValueArg(${argExpr.tree})"
-          } else {
+          if (hasJsonEncoderImplicit(c)(tpe))
             q"_root_.zio.blocks.schema.json.JsonInterpolatorRuntime.EncodedValueArg[$tpe](${argExpr.tree}.asInstanceOf[$tpe], _root_.zio.blocks.schema.json.JsonEncoder[$tpe])"
-          }
+          else
+            q"_root_.zio.blocks.schema.json.JsonInterpolatorRuntime.RuntimeValueArg(${argExpr.tree})"
         }
       }.toList
 
