@@ -1175,7 +1175,7 @@ object Json {
             val name    = field.name
             val results = jsons.flatMap {
               case obj: Object =>
-                obj.get(name).single match {
+                obj.get(name).one match {
                   case Right(v) => Chunk(v)
                   case _        => Chunk.empty[Json]
                 }
@@ -1187,7 +1187,7 @@ object Json {
             val index   = atIndex.index
             val results = jsons.flatMap {
               case arr: Array =>
-                arr.get(index).single match {
+                arr.get(index).one match {
                   case Right(v) => Chunk(v)
                   case _        => Chunk.empty[Json]
                 }
@@ -1224,7 +1224,7 @@ object Json {
               case DynamicValue.Primitive(pv: PrimitiveValue.String) =>
                 new Right(jsons.flatMap {
                   case obj: Object =>
-                    obj.get(pv.value).single match {
+                    obj.get(pv.value).one match {
                       case Right(v) => Chunk(v)
                       case _        => Chunk.empty[Json]
                     }
