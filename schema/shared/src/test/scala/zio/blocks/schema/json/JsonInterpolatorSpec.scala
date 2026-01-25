@@ -519,6 +519,266 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       typeCheck {
         """json"[1,02]""""
       }.map(assert(_)(isLeft(containsString("Invalid JSON literal: illegal number with leading zero at: .at(1)"))))
-    } @@ exceptNative
+    } @@ exceptNative,
+    suite("String literal interpolation")(
+      test("interpolates String inside string literal") {
+        val name = "Alice"
+        assertTrue(
+          json"""{"message": "Hello, $name!"}""".get("message").string == Right("Hello, Alice!")
+        )
+      },
+      test("interpolates Int inside string literal") {
+        val age = 25
+        assertTrue(
+          json"""{"message": "You are $age years old"}""".get("message").string == Right("You are 25 years old")
+        )
+      },
+      test("interpolates Boolean inside string literal") {
+        val active = true
+        assertTrue(
+          json"""{"status": "Active: $active"}""".get("status").string == Right("Active: true")
+        )
+      },
+      test("interpolates UUID inside string literal") {
+        val id = java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
+        assertTrue(
+          json"""{"ref": "ID: $id"}""".get("ref").string == Right("ID: 123e4567-e89b-12d3-a456-426614174000")
+        )
+      },
+      test("interpolates temporal types inside string literal") {
+        val date = LocalDate.of(2024, 1, 15)
+        assertTrue(
+          json"""{"event": "Meeting on $date"}""".get("event").string == Right("Meeting on 2024-01-15")
+        )
+      },
+      test("escapes special characters in string literal interpolation") {
+        val text = "line1\nline2\ttabbed"
+        assertTrue(
+          json"""{"content": "Text: $text"}""".get("content").string == Right("Text: line1\nline2\ttabbed")
+        )
+      },
+      test("escapes quotes in string literal interpolation") {
+        val quote = """He said "hello""""
+        assertTrue(
+          json"""{"speech": "$quote"}""".get("speech").string == Right("""He said "hello"""")
+        )
+      },
+      test("interpolates at start of string literal") {
+        val prefix = "Hello"
+        assertTrue(
+          json"""{"msg": "$prefix, World!"}""".get("msg").string == Right("Hello, World!")
+        )
+      },
+      test("interpolates at end of string literal") {
+        val suffix = "!"
+        assertTrue(
+          json"""{"msg": "Hello, World$suffix"}""".get("msg").string == Right("Hello, World!")
+        )
+      },
+      test("interpolates whole string literal") {
+        val whole = "Complete message"
+        assertTrue(
+          json"""{"msg": "$whole"}""".get("msg").string == Right("Complete message")
+        )
+      },
+      test("mixes string literal and value interpolation") {
+        val name = "Alice"
+        val age  = 25
+        assertTrue(
+          json"""{"message": "Name: $name", "age": $age}""" ==
+            Json.obj("message" -> Json.str("Name: Alice"), "age" -> Json.number(25))
+        )
+      },
+      test("handles empty interpolated string in string literal") {
+        val empty = ""
+        assertTrue(
+          json"""{"msg": "Hello$empty World"}""".get("msg").string == Right("Hello World")
+        )
+      },
+      test("handles Unicode in string literal interpolation") {
+        val emoji = "★🎸"
+        assertTrue(
+          json"""{"msg": "Stars: $emoji!"}""".get("msg").string == Right("Stars: ★🎸!")
+        )
+      },
+      test("handles backslash in string literal interpolation") {
+        val path = "C:\\Users\\Alice"
+        assertTrue(
+          json"""{"path": "Location: $path"}""".get("path").string == Right("Location: C:\\Users\\Alice")
+        )
+      },
+      test("interpolates BigDecimal inside string literal") {
+        val amount = BigDecimal("123.456")
+        assertTrue(
+          json"""{"price": "Cost: $amount USD"}""".get("price").string == Right("Cost: 123.456 USD")
+        )
+      },
+      test("interpolates Currency inside string literal") {
+        val currency = java.util.Currency.getInstance("USD")
+        assertTrue(
+          json"""{"label": "Price in $currency"}""".get("label").string == Right("Price in USD")
+        )
+      },
+      test("supports ${expr} syntax for expressions") {
+        val x = 10
+        assertTrue(
+          json"""{"range": "${x * 2} to ${x * 3}"}""".get("range").string == Right("20 to 30")
+        )
+      },
+      test("supports multiple interpolations in one string") {
+        val date    = LocalDate.of(2024, 1, 15)
+        val version = 3
+        val env     = "prod"
+        assertTrue(
+          json"""{"path": "/data/$env/$date/v$version/output.json"}""".get("path").string ==
+            Right("/data/prod/2024-01-15/v3/output.json")
+        )
+      },
+      test("compile fails for non-stringable types in string literals") {
+        // Note: typeCheck requires a statically known string, so we can't test triple-quoted json strings
+        // Instead, we test with a simple string interpolation that would fail
+        typeCheck(
+          """
+          import zio.blocks.schema._
+          import zio.blocks.schema.json._
+          case class Point(x: Int, y: Int)
+          object Point { implicit val schema: Schema[Point] = Schema.derived }
+          val p = Point(1, 2)
+          json"{ \"msg\": \"Point is $p\" }"
+          """
+        ).map(assert(_)(isLeft(containsString("string literal"))))
+      } @@ exceptNative
+    ),
+    suite("Value position with Schema")(
+      test("supports Json values from types with Schema") {
+        case class Address(street: String, city: String)
+        object Address { implicit val schema: Schema[Address] = Schema.derived }
+
+        case class Person(name: String, age: Int, address: Address)
+        object Person { implicit val schema: Schema[Person] = Schema.derived }
+
+        val codec     = Person.schema.derive(JsonBinaryCodecDeriver)
+        val alice     = Person("Alice", 30, Address("123 Main", "NYC"))
+        val aliceJson = Json.jsonCodec.decode(codec.encode(alice)).toOption.get
+        val result    = json"""{"employee": $aliceJson}"""
+
+        assertTrue(
+          result.get("employee").get("name").string == Right("Alice"),
+          result.get("employee").get("age").int == Right(30),
+          result.get("employee").get("address").get("city").string == Right("NYC")
+        )
+      },
+      test("supports nested complex types as Json") {
+        case class Inner(value: Int)
+        object Inner { implicit val schema: Schema[Inner] = Schema.derived }
+
+        case class Outer(inner: Inner, inners: List[Inner])
+        object Outer { implicit val schema: Schema[Outer] = Schema.derived }
+
+        val codec  = Outer.schema.derive(JsonBinaryCodecDeriver)
+        val o      = Outer(Inner(1), List(Inner(2), Inner(3)))
+        val oJson  = Json.jsonCodec.decode(codec.encode(o)).toOption.get
+        val result = json"""{"data": $oJson}"""
+
+        assertTrue(
+          result.get("data").get("inner").get("value").int == Right(1),
+          result.get("data").get("inners")(0).get("value").int == Right(2)
+        )
+      },
+      test("supports Option of Json values") {
+        val item               = Json.obj("name" -> Json.str("thing"))
+        val some: Option[Json] = Some(item)
+        val none: Option[Json] = None
+
+        assertTrue(
+          json"""{"item": $some}""".get("item").get("name").string == Right("thing"),
+          json"""{"item": $none}""".get("item").one == Right(Json.Null)
+        )
+      },
+      test("supports collections of Json values") {
+        val point1 = Json.obj("x" -> Json.number(1), "y" -> Json.number(2))
+        val point2 = Json.obj("x" -> Json.number(3), "y" -> Json.number(4))
+        val points = List(point1, point2)
+
+        assertTrue(
+          json"""{"points": $points}""".get("points")(0).get("x").int == Right(1),
+          json"""{"points": $points}""".get("points")(1).get("y").int == Right(4)
+        )
+      },
+      test("supports Map with Json value types") {
+        val stats1 = Json.obj("count" -> Json.number(10))
+        val stats2 = Json.obj("count" -> Json.number(20))
+        val data   = Map("a" -> stats1, "b" -> stats2)
+        val result = json"""{"stats": $data}"""
+
+        assertTrue(
+          result.get("stats").get("a").get("count").int == Right(10),
+          result.get("stats").get("b").get("count").int == Right(20)
+        )
+      }
+    ),
+    suite("Mixed interpolation contexts")(
+      test("combines key, value, and string interpolation") {
+        val key       = java.util.UUID.randomUUID()
+        val data      = Json.obj("value" -> Json.number(42))
+        val timestamp = Instant.now()
+
+        val result = json"""{
+          $key: {
+            "data": $data,
+            "note": "Recorded at $timestamp"
+          }
+        }"""
+
+        assertTrue(
+          result.get(key.toString).get("data").get("value").int == Right(42),
+          result.get(key.toString).get("note").string == Right(s"Recorded at $timestamp")
+        )
+      },
+      test("multiple keys with different stringable types") {
+        val intKey  = 1
+        val uuidKey = java.util.UUID.randomUUID()
+        val dateKey = LocalDate.of(2024, 1, 15)
+
+        val result1 = json"""{$intKey: "one"}"""
+        val result2 = json"""{$uuidKey: "uuid"}"""
+        val result3 = json"""{$dateKey: "date"}"""
+
+        assertTrue(
+          result1.get("1").string == Right("one"),
+          result2.get(uuidKey.toString).string == Right("uuid"),
+          result3.get("2024-01-15").string == Right("date")
+        )
+      },
+      test("array with mixed value types") {
+        val item = Json.obj("n" -> Json.number(1))
+        val num  = 42
+        val str  = "hello"
+
+        val result = json"""[$item, $num, $str]"""
+
+        assertTrue(
+          result(0).get("n").int == Right(1),
+          result(1).int == Right(42),
+          result(2).string == Right("hello")
+        )
+      }
+    ),
+    suite("Compile-time error checks")(
+      test("compile fails for non-stringable types in key position") {
+        // Note: typeCheck requires a statically known string, so we can't test triple-quoted json strings
+        // Instead, we test with a simple string interpolation that would fail
+        typeCheck(
+          """
+          import zio.blocks.schema._
+          import zio.blocks.schema.json._
+          case class Point(x: Int, y: Int)
+          object Point { implicit val schema: Schema[Point] = Schema.derived }
+          val p = Point(1, 2)
+          json"{ $p: \"value\" }"
+          """
+        ).map(assert(_)(isLeft(containsString("key"))))
+      } @@ exceptNative
+    )
   )
 }

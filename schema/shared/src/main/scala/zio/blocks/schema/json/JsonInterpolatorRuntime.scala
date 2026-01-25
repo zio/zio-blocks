@@ -8,21 +8,201 @@ import scala.annotation.tailrec
 /**
  * Shared runtime utilities for JSON string interpolation. Used by both Scala 2
  * and Scala 3 macro implementations.
+ *
+ * Supports three interpolation contexts:
+ *   1. Key position: `{$key: value}` - stringable types become quoted JSON
+ *      string keys
+ *   2. Value position: `{"key": $value}` - any type becomes a JSON value
+ *   3. String literal: `{"key": "text $value text"}` - stringable types
+ *      embedded in strings
  */
 object JsonInterpolatorRuntime {
   def jsonWithInterpolation(sc: StringContext, args: Seq[Any]): Json = {
-    val parts  = sc.parts.iterator
+    val parts  = sc.parts.toArray
     val argsIt = args.iterator
-    val str    = parts.next()
-    val out    = new ByteArrayOutputStream(str.length << 1)
-    out.write(str)
-    while (argsIt.hasNext) {
-      writeValue(out, argsIt.next())
-      out.write(parts.next())
+    val out    = new ByteArrayOutputStream(parts.map(_.length).sum << 1)
+
+    var idx            = 0
+    var inString       = false               // Track whether we're inside a JSON string
+    val cumulativeText = new StringBuilder() // Track full text for key position detection
+
+    // Write first part and update state
+    out.write(parts(0))
+    cumulativeText.append(parts(0))
+    inString = updateStringState(inString, parts(0))
+
+    while (argsIt.hasNext && idx < parts.length - 1) {
+      val arg      = argsIt.next()
+      val nextPart = parts(idx + 1)
+
+      // Check if we're inside a JSON string literal based on cumulative state
+      if (inString) {
+        // String literal context: write raw string value without JSON quotes
+        writeStringLiteralValue(out, arg)
+      } else if (isKeyPosition(cumulativeText.toString, nextPart)) {
+        // Key position: non-string types must be written as quoted strings
+        writeKeyValue(out, arg)
+      } else {
+        // Value position: write as JSON value (strings get quoted, numbers as-is)
+        writeValue(out, arg)
+      }
+
+      // Write next part and update state
+      out.write(nextPart)
+      cumulativeText.append(nextPart)
+      inString = updateStringState(inString, nextPart)
+      idx += 1
     }
+
     Json.jsonCodec.decode(out.toByteArray) match {
       case Right(json) => json
       case Left(error) => throw error
+    }
+  }
+
+  /**
+   * Detects if an interpolation position is a JSON object key position. Key
+   * position is when: text before ends with `{` or `,`, and text after starts
+   * with `:`
+   */
+  private[this] def isKeyPosition(before: String, after: String): Boolean = {
+    val trimmedBefore = before.trim
+    val trimmedAfter  = after.trim
+    (trimmedBefore.endsWith("{") || trimmedBefore.endsWith(",")) &&
+    trimmedAfter.startsWith(":")
+  }
+
+  /**
+   * Writes a value in key position. All values are written as quoted strings
+   * since JSON keys must be strings.
+   */
+  private[this] def writeKeyValue(out: ByteArrayOutputStream, value: Any): Unit = {
+    val str = stringifyForStringLiteral(value)
+    out.write('"')
+    writeEscapedStringContent(out, str)
+    out.write('"')
+  }
+
+  /**
+   * Updates the string state based on processing a part. Returns the new state
+   * (true if inside string, false otherwise).
+   */
+  private[this] def updateStringState(currentlyInString: Boolean, part: String): Boolean = {
+    var inString = currentlyInString
+    var i        = 0
+    while (i < part.length) {
+      val c = part.charAt(i)
+      if (c == '"' && (i == 0 || part.charAt(i - 1) != '\\')) {
+        inString = !inString
+      }
+      i += 1
+    }
+    inString
+  }
+
+  /**
+   * Writes a value in string literal context. The value is converted to string
+   * WITHOUT JSON string quotes since we're inside an already-quoted string
+   * context.
+   */
+  private[this] def writeStringLiteralValue(out: ByteArrayOutputStream, value: Any): Unit = {
+    val str = stringifyForStringLiteral(value)
+    writeEscapedStringContent(out, str)
+  }
+
+  /**
+   * Converts a value to its string representation for embedding in a string
+   * literal.
+   */
+  private[this] def stringifyForStringLiteral(value: Any): String = value match {
+    case s: String           => s
+    case b: Boolean          => b.toString
+    case b: Byte             => b.toString
+    case sh: Short           => sh.toString
+    case i: Int              => i.toString
+    case l: Long             => l.toString
+    case f: Float            => f.toString
+    case d: Double           => d.toString
+    case c: Char             => c.toString
+    case bd: BigDecimal      => bd.toString
+    case bi: BigInt          => bi.toString
+    case dow: DayOfWeek      => dow.toString
+    case d: Duration         => d.toString
+    case i: Instant          => i.toString
+    case ld: LocalDate       => ld.toString
+    case ldt: LocalDateTime  => ldt.toString
+    case lt: LocalTime       => lt.toString
+    case m: Month            => m.toString
+    case md: MonthDay        => md.toString
+    case odt: OffsetDateTime => odt.toString
+    case ot: OffsetTime      => ot.toString
+    case p: Period           => p.toString
+    case y: Year             => y.getValue.toString
+    case ym: YearMonth       => ym.toString
+    case zo: ZoneOffset      => zo.toString
+    case zi: ZoneId          => zi.toString
+    case zdt: ZonedDateTime  => zdt.toString
+    case c: Currency         => c.toString
+    case uuid: UUID          => uuid.toString
+    case _: Unit             => "()"
+    case null                => "null"
+    case x                   => x.toString
+  }
+
+  /**
+   * Writes string content with proper JSON escaping (but without surrounding
+   * quotes).
+   */
+  private[this] def writeEscapedStringContent(out: ByteArrayOutputStream, s: String): Unit = {
+    var i = 0
+    while (i < s.length) {
+      val c = s.charAt(i)
+      c match {
+        case '"'         => out.write('\\'); out.write('"')
+        case '\\'        => out.write('\\'); out.write('\\')
+        case '\b'        => out.write('\\'); out.write('b')
+        case '\f'        => out.write('\\'); out.write('f')
+        case '\n'        => out.write('\\'); out.write('n')
+        case '\r'        => out.write('\\'); out.write('r')
+        case '\t'        => out.write('\\'); out.write('t')
+        case _ if c < 32 =>
+          out.write('\\')
+          out.write('u')
+          out.write(hexDigit((c >> 12) & 0xf))
+          out.write(hexDigit((c >> 8) & 0xf))
+          out.write(hexDigit((c >> 4) & 0xf))
+          out.write(hexDigit(c & 0xf))
+        case _ =>
+          if (c < 0x80) out.write(c.toByte)
+          else writeUtf8Char(out, s, i)
+      }
+      i += 1
+    }
+  }
+
+  private[this] def hexDigit(n: Int): Byte = {
+    val d = n & 0xf
+    if (d < 10) ('0' + d).toByte else ('a' + d - 10).toByte
+  }
+
+  private[this] def writeUtf8Char(out: ByteArrayOutputStream, s: String, i: Int): Unit = {
+    val c = s.charAt(i).toInt
+    if (c < 0x800) {
+      out.write((c >> 6 | 0xc0).toByte)
+      out.write((c & 0x3f | 0x80).toByte)
+    } else if ((c & 0xf800) != 0xd800) {
+      out.write((c >> 12 | 0xe0).toByte)
+      out.write((c >> 6 & 0x3f | 0x80).toByte)
+      out.write((c & 0x3f | 0x80).toByte)
+    } else if (c < 0xdc00 && i + 1 < s.length) {
+      val c2 = s.charAt(i + 1).toInt
+      if ((c2 & 0xfc00) == 0xdc00) {
+        val cp = (c << 10) + (c2 - 56613888)
+        out.write((cp >> 18 | 0xf0).toByte)
+        out.write((cp >> 12 & 0x3f | 0x80).toByte)
+        out.write((cp >> 6 & 0x3f | 0x80).toByte)
+        out.write((cp & 0x3f | 0x80).toByte)
+      }
     }
   }
 
