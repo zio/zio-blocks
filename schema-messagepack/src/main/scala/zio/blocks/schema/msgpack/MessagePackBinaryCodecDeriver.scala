@@ -602,7 +602,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
             }
           ) match {
             case Right(x)    => x
-            case Left(error) => in.decodeError(error)
+            case Left(error) => in.decodeError(error.toString)
           }
 
         def encodeValue(value: A, out: MessagePackWriter): Unit =
