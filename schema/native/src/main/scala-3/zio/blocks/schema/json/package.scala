@@ -11,32 +11,131 @@ package object json {
   private def jsonInterpolatorImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Json] = {
     import quotes.reflect._
 
-    // Note: Native doesn't support compile-time JSON validation like JVM does
-    // Validation of argument types (stringable or JsonEncoder) is handled at compile-time
-    // but JSON literal validation is deferred to runtime
-    args match {
-      case Varargs(argExprs) =>
-        argExprs.foreach { argExpr =>
-          val argType      = argExpr.asTerm.tpe
-          val isStringable = isStringableType(argType)
-          val hasEncoder   = hasJsonEncoderImplicit(argType)
-
-          if (!isStringable && !hasEncoder) {
-            val typeName = argType.show
-            report.error(
-              s"Type '$typeName' cannot be interpolated: no JsonEncoder[A] instance found. " +
-                s"Supported in value position: types with JsonEncoder[A] (e.g., types with Schema.derived). " +
-                s"Supported in key/string positions: stringable types only (primitives, temporal types, UUID, Currency).",
-              argExpr
-            )
-          }
-        }
-      case _ => ()
+    val parts = sc match {
+      case '{ StringContext(${ Varargs(rawParts) }: _*) } =>
+        rawParts.map { case '{ $rawPart: String } => rawPart.valueOrAbort }.toList
+      case _ => report.errorAndAbort("Expected a StringContext with string literal parts")
     }
 
-    val holeCount     = sc.valueOrAbort.parts.length - 1
-    val dummyArgsExpr = Varargs(List.fill(holeCount)(Expr(""))).asExprOf[Seq[Any]]
-    '{ JsonInterpolatorRuntime.jsonWithInterpolation($sc, $dummyArgsExpr) }
+    val contexts: Array[Byte] = computeHoleContexts(parts)
+
+    val argExprs: List[Expr[Any]] = args match {
+      case Varargs(as) => as.toList
+      case _           => Nil
+    }
+
+    // Validate arguments per-context (Native still does this at compile-time).
+    argExprs.zipWithIndex.foreach { case (argExpr, idx) =>
+      val argType0 = argExpr.asTerm.tpe.widenTermRefByName.dealias.widen
+      val ctx      = if (idx < contexts.length) contexts(idx) else JsonInterpolatorRuntime.CtxValue
+
+      if (ctx == JsonInterpolatorRuntime.CtxKey) {
+        if (!isStringableType(argType0)) {
+          report.error(
+            s"Key interpolation requires a stringable (PrimitiveType) type, but found '${argType0.show}'. " +
+              s"Fix: convert to String or interpolate a PrimitiveType (primitives, temporal types, UUID, Currency).",
+            argExpr
+          )
+        }
+      } else if (ctx == JsonInterpolatorRuntime.CtxString) {
+        if (!isStringableType(argType0)) {
+          report.error(
+            s"String-literal interpolation requires a stringable (PrimitiveType) type, but found '${argType0.show}'. " +
+              s"Fix: convert to String or interpolate a PrimitiveType.",
+            argExpr
+          )
+        }
+      } else {
+        val isStringable  = isStringableType(argType0)
+        val isRuntimeSafe = isRuntimeSupportedType(argType0)
+        val hasEncoder    = hasJsonEncoderImplicit(argType0)
+
+        if (!isStringable && !isRuntimeSafe && !hasEncoder) {
+          report.error(
+            s"Value interpolation requires either a supported runtime container or an implicit JsonEncoder[A], but found '${argType0.show}'. " +
+              s"Fix: provide an implicit Schema[A] / JsonEncoder[A] in scope.",
+            argExpr
+          )
+        }
+      }
+    }
+
+    val ctxSeqExpr: Expr[Seq[Byte]]                       = Expr.ofSeq(contexts.toList.map(Expr(_)))
+    val ctxExpr: Expr[Array[Byte]]                        = '{ $ctxSeqExpr.toArray }
+    val argTrees: List[Expr[JsonInterpolatorRuntime.Arg]] = argExprs.zipWithIndex.map { case (argExpr, idx) =>
+      val tpe = argExpr.asTerm.tpe.widenTermRefByName.dealias.widen
+      val ctx = if (idx < contexts.length) contexts(idx) else JsonInterpolatorRuntime.CtxValue
+
+      if (ctx == JsonInterpolatorRuntime.CtxKey || ctx == JsonInterpolatorRuntime.CtxString) {
+        '{ JsonInterpolatorRuntime.StringableArg($argExpr) }.asExprOf[JsonInterpolatorRuntime.Arg]
+      } else {
+        if (isStringableType(tpe)) {
+          '{ JsonInterpolatorRuntime.RuntimeValueArg($argExpr) }.asExprOf[JsonInterpolatorRuntime.Arg]
+        } else if (hasJsonEncoderImplicit(tpe)) {
+          tpe.asType match {
+            case '[a] =>
+              val enc = Expr.summon[JsonEncoder[a]].getOrElse {
+                report.errorAndAbort(s"Value interpolation requires an implicit JsonEncoder[${tpe.show}] in scope")
+              }
+              '{ JsonInterpolatorRuntime.EncodedValueArg[a]($argExpr.asInstanceOf[a], $enc) }
+                .asExprOf[JsonInterpolatorRuntime.Arg]
+          }
+        } else if (isRuntimeSupportedType(tpe)) {
+          '{ JsonInterpolatorRuntime.RuntimeValueArg($argExpr) }.asExprOf[JsonInterpolatorRuntime.Arg]
+        } else {
+          tpe.asType match {
+            case '[a] =>
+              val enc = Expr.summon[JsonEncoder[a]].getOrElse {
+                report.errorAndAbort(s"Value interpolation requires an implicit JsonEncoder[${tpe.show}] in scope")
+              }
+              '{ JsonInterpolatorRuntime.EncodedValueArg[a]($argExpr.asInstanceOf[a], $enc) }
+                .asExprOf[JsonInterpolatorRuntime.Arg]
+          }
+        }
+      }
+    }
+
+    // Native: skip compile-time JSON literal validation, but still apply per-hole runtime encoding.
+    val argsExpr: Expr[Seq[JsonInterpolatorRuntime.Arg]] = Expr.ofSeq(argTrees)
+    '{ JsonInterpolatorRuntime.jsonWithInterpolation($sc, $argsExpr, $ctxExpr) }
+  }
+
+  private def computeHoleContexts(parts: List[String]): Array[Byte] = {
+    val holeCount = math.max(0, parts.length - 1)
+    val out       = new Array[Byte](holeCount)
+
+    var inString = false
+    var escaped  = false
+
+    var i = 0
+    while (i < holeCount) {
+      val s   = parts(i)
+      val len = s.length
+      var j   = 0
+      while (j < len) {
+        val ch = s.charAt(j)
+        if (inString) {
+          if (escaped) escaped = false
+          else if (ch == '\\') escaped = true
+          else if (ch == '"') inString = false
+        } else {
+          if (ch == '"') inString = true
+        }
+        j += 1
+      }
+
+      if (inString) out(i) = JsonInterpolatorRuntime.CtxString
+      else {
+        val next = parts(i + 1)
+        val k    = next.dropWhile(_.isWhitespace)
+        if (k.startsWith(":")) out(i) = JsonInterpolatorRuntime.CtxKey
+        else out(i) = JsonInterpolatorRuntime.CtxValue
+      }
+
+      i += 1
+    }
+
+    out
   }
 
   private def isStringableType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
@@ -51,9 +150,9 @@ package object json {
       "scala.Float",
       "scala.Double",
       "scala.Char",
-      "scala.String",
-      "scala.BigInt",
-      "scala.BigDecimal",
+      "java.lang.String",
+      "scala.math.BigInt",
+      "scala.math.BigDecimal",
       "java.time.DayOfWeek",
       "java.time.Duration",
       "java.time.Instant",
@@ -87,5 +186,18 @@ package object json {
     } catch {
       case _ => false
     }
+  }
+
+  private def isRuntimeSupportedType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
+    import quotes.reflect._
+
+    val widened = tpe.widenTermRefByName.dealias.widen
+
+    widened =:= TypeRepr.of[Null] ||
+    widened <:< TypeRepr.of[Json] ||
+    widened <:< TypeRepr.of[Option[?]] ||
+    widened <:< TypeRepr.of[scala.collection.Map[?, ?]] ||
+    widened <:< TypeRepr.of[Iterable[?]] ||
+    widened <:< TypeRepr.of[Array[?]]
   }
 }

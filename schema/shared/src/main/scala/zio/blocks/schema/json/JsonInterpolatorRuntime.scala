@@ -10,23 +10,94 @@ import scala.annotation.tailrec
  * and Scala 3 macro implementations.
  */
 object JsonInterpolatorRuntime {
+
+  /**
+   * Interpolation context for each hole in the StringContext.
+   *
+   * Encoding rules:
+   *   - Key: arg is encoded as a JSON object key (a JSON string, without
+   *     writing the ':')
+   *   - Value: arg is encoded as a full JSON value
+   *   - String: arg is encoded as JSON string *content* (escaped, without
+   *     surrounding quotes)
+   */
+  final val CtxKey: Byte    = 0
+  final val CtxValue: Byte  = 1
+  final val CtxString: Byte = 2
+
+  sealed trait Arg {
+    def writeAsValue(out: ByteArrayOutputStream): Unit
+    def writeAsKey(out: ByteArrayOutputStream): Unit
+    def writeInString(out: ByteArrayOutputStream): Unit
+  }
+
+  final case class RuntimeValueArg(value: Any) extends Arg {
+    override def writeAsValue(out: ByteArrayOutputStream): Unit  = writeAnyValue(out, value)
+    override def writeAsKey(out: ByteArrayOutputStream): Unit    = writeJsonString(out, stringableToCanonicalString(value))
+    override def writeInString(out: ByteArrayOutputStream): Unit =
+      writeEscapedStringFragment(out, stringableToCanonicalString(value))
+  }
+
+  final case class StringableArg(value: Any) extends Arg {
+    override def writeAsValue(out: ByteArrayOutputStream): Unit  = writeAnyValue(out, value)
+    override def writeAsKey(out: ByteArrayOutputStream): Unit    = writeJsonString(out, stringableToCanonicalString(value))
+    override def writeInString(out: ByteArrayOutputStream): Unit =
+      writeEscapedStringFragment(out, stringableToCanonicalString(value))
+  }
+
+  final case class EncodedValueArg[A](value: A, encoder: JsonEncoder[A]) extends Arg {
+    override def writeAsValue(out: ByteArrayOutputStream): Unit =
+      // In Scala (w/out explicit nulls), a value typed as A can still be null at runtime.
+      // For the interpolator we treat null as JSON null (rather than throwing in user encoders).
+      if (value == null) {
+        out.write('n')
+        out.write('u')
+        out.write('l')
+        out.write('l')
+      } else if (value == (())) {
+        // Preserve interpolator semantics for Unit (historically encoded as an empty object).
+        out.write('{')
+        out.write('}')
+      } else {
+        Json.jsonCodec.encode(encoder.encode(value), out)
+      }
+    override def writeAsKey(out: ByteArrayOutputStream): Unit    = writeJsonString(out, stringableToCanonicalString(value))
+    override def writeInString(out: ByteArrayOutputStream): Unit =
+      writeEscapedStringFragment(out, stringableToCanonicalString(value))
+  }
+
   def jsonWithInterpolation(sc: StringContext, args: Seq[Any]): Json = {
-    val parts  = sc.parts.iterator
-    val argsIt = args.iterator
-    val str    = parts.next()
-    val out    = new ByteArrayOutputStream(str.length << 1)
-    out.write(str)
-    while (argsIt.hasNext) {
-      writeValue(out, argsIt.next())
-      out.write(parts.next())
+    val wrapped = args.map(RuntimeValueArg(_))
+    val ctxs    = Array.fill[Byte](args.length)(CtxValue)
+    jsonWithInterpolation(sc, wrapped, ctxs)
+  }
+
+  def jsonWithInterpolation(sc: StringContext, args: Seq[Arg], contexts: Array[Byte]): Json = {
+    val parts = sc.parts
+    val out   = new ByteArrayOutputStream(parts.headOption.map(_.length).getOrElse(0) << 1)
+    out.write(parts.headOption.getOrElse(""))
+
+    val holeCount = parts.length - 1
+    var i         = 0
+    while (i < holeCount) {
+      val ctx = if (i < contexts.length) contexts(i) else CtxValue
+      val arg = if (i < args.length) args(i) else RuntimeValueArg("")
+      ctx match {
+        case CtxKey    => arg.writeAsKey(out)
+        case CtxString => arg.writeInString(out)
+        case _         => arg.writeAsValue(out)
+      }
+      out.write(parts(i + 1))
+      i += 1
     }
+
     Json.jsonCodec.decode(out.toByteArray) match {
       case Right(json) => json
       case Left(error) => throw error
     }
   }
 
-  private[this] def writeValue(out: ByteArrayOutputStream, value: Any): Unit = value match {
+  private[this] def writeAnyValue(out: ByteArrayOutputStream, value: Any): Unit = value match {
     case s: String             => JsonBinaryCodec.stringCodec.encode(s, out)
     case b: Boolean            => JsonBinaryCodec.booleanCodec.encode(b, out)
     case b: Byte               => JsonBinaryCodec.byteCodec.encode(b, out)
@@ -58,7 +129,7 @@ object JsonInterpolatorRuntime {
     case uuid: java.util.UUID  => JsonBinaryCodec.uuidCodec.encode(uuid, out)
     case opt: Option[_]        =>
       opt match {
-        case Some(value) => writeValue(out, value)
+        case Some(value) => writeAnyValue(out, value)
         case _           =>
           out.write('n')
           out.write('u')
@@ -81,8 +152,8 @@ object JsonInterpolatorRuntime {
         kv =>
           if (comma) out.write(',')
           else comma = true
-          writeKey(out, kv._1)
-          writeValue(out, kv._2)
+          writeObjectEntryKey(out, kv._1)
+          writeAnyValue(out, kv._2)
       }
       out.write('}')
     case seq: Iterable[_] =>
@@ -92,7 +163,7 @@ object JsonInterpolatorRuntime {
         x =>
           if (comma) out.write(',')
           else comma = true
-          writeValue(out, x)
+          writeAnyValue(out, x)
       }
       out.write(']')
     case arr: Array[_] =>
@@ -101,14 +172,17 @@ object JsonInterpolatorRuntime {
       var idx = 0
       while (idx < len) {
         if (idx > 0) out.write(',')
-        writeValue(out, arr(idx))
+        writeAnyValue(out, arr(idx))
         idx += 1
       }
       out.write(']')
     case x => out.write(x.toString)
   }
 
-  private[this] def writeKey(out: ByteArrayOutputStream, key: Any): Unit = {
+  private[this] def writeJsonString(out: ByteArrayOutputStream, s: String): Unit =
+    JsonBinaryCodec.stringCodec.encode(s, out)
+
+  private[this] def writeObjectEntryKey(out: ByteArrayOutputStream, key: Any): Unit = {
     key match {
       case s: String  => JsonBinaryCodec.stringCodec.encode(s, out)
       case b: Boolean =>
@@ -168,6 +242,84 @@ object JsonInterpolatorRuntime {
       case x                   => JsonBinaryCodec.stringCodec.encode(x.toString, out)
     }
     out.write(':')
+  }
+
+  private[this] def stringableToCanonicalString(value: Any): String = value match {
+    case null                => "null"
+    case s: String           => s
+    case c: Char             => c.toString
+    case u: Unit             => u.toString
+    case b: Boolean          => if (b) "true" else "false"
+    case b: Byte             => b.toString
+    case s: Short            => s.toString
+    case i: Int              => i.toString
+    case l: Long             => l.toString
+    case f: Float            => JsonBinaryCodec.floatCodec.encodeToString(f)
+    case d: Double           => JsonBinaryCodec.doubleCodec.encodeToString(d)
+    case bi: BigInt          => bi.toString
+    case bd: BigDecimal      => bd.toString
+    case dow: DayOfWeek      => dow.toString
+    case d: Duration         => d.toString
+    case i: Instant          => i.toString
+    case ld: LocalDate       => ld.toString
+    case ldt: LocalDateTime  => ldt.toString
+    case lt: LocalTime       => lt.toString
+    case m: Month            => m.toString
+    case md: MonthDay        => md.toString
+    case odt: OffsetDateTime => odt.toString
+    case ot: OffsetTime      => ot.toString
+    case p: Period           => p.toString
+    case y: Year             => y.toString
+    case ym: YearMonth       => ym.toString
+    case zo: ZoneOffset      => zo.toString
+    case zi: ZoneId          => zi.toString
+    case zdt: ZonedDateTime  => zdt.toString
+    case c: Currency         => c.toString
+    case uuid: UUID          => uuid.toString
+    case x                   => x.toString
+  }
+
+  private[this] def writeEscapedStringFragment(out: ByteArrayOutputStream, s: String): Unit = {
+    val len = s.length
+    var i   = 0
+    while (i < len) {
+      val ch = s.charAt(i)
+      ch match {
+        case '"' =>
+          out.write('\\')
+          out.write('"')
+        case '\\' =>
+          out.write('\\')
+          out.write('\\')
+        case '\b' =>
+          out.write('\\')
+          out.write('b')
+        case '\f' =>
+          out.write('\\')
+          out.write('f')
+        case '\n' =>
+          out.write('\\')
+          out.write('n')
+        case '\r' =>
+          out.write('\\')
+          out.write('r')
+        case '\t' =>
+          out.write('\\')
+          out.write('t')
+        case c if c < ' ' =>
+          // Control char -> \u00XX
+          out.write('\\')
+          out.write('u')
+          out.write('0')
+          out.write('0')
+          val hex = Integer.toHexString(c.toInt)
+          if (hex.length == 1) out.write('0')
+          out.write(hex.charAt(hex.length - 1))
+        case other =>
+          out.write(other.toString)
+      }
+      i += 1
+    }
   }
 }
 
