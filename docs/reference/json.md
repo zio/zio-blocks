@@ -201,15 +201,15 @@ val json = Json.parseUnsafe("""{"users": [{"name": "Alice"}]}""")
 
 // Fluent chaining
 val result: JsonSelection = json
-  .get("users")
-  .asArray
-  .apply(0)
-  .get("name")
-  .asString
+ .get("users")
+ .asArrays
+ .apply(0)
+ .get("name")
+ .asStrings
 
 // Extract values
-result.string      // Right("Alice")
-result.single      // Right(Json.String("Alice"))
+result.as[String]  // Right("Alice")
+result.one         // Right(Json.String("Alice"))
 result.isSuccess   // true
 result.isFailure   // false
 ```
@@ -221,22 +221,24 @@ import zio.blocks.schema.json.{Json, JsonSelection}
 
 val selection: JsonSelection = ???
 
-// Get single value
-selection.single  // Either[JsonError, Json]
-selection.first   // Either[JsonError, Json] (first of many)
-selection.one     // Either[JsonError, Json] (single or wrap in array)
+// Get single value (exactly one required)
+selection.one     // Either[JsonError, Json]
+// Get any single value (first of many)
+selection.any     // Either[JsonError, Json]
+// Get all values condensed (wraps multiple in array)
+selection.all     // Either[JsonError, Json]
 
-// Get all values
-selection.all     // Either[JsonError, Vector[Json]]
+// Get underlying result
+selection.either    // Either[JsonError, Vector[Json]]
 selection.toVector  // Vector[Json] (empty on error)
 
-// Type-specific extraction
-selection.string   // Either[JsonError, String]
-selection.number   // Either[JsonError, BigDecimal]
-selection.boolean  // Either[JsonError, Boolean]
-selection.int      // Either[JsonError, Int]
-selection.long     // Either[JsonError, Long]
-selection.double   // Either[JsonError, Double]
+// Decode to specific types
+selection.as[String]      // Either[JsonError, String]
+selection.as[BigDecimal]  // Either[JsonError, BigDecimal]
+selection.as[Boolean]     // Either[JsonError, Boolean]
+selection.as[Int]         // Either[JsonError, Int]
+selection.as[Long]        // Either[JsonError, Long]
+selection.as[Double]      // Either[JsonError, Double]
 ```
 
 ## Modification
