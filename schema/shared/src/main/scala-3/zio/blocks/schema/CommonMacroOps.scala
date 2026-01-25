@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import scala.annotation.tailrec
 import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
 import scala.quoted._
 
 private[schema] object CommonMacroOps {
@@ -188,7 +187,7 @@ private[schema] object CommonMacroOps {
     import q.reflect._
 
     val seen  = new mutable.HashSet[TypeRepr]
-    val types = new ListBuffer[TypeRepr]
+    val types = new mutable.ListBuffer[TypeRepr]
 
     def loop(tpe: TypeRepr): Unit = tpe.dealias match {
       case OrType(left, right) => loop(left); loop(right)
