@@ -9,50 +9,38 @@ import zio.blocks.schema.DynamicOptic
  * JsonSelection enables a fluent API style for navigating through JSON
  * structures:
  * {{{
- *   json.get("users").asArray.apply(0).get("name").asString
+ *   json.get("users").asArrays.apply(0).get("name").asStrings
  * }}}
  *
  * The selection can contain zero, one, or multiple JSON values, supporting both
  * single-value navigation and multi-value queries.
  */
-final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends AnyVal {
+final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends AnyVal {
 
   // ─────────────────────────────────────────────────────────────────────────
   // Basic operations
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Returns the underlying Either. */
-  def toEither: Either[JsonError, Vector[Json]] = value
-
-  /** Returns all selected values (alias for toEither). */
-  def all: Either[JsonError, Vector[Json]] = value
-
   /** Returns true if the selection is successful (contains values). */
-  def isSuccess: Boolean = value.isRight
+  def isSuccess: Boolean = either.isRight
 
   /** Returns true if the selection is a failure. */
-  def isFailure: Boolean = value.isLeft
+  def isFailure: Boolean = either.isLeft
 
   /** Returns the error if this is a failure, otherwise None. */
-  def error: Option[JsonError] = value.left.toOption
+  def error: Option[JsonError] = either.left.toOption
 
   /** Returns the selected values if successful, otherwise None. */
-  def values: Option[Vector[Json]] = value.toOption
-
-  /**
-   * Returns the first selected value if successful and non-empty, otherwise
-   * None.
-   */
-  def headOption: Option[Json] = value.toOption.flatMap(_.headOption)
+  def values: Option[Vector[Json]] = either.toOption
 
   /** Returns the selected values as a Vector, or an empty Vector on failure. */
-  def toVector: Vector[Json] = value.getOrElse(Vector.empty)
+  def toVector: Vector[Json] = either.getOrElse(Vector.empty)
 
   /**
    * Returns the single selected value, or fails if there are 0 or more than 1
    * values.
    */
-  def single: Either[JsonError, Json] = value.flatMap { v =>
+  def one: Either[JsonError, Json] = either.flatMap { v =>
     if (v.length == 1) Right(v.head)
     else if (v.isEmpty) Left(JsonError("Expected single value but got none"))
     else Left(JsonError(s"Expected single value but got ${v.length}"))
@@ -63,33 +51,23 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Returns true if this selection is empty (no values or error). */
-  def isEmpty: Boolean = value.fold(_ => true, _.isEmpty)
+  def isEmpty: Boolean = either.fold(_ => true, _.isEmpty)
 
   /** Returns true if this selection contains at least one value. */
-  def nonEmpty: Boolean = value.fold(_ => false, _.nonEmpty)
+  def nonEmpty: Boolean = either.fold(_ => false, _.nonEmpty)
 
   /** Returns the number of selected values (0 on error). */
-  def size: Int = value.fold(_ => 0, _.size)
+  def size: Int = either.fold(_ => 0, _.size)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Terminal Operations
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Returns the single value, or wraps multiple values in an array. Fails if
-   * the selection is empty or an error.
+   * Returns any single value from the selection. Fails if the selection is
+   * empty or an error.
    */
-  def one: Either[JsonError, Json] = value.flatMap { v =>
-    if (v.isEmpty) Left(JsonError("Expected at least one value but got none"))
-    else if (v.length == 1) Right(v.head)
-    else Right(Json.Array(v))
-  }
-
-  /**
-   * Returns the first value in the selection. Fails if the selection is empty
-   * or an error.
-   */
-  def first: Either[JsonError, Json] = value.flatMap { v =>
+  def any: Either[JsonError, Json] = either.flatMap { v =>
     v.headOption match {
       case Some(j) => Right(j)
       case None    => Left(JsonError("Expected at least one value but got none"))
@@ -97,9 +75,20 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
   }
 
   /**
+   * Returns all selected values condensed into a single Json. If there are
+   * multiple values, wraps them in an array. Fails if the selection is empty or
+   * an error.
+   */
+  def all: Either[JsonError, Json] = either.flatMap { v =>
+    if (v.isEmpty) Left(JsonError("Expected at least one value but got none"))
+    else if (v.length == 1) Right(v.head)
+    else Right(Json.Array(v))
+  }
+
+  /**
    * Returns all selected values as a JSON array.
    */
-  def toArray: Either[JsonError, Json] = value.map(Json.Array(_))
+  def toArray: Either[JsonError, Json] = either.map(Json.Array(_))
 
   /**
    * Unsafe version of `one` - throws JsonError on error.
@@ -110,9 +99,9 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
   }
 
   /**
-   * Unsafe version of `first` - throws JsonError on error.
+   * Unsafe version of `any` - throws JsonError on error.
    */
-  def firstUnsafe: Json = first match {
+  def anyUnsafe: Json = any match {
     case Right(j) => j
     case Left(e)  => throw e
   }
@@ -144,22 +133,22 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Filters to only object values, failing if any value is not an object. */
-  def asObject: JsonSelection = flatMap(_.asObject)
+  def asObjects: JsonSelection = flatMap(_.asObject)
 
   /** Filters to only array values, failing if any value is not an array. */
-  def asArray: JsonSelection = flatMap(_.asArray)
+  def asArrays: JsonSelection = flatMap(_.asArray)
 
   /** Filters to only string values, failing if any value is not a string. */
-  def asString: JsonSelection = flatMap(_.asString)
+  def asStrings: JsonSelection = flatMap(_.asString)
 
   /** Filters to only number values, failing if any value is not a number. */
-  def asNumber: JsonSelection = flatMap(_.asNumber)
+  def asNumbers: JsonSelection = flatMap(_.asNumber)
 
   /** Filters to only boolean values, failing if any value is not a boolean. */
-  def asBoolean: JsonSelection = flatMap(_.asBoolean)
+  def asBooleans: JsonSelection = flatMap(_.asBoolean)
 
   /** Filters to only null values, failing if any value is not null. */
-  def asNull: JsonSelection = flatMap(_.asNull)
+  def asNulls: JsonSelection = flatMap(_.asNull)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Navigation
@@ -186,12 +175,12 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
 
   /** Maps a function over all selected values. */
   def map(f: Json => Json): JsonSelection =
-    JsonSelection(value.map(_.map(f)))
+    JsonSelection(either.map(_.map(f)))
 
   /** FlatMaps a function over all selected values, combining results. */
   def flatMap(f: Json => JsonSelection): JsonSelection =
-    JsonSelection(value.flatMap { jsons =>
-      val results    = jsons.map(j => f(j).value)
+    JsonSelection(either.flatMap { jsons =>
+      val results    = jsons.map(j => f(j).either)
       val firstError = results.collectFirst { case Left(e) => e }
       firstError match {
         case Some(error) => Left(error)
@@ -201,11 +190,11 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
 
   /** Filters selected values based on a predicate. */
   def filter(p: Json => Boolean): JsonSelection =
-    JsonSelection(value.map(_.filter(p)))
+    JsonSelection(either.map(_.filter(p)))
 
   /** Collects values for which the partial function is defined. */
   def collect[A](pf: PartialFunction[Json, A]): Either[JsonError, Vector[A]] =
-    value.map(_.collect(pf))
+    either.map(_.collect(pf))
 
   /** Returns this selection if successful, otherwise the alternative. */
   def orElse(alternative: => JsonSelection): JsonSelection =
@@ -213,11 +202,11 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
 
   /** Returns this selection's values, or the default on failure. */
   def getOrElse(default: => Vector[Json]): Vector[Json] =
-    value.getOrElse(default)
+    either.getOrElse(default)
 
   /** Combines two selections, concatenating their values. */
   def ++(other: JsonSelection): JsonSelection =
-    (value, other.value) match {
+    (either, other.either) match {
       case (Right(v1), Right(v2)) => JsonSelection(Right(v1 ++ v2))
       case (Left(e), _)           => JsonSelection(Left(e))
       case (_, Left(e))           => JsonSelection(Left(e))
@@ -229,11 +218,11 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
 
   /** Decodes the single selected value to type A. */
   def as[A](implicit decoder: JsonDecoder[A]): Either[JsonError, A] =
-    single.flatMap(decoder.decode)
+    one.flatMap(decoder.decode)
 
   /** Decodes all selected values to type A. */
   def asAll[A](implicit decoder: JsonDecoder[A]): Either[JsonError, Vector[A]] =
-    value.flatMap { jsons =>
+    either.flatMap { jsons =>
       jsons.foldLeft[Either[JsonError, Vector[A]]](Right(Vector.empty)) {
         case (Right(acc), json) =>
           decoder.decode(json) match {
