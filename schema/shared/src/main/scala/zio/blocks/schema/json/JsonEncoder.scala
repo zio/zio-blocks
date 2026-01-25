@@ -115,22 +115,22 @@ object JsonEncoder {
   }
 
   implicit def vectorEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Vector[A]] = new JsonEncoder[Vector[A]] {
-    def encode(vec: Vector[A]): Json = new Json.Array(vec.map(encoder.encode))
+    def encode(vec: Vector[A]): Json = new Json.Array(Chunk.from(vec.map(encoder.encode)))
   }
 
   implicit def listEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[List[A]] = new JsonEncoder[List[A]] {
     def encode(list: List[A]): Json =
-      new Json.Array(list.foldLeft(Vector.newBuilder[Json])((acc, a) => acc.addOne(encoder.encode(a))).result())
+      new Json.Array(Chunk.from(list.map(encoder.encode)))
   }
 
   implicit def seqEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Seq[A]] = new JsonEncoder[Seq[A]] {
     def encode(seq: Seq[A]): Json =
-      new Json.Array(seq.foldLeft(Vector.newBuilder[Json])((acc, a) => acc.addOne(encoder.encode(a))).result())
+      new Json.Array(Chunk.from(seq.map(encoder.encode)))
   }
 
   implicit def setEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Set[A]] = new JsonEncoder[Set[A]] {
     def encode(set: Set[A]): Json =
-      new Json.Array(set.foldLeft(Vector.newBuilder[Json])((acc, a) => acc.addOne(encoder.encode(a))).result())
+      new Json.Array(Chunk.from(set.iterator.map(encoder.encode).toSeq))
   }
 
   implicit def mapEncoder[V](implicit valueEncoder: JsonEncoder[V]): JsonEncoder[Map[String, V]] =
@@ -153,12 +153,8 @@ object JsonEncoder {
     encoderA: JsonEncoder[A],
     encoderB: JsonEncoder[B]
   ): JsonEncoder[(A, B)] = new JsonEncoder[(A, B)] {
-    def encode(v: (A, B)): Json = {
-      val builder = Vector.newBuilder[Json]
-      builder.addOne(encoderA.encode(v._1))
-      builder.addOne(encoderB.encode(v._2))
-      new Json.Array(builder.result())
-    }
+    def encode(v: (A, B)): Json =
+      new Json.Array(Chunk(encoderA.encode(v._1), encoderB.encode(v._2)))
   }
 
   implicit def tuple3Encoder[A, B, C](implicit
@@ -166,13 +162,8 @@ object JsonEncoder {
     encoderB: JsonEncoder[B],
     encoderC: JsonEncoder[C]
   ): JsonEncoder[(A, B, C)] = new JsonEncoder[(A, B, C)] {
-    def encode(v: (A, B, C)): Json = {
-      val builder = Vector.newBuilder[Json]
-      builder.addOne(encoderA.encode(v._1))
-      builder.addOne(encoderB.encode(v._2))
-      builder.addOne(encoderC.encode(v._3))
-      new Json.Array(builder.result())
-    }
+    def encode(v: (A, B, C)): Json =
+      new Json.Array(Chunk(encoderA.encode(v._1), encoderB.encode(v._2), encoderC.encode(v._3)))
   }
 
   // ─────────────────────────────────────────────────────────────────────────

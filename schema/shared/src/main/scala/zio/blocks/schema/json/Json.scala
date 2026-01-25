@@ -3,7 +3,6 @@ package zio.blocks.schema.json
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
 import java.nio.ByteBuffer
-import scala.collection.immutable.VectorBuilder
 import scala.util.control.NonFatal
 
 /**
@@ -86,20 +85,11 @@ sealed trait Json {
   // Direct Accessors
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Returns the fields if this is an object, otherwise an empty Seq. */
-  def fields: Seq[(String, Json)] = Seq.empty
+  /** Returns the fields if this is an object, otherwise an empty Chunk. */
+  def fields: Chunk[(String, Json)] = Chunk.empty
 
-  /** Returns the elements if this is an array, otherwise an empty Seq. */
-  def elements: Seq[Json] = Seq.empty
-
-  /** Returns the string value if this is a string, otherwise None. */
-  def stringValue: Option[String] = None
-
-  /** Returns the number value if this is a number, otherwise None. */
-  def numberValue: Option[BigDecimal] = None
-
-  /** Returns the boolean value if this is a boolean, otherwise None. */
-  def booleanValue: Option[Boolean] = None
+  /** Returns the elements if this is an array, otherwise an empty Chunk. */
+  def elements: Chunk[Json] = Chunk.empty
 
   // ─────────────────────────────────────────────────────────────────────────
   // Navigation
@@ -116,13 +106,8 @@ sealed trait Json {
    * Navigates to an element in an array by index. Returns a JsonSelection
    * containing the value, or an error if index is out of bounds.
    */
-  def apply(index: Int): JsonSelection =
+  def get(index: Int): JsonSelection =
     JsonSelection.fail(JsonError(s"Cannot get index $index from non-array JSON value"))
-
-  /**
-   * Alias for get(key).
-   */
-  def apply(key: String): JsonSelection = get(key)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Path-based Navigation and Modification (DynamicOptic)
@@ -133,11 +118,6 @@ sealed trait Json {
    * may contain zero or more values.
    */
   def get(path: DynamicOptic): JsonSelection = Json.getAtPath(this, path)
-
-  /**
-   * Alias for get(path).
-   */
-  def apply(path: DynamicOptic): JsonSelection = get(path)
 
   /**
    * Modifies the value at the given path using a function. If the path doesn't
@@ -221,35 +201,29 @@ sealed trait Json {
   // Encoding
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Encodes this JSON value to a string using the default WriterConfig. */
+  /** Prints this JSON value to a string using the default WriterConfig. */
   def print: String = Json.jsonCodec.encodeToString(this)
 
-  /** Encodes this JSON value to a string using the specified WriterConfig. */
+  /** Prints this JSON value to a string using the specified WriterConfig. */
   def print(config: WriterConfig): String = Json.jsonCodec.encodeToString(this, config)
 
-  /** Alias for print. */
-  def encode: String = print
+  /** Prints this JSON value to a byte array. */
+  def printBytes: Array[Byte] = Json.jsonCodec.encode(this)
 
-  /** Alias for print with config. */
-  def encode(config: WriterConfig): String = print(config)
+  /** Prints this JSON value to a byte array with the specified config. */
+  def printBytes(config: WriterConfig): Array[Byte] = Json.jsonCodec.encode(this, config)
 
-  /** Encodes this JSON value to a byte array. */
-  def encodeToBytes: Array[Byte] = Json.jsonCodec.encode(this)
+  /** Prints this JSON value to a Chunk of bytes (UTF-8). */
+  def printChunk: Chunk[Byte] = Chunk.fromArray(printBytes)
 
-  /** Encodes this JSON value to a byte array with the specified config. */
-  def encodeToBytes(config: WriterConfig): Array[Byte] = Json.jsonCodec.encode(this, config)
+  /** Prints this JSON value to a Chunk of bytes (UTF-8) with configuration. */
+  def printChunk(config: WriterConfig): Chunk[Byte] = Chunk.fromArray(printBytes(config))
 
-  /** Encodes this JSON value to a Chunk of bytes (UTF-8). */
-  def encodeToChunk: Chunk[Byte] = Chunk.fromArray(encodeToBytes)
+  /** Prints this JSON value into the provided ByteBuffer. */
+  def printTo(buffer: ByteBuffer): Unit = printTo(buffer, WriterConfig)
 
-  /** Encodes this JSON value to a Chunk of bytes (UTF-8) with configuration. */
-  def encodeToChunk(config: WriterConfig): Chunk[Byte] = Chunk.fromArray(encodeToBytes(config))
-
-  /** Encodes this JSON value into the provided ByteBuffer. */
-  def encodeTo(buffer: ByteBuffer): Unit = encodeTo(buffer, WriterConfig)
-
-  /** Encodes this JSON value into the provided ByteBuffer with config. */
-  def encodeTo(buffer: ByteBuffer, config: WriterConfig): Unit = buffer.put(encodeToBytes(config))
+  /** Prints this JSON value into the provided ByteBuffer with config. */
+  def printTo(buffer: ByteBuffer, config: WriterConfig): Unit = buffer.put(printBytes(config))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Conversion
@@ -269,6 +243,26 @@ sealed trait Json {
    * failure.
    */
   def asUnsafe[A](implicit decoder: JsonDecoder[A]): A = as[A].fold(e => throw e, identity)
+
+  /** Extracts the string value if this is a string, otherwise returns None. */
+  def stringValue: Option[String] = this match {
+    case s: Json.String => Some(s.value)
+    case _              => None
+  }
+
+  /** Extracts the number value if this is a number, otherwise returns None. */
+  def numberValue: Option[BigDecimal] = this match {
+    case n: Json.Number => n.toBigDecimalOption
+    case _              => None
+  }
+
+  /**
+   * Extracts the boolean value if this is a boolean, otherwise returns None.
+   */
+  def booleanValue: Option[Boolean] = this match {
+    case b: Json.Boolean => Some(b.value)
+    case _               => None
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Comparison
@@ -379,10 +373,10 @@ sealed trait Json {
   def query(p: (DynamicOptic, Json) => Boolean): JsonSelection = Json.queryImpl(this, DynamicOptic.root, p)
 
   /**
-   * Converts this JSON to a sequence of path-value pairs. Each pair contains
-   * the path to a leaf value and the value itself.
+   * Converts this JSON to a Chunk of path-value pairs. Each pair contains the
+   * path to a leaf value and the value itself.
    */
-  def toKV: Seq[(DynamicOptic, Json)] = Json.toKVImpl(this, DynamicOptic.root)
+  def toKV: Chunk[(DynamicOptic, Json)] = Json.toKVImpl(this, DynamicOptic.root)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Stubbed Methods (to be implemented later)
@@ -416,7 +410,7 @@ object Json {
 
     override def asObject: JsonSelection = JsonSelection.succeed(this)
 
-    override def fields: Seq[(java.lang.String, Json)] = value
+    override def fields: Chunk[(java.lang.String, Json)] = value
 
     override def typeIndex: Int = 5
 
@@ -492,16 +486,16 @@ object Json {
   /**
    * Represents a JSON array.
    */
-  final case class Array(value: Vector[Json]) extends Json {
+  final case class Array(value: Chunk[Json]) extends Json {
     override def isArray: scala.Boolean = true
 
     override def asArray: JsonSelection = JsonSelection.succeed(this)
 
-    override def elements: Seq[Json] = value
+    override def elements: Chunk[Json] = value
 
     override def typeIndex: Int = 4
 
-    override def apply(index: Int): JsonSelection =
+    override def get(index: Int): JsonSelection =
       if (index >= 0 && index < value.length) JsonSelection.succeed(value(index))
       else JsonSelection.fail(JsonError(s"Index $index out of bounds (size: ${value.length})").atIndex(index))
 
@@ -533,9 +527,9 @@ object Json {
   }
 
   object Array {
-    val empty: Array = Array(Vector.empty)
+    val empty: Array = new Array(Chunk.empty)
 
-    def apply(elements: Json*): Array = new Array(elements.toVector)
+    def apply(elements: Json*): Array = new Array(Chunk.from(elements))
   }
 
   /**
@@ -545,8 +539,6 @@ object Json {
     override def isString: scala.Boolean = true
 
     override def asString: JsonSelection = JsonSelection.succeed(this)
-
-    override def stringValue: Option[java.lang.String] = new Some(value)
 
     override def typeIndex: Int = 3
 
@@ -565,16 +557,15 @@ object Json {
 
     override def asNumber: JsonSelection = JsonSelection.succeed(this)
 
-    override def numberValue: Option[BigDecimal] =
-      try new Some(BigDecimal(value))
-      catch {
-        case err if NonFatal(err) => None
-      }
-
     override def typeIndex: Int = 2
 
     /** Returns the underlying BigDecimal value. */
     def toBigDecimal: BigDecimal = BigDecimal(value)
+
+    /** Returns the underlying BigDecimal value if parseable, otherwise None. */
+    def toBigDecimalOption: Option[BigDecimal] =
+      try Some(BigDecimal(value))
+      catch { case _: NumberFormatException => None }
 
     override def compare(that: Json): Int = that match {
       case thatNum: Number =>
@@ -593,8 +584,6 @@ object Json {
     override def isBoolean: scala.Boolean = true
 
     override def asBoolean: JsonSelection = JsonSelection.succeed(this)
-
-    override def booleanValue: Option[scala.Boolean] = new Some(value)
 
     override def typeIndex: Int = 1
 
@@ -628,35 +617,8 @@ object Json {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Constructors
+  // Constants
   // ─────────────────────────────────────────────────────────────────────────
-
-  /** Creates a JSON object from key-value pairs. */
-  def obj(fields: (java.lang.String, Json)*): Object = new Object(Chunk.from(fields))
-
-  /** Creates a JSON array from elements. */
-  def arr(elements: Json*): Array = new Array(elements.toVector)
-
-  /** Creates a JSON string. */
-  def str(value: java.lang.String): String = new String(value)
-
-  /** Creates a JSON number. */
-  def number(value: BigDecimal): Number = new Number(value.toString)
-
-  /** Creates a JSON number from an Int. */
-  def number(value: Int): Number = new Number(value.toString)
-
-  /** Creates a JSON number from a Long. */
-  def number(value: Long): Number = new Number(value.toString)
-
-  /** Creates a JSON number from a Float. */
-  def number(value: Float): Number = new Number(value.toString)
-
-  /** Creates a JSON number from a Double. */
-  def number(value: Double): Number = new Number(value.toString)
-
-  /** Creates a JSON boolean. */
-  def bool(value: scala.Boolean): Boolean = Boolean(value)
 
   /** The JSON true value. */
   val True: Boolean = new Boolean(true)
@@ -724,42 +686,8 @@ object Json {
   /** Parses a JSON Chunk of bytes (UTF-8) with config. */
   def parse(input: Chunk[Byte], config: ReaderConfig): Either[JsonError, Json] = parse(input.toArray, config)
 
-  // Decode aliases
-  /** Alias for parse. */
-  def decode(input: java.lang.String): Either[JsonError, Json] = parse(input)
-
-  /** Alias for parse with config. */
-  def decode(input: java.lang.String, config: ReaderConfig): Either[JsonError, Json] = parse(input, config)
-
-  /** Alias for parse. */
-  def decode(input: scala.Array[Byte]): Either[JsonError, Json] = parse(input)
-
-  /** Alias for parse with config. */
-  def decode(input: scala.Array[Byte], config: ReaderConfig): Either[JsonError, Json] = parse(input, config)
-
-  /** Alias for parse. */
-  def decode(input: CharSequence): Either[JsonError, Json] = parse(input)
-
-  /** Alias for parse with config. */
-  def decode(input: CharSequence, config: ReaderConfig): Either[JsonError, Json] = parse(input, config)
-
-  /** Alias for parse. */
-  def decode(input: ByteBuffer): Either[JsonError, Json] = parse(input)
-
-  /** Alias for parse with config. */
-  def decode(input: ByteBuffer, config: ReaderConfig): Either[JsonError, Json] = parse(input, config)
-
-  /** Alias for parse Chunk. */
-  def decode(input: Chunk[Byte]): Either[JsonError, Json] = parse(input)
-
-  /** Alias for parse Chunk with config. */
-  def decode(input: Chunk[Byte], config: ReaderConfig): Either[JsonError, Json] = parse(input, config)
-
   /** Parses a JSON string, throwing JsonError on failure. */
   def parseUnsafe(input: java.lang.String): Json = parse(input).fold(e => throw e, identity)
-
-  /** Alias for parseUnsafe. */
-  def decodeUnsafe(input: java.lang.String): Json = parseUnsafe(input)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Conversion from DynamicValue
@@ -770,7 +698,7 @@ object Json {
     case v: DynamicValue.Primitive => fromPrimitiveValue(v.value)
     case v: DynamicValue.Record    => new Object(Chunk.from(v.fields.map { case (k, v) => (k, fromDynamicValue(v)) }))
     case v: DynamicValue.Variant   => new Object(Chunk((v.caseName, fromDynamicValue(v.value))))
-    case v: DynamicValue.Sequence  => new Array(v.elements.map(fromDynamicValue))
+    case v: DynamicValue.Sequence  => new Array(Chunk.from(v.elements.map(fromDynamicValue)))
     case v: DynamicValue.Map       =>
       val entries = v.entries
       // For maps with string keys, convert to object; otherwise use array of pairs
@@ -783,9 +711,9 @@ object Json {
           (k.value, fromDynamicValue(v))
         }))
       } else {
-        new Array(entries.map { case (k, v) =>
+        new Array(Chunk.from(entries.map { case (k, v) =>
           new Object(Chunk(("key", fromDynamicValue(k)), ("value", fromDynamicValue(v))))
-        })
+        }))
       }
   }
 
@@ -822,8 +750,7 @@ object Json {
     case v: PrimitiveValue.UUID           => new String(v.value.toString)
   }
 
-  /** Converts a Json value to a DynamicValue. */
-  def toDynamicValue(json: Json): DynamicValue = json match {
+  private def toDynamicValue(json: Json): DynamicValue = json match {
     case str: String   => new DynamicValue.Primitive(new PrimitiveValue.String(str.value))
     case bool: Boolean => new DynamicValue.Primitive(new PrimitiveValue.Boolean(bool.value))
     case num: Number   =>
@@ -835,14 +762,10 @@ object Json {
         if (longValue == intValue) new DynamicValue.Primitive(new PrimitiveValue.Int(intValue))
         else new DynamicValue.Primitive(new PrimitiveValue.Long(longValue))
       } else new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(bd))
-    case arr: Array  => new DynamicValue.Sequence(arr.value.map(toDynamicValue))
+    case arr: Array  => new DynamicValue.Sequence(arr.value.toVector.map(toDynamicValue))
     case obj: Object =>
       new DynamicValue.Record(
-        obj.value
-          .foldLeft(Vector.newBuilder[(java.lang.String, DynamicValue)]) { (acc, kv) =>
-            acc.addOne((kv._1, toDynamicValue(kv._2)))
-          }
-          .result()
+        obj.value.toVector.map { case (k, v) => (k, toDynamicValue(v)) }
       )
     case _ => new DynamicValue.Primitive(PrimitiveValue.Unit)
   }
@@ -852,33 +775,22 @@ object Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Merges two JSON values using the specified strategy. */
-  def merge(left: Json, right: Json, strategy: MergeStrategy): Json = strategy match {
+  private[json] def merge(left: Json, right: Json, strategy: MergeStrategy): Json = strategy match {
     case _: MergeStrategy.Replace.type => right
-    case _: MergeStrategy.Auto.type    =>
-      (left, right) match {
-        case (lo: Object, ro: Object) => mergeObjects(lo.value, ro.value, deep = true)
-        case (la: Array, ra: Array)   => new Array(la.value ++ ra.value)
-        case _                        => right
-      }
-    case _: MergeStrategy.Deep.type =>
-      (left, right) match {
-        case (lo: Object, ro: Object) => mergeObjects(lo.value, ro.value, deep = true)
-        case (la: Array, ra: Array)   => new Array(la.value ++ ra.value)
-        case _                        => right
-      }
     case _: MergeStrategy.Shallow.type =>
       (left, right) match {
         case (lo: Object, ro: Object) => mergeObjects(lo.value, ro.value, deep = false)
         case (la: Array, ra: Array)   => new Array(la.value ++ ra.value)
         case _                        => right
       }
-    case _: MergeStrategy.Concat.type =>
+    case _: MergeStrategy.Custom =>
+      mergeWithCustom(left, right, DynamicOptic.root, strategy.asInstanceOf[MergeStrategy.Custom].f)
+    case _ => // Auto (default)
       (left, right) match {
         case (lo: Object, ro: Object) => mergeObjects(lo.value, ro.value, deep = true)
         case (la: Array, ra: Array)   => new Array(la.value ++ ra.value)
         case _                        => right
       }
-    case custom: MergeStrategy.Custom => mergeWithCustom(left, right, DynamicOptic.root, custom.f)
   }
 
   private def mergeWithCustom(
@@ -1129,15 +1041,15 @@ object Json {
     JsonSelection.succeedMany(results.result())
   }
 
-  private def toKVImpl(json: Json, path: DynamicOptic): Seq[(DynamicOptic, Json)] =
+  private def toKVImpl(json: Json, path: DynamicOptic): Chunk[(DynamicOptic, Json)] =
     json match {
       case obj: Object =>
-        if (obj.value.isEmpty) Seq((path, obj))
+        if (obj.value.isEmpty) Chunk((path, obj))
         else obj.value.flatMap { case (k, v) => toKVImpl(v, path.field(k)) }
       case arr: Array =>
-        if (arr.value.isEmpty) Seq((path, arr))
-        else arr.value.zipWithIndex.flatMap { case (elem, i) => toKVImpl(elem, path.at(i)) }
-      case leaf => Seq((path, leaf))
+        if (arr.value.isEmpty) Chunk((path, arr))
+        else Chunk.from(arr.value.zipWithIndex.flatMap { case (elem, i) => toKVImpl(elem, path.at(i)) })
+      case leaf => Chunk((path, leaf))
     }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1207,16 +1119,16 @@ object Json {
           current match {
             case arr: Array =>
               val padded = if (index >= arr.value.length) {
-                arr.value ++ Vector.fill(index - arr.value.length + 1)(Null)
+                arr.value ++ Chunk.fill(index - arr.value.length + 1)(Null)
               } else arr.value
               val newValue = go(padded(index), idx + 1)
               new Array(padded.updated(index, newValue))
             case Null =>
-              val padded   = Vector.fill(index + 1)(Null)
+              val padded   = Chunk.fill(index + 1)(Null)
               val newValue = go(Null, idx + 1)
               new Array(padded.updated(index, newValue))
             case _ =>
-              val padded   = Vector.fill(index + 1)(Null)
+              val padded   = Chunk.fill(index + 1)(Null)
               val newValue = go(Null, idx + 1)
               new Array(padded.updated(index, newValue))
           }
@@ -1243,9 +1155,9 @@ object Json {
   private[json] def getAtPath(json: Json, path: DynamicOptic): JsonSelection = {
     val nodes = path.nodes
     if (nodes.isEmpty) return JsonSelection.succeed(json)
-    var current: Either[JsonError, Vector[Json]] = new Right(Vector(json))
-    var idx                                      = 0
-    val len                                      = nodes.length
+    var current: Either[JsonError, Chunk[Json]] = new Right(Chunk(json))
+    var idx                                     = 0
+    val len                                     = nodes.length
     while (idx < len && current.isRight) {
       val node = nodes(idx)
       current = current.flatMap { jsons =>
@@ -1255,10 +1167,10 @@ object Json {
             val results = jsons.flatMap {
               case obj: Object =>
                 obj.get(name).single match {
-                  case Right(v) => Vector(v)
-                  case _        => Vector.empty[Json]
+                  case Right(v) => Chunk(v)
+                  case _        => Chunk.empty[Json]
                 }
-              case _ => Vector.empty[Json]
+              case _ => Chunk.empty[Json]
             }
             if (results.isEmpty && jsons.nonEmpty) new Left(JsonError(s"Field '$name' not found"))
             else new Right(results)
@@ -1266,36 +1178,36 @@ object Json {
             val index   = atIndex.index
             val results = jsons.flatMap {
               case arr: Array =>
-                arr(index).single match {
-                  case Right(v) => Vector(v)
-                  case _        => Vector.empty[Json]
+                arr.get(index).single match {
+                  case Right(v) => Chunk(v)
+                  case _        => Chunk.empty[Json]
                 }
-              case _ => Vector.empty[Json]
+              case _ => Chunk.empty[Json]
             }
             if (results.isEmpty && jsons.nonEmpty) new Left(JsonError(s"Index $index out of bounds").atIndex(index))
             else new Right(results)
           case _: DynamicOptic.Node.Elements.type =>
             new Right(jsons.flatMap {
               case arr: Array => arr.value
-              case _          => Vector.empty[Json]
+              case _          => Chunk.empty[Json]
             })
           case _: DynamicOptic.Node.MapKeys.type =>
             new Right(jsons.flatMap {
               case obj: Object => obj.value.map { case (k, _) => new String(k) }
-              case _           => Vector.empty[Json]
+              case _           => Chunk.empty[Json]
             })
           case _: DynamicOptic.Node.MapValues.type =>
             new Right(jsons.flatMap {
               case obj: Object => obj.value.map { case (_, v) => v }
-              case _           => Vector.empty[Json]
+              case _           => Chunk.empty[Json]
             })
           case atIndices: DynamicOptic.Node.AtIndices =>
             val indices = atIndices.index
             new Right(jsons.flatMap {
               case arr: Array =>
                 val elems = arr.value
-                indices.collect { case i if i >= 0 && i < elems.length => elems(i) }
-              case _ => Vector.empty[Json]
+                Chunk.from(indices.collect { case i if i >= 0 && i < elems.length => elems(i) })
+              case _ => Chunk.empty[Json]
             })
           case atMapKey: DynamicOptic.Node.AtMapKey =>
             // Convert DynamicValue key to string for JSON objects
@@ -1304,10 +1216,10 @@ object Json {
                 new Right(jsons.flatMap {
                   case obj: Object =>
                     obj.get(pv.value).single match {
-                      case Right(v) => Vector(v)
-                      case _        => Vector.empty[Json]
+                      case Right(v) => Chunk(v)
+                      case _        => Chunk.empty[Json]
                     }
-                  case _ => Vector.empty[Json]
+                  case _ => Chunk.empty[Json]
                 })
               case _ =>
                 new Left(JsonError("AtMapKey requires a string key for JSON objects"))
@@ -1319,8 +1231,8 @@ object Json {
             new Right(jsons.flatMap {
               case obj: Object =>
                 val fieldMap = obj.value.toMap
-                keyStrs.flatMap(k => fieldMap.get(k))
-              case _ => Vector.empty[Json]
+                Chunk.from(keyStrs.flatMap(k => fieldMap.get(k)))
+              case _ => Chunk.empty[Json]
             })
           case _: DynamicOptic.Node.Case => // Case is for sum types in schemas, not applicable to raw JSON
             new Right(jsons)
@@ -1331,8 +1243,8 @@ object Json {
       idx += 1
     }
     current match {
-      case r: Right[_, _] => new JsonSelection(r)
-      case Left(error)    => JsonSelection.fail(error)
+      case Right(jsons) => JsonSelection.succeedMany(jsons.toVector)
+      case Left(error)  => JsonSelection.fail(error)
     }
   }
 
@@ -1515,7 +1427,7 @@ object Json {
           json match {
             case arr: Array =>
               arr.value.zipWithIndex
-                .foldLeft[Either[JsonError, Vector[Json]]](new Right(Vector.empty)) {
+                .foldLeft[Either[JsonError, Chunk[Json]]](new Right(Chunk.empty)) {
                   case (Left(err), _)          => new Left(err)
                   case (Right(acc), (elem, _)) => modifyAtPathOrFailRecursive(elem, nodes, idx + 1, pf).map(acc :+ _)
                 }
@@ -1779,7 +1691,7 @@ object Json {
   // JsonBinaryCodec for Json
   // ─────────────────────────────────────────────────────────────────────────
 
-  val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json]() {
+  implicit val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json]() {
     override def decodeValue(in: JsonReader, default: Json): Json = {
       val b = in.nextToken()
       if (b == '"') {
@@ -1798,7 +1710,7 @@ object Json {
         if (in.isNextToken(']')) Array.empty
         else {
           in.rollbackToken()
-          val builder     = new VectorBuilder[Json]
+          val builder     = ChunkBuilder.make[Json]()
           var idx, errIdx = 0
           try {
             while ({

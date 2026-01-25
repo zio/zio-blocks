@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.DynamicOptic
 
 /**
@@ -82,7 +83,7 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
   def one: Either[JsonError, Json] = value.flatMap { v =>
     if (v.isEmpty) Left(JsonError("Expected at least one value but got none"))
     else if (v.length == 1) Right(v.head)
-    else Right(Json.Array(v))
+    else Right(new Json.Array(Chunk.from(v)))
   }
 
   /**
@@ -99,7 +100,7 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
   /**
    * Returns all selected values as a JSON array.
    */
-  def toArray: Either[JsonError, Json] = value.map(Json.Array(_))
+  def toArray: Either[JsonError, Json] = value.map(v => new Json.Array(Chunk.from(v)))
 
   /**
    * Unsafe version of `one` - throws JsonError on error.
@@ -169,16 +170,10 @@ final case class JsonSelection(value: Either[JsonError, Vector[Json]]) extends A
   def get(key: String): JsonSelection = flatMap(_.get(key))
 
   /** Navigates to an index in each array. */
-  def apply(index: Int): JsonSelection = flatMap(_.apply(index))
-
-  /** Navigates to a field in each object (alias for get). */
-  def apply(key: String): JsonSelection = get(key)
+  def get(index: Int): JsonSelection = flatMap(_.get(index))
 
   /** Navigates using a DynamicOptic path. */
   def get(path: DynamicOptic): JsonSelection = flatMap(_.get(path))
-
-  /** Navigates using a DynamicOptic path (alias for get). */
-  def apply(path: DynamicOptic): JsonSelection = get(path)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Extraction
