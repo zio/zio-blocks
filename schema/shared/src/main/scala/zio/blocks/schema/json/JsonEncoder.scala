@@ -96,6 +96,10 @@ object JsonEncoder {
     def encode(u: Unit): Json = Json.Null
   }
 
+  implicit val nullEncoder: JsonEncoder[Null] = new JsonEncoder[Null] {
+    def encode(n: Null): Json = Json.Null
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Json identity encoder
   // ─────────────────────────────────────────────────────────────────────────
@@ -143,6 +147,40 @@ object JsonEncoder {
             }
             .result()
         )
+    }
+
+  implicit def mapWithStringableKeyEncoder[K, V](implicit
+    keyStringable: Stringable[K],
+    valueEncoder: JsonEncoder[V]
+  ): JsonEncoder[Map[K, V]] =
+    new JsonEncoder[Map[K, V]] {
+      def encode(map: Map[K, V]): Json =
+        new Json.Object(
+          map
+            .foldLeft(Chunk.newBuilder[(String, Json)]) { (acc, kv) =>
+              acc.addOne((keyStringable.asString(kv._1), valueEncoder.encode(kv._2)))
+            }
+            .result()
+        )
+    }
+
+  implicit def arrayEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Array[A]] =
+    new JsonEncoder[Array[A]] {
+      def encode(arr: Array[A]): Json = {
+        val builder = Vector.newBuilder[Json]
+        var i       = 0
+        while (i < arr.length) {
+          builder.addOne(encoder.encode(arr(i)))
+          i += 1
+        }
+        new Json.Array(builder.result())
+      }
+    }
+
+  implicit def iterableEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Iterable[A]] =
+    new JsonEncoder[Iterable[A]] {
+      def encode(iter: Iterable[A]): Json =
+        new Json.Array(iter.foldLeft(Vector.newBuilder[Json])((acc, a) => acc.addOne(encoder.encode(a))).result())
     }
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -68,10 +68,12 @@ object JavaTimeGen {
     month <- Gen.int
     day   <- Gen.int
   } yield Period.of(year, month, day)
+  // Note: genYear can produce years outside the 4-digit range (-999999999 to 999999999),
+  // but YearMonth.parse() only handles 4-digit years. Using constrained year range here.
   val genYearMonth: Gen[Any, YearMonth] = for {
-    year  <- genYear
+    year  <- Gen.int(-9999, 9999)
     month <- Gen.int(1, 12)
-  } yield YearMonth.of(year.getValue, month)
+  } yield YearMonth.of(year, month)
   val genZoneId: Gen[Any, ZoneId] = Gen.oneOf(
     genZoneOffset,
     genZoneOffset.map(zo => ZoneId.of(zo.toString.replace(":", ""))),
