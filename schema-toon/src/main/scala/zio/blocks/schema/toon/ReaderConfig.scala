@@ -53,14 +53,11 @@ class ReaderConfig private (
     copy(indent = indent)
   }
 
-  def withDelimiter(delimiter: Delimiter): ReaderConfig =
-    copy(delimiter = delimiter)
+  def withDelimiter(delimiter: Delimiter): ReaderConfig = copy(delimiter = delimiter)
 
-  def withStrict(strict: Boolean): ReaderConfig =
-    copy(strict = strict)
+  def withStrict(strict: Boolean): ReaderConfig = copy(strict = strict)
 
-  def withExpandPaths(expandPaths: PathExpansion): ReaderConfig =
-    copy(expandPaths = expandPaths)
+  def withExpandPaths(expandPaths: PathExpansion): ReaderConfig = copy(expandPaths = expandPaths)
 
   def withDiscriminatorField(discriminatorField: Option[String]): ReaderConfig =
     copy(discriminatorField = discriminatorField)

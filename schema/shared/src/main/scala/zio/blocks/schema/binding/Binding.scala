@@ -1,6 +1,6 @@
 package zio.blocks.schema.binding
 
-import zio.blocks.schema.DynamicValue
+import zio.blocks.schema.{DynamicValue, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
 /**
@@ -387,7 +387,7 @@ object Binding {
   }
 
   final case class Wrapper[A, B](
-    wrap: B => Either[String, A],
+    wrap: B => Either[SchemaError, A],
     unwrap: A => B,
     defaultValue: Option[() => A] = None,
     examples: collection.immutable.Seq[A] = Nil

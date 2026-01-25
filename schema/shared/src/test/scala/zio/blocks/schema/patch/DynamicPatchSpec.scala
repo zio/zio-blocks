@@ -53,6 +53,15 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val result = patch(original)
         assertTrue(result == Right(personRecord("Alice", 31)))
       },
+      test("applies Set to Record field using path interpolator") {
+        val original = personRecord("Alice", 30)
+        val patch    = DynamicPatch(
+          p".age",
+          DynamicPatch.Operation.Set(intVal(31))
+        )
+        val result = patch(original)
+        assertTrue(result == Right(personRecord("Alice", 31)))
+      },
       test("applies Set to nested Record field") {
         val original = personWithAddressRecord("Alice", 30, "NYC")
         val patch    = DynamicPatch(
@@ -62,10 +71,28 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val result = patch(original)
         assertTrue(result == Right(personWithAddressRecord("Alice", 30, "LA")))
       },
+      test("applies Set to nested Record field using path interpolator") {
+        val original = personWithAddressRecord("Alice", 30, "NYC")
+        val patch    = DynamicPatch(
+          p".address.city",
+          DynamicPatch.Operation.Set(stringVal("LA"))
+        )
+        val result = patch(original)
+        assertTrue(result == Right(personWithAddressRecord("Alice", 30, "LA")))
+      },
       test("applies Set to sequence element") {
         val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2), intVal(3)))
         val patch    = DynamicPatch(
           DynamicOptic.root.at(1),
+          DynamicPatch.Operation.Set(intVal(99))
+        )
+        val result = patch(original)
+        assertTrue(result == Right(DynamicValue.Sequence(Vector(intVal(1), intVal(99), intVal(3)))))
+      },
+      test("applies Set to sequence element using path interpolator") {
+        val original = DynamicValue.Sequence(Vector(intVal(1), intVal(2), intVal(3)))
+        val patch    = DynamicPatch(
+          p"[1]",
           DynamicPatch.Operation.Set(intVal(99))
         )
         val result = patch(original)

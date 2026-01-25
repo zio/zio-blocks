@@ -1,6 +1,7 @@
 package zio.blocks.schema.toon
 
 import zio.blocks.schema.toon.ToonTestUtils._
+import zio.blocks.schema.toon.NameMapper._
 import zio.blocks.schema._
 import zio.test._
 import zio.test.TestAspect.jvmOnly
@@ -13,16 +14,16 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       test("Unit") {
         roundTrip((), "null") &&
         decode("\"null\"", ()) &&
-        decodeError[Unit]("", "Line 3: Expected null, got:  at: .") &&
-        decodeError[Unit]("null ,", "Line 2: Expected null, got: null , at: .") &&
-        decodeError[Unit]("true", "Line 2: Expected null, got: true at: .")
+        decodeError[Unit]("", "Expected null, got:  at: .") &&
+        decodeError[Unit]("null ,", "Expected null, got: null , at: .") &&
+        decodeError[Unit]("true", "Expected null, got: true at: .")
       },
       test("Boolean") {
         roundTrip(true, "true") &&
         roundTrip(false, "false") &&
         decode("\"true\"", true) &&
         decode("\"false\"", false) &&
-        decodeError[Boolean]("yes", "Line 2: Expected boolean, got: yes at: .")
+        decodeError[Boolean]("yes", "Expected boolean, got: yes at: .")
       },
       test("Byte") {
         check(Gen.byte)(x => roundTrip(x, x.toString)) &&
@@ -33,13 +34,13 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode("-0", 0: Byte) &&
         decode("01", 1: Byte) &&
         decode("-01", -1: Byte) &&
-        decodeError[Byte]("-129", "Line 2: Expected byte, got: -129 at: .") &&
-        decodeError[Byte]("128", "Line 2: Expected byte, got: 128 at: .") &&
-        decodeError[Byte]("1.0", "Line 2: Expected byte, got: 1.0 at: .") &&
-        decodeError[Byte]("1e1", "Line 2: Expected byte, got: 1e1 at: .") &&
-        decodeError[Byte]("null", "Line 2: Expected byte, got: null at: .") &&
-        decodeError[Byte]("", "Line 3: Expected byte, got:  at: .") &&
-        decodeError[Byte]("1,", "Line 2: Expected byte, got: 1, at: .")
+        decodeError[Byte]("-129", "Expected byte, got: -129 at: .") &&
+        decodeError[Byte]("128", "Expected byte, got: 128 at: .") &&
+        decodeError[Byte]("1.0", "Expected byte, got: 1.0 at: .") &&
+        decodeError[Byte]("1e1", "Expected byte, got: 1e1 at: .") &&
+        decodeError[Byte]("null", "Expected byte, got: null at: .") &&
+        decodeError[Byte]("", "Expected byte, got:  at: .") &&
+        decodeError[Byte]("1,", "Expected byte, got: 1, at: .")
       },
       test("Short") {
         check(Gen.short)(x => roundTrip(x, x.toString)) &&
@@ -50,13 +51,13 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode("-0", 0: Short) &&
         decode("01", 1: Short) &&
         decode("-01", -1: Short) &&
-        decodeError[Short]("-32769", "Line 2: Expected short, got: -32769 at: .") &&
-        decodeError[Short]("32768", "Line 2: Expected short, got: 32768 at: .") &&
-        decodeError[Short]("1.0", "Line 2: Expected short, got: 1.0 at: .") &&
-        decodeError[Short]("1e1", "Line 2: Expected short, got: 1e1 at: .") &&
-        decodeError[Short]("null", "Line 2: Expected short, got: null at: .") &&
-        decodeError[Short]("", "Line 3: Expected short, got:  at: .") &&
-        decodeError[Short]("1,", "Line 2: Expected short, got: 1, at: .")
+        decodeError[Short]("-32769", "Expected short, got: -32769 at: .") &&
+        decodeError[Short]("32768", "Expected short, got: 32768 at: .") &&
+        decodeError[Short]("1.0", "Expected short, got: 1.0 at: .") &&
+        decodeError[Short]("1e1", "Expected short, got: 1e1 at: .") &&
+        decodeError[Short]("null", "Expected short, got: null at: .") &&
+        decodeError[Short]("", "Expected short, got:  at: .") &&
+        decodeError[Short]("1,", "Expected short, got: 1, at: .")
       },
       test("Int") {
         check(Gen.int)(x => roundTrip(x, x.toString)) &&
@@ -67,13 +68,13 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode("-0", 0) &&
         decode("01", 1) &&
         decode("-01", -1) &&
-        decodeError[Int]("-2147483649", "Line 2: Expected int, got: -2147483649 at: .") &&
-        decodeError[Int]("2147483648", "Line 2: Expected int, got: 2147483648 at: .") &&
-        decodeError[Int]("1.0", "Line 2: Expected int, got: 1.0 at: .") &&
-        decodeError[Int]("1e1", "Line 2: Expected int, got: 1e1 at: .") &&
-        decodeError[Int]("null", "Line 2: Expected int, got: null at: .") &&
-        decodeError[Int]("", "Line 3: Expected int, got:  at: .") &&
-        decodeError[Int]("1,", "Line 2: Expected int, got: 1, at: .")
+        decodeError[Int]("-2147483649", "Expected int, got: -2147483649 at: .") &&
+        decodeError[Int]("2147483648", "Expected int, got: 2147483648 at: .") &&
+        decodeError[Int]("1.0", "Expected int, got: 1.0 at: .") &&
+        decodeError[Int]("1e1", "Expected int, got: 1e1 at: .") &&
+        decodeError[Int]("null", "Expected int, got: null at: .") &&
+        decodeError[Int]("", "Expected int, got:  at: .") &&
+        decodeError[Int]("1,", "Expected int, got: 1, at: .")
       },
       test("Long") {
         check(Gen.long)(x => roundTrip(x, x.toString)) &&
@@ -84,13 +85,13 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode("-0", 0L) &&
         decode("01", 1L) &&
         decode("-01", -1L) &&
-        decodeError[Long]("-9223372036854775809", "Line 2: Expected long, got: -9223372036854775809 at: .") &&
-        decodeError[Long]("9223372036854775808", "Line 2: Expected long, got: 9223372036854775808 at: .") &&
-        decodeError[Long]("1.0", "Line 2: Expected long, got: 1.0 at: .") &&
-        decodeError[Long]("1e1", "Line 2: Expected long, got: 1e1 at: .") &&
-        decodeError[Long]("null", "Line 2: Expected long, got: null at: .") &&
-        decodeError[Long]("", "Line 3: Expected long, got:  at: .") &&
-        decodeError[Long]("1,", "Line 2: Expected long, got: 1, at: .")
+        decodeError[Long]("-9223372036854775809", "Expected long, got: -9223372036854775809 at: .") &&
+        decodeError[Long]("9223372036854775808", "Expected long, got: 9223372036854775808 at: .") &&
+        decodeError[Long]("1.0", "Expected long, got: 1.0 at: .") &&
+        decodeError[Long]("1e1", "Expected long, got: 1e1 at: .") &&
+        decodeError[Long]("null", "Expected long, got: null at: .") &&
+        decodeError[Long]("", "Expected long, got:  at: .") &&
+        decodeError[Long]("1,", "Expected long, got: 1, at: .")
       },
       test("Float") {
         check(Gen.float)(x => decode(x.toString, x)) &&
@@ -150,9 +151,9 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         encode(Float.NaN, "null") && // should be roundTrip(Float.NaN, "null")
         encode(Float.PositiveInfinity, "null") &&
         encode(Float.NegativeInfinity, "null") &&
-        decodeError[Float]("1e+e", "Line 2: Expected float, got: 1e+e at: .") &&
-        decodeError[Float]("", "Line 3: Expected float, got:  at: .") &&
-        decodeError[Float]("1,", "Line 2: Expected float, got: 1, at: .")
+        decodeError[Float]("1e+e", "Expected float, got: 1e+e at: .") &&
+        decodeError[Float]("", "Expected float, got:  at: .") &&
+        decodeError[Float]("1,", "Expected float, got: 1, at: .")
       } @@ jvmOnly,
       test("Double") {
         check(Gen.double)(x => decode(x.toString, x)) &&
@@ -230,9 +231,9 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         encode(Double.NaN, "null") && // should be roundTrip(Float.NaN, "null")
         encode(Double.PositiveInfinity, "null") &&
         encode(Double.NegativeInfinity, "null") &&
-        decodeError[Double]("1e+e", "Line 2: Expected double, got: 1e+e at: .") &&
-        decodeError[Double]("", "Line 3: Expected double, got:  at: .") &&
-        decodeError[Double]("1,", "Line 2: Expected double, got: 1, at: .")
+        decodeError[Double]("1e+e", "Expected double, got: 1e+e at: .") &&
+        decodeError[Double]("", "Expected double, got:  at: .") &&
+        decodeError[Double]("1,", "Expected double, got: 1, at: .")
       },
       test("Char") {
         roundTrip('A', "A") &&
@@ -243,6 +244,12 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(' ', "\" \"")
       },
       test("String") {
+        roundTrip("line1\nline2", "\"line1\\nline2\"") &&
+        roundTrip("tab\there", "\"tab\\there\"") &&
+        roundTrip("return\rcarriage", "\"return\\rcarriage\"") &&
+        roundTrip("C:\\Users\\path", "\"C:\\\\Users\\\\path\"") &&
+        roundTrip("[test]", "\"[test]\"") &&
+        roundTrip("{key}", "\"{key}\"") &&
         roundTrip("Hello", "Hello") &&
         roundTrip("Hello World", "Hello World") &&
         roundTrip("", "\"\"") &&
@@ -266,34 +273,34 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip("path\\to\\file", "\"path\\\\to\\\\file\"") && // backslashes in the middle
         roundTrip("\\start", "\"\\\\start\"") &&                 // starts with backslash
         roundTrip("quote\"here", "\"quote\\\"here\"") &&         // embedded quote
-        encode[String](
+        roundTrip[String](
           "tab:\there\nnewline\rcarriage\\backslash\"quote",
           "\"tab:\\there\\nnewline\\rcarriage\\\\backslash\\\"quote\""
         ) &&
-        encode[String]("", "\"\"") &&
-        encode[String](" hello", "\" hello\"") &&
-        encode[String]("hello ", "\"hello \"") &&
-        encode[String]("  ", "\"  \"") &&
-        encode[String]("true", "\"true\"") &&
-        encode[String]("false", "\"false\"") &&
-        encode[String]("null", "\"null\"") &&
-        encode[String]("42", "\"42\"") &&
-        encode[String]("-3.14", "\"-3.14\"") &&
-        encode[String]("1e6", "\"1e6\"") &&
-        encode[String]("05", "\"05\"") &&
-        encode[String]("key:value", "\"key:value\"") &&
-        encode[String]("10:30", "\"10:30\"") &&
-        encode[String]("say \"hi\"", "\"say \\\"hi\\\"\"") &&
-        encode[String]("path\\to", "\"path\\\\to\"") &&
-        encode[String]("line1\nline2", "\"line1\\nline2\"") &&
-        encode[String]("col1\tcol2", "\"col1\\tcol2\"") &&
-        encode[String]("return\r", "\"return\\r\"") &&
-        encode[String]("[array]", "\"[array]\"") &&
-        encode[String]("{object}", "\"{object}\"") &&
-        encode[String]("arr[0]", "\"arr[0]\"") &&
-        encode[String]("-", "\"-\"") &&
-        encode[String]("-flag", "\"-flag\"") &&
-        encode[String]("--option", "\"--option\"")
+        roundTrip[String]("", "\"\"") &&
+        roundTrip[String](" hello", "\" hello\"") &&
+        roundTrip[String]("hello ", "\"hello \"") &&
+        roundTrip[String]("  ", "\"  \"") &&
+        roundTrip[String]("true", "\"true\"") &&
+        roundTrip[String]("false", "\"false\"") &&
+        roundTrip[String]("null", "\"null\"") &&
+        roundTrip[String]("42", "\"42\"") &&
+        roundTrip[String]("-3.14", "\"-3.14\"") &&
+        roundTrip[String]("1e6", "\"1e6\"") &&
+        roundTrip[String]("05", "\"05\"") &&
+        roundTrip[String]("key:value", "\"key:value\"") &&
+        roundTrip[String]("10:30", "\"10:30\"") &&
+        roundTrip[String]("say \"hi\"", "\"say \\\"hi\\\"\"") &&
+        roundTrip[String]("path\\to", "\"path\\\\to\"") &&
+        roundTrip[String]("line1\nline2", "\"line1\\nline2\"") &&
+        roundTrip[String]("col1\tcol2", "\"col1\\tcol2\"") &&
+        roundTrip[String]("return\r", "\"return\\r\"") &&
+        roundTrip[String]("[array]", "\"[array]\"") &&
+        roundTrip[String]("{object}", "\"{object}\"") &&
+        roundTrip[String]("arr[0]", "\"arr[0]\"") &&
+        roundTrip[String]("-", "\"-\"") &&
+        roundTrip[String]("-flag", "\"-flag\"") &&
+        roundTrip[String]("--option", "\"--option\"")
       },
       test("BigInt") {
         check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x => roundTrip(x, x.toString)) &&
@@ -306,12 +313,12 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode("01", BigInt(1)) &&
         decode("-01", BigInt(-1)) &&
         encode(BigInt("9" * 1000), "9" * 1000) &&
-        decodeError[BigInt]("", "Line 3: Expected BigInt, got:  at: .") &&
-        decodeError[BigInt]("-a", "Line 2: Expected BigInt, got: -a at: .") &&
-        decodeError[BigInt]("1.0", "Line 2: Expected BigInt, got: 1.0 at: .") &&
-        decodeError[BigInt]("1e1", "Line 2: Expected BigInt, got: 1e1 at: .") &&
-        decodeError[BigInt]("1E1", "Line 2: Expected BigInt, got: 1E1 at: .") &&
-        decodeError[BigInt]("null", "Line 2: Expected BigInt, got: null at: .")
+        decodeError[BigInt]("", "Expected BigInt, got:  at: .") &&
+        decodeError[BigInt]("-a", "Expected BigInt, got: -a at: .") &&
+        decodeError[BigInt]("1.0", "Expected BigInt, got: 1.0 at: .") &&
+        decodeError[BigInt]("1e1", "Expected BigInt, got: 1e1 at: .") &&
+        decodeError[BigInt]("1E1", "Expected BigInt, got: 1E1 at: .") &&
+        decodeError[BigInt]("null", "Expected BigInt, got: null at: .")
       },
       test("BigDecimal") {
         check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x => roundTrip(x, x.toString)) &&
@@ -319,6 +326,8 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(BigDecimal("0.0"), "0") &&
         roundTrip(BigDecimal("126.09999999999999001"), "126.09999999999999001") &&
         roundTrip(BigDecimal("0.0287500000000000000000"), "0.02875") &&
+        roundTrip(BigDecimal("1e20"), "100000000000000000000") &&
+        roundTrip(BigDecimal("1E-10"), "0.0000000001") &&
         roundTrip(BigDecimal("-1." + "1" * 3 + "E+1234"), "-1111" + "0" * 1231) &&
         // FIXME: throws java.nio.BufferOverflowException
         // encode(BigDecimal("1." + "1" * 30 + "E+123456789"), "1." + "1" * 30 + "E+123456789") &&
@@ -329,32 +338,32 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decode("01.0", BigDecimal(1)) &&
         decode("-01.0", BigDecimal(-1)) &&
         encode(BigDecimal("1." + "1" * 1000 + "E+1234"), "1" * 1001 + "0" * 234) &&
-        decodeError[BigDecimal]("", "Line 3: Expected BigDecimal, got:  at: .") &&
-        decodeError[BigDecimal]("1,", "Line 2: Expected BigDecimal, got: 1, at: .") &&
-        decodeError[BigDecimal]("1e+e", "Line 2: Expected BigDecimal, got: 1e+e at: .") &&
-        decodeError[BigDecimal]("--8", "Line 2: Expected BigDecimal, got: --8 at: .") &&
-        decodeError[BigDecimal]("null", "Line 2: Expected BigDecimal, got: null at: .") &&
-        decodeError[BigDecimal]("1e11111111111", "Line 2: Expected BigDecimal, got: 1e11111111111 at: .")
+        decodeError[BigDecimal]("", "Expected BigDecimal, got:  at: .") &&
+        decodeError[BigDecimal]("1,", "Expected BigDecimal, got: 1, at: .") &&
+        decodeError[BigDecimal]("1e+e", "Expected BigDecimal, got: 1e+e at: .") &&
+        decodeError[BigDecimal]("--8", "Expected BigDecimal, got: --8 at: .") &&
+        decodeError[BigDecimal]("null", "Expected BigDecimal, got: null at: .") &&
+        decodeError[BigDecimal]("1e11111111111", "Expected BigDecimal, got: 1e11111111111 at: .")
       },
       test("DayOfWeek") {
         check(JavaTimeGen.genDayOfWeek)(x => roundTrip(x, x.toString)) &&
         check(JavaTimeGen.genDayOfWeek)(x => decode(s"\"$x\"", x)) &&
         roundTrip(DayOfWeek.MONDAY, "MONDAY") &&
         roundTrip(DayOfWeek.FRIDAY, "FRIDAY") &&
-        decodeError[DayOfWeek]("FUNDAY", "Line 2: Invalid day of week: FUNDAY at: .")
+        decodeError[DayOfWeek]("FUNDAY", "Invalid day of week: FUNDAY at: .")
       },
       test("Duration") {
         check(JavaTimeGen.genDuration)(x => roundTrip(x, x.toString)) &&
         check(JavaTimeGen.genDuration)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Duration.ofSeconds(0), "PT0S") &&
         roundTrip(Duration.ofHours(2), "PT2H") &&
-        decodeError[Duration]("5 hours", "Line 2: Invalid duration: 5 hours at: .")
+        decodeError[Duration]("5 hours", "Invalid duration: 5 hours at: .")
       },
       test("Instant") {
         check(JavaTimeGen.genInstant)(x => roundTrip(x, s"\"$x\"")) &&
         check(JavaTimeGen.genInstant)(x => decode(x.toString, x)) &&
         roundTrip(Instant.EPOCH, "\"1970-01-01T00:00:00Z\"") &&
-        decodeError[Instant]("yesterday", "Line 2: Invalid instant: yesterday at: .")
+        decodeError[Instant]("yesterday", "Invalid instant: yesterday at: .")
       },
       test("LocalDate") {
         check(JavaTimeGen.genLocalDate)(x =>
@@ -367,7 +376,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         check(JavaTimeGen.genLocalDate)(x => decode(s"\"$x\"", x)) &&
         check(JavaTimeGen.genLocalDate)(x => decode(x.toString, x)) &&
         roundTrip(LocalDate.of(2025, 1, 11), "2025-01-11") &&
-        decodeError[LocalDate]("2025/01/11", "Line 2: Invalid local date: 2025/01/11 at: .")
+        decodeError[LocalDate]("2025/01/11", "Invalid local date: 2025/01/11 at: .")
       },
       test("LocalDateTime") {
         check(JavaTimeGen.genLocalDateTime)(x => roundTrip(x, s"\"$x\"")) &&
@@ -378,13 +387,13 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         check(JavaTimeGen.genLocalTime)(x => roundTrip(x, s"\"$x\"")) &&
         check(JavaTimeGen.genLocalTime)(x => decode(x.toString, x)) &&
         roundTrip(LocalTime.of(10, 30), "\"10:30\"") &&
-        decodeError[LocalTime]("25:99", "Line 2: Invalid local time: 25:99 at: .")
+        decodeError[LocalTime]("25:99", "Invalid local time: 25:99 at: .")
       },
       test("Month") {
         check(JavaTimeGen.genMonth)(x => roundTrip(x, x.toString)) &&
         check(JavaTimeGen.genMonth)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Month.JANUARY, "JANUARY") &&
-        decodeError[Month]("SMARCH", "Line 2: Invalid month: SMARCH at: .")
+        decodeError[Month]("SMARCH", "Invalid month: SMARCH at: .")
       },
       test("MonthDay") {
         check(JavaTimeGen.genMonthDay)(x => roundTrip(x, s"\"$x\"")) &&
@@ -453,7 +462,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         check(JavaTimeGen.genZoneId)(x => decode(s"\"$x\"", x)) &&
         check(JavaTimeGen.genZoneId)(x => decode(x.toString, x)) &&
         roundTrip(ZoneId.of("UTC"), "UTC") &&
-        decodeError[ZoneId]("Fake/Timezone", "Line 2: Invalid zone id: Fake/Timezone at: .")
+        decodeError[ZoneId]("Fake/Timezone", "Invalid zone id: Fake/Timezone at: .")
       },
       test("ZoneOffset") {
         check(JavaTimeGen.genZoneOffset)(x =>
@@ -482,7 +491,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         check(Gen.currency)(x => roundTrip(x, x.toString)) &&
         check(Gen.currency)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Currency.getInstance("USD"), "USD") &&
-        decodeError[Currency]("FAKE", "Line 2: Invalid currency: FAKE at: .")
+        decodeError[Currency]("FAKE", "Invalid currency: FAKE at: .")
       },
       test("UUID") {
         check(Gen.uuid)(x => roundTrip(x, x.toString)) &&
@@ -491,7 +500,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           UUID.fromString("00000000-0000-0001-0000-000000000001"),
           "00000000-0000-0001-0000-000000000001"
         ) &&
-        decodeError[UUID]("not-a-uuid", "Line 2: Invalid UUID: not-a-uuid at: .")
+        decodeError[UUID]("not-a-uuid", "Invalid UUID: not-a-uuid at: .")
       }
     ),
     suite("records")(
@@ -535,6 +544,29 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             |  d: 7
             |  c: "8"
             |  s: WWW""".stripMargin
+        ) &&
+        decodeError[Record2](
+          """r1_1:
+            |  bl: true
+            |  b: 1
+            |  sh: 2
+            |  i: 3
+            |  l: 4
+            |  f: 5
+            |  d: 6
+            |  c: "7"
+            |  s: VVV
+            |r1_2:
+            |  bl: false
+            |  b: 2
+            |  sh: 3
+            |  i: 4
+            |  l: 5
+            |  f: 6
+            |  d: 7
+            |  c: ""
+            |  s: WWW""".stripMargin,
+          "Expected single char, got:  at: .r1_2.c"
         )
       },
       test("record with optional field") {
@@ -558,26 +590,48 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             |last: 2""".stripMargin
         )
       },
+      test("record with required optional field") {
+        val codec = deriveCodec[Record4](_.withRequireOptionFields(true))
+        roundTrip(
+          Record4((), Some("VVV")),
+          """hidden: null
+            |optKey: VVV""".stripMargin,
+          codec
+        ) &&
+        decodeError[Record4]("hidden: null", "Missing required field: optKey at: .", codec)
+      },
+      test("record with non-transient optional encodes null values in objects") {
+        roundTrip(
+          Record4((), None),
+          """hidden: null
+            |optKey: null""".stripMargin,
+          deriveCodec[Record4](_.withTransientNone(false))
+        )
+      },
       test("extra fields are ignored by default") {
-        val toon = """name: Alice
-                     |age: 25
-                     |unknownField: ignored""".stripMargin
-        decode(toon, SimplePerson("Alice", 25))
+        decode(
+          """name: Alice
+            |age: 25
+            |unknownField: ignored""".stripMargin,
+          SimplePerson("Alice", 25)
+        )
       },
       test("extra fields cause error when rejectExtraFields is true") {
-        val deriver = ToonBinaryCodecDeriver.withRejectExtraFields(true)
-        val codec   = deriveCodec(SimplePerson.schema, deriver)
-        val toon    = """name: Alice
-                        |age: 25
-                        |unknownField: ignored""".stripMargin
-        decodeError(toon, "Line 3: Unexpected field: unknownField at: .", codec)
+        decodeError(
+          """name: Alice
+            |age: 25
+            |unknownField: ignored""".stripMargin,
+          "Unexpected field: unknownField at: .",
+          deriveCodec[SimplePerson](_.withRejectExtraFields(true))
+        )
       },
       test("known fields work with rejectExtraFields true") {
-        val deriver = ToonBinaryCodecDeriver.withRejectExtraFields(true)
-        val codec   = deriveCodec(SimplePerson.schema, deriver)
-        val toon    = """name: Bob
-                        |age: 30""".stripMargin
-        decode(toon, SimplePerson("Bob", 30), codec)
+        decode(
+          """name: Bob
+            |age: 30""".stripMargin,
+          SimplePerson("Bob", 30),
+          deriveCodec[SimplePerson](_.withRejectExtraFields(true))
+        )
       },
       test("user profile with address") {
         roundTrip(
@@ -596,20 +650,87 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             |  zip: "12345"""".stripMargin
         )
       },
-      test("order with line items") {
+      test("collection field alongside other fields") {
         roundTrip(
           Order("ORD-001", List("Widget", "Gadget"), BigDecimal("99.99")),
           """orderId: ORD-001
             |items[2]: Widget,Gadget
             |total: 99.99""".stripMargin
+        ) &&
+        roundTrip(
+          Order("ORD-001", List.empty, BigDecimal("99.99")),
+          """orderId: ORD-001
+            |total: 99.99""".stripMargin
         )
       },
-      test("config with nested options") {
+      test("collection field alongside other fields with withTransientEmptyCollection false") {
+        roundTrip(
+          Order("ORD-001", List.empty, BigDecimal("99.99")),
+          """orderId: ORD-001
+            |items[0]:
+            |total: 99.99""".stripMargin,
+          deriveCodec[Order](_.withTransientEmptyCollection(false))
+        )
+      },
+      test("collection field alongside other fields with withRequireCollectionFields true") {
+        decode(
+          """orderId: ORD-001
+            |items[0]:
+            |total: 99.99""".stripMargin,
+          Order("ORD-001", List.empty, BigDecimal("99.99")),
+          deriveCodec[Order](_.withRequireCollectionFields(true))
+        ) &&
+        decodeError[Order](
+          """orderId: ORD-001
+            |total: 99.99""".stripMargin,
+          "Missing required field: items at: .",
+          deriveCodec[Order](_.withRequireCollectionFields(true))
+        )
+      },
+      test("default value field") {
+        roundTrip(
+          ServerConfig("localhost", 80, Some(true)),
+          """host: localhost
+            |ssl: true""".stripMargin
+        ) &&
         roundTrip(
           ServerConfig("localhost", 8080, Some(true)),
           """host: localhost
             |port: 8080
             |ssl: true""".stripMargin
+        )
+      },
+      test("default value field with withTransientDefaultValue false") {
+        val codec = deriveCodec[ServerConfig](_.withTransientDefaultValue(false))
+        roundTrip(
+          ServerConfig("localhost", 80, Some(true)),
+          """host: localhost
+            |port: 80
+            |ssl: true""".stripMargin,
+          codec
+        ) &&
+        roundTrip(
+          ServerConfig("localhost", 8080, Some(true)),
+          """host: localhost
+            |port: 8080
+            |ssl: true""".stripMargin,
+          codec
+        )
+      },
+      test("default value field with withRequireDefaultValueFields true") {
+        val codec = deriveCodec[ServerConfig](_.withRequireDefaultValueFields(true))
+        decode(
+          """host: localhost
+            |port: 8080
+            |ssl: true""".stripMargin,
+          ServerConfig("localhost", 8080, Some(true)),
+          codec
+        ) &&
+        decodeError[ServerConfig](
+          """host: localhost
+            |ssl: true""".stripMargin,
+          "Missing required field: port at: .",
+          codec
         )
       },
       test("map field alongside other fields") {
@@ -620,13 +741,111 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             |  role: admin
             |  status: active
             |count: 42""".stripMargin
-        )
-      },
-      test("map field alongside other fields with empty map") {
+        ) &&
         roundTrip(
           RecordWithMapField("test", Map.empty, 42),
           """name: test
             |count: 42""".stripMargin
+        )
+      },
+      test("map field alongside other fields with withTransientEmptyCollection false") {
+        roundTrip(
+          RecordWithMapField("test", Map.empty, 42),
+          """name: test
+            |metadata:
+            |count: 42""".stripMargin,
+          deriveCodec[RecordWithMapField](_.withTransientEmptyCollection(false))
+        )
+      },
+      test("map field alongside other fields with withRequireCollectionFields true") {
+        val codec = deriveCodec[RecordWithMapField](_.withRequireCollectionFields(true))
+        decode(
+          """name: test
+            |metadata:
+            |  role: admin
+            |  status: active
+            |count: 42""".stripMargin,
+          RecordWithMapField("test", Map("role" -> "admin", "status" -> "active"), 42),
+          codec
+        ) &&
+        decodeError[RecordWithMapField](
+          """name: test
+            |count: 42""".stripMargin,
+          "Missing required field: metadata at: .",
+          codec
+        )
+      },
+      test("record with custom codecs of different field mapping") {
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """camelCase: 1
+            |PascalCase: 2
+            |snake_case: 3
+            |"kebab-case": 4
+            |camel1: 5
+            |Pascal1: 6
+            |snake_1: 7
+            |"kebab-1": 8""".stripMargin
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """CAMELCASE: 1
+            |PASCALCASE: 2
+            |SNAKE_CASE: 3
+            |"KEBAB-CASE": 4
+            |CAMEL1: 5
+            |PASCAL1: 6
+            |SNAKE_1: 7
+            |"KEBAB-1": 8""".stripMargin,
+          deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(Custom(_.toUpperCase)))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """camel_case: 1
+            |pascal_case: 2
+            |snake_case: 3
+            |kebab_case: 4
+            |camel1: 5
+            |pascal1: 6
+            |snake_1: 7
+            |kebab_1: 8""".stripMargin,
+          deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(SnakeCase))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """"camel-case": 1
+            |"pascal-case": 2
+            |"snake-case": 3
+            |"kebab-case": 4
+            |camel1: 5
+            |pascal1: 6
+            |"snake-1": 7
+            |"kebab-1": 8""".stripMargin,
+          deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(KebabCase))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """CamelCase: 1
+            |PascalCase: 2
+            |SnakeCase: 3
+            |KebabCase: 4
+            |Camel1: 5
+            |Pascal1: 6
+            |Snake1: 7
+            |Kebab1: 8""".stripMargin,
+          deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(PascalCase))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """camelCase: 1
+            |pascalCase: 2
+            |snakeCase: 3
+            |kebabCase: 4
+            |camel1: 5
+            |pascal1: 6
+            |snake1: 7
+            |kebab1: 8""".stripMargin,
+          deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(CamelCase))
         )
       }
     ),
@@ -635,6 +854,25 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip[TrafficLight](TrafficLight.Green, "Green") &&
         roundTrip[TrafficLight](TrafficLight.Yellow, "Yellow") &&
         roundTrip[TrafficLight](TrafficLight.Red, "Red")
+      },
+      test("case object enumeration with case key renaming using case name mapper") {
+        roundTrip[TrafficLight](
+          TrafficLight.Green,
+          """GREEN""",
+          deriveCodec[TrafficLight](_.withCaseNameMapper(NameMapper.Custom(_.toUpperCase)))
+        ) &&
+        roundTrip[TrafficLight](
+          TrafficLight.Yellow,
+          """yellow""",
+          deriveCodec[TrafficLight](_.withCaseNameMapper(NameMapper.SnakeCase))
+        )
+      },
+      test("case object enumeration with toggled off string representation for values") {
+        roundTrip[TrafficLight](
+          TrafficLight.Green,
+          """Green:""",
+          deriveCodec[TrafficLight](_.withEnumValuesAsStrings(false))
+        )
       },
       test("option") {
         roundTrip(Option(42), "42") &&
@@ -655,101 +893,80 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("field discriminator roundtrips correctly") {
-        val deriver = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type"))
-        val codec   = deriveCodec(Pet.schema, deriver)
         roundTrip[Pet](
           Pet.Dog("Buddy", "Labrador"),
           """type: Dog
             |name: Buddy
             |breed: Labrador""".stripMargin,
-          codec
+          deriveCodec[Pet](_.withDiscriminatorKind(DiscriminatorKind.Field("type")))
         )
       },
       test("None discriminator roundtrips correctly") {
-        val deriver = ToonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
-        val codec   = deriveCodec(Pet.schema, deriver)
         roundTrip[Pet](
           Pet.Dog("Buddy", "Labrador"),
           """name: Buddy
             |breed: Labrador""".stripMargin,
-          codec
+          deriveCodec[Pet](_.withDiscriminatorKind(DiscriminatorKind.None))
         ) &&
         roundTrip[Pet](
           Pet.Cat("Whiskers", 9),
           """name: Whiskers
             |lives: 9""".stripMargin,
-          codec
+          deriveCodec[Pet](_.withDiscriminatorKind(DiscriminatorKind.None))
         )
       }
     ),
     suite("sequences")(
       test("primitive values") {
+        roundTrip(List(1, 2, 3), "[3]: 1,2,3") &&
         roundTrip(IntList(List(1, 2, 3)), "xs[3]: 1,2,3")
       },
       test("empty sequence") {
+        roundTrip[List[Int]](Nil, "[0]:") &&
         roundTrip(IntList(Nil), "")
       },
       test("string values") {
+        roundTrip(List("hello", "world"), "[2]: hello,world") &&
         roundTrip(StringList(List("hello", "world")), "xs[2]: hello,world")
       },
       test("list with many elements") {
-        val nums = (1 to 10).toList
-        roundTrip(IntList(nums), s"xs[10]: ${nums.mkString(",")}")
-      },
-      test("list with single element") {
-        roundTrip(IntList(List(42)), "xs[1]: 42")
-      },
-      test("inline array format for primitives") {
-        roundTrip(IntList(List(1, 2, 3)), "xs[3]: 1,2,3")
+        roundTrip((1 to 10).toList, "[10]: 1,2,3,4,5,6,7,8,9,10") &&
+        roundTrip(IntList((1 to 10).toList), "xs[10]: 1,2,3,4,5,6,7,8,9,10")
       },
       test("ArrayFormat.Tabular encodes record arrays in tabular format") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-        val codec   = deriveCodec(PersonList.schema, deriver)
         roundTrip(
-          PersonList(
-            List(
-              SimplePerson("Alice", 25),
-              SimplePerson("Bob", 30)
-            )
-          ),
+          PersonList(List(SimplePerson("Alice", 25), SimplePerson("Bob", 30))),
           """people[2]{name,age}:
             |  Alice,25
             |  Bob,30""".stripMargin,
-          codec
+          deriveCodec[PersonList](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
       test("ArrayFormat.Tabular with custom delimiter") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Pipe)
-        val codec   = deriveCodec(PersonList.schema, deriver)
         roundTrip(
-          PersonList(
-            List(
-              SimplePerson("Alice", 25),
-              SimplePerson("Bob", 30)
-            )
-          ),
+          PersonList(List(SimplePerson("Alice", 25), SimplePerson("Bob", 30))),
           """people[2|]{name|age}:
             |  Alice|25
             |  Bob|30""".stripMargin,
-          codec
+          deriveCodec[PersonList](_.withArrayFormat(ArrayFormat.Tabular).withDelimiter(Delimiter.Pipe))
         )
       },
       test("ArrayFormat.List forces list format even for primitives") {
-        val deriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.List)
-        val codec   = deriveCodec(IntList.schema, deriver)
         roundTrip(
           IntList(List(1, 2, 3)),
           """xs[3]:
             |  - 1
             |  - 2
             |  - 3""".stripMargin,
-          codec
+          deriveCodec[IntList](_.withArrayFormat(ArrayFormat.List))
         )
       },
       test("withDelimiter affects inline arrays") {
-        val deriver = ToonBinaryCodecDeriver.withDelimiter(Delimiter.Pipe)
-        val codec   = deriveCodec(IntList.schema, deriver)
-        roundTrip(IntList(List(1, 2, 3)), """xs[3|]: 1|2|3""", codec)
+        roundTrip(
+          IntList(List(1, 2, 3)),
+          """xs[3|]: 1|2|3""",
+          deriveCodec[IntList](_.withDelimiter(Delimiter.Pipe))
+        )
       }
     ),
     suite("maps")(
@@ -869,6 +1086,41 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           encoded.contains("name: Buddy"),
           decoded == Right(variant)
         )
+      },
+      test("leading zeros decode as string, not number") {
+        decodeDynamic(
+          "value: 05",
+          record("value" -> dynamicStr("05")),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
+      },
+      test("multiple leading zeros decode as string") {
+        decodeDynamic(
+          "value: 007",
+          record("value" -> dynamicStr("007")),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
+      },
+      test("negative with leading zero decodes as string") {
+        decodeDynamic(
+          "value: -05",
+          record("value" -> dynamicStr("-05")),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
+      },
+      test("single zero is a valid number") {
+        decodeDynamic(
+          "value: 0",
+          record("value" -> dynamicInt(0)),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
+      },
+      test("zero with decimal is a valid number") {
+        decodeDynamic(
+          "value: 0.5",
+          record("value" -> DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("0.5")))),
+          ReaderConfig.withExpandPaths(PathExpansion.Safe)
+        )
       }
     )
   )
@@ -980,7 +1232,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Order] = Schema.derived
   }
 
-  case class ServerConfig(host: String, port: Int, ssl: Option[Boolean])
+  case class ServerConfig(host: String, port: Int = 80, ssl: Option[Boolean])
 
   object ServerConfig {
     implicit val schema: Schema[ServerConfig] = Schema.derived
@@ -1002,5 +1254,20 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
   object RecordWithMapField {
     implicit val schema: Schema[RecordWithMapField] = Schema.derived
+  }
+
+  case class CamelPascalSnakeKebabCases(
+    camelCase: Int,
+    PascalCase: Int,
+    snake_case: Int,
+    `kebab-case`: Int,
+    camel1: Int,
+    Pascal1: Int,
+    snake_1: Int,
+    `kebab-1`: Int
+  )
+
+  object CamelPascalSnakeKebabCases {
+    implicit val schema: Schema[CamelPascalSnakeKebabCases] = Schema.derived
   }
 }

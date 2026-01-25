@@ -1,7 +1,6 @@
 package zio.blocks.schema.msgpack
 
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
-import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema._
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import scala.util.control.NonFatal

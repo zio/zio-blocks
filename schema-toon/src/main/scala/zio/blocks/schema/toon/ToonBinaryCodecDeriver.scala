@@ -273,21 +273,13 @@ class ToonBinaryCodecDeriver private[toon] (
   )
 
   private[this] def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): ToonBinaryCodec[A] = {
-    if (reflect.isPrimitive) {
-      derivePrimitiveCodec(reflect.asPrimitive.get)
-    } else if (reflect.isVariant) {
-      deriveVariantCodec(reflect.asVariant.get)
-    } else if (reflect.isSequence) {
-      deriveSequenceCodec(reflect.asSequenceUnknown.get.sequence)
-    } else if (reflect.isMap) {
-      deriveMapCodec(reflect.asMapUnknown.get.map)
-    } else if (reflect.isRecord) {
-      deriveRecordCodec(reflect.asRecord.get)
-    } else if (reflect.isWrapper) {
-      deriveWrapperCodec(reflect.asWrapperUnknown.get.wrapper)
-    } else {
-      deriveDynamicCodec(reflect.asDynamic.get)
-    }
+    if (reflect.isPrimitive) derivePrimitiveCodec(reflect.asPrimitive.get)
+    else if (reflect.isVariant) deriveVariantCodec(reflect.asVariant.get)
+    else if (reflect.isSequence) deriveSequenceCodec(reflect.asSequenceUnknown.get.sequence)
+    else if (reflect.isMap) deriveMapCodec(reflect.asMapUnknown.get.map)
+    else if (reflect.isRecord) deriveRecordCodec(reflect.asRecord.get)
+    else if (reflect.isWrapper) deriveWrapperCodec(reflect.asWrapperUnknown.get.wrapper)
+    else deriveDynamicCodec(reflect.asDynamic.get)
   }.asInstanceOf[ToonBinaryCodec[A]]
 
   private[this] def derivePrimitiveCodec[F[_, _], A](primitive: Reflect.Primitive[F, A]): ToonBinaryCodec[A] = {
@@ -329,32 +321,28 @@ class ToonBinaryCodecDeriver private[toon] (
 
   private[this] def deriveVariantCodec[F[_, _], A](variant: Reflect.Variant[F, A]): ToonBinaryCodec[A] =
     if (variant.variantBinding.isInstanceOf[Binding[?, ?]]) {
-      val discr = variant.variantBinding.asInstanceOf[Binding.Variant[A]].discriminator
-      variantBuilder.build(variant, discr)
+      variantBuilder.build(variant, variant.variantBinding.asInstanceOf[Binding.Variant[A]].discriminator)
     } else {
       variant.variantBinding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, A]].instance.force
     }
 
   private[this] def deriveSequenceCodec[F[_, _], A, C[_]](sequence: Reflect.Sequence[F, A, C]): ToonBinaryCodec[C[A]] =
     if (sequence.seqBinding.isInstanceOf[Binding[?, ?]]) {
-      val binding = sequence.seqBinding.asInstanceOf[Binding.Seq[C, A]]
-      sequenceBuilder.build(sequence, binding)
+      sequenceBuilder.build(sequence, sequence.seqBinding.asInstanceOf[Binding.Seq[C, A]])
     } else {
       sequence.seqBinding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, C[A]]].instance.force
     }
 
   private[this] def deriveMapCodec[F[_, _], K, V, M[_, _]](map: Reflect.Map[F, K, V, M]): ToonBinaryCodec[M[K, V]] =
     if (map.mapBinding.isInstanceOf[Binding[?, ?]]) {
-      val binding = map.mapBinding.asInstanceOf[Binding.Map[M, K, V]]
-      mapBuilder.build(map, binding)
+      mapBuilder.build(map, map.mapBinding.asInstanceOf[Binding.Map[M, K, V]])
     } else {
       map.mapBinding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, M[K, V]]].instance.force
     }
 
   private[this] def deriveRecordCodec[F[_, _], A](record: Reflect.Record[F, A]): ToonBinaryCodec[A] =
     if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
-      val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
-      recordBuilder.build(record, binding)
+      recordBuilder.build(record, record.recordBinding.asInstanceOf[Binding.Record[A]])
     } else {
       record.recordBinding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, A]].instance.force
     }
@@ -389,15 +377,11 @@ class ToonBinaryCodecDeriver private[toon] (
                 }.asInstanceOf[B]
               )
             } catch {
-              case error if NonFatal(error) =>
-                throw new ToonBinaryCodecError(
-                  new ::(DynamicOptic.Node.Wrapped, Nil),
-                  error.getMessage
-                )
+              case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Wrapped, err)
             }
           ) match {
             case Right(x)    => x
-            case Left(error) => in.decodeError(error)
+            case Left(error) => in.decodeError(error.message)
           }
 
         override def encodeValue(x: A, out: ToonWriter): Unit = wrappedCodec.encodeValue(unwrap(x), out)
@@ -406,15 +390,11 @@ class ToonBinaryCodecDeriver private[toon] (
           wrap(
             try wrappedCodec.decodeKey(in)
             catch {
-              case error if NonFatal(error) =>
-                throw new ToonBinaryCodecError(
-                  new ::(DynamicOptic.Node.Wrapped, Nil),
-                  error.getMessage
-                )
+              case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Wrapped, err)
             }
           ) match {
             case Right(x)    => x
-            case Left(error) => in.decodeError(error)
+            case Left(error) => in.decodeError(error.message)
           }
 
         override def encodeKey(x: A, out: ToonWriter): Unit = wrappedCodec.encodeKey(unwrap(x), out)
