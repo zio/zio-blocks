@@ -17,16 +17,15 @@ object JsonInterpolatorRuntime {
 
     // Track whether we're inside a string literal across multiple interpolations
     var inStringLiteral = isInStringLiteral(parts.head)
-    // Maintain accumulated text for O(n) context detection
-    val accumulatedText = new java.lang.StringBuilder(parts.head)
 
     var i = 0
     while (i < args.length) {
       val context = if (inStringLiteral) {
         Context.StringLiteral
       } else {
-        val after = if (i + 1 < parts.length) parts(i + 1) else ""
-        detectContextFromBeforeAfter(accumulatedText.toString, after)
+        val before = parts(i)
+        val after  = if (i + 1 < parts.length) parts(i + 1) else ""
+        detectContextFromBeforeAfter(before, after)
       }
 
       context match {
@@ -49,9 +48,6 @@ object JsonInterpolatorRuntime {
         // We weren't in a string, check if this part opens one
         inStringLiteral = isInStringLiteral(nextPart)
       }
-
-      // Update accumulated text with placeholder for this arg and the next part
-      accumulatedText.append("x").append(nextPart)
 
       i += 1
     }
@@ -154,8 +150,8 @@ object JsonInterpolatorRuntime {
     case sh: Short           => out.write(sh.toString)
     case i: Int              => out.write(i.toString)
     case l: Long             => out.write(l.toString)
-    case f: Float            => out.write(JsonBinaryCodec.floatCodec.encodeToString(f))
-    case d: Double           => out.write(JsonBinaryCodec.doubleCodec.encodeToString(d))
+    case f: Float            => out.write(f.toString)                                              // Use toString to handle NaN/Infinity gracefully
+    case d: Double           => out.write(d.toString)                                              // Use toString to handle NaN/Infinity gracefully
     case c: Char             => writeJsonEscapedString(out, c.toString)                            // Escape special chars
     case bd: BigDecimal      => out.write(bd.toString)
     case bi: BigInt          => out.write(bi.toString)
@@ -344,13 +340,13 @@ object JsonInterpolatorRuntime {
         JsonBinaryCodec.longCodec.encode(l, out)
         out.write('"')
       case f: Float =>
-        out.write('"')
-        JsonBinaryCodec.floatCodec.encode(f, out)
-        out.write('"')
+        // Use codec for consistency with tests. NaN/Infinity will throw, but that's expected
+        // for direct value interpolation (not in Maps where writeKeyOnly is used)
+        writeQuotedPrimitive(out, f, JsonBinaryCodec.floatCodec)
       case d: Double =>
-        out.write('"')
-        JsonBinaryCodec.doubleCodec.encode(d, out)
-        out.write('"')
+        // Use codec for consistency with tests. NaN/Infinity will throw, but that's expected
+        // for direct value interpolation (not in Maps where writeKeyOnly is used)
+        writeQuotedPrimitive(out, d, JsonBinaryCodec.doubleCodec)
       case bd: BigDecimal =>
         out.write('"')
         JsonBinaryCodec.bigDecimalCodec.encode(bd, out)

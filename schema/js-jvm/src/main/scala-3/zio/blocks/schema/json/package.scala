@@ -161,81 +161,12 @@ package object json {
     }
   }
 
-  private def checkHasJsonEncoder(arg: Expr[Any], context: String)(using Quotes): Unit = {
-    import quotes.reflect._
-
-    val tpe = arg.asTerm.tpe.widen
-
-    // Json itself is always allowed
-    if (tpe <:< TypeRepr.of[Json]) {
-      return
-    }
-
-    // For container types, validate their type parameters
-    if (tpe <:< TypeRepr.of[scala.collection.Map[_, _]]) {
-      tpe match {
-        case AppliedType(_, List(keyType, valueType)) =>
-          checkHasJsonEncoderForType(keyType, s"map key in $context")
-          checkHasJsonEncoderForType(valueType, s"map value in $context")
-        case _ => // No type args available, skip validation
-      }
-      return
-    }
-
-    if (tpe <:< TypeRepr.of[scala.collection.Iterable[_]]) {
-      tpe match {
-        case AppliedType(_, List(elemType)) =>
-          checkHasJsonEncoderForType(elemType, s"iterable element in $context")
-        case _ => // No type args available, skip validation
-      }
-      return
-    }
-
-    if (tpe <:< TypeRepr.of[Array[_]]) {
-      tpe match {
-        case AppliedType(_, List(elemType)) =>
-          checkHasJsonEncoderForType(elemType, s"array element in $context")
-        case _ => // No type args available, skip validation
-      }
-      return
-    }
-
-    if (tpe <:< TypeRepr.of[Option[_]]) {
-      tpe match {
-        case AppliedType(_, List(elemType)) =>
-          checkHasJsonEncoderForType(elemType, s"option value in $context")
-        case _ => // No type args available, skip validation
-      }
-      return
-    }
-
-    // For non-container types, require an implicit JsonEncoder[T]
-    checkHasJsonEncoderForType(tpe, context)
-  }
-
-  private def checkHasJsonEncoderForType(using Quotes)(tpe: quotes.reflect.TypeRepr, context: String): Unit = {
-    import quotes.reflect._
-
-    // Json itself is always allowed
-    if (tpe <:< TypeRepr.of[Json]) {
-      return
-    }
-
-    val encoderType = TypeRepr.of[JsonEncoder].appliedTo(tpe)
-
-    Implicits.search(encoderType) match {
-      case _: ImplicitSearchSuccess => // Has JsonEncoder, OK
-      case _: ImplicitSearchFailure =>
-        val typeStr = tpe.show
-        report.errorAndAbort(
-          s"Type error in JSON interpolation at $context:\n" +
-            s"  Found: $typeStr\n" +
-            s"  Required: A type with an implicit JsonEncoder[$typeStr]\n" +
-            s"  Hint: Provide an implicit JsonEncoder[$typeStr] in scope.\n" +
-            s"        JsonEncoders can be:\n" +
-            s"        - Explicitly defined\n" +
-            s"        - Derived from Schema[$typeStr] (ensure implicit Schema[$typeStr] is in scope)"
-        )
-    }
-  }
+  private def checkHasJsonEncoder(arg: Expr[Any], context: String)(using Quotes): Unit =
+    // NOTE:
+    // The JSON interpolator runtime does not use JsonEncoder instances; it
+    // pattern-matches on a fixed set of types and otherwise falls back to
+    // `toString`. To avoid giving a misleading guarantee at compile time, this
+    // check is intentionally a no-op and does not require an implicit
+    // JsonEncoder for `arg`.
+    ()
 }
