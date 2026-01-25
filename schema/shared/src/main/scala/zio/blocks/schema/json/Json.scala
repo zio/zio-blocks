@@ -385,20 +385,60 @@ sealed trait Json {
   def toKV: Seq[(DynamicOptic, Json)] = Json.toKVImpl(this, DynamicOptic.root)
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Stubbed Methods (to be implemented later)
+  // Schema Validation
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Computes the difference between this JSON and another. */
-  def diff(that: Json): Json = ???
+  /**
+   * Computes the difference between this JSON and another. Returns an RFC 6902
+   * JSON Patch array.
+   *
+   * @param that
+   *   The target JSON value to diff against
+   * @return
+   *   A JSON array of patch operations
+   */
+  def diff(that: Json): Json = Json.computeDiff(this, that, DynamicOptic.root)
 
-  /** Applies a JSON patch to this value. */
-  def patch(patch: Json): Either[JsonError, Json] = ???
+  /**
+   * Applies a JSON Patch (RFC 6902) to this value.
+   *
+   * @param patchOps
+   *   A JSON array of patch operations
+   * @return
+   *   Either the patched JSON or an error
+   */
+  def patch(patchOps: Json): Either[JsonError, Json] = Json.applyPatch(this, patchOps)
 
-  /** Checks if this JSON conforms to a JSON Schema. */
-  def check(schema: Json): Either[JsonError, Unit] = ???
+  /**
+   * Checks if this JSON conforms to a JSON Schema.
+   *
+   * @param schema
+   *   JSON representation of the schema
+   * @return
+   *   Right(()) if valid, Left(error) if invalid
+   */
+  def check(schema: Json): Either[JsonError, Unit] =
+    JsonSchema.fromJson(schema) match {
+      case Left(err)         => Left(JsonError(err.message))
+      case Right(jsonSchema) => check(jsonSchema).left.map(e => JsonError(e.message))
+    }
+
+  /**
+   * Checks if this JSON conforms to a JsonSchema.
+   *
+   * @param schema
+   *   The JsonSchema to validate against
+   * @return
+   *   Right(()) if valid, Left(errors) if invalid
+   */
+  def check(schema: JsonSchema): Either[JsonSchemaError, Unit] =
+    schema.validate(this)
 
   /** Returns true if this JSON conforms to a JSON Schema. */
-  def conforms(schema: Json): Boolean = ???
+  def conforms(schema: Json): Boolean = check(schema).isRight
+
+  /** Returns true if this JSON conforms to a JsonSchema. */
+  def conforms(schema: JsonSchema): Boolean = check(schema).isRight
 }
 
 object Json {
@@ -1768,6 +1808,242 @@ object Json {
       case other => new Left(JsonError(s"Insert not supported for path node type: $other"))
     }
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RFC 6902 JSON Patch Implementation
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Computes the difference between two JSON values as RFC 6902 patch
+   * operations.
+   */
+  private[json] def computeDiff(source: Json, target: Json, path: DynamicOptic): Json = {
+    val ops = scala.collection.mutable.ArrayBuffer.empty[Json]
+    computeDiffRecursive(source, target, path, ops)
+    new Array(ops.toVector)
+  }
+
+  private def pathToString(path: DynamicOptic): java.lang.String = {
+    val nodes = path.nodes
+    if (nodes.isEmpty) ""
+    else
+      nodes.map {
+        case DynamicOptic.Node.Field(name)  => "/" + escapeJsonPointer(name)
+        case DynamicOptic.Node.AtIndex(idx) => "/" + idx.toString
+        case _                              => "" // Other node types not used in JSON Pointer
+      }.mkString
+  }
+
+  private def escapeJsonPointer(s: java.lang.String): java.lang.String =
+    s.replace("~", "~0").replace("/", "~1")
+
+  private def computeDiffRecursive(
+    source: Json,
+    target: Json,
+    path: DynamicOptic,
+    ops: scala.collection.mutable.ArrayBuffer[Json]
+  ): Unit = {
+    if (source == target) return
+
+    (source, target) match {
+      case (srcObj: Object, tgtObj: Object) =>
+        val srcMap  = srcObj.value.toMap
+        val tgtMap  = tgtObj.value.toMap
+        val srcKeys = srcMap.keySet
+        val tgtKeys = tgtMap.keySet
+
+        // Removed keys
+        (srcKeys -- tgtKeys).foreach { key =>
+          ops += obj(
+            "op"   -> str("remove"),
+            "path" -> str(pathToString(path.field(key)))
+          )
+        }
+
+        // Added keys
+        (tgtKeys -- srcKeys).foreach { key =>
+          ops += obj(
+            "op"    -> str("add"),
+            "path"  -> str(pathToString(path.field(key))),
+            "value" -> tgtMap(key)
+          )
+        }
+
+        // Changed keys
+        (srcKeys intersect tgtKeys).foreach { key =>
+          val srcVal = srcMap(key)
+          val tgtVal = tgtMap(key)
+          if (srcVal != tgtVal) {
+            computeDiffRecursive(srcVal, tgtVal, path.field(key), ops)
+          }
+        }
+
+      case (srcArr: Array, tgtArr: Array) =>
+        // For arrays, use a simple approach: if same length, diff element by element
+        // Otherwise, replace the whole array
+        if (srcArr.value.length == tgtArr.value.length) {
+          srcArr.value.zipWithIndex.foreach { case (srcElem, idx) =>
+            val tgtElem = tgtArr.value(idx)
+            if (srcElem != tgtElem) {
+              computeDiffRecursive(srcElem, tgtElem, path.at(idx), ops)
+            }
+          }
+        } else {
+          // Different lengths - replace the whole array
+          ops += obj(
+            "op"    -> str("replace"),
+            "path"  -> str(pathToString(path)),
+            "value" -> target
+          )
+        }
+
+      case _ =>
+        // Different types or primitive values - replace
+        ops += obj(
+          "op"    -> str("replace"),
+          "path"  -> str(pathToString(path)),
+          "value" -> target
+        )
+    }
+  }
+
+  /**
+   * Applies RFC 6902 JSON Patch operations to a JSON value.
+   */
+  private[json] def applyPatch(json: Json, patchOps: Json): Either[JsonError, Json] =
+    patchOps match {
+      case arr: Array =>
+        var result: Json = json
+        var idx          = 0
+        while (idx < arr.value.length) {
+          val op = arr.value(idx)
+          applyPatchOp(result, op) match {
+            case Right(newJson) => result = newJson
+            case Left(err)      => return Left(JsonError(s"Patch operation $idx failed: ${err.message}"))
+          }
+          idx += 1
+        }
+        Right(result)
+      case _ =>
+        Left(JsonError("Patch must be a JSON array of operations"))
+    }
+
+  private def applyPatchOp(json: Json, op: Json): Either[JsonError, Json] =
+    op match {
+      case opObj: Object =>
+        val fields = opObj.value.toMap
+
+        val opType = fields.get("op").flatMap(_.stringValue) match {
+          case Some(t) => t
+          case None    => return Left(JsonError("Patch operation missing 'op' field"))
+        }
+
+        val pathStr = fields.get("path").flatMap(_.stringValue) match {
+          case Some(p) => p
+          case None    => return Left(JsonError("Patch operation missing 'path' field"))
+        }
+
+        val path = parseJsonPointer(pathStr) match {
+          case Right(p)  => p
+          case Left(err) => return Left(err)
+        }
+
+        opType match {
+          case "add" =>
+            fields.get("value") match {
+              case Some(value) =>
+                if (path == DynamicOptic.root) Right(value)
+                else json.insertOrFail(path, value).orElse(json.setOrFail(path, value))
+              case None => Left(JsonError("'add' operation missing 'value' field"))
+            }
+
+          case "remove" =>
+            if (path == DynamicOptic.root) Left(JsonError("Cannot remove root"))
+            else json.deleteOrFail(path)
+
+          case "replace" =>
+            fields.get("value") match {
+              case Some(value) =>
+                if (path == DynamicOptic.root) Right(value)
+                else json.setOrFail(path, value)
+              case None => Left(JsonError("'replace' operation missing 'value' field"))
+            }
+
+          case "move" =>
+            fields.get("from").flatMap(_.stringValue) match {
+              case Some(fromStr) =>
+                parseJsonPointer(fromStr) match {
+                  case Right(fromPath) =>
+                    json.get(fromPath).single match {
+                      case Right(value) =>
+                        json.deleteOrFail(fromPath).flatMap { afterDelete =>
+                          if (path == DynamicOptic.root) Right(value)
+                          else afterDelete.insertOrFail(path, value).orElse(afterDelete.setOrFail(path, value))
+                        }
+                      case Left(err) => Left(err)
+                    }
+                  case Left(err) => Left(err)
+                }
+              case None => Left(JsonError("'move' operation missing 'from' field"))
+            }
+
+          case "copy" =>
+            fields.get("from").flatMap(_.stringValue) match {
+              case Some(fromStr) =>
+                parseJsonPointer(fromStr) match {
+                  case Right(fromPath) =>
+                    json.get(fromPath).single match {
+                      case Right(value) =>
+                        if (path == DynamicOptic.root) Right(value)
+                        else json.insertOrFail(path, value).orElse(json.setOrFail(path, value))
+                      case Left(err) => Left(err)
+                    }
+                  case Left(err) => Left(err)
+                }
+              case None => Left(JsonError("'copy' operation missing 'from' field"))
+            }
+
+          case "test" =>
+            fields.get("value") match {
+              case Some(expectedValue) =>
+                json.get(path).single match {
+                  case Right(actualValue) =>
+                    if (actualValue == expectedValue) Right(json)
+                    else Left(JsonError(s"'test' failed: values not equal at $pathStr"))
+                  case Left(err) => Left(JsonError(s"'test' failed: ${err.message}"))
+                }
+              case None => Left(JsonError("'test' operation missing 'value' field"))
+            }
+
+          case other =>
+            Left(JsonError(s"Unknown patch operation: $other"))
+        }
+
+      case _ =>
+        Left(JsonError("Patch operation must be a JSON object"))
+    }
+
+  private def parseJsonPointer(pointer: java.lang.String): Either[JsonError, DynamicOptic] =
+    if (pointer.isEmpty) Right(DynamicOptic.root)
+    else if (!pointer.startsWith("/")) Left(JsonError(s"Invalid JSON Pointer: $pointer (must start with /)"))
+    else {
+      val tokens = pointer.drop(1).split("/", -1).map(unescapeJsonPointer)
+      var optic  = DynamicOptic.root
+      tokens.foreach { token =>
+        // Try to parse as array index
+        try {
+          val idx = token.toInt
+          optic = optic.at(idx)
+        } catch {
+          case _: NumberFormatException =>
+            optic = optic.field(token)
+        }
+      }
+      Right(optic)
+    }
+
+  private def unescapeJsonPointer(s: java.lang.String): java.lang.String =
+    s.replace("~1", "/").replace("~0", "~")
 
   // ─────────────────────────────────────────────────────────────────────────
   // Ordering

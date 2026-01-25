@@ -18,7 +18,7 @@ object Validation {
 
     case class Range[A](min: Option[A], max: Option[A]) extends Numeric[A]
 
-    case class Set[A](values: Set[A]) extends Numeric[A]
+    case class Set[A](values: scala.collection.immutable.Set[A]) extends Numeric[A]
   }
 
   sealed trait String extends Validation[String]
@@ -34,6 +34,6 @@ object Validation {
 
     case class Length(min: Option[scala.Int], max: Option[scala.Int]) extends String
 
-    case class Pattern(regex: String) extends String
+    case class Pattern(regex: scala.Predef.String) extends String
   }
 }

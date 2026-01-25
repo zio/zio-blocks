@@ -150,6 +150,29 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(to, from)
     )
   )
+
+  /**
+   * Derives a JSON Schema 2020-12 representation from this schema.
+   *
+   * The generated schema will include:
+   *   - Type constraints matching the Scala types
+   *   - Property definitions for records/case classes
+   *   - Required fields for non-optional record fields
+   *   - Format specifications for date/time/UUID types
+   *   - Pattern constraints for enum types
+   *   - Validation constraints from Validation modifiers
+   *
+   * @example
+   *   {{{
+   * case class Person(name: String, age: Int)
+   * val jsonSchema = Schema[Person].toJsonSchema
+   * // Produces: {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "integer"}}, "required": ["name", "age"]}
+   *   }}}
+   *
+   * @return
+   *   A JsonSchema representing this schema
+   */
+  def toJsonSchema: json.JsonSchema = derive(json.JsonFormat.deriver).toJsonSchema
 }
 
 object Schema extends SchemaCompanionVersionSpecific {
@@ -251,4 +274,52 @@ object Schema extends SchemaCompanionVersionSpecific {
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
+
+  /**
+   * Schema for Json values. Any valid JSON is accepted without additional
+   * validation.
+   *
+   * The schema wraps DynamicValue and converts to/from Json.
+   */
+  implicit lazy val jsonSchema: Schema[json.Json] = new Schema(
+    new Reflect.Wrapper[Binding, json.Json, DynamicValue](
+      dynamic.reflect,
+      TypeName(Namespace(Seq("zio", "blocks", "schema", "json")), "Json"),
+      None,
+      new Binding.Wrapper[json.Json, DynamicValue](
+        wrap = (dv: DynamicValue) => Right(json.Json.fromDynamicValue(dv)),
+        unwrap = (j: json.Json) => j.toDynamicValue
+      )
+    )
+  )
+
+  /**
+   * Constructs a Schema[Json] from a JsonSchema that validates values during
+   * construction.
+   *
+   * Values are validated against the JsonSchema when constructing from
+   * DynamicValue. This enables schema-based validation at the type level.
+   *
+   * @param schema
+   *   The JsonSchema to validate against
+   * @return
+   *   A Schema[Json] that only accepts JSON values conforming to the schema
+   */
+  def fromJsonSchema(schema: json.JsonSchema): Schema[json.Json] = new Schema(
+    new Reflect.Wrapper[Binding, json.Json, DynamicValue](
+      dynamic.reflect,
+      TypeName(Namespace(Seq("zio", "blocks", "schema", "json")), "ValidatedJson"),
+      None,
+      new Binding.Wrapper[json.Json, DynamicValue](
+        wrap = (dv: DynamicValue) => {
+          val jsonVal = json.Json.fromDynamicValue(dv)
+          schema.validate(jsonVal) match {
+            case Right(_)  => Right(jsonVal)
+            case Left(err) => Left(SchemaError.validationFailed(err.toString))
+          }
+        },
+        unwrap = (j: json.Json) => j.toDynamicValue
+      )
+    )
+  )
 }
