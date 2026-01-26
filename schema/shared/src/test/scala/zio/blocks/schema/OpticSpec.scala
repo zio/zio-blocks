@@ -140,9 +140,9 @@ object OpticSpec extends SchemaBaseSpec {
           assert(_)(
             isLeft(
               startsWithString(
-                "Expected path elements: .<field>, <<T>>, [<index>], [<indices>], {<key>}, {<keys>}, [*], {*:}, {*}, or .~, got '"
+                "Invalid optic path. Expected elements built using the optic DSL (e.g. .field, <<T>>, .wrapped[T], .when[T], .at(index), .each, .eachKey, .eachValue, .atKey(key)). (Internal representation looks like .<field>, <<T>>, [<index>], [<indices>], {<key>}, {<keys>}, [*], {*:}, {*}, or .~.) Got '"
               ) &&
-                endsWithString(".equals(null)'")
+                endsWithString(".equals(null)'.")
             )
           )
         )

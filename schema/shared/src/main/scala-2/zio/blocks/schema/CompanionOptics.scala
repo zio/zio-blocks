@@ -234,7 +234,8 @@ private object CompanionOptics {
         q""
       case tree =>
         fail(
-          s"Expected path elements: .<field>, <<T>>, [<index>], [<indices>], {<key>}, {<keys>}, [*], {*:}, {*}, or .~, got '$tree'"
+          s"Invalid optic path. Expected elements built using the optic DSL (e.g. .field, <<T>>, .wrapped[T], .when[T], .at(index), .each, .eachKey, .eachValue, .atKey(key)). " +
+            s"(Internal representation looks like .<field>, <<T>>, [<index>], [<indices>], {<key>}, {<keys>}, [*], {*:}, {*}, or .~.) Got '$tree'."
         )
     }
 
