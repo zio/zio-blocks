@@ -9,12 +9,12 @@ object JsonSchemaDeriver {
   def derive(schema: Schema[_]): JsonSchema = derive(schema.reflect)
 
   private def derive(reflect: Reflect.Bound[_]): JsonSchema = reflect match {
-    case p: Reflect.Primitive[Binding, _] => derivePrimitive(p.primitiveType)
-    case r: Reflect.Record[Binding, _]    => deriveRecord(r)
-    case v: Reflect.Variant[Binding, _]   => deriveVariant(v)
+    case p: Reflect.Primitive[Binding, _]  => derivePrimitive(p.primitiveType)
+    case r: Reflect.Record[Binding, _]     => deriveRecord(r)
+    case v: Reflect.Variant[Binding, _]    => deriveVariant(v)
     case w: Reflect.Wrapper[Binding, _, _] => derive(w.wrapped.asInstanceOf[Reflect.Bound[_]])
     case _: Reflect.Deferred[Binding, _]   => ObjectSchema()
-    case _ =>
+    case _                                 =>
       if (reflect.isSequence) deriveSequence(reflect.asSequenceUnknown.get)
       else if (reflect.isMap) deriveMap(reflect.asMapUnknown.get)
       else ObjectSchema()
