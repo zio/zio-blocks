@@ -33,6 +33,23 @@ object DynamicValue {
       case thatPrimitive: Primitive => value.compare(thatPrimitive.value)
       case _                        => -that.typeIndex
     }
+
+    override def toString: String = value match {
+      case PrimitiveValue.String(s) => "\"" + s + "\""
+      case PrimitiveValue.Int(v)    => v.toString
+      case PrimitiveValue.Long(v)   => v.toString
+      case PrimitiveValue.Float(v)  => v.toString
+      case PrimitiveValue.Double(v) => v.toString
+      case PrimitiveValue.Boolean(v) => v.toString
+      case PrimitiveValue.Byte(v)   => v.toString
+      case PrimitiveValue.Short(v)  => v.toString
+      case PrimitiveValue.Char(v)   => "\"" + v.toString + "\""
+      case PrimitiveValue.Unit      => "null"
+      case PrimitiveValue.BigInt(v) => v.toString
+      case PrimitiveValue.BigDecimal(v) => v.toString
+      case PrimitiveValue.UUID(v)   => "\"" + v.toString + "\""
+      case other                    => other.toString
+    }
   }
 
   final case class Record(fields: Vector[(String, DynamicValue)]) extends DynamicValue {
@@ -75,6 +92,8 @@ object DynamicValue {
         xLen.compareTo(yLen)
       case _ => 1 - that.typeIndex
     }
+
+    override def toString: String = fields.map { case (k, v) => s""""$k": $v""" }.mkString("{", ", ", "}")
   }
 
   final case class Variant(caseName: String, value: DynamicValue) extends DynamicValue {
@@ -94,6 +113,8 @@ object DynamicValue {
         value.compare(thatVariant.value)
       case _ => 2 - that.typeIndex
     }
+
+    override def toString: String = s"""{"$caseName": $value}"""
   }
 
   final case class Sequence(elements: Vector[DynamicValue]) extends DynamicValue {
@@ -130,6 +151,8 @@ object DynamicValue {
         xLen.compareTo(yLen)
       case _ => 3 - that.typeIndex
     }
+
+    override def toString: String = elements.mkString("[", ", ", "]")
   }
 
   final case class Map(entries: Vector[(DynamicValue, DynamicValue)]) extends DynamicValue {
@@ -172,6 +195,8 @@ object DynamicValue {
         xLen.compareTo(yLen)
       case _ => 4 - that.typeIndex
     }
+
+    override def toString: String = entries.map { case (k, v) => s"$k: $v" }.mkString("{", ", ", "}")
   }
 
   implicit val ordering: Ordering[DynamicValue] = new Ordering[DynamicValue] {

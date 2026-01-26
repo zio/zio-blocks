@@ -251,6 +251,8 @@ sealed trait Json {
   /** Encodes this JSON value into the provided ByteBuffer with config. */
   def encodeTo(buffer: ByteBuffer, config: WriterConfig): Unit = buffer.put(encodeToBytes(config))
 
+  override def toString: String = print
+
   // ─────────────────────────────────────────────────────────────────────────
   // Conversion
   // ─────────────────────────────────────────────────────────────────────────

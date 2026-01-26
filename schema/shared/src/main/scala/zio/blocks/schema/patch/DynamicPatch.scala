@@ -37,6 +37,8 @@ final case class DynamicPatch(ops: Vector[DynamicPatch.DynamicPatchOp]) {
 
   // Check if this patch is empty (no operations).
   def isEmpty: Boolean = ops.isEmpty
+
+  override def toString: String = s"DynamicPatch(${ops.mkString(", ")})"
 }
 
 object DynamicPatch {
@@ -687,7 +689,13 @@ object DynamicPatch {
   // Internal patch operation types
 
   /** A single patch operation paired with the path to apply it at. */
-  final case class DynamicPatchOp(path: DynamicOptic, operation: Operation)
+  final case class DynamicPatchOp(path: DynamicOptic, operation: Operation) {
+    override def toString: String = operation match {
+      case Operation.Set(value)         => s"$path = $value"
+      case Operation.PrimitiveDelta(op) => s"$path += $op"
+      case _                            => s"$path($operation)"
+    }
+  }
 
   // Top-level operation type for patches, each operation describes a change to be applied to a DynamicValue.
   sealed trait Operation
@@ -732,21 +740,37 @@ object DynamicPatch {
 
     // Delta for Primitive values. Applied by adding delta to the current value.
 
-    final case class IntDelta(delta: Int) extends PrimitiveOp
+    final case class IntDelta(delta: Int) extends PrimitiveOp {
+      override def toString: String = delta.toString
+    }
 
-    final case class LongDelta(delta: Long) extends PrimitiveOp
+    final case class LongDelta(delta: Long) extends PrimitiveOp {
+      override def toString: String = delta.toString
+    }
 
-    final case class DoubleDelta(delta: Double) extends PrimitiveOp
+    final case class DoubleDelta(delta: Double) extends PrimitiveOp {
+      override def toString: String = delta.toString
+    }
 
-    final case class FloatDelta(delta: Float) extends PrimitiveOp
+    final case class FloatDelta(delta: Float) extends PrimitiveOp {
+      override def toString: String = delta.toString
+    }
 
-    final case class ShortDelta(delta: Short) extends PrimitiveOp
+    final case class ShortDelta(delta: Short) extends PrimitiveOp {
+      override def toString: String = delta.toString
+    }
 
-    final case class ByteDelta(delta: Byte) extends PrimitiveOp
+    final case class ByteDelta(delta: Byte) extends PrimitiveOp {
+      override def toString: String = delta.toString
+    }
 
-    final case class BigIntDelta(delta: BigInt) extends PrimitiveOp
+    final case class BigIntDelta(delta: BigInt) extends PrimitiveOp {
+      override def toString: String = delta.toString
+    }
 
-    final case class BigDecimalDelta(delta: BigDecimal) extends PrimitiveOp
+    final case class BigDecimalDelta(delta: BigDecimal) extends PrimitiveOp {
+      override def toString: String = delta.toString
+    }
 
     final case class StringEdit(ops: Vector[StringOp]) extends PrimitiveOp
 
