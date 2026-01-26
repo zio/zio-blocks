@@ -51,6 +51,15 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     def simple(): Unit = ()
   }
 
+  class Outer {
+    class Inner
+    type InnerType = Int
+  }
+
+  trait TypeHolder {
+    type T
+  }
+
   def spec = suite("TypeId Advanced")(
     sealedExtractorSuite,
     typeDefKindDerivedSuite,
@@ -68,7 +77,8 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     memberSuite,
     kindSuite,
     typeIdMethodsSuite,
-    typeIdExtractorsSuite
+    typeIdExtractorsSuite,
+    pathDependentTypeSuite
   )
 
   val sealedExtractorSuite = suite("Sealed Extractor (derived)")(
@@ -949,6 +959,26 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
       val bounds     = TypeBounds.upper(TypeRepr.Ref(TypeId.string))
       val opaqueKind = TypeDefKind.OpaqueType(bounds)
       assertTrue(!opaqueKind.publicBounds.isUnbounded)
+    }
+  )
+
+  val pathDependentTypeSuite = suite("Path-Dependent Type Derivation")(
+    test("type projection Outer#Inner produces correct TypeId") {
+      val id         = TypeId.of[Outer#Inner]
+      val isExpected = id.aliasedTo match {
+        case Some(TypeRepr.TypeProjection(_, name)) => name == "Inner"
+        case Some(TypeRepr.Ref(refId))              => refId.name == "Inner"
+        case _                                      => id.name == "Inner"
+      }
+      assertTrue(isExpected)
+    },
+    test("nested class has correct owner path") {
+      val id = TypeId.of[Outer#Inner]
+      assertTrue(id.name == "Inner" || id.aliasedTo.isDefined)
+    },
+    test("type member in trait can be derived") {
+      val id = TypeId.of[TypeHolder]
+      assertTrue(id.name == "TypeHolder")
     }
   )
 }

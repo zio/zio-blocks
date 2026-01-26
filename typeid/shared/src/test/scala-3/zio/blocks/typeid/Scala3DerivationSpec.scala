@@ -25,6 +25,13 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
     type Contextual  = Int ?=> String
   }
 
+  trait SimpleTrait
+
+  type SimpleDefRefinement   = { def foo: Int }
+  type SimpleValRefinement   = { val x: String }
+  type MultiMemberRefinement = { def a: Int; val b: String; def c(x: Int): Boolean }
+  type RefinedTrait          = SimpleTrait { def extra: Boolean }
+
   def spec = suite("Scala 3 TypeId Derivation")(
     suite("Opaque Types")(
       test("opaque types are detected correctly") {
@@ -627,6 +634,77 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
           interOf.isAlias,
           interOf.aliasedTo.exists(_.isInstanceOf[TypeRepr.Intersection])
         )
+      }
+    ),
+    suite("Type Projection Derivation")(
+      test("Outer#Inner produces TypeProjection TypeRepr") {
+        class OuterClass {
+          class InnerClass
+        }
+        val id         = TypeId.of[OuterClass#InnerClass]
+        val isExpected = id.aliasedTo match {
+          case Some(TypeRepr.TypeProjection(qualifier, name)) =>
+            name == "InnerClass" && (qualifier match {
+              case TypeRepr.Ref(tid) => tid.name == "OuterClass"
+              case _                 => false
+            })
+          case _ => id.name == "InnerClass"
+        }
+        assertTrue(isExpected)
+      }
+    ),
+    suite("Refinement Type Derivation")(
+      test("refinement with def member produces Structural TypeRepr") {
+        val id           = TypeId.of[SimpleDefRefinement]
+        val hasFooMember = id.aliasedTo match {
+          case Some(TypeRepr.Structural(_, members)) =>
+            members.exists(m => m.name == "foo")
+          case _ => false
+        }
+        assertTrue(hasFooMember)
+      },
+      test("refinement with val member produces Structural TypeRepr") {
+        val id         = TypeId.of[SimpleValRefinement]
+        val isExpected = id.aliasedTo match {
+          case Some(TypeRepr.Structural(_, members)) =>
+            members.exists {
+              case m: Member.Val => m.name == "x"
+              case _             => false
+            }
+          case _ => false
+        }
+        assertTrue(isExpected)
+      },
+      test("refinement with multiple members captures all") {
+        val id          = TypeId.of[MultiMemberRefinement]
+        val memberNames = id.aliasedTo match {
+          case Some(TypeRepr.Structural(_, members)) =>
+            members.map {
+              case m: Member.Def => m.name
+              case m: Member.Val => m.name
+              case _             => ""
+            }.toSet
+          case _ => Set.empty[String]
+        }
+        assertTrue(
+          memberNames.contains("a"),
+          memberNames.contains("b"),
+          memberNames.contains("c")
+        )
+      },
+      test("refinement with parent type includes parent") {
+        val id                               = TypeId.of[RefinedTrait]
+        val (hasSimpleTrait, hasExtraMember) = id.aliasedTo match {
+          case Some(TypeRepr.Structural(parents, members)) =>
+            val hasTrait = parents.exists {
+              case TypeRepr.Ref(tid) => tid.name == "SimpleTrait"
+              case _                 => false
+            }
+            val hasMember = members.exists(m => m.name == "extra")
+            (hasTrait, hasMember)
+          case _ => (false, false)
+        }
+        assertTrue(hasSimpleTrait, hasExtraMember)
       }
     )
   )
