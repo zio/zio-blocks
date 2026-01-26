@@ -1868,7 +1868,8 @@ TypeId.int,
           )
         )
       )
-    }
+    },
+    typeIdConsistencySuite
   )
 
   private[this] def hasError(message: String): Assertion[SchemaError] =
@@ -2077,4 +2078,186 @@ TypeId.int,
             })
         }
       )
+
+  case class ProductId(value: Long)
+
+  object ProductId {
+    val customTypeId: TypeId[ProductId] =
+      TypeId.nominal[ProductId]("ProductId", zio.blocks.typeid.Owner.fromPackagePath("com.acme.catalog"))
+
+    implicit val schema: Schema[ProductId] =
+      Schema[Long].transform[ProductId](ProductId.apply, _.value).withTypeId(customTypeId)
+  }
+
+  case class CategoryId(value: String)
+
+  object CategoryId {
+    val customTypeId: TypeId[CategoryId] =
+      TypeId.nominal[CategoryId]("CategoryId", zio.blocks.typeid.Owner.fromPackagePath("com.acme.catalog"))
+
+    implicit val schema: Schema[CategoryId] =
+      Schema[String].transform[CategoryId](CategoryId.apply, _.value).withTypeId(customTypeId)
+  }
+
+  case class ListContainer(items: List[ProductId])
+  object ListContainer extends CompanionOptics[ListContainer] {
+    implicit val schema: Schema[ListContainer] = Schema.derived
+  }
+
+  case class SetContainer(items: Set[ProductId])
+  object SetContainer extends CompanionOptics[SetContainer] {
+    implicit val schema: Schema[SetContainer] = Schema.derived
+  }
+
+  case class VectorContainer(items: Vector[ProductId])
+  object VectorContainer extends CompanionOptics[VectorContainer] {
+    implicit val schema: Schema[VectorContainer] = Schema.derived
+  }
+
+  case class MapContainer(items: scala.collection.immutable.Map[CategoryId, ProductId])
+  object MapContainer extends CompanionOptics[MapContainer] {
+    implicit val schema: Schema[MapContainer] = Schema.derived
+  }
+
+  case class OptionContainer(item: Option[ProductId])
+  object OptionContainer extends CompanionOptics[OptionContainer] {
+    implicit val schema: Schema[OptionContainer] = Schema.derived
+  }
+
+  case class EitherContainer(item: Either[CategoryId, ProductId])
+  object EitherContainer extends CompanionOptics[EitherContainer] {
+    implicit val schema: Schema[EitherContainer] = Schema.derived
+  }
+
+  case class ArrayContainer(items: Array[ProductId])
+  object ArrayContainer extends CompanionOptics[ArrayContainer] {
+    implicit val schema: Schema[ArrayContainer] = Schema.derived
+  }
+
+  case class ArraySeqContainer(items: ArraySeq[ProductId])
+  object ArraySeqContainer extends CompanionOptics[ArraySeqContainer] {
+    implicit val schema: Schema[ArraySeqContainer] = Schema.derived
+  }
+
+  def typeIdConsistencySuite: Spec[Any, Nothing] = suite("TypeId consistency between Schema and container typeArgs")(
+    test("List element uses custom TypeId") {
+      val schema      = Schema[ListContainer]
+      val record      = schema.reflect.asRecord.get
+      val field       = record.fields.find(_.name == "items").get
+      val seqReflect  = field.value.asSequenceUnknown.get.sequence
+      val elementTid  = seqReflect.element.typeId
+      val containerTid = seqReflect.typeId
+
+      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    },
+    test("Set element uses custom TypeId") {
+      val schema      = Schema[SetContainer]
+      val record      = schema.reflect.asRecord.get
+      val field       = record.fields.find(_.name == "items").get
+      val seqReflect  = field.value.asSequenceUnknown.get.sequence
+      val elementTid  = seqReflect.element.typeId
+      val containerTid = seqReflect.typeId
+
+      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    },
+    test("Vector element uses custom TypeId") {
+      val schema      = Schema[VectorContainer]
+      val record      = schema.reflect.asRecord.get
+      val field       = record.fields.find(_.name == "items").get
+      val seqReflect  = field.value.asSequenceUnknown.get.sequence
+      val elementTid  = seqReflect.element.typeId
+      val containerTid = seqReflect.typeId
+
+      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    },
+    test("Map key and value use custom TypeIds") {
+      val schema     = Schema[MapContainer]
+      val record     = schema.reflect.asRecord.get
+      val field      = record.fields.find(_.name == "items").get
+      val mapReflect = field.value.asMapUnknown.get.map
+      val keyTid     = mapReflect.key.typeId
+      val valueTid   = mapReflect.value.typeId
+      val containerTid = mapReflect.typeId
+
+      assertTrue(keyTid == CategoryId.customTypeId) &&
+      assertTrue(valueTid == ProductId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 0, CategoryId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 1, ProductId.customTypeId)
+    },
+    test("Option element uses custom TypeId") {
+      val schema       = Schema[OptionContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "item").get
+      val optReflect   = field.value.asVariant.get
+      val someCase     = optReflect.cases.find(_.name == "Some").get
+      val someRecord   = someCase.value.asRecord.get
+      val valueField   = someRecord.fields.find(_.name == "value").get
+      val elementTid   = valueField.value.typeId
+      val containerTid = optReflect.typeId
+
+      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    },
+    test("Either left and right use custom TypeIds") {
+      val schema        = Schema[EitherContainer]
+      val record        = schema.reflect.asRecord.get
+      val field         = record.fields.find(_.name == "item").get
+      val eitherReflect = field.value.asVariant.get
+      val leftCase      = eitherReflect.cases.find(_.name == "Left").get
+      val rightCase     = eitherReflect.cases.find(_.name == "Right").get
+      val leftRecord    = leftCase.value.asRecord.get
+      val rightRecord   = rightCase.value.asRecord.get
+      val leftTid       = leftRecord.fields.find(_.name == "value").get.value.typeId
+      val rightTid      = rightRecord.fields.find(_.name == "value").get.value.typeId
+      val containerTid  = eitherReflect.typeId
+
+      assertTrue(leftTid == CategoryId.customTypeId) &&
+      assertTrue(rightTid == ProductId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 0, CategoryId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 1, ProductId.customTypeId)
+    },
+    test("Array element uses custom TypeId") {
+      val schema       = Schema[ArrayContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val seqReflect   = field.value.asSequenceUnknown.get.sequence
+      val elementTid   = seqReflect.element.typeId
+      val containerTid = seqReflect.typeId
+
+      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    },
+    test("ArraySeq element uses custom TypeId") {
+      val schema       = Schema[ArraySeqContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val seqReflect   = field.value.asSequenceUnknown.get.sequence
+      val elementTid   = seqReflect.element.typeId
+      val containerTid = seqReflect.typeId
+
+      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    }
+  )
+
+  private def assertTypeArgMatches(
+    containerTypeId: TypeId[?],
+    index: Int,
+    expectedTypeId: TypeId[?]
+  ): TestResult = {
+    val typeArgs = containerTypeId.typeArgs
+    if (typeArgs.size <= index) {
+      assertTrue(false)
+    } else {
+      typeArgs(index) match {
+        case zio.blocks.typeid.TypeRepr.Ref(argTypeId) =>
+          assertTrue(argTypeId == expectedTypeId.asInstanceOf[TypeId[?]])
+        case _ =>
+          assertTrue(false)
+      }
+    }
+  }
 }
