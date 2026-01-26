@@ -43,7 +43,8 @@ Examples use `<module>` as placeholder — substitute the actual project (e.g., 
 
 **Stage 6 — Format** (once, last)
 - Modified module(s) only, matching platforms/versions touched
-- Example: `sbt "++3.3.7; <module>JVM/scalafmt" && sbt "++2.13.18; <module>JVM/scalafmt"`
+- **Important:** `scalafmt` only formats main sources; use `Test/scalafmt` for test sources
+- Example: `sbt "<module>JVM/scalafmt; <module>JVM/Test/scalafmt"`
 - If `build.sbt` or `project/**` changed: `sbt scalafmtSbt`
 
 ### Anti-patterns
