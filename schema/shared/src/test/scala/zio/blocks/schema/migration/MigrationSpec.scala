@@ -1,7 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.test.Assertion._
-import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert, assertTrue, suite, test}
+import zio.test._
 import zio.blocks.schema._
 
 object MigrationSpec extends ZIOSpecDefault {
