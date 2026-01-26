@@ -1054,6 +1054,38 @@ Team.allMembers.modifyOrFail(emptyTeam, _.toUpperCase)
 // => Left(OpticCheck(List(EmptySequence(...))))
 ```
 
+## Debug-Friendly toString
+
+All optic types (`Lens`, `Prism`, `Optional`, `Traversal`) have a custom `toString` that produces output matching the `optic` macro syntax. This makes debugging easier by showing exactly what path the optic represents:
+
+```scala
+import zio.blocks.schema._
+
+case class Person(name: String, address: Address)
+case class Address(street: String, city: String)
+
+object Person extends CompanionOptics[Person] {
+  implicit val schema: Schema[Person] = Schema.derived
+  val street: Lens[Person, String] = optic(_.address.street)
+}
+
+println(Person.street)  // Output: Lens(_.address.street)
+```
+
+**Examples by optic type:**
+
+| Optic | toString Output |
+|-------|-----------------|
+| `Lens` for field | `Lens(_.name)` |
+| `Lens` for nested field | `Lens(_.address.street)` |
+| `Prism` for variant case | `Prism(_.when[CreditCard])` |
+| `Optional` combining prism + lens | `Optional(_.when[Success].data)` |
+| `Traversal` over sequence | `Traversal(_.items.each)` |
+| `Traversal` over map keys | `Traversal(_.metadata.eachKey)` |
+| `Traversal` over map values | `Traversal(_.metadata.eachValue)` |
+
+The output mirrors what you would write with the `optic` macro, making it easy to understand and reproduce the optic path.
+
 ## Composing Optics
 
 All optics can be composed together to create more complex access paths. All optics that extend the base `Optic` trait support composition via the `apply` method, which takes another optic as an argument and returns a new optic representing the combined access path:
