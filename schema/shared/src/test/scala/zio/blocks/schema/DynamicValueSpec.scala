@@ -1611,6 +1611,1068 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val second   = result.entries(1)._2.fields.length
         assertTrue(first == 1 && second == 2)
       }
+    ),
+    suite("as/unwrap type extraction coverage")(
+      test("Record.as returns None for wrong type") {
+        val result = recordVal.as(DynamicValueType.Sequence)
+        assertTrue(result.isEmpty)
+      },
+      test("Record.unwrap returns None for wrong type") {
+        val result = recordVal.unwrap(DynamicValueType.Sequence)
+        assertTrue(result.isEmpty)
+      },
+      test("Variant.as returns Some for Variant type") {
+        val result = variantVal.as(DynamicValueType.Variant)
+        assertTrue(result.isDefined)
+      },
+      test("Variant.as returns None for wrong type") {
+        val result = variantVal.as(DynamicValueType.Record)
+        assertTrue(result.isEmpty)
+      },
+      test("Variant.unwrap returns Some for Variant type") {
+        val result = variantVal.unwrap(DynamicValueType.Variant)
+        assertTrue(result.isDefined)
+      },
+      test("Variant.unwrap returns None for wrong type") {
+        val result = variantVal.unwrap(DynamicValueType.Record)
+        assertTrue(result.isEmpty)
+      },
+      test("Sequence.as returns Some for Sequence type") {
+        val result = seqVal.as(DynamicValueType.Sequence)
+        assertTrue(result.isDefined)
+      },
+      test("Sequence.as returns None for wrong type") {
+        val result = seqVal.as(DynamicValueType.Record)
+        assertTrue(result.isEmpty)
+      },
+      test("Sequence.unwrap returns Some for Sequence type") {
+        val result = seqVal.unwrap(DynamicValueType.Sequence)
+        assertTrue(result.isDefined)
+      },
+      test("Sequence.unwrap returns None for wrong type") {
+        val result = seqVal.unwrap(DynamicValueType.Record)
+        assertTrue(result.isEmpty)
+      },
+      test("Map.as returns Some for Map type") {
+        val result = mapVal.as(DynamicValueType.Map)
+        assertTrue(result.isDefined)
+      },
+      test("Map.as returns None for wrong type") {
+        val result = mapVal.as(DynamicValueType.Record)
+        assertTrue(result.isEmpty)
+      },
+      test("Map.unwrap returns Some for Map type") {
+        val result = mapVal.unwrap(DynamicValueType.Map)
+        assertTrue(result.isDefined)
+      },
+      test("Map.unwrap returns None for wrong type") {
+        val result = mapVal.unwrap(DynamicValueType.Record)
+        assertTrue(result.isEmpty)
+      }
+    ),
+    suite("getAtPath edge cases")(
+      test("getAtPath with empty path returns the value") {
+        val result = recordVal.get(DynamicOptic.root)
+        assertTrue(result.one == Right(recordVal))
+      },
+      test("Field on non-Record returns empty") {
+        val path   = DynamicOptic.root.field("x")
+        val result = seqVal.get(path)
+        assertTrue(result.one.isLeft)
+      },
+      test("Case on non-Variant returns empty") {
+        val path   = DynamicOptic.root.caseOf("Some")
+        val result = recordVal.get(path)
+        assertTrue(result.one.isLeft)
+      },
+      test("AtIndex on non-Sequence returns empty") {
+        val path   = DynamicOptic.root.at(0)
+        val result = recordVal.get(path)
+        assertTrue(result.one.isLeft)
+      },
+      test("AtMapKey on non-Map returns empty") {
+        val key    = DynamicValue.string("k")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val result = recordVal.get(path)
+        assertTrue(result.one.isLeft)
+      },
+      test("AtIndices on non-Sequence returns empty") {
+        val path   = DynamicOptic.root.atIndices(0, 1)
+        val result = recordVal.get(path)
+        assertTrue(result.one.isLeft)
+      },
+      test("AtMapKeys on non-Map returns empty") {
+        val k1     = DynamicValue.string("a")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val result = recordVal.get(path)
+        assertTrue(result.one.isLeft)
+      },
+      test("Elements on non-Sequence returns empty") {
+        val path   = DynamicOptic.root.elements
+        val result = recordVal.get(path)
+        assertTrue(result.one.isLeft)
+      },
+      test("MapKeys on non-Map returns empty") {
+        val path   = DynamicOptic.root.mapKeys
+        val result = recordVal.get(path)
+        assertTrue(result.one.isLeft)
+      },
+      test("MapValues on non-Map returns empty") {
+        val path   = DynamicOptic.root.mapValues
+        val result = recordVal.get(path)
+        assertTrue(result.one.isLeft)
+      },
+      test("Path not found returns error") {
+        val path   = DynamicOptic.root.field("missing")
+        val result = DynamicValue.Record.empty.get(path)
+        assertTrue(result.one.isLeft)
+      }
+    ),
+    suite("modifyAtPath edge cases")(
+      test("modifyAtPath with empty path applies function") {
+        val result = recordVal.modify(DynamicOptic.root)(_ => intVal)
+        assertTrue(result == intVal)
+      },
+      test("Case on wrong Variant case returns None") {
+        val path   = DynamicOptic.root.caseOf("None")
+        val result = variantVal.modify(path)(_ => intVal)
+        assertTrue(result == variantVal)
+      },
+      test("AtIndex on non-Sequence returns None") {
+        val path   = DynamicOptic.root.at(0)
+        val result = recordVal.modify(path)(_ => intVal)
+        assertTrue(result == recordVal)
+      },
+      test("AtMapKey on non-Map returns None") {
+        val key    = DynamicValue.string("k")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val result = recordVal.modify(path)(_ => intVal)
+        assertTrue(result == recordVal)
+      },
+      test("AtIndices on non-Sequence returns None") {
+        val path   = DynamicOptic.root.atIndices(0)
+        val result = recordVal.modify(path)(_ => intVal)
+        assertTrue(result == recordVal)
+      },
+      test("AtMapKeys on non-Map returns None") {
+        val k1     = DynamicValue.string("a")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val result = recordVal.modify(path)(_ => intVal)
+        assertTrue(result == recordVal)
+      },
+      test("Elements on non-Sequence returns None") {
+        val path   = DynamicOptic.root.elements
+        val result = recordVal.modify(path)(_ => intVal)
+        assertTrue(result == recordVal)
+      },
+      test("MapKeys on non-Map returns None") {
+        val path   = DynamicOptic.root.mapKeys
+        val result = seqVal.modify(path)(_ => intVal)
+        assertTrue(result == seqVal)
+      },
+      test("MapValues on non-Map returns None") {
+        val path   = DynamicOptic.root.mapValues
+        val result = seqVal.modify(path)(_ => intVal)
+        assertTrue(result == seqVal)
+      },
+      test("Wrapped node passes through") {
+        val path   = DynamicOptic.root.wrapped.field("name")
+        val result = recordVal.modify(path)(_ => intVal)
+        assertTrue(result.get("name").one == Right(intVal))
+      }
+    ),
+    suite("deleteAtPath edge cases")(
+      test("deleteAtPath with empty path returns original") {
+        val result = recordVal.delete(DynamicOptic.root)
+        assertTrue(result == recordVal)
+      },
+      test("Field on non-Record returns None") {
+        val path   = DynamicOptic.root.field("x")
+        val result = seqVal.delete(path)
+        assertTrue(result == seqVal)
+      },
+      test("Case on non-Variant returns None") {
+        val path   = DynamicOptic.root.caseOf("Some")
+        val result = recordVal.delete(path)
+        assertTrue(result == recordVal)
+      },
+      test("AtIndex on non-Sequence returns None") {
+        val path   = DynamicOptic.root.at(0)
+        val result = recordVal.delete(path)
+        assertTrue(result == recordVal)
+      },
+      test("AtMapKey key doesn't exist returns None") {
+        val key    = DynamicValue.string("missing")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val result = mapVal.delete(path)
+        assertTrue(result == mapVal)
+      },
+      test("AtIndices indices don't exist returns None") {
+        val path   = DynamicOptic.root.atIndices(5, 6)
+        val result = seqVal.delete(path)
+        assertTrue(result == seqVal)
+      },
+      test("AtIndices on non-Sequence returns None") {
+        val path   = DynamicOptic.root.atIndices(0)
+        val result = recordVal.delete(path)
+        assertTrue(result == recordVal)
+      },
+      test("AtMapKeys keys don't exist returns None") {
+        val k1     = DynamicValue.string("missing")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val result = mapVal.delete(path)
+        assertTrue(result == mapVal)
+      },
+      test("AtMapKeys on non-Map returns None") {
+        val k1     = DynamicValue.string("a")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val result = recordVal.delete(path)
+        assertTrue(result == recordVal)
+      },
+      test("Elements on non-Sequence returns None") {
+        val path   = DynamicOptic.root.elements
+        val result = recordVal.delete(path)
+        assertTrue(result == recordVal)
+      },
+      test("MapKeys on non-Map returns None") {
+        val path   = DynamicOptic.root.mapKeys
+        val result = seqVal.delete(path)
+        assertTrue(result == seqVal)
+      },
+      test("MapValues on non-Map returns None") {
+        val path   = DynamicOptic.root.mapValues
+        val result = seqVal.delete(path)
+        assertTrue(result == seqVal)
+      },
+      test("nested Field delete fails when field not found") {
+        val path   = DynamicOptic.root.field("name").field("missing")
+        val result = recordVal.delete(path)
+        assertTrue(result == recordVal)
+      },
+      test("nested AtMapKey on non-Map returns None") {
+        val k1     = DynamicValue.string("a")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.Field("name"), DynamicOptic.Node.AtMapKey(k1)))
+        val result = recordVal.delete(path)
+        assertTrue(result == recordVal)
+      }
+    ),
+    suite("insertAtPath edge cases")(
+      test("insertAtPath with empty path returns None") {
+        val result = recordVal.insert(DynamicOptic.root, intVal)
+        assertTrue(result == recordVal)
+      },
+      test("Field on non-Record returns None") {
+        val path   = DynamicOptic.root.field("x")
+        val result = seqVal.insert(path, intVal)
+        assertTrue(result == seqVal)
+      },
+      test("Case insert on wrong case returns None") {
+        val path   = DynamicOptic.root.caseOf("None")
+        val result = variantVal.insert(path, intVal)
+        assertTrue(result == variantVal)
+      },
+      test("Case insert when isLast returns None") {
+        val path   = DynamicOptic.root.caseOf("Some")
+        val result = variantVal.insert(path, intVal)
+        assertTrue(result == variantVal)
+      },
+      test("AtIndex on non-Sequence returns None") {
+        val path   = DynamicOptic.root.at(0)
+        val result = recordVal.insert(path, intVal)
+        assertTrue(result == recordVal)
+      },
+      test("AtMapKey on non-Map returns None") {
+        val key    = DynamicValue.string("k")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val result = recordVal.insert(path, intVal)
+        assertTrue(result == recordVal)
+      },
+      test("Elements path returns None (unsupported)") {
+        val path   = DynamicOptic.root.elements
+        val result = seqVal.insert(path, intVal)
+        assertTrue(result == seqVal)
+      },
+      test("MapKeys path returns None (unsupported)") {
+        val path   = DynamicOptic.root.mapKeys
+        val result = mapVal.insert(path, intVal)
+        assertTrue(result == mapVal)
+      },
+      test("MapValues path returns None (unsupported)") {
+        val path   = DynamicOptic.root.mapValues
+        val result = mapVal.insert(path, intVal)
+        assertTrue(result == mapVal)
+      },
+      test("AtIndices path returns None (unsupported)") {
+        val path   = DynamicOptic.root.atIndices(0)
+        val result = seqVal.insert(path, intVal)
+        assertTrue(result == seqVal)
+      },
+      test("AtMapKeys path returns None (unsupported)") {
+        val k1     = DynamicValue.string("a")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val result = mapVal.insert(path, intVal)
+        assertTrue(result == mapVal)
+      },
+      test("Wrapped path returns None (unsupported)") {
+        val path   = DynamicOptic.root.wrapped
+        val result = recordVal.insert(path, intVal)
+        assertTrue(result == recordVal)
+      },
+      test("AtIndex nested insert on non-Sequence returns None") {
+        val path   = DynamicOptic.root.at(0).field("x")
+        val result = recordVal.insert(path, intVal)
+        assertTrue(result == recordVal)
+      },
+      test("AtMapKey nested insert on non-Map returns None") {
+        val key    = DynamicValue.string("k")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key), DynamicOptic.Node.Field("x")))
+        val result = recordVal.insert(path, intVal)
+        assertTrue(result == recordVal)
+      }
+    ),
+    suite("transform/fold operations coverage")(
+      test("transformUp on Sequence") {
+        val result = seqVal.transformUp { (_, dv) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.Int(n)) => DynamicValue.int(n * 2)
+            case other                                         => other
+          }
+        }
+        assertTrue(result.elements.contains(DynamicValue.int(84)))
+      },
+      test("transformDown on Sequence") {
+        val result = seqVal.transformDown { (_, dv) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.Int(n)) => DynamicValue.int(n * 2)
+            case other                                         => other
+          }
+        }
+        assertTrue(result.elements.contains(DynamicValue.int(84)))
+      },
+      test("transformDown on Variant") {
+        val result = variantVal.transformDown { (_, dv) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.String(s)) => DynamicValue.string(s.toUpperCase)
+            case other                                            => other
+          }
+        }
+        assertTrue(result.caseValue == Some(DynamicValue.string("HELLO")))
+      },
+      test("transformMapKeys on nested Map in Record") {
+        val k1       = DynamicValue.string("a")
+        val innerMap = DynamicValue.Map(k1 -> intVal)
+        val rec      = DynamicValue.Record("map" -> innerMap)
+        val result = rec.transformMapKeys { (_, key) =>
+          key match {
+            case DynamicValue.Primitive(PrimitiveValue.String(s)) => DynamicValue.string(s.toUpperCase)
+            case other                                            => other
+          }
+        }
+        assertTrue(result.get("map").one.map(_.entries.head._1) == Right(DynamicValue.string("A")))
+      },
+      test("prune with specific predicate") {
+        val rec = DynamicValue.Record("a" -> intVal, "b" -> stringVal)
+        val result = rec.pruneBoth { (_, dv) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.Int(_)) => true
+            case _                                             => false
+          }
+        }
+        assertTrue(result.fields.length == 1 && result.fields.head._1 == "b")
+      },
+      test("retain on Variant where predicate fails and child empty") {
+        val inner   = DynamicValue.Record("a" -> intVal)
+        val variant = DynamicValue.Variant("Some", inner)
+        val result = variant.retain { dv =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.String(_)) => true
+            case _                                                => false
+          }
+        }
+        assertTrue(result == variant)
+      },
+      test("hasContent returns false for empty Map in nested structure") {
+        val rec = DynamicValue.Record("map" -> DynamicValue.Map.empty)
+        val result = rec.retain { _ =>
+          false
+        }
+        assertTrue(result.fields.isEmpty)
+      },
+      test("foldUp on Sequence") {
+        val result = seqVal.foldUp(0) { (_, dv, acc) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.Int(n)) => acc + n
+            case _                                             => acc
+          }
+        }
+        assertTrue(result == 42)
+      },
+      test("foldDown on Sequence") {
+        val result = seqVal.foldDown(0) { (_, dv, acc) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.Int(n)) => acc + n
+            case _                                             => acc
+          }
+        }
+        assertTrue(result == 42)
+      },
+      test("foldDown on Variant") {
+        val result = variantVal.foldDown("") { (_, dv, acc) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.String(s)) => acc + s
+            case _                                                => acc
+          }
+        }
+        assertTrue(result == "hello")
+      }
+    ),
+    suite("fromKV and upsertAtPathCreatingParents edge cases")(
+      test("fromKV with empty sequence returns Right(Record.empty)") {
+        val result = DynamicValue.fromKV(Seq.empty)
+        assertTrue(result == Right(DynamicValue.Record.empty))
+      },
+      test("upsertAtPathCreatingParents with empty path returns value directly") {
+        val kvs    = Seq((DynamicOptic.root, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result == intVal)
+      },
+      test("createContainer for Elements falls through to Record.empty") {
+        val path   = DynamicOptic.root.elements.field("x")
+        val kvs    = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get("x").one == Right(intVal))
+      },
+      test("Field on non-Record creates new Record") {
+        val key  = DynamicValue.string("k")
+        val path = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key), DynamicOptic.Node.Field("x")))
+        val kvs  = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get(key).one.flatMap(_.get("x").one) == Right(intVal))
+      },
+      test("AtIndex with padding when index > current length") {
+        val path1  = DynamicOptic.root.at(0)
+        val path2  = DynamicOptic.root.at(5)
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.elements.length == 6)
+      },
+      test("AtMapKey adding new key to existing Map") {
+        val k1     = DynamicValue.string("a")
+        val k2     = DynamicValue.string("b")
+        val path1  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val path2  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k2)))
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.entries.length == 2)
+      },
+      test("Case on new Variant") {
+        val path   = DynamicOptic.root.caseOf("Right").field("value")
+        val kvs    = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.getCase("Right").one.flatMap(_.get("value").one) == Right(intVal))
+      },
+      test("Case on existing Variant with same case") {
+        val path1  = DynamicOptic.root.caseOf("Some").field("x")
+        val path2  = DynamicOptic.root.caseOf("Some").field("y")
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.getCase("Some").one.map(_.fields.length) == Right(2))
+      },
+      test("AtIndex on non-Sequence creates Sequence with padding") {
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.Field("arr"), DynamicOptic.Node.AtIndex(2)))
+        val kvs    = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get("arr").one.map(_.elements.length) == Right(3))
+      },
+      test("MapKeys path skipped in createContainer") {
+        val path   = DynamicOptic.root.mapKeys.field("x")
+        val kvs    = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get("x").one == Right(intVal))
+      },
+      test("MapValues path skipped in createContainer") {
+        val path   = DynamicOptic.root.mapValues.field("x")
+        val kvs    = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get("x").one == Right(intVal))
+      },
+      test("AtMapKey on non-Map creates new Map") {
+        val k1     = DynamicValue.string("a")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val kvs    = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get(k1).one == Right(intVal))
+      }
+    ),
+    suite("additional path operation coverage")(
+      test("getAtPath Case on matching Variant") {
+        val path   = DynamicOptic.root.caseOf("Some")
+        val result = variantVal.get(path)
+        assertTrue(result.one == Right(stringVal))
+      },
+      test("getAtPath AtMapKey finds value in Map") {
+        val key    = stringVal
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val result = mapVal.get(path)
+        assertTrue(result.one == Right(intVal))
+      },
+      test("getAtPath AtIndices on Sequence") {
+        val path   = DynamicOptic.root.atIndices(0, 2)
+        val result = seqVal.get(path)
+        assertTrue(result.toSequence.map(_.elements.length) == Right(2))
+      },
+      test("modifyAtPath Field nested with modification returning None") {
+        val innerRec = DynamicValue.Record("inner" -> intVal)
+        val outerRec = DynamicValue.Record("outer" -> innerRec)
+        val path     = DynamicOptic.root.field("outer").field("missing")
+        val result   = outerRec.modify(path)(_ => stringVal)
+        assertTrue(result == outerRec)
+      },
+      test("modifyAtPath AtMapKey nested with existing key") {
+        val k1       = DynamicValue.string("a")
+        val innerMap = DynamicValue.Map(k1 -> intVal)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val result   = innerMap.modify(path)(_ => stringVal)
+        assertTrue(result.get(k1).one == Right(stringVal))
+      },
+      test("modifyAtPath AtMapKey nested with missing key") {
+        val k1       = DynamicValue.string("a")
+        val k2       = DynamicValue.string("b")
+        val innerMap = DynamicValue.Map(k1 -> intVal)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k2)))
+        val result   = innerMap.modify(path)(_ => stringVal)
+        assertTrue(result == innerMap)
+      },
+      test("modifyAtPath AtIndices with valid indices") {
+        val path   = DynamicOptic.root.atIndices(0, 1)
+        val result = seqVal.modify(path)(_ => DynamicValue.int(0))
+        assertTrue(result.elements.take(2).forall(_ == DynamicValue.int(0)))
+      },
+      test("modifyAtPath AtMapKeys with valid keys") {
+        val k1     = stringVal
+        val k2     = intVal
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1, k2))))
+        val result = mapVal.modify(path)(_ => DynamicValue.int(0))
+        assertTrue(result.entries.forall(_._2 == DynamicValue.int(0)))
+      },
+      test("modifyAtPath Elements on Sequence") {
+        val path   = DynamicOptic.root.elements
+        val result = seqVal.modify(path)(_ => DynamicValue.int(0))
+        assertTrue(result.elements.forall(_ == DynamicValue.int(0)))
+      },
+      test("modifyAtPath MapKeys on Map") {
+        val path   = DynamicOptic.root.mapKeys
+        val result = mapVal.modify(path)(_ => DynamicValue.string("key"))
+        assertTrue(result.entries.forall(_._1 == DynamicValue.string("key")))
+      },
+      test("modifyAtPath MapValues on Map") {
+        val path   = DynamicOptic.root.mapValues
+        val result = mapVal.modify(path)(_ => DynamicValue.int(0))
+        assertTrue(result.entries.forall(_._2 == DynamicValue.int(0)))
+      },
+      test("deleteAtPath AtMapKey nested delete success") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
+        val result   = innerMap.delete(path)
+        assertTrue(result.get(k1).one.map(_.fields.isEmpty) == Right(true))
+      },
+      test("deleteAtPath AtIndices nested delete success") {
+        val innerRec = DynamicValue.Record("x" -> intVal, "y" -> stringVal)
+        val seq      = DynamicValue.Sequence(innerRec, innerRec)
+        val path     = DynamicOptic.root.atIndices(0, 1).field("x")
+        val result   = seq.delete(path)
+        assertTrue(result.elements.forall(_.fields.length == 1))
+      },
+      test("deleteAtPath AtMapKeys nested delete success") {
+        val k1       = DynamicValue.string("a")
+        val k2       = DynamicValue.string("b")
+        val innerRec = DynamicValue.Record("x" -> intVal, "y" -> stringVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec, k2 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1, k2)), DynamicOptic.Node.Field("x")))
+        val result   = innerMap.delete(path)
+        assertTrue(result.entries.forall(_._2.fields.length == 1))
+      },
+      test("deleteAtPath Elements nested delete success") {
+        val innerRec = DynamicValue.Record("x" -> intVal, "y" -> stringVal)
+        val seq      = DynamicValue.Sequence(innerRec, innerRec)
+        val path     = DynamicOptic.root.elements.field("x")
+        val result   = seq.delete(path)
+        assertTrue(result.elements.forall(_.fields.length == 1))
+      },
+      test("deleteAtPath MapKeys nested delete success") {
+        val k1       = DynamicValue.Record("key" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> stringVal)
+        val path     = DynamicOptic.root.mapKeys.field("key")
+        val result   = innerMap.delete(path)
+        assertTrue(result.entries.head._1.fields.isEmpty)
+      },
+      test("deleteAtPath MapValues nested delete success") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal, "y" -> stringVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = DynamicOptic.root.mapValues.field("x")
+        val result   = innerMap.delete(path)
+        assertTrue(result.entries.head._2.fields.length == 1)
+      },
+      test("insertAtPath Field nested insert success") {
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val outerRec = DynamicValue.Record("inner" -> innerRec)
+        val path     = DynamicOptic.root.field("inner").field("y")
+        val result   = outerRec.insert(path, stringVal)
+        assertTrue(result.get("inner").one.flatMap(_.get("y").one) == Right(stringVal))
+      },
+      test("insertAtPath Case nested insert success") {
+        val inner   = DynamicValue.Record("x" -> intVal)
+        val variant = DynamicValue.Variant("Some", inner)
+        val path    = DynamicOptic.root.caseOf("Some").field("y")
+        val result  = variant.insert(path, stringVal)
+        assertTrue(result.caseValue.flatMap(_.get("y").one.toOption) == Some(stringVal))
+      },
+      test("insertAtPath AtIndex nested insert success") {
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val seq      = DynamicValue.Sequence(innerRec)
+        val path     = DynamicOptic.root.at(0).field("y")
+        val result   = seq.insert(path, stringVal)
+        assertTrue(result.get(0).one.flatMap(_.get("y").one) == Right(stringVal))
+      },
+      test("insertAtPath AtMapKey nested insert success") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("y")))
+        val result   = innerMap.insert(path, stringVal)
+        assertTrue(result.get(k1).one.flatMap(_.get("y").one) == Right(stringVal))
+      },
+      test("insertAtPath AtIndex out of bounds") {
+        val path   = DynamicOptic.root.at(10)
+        val result = seqVal.insert(path, intVal)
+        assertTrue(result == seqVal)
+      }
+    ),
+    suite("Primitive as/unwrap coverage")(
+      test("Primitive.as returns Some for Primitive type") {
+        val result = stringVal.as(DynamicValueType.Primitive)
+        assertTrue(result.isDefined)
+      },
+      test("Primitive.as returns None for wrong type") {
+        val result = stringVal.as(DynamicValueType.Record)
+        assertTrue(result.isEmpty)
+      },
+      test("Primitive.unwrap returns Some for Primitive type") {
+        val result = stringVal.unwrap(DynamicValueType.Primitive)
+        assertTrue(result.isDefined)
+      },
+      test("Primitive.unwrap returns None for wrong type") {
+        val result = stringVal.unwrap(DynamicValueType.Record)
+        assertTrue(result.isEmpty)
+      }
+    ),
+    suite("foldUp Map coverage")(
+      test("foldUp on Map") {
+        val result = mapVal.foldUp(0) { (_, dv, acc) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.Int(n)) => acc + n
+            case _                                             => acc
+          }
+        }
+        assertTrue(result == 84)
+      },
+      test("foldDown on Map") {
+        val result = mapVal.foldDown(0) { (_, dv, acc) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.Int(n)) => acc + n
+            case _                                             => acc
+          }
+        }
+        assertTrue(result == 84)
+      }
+    ),
+    suite("transformUp/transformDown Map coverage")(
+      test("transformUp on Map") {
+        val result = mapVal.transformUp { (_, dv) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.Int(n)) => DynamicValue.int(n * 2)
+            case other                                         => other
+          }
+        }
+        assertTrue(result.entries.exists(_._2 == DynamicValue.int(84)))
+      },
+      test("transformDown on Map") {
+        val result = mapVal.transformDown { (_, dv) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.Int(n)) => DynamicValue.int(n * 2)
+            case other                                         => other
+          }
+        }
+        assertTrue(result.entries.exists(_._2 == DynamicValue.int(84)))
+      }
+    ),
+    suite("prune on Variant coverage")(
+      test("prune on Variant where child is pruned") {
+        val inner   = DynamicValue.Record("a" -> intVal, "b" -> stringVal)
+        val variant = DynamicValue.Variant("Some", inner)
+        val result = variant.pruneBoth { (_, dv) =>
+          dv match {
+            case DynamicValue.Primitive(PrimitiveValue.Int(_)) => true
+            case _                                             => false
+          }
+        }
+        assertTrue(result.caseValue.map(_.fields.length) == Some(1))
+      }
+    ),
+    suite("Record.get field not found")(
+      test("Record.get returns error when field not found") {
+        val result = recordVal.get("nonexistent")
+        assertTrue(result.one.isLeft)
+      }
+    ),
+    suite("getAtPath AtIndices partial match")(
+      test("AtIndices with some out of bounds indices") {
+        val path   = DynamicOptic.root.atIndices(0, 10, 2)
+        val result = seqVal.get(path)
+        assertTrue(result.toSequence.map(_.elements.length) == Right(2))
+      }
+    ),
+    suite("modifyAtPath nested None branches")(
+      test("modifyAtPath AtIndices nested fails when inner path missing") {
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val seq      = DynamicValue.Sequence(innerRec)
+        val path     = DynamicOptic.root.atIndices(0).field("missing")
+        val result   = seq.modify(path)(_ => stringVal)
+        assertTrue(result == seq)
+      },
+      test("modifyAtPath AtMapKeys nested fails when inner path missing") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1)), DynamicOptic.Node.Field("missing")))
+        val result   = innerMap.modify(path)(_ => stringVal)
+        assertTrue(result == innerMap)
+      },
+      test("modifyAtPath MapKeys nested fails when inner path missing") {
+        val k1       = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> stringVal)
+        val path     = DynamicOptic.root.mapKeys.field("missing")
+        val result   = innerMap.modify(path)(_ => stringVal)
+        assertTrue(result == innerMap)
+      },
+      test("modifyAtPath AtIndex nested valid index") {
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val seq      = DynamicValue.Sequence(innerRec, innerRec)
+        val path     = DynamicOptic.root.at(0).field("x")
+        val result   = seq.modify(path)(_ => stringVal)
+        assertTrue(result.get(0).one.flatMap(_.get("x").one) == Right(stringVal))
+      },
+      test("modifyAtPath AtMapKey nested valid key") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
+        val result   = innerMap.modify(path)(_ => stringVal)
+        assertTrue(result.get(k1).one.flatMap(_.get("x").one) == Right(stringVal))
+      }
+    ),
+    suite("deleteAtPath nested None branches")(
+      test("deleteAtPath AtMapKey nested fails when inner path missing") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("missing")))
+        val result   = innerMap.delete(path)
+        assertTrue(result == innerMap)
+      },
+      test("deleteAtPath AtIndices nested fails when inner path missing") {
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val seq      = DynamicValue.Sequence(innerRec)
+        val path     = DynamicOptic.root.atIndices(0).field("missing")
+        val result   = seq.delete(path)
+        assertTrue(result == seq)
+      },
+      test("deleteAtPath AtMapKeys nested fails when inner path missing") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1)), DynamicOptic.Node.Field("missing")))
+        val result   = innerMap.delete(path)
+        assertTrue(result == innerMap)
+      },
+      test("deleteAtPath Elements nested fails when inner path missing") {
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val seq      = DynamicValue.Sequence(innerRec)
+        val path     = DynamicOptic.root.elements.field("missing")
+        val result   = seq.delete(path)
+        assertTrue(result == seq)
+      },
+      test("deleteAtPath MapKeys nested fails when inner path missing") {
+        val k1       = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> stringVal)
+        val path     = DynamicOptic.root.mapKeys.field("missing")
+        val result   = innerMap.delete(path)
+        assertTrue(result == innerMap)
+      },
+      test("deleteAtPath MapValues nested fails when inner path missing") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = DynamicOptic.root.mapValues.field("missing")
+        val result   = innerMap.delete(path)
+        assertTrue(result == innerMap)
+      },
+      test("deleteAtPath Case nested fails when inner path missing") {
+        val inner   = DynamicValue.Record("x" -> intVal)
+        val variant = DynamicValue.Variant("Some", inner)
+        val path    = DynamicOptic.root.caseOf("Some").field("missing")
+        val result  = variant.delete(path)
+        assertTrue(result == variant)
+      }
+    ),
+    suite("insertAtPath nested None branches")(
+      test("insertAtPath Field nested fails when field exists") {
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val outerRec = DynamicValue.Record("inner" -> innerRec)
+        val path     = DynamicOptic.root.field("inner").field("x")
+        val result   = outerRec.insert(path, stringVal)
+        assertTrue(result == outerRec)
+      },
+      test("insertAtPath AtIndex nested fails when index out of bounds") {
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val seq      = DynamicValue.Sequence(innerRec)
+        val path     = DynamicOptic.root.at(5).field("y")
+        val result   = seq.insert(path, stringVal)
+        assertTrue(result == seq)
+      },
+      test("insertAtPath AtMapKey nested fails when key missing and nested") {
+        val k1       = DynamicValue.string("a")
+        val k2       = DynamicValue.string("b")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k2), DynamicOptic.Node.Field("y")))
+        val result   = innerMap.insert(path, stringVal)
+        assertTrue(result == innerMap)
+      }
+    ),
+    suite("modifyOrFail edge cases")(
+      test("modifyOrFail with partial function not defined at path") {
+        val path   = DynamicOptic.root.field("name")
+        val result = recordVal.modifyOrFail(path) {
+          case DynamicValue.Primitive(PrimitiveValue.Int(_)) => intVal
+        }
+        assertTrue(result.isRight)
+      },
+      test("modifyOrFail with path not found") {
+        val path   = DynamicOptic.root.field("missing")
+        val result = recordVal.modifyOrFail(path) {
+          case _ => intVal
+        }
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("pruneImpl on Variant child")(
+      test("pruneBoth on Variant keeps original when child is pruned entirely") {
+        val inner   = DynamicValue.Record("a" -> intVal)
+        val variant = DynamicValue.Variant("Some", inner)
+        val result = variant.pruneBoth { (_, dv) =>
+          dv match {
+            case _: DynamicValue.Record => true
+            case _                      => false
+          }
+        }
+        assertTrue(result == variant)
+      }
+    ),
+    suite("fromKV upsert edge cases")(
+      test("fromKVUnsafe Field on Sequence creates Record") {
+        val path   = DynamicOptic.root.at(0).field("x")
+        val kvs    = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get(0).one.flatMap(_.get("x").one) == Right(intVal))
+      },
+      test("fromKVUnsafe AtIndex extending beyond current") {
+        val path1  = DynamicOptic.root.at(0)
+        val path2  = DynamicOptic.root.at(3)
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.elements.length == 4 && result.elements(3) == stringVal)
+      },
+      test("fromKVUnsafe Case on non-matching Variant creates new") {
+        val path1  = DynamicOptic.root.caseOf("Left").field("x")
+        val path2  = DynamicOptic.root.caseOf("Right").field("y")
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.getCase("Right").one.flatMap(_.get("y").one) == Right(stringVal))
+      },
+      test("fromKVUnsafe AtMapKey on existing Map updates value") {
+        val k1     = DynamicValue.string("a")
+        val path1  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val path2  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get(k1).one == Right(stringVal))
+      }
+    ),
+    suite("modifyAtPath AtMapKey nested with inner returning None")(
+      test("modifyAtPath AtMapKey when nested inner doesn't match") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("nonexistent")))
+        val result   = innerMap.modify(path)(_ => stringVal)
+        assertTrue(result == innerMap)
+      }
+    ),
+    suite("deleteAtPath idx >= nodes.length")(
+      test("deleteAtPath when reaching end of path prematurely") {
+        val path   = DynamicOptic.root
+        val result = recordVal.deleteOrFail(path)
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("deleteAtPath Case nested fails")(
+      test("deleteAtPath Case nested where inner fails") {
+        val inner   = DynamicValue.Record("x" -> intVal)
+        val variant = DynamicValue.Variant("Some", inner)
+        val path    = DynamicOptic.root.caseOf("Some").field("nonexistent")
+        val result  = variant.delete(path)
+        assertTrue(result == variant)
+      }
+    ),
+    suite("deleteAtPath AtMapKey nested None when key found but inner fails")(
+      test("deleteAtPath AtMapKey nested when inner fails") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("nonexistent")))
+        val result   = innerMap.delete(path)
+        assertTrue(result == innerMap)
+      }
+    ),
+    suite("insertAtPath edge cases for idx >= nodes.length")(
+      test("insertAtPath with deeply nested path that goes past actual structure") {
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val outerRec = DynamicValue.Record("inner" -> innerRec)
+        val path     = DynamicOptic.root.field("inner").field("y")
+        val result   = outerRec.insert(path, stringVal)
+        assertTrue(result.get("inner").one.flatMap(_.get("y").one) == Right(stringVal))
+      }
+    ),
+    suite("insertAtPath Field nested where inner returns None")(
+      test("insertAtPath Field nested where inner key already exists") {
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val outerRec = DynamicValue.Record("inner" -> innerRec)
+        val path     = DynamicOptic.root.field("inner").field("x")
+        val result   = outerRec.insert(path, stringVal)
+        assertTrue(result == outerRec)
+      }
+    ),
+    suite("insertAtPath AtMapKey nested where inner returns None")(
+      test("insertAtPath AtMapKey nested where inner key exists") {
+        val k1       = DynamicValue.string("a")
+        val innerRec = DynamicValue.Record("x" -> intVal)
+        val innerMap = DynamicValue.Map(k1 -> innerRec)
+        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
+        val result   = innerMap.insert(path, stringVal)
+        assertTrue(result == innerMap)
+      }
+    ),
+    suite("insertAtPath AtMapKey where key already exists")(
+      test("insertAtPath AtMapKey when key exists at last node") {
+        val k1     = DynamicValue.string("a")
+        val m      = DynamicValue.Map(k1 -> intVal)
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val result = m.insert(path, stringVal)
+        assertTrue(result == m)
+      }
+    ),
+    suite("upsertAtPathCreatingParents edge cases")(
+      test("fromKVUnsafe Field on non-Record (Map) creates new Record") {
+        val k1   = DynamicValue.string("a")
+        val path = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
+        val kvs  = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get(k1).one.flatMap(_.get("x").one) == Right(intVal))
+      },
+      test("fromKVUnsafe AtIndex updating existing index in existing Sequence") {
+        val path1  = DynamicOptic.root.at(0)
+        val path2  = DynamicOptic.root.at(0)
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get(0).one == Right(stringVal))
+      },
+      test("fromKVUnsafe AtIndex appending to existing Sequence") {
+        val path1  = DynamicOptic.root.at(0)
+        val path2  = DynamicOptic.root.at(1)
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.elements.length == 2 && result.get(1).one == Right(stringVal))
+      },
+      test("fromKVUnsafe AtIndex with padding in existing Sequence") {
+        val path1  = DynamicOptic.root.at(0)
+        val path2  = DynamicOptic.root.at(5)
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.elements.length == 6)
+      },
+      test("fromKVUnsafe AtMapKey updating existing key") {
+        val k1     = DynamicValue.string("a")
+        val path1  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val path2  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get(k1).one == Right(stringVal))
+      },
+      test("fromKVUnsafe AtMapKey adding new key to existing Map") {
+        val k1     = DynamicValue.string("a")
+        val k2     = DynamicValue.string("b")
+        val path1  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val path2  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k2)))
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.entries.length == 2)
+      },
+      test("fromKVUnsafe Case updating matching Variant") {
+        val path1  = DynamicOptic.root.caseOf("Some").field("x")
+        val path2  = DynamicOptic.root.caseOf("Some").field("y")
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.getCase("Some").one.map(_.fields.length) == Right(2))
+      },
+      test("fromKVUnsafe Case on non-matching creates new Variant") {
+        val path1  = DynamicOptic.root.caseOf("Left").field("x")
+        val path2  = DynamicOptic.root.caseOf("Right").field("y")
+        val kvs    = Seq((path1, intVal), (path2, stringVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.caseName == Some("Right"))
+      },
+      test("fromKVUnsafe with nested AtIndex on non-Sequence") {
+        val path   = DynamicOptic.root.field("seq").at(2)
+        val kvs    = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get("seq").one.map(_.elements.length) == Right(3))
+      },
+      test("fromKVUnsafe with nested AtMapKey on non-Map") {
+        val k1     = DynamicValue.string("a")
+        val path   = new DynamicOptic(Vector(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKey(k1)))
+        val kvs    = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get("map").one.flatMap(_.get(k1).one) == Right(intVal))
+      },
+      test("fromKVUnsafe with createContainer fallthrough to Record.empty") {
+        val path   = DynamicOptic.root.mapValues.field("x")
+        val kvs    = Seq((path, intVal))
+        val result = DynamicValue.fromKVUnsafe(kvs)
+        assertTrue(result.get("x").one == Right(intVal))
+      }
+    ),
+    suite("deleteAtPath Case isLast")(
+      test("deleteAtPath Case when isLast returns empty Record") {
+        val inner   = DynamicValue.Record("x" -> intVal)
+        val variant = DynamicValue.Variant("Some", inner)
+        val path    = DynamicOptic.root.caseOf("Some")
+        val result  = variant.delete(path)
+        assertTrue(result == DynamicValue.Record.empty)
+      }
     )
   )
 }
