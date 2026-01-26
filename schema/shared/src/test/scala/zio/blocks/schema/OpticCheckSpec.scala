@@ -22,7 +22,7 @@ object OpticCheckSpec extends SchemaBaseSpec {
       )
       assert(opticCheck.getMessage)(
         equalTo(
-          "During attempted access at <Case2>.lr3[*], encountered an unexpected case at <Case2>: expected Case2, but got Case1"
+          "During attempted access at .when[Case2].lr3.each, encountered an unexpected case at .when[Case2]: expected Case2, but got Case1"
         )
       ) &&
       assert(opticCheck.hasError)(equalTo(true)) &&
@@ -39,7 +39,7 @@ object OpticCheckSpec extends SchemaBaseSpec {
         )
       )
       assert(opticCheck.getMessage)(
-        equalTo("During attempted access at [*]{*:}, encountered an empty sequence at [*]")
+        equalTo("During attempted access at .each.eachKey, encountered an empty sequence at .each")
       ) &&
       assert(opticCheck.hasWarning)(equalTo(true)) &&
       assert(opticCheck.errors.forall(_.isWarning))(equalTo(true))
@@ -69,7 +69,7 @@ object OpticCheckSpec extends SchemaBaseSpec {
       val opticCheck3 = opticCheck1 ++ opticCheck2
       assert(opticCheck3.getMessage)(
         equalTo(
-          "During attempted access at <Case2>.lr3[*], encountered an unexpected case at <Case2>: expected Case2, but got Case1\nDuring attempted access at {*}[*], encountered an empty map at {*}"
+          "During attempted access at .when[Case2].lr3.each, encountered an unexpected case at .when[Case2]: expected Case2, but got Case1\nDuring attempted access at .eachValue.each, encountered an empty map at .eachValue"
         )
       ) &&
       assert(opticCheck3.hasError)(equalTo(true)) &&

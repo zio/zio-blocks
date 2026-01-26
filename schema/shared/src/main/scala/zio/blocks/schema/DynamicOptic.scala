@@ -76,6 +76,53 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     else sb.toString
   }
 
+  /** Renders this optic path using Scala-style method syntax (e.g., `.when[Case]`, `.each`, `.atKey(<key>)`). This is
+    * used for typed Optic error messages, as opposed to `toString` which uses the compact interpolator syntax.
+    */
+  lazy val toScalaString: String = {
+    val sb  = new StringBuilder
+    val len = nodes.length
+    var idx = 0
+    while (idx < len) {
+      nodes(idx) match {
+        case Node.Field(name)        => sb.append('.').append(name)
+        case Node.Case(name)         => sb.append(".when[").append(name).append(']')
+        case Node.AtIndex(index)     => sb.append(".at(").append(index).append(')')
+        case Node.AtIndices(indices) =>
+          sb.append(".atIndices(")
+          val idxLen = indices.length
+          var i      = 0
+          while (i < idxLen) {
+            if (i > 0) sb.append(", ")
+            sb.append(indices(i))
+            i += 1
+          }
+          sb.append(')')
+        case Node.AtMapKey(key) =>
+          sb.append(".atKey(")
+          renderDynamicValue(sb, key)
+          sb.append(')')
+        case Node.AtMapKeys(keys) =>
+          sb.append(".atKeys(")
+          val keyLen = keys.length
+          var i      = 0
+          while (i < keyLen) {
+            if (i > 0) sb.append(", ")
+            renderDynamicValue(sb, keys(i))
+            i += 1
+          }
+          sb.append(')')
+        case Node.Elements  => sb.append(".each")
+        case Node.MapKeys   => sb.append(".eachKey")
+        case Node.MapValues => sb.append(".eachValue")
+        case Node.Wrapped   => sb.append(".wrapped")
+      }
+      idx += 1
+    }
+    if (sb.isEmpty) "."
+    else sb.toString
+  }
+
   private def renderDynamicValue(sb: StringBuilder, value: DynamicValue): Unit =
     value match {
       case DynamicValue.Primitive(pv) =>
