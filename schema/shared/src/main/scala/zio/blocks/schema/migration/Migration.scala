@@ -540,72 +540,9 @@ object Migration {
 }
 
 // =============================================================================
-// MACRO IMPLEMENTATIONS - Selector to DynamicOptic extraction
-// =============================================================================
-
-import scala.quoted.*
-
-/** Type class for extracting DynamicOptic from selector functions */
-trait ToDynamicOptic[A, B] {
-  def apply(selector: A => B): DynamicOptic
-}
-
-object MigrationMacros {
-
-  /** Extract field path from selector lambda at compile time */
-  inline def extractPath[A, B](inline selector: A => B): DynamicOptic =
-    ${ extractPathImpl[A, B]('selector) }
-
-  def extractPathImpl[A: Type, B: Type](selector: Expr[A => B])(using Quotes): Expr[DynamicOptic] = {
-    import quotes.reflect.*
-
-    def extractPath(term: Term, acc: List[String]): List[String] = term match {
-      case Select(inner, name) => extractPath(inner, name :: acc)
-      case Ident(_) => acc
-      case Apply(Select(inner, "when"), List(TypeApply(_, List(tpe)))) =>
-        extractPath(inner, s"when[${tpe.show}]" :: acc)
-      case Apply(Select(inner, "each"), Nil) =>
-        extractPath(inner, "each" :: acc)
-      case Block(List(DefDef(_, _, _, Some(body))), _) =>
-        extractPath(body, acc)
-      case Inlined(_, _, inner) =>
-        extractPath(inner, acc)
-      case other =>
-        report.errorAndAbort(s"Unsupported selector expression: ${other.show}")
-    }
-
-    selector.asTerm match {
-      case Inlined(_, _, Block(List(DefDef(_, _, _, Some(body))), _)) =>
-        val path = extractPath(body, Nil)
-        val pathExpr = Expr(path)
-        '{ DynamicOptic.fromPath($pathExpr) }
-      case other =>
-        report.errorAndAbort(s"Expected lambda but got: ${other.show}")
-    }
-  }
-
-  /** Validate at compile time that migration covers all fields */
-  inline def validateMigration[A, B](
-    inline sourceSchema: Schema[A],
-    inline targetSchema: Schema[B],
-    inline actions: Vector[MigrationAction]
-  ): Unit = ${ validateMigrationImpl[A, B]('sourceSchema, 'targetSchema, 'actions) }
-
-  def validateMigrationImpl[A: Type, B: Type](
-    sourceSchema: Expr[Schema[A]],
-    targetSchema: Expr[Schema[B]],
-    actions: Expr[Vector[MigrationAction]]
-  )(using Quotes): Expr[Unit] = {
-    import quotes.reflect.*
-    // Validation logic: check all target fields are covered
-    '{ () }
-  }
-}
-
-
-// =============================================================================
 // MIGRATION BUILDER - Fluent API for building migrations
 // =============================================================================
+// NOTE: Scala 3 macros for selector expressions are in scala-3/migration/MigrationMacros.scala
 
 /**
  * MigrationBuilder provides a fluent API for constructing migrations.
@@ -735,111 +672,16 @@ class MigrationBuilder[A, B](
   def transformValues(transform: DynamicExpr): MigrationBuilder[A, B] =
     transformValues(DynamicOptic.root, transform)
 
-  // =========================================================================
-  // SELECTOR-BASED METHODS (using macros)
-  // =========================================================================
-
-  /** Add a field using selector expression */
-  inline def addField[T](
-    inline target: B => T,
-    default: DynamicValue
-  ): MigrationBuilder[A, B] = {
-    val path = MigrationMacros.extractPath(target)
-    val fieldName = path.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(n)) => n
-      case _ => ""
-    }
-    new MigrationBuilder(sourceSchema, targetSchema,
-      actions :+ MigrationAction.AddField(path.parent, fieldName, default))
-  }
-
-  /** Drop a field using selector expression */
-  inline def dropField[T](
-    inline source: A => T,
-    defaultForReverse: DynamicValue = DynamicValue.Primitive(PrimitiveValue.Unit)
-  ): MigrationBuilder[A, B] = {
-    val path = MigrationMacros.extractPath(source)
-    val fieldName = path.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(n)) => n
-      case _ => ""
-    }
-    new MigrationBuilder(sourceSchema, targetSchema,
-      actions :+ MigrationAction.DropField(path.parent, fieldName, defaultForReverse))
-  }
-
-  /** Rename a field using selector expressions */
-  inline def renameField[T, U](
-    inline from: A => T,
-    inline to: B => U
-  ): MigrationBuilder[A, B] = {
-    val fromPath = MigrationMacros.extractPath(from)
-    val toPath = MigrationMacros.extractPath(to)
-    val fromName = fromPath.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(n)) => n
-      case _ => ""
-    }
-    val toName = toPath.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(n)) => n
-      case _ => ""
-    }
-    new MigrationBuilder(sourceSchema, targetSchema,
-      actions :+ MigrationAction.Rename(fromPath.parent, fromName, toName))
-  }
-
-  /** Transform a field using selector expressions */
-  inline def transformField[T, U](
-    inline from: A => T,
-    inline to: B => U,
-    transform: DynamicExpr
-  ): MigrationBuilder[A, B] = {
-    val fromPath = MigrationMacros.extractPath(from)
-    val fieldName = fromPath.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(n)) => n
-      case _ => ""
-    }
-    new MigrationBuilder(sourceSchema, targetSchema,
-      actions :+ MigrationAction.TransformValue(fromPath.parent, fieldName, transform))
-  }
-
-  /** Mandate a field (Option[T] -> T) using selector expressions */
-  inline def mandateField[T, U](
-    inline source: A => Option[T],
-    inline target: B => U,
-    default: DynamicValue
-  ): MigrationBuilder[A, B] = {
-    val path = MigrationMacros.extractPath(source)
-    val fieldName = path.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(n)) => n
-      case _ => ""
-    }
-    new MigrationBuilder(sourceSchema, targetSchema,
-      actions :+ MigrationAction.Mandate(path.parent, fieldName, default))
-  }
-
-  /** Optionalize a field (T -> Option[T]) using selector expressions */
-  inline def optionalizeField[T, U](
-    inline source: A => T,
-    inline target: B => Option[U]
-  ): MigrationBuilder[A, B] = {
-    val path = MigrationMacros.extractPath(source)
-    val fieldName = path.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(n)) => n
-      case _ => ""
-    }
-    new MigrationBuilder(sourceSchema, targetSchema,
-      actions :+ MigrationAction.Optionalize(path.parent, fieldName))
-  }
-
+  // NOTE: Selector-based methods (inline def with _.field syntax) are available
+  // in Scala 3 only via scala-3/migration/MigrationMacros.scala
 
   // =========================================================================
   // BUILD
   // =========================================================================
 
-  /** Build the migration with compile-time macro validation */
-  inline def build: Migration[A, B] = {
-    MigrationMacros.validateMigration(sourceSchema, targetSchema, actions)
+  /** Build the migration */
+  def build: Migration[A, B] =
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
-  }
 
   /** Build the migration without full validation */
   def buildPartial: Migration[A, B] =
