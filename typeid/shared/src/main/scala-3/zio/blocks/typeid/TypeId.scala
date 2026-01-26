@@ -617,7 +617,7 @@ object TypeId {
   given indexedSeq: TypeId[IndexedSeq] =
     nominal[IndexedSeq]("IndexedSeq", Owner.scalaCollectionImmutable, List(TypeParam.A))
   given map: TypeId[Map]       = nominal[Map]("Map", Owner.scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
-  given either: TypeId[Either] = nominal[Either]("Either", Owner.scala, List(TypeParam.A, TypeParam.B))
+  given either: TypeId[Either] = nominal[Either]("Either", Owner.scalaUtil, List(TypeParam.A, TypeParam.B))
 
   // java.time
   given dayOfWeek: TypeId[java.time.DayOfWeek]         = nominal[java.time.DayOfWeek]("DayOfWeek", Owner.javaTime)
@@ -647,6 +647,7 @@ object TypeId {
   // Allow accessing private owner constants from within zio.blocks.typeid package
   private[typeid] object Owner {
     val scala: zio.blocks.typeid.Owner                    = zio.blocks.typeid.Owner.fromPackagePath("scala")
+    val scalaUtil: zio.blocks.typeid.Owner                = zio.blocks.typeid.Owner.fromPackagePath("scala.util")
     val scalaCollectionImmutable: zio.blocks.typeid.Owner =
       zio.blocks.typeid.Owner.fromPackagePath("scala.collection.immutable")
     val javaLang: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.lang")

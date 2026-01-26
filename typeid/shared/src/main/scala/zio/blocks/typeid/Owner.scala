@@ -103,6 +103,7 @@ object Owner {
 
   // Common namespaces
   private[typeid] val scala: Owner                    = fromPackagePath("scala")
+  private[typeid] val scalaUtil: Owner                = fromPackagePath("scala.util")
   private[typeid] val scalaCollectionImmutable: Owner = fromPackagePath("scala.collection.immutable")
   private[typeid] val javaLang: Owner                 = fromPackagePath("java.lang")
   private[typeid] val javaTime: Owner                 = fromPackagePath("java.time")

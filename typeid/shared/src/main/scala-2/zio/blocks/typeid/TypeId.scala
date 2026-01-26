@@ -508,7 +508,7 @@ object TypeId {
   implicit val map: TypeId[Map[_, _]] =
     nominal[Map[_, _]]("Map", Owner.scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
   implicit val either: TypeId[Either[_, _]] =
-    nominal[Either[_, _]]("Either", Owner.scala, List(TypeParam.A, TypeParam.B))
+    nominal[Either[_, _]]("Either", Owner.scalaUtil, List(TypeParam.A, TypeParam.B))
 
   implicit val dayOfWeek: TypeId[java.time.DayOfWeek]         = nominal[java.time.DayOfWeek]("DayOfWeek", Owner.javaTime)
   implicit val duration: TypeId[java.time.Duration]           = nominal[java.time.Duration]("Duration", Owner.javaTime)
@@ -535,6 +535,7 @@ object TypeId {
 
   private[typeid] object Owner {
     val scala: zio.blocks.typeid.Owner                    = zio.blocks.typeid.Owner.fromPackagePath("scala")
+    val scalaUtil: zio.blocks.typeid.Owner                = zio.blocks.typeid.Owner.fromPackagePath("scala.util")
     val scalaCollectionImmutable: zio.blocks.typeid.Owner =
       zio.blocks.typeid.Owner.fromPackagePath("scala.collection.immutable")
     val javaLang: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
