@@ -25,8 +25,9 @@ Examples use `<module>` as placeholder — substitute the actual project (e.g., 
 
 **Stage 2 — Coverage** (once, replaces final test run)
 - **Before pushing: final test run MUST use coverage, not plain `test`**
-- Modified module(s) only: `sbt "<module>JVM/coverage; <module>JVM/test; <module>JVM/coverageReport"`
-- Add tests until coverage minimums met (see build.sbt for thresholds)
+- Modified module(s) only
+- New/changed code must be fully covered; CI module minimums are a floor
+- `sbt "project <module>JVM; coverage; test; coverageReport"`
 - This IS the test run — no separate test step needed
 
 **Stage 3 — Cross-Scala** (once)
