@@ -107,6 +107,30 @@ object JsonEncoder {
   implicit val jsonEncoder: JsonEncoder[Json] = new JsonEncoder[Json] {
     def encode(json: Json): Json = json
   }
+
+  implicit val jsonObjectEncoder: JsonEncoder[Json.Object] = new JsonEncoder[Json.Object] {
+    def encode(obj: Json.Object): Json = obj
+  }
+
+  implicit val jsonArrayEncoder: JsonEncoder[Json.Array] = new JsonEncoder[Json.Array] {
+    def encode(arr: Json.Array): Json = arr
+  }
+
+  implicit val jsonStringEncoder: JsonEncoder[Json.String] = new JsonEncoder[Json.String] {
+    def encode(str: Json.String): Json = str
+  }
+
+  implicit val jsonNumberEncoder: JsonEncoder[Json.Number] = new JsonEncoder[Json.Number] {
+    def encode(num: Json.Number): Json = num
+  }
+
+  implicit val jsonBooleanEncoder: JsonEncoder[Json.Boolean] = new JsonEncoder[Json.Boolean] {
+    def encode(bool: Json.Boolean): Json = bool
+  }
+
+  implicit val jsonNullEncoder: JsonEncoder[Json.Null.type] = new JsonEncoder[Json.Null.type] {
+    def encode(n: Json.Null.type): Json = n
+  }
   // ─────────────────────────────────────────────────────────────────────────
   // Collection Encoders
   // ─────────────────────────────────────────────────────────────────────────
@@ -167,20 +191,20 @@ object JsonEncoder {
   implicit def arrayEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Array[A]] =
     new JsonEncoder[Array[A]] {
       def encode(arr: Array[A]): Json = {
-        val builder = Vector.newBuilder[Json]
+        val builder = Array.newBuilder[Json]
         var i       = 0
         while (i < arr.length) {
           builder.addOne(encoder.encode(arr(i)))
           i += 1
         }
-        new Json.Array(builder.result())
+        new Json.Array(Chunk.from(builder.result()))
       }
     }
 
   implicit def iterableEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Iterable[A]] =
     new JsonEncoder[Iterable[A]] {
       def encode(iter: Iterable[A]): Json =
-        new Json.Array(iter.foldLeft(Vector.newBuilder[Json])((acc, a) => acc.addOne(encoder.encode(a))).result())
+        new Json.Array(Chunk.from(iter.map(encoder.encode)))
     }
 
   // ─────────────────────────────────────────────────────────────────────────
