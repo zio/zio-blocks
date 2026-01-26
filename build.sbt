@@ -212,8 +212,8 @@ lazy val `schema-avro` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     }),
-    coverageMinimumStmtTotal   := 93,
-    coverageMinimumBranchTotal := 86
+    coverageMinimumStmtTotal   := 94,
+    coverageMinimumBranchTotal := 87
   )
 
 lazy val `schema-thrift` = project
