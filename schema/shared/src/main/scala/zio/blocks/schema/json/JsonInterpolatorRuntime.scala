@@ -9,7 +9,7 @@ import scala.annotation.tailrec
  * Shared runtime utilities for JSON string interpolation. Used by both Scala 2
  * and Scala 3 macro implementations.
  */
-private[json] object JsonInterpolatorRuntime {
+private[schema] object JsonInterpolatorRuntime {
 
   /**
    * Validates a JSON literal at compile time with context-aware placeholder

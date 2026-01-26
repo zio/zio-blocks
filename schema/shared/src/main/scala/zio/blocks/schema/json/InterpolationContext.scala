@@ -8,9 +8,9 @@ package zio.blocks.schema.json
  *   - Value: Requires `JsonEncoder[A]` - any type that can be encoded to JSON
  *   - InString: Requires `Keyable[A]` - embedded within a JSON string literal
  */
-private[json] sealed trait InterpolationContext
+private[schema] sealed trait InterpolationContext
 
-private[json] object InterpolationContext {
+private[schema] object InterpolationContext {
 
   /**
    * Interpolation in key position: `{$key: ...}`
