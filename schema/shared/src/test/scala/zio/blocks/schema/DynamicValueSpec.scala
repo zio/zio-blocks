@@ -206,8 +206,10 @@ object DynamicValueSpec extends SchemaBaseSpec {
         assertTrue(DynamicValue.Null.unwrap(DynamicValueType.Record).isEmpty)
       },
       test("Null is method works") {
-        assertTrue(DynamicValue.Null.is(DynamicValueType.Null)) &&
-        assertTrue(!DynamicValue.Null.is(DynamicValueType.Primitive))
+        val isNull      = DynamicValue.Null.is(DynamicValueType.Null)
+        val isPrimitive = DynamicValue.Null.is(DynamicValueType.Primitive)
+        assertTrue(isNull) &&
+        assertTrue(!isPrimitive)
       }
     ),
     suite("Type information methods")(
@@ -227,15 +229,22 @@ object DynamicValueSpec extends SchemaBaseSpec {
         assertTrue(mapVal.valueType == DynamicValueType.Map)
       },
       test("is method returns true for matching type") {
-        assertTrue(stringVal.is(DynamicValueType.Primitive)) &&
-        assertTrue(recordVal.is(DynamicValueType.Record)) &&
-        assertTrue(variantVal.is(DynamicValueType.Variant)) &&
-        assertTrue(seqVal.is(DynamicValueType.Sequence)) &&
-        assertTrue(mapVal.is(DynamicValueType.Map))
+        val isPrimitive = stringVal.is(DynamicValueType.Primitive)
+        val isRecord    = recordVal.is(DynamicValueType.Record)
+        val isVariant   = variantVal.is(DynamicValueType.Variant)
+        val isSequence  = seqVal.is(DynamicValueType.Sequence)
+        val isMap       = mapVal.is(DynamicValueType.Map)
+        assertTrue(isPrimitive) &&
+        assertTrue(isRecord) &&
+        assertTrue(isVariant) &&
+        assertTrue(isSequence) &&
+        assertTrue(isMap)
       },
       test("is method returns false for non-matching type") {
-        assertTrue(!stringVal.is(DynamicValueType.Record)) &&
-        assertTrue(!recordVal.is(DynamicValueType.Primitive))
+        val stringIsRecord    = stringVal.is(DynamicValueType.Record)
+        val recordIsPrimitive = recordVal.is(DynamicValueType.Primitive)
+        assertTrue(!stringIsRecord) &&
+        assertTrue(!recordIsPrimitive)
       },
       test("as method returns Some for matching type") {
         assertTrue(stringVal.as(DynamicValueType.Primitive).isDefined) &&

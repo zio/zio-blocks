@@ -94,11 +94,17 @@ object DynamicValueTypeSpec extends SchemaBaseSpec {
         assertTrue(DynamicValueType.Null eq DynamicValueType.Null)
       },
       test("Different types are not equal") {
-        assertTrue(DynamicValueType.Primitive != DynamicValueType.Record) &&
-        assertTrue(DynamicValueType.Record != DynamicValueType.Variant) &&
-        assertTrue(DynamicValueType.Variant != DynamicValueType.Sequence) &&
-        assertTrue(DynamicValueType.Sequence != DynamicValueType.Map) &&
-        assertTrue(DynamicValueType.Map != DynamicValueType.Null)
+        val primitive: DynamicValueType = DynamicValueType.Primitive
+        val record: DynamicValueType    = DynamicValueType.Record
+        val variant: DynamicValueType   = DynamicValueType.Variant
+        val sequence: DynamicValueType  = DynamicValueType.Sequence
+        val map: DynamicValueType       = DynamicValueType.Map
+        val nullType: DynamicValueType  = DynamicValueType.Null
+        assertTrue(primitive != record) &&
+        assertTrue(record != variant) &&
+        assertTrue(variant != sequence) &&
+        assertTrue(sequence != map) &&
+        assertTrue(map != nullType)
       }
     )
   )

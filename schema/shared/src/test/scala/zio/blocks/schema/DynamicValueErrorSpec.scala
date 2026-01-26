@@ -26,7 +26,7 @@ object DynamicValueErrorSpec extends SchemaBaseSpec {
           .atField("value")
           .atIndex(0)
           .atField("items")
-        assertTrue(error.toString == "test error at: .items.at(0).value")
+        assertTrue(error.toString == "test error at: .items[0].value")
       }
     ),
     suite("getMessage")(
@@ -96,7 +96,7 @@ object DynamicValueErrorSpec extends SchemaBaseSpec {
       },
       test("renders correctly in toString") {
         val error = DynamicValueError("test error").atIndex(42)
-        assertTrue(error.toString == "test error at: .at(42)")
+        assertTrue(error.toString == "test error at: [42]")
       }
     ),
     suite("atKey")(
@@ -118,7 +118,7 @@ object DynamicValueErrorSpec extends SchemaBaseSpec {
       test("renders correctly in toString") {
         val key   = DynamicValue.Primitive(PrimitiveValue.Int(123))
         val error = DynamicValueError("test error").atKey(key)
-        assertTrue(error.toString == "test error at: .atKey(<key>)")
+        assertTrue(error.toString == "test error at: {123}")
       }
     ),
     suite("atCase")(
@@ -137,7 +137,7 @@ object DynamicValueErrorSpec extends SchemaBaseSpec {
       },
       test("renders correctly in toString") {
         val error = DynamicValueError("test error").atCase("MyVariant")
-        assertTrue(error.toString == "test error at: .when[MyVariant]")
+        assertTrue(error.toString == "test error at: <MyVariant>")
       }
     ),
     suite("complex path construction")(
@@ -162,7 +162,7 @@ object DynamicValueErrorSpec extends SchemaBaseSpec {
           .atIndex(2)
           .atField("list")
           .atCase("Right")
-        assertTrue(error.toString == "error at: .when[Right].list.at(2).value")
+        assertTrue(error.toString == "error at: <Right>.list[2].value")
       }
     ),
     suite("exception behavior")(
