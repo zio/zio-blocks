@@ -4,8 +4,18 @@ import zio.blocks.schema._
 
 /**
  * Immutable builder for constructing typed migrations.
+ *
+ * Type parameters:
+ *   - A: Source schema type
+ *   - B: Target schema type
+ *   - Handled: Tuple of field names from A that have been handled (dropped, renamed from, etc.)
+ *   - Provided: Tuple of field names for B that have been provided (added, renamed to, etc.)
+ *
+ * In Scala 3, the Handled and Provided type parameters track field names at compile time,
+ * enabling compile-time validation of migration completeness. In Scala 2, these are
+ * always Any (no compile-time tracking).
  */
-final case class MigrationBuilder[A, B](
+final case class MigrationBuilder[A, B, Handled, Provided](
   sourceSchema: Schema[A],
   targetSchema: Schema[B],
   actions: Vector[MigrationAction]
@@ -17,7 +27,7 @@ final case class MigrationBuilder[A, B](
   private[migration] def addField(
     target: DynamicOptic,
     default: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.AddField(target, default))
 
   /**
@@ -26,7 +36,7 @@ final case class MigrationBuilder[A, B](
   private[migration] def dropField(
     source: DynamicOptic,
     defaultForReverse: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.DropField(source, defaultForReverse))
 
   /**
@@ -35,7 +45,7 @@ final case class MigrationBuilder[A, B](
   private[migration] def renameField(
     from: DynamicOptic,
     to: String
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.Rename(from, to))
 
   /**
@@ -44,7 +54,7 @@ final case class MigrationBuilder[A, B](
   private[migration] def transformField(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.TransformValue(at, transform))
 
   /**
@@ -53,7 +63,7 @@ final case class MigrationBuilder[A, B](
   private[migration] def mandateField(
     at: DynamicOptic,
     default: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.Mandate(at, default))
 
   /**
@@ -62,7 +72,7 @@ final case class MigrationBuilder[A, B](
   private[migration] def optionalizeField(
     at: DynamicOptic,
     defaultForReverse: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.Optionalize(at, defaultForReverse))
 
   /**
@@ -71,7 +81,7 @@ final case class MigrationBuilder[A, B](
   private[migration] def changeFieldType(
     at: DynamicOptic,
     converter: PrimitiveConverter
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.ChangeType(at, converter))
 
   /**
@@ -82,7 +92,7 @@ final case class MigrationBuilder[A, B](
     target: DynamicOptic,
     sourcePaths: Vector[DynamicOptic],
     combiner: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.Join(target, sourcePaths, combiner))
 
   /**
@@ -93,7 +103,7 @@ final case class MigrationBuilder[A, B](
     source: DynamicOptic,
     targetPaths: Vector[DynamicOptic],
     splitter: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.Split(source, targetPaths, splitter))
 
   /**
@@ -103,7 +113,7 @@ final case class MigrationBuilder[A, B](
     at: DynamicOptic,
     from: String,
     to: String
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.RenameCase(at, from, to))
 
   /**
@@ -113,7 +123,7 @@ final case class MigrationBuilder[A, B](
     at: DynamicOptic,
     caseName: String,
     actions: Vector[MigrationAction]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = this.actions :+ MigrationAction.TransformCase(at, caseName, actions))
 
   /**
@@ -122,7 +132,7 @@ final case class MigrationBuilder[A, B](
   private[migration] def transformElements(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.TransformElements(at, transform))
 
   /**
@@ -131,7 +141,7 @@ final case class MigrationBuilder[A, B](
   private[migration] def transformKeys(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.TransformKeys(at, transform))
 
   /**
@@ -140,7 +150,7 @@ final case class MigrationBuilder[A, B](
   private[migration] def transformValues(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ MigrationAction.TransformValues(at, transform))
 
   /**
@@ -630,14 +640,4 @@ final case class MigrationBuilder[A, B](
     }
 }
 
-object MigrationBuilder {
-
-  /**
-   * Creates a new migration builder for transforming from type A to type B.
-   */
-  def newBuilder[A, B](implicit
-    sourceSchema: Schema[A],
-    targetSchema: Schema[B]
-  ): MigrationBuilder[A, B] =
-    MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
-}
+object MigrationBuilder extends MigrationBuilderCompanionVersionSpecific
