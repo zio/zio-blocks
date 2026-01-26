@@ -10,7 +10,7 @@ trait Deriver[TC[_]] { self =>
 
   final def instance[F[_, _], T, A](fa: F[T, A])(implicit D: HasInstance[F]): Lazy[TC[A]] = D.instance(fa)
 
-  def derivePrimitive[F[_, _], A](
+  def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeName: TypeName[A],
     binding: Binding[BindingType.Primitive, A],
