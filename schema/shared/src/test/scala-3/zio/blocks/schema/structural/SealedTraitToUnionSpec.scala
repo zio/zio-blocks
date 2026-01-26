@@ -56,17 +56,11 @@ object SealedTraitToUnionSpec extends ZIOSpecDefault {
         }
         assertTrue(caseCount == 2)
       },
-      test("structural sealed trait type name contains Tag markers") {
+      test("structural sealed trait has exact union type name") {
         val schema     = Schema.derived[Result]
         val structural = schema.structural
         val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("|"),
-          typeName.contains("Tag:\"Success\""),
-          typeName.contains("Tag:\"Failure\""),
-          typeName.contains("value:Int"),
-          typeName.contains("error:String")
-        )
+        assertTrue(typeName == """{Tag:"Success",value:Int}|{Tag:"Failure",error:String}""")
       },
       test("sealed trait with case objects converts to structural") {
         val schema     = Schema.derived[Status]

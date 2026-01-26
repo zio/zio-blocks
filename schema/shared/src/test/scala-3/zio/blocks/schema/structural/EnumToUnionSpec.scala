@@ -51,16 +51,11 @@ object EnumToUnionSpec extends ZIOSpecDefault {
         }
         assertTrue(caseCount == 3)
       },
-      test("structural enum type name contains Tag markers") {
+      test("structural enum has exact union type name") {
         val schema     = Schema.derived[Color]
         val structural = schema.structural
         val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("Tag:\"Red\""),
-          typeName.contains("Tag:\"Green\""),
-          typeName.contains("Tag:\"Blue\""),
-          typeName.contains("|")
-        )
+        assertTrue(typeName == """{Tag:"Red"}|{Tag:"Green"}|{Tag:"Blue"}""")
       },
       test("parameterized enum structural preserves case fields") {
         val schema     = Schema.derived[Shape]
