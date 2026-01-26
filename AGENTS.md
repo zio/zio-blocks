@@ -54,6 +54,13 @@ Examples use `<module>` as placeholder — substitute the actual project (e.g., 
 - ❌ Running tests then coverage separately (coverage includes test run)
 - ❌ Testing a module twice at the same Scala version
 - ❌ Formatting downstream modules
+- ❌ Committing merge resolutions without test + format
+
+### After merging
+
+Conflict resolution = code change. Before committing:
+- Run Stage 1 (test) and Stage 6 (format) on touched modules
+- Add `sbt scalafmtSbt` if build files changed
 
 ## Command Execution
 
