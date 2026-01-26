@@ -4,7 +4,7 @@ import zio.test._
 import zio.test.Assertion._
 
 /** Tests for implicit Into resolution handling numeric conversions. */
-object IntoIsCoercibleTest extends ZIOSpecDefault {
+object IntoIsCoercibleTest extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("IntoIsCoercibleTest")(
     suite("Numeric Widening - Should work via implicit Into instances")(

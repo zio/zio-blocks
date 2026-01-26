@@ -13,7 +13,7 @@ import zio.test.Assertion._
  * These tests verify that Into can convert from structural types to case
  * classes.
  */
-object StructuralTypeSourceSpec extends ZIOSpecDefault {
+object StructuralTypeSourceSpec extends SchemaBaseSpec {
 
   case class Person(name: String, age: Int)
   case class NameOnly(name: String)
