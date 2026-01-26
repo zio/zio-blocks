@@ -716,6 +716,8 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
             encodeDynamic(v, out)
             i += 1
           }
+        case DynamicValue.Null =>
+          out.writeNil()
       }
 
       private def encodePrimitive(p: PrimitiveValue, out: MessagePackWriter): Unit = p match {

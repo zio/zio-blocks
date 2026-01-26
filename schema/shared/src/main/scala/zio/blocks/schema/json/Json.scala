@@ -769,11 +769,13 @@ object Json {
 
   /** Converts a DynamicValue to a Json value. */
   def fromDynamicValue(dv: DynamicValue): Json = dv match {
-    case v: DynamicValue.Primitive => fromPrimitiveValue(v.value)
-    case v: DynamicValue.Record    => new Object(Chunk.from(v.fields.map { case (k, v) => (k, fromDynamicValue(v)) }))
-    case v: DynamicValue.Variant   => new Object(Chunk((v.caseName, fromDynamicValue(v.value))))
-    case v: DynamicValue.Sequence  => new Array(Chunk.from(v.elements.map(fromDynamicValue)))
-    case v: DynamicValue.Map       =>
+    case DynamicValue.Null                     => Null
+    case v: DynamicValue.Primitive             => fromPrimitiveValue(v.value)
+    case v: DynamicValue.Record                => new Object(Chunk.from(v.fields.map { case (k, v) => (k, fromDynamicValue(v)) }))
+    case DynamicValue.Variant(caseName, value) =>
+      new Object(Chunk((caseName, fromDynamicValue(value))))
+    case v: DynamicValue.Sequence => new Array(Chunk.from(v.elements.map(fromDynamicValue)))
+    case v: DynamicValue.Map      =>
       val entries = v.entries
       // For maps with string keys, convert to object; otherwise use array of pairs
       val allStringKeys = entries.forall {
@@ -792,7 +794,7 @@ object Json {
   }
 
   private def fromPrimitiveValue(pv: PrimitiveValue): Json = pv match {
-    case PrimitiveValue.Unit              => Null
+    case PrimitiveValue.Unit              => Object.empty
     case v: PrimitiveValue.Boolean        => Boolean(v.value)
     case v: PrimitiveValue.Byte           => new Number(v.value.toString)
     case v: PrimitiveValue.Short          => new Number(v.value.toString)
@@ -825,6 +827,7 @@ object Json {
   }
 
   private def toDynamicValue(json: Json): DynamicValue = json match {
+    case Null          => DynamicValue.Null
     case str: String   => new DynamicValue.Primitive(new PrimitiveValue.String(str.value))
     case bool: Boolean => new DynamicValue.Primitive(new PrimitiveValue.Boolean(bool.value))
     case num: Number   =>
@@ -841,7 +844,6 @@ object Json {
       new DynamicValue.Record(
         obj.value.toVector.map { case (k, v) => (k, toDynamicValue(v)) }
       )
-    case _ => new DynamicValue.Primitive(PrimitiveValue.Unit)
   }
 
   // ─────────────────────────────────────────────────────────────────────────

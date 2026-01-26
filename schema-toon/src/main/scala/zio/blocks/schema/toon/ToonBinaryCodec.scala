@@ -1145,7 +1145,7 @@ object ToonBinaryCodec {
       case variant: DynamicValue.Variant =>
         out.discriminatorField match {
           case Some(fieldName) => encodeVariantWithDiscriminator(variant, fieldName, out)
-          case None            => encodeRecordPlain(variant.caseName, variant.value, out)
+          case None            => encodeRecordPlain(variant.caseNameValue, variant.value, out)
         }
       case sequence: DynamicValue.Sequence =>
         val elements = sequence.elements
@@ -1202,6 +1202,8 @@ object ToonBinaryCodec {
               out.newLine()
           }
         }
+      case DynamicValue.Null =>
+        out.writeNull()
     }
 
     private def encodeVariantWithDiscriminator(
@@ -1212,7 +1214,7 @@ object ToonBinaryCodec {
       variant.value match {
         case record: DynamicValue.Record =>
           out.writeKey(fieldName)
-          out.writeString(variant.caseName)
+          out.writeString(variant.caseNameValue)
           out.newLine()
           val it = record.fields.iterator
           while (it.hasNext) {
@@ -1221,7 +1223,7 @@ object ToonBinaryCodec {
           }
         case other =>
           out.writeKey(fieldName)
-          out.writeString(variant.caseName)
+          out.writeString(variant.caseNameValue)
           out.newLine()
           out.writeKey("value")
           encodeValue(other, out)
@@ -1247,7 +1249,7 @@ object ToonBinaryCodec {
           out.incrementDepth()
           out.discriminatorField match {
             case Some(fieldName) => encodeVariantWithDiscriminator(variant, fieldName, out)
-            case None            => encodeRecordPlain(variant.caseName, variant.value, out)
+            case None            => encodeRecordPlain(variant.caseNameValue, variant.value, out)
           }
           out.decrementDepth()
         case map: DynamicValue.Map if map.entries.nonEmpty =>
@@ -1329,7 +1331,7 @@ object ToonBinaryCodec {
                 out.writeKeyOnly(foldedKey)
                 out.incrementDepth()
                 writeFieldWithNesting(
-                  variant.caseName,
+                  variant.caseNameValue,
                   variant.value,
                   out,
                   remainingDepth - depth,
@@ -1401,7 +1403,7 @@ object ToonBinaryCodec {
           out.writeKeyOnly(key)
           out.incrementDepth()
           writeFieldWithNesting(
-            variant.caseName,
+            variant.caseNameValue,
             variant.value,
             out,
             remainingDepth - 1,

@@ -832,7 +832,7 @@ object JsonBinaryCodec {
         out.writeObjectEnd()
       case variant: DynamicValue.Variant =>
         out.writeObjectStart()
-        out.writeKey(variant.caseName)
+        out.writeKey(variant.caseNameValue)
         encodeValue(variant.value, out)
         out.writeObjectEnd()
       case sequence: DynamicValue.Sequence =>
@@ -853,6 +853,8 @@ object JsonBinaryCodec {
           encodeValue(kv._2, out)
         }
         out.writeObjectEnd()
+      case DynamicValue.Null =>
+        out.writeNull()
     }
 
     override def encodeKey(x: DynamicValue, out: JsonWriter): Unit = x match {
