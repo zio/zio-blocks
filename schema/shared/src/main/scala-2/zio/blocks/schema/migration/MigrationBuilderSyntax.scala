@@ -362,8 +362,9 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
     val (atOptic, caseName) = MigrationBuilderMacros.extractCaseSelector[A, Any](c)(at)
     c.universe.reify {
-      val sourceSchema       = builder.splice.sourceSchema
-      val emptyBuilder       = MigrationBuilder(sourceSchema, sourceSchema, Vector.empty)
+      val sourceSchema = builder.splice.sourceSchema
+      val emptyBuilder: MigrationBuilder[A, A, Any, Any] =
+        MigrationBuilder[A, A, Any, Any](sourceSchema, sourceSchema, Vector.empty)
       val transformedBuilder = nestedActions.splice.apply(emptyBuilder)
       builder.splice.transformCase(atOptic.splice, caseName.splice, transformedBuilder.actions)
     }
