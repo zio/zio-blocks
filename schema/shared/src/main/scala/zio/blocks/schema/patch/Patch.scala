@@ -66,6 +66,8 @@ final case class Patch[S] private[schema] (dynamicPatch: DynamicPatch, schema: S
 
   // Check if this patch is empty (no operations).
   def isEmpty: Boolean = dynamicPatch.isEmpty
+
+  override def toString: String = dynamicPatch.toString
 }
 
 /**

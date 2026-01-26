@@ -251,6 +251,15 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
       case _ =>
         new Schema(reflect.typeName(typeName.asInstanceOf[TypeName[A]])).asInstanceOf[Schema[B]]
     }
+
+  override def toString: String = {
+    val reflectStr = reflect.toString
+    if (reflectStr.contains('\n')) {
+      s"Schema {\n  ${reflectStr.replace("\n", "\n  ")}\n}"
+    } else {
+      s"Schema {\n  $reflectStr\n}"
+    }
+  }
 }
 
 object Schema extends SchemaCompanionVersionSpecific {

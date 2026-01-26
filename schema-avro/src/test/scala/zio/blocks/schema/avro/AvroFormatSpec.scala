@@ -619,7 +619,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           "Expected map size not greater than 2147483639, got 2147483647 at: ."
         ) &&
-        decodeError[Map[Int, Long]](Array[Byte](2, 2, 0xff.toByte), "Unexpected end of input at: .atKey(<key>)")
+        decodeError[Map[Int, Long]](Array[Byte](2, 2, 0xff.toByte), "Unexpected end of input at: .atKey(1)")
       },
       test("non string key with recursive values") {
         avroSchema[Map[Recursive, Int]](

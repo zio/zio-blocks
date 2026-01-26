@@ -2516,7 +2516,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Map[Int, Long]]("", "unexpected end of input at: .") &&
         decodeError[Map[Int, Long]]("true", "expected '{' or null at: .") &&
         decodeError[Map[Int, Long]]("""{"1"""", "unexpected end of input at: .at(0)") &&
-        decodeError[Map[Int, Long]]("""{"1":""", "unexpected end of input at: .atKey(<key>)") &&
+        decodeError[Map[Int, Long]]("""{"1":""", "unexpected end of input at: .atKey(1)") &&
         decodeError[Map[Int, Long]]("""{"1":2]""", "expected '}' or ',' at: .") &&
         encodeError(Map(() -> 1L), "encoding as JSON key is not supported") &&
         decodeError[Map[Unit, Long]]("""{"null":1}""", "decoding as JSON key is not supported at: .at(0)")

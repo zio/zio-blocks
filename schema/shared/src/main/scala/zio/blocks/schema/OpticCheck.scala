@@ -42,28 +42,31 @@ object OpticCheck {
     actualValue: Any
   ) extends Error {
     def message: String =
-      s"During attempted access at $full, encountered an unexpected case at $prefix: expected $expectedCase, but got $actualCase"
+      s"During attempted access at ${full.toScalaString}, encountered an unexpected case at ${prefix.toScalaString}: expected $expectedCase, but got $actualCase"
   }
 
   case class EmptySequence(full: DynamicOptic, prefix: DynamicOptic) extends Warning {
     def message: String =
-      s"During attempted access at $full, encountered an empty sequence at $prefix"
+      s"During attempted access at ${full.toScalaString}, encountered an empty sequence at ${prefix.toScalaString}"
   }
 
   case class SequenceIndexOutOfBounds(full: DynamicOptic, prefix: DynamicOptic, index: Int, size: Int) extends Warning {
     def message: String =
-      s"During attempted access at $full, encountered a sequence out of bounds at $prefix: index is $index, but size is $size"
+      s"During attempted access at ${full.toScalaString}, encountered a sequence out of bounds at ${prefix.toScalaString}: index is $index, but size is $size"
   }
 
   case class MissingKey(full: DynamicOptic, prefix: DynamicOptic, key: Any) extends Warning {
-    def message: String = s"During attempted access at $full, encountered missing key at $prefix"
+    def message: String =
+      s"During attempted access at ${full.toScalaString}, encountered missing key at ${prefix.toScalaString}"
   }
 
   case class EmptyMap(full: DynamicOptic, prefix: DynamicOptic) extends Warning {
-    def message: String = s"During attempted access at $full, encountered an empty map at $prefix"
+    def message: String =
+      s"During attempted access at ${full.toScalaString}, encountered an empty map at ${prefix.toScalaString}"
   }
 
   case class WrappingError(full: DynamicOptic, prefix: DynamicOptic, error: SchemaError) extends Error {
-    def message: String = s"During attempted access at $full, encountered an error at $prefix: ${error.message}"
+    def message: String =
+      s"During attempted access at ${full.toScalaString}, encountered an error at ${prefix.toScalaString}: ${error.message}"
   }
 }
