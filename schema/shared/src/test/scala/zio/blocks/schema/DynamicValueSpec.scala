@@ -2331,6 +2331,23 @@ object DynamicValueSpec extends SchemaBaseSpec {
           }
         }
         assertTrue(result.caseValue.map(_.fields.length) == Some(1))
+      },
+      test("prune recurses into variant even when inner value matches predicate") {
+        // Bug: when p(childPath, v.value) returns true for the variant's inner value,
+        // pruneImpl returned the original variant unchanged without recursing.
+        // This test has a Record inside a Variant, where the Record matches the predicate.
+        // The Record contains fields that should be pruned, so we must recurse into it.
+        val inner   = DynamicValue.Record("a" -> intVal, "b" -> stringVal)
+        val variant = DynamicValue.Variant("Some", inner)
+        val result  = variant.pruneBoth { (_, dv) =>
+          dv match {
+            case _: DynamicValue.Record                        => true // matches the inner Record
+            case DynamicValue.Primitive(PrimitiveValue.Int(_)) => true // should prune "a" field
+            case _                                             => false
+          }
+        }
+        // The inner Record matches predicate, but we should still recurse and prune "a"
+        assertTrue(result.caseValue.map(_.fields.length) == Some(1))
       }
     ),
     suite("Record.get field not found")(
@@ -2481,16 +2498,19 @@ object DynamicValueSpec extends SchemaBaseSpec {
       }
     ),
     suite("pruneImpl on Variant child")(
-      test("pruneBoth on Variant keeps original when child is pruned entirely") {
+      test("pruneBoth on Variant recurses into inner value") {
+        // Variant always recurses into its inner value (it's a transparent wrapper).
+        // When the inner Record's fields match the predicate, they get pruned.
         val inner   = DynamicValue.Record("a" -> intVal)
         val variant = DynamicValue.Variant("Some", inner)
         val result  = variant.pruneBoth { (_, dv) =>
           dv match {
-            case _: DynamicValue.Record => true
-            case _                      => false
+            case DynamicValue.Primitive(PrimitiveValue.Int(_)) => true
+            case _                                             => false
           }
         }
-        assertTrue(result == variant)
+        // The "a" field should be pruned, leaving an empty record
+        assertTrue(result == DynamicValue.Variant("Some", DynamicValue.Record()))
       }
     ),
     suite("fromKV upsert edge cases")(
