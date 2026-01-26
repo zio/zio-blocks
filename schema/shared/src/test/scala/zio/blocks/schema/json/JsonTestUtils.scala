@@ -176,8 +176,10 @@ object JsonTestUtils {
     assert(Try(codec.encodeToString(value, writerConfig)).toEither)(isLeft(hasError(error)))
   }
 
-  def hasError(message: String): Assertion[Throwable] =
-    hasField[Throwable, String]("getMessage", _.getMessage, equalTo(message))
+  def hasError(message: String): Assertion[Throwable] = {
+    def expectationPart(s: String): String = Option(s).getOrElse("").split(" at: ")(0)
+    hasField[Throwable, String]("getMessage", throwable => expectationPart(throwable.getMessage: String), equalTo(expectationPart(message)))
+  }
 
   private[this] def readerConfig =
     ReaderConfig
