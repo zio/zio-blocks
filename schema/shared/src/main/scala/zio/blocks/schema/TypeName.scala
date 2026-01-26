@@ -2,7 +2,11 @@ package zio.blocks.schema
 
 import scala.collection.immutable.ArraySeq
 
-final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil)
+final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil) {
+  override def toString: String =
+    if (params.isEmpty) name
+    else s"$name[${params.mkString(", ")}]"
+}
 
 object TypeName extends TypeNameCompanionVersionSpecific {
   val unit: TypeName[Unit] = new TypeName(Namespace.scala, "Unit")
