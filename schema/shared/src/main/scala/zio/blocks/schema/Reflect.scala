@@ -47,6 +47,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def doc(value: String): Reflect[F, A] = doc(Doc.Text(value))
 
+  override def toString: String = toString(0)
+
+  protected[schema] def toString(indent: Int): String
+
   override def equals(obj: Any): Boolean = obj match {
     case that: Reflect[?, ?] => (this eq that) || inner == that.inner
     case _                   => false
@@ -437,6 +441,28 @@ object Reflect {
       registers.asInstanceOf[ArraySeq[Register[Any]]].unsafeArray.asInstanceOf[Array[Register[Any]]]
     )
 
+    protected[schema] def toString(indent: Int): String = {
+      if (fields.isEmpty) s"Record[${typeName.toString}]()"
+      else {
+        val sb = new StringBuilder
+        val pad = "  " * indent
+        val nextPad = "  " * (indent + 1)
+        sb.append(s"Record[${typeName.toString}](\n")
+        var idx = 0
+        while (idx < fields.length) {
+          val field = fields(idx)
+          sb.append(nextPad)
+          sb.append(field.name).append(": ")
+          sb.append(field.value.toString(indent + 1))
+          if (idx < fields.length - 1) sb.append(",\n")
+          else sb.append("\n")
+          idx += 1
+        }
+        sb.append(pad).append(")")
+        sb.toString
+      }
+    }
+
     def typeName(value: TypeName[A]): Record[F, A] = copy(typeName = value)
 
     def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
@@ -601,6 +627,28 @@ object Reflect {
         cases   <- Lazy.foreach(cases)(_.transform(path, Term.Type.Variant, f))
         variant <- f.transformVariant(path, cases, typeName, variantBinding, doc, modifiers)
       } yield variant
+
+    protected[schema] def toString(indent: Int): String = {
+      if (cases.isEmpty) s"Variant[${typeName.toString}]()"
+      else {
+        val sb = new StringBuilder
+        val pad = "  " * indent
+        val nextPad = "  " * (indent + 1)
+        sb.append(s"Variant[${typeName.toString}](\n")
+        var idx = 0
+        while (idx < cases.length) {
+          val case_ = cases(idx)
+          sb.append(nextPad)
+          sb.append(case_.name).append(": ")
+          sb.append(case_.value.toString(indent + 1))
+          if (idx < cases.length - 1) sb.append(",\n")
+          else sb.append("\n")
+          idx += 1
+        }
+        sb.append(pad).append(")")
+        sb.toString
+      }
+    }
 
     def typeName(value: TypeName[A]): Variant[F, A] = copy(typeName = value)
 
@@ -797,6 +845,8 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
+    protected[schema] def toString(indent: Int): String = s"Sequence[${element.typeName.toString}, ${typeName.toString}]"
+
     def typeName(value: TypeName[C[A]]): Sequence[F, A, C] = copy(typeName = value)
 
     def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
@@ -911,6 +961,9 @@ object Reflect {
         map   <- f.transformMap(path, key, value, typeName, mapBinding, doc, modifiers)
       } yield map
 
+    protected[schema] def toString(indent: Int): String =
+      s"Map[${key.typeName.toString}, ${value.typeName.toString}, ${typeName.toString}]"
+
     def typeName(value: TypeName[M[K, V]]): Map[F, K, V, M] = copy(typeName = value)
 
     def nodeType: Reflect.Type.Map[M] = new Reflect.Type.Map
@@ -980,6 +1033,8 @@ object Reflect {
         dynamic <- f.transformDynamic(path, typeName, dynamicBinding, doc, modifiers)
       } yield dynamic
 
+    protected[schema] def toString(indent: Int): String = "Dynamic"
+
     def typeName(value: TypeName[DynamicValue]): Dynamic[F] = copy(typeName = value)
 
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
@@ -1043,6 +1098,8 @@ object Reflect {
     override def asPrimitive: Option[Reflect.Primitive[F, A]] = new Some(this)
 
     override def isPrimitive: Boolean = true
+
+    protected[schema] def toString(indent: Int): String = s"Primitive[${typeName.toString}]"
   }
 
   object Primitive {
@@ -1098,6 +1155,8 @@ object Reflect {
         wrapped <- wrapped.transform(path, f)
         wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperPrimitiveType, wrapperBinding, doc, modifiers)
       } yield wrapper
+
+    protected[schema] def toString(indent: Int): String = s"Wrapper[${typeName.toString}, ${wrapped.typeName.toString}]"
 
     def typeName(value: TypeName[A]): Wrapper[F, A, B] = copy(typeName = value)
 
@@ -1171,6 +1230,8 @@ object Reflect {
           result
         }
       }
+
+    protected[schema] def toString(indent: Int): String = value.toString(indent)
 
     def typeName(value: TypeName[A]): Deferred[F, A] = copy(_value = () => _value().typeName(value))
 
