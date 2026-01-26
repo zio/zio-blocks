@@ -31,6 +31,10 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
           val value = DynamicValue.Primitive(PrimitiveValue.Unit)
           assertTrue(value.toString == "null")
         } +
+        test("renders Null case") {
+          val value = DynamicValue.Null
+          assertTrue(value.toString == "null")
+        } +
         test("renders byte") {
           val value = DynamicValue.Primitive(PrimitiveValue.Byte(127))
           assertTrue(value.toString == "127")
