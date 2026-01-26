@@ -9,11 +9,12 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
 
   private def expectedNamedTupleTypeId[A]: TypeId[A] =
     TypeId.opaque[A](
-      "NamedTuple",
-      Owner(List(Owner.Package("scala"), Owner.Term("NamedTuple"))),
-      Nil,
-      TypeRepr.Ref(TypeId.string),
-      TypeBounds.Unbounded
+      name = "NamedTuple",
+      owner = Owner(List(Owner.Package("scala"), Owner.Term("NamedTuple"))),
+      typeParams = Nil,
+      representation = TypeRepr.Ref(TypeId.string),
+      typeArgs = Nil,
+      publicBounds = TypeBounds.Unbounded
     )
 
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
