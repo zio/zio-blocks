@@ -2099,6 +2099,263 @@ object JsonSpec extends SchemaBaseSpec {
           val result         = left.merge(right, customStrategy)
           assertTrue(result == Json.Array(Json.Number("2")))
         }
+      ),
+      suite("PrimitiveValue conversions")(
+        test("fromDynamicValue handles all primitive types") {
+          import java.time._
+          import java.util.{Currency, UUID}
+
+          val primitives = Seq(
+            (PrimitiveValue.Unit, Json.Null),
+            (PrimitiveValue.Boolean(true), Json.Boolean(true)),
+            (PrimitiveValue.Byte(42.toByte), Json.Number("42")),
+            (PrimitiveValue.Short(1000.toShort), Json.Number("1000")),
+            (PrimitiveValue.Int(12345), Json.Number("12345")),
+            (PrimitiveValue.Long(9876543210L), Json.Number("9876543210")),
+            (PrimitiveValue.Float(3.14f), Json.Number(3.14f.toString)),
+            (PrimitiveValue.Double(2.71828), Json.Number(2.71828.toString)),
+            (PrimitiveValue.Char('X'), Json.String("X")),
+            (PrimitiveValue.String("hello"), Json.String("hello")),
+            (PrimitiveValue.BigInt(BigInt("12345678901234567890")), Json.Number("12345678901234567890")),
+            (PrimitiveValue.BigDecimal(BigDecimal("123.456789")), Json.Number("123.456789")),
+            (PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY), Json.String("MONDAY")),
+            (PrimitiveValue.Duration(Duration.ofHours(2)), Json.String("PT2H")),
+            (PrimitiveValue.Instant(Instant.parse("2024-01-15T10:30:00Z")), Json.String("2024-01-15T10:30:00Z")),
+            (PrimitiveValue.LocalDate(LocalDate.of(2024, 1, 15)), Json.String("2024-01-15")),
+            (PrimitiveValue.LocalDateTime(LocalDateTime.of(2024, 1, 15, 10, 30)), Json.String("2024-01-15T10:30")),
+            (PrimitiveValue.LocalTime(LocalTime.of(10, 30, 45)), Json.String("10:30:45")),
+            (PrimitiveValue.Month(Month.JANUARY), Json.String("JANUARY")),
+            (PrimitiveValue.MonthDay(MonthDay.of(1, 15)), Json.String("--01-15")),
+            (
+              PrimitiveValue.OffsetDateTime(OffsetDateTime.parse("2024-01-15T10:30:00+02:00")),
+              Json.String("2024-01-15T10:30+02:00")
+            ),
+            (PrimitiveValue.OffsetTime(OffsetTime.parse("10:30:00+02:00")), Json.String("10:30+02:00")),
+            (PrimitiveValue.Period(Period.ofMonths(3)), Json.String("P3M")),
+            (PrimitiveValue.Year(Year.of(2024)), Json.String("2024")),
+            (PrimitiveValue.YearMonth(YearMonth.of(2024, 1)), Json.String("2024-01")),
+            (PrimitiveValue.ZoneId(ZoneId.of("Europe/London")), Json.String("Europe/London")),
+            (PrimitiveValue.ZoneOffset(ZoneOffset.ofHours(2)), Json.String("+02:00")), {
+              val zdt = ZonedDateTime.of(2024, 1, 15, 10, 30, 0, 0, ZoneId.of("UTC"))
+              (PrimitiveValue.ZonedDateTime(zdt), Json.String(zdt.toString))
+            },
+            (PrimitiveValue.Currency(Currency.getInstance("USD")), Json.String("USD")),
+            (
+              PrimitiveValue.UUID(UUID.fromString("550e8400-e29b-41d4-a716-446655440000")),
+              Json.String("550e8400-e29b-41d4-a716-446655440000")
+            )
+          )
+
+          assertTrue(
+            primitives.forall { case (pv, expected) =>
+              val dv     = DynamicValue.Primitive(pv)
+              val result = Json.fromDynamicValue(dv)
+              result == expected
+            }
+          )
+        }
+      ),
+      suite("Number comparison edge cases")(
+        test("compare handles invalid number strings gracefully") {
+          val validNum   = Json.Number("123")
+          val invalidNum = new Json.Number("not-a-number")
+          val cmp        = invalidNum.compare(validNum)
+          assertTrue(cmp != 0)
+        },
+        test("compare two invalid numbers uses string comparison") {
+          val invalid1 = new Json.Number("abc")
+          val invalid2 = new Json.Number("def")
+          assertTrue(invalid1.compare(invalid2) < 0)
+        },
+        test("Number.toBigDecimalOption returns None for invalid string") {
+          val invalidNum = new Json.Number("not-a-number")
+          assertTrue(invalidNum.toBigDecimalOption.isEmpty)
+        }
+      ),
+      suite("parse error handling")(
+        test("parse invalid JSON returns Left") {
+          val invalid = "{not valid json}"
+          val result  = Json.parse(invalid)
+          assertTrue(result.isLeft)
+        },
+        test("parse unclosed array returns Left") {
+          val invalid = "[1, 2, 3"
+          val result  = Json.parse(invalid)
+          assertTrue(result.isLeft)
+        },
+        test("parse unclosed object returns Left") {
+          val invalid = """{"key": "value" """
+          val result  = Json.parse(invalid)
+          assertTrue(result.isLeft)
+        },
+        test("parse trailing content returns Left") {
+          val invalid = """{"a": 1} extra"""
+          val result  = Json.parse(invalid)
+          assertTrue(result.isLeft)
+        }
+      ),
+      suite("print method")(
+        test("print works correctly") {
+          val json = Json.Object("a" -> Json.Number("1"))
+          assertTrue(json.print == """{"a":1}""")
+        },
+        test("print with config works correctly") {
+          val json = Json.Object("a" -> Json.Number("1"))
+          assertTrue(json.print(WriterConfig).nonEmpty)
+        }
+      ),
+      suite("ByteBuffer encoding and decoding")(
+        test("printTo writes to ByteBuffer") {
+          val json   = Json.Object("key" -> Json.String("value"))
+          val buffer = java.nio.ByteBuffer.allocate(1024)
+          json.printTo(buffer)
+          buffer.flip()
+          val bytes = new Array[Byte](buffer.remaining())
+          buffer.get(bytes)
+          val parsed = Json.parse(bytes)
+          assertTrue(parsed == Right(json))
+        },
+        test("printTo with config writes to ByteBuffer") {
+          val json   = Json.Object("key" -> Json.String("value"))
+          val buffer = java.nio.ByteBuffer.allocate(1024)
+          json.printTo(buffer, WriterConfig)
+          buffer.flip()
+          val bytes = new Array[Byte](buffer.remaining())
+          buffer.get(bytes)
+          val parsed = Json.parse(bytes)
+          assertTrue(parsed == Right(json))
+        },
+        test("parse from ByteBuffer works correctly") {
+          val json   = Json.Object("name" -> Json.String("Alice"))
+          val bytes  = json.printBytes
+          val buffer = java.nio.ByteBuffer.wrap(bytes)
+          val parsed = Json.parse(buffer)
+          assertTrue(parsed == Right(json))
+        },
+        test("parse from ByteBuffer with config works correctly") {
+          val json   = Json.Object("name" -> Json.String("Alice"))
+          val bytes  = json.printBytes
+          val buffer = java.nio.ByteBuffer.wrap(bytes)
+          val parsed = Json.parse(buffer, ReaderConfig)
+          assertTrue(parsed == Right(json))
+        }
+      ),
+      suite("CharSequence parsing")(
+        test("parse from CharSequence works correctly") {
+          val input: CharSequence = """{"name": "Bob"}"""
+          val parsed              = Json.parse(input)
+          assertTrue(parsed == Right(Json.Object("name" -> Json.String("Bob"))))
+        },
+        test("parse from CharSequence with config works correctly") {
+          val input: CharSequence = """{"count": 42}"""
+          val parsed              = Json.parse(input, ReaderConfig)
+          assertTrue(parsed == Right(Json.Object("count" -> Json.Number("42"))))
+        }
+      ),
+      suite("Object and Array construction")(
+        test("Object constructor with varargs") {
+          val obj = Json.Object("a" -> Json.Number("1"), "b" -> Json.Number("2"))
+          assertTrue(obj.fields.length == 2, obj.get("a").one == Right(Json.Number("1")))
+        },
+        test("Array constructor with varargs") {
+          val arr = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3"))
+          assertTrue(arr.elements.length == 3, arr.get(0).one == Right(Json.Number("1")))
+        }
+      ),
+      suite("sortKeys on non-object types")(
+        test("sortKeys on array sorts nested objects") {
+          val arr    = Json.Array(Json.Object("z" -> Json.Number("1"), "a" -> Json.Number("2")))
+          val sorted = arr.sortKeys
+          sorted.elements.headOption match {
+            case Some(Json.Object(fields)) => assertTrue(fields.head._1 == "a")
+            case _                         => assertTrue(false)
+          }
+        },
+        test("sortKeys on primitives returns unchanged") {
+          assertTrue(
+            Json.String("hello").sortKeys == Json.String("hello"),
+            Json.Number("42").sortKeys == Json.Number("42"),
+            Json.Boolean(true).sortKeys == Json.Boolean(true),
+            Json.Null.sortKeys == Json.Null
+          )
+        }
+      ),
+      suite("dropNulls and dropEmpty on primitives")(
+        test("dropNulls on primitives returns unchanged") {
+          assertTrue(
+            Json.String("hello").dropNulls == Json.String("hello"),
+            Json.Number("42").dropNulls == Json.Number("42"),
+            Json.Boolean(true).dropNulls == Json.Boolean(true)
+          )
+        },
+        test("dropEmpty on primitives returns unchanged") {
+          assertTrue(
+            Json.String("hello").dropEmpty == Json.String("hello"),
+            Json.Number("42").dropEmpty == Json.Number("42"),
+            Json.Boolean(true).dropEmpty == Json.Boolean(true)
+          )
+        }
+      ),
+      suite("fromKV error handling")(
+        test("fromKV with conflicting paths returns error") {
+          val kvs = Seq(
+            (DynamicOptic.root.field("a"), Json.Number("1")),
+            (DynamicOptic.root.field("a").at(0), Json.Number("2"))
+          )
+          val result = Json.fromKV(kvs)
+          assertTrue(result.isRight)
+        }
+      ),
+      suite("setOrCreatePath edge cases")(
+        test("setOrCreatePath creates nested object structure") {
+          val json    = Json.Null
+          val path    = DynamicOptic.root.field("a").field("b").field("c")
+          val updated = json.set(path, Json.Number("42"))
+          assertTrue(updated == Json.Null)
+        },
+        test("fromKVUnsafe handles single root value") {
+          val kvs    = Seq((DynamicOptic.root, Json.Number("42")))
+          val result = Json.fromKVUnsafe(kvs)
+          assertTrue(result == Json.Number("42"))
+        },
+        test("fromKVUnsafe handles array index paths") {
+          val kvs = Seq(
+            (DynamicOptic.root.at(0), Json.Number("1")),
+            (DynamicOptic.root.at(2), Json.Number("3"))
+          )
+          val result = Json.fromKVUnsafe(kvs)
+          assertTrue(result.get(0).one == Right(Json.Number("1")), result.get(2).one == Right(Json.Number("3")))
+        }
+      ),
+      suite("elements accessor")(
+        test("elements returns empty Seq for non-arrays") {
+          assertTrue(
+            Json.Object("a" -> Json.Number("1")).elements.isEmpty,
+            Json.String("hello").elements.isEmpty,
+            Json.Number("42").elements.isEmpty,
+            Json.Boolean(true).elements.isEmpty,
+            Json.Null.elements.isEmpty
+          )
+        }
+      ),
+      suite("asUnsafe method")(
+        test("asUnsafe returns value on success") {
+          val json   = Json.Number("42")
+          val result = json.asUnsafe[Int]
+          assertTrue(result == 42)
+        },
+        test("asUnsafe throws on decode failure") {
+          val json   = Json.String("not a number")
+          val thrown =
+            try {
+              json.asUnsafe[Int]
+              false
+            } catch {
+              case _: JsonError => true
+              case _: Throwable => false
+            }
+          assertTrue(thrown)
+        }
       )
     ),
     suite("Schema instances")(
