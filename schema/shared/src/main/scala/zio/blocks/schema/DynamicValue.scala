@@ -15,10 +15,144 @@ sealed trait DynamicValue {
 
   final def <=(that: DynamicValue): Boolean = compare(that) <= 0
 
+  override def toString: String = DynamicValue.render(this)
+
   def diff(that: DynamicValue): DynamicPatch = DynamicValue.diff(this, that)
 }
 
 object DynamicValue {
+  private def indent(sb: StringBuilder, depth: Int): Unit = {
+    var i = 0
+    while (i < depth) {
+      sb.append("  ")
+      i += 1
+    }
+  }
+
+  def render(value: DynamicValue): String = {
+    val sb = new StringBuilder
+    render(sb, value, 0)
+    sb.toString()
+  }
+
+  private def render(sb: StringBuilder, value: DynamicValue, depth: Int): Unit = value match {
+    case Primitive(p)     => renderPrimitive(sb, p)
+    case Record(fields)   => renderRecord(sb, fields, depth)
+    case Variant(n, v)    => renderVariant(sb, n, v, depth)
+    case Sequence(elems)  => renderSequence(sb, elems, depth)
+    case Map(entries)     => renderMap(sb, entries, depth)
+  }
+
+  private def renderPrimitive(sb: StringBuilder, value: PrimitiveValue): Unit = value match {
+    case PrimitiveValue.Unit => sb.append("null")
+    case PrimitiveValue.Boolean(b) => sb.append(b)
+    case PrimitiveValue.Byte(b) => sb.append(b)
+    case PrimitiveValue.Short(s) => sb.append(s)
+    case PrimitiveValue.Int(i) => sb.append(i)
+    case PrimitiveValue.Long(l) => sb.append(l)
+    case PrimitiveValue.Float(f) => sb.append(f)
+    case PrimitiveValue.Double(d) => sb.append(d)
+    case PrimitiveValue.String(s) => sb.append('"').append(s).append('"')
+    case PrimitiveValue.Char(c) => sb.append('"').append(c).append('"')
+    case PrimitiveValue.Instant(i) =>
+      sb.append(i.getEpochSecond).append(" @ {type: \"instant\"}")
+    case PrimitiveValue.LocalDate(d) =>
+      sb.append('"').append(d.toString).append("\" @ {type: \"localDate\"}")
+    case PrimitiveValue.LocalTime(t) =>
+      sb.append('"').append(t.toString).append("\" @ {type: \"localTime\"}")
+    case PrimitiveValue.LocalDateTime(dt) =>
+      sb.append('"').append(dt.toString).append("\" @ {type: \"localDateTime\"}")
+    case PrimitiveValue.OffsetTime(ot) =>
+      sb.append('"').append(ot.toString).append("\" @ {type: \"offsetTime\"}")
+    case PrimitiveValue.OffsetDateTime(odt) =>
+      sb.append('"').append(odt.toString).append("\" @ {type: \"offsetDateTime\"}")
+    case PrimitiveValue.ZonedDateTime(zdt) =>
+      sb.append('"').append(zdt.toString).append("\" @ {type: \"zonedDateTime\"}")
+    case PrimitiveValue.Duration(d) =>
+      sb.append('"').append(d.toString).append("\" @ {type: \"duration\"}")
+    case PrimitiveValue.Period(p) =>
+      sb.append('"').append(p.toString).append("\" @ {type: \"period\"}")
+    case PrimitiveValue.Year(y) =>
+      sb.append(y.getValue).append(" @ {type: \"year\"}")
+    case PrimitiveValue.YearMonth(ym) =>
+      sb.append('"').append(ym.toString).append("\" @ {type: \"yearMonth\"}")
+    case PrimitiveValue.Month(m) =>
+      sb.append('"').append(m.toString).append("\" @ {type: \"month\"}")
+    case PrimitiveValue.MonthDay(md) =>
+      sb.append('"').append(md.toString).append("\" @ {type: \"monthDay\"}")
+    case PrimitiveValue.ZoneId(z) =>
+      sb.append('"').append(z.toString).append("\" @ {type: \"zoneId\"}")
+    case PrimitiveValue.ZoneOffset(z) =>
+      sb.append('"').append(z.toString).append("\" @ {type: \"zoneOffset\"}")
+    case PrimitiveValue.BigInt(bi) => sb.append(bi)
+    case PrimitiveValue.BigDecimal(bd) => sb.append(bd)
+    case PrimitiveValue.Currency(c) =>
+      sb.append('"').append(c.toString).append("\" @ {type: \"currency\"}")
+    case PrimitiveValue.DayOfWeek(d) =>
+      sb.append('"').append(d.toString).append("\" @ {type: \"dayOfWeek\"}")
+    case PrimitiveValue.UUID(u) =>
+      sb.append('"').append(u.toString).append("\" @ {type: \"uuid\"}")
+  }
+
+  private def renderRecord(sb: StringBuilder, fields: Vector[(Predef.String, DynamicValue)], depth: Int): Unit = {
+    if (fields.isEmpty) sb.append("{}")
+    else {
+      sb.append("{\n")
+      fields.zipWithIndex.foreach { case ((k, v), idx) =>
+        indent(sb, depth + 1)
+        sb.append(k).append(": ")
+        render(sb, v, depth + 1)
+        if (idx < fields.length - 1) sb.append(",")
+        sb.append("\n")
+      }
+      indent(sb, depth)
+      sb.append("}")
+    }
+  }
+
+  private def renderVariant(sb: StringBuilder, name: Predef.String, value: DynamicValue, depth: Int): Unit = {
+    value match {
+      case Primitive(PrimitiveValue.Unit) => sb.append("{}")
+      case _ =>
+        sb.append("{ value: ")
+        render(sb, value, depth)
+        sb.append(" }")
+    }
+    sb.append(" @ {tag: \"").append(name).append("\"}")
+  }
+
+  private def renderSequence(sb: StringBuilder, elements: Vector[DynamicValue], depth: Int): Unit = {
+    if (elements.isEmpty) sb.append("[]")
+    else {
+      sb.append("[")
+      elements.zipWithIndex.foreach { case (v, idx) =>
+        if (idx > 0) sb.append(", ")
+        render(sb, v, depth)
+      }
+      sb.append("]")
+    }
+  }
+
+  private def renderMap(sb: StringBuilder, entries: Vector[(DynamicValue, DynamicValue)], depth: Int): Unit = {
+    if (entries.isEmpty) sb.append("{}")
+    else {
+      sb.append("{\n")
+      entries.zipWithIndex.foreach { case ((k, v), idx) =>
+        indent(sb, depth + 1)
+        k match {
+          case Primitive(PrimitiveValue.String(s)) => sb.append('"').append(s).append('"')
+          case _ => render(sb, k, depth + 1)
+        }
+        sb.append(": ")
+        render(sb, v, depth + 1)
+        if (idx < entries.length - 1) sb.append(",")
+        sb.append("\n")
+      }
+      indent(sb, depth)
+      sb.append("}")
+    }
+  }
+
   case class Primitive(value: PrimitiveValue) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
       case Primitive(thatValue) => value == thatValue

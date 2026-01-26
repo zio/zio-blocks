@@ -105,6 +105,83 @@ object DynamicValueSpec extends SchemaBaseSpec {
           assertTrue((map1 == map2) == (map1.compare(map2) == 0))
         }
       }
+    ),
+    suite("DynamicValue toString (EJSON)")(
+      test("renders primitives") {
+        assertTrue(DynamicValue.Primitive(PrimitiveValue.String("hello")).toString == "\"hello\"") &&
+        assertTrue(DynamicValue.Primitive(PrimitiveValue.Int(42)).toString == "42") &&
+        assertTrue(DynamicValue.Primitive(PrimitiveValue.Boolean(true)).toString == "true") &&
+        assertTrue(DynamicValue.Primitive(PrimitiveValue.Unit).toString == "null")
+      },
+      test("renders typed primitives") {
+        val instant = java.time.Instant.ofEpochSecond(1705312800)
+        assertTrue(DynamicValue.Primitive(PrimitiveValue.Instant(instant)).toString == "1705312800 @ {type: \"instant\"}")
+      },
+      test("renders records with unquoted keys") {
+        val record = DynamicValue.Record(Vector(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+          "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+        ))
+        val expected =
+          """{
+            |  name: "John",
+            |  age: 30
+            |}""".stripMargin
+        assertTrue(record.toString == expected)
+      },
+      test("renders variants with tag metadata") {
+        val variant = DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        val expected = "{ value: 42 } @ {tag: \"Some\"}"
+        assertTrue(variant.toString == expected)
+      },
+      test("renders empty variant (Unit payload)") {
+        val variant = DynamicValue.Variant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
+        val expected = "{} @ {tag: \"None\"}"
+        assertTrue(variant.toString == expected)
+      },
+      test("renders sequences") {
+        val seq = DynamicValue.Sequence(Vector(
+          DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          DynamicValue.Primitive(PrimitiveValue.Int(2))
+        ))
+        assertTrue(seq.toString == "[1, 2]")
+      },
+      test("renders maps with quoted string keys") {
+        val map = DynamicValue.Map(Vector(
+          DynamicValue.Primitive(PrimitiveValue.String("key")) -> DynamicValue.Primitive(PrimitiveValue.String("value"))
+        ))
+        val expected =
+          """{
+            |  "key": "value"
+            |}""".stripMargin
+        assertTrue(map.toString == expected)
+      },
+      test("renders maps with non-string keys") {
+        val map = DynamicValue.Map(Vector(
+          DynamicValue.Primitive(PrimitiveValue.Int(42)) -> DynamicValue.Primitive(PrimitiveValue.String("answer"))
+        ))
+        val expected =
+          """{
+            |  42: "answer"
+            |}""".stripMargin
+        assertTrue(map.toString == expected)
+      },
+      test("renders nested structure") {
+        val nested = DynamicValue.Record(Vector(
+          "user" -> DynamicValue.Record(Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "tags" -> DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.String("admin"))))
+          ))
+        ))
+        val expected =
+          """{
+            |  user: {
+            |    name: "Alice",
+            |    tags: ["admin"]
+            |  }
+            |}""".stripMargin
+        assertTrue(nested.toString == expected)
+      }
     )
   )
 }
