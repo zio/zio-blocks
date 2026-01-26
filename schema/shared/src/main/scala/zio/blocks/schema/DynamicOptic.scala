@@ -38,21 +38,39 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     var idx = 0
     while (idx < len) {
       nodes(idx) match {
-        case Node.Field(name)    => sb.append('.').append(name)
-        case Node.Case(name)     => sb.append(".when[").append(name).append(']')
-        case Node.AtIndex(index) => sb.append(".at(").append(index).append(')')
-        case Node.AtMapKey(_)    => sb.append(".atKey(<key>)")
-        case Node.AtIndices(_)   => sb.append(".atIndices(<indices>)")
-        case Node.AtMapKeys(_)   => sb.append(".atKeys(<keys>)")
-        case Node.Elements       => sb.append(".each")
-        case Node.MapKeys        => sb.append(".eachKey")
-        case Node.MapValues      => sb.append(".eachValue")
-        case Node.Wrapped        => sb.append(".wrapped")
+        case Node.Field(name)        => sb.append('.').append(name)
+        case Node.Case(name)         => sb.append('<').append(name).append('>')
+        case Node.AtIndex(index)     => sb.append('[').append(index).append(']')
+        case Node.AtIndices(indices) => sb.append('[').append(indices.mkString(",")).append(']')
+        case Node.AtMapKey(key)      => sb.append('{').append(dynamicValueToString(key)).append('}')
+        case Node.AtMapKeys(keys)    => sb.append('{').append(keys.map(dynamicValueToString).mkString(", ")).append('}')
+        case Node.Elements           => sb.append("[*]")
+        case Node.MapKeys            => sb.append("{*:}")
+        case Node.MapValues          => sb.append("{*}")
+        case Node.Wrapped            => sb.append(".~")
       }
       idx += 1
     }
     if (sb.isEmpty) "."
     else sb.toString
+  }
+
+  private def dynamicValueToString(value: DynamicValue): String = value match {
+    case DynamicValue.Primitive(p) =>
+      p match {
+        case PrimitiveValue.String(s) => "\"" + s + "\""
+        case PrimitiveValue.Int(v)    => v.toString
+        case PrimitiveValue.Long(v)   => v.toString
+        case PrimitiveValue.Float(v)  => v.toString
+        case PrimitiveValue.Double(v) => v.toString
+        case PrimitiveValue.Boolean(v) => v.toString
+        case PrimitiveValue.Byte(v)   => v.toString
+        case PrimitiveValue.Short(v)  => v.toString
+        case PrimitiveValue.Char(v)   => v.toString
+        case PrimitiveValue.Unit      => "()"
+        case other                    => other.toString // Fallback for other primitives like Date/Time for now
+      }
+    case other => other.toString
   }
 }
 
