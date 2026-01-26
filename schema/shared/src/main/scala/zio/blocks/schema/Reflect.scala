@@ -9,6 +9,63 @@ import scala.collection.immutable.ArraySeq
 sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   protected def inner: Any
 
+  // --- IMPLÉMENTATION BOUNTY #802 (TOSTRING) ---
+  
+  override def toString: String = render(0)
+
+  // Méthode de rendu sécurisée (gère l'indentation et la récursion)
+  protected def render(depth: Int): String = {
+    val indent = "  " * depth
+    val nextIndent = "  " * (depth + 1)
+    
+    this match {
+      // Cas 1 : Types Primitifs (String, Int, etc.)
+      case Reflect.Primitive(typeName) => 
+        typeName.toString
+
+      // Cas 2 : Enregistrements (Records)
+      case Reflect.Record(id, fields) =>
+        if (fields.isEmpty) s"record $id {}"
+        else {
+          val fieldsStr = fields.map { case (fieldName, fieldType) =>
+            // Appel récursif avec profondeur + 1
+            s"$nextIndent$fieldName: ${fieldType.render(depth + 1)}"
+          }.mkString("\n")
+          s"record $id {\n$fieldsStr\n$indent}"
+        }
+
+      // Cas 3 : Listes et Séquences
+      case Reflect.Sequence(elementType) =>
+        s"sequence List[\n$nextIndent${elementType.render(depth + 1)}\n$indent]"
+
+      // Cas 4 : Maps (Clé -> Valeur)
+      case Reflect.Map(keyType, valueType) =>
+        s"map Map[\n$nextIndent${keyType.render(depth + 1)},\n$nextIndent${valueType.render(depth + 1)}\n$indent]"
+
+      // Cas 5 : Variantes (Choix multiples)
+      case Reflect.Variant(id, cases) =>
+        if (cases.isEmpty) s"variant $id {}"
+        else {
+          val casesStr = cases.map { case (caseName, caseType) =>
+            s"$nextIndent| $caseName(${caseType.render(depth + 1)})"
+          }.mkString("\n")
+          s"variant $id {\n$casesStr\n$indent}"
+        }
+
+      // Cas 6 : Wrappers (Types enveloppés)
+      case Reflect.Wrapper(id, underlying) =>
+        s"wrapper $id(${underlying.render(depth)})"
+
+      // Cas 7 : CRUCIAL - Gestion de la récursion infinie
+      // Si on rencontre un type différé, on affiche juste son nom sans descendre dedans
+      case Reflect.Deferred(refName) =>
+        s"deferred => $refName" 
+
+      // Cas par défaut de sécurité
+      case _ => "UnknownType"
+    }
+  }
+
   final type Structure = A
 
   type NodeBinding <: BindingType
