@@ -269,6 +269,53 @@ object TypeIdSpec extends ZIOSpecDefault {
           TypeId.uuid.fullName == "java.util.UUID",
           TypeId.currency.fullName == "java.util.Currency"
         )
+      },
+      test("additional java.time types are defined correctly") {
+        assertTrue(
+          TypeId.dayOfWeek.fullName == "java.time.DayOfWeek",
+          TypeId.localTime.fullName == "java.time.LocalTime",
+          TypeId.localDateTime.fullName == "java.time.LocalDateTime",
+          TypeId.month.fullName == "java.time.Month",
+          TypeId.monthDay.fullName == "java.time.MonthDay",
+          TypeId.offsetDateTime.fullName == "java.time.OffsetDateTime",
+          TypeId.offsetTime.fullName == "java.time.OffsetTime",
+          TypeId.period.fullName == "java.time.Period",
+          TypeId.year.fullName == "java.time.Year",
+          TypeId.yearMonth.fullName == "java.time.YearMonth",
+          TypeId.zoneId.fullName == "java.time.ZoneId",
+          TypeId.zoneOffset.fullName == "java.time.ZoneOffset",
+          TypeId.zonedDateTime.fullName == "java.time.ZonedDateTime"
+        )
+      },
+      test("additional collection types are defined correctly") {
+        assertTrue(
+          TypeId.vector.fullName == "scala.collection.immutable.Vector",
+          TypeId.set.fullName == "scala.collection.immutable.Set",
+          TypeId.seq.fullName == "scala.collection.immutable.Seq",
+          TypeId.indexedSeq.fullName == "scala.collection.immutable.IndexedSeq",
+          TypeId.either.fullName == "scala.Either",
+          TypeId.some.fullName == "scala.Some",
+          TypeId.none.fullName == "scala.None"
+        )
+      },
+      test("numeric types are defined correctly") {
+        assertTrue(
+          TypeId.byte.fullName == "scala.Byte",
+          TypeId.short.fullName == "scala.Short",
+          TypeId.long.fullName == "scala.Long",
+          TypeId.float.fullName == "scala.Float",
+          TypeId.double.fullName == "scala.Double",
+          TypeId.char.fullName == "scala.Char",
+          TypeId.bigInt.fullName == "scala.BigInt",
+          TypeId.bigDecimal.fullName == "scala.BigDecimal"
+        )
+      },
+      test("java interface types are defined correctly") {
+        assertTrue(
+          TypeId.charSequence.fullName == "java.lang.CharSequence",
+          TypeId.comparable.fullName == "java.lang.Comparable",
+          TypeId.serializable.fullName == "java.io.Serializable"
+        )
       }
     )
   )

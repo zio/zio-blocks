@@ -78,7 +78,9 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     kindSuite,
     typeIdMethodsSuite,
     typeIdExtractorsSuite,
-    pathDependentTypeSuite
+    pathDependentTypeSuite,
+    typeDefKindAndPredicatesSuite,
+    subtypingAndEqualitySuite
   )
 
   val sealedExtractorSuite = suite("Sealed Extractor (derived)")(
@@ -870,7 +872,7 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     }
   )
 
-  val additionalCoverageSuite = suite("Additional Coverage")(
+  val typeDefKindAndPredicatesSuite = suite("TypeDefKind and TypeId predicates")(
     test("TypeDefKind.Class with isValue=true") {
       val valueClass = TypeDefKind.Class(isValue = true)
       assertTrue(valueClass.isValue, valueClass.baseTypes.isEmpty)
@@ -959,6 +961,140 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
       val bounds     = TypeBounds.upper(TypeRepr.Ref(TypeId.string))
       val opaqueKind = TypeDefKind.OpaqueType(bounds)
       assertTrue(!opaqueKind.publicBounds.isUnbounded)
+    }
+  )
+
+  val subtypingAndEqualitySuite = suite("Subtyping and Equality")(
+    test("isSubtypeOf returns true for same type") {
+      val intId = TypeId.of[Int]
+      assertTrue(intId.isSubtypeOf(intId))
+    },
+    test("isSubtypeOf returns true for class extending trait") {
+      val dogId    = TypeId.of[Dog]
+      val animalId = TypeId.of[Animal]
+      assertTrue(dogId.isSubtypeOf(animalId))
+    },
+    test("isSubtypeOf returns false for unrelated types") {
+      val intId    = TypeId.of[Int]
+      val stringId = TypeId.of[String]
+      assertTrue(!intId.isSubtypeOf(stringId))
+    },
+    test("isSupertypeOf is inverse of isSubtypeOf") {
+      val animalId = TypeId.of[Animal]
+      val dogId    = TypeId.of[Dog]
+      assertTrue(animalId.isSupertypeOf(dogId), !dogId.isSupertypeOf(animalId))
+    },
+    test("isEquivalentTo returns true for same type") {
+      val intId1 = TypeId.of[Int]
+      val intId2 = TypeId.of[Int]
+      assertTrue(intId1.isEquivalentTo(intId2))
+    },
+    test("isEquivalentTo returns false for different types") {
+      val intId    = TypeId.of[Int]
+      val stringId = TypeId.of[String]
+      assertTrue(!intId.isEquivalentTo(stringId))
+    },
+    test("applied types with covariant params preserve subtyping") {
+      val listDog    = TypeId.of[List[Dog]]
+      val listAnimal = TypeId.of[List[Animal]]
+      assertTrue(listDog.isSubtypeOf(listAnimal))
+    },
+    test("applied types with invariant params require exact match") {
+      val setInt    = TypeId.of[Set[Int]]
+      val setString = TypeId.of[Set[String]]
+      assertTrue(!setInt.isSubtypeOf(setString))
+    },
+    test("TypeId.normalize resolves type aliases") {
+      val aliasId = TypeId.alias[Int]("Age", Owner.Root, Nil, TypeRepr.Ref(TypeId.int))
+      val norm    = TypeId.normalize(aliasId)
+      assertTrue(norm.name == "Int")
+    },
+    test("TypeId.normalize preserves nominal types") {
+      val intId = TypeId.of[Int]
+      val norm  = TypeId.normalize(intId)
+      assertTrue(norm eq intId)
+    },
+    test("TypeId.structurallyEqual compares transparently through aliases") {
+      val aliasId = TypeId.alias[Int]("Age", Owner.Root, Nil, TypeRepr.Ref(TypeId.int))
+      assertTrue(TypeId.structurallyEqual(aliasId, TypeId.int))
+    },
+    test("List[Int] and List[String] are NOT equal") {
+      val listInt    = TypeId.of[List[Int]]
+      val listString = TypeId.of[List[String]]
+      assertTrue(listInt != listString, !TypeId.structurallyEqual(listInt, listString))
+    },
+    test("Either[String, Int] and Either[Int, String] are NOT equal") {
+      val e1 = TypeId.of[Either[String, Int]]
+      val e2 = TypeId.of[Either[Int, String]]
+      assertTrue(e1 != e2)
+    },
+    test("GenericClass[Int] and GenericClass[String] are NOT equal") {
+      val g1 = TypeId.applied[List[Int]](TypeId.list, TypeRepr.Ref(TypeId.int))
+      val g2 = TypeId.applied[List[String]](TypeId.list, TypeRepr.Ref(TypeId.string))
+      assertTrue(g1 != g2)
+    },
+    test("MultiParamClass[Int, String] and MultiParamClass[Double, Boolean] are NOT equal") {
+      val m1 = TypeId.applied[Map[Int, String]](TypeId.map, TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string))
+      val m2 =
+        TypeId.applied[Map[Double, Boolean]](TypeId.map, TypeRepr.Ref(TypeId.double), TypeRepr.Ref(TypeId.boolean))
+      assertTrue(m1 != m2)
+    },
+    test("Box[Int] and Box[String] are NOT equal") {
+      val b1 = TypeId.applied[Option[Int]](TypeId.option, TypeRepr.Ref(TypeId.int))
+      val b2 = TypeId.applied[Option[String]](TypeId.option, TypeRepr.Ref(TypeId.string))
+      assertTrue(b1 != b2)
+    },
+    test("LinkedList[Int] and LinkedList[String] are NOT equal") {
+      val l1 = TypeId.applied[List[Int]](TypeId.list, TypeRepr.Ref(TypeId.int))
+      val l2 = TypeId.applied[List[String]](TypeId.list, TypeRepr.Ref(TypeId.string))
+      assertTrue(l1 != l2)
+    },
+    test("nested applied types are NOT equal when args differ") {
+      val n1 = TypeId.applied[List[Option[Int]]](
+        TypeId.list,
+        TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.int)))
+      )
+      val n2 = TypeId.applied[List[Option[String]]](
+        TypeId.list,
+        TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.string)))
+      )
+      assertTrue(n1 != n2)
+    },
+    test("applied type has specific typeArgs while type constructor has params") {
+      val listInt         = TypeId.of[List[Int]]
+      val listConstructor = TypeId.list
+      assertTrue(listInt.typeArgs.nonEmpty, listInt.isApplied, listConstructor.typeParams.nonEmpty)
+    },
+    test("Tree[Int] and Tree[String] are NOT equal") {
+      val t1 = TypeId.applied[List[Int]](TypeId.list, TypeRepr.Ref(TypeId.int))
+      val t2 = TypeId.applied[List[String]](TypeId.list, TypeRepr.Ref(TypeId.string))
+      assertTrue(t1 != t2)
+    },
+    test("same applied type is equal to itself") {
+      val listInt = TypeId.of[List[Int]]
+      assertTrue(listInt == listInt, TypeId.structurallyEqual(listInt, listInt))
+    },
+    test("deeply nested generics are equal when structure matches") {
+      val d1 = TypeId.applied[List[Option[Int]]](
+        TypeId.list,
+        TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.int)))
+      )
+      val d2 = TypeId.applied[List[Option[Int]]](
+        TypeId.list,
+        TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.int)))
+      )
+      assertTrue(d1 == d2)
+    },
+    test("deeply nested generics are NOT equal when inner args differ") {
+      val d1 = TypeId.applied[List[Option[Int]]](
+        TypeId.list,
+        TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.int)))
+      )
+      val d2 = TypeId.applied[List[Option[String]]](
+        TypeId.list,
+        TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.string)))
+      )
+      assertTrue(d1 != d2)
     }
   )
 
