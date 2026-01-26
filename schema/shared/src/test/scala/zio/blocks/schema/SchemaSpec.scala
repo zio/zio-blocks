@@ -1995,7 +1995,7 @@ object SchemaSpec extends SchemaBaseSpec {
       extends TextFormat(
         "text/plain",
         new Deriver[TextCodec] {
-          override def derivePrimitive[F[_, _], A](
+          override def derivePrimitive[A](
             primitiveType: PrimitiveType[A],
             typeName: TypeName[A],
             binding: Binding[BindingType.Primitive, A],
