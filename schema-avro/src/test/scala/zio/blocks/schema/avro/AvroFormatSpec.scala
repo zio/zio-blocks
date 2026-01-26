@@ -522,7 +522,22 @@ object AvroFormatSpec extends SchemaBaseSpec {
         decodeError[List[Int]](
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           "Expected collection size not greater than 2147483639, got 2147483647 at: ."
-        )
+        ) &&
+        roundTrip(List.empty[Boolean], 1) &&
+        roundTrip(List.empty[Byte], 1) &&
+        roundTrip(List.empty[Short], 1) &&
+        roundTrip(List.empty[Char], 1) &&
+        roundTrip(List.empty[Int], 1) &&
+        roundTrip(List.empty[Long], 1) &&
+        roundTrip(List.empty[Float], 1) &&
+        roundTrip(List.empty[Double], 1) &&
+        decodeError[List[Boolean]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[List[Byte]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[List[Short]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[List[Char]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[List[Long]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[List[Float]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[List[Double]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .")
       },
       test("complex values") {
         avroSchema[List[Record1]](

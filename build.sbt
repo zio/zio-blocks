@@ -96,8 +96,7 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         Seq()
     }),
     coverageMinimumStmtTotal   := 75,
-    coverageMinimumBranchTotal := 65,
-    coverageExcludedFiles      := ".*BuildInfo.*"
+    coverageMinimumBranchTotal := 65
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
