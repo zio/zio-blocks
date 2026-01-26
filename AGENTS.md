@@ -132,6 +132,7 @@ If editing `scala-3/` → Stage 1 uses Scala 3, Stage 3 uses Scala 2.13
 - Follow staged verification workflow
 - Add comprehensive tests for all new code
 - Run coverage and meet minimums before cross-Scala testing
+- **If you discover AGENTS.md is wrong or missing guidance, fix it in the same PR**
 
 ### Ask first
 - Adding dependencies (even test-only)
