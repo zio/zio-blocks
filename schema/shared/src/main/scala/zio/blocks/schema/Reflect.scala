@@ -441,11 +441,11 @@ object Reflect {
       registers.asInstanceOf[ArraySeq[Register[Any]]].unsafeArray.asInstanceOf[Array[Register[Any]]]
     )
 
-    protected[schema] def toString(indent: Int): String = {
+    protected[schema] def toString(indent: Int): String =
       if (fields.isEmpty) s"Record[${typeName.toString}]()"
       else {
-        val sb = new StringBuilder
-        val pad = "  " * indent
+        val sb      = new StringBuilder
+        val pad     = "  " * indent
         val nextPad = "  " * (indent + 1)
         sb.append(s"Record[${typeName.toString}](\n")
         var idx = 0
@@ -461,7 +461,6 @@ object Reflect {
         sb.append(pad).append(")")
         sb.toString
       }
-    }
 
     def typeName(value: TypeName[A]): Record[F, A] = copy(typeName = value)
 
@@ -628,11 +627,11 @@ object Reflect {
         variant <- f.transformVariant(path, cases, typeName, variantBinding, doc, modifiers)
       } yield variant
 
-    protected[schema] def toString(indent: Int): String = {
+    protected[schema] def toString(indent: Int): String =
       if (cases.isEmpty) s"Variant[${typeName.toString}]()"
       else {
-        val sb = new StringBuilder
-        val pad = "  " * indent
+        val sb      = new StringBuilder
+        val pad     = "  " * indent
         val nextPad = "  " * (indent + 1)
         sb.append(s"Variant[${typeName.toString}](\n")
         var idx = 0
@@ -648,7 +647,6 @@ object Reflect {
         sb.append(pad).append(")")
         sb.toString
       }
-    }
 
     def typeName(value: TypeName[A]): Variant[F, A] = copy(typeName = value)
 
@@ -845,7 +843,8 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
-    protected[schema] def toString(indent: Int): String = s"Sequence[${element.typeName.toString}, ${typeName.toString}]"
+    protected[schema] def toString(indent: Int): String =
+      s"Sequence[${element.typeName.toString}, ${typeName.toString}]"
 
     def typeName(value: TypeName[C[A]]): Sequence[F, A, C] = copy(typeName = value)
 

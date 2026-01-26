@@ -50,8 +50,8 @@ object DynamicOpticToStringSpec extends SchemaBaseSpec {
       assert(optic.toString)(equalTo(".ports{*:}"))
     },
     test("toString for Wrapped") {
-        val optic = DynamicOptic.root.wrapped
-        assert(optic.toString)(equalTo(".~"))
+      val optic = DynamicOptic.root.wrapped
+      assert(optic.toString)(equalTo(".~"))
     }
   )
 }

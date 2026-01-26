@@ -10,7 +10,7 @@ object ReflectToStringSpec extends SchemaBaseSpec {
       assert(reflect.toString)(equalTo("Primitive[Int]"))
     },
     test("Record.toString") {
-      val reflect = Schema[Person].reflect
+      val reflect  = Schema[Person].reflect
       val expected =
         """Record[Person](
           |  name: Primitive[String],
@@ -19,7 +19,7 @@ object ReflectToStringSpec extends SchemaBaseSpec {
       assert(reflect.toString)(equalTo(expected))
     },
     test("Variant.toString") {
-      val reflect = Schema[Option[Int]].reflect
+      val reflect  = Schema[Option[Int]].reflect
       val expected =
         """Variant[Option[Int]](
           |  None: Record[None](),

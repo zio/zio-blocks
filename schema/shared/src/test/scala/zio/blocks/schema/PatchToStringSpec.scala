@@ -15,8 +15,8 @@ object PatchToStringSpec extends SchemaBaseSpec {
       assert(patch.toString)(equalTo("DynamicPatch(.age += 1)"))
     },
     test("Patch.composition.toString") {
-      val p1 = Patch.set(Schema[Person].reflect.asRecord.get.lensByName[String]("name").get, "Bob")
-      val p2 = Patch.increment(Schema[Person].reflect.asRecord.get.lensByName[Int]("age").get, 1)
+      val p1    = Patch.set(Schema[Person].reflect.asRecord.get.lensByName[String]("name").get, "Bob")
+      val p2    = Patch.increment(Schema[Person].reflect.asRecord.get.lensByName[Int]("age").get, 1)
       val patch = p1 ++ p2
       assert(patch.toString)(equalTo("""DynamicPatch(.name = "Bob", .age += 1)"""))
     }

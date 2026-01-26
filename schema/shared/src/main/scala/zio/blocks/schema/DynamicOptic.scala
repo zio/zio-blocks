@@ -58,17 +58,17 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   private def dynamicValueToString(value: DynamicValue): String = value match {
     case DynamicValue.Primitive(p) =>
       p match {
-        case PrimitiveValue.String(s) => "\"" + s + "\""
-        case PrimitiveValue.Int(v)    => v.toString
-        case PrimitiveValue.Long(v)   => v.toString
-        case PrimitiveValue.Float(v)  => v.toString
-        case PrimitiveValue.Double(v) => v.toString
+        case PrimitiveValue.String(s)  => "\"" + s + "\""
+        case PrimitiveValue.Int(v)     => v.toString
+        case PrimitiveValue.Long(v)    => v.toString
+        case PrimitiveValue.Float(v)   => v.toString
+        case PrimitiveValue.Double(v)  => v.toString
         case PrimitiveValue.Boolean(v) => v.toString
-        case PrimitiveValue.Byte(v)   => v.toString
-        case PrimitiveValue.Short(v)  => v.toString
-        case PrimitiveValue.Char(v)   => v.toString
-        case PrimitiveValue.Unit      => "()"
-        case other                    => other.toString // Fallback for other primitives like Date/Time for now
+        case PrimitiveValue.Byte(v)    => v.toString
+        case PrimitiveValue.Short(v)   => v.toString
+        case PrimitiveValue.Char(v)    => v.toString
+        case PrimitiveValue.Unit       => "()"
+        case other                     => other.toString // Fallback for other primitives like Date/Time for now
       }
     case other => other.toString
   }

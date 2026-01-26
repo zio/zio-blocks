@@ -10,8 +10,8 @@ object OpticToStringSpec extends SchemaBaseSpec {
       assert(optic.toString)(equalTo("Lens(_.name)"))
     },
     test("composed Lens.toString") {
-      val address = Schema[Person].reflect.asRecord.get.lensByName[Address]("address").get
-      val street = Schema[Address].reflect.asRecord.get.lensByName[String]("street").get
+      val address  = Schema[Person].reflect.asRecord.get.lensByName[Address]("address").get
+      val street   = Schema[Address].reflect.asRecord.get.lensByName[String]("street").get
       val composed = address.apply(street)
       assert(composed.toString)(equalTo("Lens(_.address.street)"))
     },
@@ -20,12 +20,13 @@ object OpticToStringSpec extends SchemaBaseSpec {
       assert(optic.toString)(equalTo("Prism(_.when[Some].value)"))
     },
     test("Optional.at.toString") {
-        val optic = Optional.at(Schema.list[Int].reflect.asSequence.get.asInstanceOf[Reflect.Sequence.Bound[Int, List]], 0)
-        assert(optic.toString)(equalTo("Optional(_.at(0))"))
+      val optic =
+        Optional.at(Schema.list[Int].reflect.asSequence.get.asInstanceOf[Reflect.Sequence.Bound[Int, List]], 0)
+      assert(optic.toString)(equalTo("Optional(_.at(0))"))
     },
     test("Traversal.listValues.toString") {
-        val optic = Traversal.listValues(Schema[Int].reflect)
-        assert(optic.toString)(equalTo("Traversal(_.each)"))
+      val optic = Traversal.listValues(Schema[Int].reflect)
+      assert(optic.toString)(equalTo("Traversal(_.each)"))
     }
   )
 

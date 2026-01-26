@@ -35,20 +35,20 @@ object DynamicValue {
     }
 
     override def toString: String = value match {
-      case PrimitiveValue.String(s) => "\"" + s + "\""
-      case PrimitiveValue.Int(v)    => v.toString
-      case PrimitiveValue.Long(v)   => v.toString
-      case PrimitiveValue.Float(v)  => v.toString
-      case PrimitiveValue.Double(v) => v.toString
-      case PrimitiveValue.Boolean(v) => v.toString
-      case PrimitiveValue.Byte(v)   => v.toString
-      case PrimitiveValue.Short(v)  => v.toString
-      case PrimitiveValue.Char(v)   => "\"" + v.toString + "\""
-      case PrimitiveValue.Unit      => "null"
-      case PrimitiveValue.BigInt(v) => v.toString
+      case PrimitiveValue.String(s)     => "\"" + s + "\""
+      case PrimitiveValue.Int(v)        => v.toString
+      case PrimitiveValue.Long(v)       => v.toString
+      case PrimitiveValue.Float(v)      => v.toString
+      case PrimitiveValue.Double(v)     => v.toString
+      case PrimitiveValue.Boolean(v)    => v.toString
+      case PrimitiveValue.Byte(v)       => v.toString
+      case PrimitiveValue.Short(v)      => v.toString
+      case PrimitiveValue.Char(v)       => "\"" + v.toString + "\""
+      case PrimitiveValue.Unit          => "null"
+      case PrimitiveValue.BigInt(v)     => v.toString
       case PrimitiveValue.BigDecimal(v) => v.toString
-      case PrimitiveValue.UUID(v)   => "\"" + v.toString + "\""
-      case other                    => other.toString
+      case PrimitiveValue.UUID(v)       => "\"" + v.toString + "\""
+      case other                        => other.toString
     }
   }
 
