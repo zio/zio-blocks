@@ -104,6 +104,89 @@ object ProductToStructuralSpec extends SchemaBaseSpec {
 
         assert(result)(isRight(equalTo(Person("Frank", 40))))
       }
+    ),
+    suite("Deep Nested Structural Types")(
+      test("2-level nested case class to structural") {
+        case class Inner(x: Int, y: Int)
+        case class Outer(name: String, inner: Inner)
+
+        type NestedStruct = {
+          def name: String
+          def inner: { def x: Int; def y: Int }
+        }
+
+        val source = Outer("test", Inner(10, 20))
+        val into   = Into.derived[Outer, NestedStruct]
+        val result = into.into(source)
+
+        result match {
+          case Right(r) =>
+            assertTrue(r.name == "test", r.inner.x == 10, r.inner.y == 20)
+          case Left(err) =>
+            assertTrue(false) ?? s"Conversion failed with error: $err"
+        }
+      },
+      test("3-level nested case class to structural") {
+        case class Level3(value: Int)
+        case class Level2(name: String, level3: Level3)
+        case class Level1(id: Long, level2: Level2)
+
+        type DeepStruct = {
+          def id: Long
+          def level2: {
+            def name: String
+            def level3: { def value: Int }
+          }
+        }
+
+        val source = Level1(1L, Level2("nested", Level3(42)))
+        val into   = Into.derived[Level1, DeepStruct]
+        val result = into.into(source)
+
+        result match {
+          case Right(r) =>
+            assertTrue(
+              r.id == 1L,
+              r.level2.name == "nested",
+              r.level2.level3.value == 42
+            )
+          case Left(err) =>
+            assertTrue(false) ?? s"Conversion failed with error: $err"
+        }
+      },
+      test("4-level nested case class to structural") {
+        case class Level4(code: String)
+        case class Level3(value: Int, level4: Level4)
+        case class Level2(name: String, level3: Level3)
+        case class Level1(id: Long, level2: Level2)
+
+        type VeryDeepStruct = {
+          def id: Long
+          def level2: {
+            def name: String
+            def level3: {
+              def value: Int
+              def level4: { def code: String }
+            }
+          }
+        }
+
+        val source = Level1(1L, Level2("deep", Level3(100, Level4("ABC"))))
+        val into   = Into.derived[Level1, VeryDeepStruct]
+        val result = into.into(source)
+
+        result match {
+          case Right(r) =>
+            assertTrue(
+              r.id == 1L,
+              r.level2.name == "deep",
+              r.level2.level3.value == 100,
+              r.level2.level3.level4.code == "ABC"
+            )
+          case Left(err) =>
+            assertTrue(false) ?? s"Conversion failed with error: $err"
+        }
+      }
     )
   )
 }
