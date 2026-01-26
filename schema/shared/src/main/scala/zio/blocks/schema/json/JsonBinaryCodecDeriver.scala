@@ -263,7 +263,7 @@ class JsonBinaryCodecDeriver private[json] (
       requireDefaultValueFields
     )
 
-  override def derivePrimitive[F[_, _], A](
+  override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeName: TypeName[A],
     binding: Binding[BindingType.Primitive, A],
