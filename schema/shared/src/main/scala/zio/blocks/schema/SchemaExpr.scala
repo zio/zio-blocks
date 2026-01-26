@@ -379,7 +379,7 @@ object SchemaExpr {
         return Left(
           new OpticCheck(
             new ::(
-              new OpticCheck.WrappingError(optic, optic, "Input must be DynamicValue"),
+              new OpticCheck.WrappingError(optic, optic, SchemaError.validationFailed("Input must be DynamicValue")),
               Nil
             )
           )
@@ -401,7 +401,7 @@ object SchemaExpr {
                     return Left(
                       new OpticCheck(
                         new ::(
-                          new OpticCheck.WrappingError(optic, optic, s"Field $name not found"),
+                          new OpticCheck.WrappingError(optic, optic, SchemaError.validationFailed(s"Field $name not found")),
                           Nil
                         )
                       )
@@ -411,7 +411,7 @@ object SchemaExpr {
                 return Left(
                   new OpticCheck(
                     new ::(
-                      new OpticCheck.WrappingError(optic, optic, "Expected Record"),
+                      new OpticCheck.WrappingError(optic, optic, SchemaError.validationFailed("Expected Record")),
                       Nil
                     )
                   )
@@ -421,7 +421,7 @@ object SchemaExpr {
             return Left(
               new OpticCheck(
                 new ::(
-                  new OpticCheck.WrappingError(optic, optic, "Only Field access supported in Dynamic SchemaExpr"),
+                  new OpticCheck.WrappingError(optic, optic, SchemaError.validationFailed("Only Field access supported in Dynamic SchemaExpr")),
                   Nil
                 )
               )
@@ -445,7 +445,7 @@ object SchemaExpr {
             new OpticCheck.WrappingError(
               DynamicOptic.root,
               DynamicOptic.root,
-              "Convert.eval not supported - use evalDynamic for type conversions"
+              SchemaError.validationFailed("Convert.eval not supported - use evalDynamic for type conversions")
             ),
             Nil
           )
@@ -460,7 +460,7 @@ object SchemaExpr {
             case Left(err)        =>
               Left(
                 new OpticCheck(
-                  new ::(new OpticCheck.WrappingError(DynamicOptic.root, DynamicOptic.root, err), Nil)
+                  new ::(new OpticCheck.WrappingError(DynamicOptic.root, DynamicOptic.root, SchemaError.validationFailed(err)), Nil)
                 )
               )
           }
