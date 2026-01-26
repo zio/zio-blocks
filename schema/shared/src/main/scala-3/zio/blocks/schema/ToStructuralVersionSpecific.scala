@@ -5,6 +5,64 @@ import zio.blocks.schema.binding.RegisterOffset.*
 
 import scala.quoted.*
 
+private[schema] class ReflectiveDeconstructor[S](
+  val usedRegisters: RegisterOffset,
+  fieldMetadata: IndexedSeq[(String, Register[Any])]
+) extends Deconstructor[S] {
+
+  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: S): Unit = {
+    val clazz = in.getClass
+    var idx   = 0
+    while (idx < fieldMetadata.length) {
+      val (fieldName, register) = fieldMetadata(idx)
+      val method                = clazz.getMethod(fieldName)
+      val value                 = method.invoke(in)
+      register.set(out, baseOffset, value)
+      idx += 1
+    }
+  }
+}
+
+private[schema] class ReflectiveVariantDiscriminator[S](
+  caseNames: IndexedSeq[String],
+  originalDiscriminator: Discriminator[?],
+  originalToSortedIndex: IndexedSeq[Int]
+) extends Discriminator[S] {
+
+  def discriminate(value: S): Int = {
+    val clazz = value.getClass
+    try {
+      val tagMethod = clazz.getMethod("Tag")
+      val tag       = tagMethod.invoke(value).asInstanceOf[String]
+      caseNames.indexOf(tag)
+    } catch {
+      case _: NoSuchMethodException =>
+        val originalIdx = originalDiscriminator.asInstanceOf[Discriminator[S]].discriminate(value)
+        originalToSortedIndex(originalIdx)
+    }
+  }
+}
+
+private[schema] class ReflectiveMatcher[S](
+  expectedTag: String,
+  originalMatcher: Matcher[?]
+) extends Matcher[S] {
+
+  def downcastOrNull(any: Any): S =
+    if (any == null) null.asInstanceOf[S]
+    else {
+      val clazz = any.getClass
+      try {
+        val tagMethod = clazz.getMethod("Tag")
+        val tag       = tagMethod.invoke(any).asInstanceOf[String]
+        if (tag == expectedTag) any.asInstanceOf[S] else null.asInstanceOf[S]
+      } catch {
+        case _: NoSuchMethodException =>
+          originalMatcher.downcastOrNull(any).asInstanceOf[S]
+      }
+    }
+}
+
 trait ToStructuralVersionSpecific {
   transparent inline given [A]: ToStructural[A] = ${ ToStructuralMacro.derived[A] }
 }
@@ -196,8 +254,7 @@ private[schema] object ToStructuralMacro {
 
     fields.foldLeft(baseTpe) { case (parent, (fieldName, fieldTpe)) =>
       val unpackedFieldTpe = fullyUnpackType(fieldTpe)
-      val methodType       = MethodType(Nil)(_ => Nil, _ => unpackedFieldTpe)
-      Refinement(parent, fieldName, methodType)
+      Refinement(parent, fieldName, ByNameType(unpackedFieldTpe))
     }
   }
 
@@ -209,12 +266,11 @@ private[schema] object ToStructuralMacro {
     val baseTpe = TypeRepr.of[AnyRef]
 
     val tagLiteralType = ConstantType(StringConstant(tagName))
-    val withTag        = Refinement(baseTpe, "Tag", TypeBounds(tagLiteralType, tagLiteralType))
+    val withTag        = Refinement(baseTpe, "Tag", ByNameType(tagLiteralType))
 
     fields.foldLeft(withTag) { case (parent, (fieldName, fieldTpe)) =>
       val unpackedFieldTpe = fullyUnpackType(fieldTpe)
-      val methodType       = MethodType(Nil)(_ => Nil, _ => unpackedFieldTpe)
-      Refinement(parent, fieldName, methodType)
+      Refinement(parent, fieldName, ByNameType(unpackedFieldTpe))
     }
   }
 
@@ -272,7 +328,8 @@ private[schema] object ToStructuralMacro {
   }
 
   /**
-   * Transform a product schema (case class) to its structural equivalent.
+   * Transform a product schema (case class) to its structural equivalent. Uses
+   * reflection-based deconstruction to support anonymous structural instances.
    */
   def transformProductSchema[A, S](schema: Schema[A]): Schema[S] =
     schema.reflect match {
@@ -289,6 +346,11 @@ private[schema] object ToStructuralMacro {
           (name, reflect.typeName.name)
         })
 
+        // Build field metadata for reflective deconstruction
+        val fieldMetadata: IndexedSeq[(String, Register[Any])] = record.fields.zipWithIndex.map { case (field, idx) =>
+          (field.name, record.registers(idx).asInstanceOf[Register[Any]])
+        }.toIndexedSeq
+
         new Schema[S](
           new Reflect.Record[Binding, S](
             fields = record.fields.map { field =>
@@ -304,12 +366,7 @@ private[schema] object ToStructuralMacro {
                   nominal.asInstanceOf[S]
                 }
               },
-              deconstructor = new Deconstructor[S] {
-                def usedRegisters: RegisterOffset = totalRegisters
-
-                def deconstruct(out: Registers, baseOffset: RegisterOffset, in: S): Unit =
-                  binding.deconstructor.deconstruct(out, baseOffset, in.asInstanceOf[A])
-              }
+              deconstructor = new ReflectiveDeconstructor[S](totalRegisters, fieldMetadata)
             ),
             doc = record.doc,
             modifiers = record.modifiers
@@ -336,16 +393,15 @@ private[schema] object ToStructuralMacro {
         )
     }
 
-  /**
-   * Transform a sum type schema (sealed trait/enum) to its structural union
-   * type equivalent.
-   */
   def transformSumTypeSchema[A, S](schema: Schema[A]): Schema[S] =
     schema.reflect match {
       case variant: Reflect.Variant[Binding, A] @unchecked =>
         val binding = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
 
-        val unionTypeName = variant.cases.map { case_ =>
+        val sortedCases                   = variant.cases.sortBy(_.name)
+        val caseNames: IndexedSeq[String] = sortedCases.map(_.name).toIndexedSeq
+
+        val unionTypeName = sortedCases.map { case_ =>
           val caseName   = case_.name
           val caseFields = case_.value match {
             case record: Reflect.Record[Binding, _] @unchecked =>
@@ -357,26 +413,38 @@ private[schema] object ToStructuralMacro {
           normalizeUnionCaseTypeName(caseName, caseFields)
         }.mkString("|")
 
+        val sortedToOriginalIndex: IndexedSeq[Int] = sortedCases.map { case_ =>
+          variant.cases.indexWhere(_.name == case_.name)
+        }.toIndexedSeq
+
+        val originalToSortedIndex: IndexedSeq[Int] = {
+          val arr = new Array[Int](variant.cases.size)
+          sortedToOriginalIndex.zipWithIndex.foreach { case (origIdx, sortedIdx) =>
+            arr(origIdx) = sortedIdx
+          }
+          arr.toIndexedSeq
+        }
+
+        val reflectiveDiscriminator =
+          new ReflectiveVariantDiscriminator[S](caseNames, binding.discriminator, originalToSortedIndex)
+
         val newMatchers = Matchers[S](
-          variant.cases.indices.map { idx =>
-            val originalMatcher = binding.matchers(idx)
-            new Matcher[S] {
-              def downcastOrNull(any: Any): S =
-                originalMatcher.downcastOrNull(any).asInstanceOf[S]
-            }
+          sortedCases.zipWithIndex.map { case (case_, sortedIdx) =>
+            val originalIdx     = sortedToOriginalIndex(sortedIdx)
+            val caseName        = case_.name
+            val originalMatcher = binding.matchers(originalIdx)
+            new ReflectiveMatcher[S](caseName, originalMatcher)
           }: _*
         )
 
         new Schema[S](
           new Reflect.Variant[Binding, S](
-            cases = variant.cases.map { case_ =>
-              case_.asInstanceOf[Term[Binding, S, ? <: S]]
+            cases = sortedCases.map { case_ =>
+              transformVariantCase[S](case_)
             },
             typeName = new TypeName[S](new Namespace(Nil, Nil), unionTypeName, Nil),
             variantBinding = new Binding.Variant[S](
-              discriminator = (s: S) => {
-                binding.discriminator.discriminate(s.asInstanceOf[A])
-              },
+              discriminator = reflectiveDiscriminator,
               matchers = newMatchers
             ),
             doc = variant.doc,
@@ -389,6 +457,37 @@ private[schema] object ToStructuralMacro {
           s"Cannot transform non-variant schema to structural union type"
         )
     }
+
+  private def transformVariantCase[S](case_ : Term[Binding, ?, ?]): Term[Binding, S, ? <: S] = {
+    val caseValue = case_.value match {
+      case record: Reflect.Record[Binding, ?] @unchecked =>
+        val binding                                            = record.recordBinding.asInstanceOf[Binding.Record[Any]]
+        val fieldMetadata: IndexedSeq[(String, Register[Any])] = record.fields.zipWithIndex.map { case (field, idx) =>
+          (field.name, record.registers(idx).asInstanceOf[Register[Any]])
+        }.toIndexedSeq
+        val totalRegisters = binding.constructor.usedRegisters
+
+        new Reflect.Record[Binding, Any](
+          fields = record.fields.map { field =>
+            field.value.asInstanceOf[Reflect.Bound[Any]].asTerm[Any](field.name)
+          },
+          typeName = record.typeName.asInstanceOf[TypeName[Any]],
+          recordBinding = new Binding.Record[Any](
+            constructor = binding.constructor.asInstanceOf[Constructor[Any]],
+            deconstructor = new ReflectiveDeconstructor[Any](totalRegisters, fieldMetadata)
+          ),
+          doc = record.doc,
+          modifiers = record.modifiers
+        )
+      case other => other
+    }
+    new Term[Binding, S, Any](
+      case_.name,
+      caseValue.asInstanceOf[Reflect.Bound[Any]],
+      case_.doc,
+      case_.modifiers
+    ).asInstanceOf[Term[Binding, S, ? <: S]]
+  }
 
   /**
    * Generate a normalized type name for a structural type. Fields are sorted
