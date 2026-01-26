@@ -15,12 +15,14 @@ import zio.test.Assertion._
  */
 object StructuralTypeSourceSpec extends SchemaBaseSpec {
 
+  // === Target Case Classes ===
   case class Person(name: String, age: Int)
   case class NameOnly(name: String)
   case class Employee(name: String, age: Int, department: String)
   case class PersonWithDefault(name: String, age: Int, active: Boolean = true)
   case class PersonWithOptional(name: String, age: Int, nickname: Option[String])
 
+  // === Helper to create structural type instances ===
   def makePerson(n: String, a: Int): { def name: String; def age: Int } = new {
     def name: String = n
     def age: Int     = a
@@ -58,6 +60,19 @@ object StructuralTypeSourceSpec extends SchemaBaseSpec {
         val result = into.into(source)
 
         assert(result)(isRight(equalTo(Employee("Carol", 25, "Engineering"))))
+      },
+      test("structural type with field missing for target without default fails") {
+        typeCheck("""
+          import zio.blocks.schema.into.structural.StructuralTypeSourceSpec._
+          val source = makePerson("Dave", 35)
+          val into   = Into.derived[{ def name: String; def age: Int }, Employee]
+        """).map { result =>
+          val error = result.swap.getOrElse("")
+          assertTrue(
+            result.isLeft,
+            error.contains("Missing required field") && error.contains("department")
+          )
+        }
       }
     ),
     suite("Structural to Case Class - Extra Source Fields")(
