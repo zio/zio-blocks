@@ -23,8 +23,8 @@ object MigrationMacros {
     import quotes.reflect.*
 
     def extractPath(term: Term, acc: List[String]): List[String] = term match {
-      case Select(inner, name) => extractPath(inner, name :: acc)
-      case Ident(_) => acc
+      case Select(inner, name)                                         => extractPath(inner, name :: acc)
+      case Ident(_)                                                    => acc
       case Apply(Select(inner, "when"), List(TypeApply(_, List(tpe)))) =>
         extractPath(inner, s"when[${tpe.show}]" :: acc)
       case Apply(Select(inner, "each"), Nil) =>
@@ -63,9 +63,8 @@ object MigrationMacros {
     @scala.annotation.unused sourceSchema: Expr[Schema[A]],
     @scala.annotation.unused targetSchema: Expr[Schema[B]],
     @scala.annotation.unused actions: Expr[Vector[MigrationAction]]
-  )(using Quotes): Expr[Unit] = {
+  )(using Quotes): Expr[Unit] =
     // TODO: Add compile-time validation logic
     // For now, validation is done at runtime in Migration.apply
     '{ () }
-  }
 }

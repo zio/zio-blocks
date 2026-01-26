@@ -3,8 +3,8 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 
 /**
- * ZIO Schema Migration System
- * Pure, algebraic migration with serializable actions.
+ * ZIO Schema Migration System Pure, algebraic migration with serializable
+ * actions.
  */
 
 sealed trait MigrationError {
@@ -13,9 +13,9 @@ sealed trait MigrationError {
 
 object MigrationError {
   case class PathError(path: String, override val message: String) extends MigrationError
-  case class TransformError(override val message: String) extends MigrationError
-  case class ValidationError(override val message: String) extends MigrationError
-  case class TypeError(expected: String, actual: String) extends MigrationError {
+  case class TransformError(override val message: String)          extends MigrationError
+  case class ValidationError(override val message: String)         extends MigrationError
+  case class TypeError(expected: String, actual: String)           extends MigrationError {
     def message: String = s"Expected $expected but got $actual"
   }
 }
@@ -62,12 +62,14 @@ object MigrationAction {
   }
 
   /** Join multiple fields into one */
-  case class Join(at: DynamicOptic, sourceFields: Vector[String], targetField: String, joinExpr: DynamicExpr) extends MigrationAction {
+  case class Join(at: DynamicOptic, sourceFields: Vector[String], targetField: String, joinExpr: DynamicExpr)
+      extends MigrationAction {
     def reverse: MigrationAction = Split(at, targetField, sourceFields, DynamicExpr.Identity)
   }
 
   /** Split one field into multiple */
-  case class Split(at: DynamicOptic, sourceField: String, targetFields: Vector[String], splitExpr: DynamicExpr) extends MigrationAction {
+  case class Split(at: DynamicOptic, sourceField: String, targetFields: Vector[String], splitExpr: DynamicExpr)
+      extends MigrationAction {
     def reverse: MigrationAction = Join(at, targetFields, sourceField, DynamicExpr.Identity)
   }
 
@@ -130,6 +132,7 @@ sealed trait DynamicExpr {
 }
 
 object DynamicExpr {
+
   /** Identity transformation - returns input unchanged */
   case object Identity extends DynamicExpr {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = Right(value)
@@ -146,7 +149,7 @@ object DynamicExpr {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
         s.toIntOption match {
           case Some(i) => Right(DynamicValue.Primitive(PrimitiveValue.Int(i)))
-          case None => Left(MigrationError.TransformError(s"Cannot convert '$s' to Int"))
+          case None    => Left(MigrationError.TransformError(s"Cannot convert '$s' to Int"))
         }
       case other => Left(MigrationError.TypeError("String", other.getClass.getSimpleName))
     }
@@ -167,7 +170,7 @@ object DynamicExpr {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
         s.toLongOption match {
           case Some(l) => Right(DynamicValue.Primitive(PrimitiveValue.Long(l)))
-          case None => Left(MigrationError.TransformError(s"Cannot convert '$s' to Long"))
+          case None    => Left(MigrationError.TransformError(s"Cannot convert '$s' to Long"))
         }
       case other => Left(MigrationError.TypeError("String", other.getClass.getSimpleName))
     }
@@ -203,7 +206,7 @@ object DynamicExpr {
       case DynamicValue.Record(fields) =>
         fields.find(_._1 == fieldName) match {
           case Some((_, v)) => Right(v)
-          case None => Left(MigrationError.ValidationError(s"Field '$fieldName' not found"))
+          case None         => Left(MigrationError.ValidationError(s"Field '$fieldName' not found"))
         }
       case other => Left(MigrationError.TypeError("Record", other.getClass.getSimpleName))
     }
@@ -214,8 +217,8 @@ object DynamicExpr {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = value match {
       case DynamicValue.Record(recordFields) =>
         val parts = fields.flatMap { name =>
-          recordFields.find(_._1 == name).collect {
-            case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s
+          recordFields.find(_._1 == name).collect { case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) =>
+            s
           }
         }
         Right(DynamicValue.Primitive(PrimitiveValue.String(parts.mkString(separator))))
@@ -235,7 +238,7 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
     actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
       case (Right(v), action) => applyAction(v, action)
-      case (left, _) => left
+      case (left, _)          => left
     }
 
   private def applyAction(value: DynamicValue, action: MigrationAction): Either[MigrationError, DynamicValue] = {
@@ -294,7 +297,7 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
             if (idx < 0) Left(MigrationError.ValidationError(s"Field '$fieldName' not found"))
             else {
               val (_, fieldValue) = fields(idx)
-              val optionValue = DynamicValue.Variant("Some", fieldValue)
+              val optionValue     = DynamicValue.Variant("Some", fieldValue)
               Right(DynamicValue.Record(fields.updated(idx, (fieldName, optionValue))))
             }
           case other => Left(MigrationError.TypeError("Record", other.getClass.getSimpleName))
@@ -319,10 +322,10 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
             if (idx < 0) Left(MigrationError.ValidationError(s"Field '$fieldName' not found"))
             else {
               val (_, fieldValue) = fields(idx)
-              val unwrapped = fieldValue match {
+              val unwrapped       = fieldValue match {
                 case DynamicValue.Variant("Some", inner) => inner
-                case DynamicValue.Variant("None", _) => default
-                case other => other
+                case DynamicValue.Variant("None", _)     => default
+                case other                               => other
               }
               Right(DynamicValue.Record(fields.updated(idx, (fieldName, unwrapped))))
             }
@@ -374,7 +377,7 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
           case DynamicValue.Variant(caseName, inner) if caseName == from =>
             Right(DynamicValue.Variant(to, inner))
           case v @ DynamicValue.Variant(_, _) => Right(v)
-          case other => Left(MigrationError.TypeError("Variant", other.getClass.getSimpleName))
+          case other                          => Left(MigrationError.TypeError("Variant", other.getClass.getSimpleName))
         }
 
       case MigrationAction.TransformCase(_, caseName, transform) =>
@@ -382,36 +385,42 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
           case DynamicValue.Variant(actualCase, inner) if actualCase == caseName =>
             transform(inner).map(DynamicValue.Variant(caseName, _))
           case v @ DynamicValue.Variant(_, _) => Right(v)
-          case other => Left(MigrationError.TypeError("Variant", other.getClass.getSimpleName))
+          case other                          => Left(MigrationError.TypeError("Variant", other.getClass.getSimpleName))
         }
 
       case MigrationAction.TransformElements(_, transform) =>
         value match {
           case DynamicValue.Sequence(elements) =>
-            elements.foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
-              case (Right(acc), elem) => transform(elem).map(acc :+ _)
-              case (left, _) => left
-            }.map(DynamicValue.Sequence(_))
+            elements
+              .foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
+                case (Right(acc), elem) => transform(elem).map(acc :+ _)
+                case (left, _)          => left
+              }
+              .map(DynamicValue.Sequence(_))
           case other => Left(MigrationError.TypeError("Sequence", other.getClass.getSimpleName))
         }
 
       case MigrationAction.TransformKeys(_, transform) =>
         value match {
           case DynamicValue.Map(entries) =>
-            entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
-              case (Right(acc), (k, v)) => transform(k).map(newK => acc :+ (newK, v))
-              case (left, _) => left
-            }.map(DynamicValue.Map(_))
+            entries
+              .foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
+                case (Right(acc), (k, v)) => transform(k).map(newK => acc :+ (newK, v))
+                case (left, _)            => left
+              }
+              .map(DynamicValue.Map(_))
           case other => Left(MigrationError.TypeError("Map", other.getClass.getSimpleName))
         }
 
       case MigrationAction.TransformValues(_, transform) =>
         value match {
           case DynamicValue.Map(entries) =>
-            entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
-              case (Right(acc), (k, v)) => transform(v).map(newV => acc :+ (k, newV))
-              case (left, _) => left
-            }.map(DynamicValue.Map(_))
+            entries
+              .foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](Right(Vector.empty)) {
+                case (Right(acc), (k, v)) => transform(v).map(newV => acc :+ (k, newV))
+                case (left, _)            => left
+              }
+              .map(DynamicValue.Map(_))
           case other => Left(MigrationError.TypeError("Map", other.getClass.getSimpleName))
         }
     }
@@ -423,7 +432,7 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
     pathIdx: Int,
     action: MigrationAction
   ): Either[MigrationError, DynamicValue] = {
-    val node = path(pathIdx)
+    val node   = path(pathIdx)
     val isLast = pathIdx == path.length - 1
 
     node match {
@@ -434,8 +443,9 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
             if (fieldIdx < 0) Left(MigrationError.PathError(action.at.toString, s"Field '$name' not found"))
             else {
               val (fieldName, fieldValue) = fields(fieldIdx)
-              val result = if (isLast) applyAtRoot(fieldValue, action)
-                           else navigateAndApply(fieldValue, path, pathIdx + 1, action)
+              val result                  =
+                if (isLast) applyAtRoot(fieldValue, action)
+                else navigateAndApply(fieldValue, path, pathIdx + 1, action)
               result.map(newValue => DynamicValue.Record(fields.updated(fieldIdx, (fieldName, newValue))))
             }
           case other => Left(MigrationError.TypeError("Record", other.getClass.getSimpleName))
@@ -447,9 +457,10 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
             if (index < 0 || index >= elements.length)
               Left(MigrationError.PathError(action.at.toString, s"Index $index out of bounds"))
             else {
-              val elem = elements(index)
-              val result = if (isLast) applyAtRoot(elem, action)
-                           else navigateAndApply(elem, path, pathIdx + 1, action)
+              val elem   = elements(index)
+              val result =
+                if (isLast) applyAtRoot(elem, action)
+                else navigateAndApply(elem, path, pathIdx + 1, action)
               result.map(newElem => DynamicValue.Sequence(elements.updated(index, newElem)))
             }
           case other => Left(MigrationError.TypeError("Sequence", other.getClass.getSimpleName))
@@ -461,8 +472,9 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
             if (actualCase != caseName)
               Left(MigrationError.PathError(action.at.toString, s"Expected case '$caseName' but got '$actualCase'"))
             else {
-              val result = if (isLast) applyAtRoot(innerValue, action)
-                           else navigateAndApply(innerValue, path, pathIdx + 1, action)
+              val result =
+                if (isLast) applyAtRoot(innerValue, action)
+                else navigateAndApply(innerValue, path, pathIdx + 1, action)
               result.map(DynamicValue.Variant(caseName, _))
             }
           case other => Left(MigrationError.TypeError("Variant", other.getClass.getSimpleName))
@@ -471,13 +483,16 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
       case DynamicOptic.Node.Elements =>
         value match {
           case DynamicValue.Sequence(elements) =>
-            elements.foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
-              case (Right(acc), elem) =>
-                val result = if (isLast) applyAtRoot(elem, action)
-                             else navigateAndApply(elem, path, pathIdx + 1, action)
-                result.map(acc :+ _)
-              case (left, _) => left
-            }.map(DynamicValue.Sequence(_))
+            elements
+              .foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
+                case (Right(acc), elem) =>
+                  val result =
+                    if (isLast) applyAtRoot(elem, action)
+                    else navigateAndApply(elem, path, pathIdx + 1, action)
+                  result.map(acc :+ _)
+                case (left, _) => left
+              }
+              .map(DynamicValue.Sequence(_))
           case other => Left(MigrationError.TypeError("Sequence", other.getClass.getSimpleName))
         }
 
@@ -506,13 +521,14 @@ case class Migration[A, B](
   sourceSchema: Schema[A],
   targetSchema: Schema[B]
 ) {
+
   /** Apply migration to transform A to B */
   def apply(value: A): Either[MigrationError, B] = {
     val dynamic = sourceSchema.toDynamicValue(value)
     dynamicMigration(dynamic).flatMap { dv =>
       targetSchema.fromDynamicValue(dv) match {
         case Right(b) => Right(b)
-        case Left(e) => Left(MigrationError.TransformError(e.toString))
+        case Left(e)  => Left(MigrationError.TransformError(e.toString))
       }
     }
   }
@@ -530,6 +546,7 @@ case class Migration[A, B](
 }
 
 object Migration {
+
   /** Identity migration - no changes */
   def identity[A](implicit schema: Schema[A]): Migration[A, A] =
     Migration(DynamicMigration.empty, schema, schema)
@@ -570,7 +587,11 @@ class MigrationBuilder[A, B](
 
   /** Drop a field */
   def dropField(path: DynamicOptic, fieldName: String, defaultForReverse: DynamicValue): MigrationBuilder[A, B] =
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.DropField(path, fieldName, defaultForReverse))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.DropField(path, fieldName, defaultForReverse)
+    )
 
   /** Drop a field at root */
   def dropField(fieldName: String, defaultForReverse: DynamicValue): MigrationBuilder[A, B] =
@@ -586,7 +607,11 @@ class MigrationBuilder[A, B](
 
   /** Transform a field's value using a pure expression */
   def transformField(path: DynamicOptic, fieldName: String, transform: DynamicExpr): MigrationBuilder[A, B] =
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.TransformValue(path, fieldName, transform))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformValue(path, fieldName, transform)
+    )
 
   /** Transform a field at root */
   def transformField(fieldName: String, transform: DynamicExpr): MigrationBuilder[A, B] =
@@ -617,12 +642,30 @@ class MigrationBuilder[A, B](
     changeFieldType(DynamicOptic.root, fieldName, converter)
 
   /** Join multiple fields into one */
-  def joinFields(path: DynamicOptic, sourceFields: Vector[String], targetField: String, joinExpr: DynamicExpr): MigrationBuilder[A, B] =
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.Join(path, sourceFields, targetField, joinExpr))
+  def joinFields(
+    path: DynamicOptic,
+    sourceFields: Vector[String],
+    targetField: String,
+    joinExpr: DynamicExpr
+  ): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.Join(path, sourceFields, targetField, joinExpr)
+    )
 
   /** Split one field into multiple */
-  def splitField(path: DynamicOptic, sourceField: String, targetFields: Vector[String], splitExpr: DynamicExpr): MigrationBuilder[A, B] =
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.Split(path, sourceField, targetFields, splitExpr))
+  def splitField(
+    path: DynamicOptic,
+    sourceField: String,
+    targetFields: Vector[String],
+    splitExpr: DynamicExpr
+  ): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.Split(path, sourceField, targetFields, splitExpr)
+    )
 
   // =========================================================================
   // ENUM OPERATIONS
@@ -638,7 +681,11 @@ class MigrationBuilder[A, B](
 
   /** Transform an enum case's payload */
   def transformCase(path: DynamicOptic, caseName: String, transform: DynamicMigration): MigrationBuilder[A, B] =
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.TransformCase(path, caseName, transform))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformCase(path, caseName, transform)
+    )
 
   /** Transform an enum case at root */
   def transformCase(caseName: String, transform: DynamicMigration): MigrationBuilder[A, B] =
