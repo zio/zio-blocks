@@ -63,7 +63,7 @@ object User {
 
 ### TOON Codec
 
-TOON is a compact, LLM-optimized binary format:
+TOON is a compact, line-oriented, indentation-based text format optimized for LLM usage:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
@@ -312,11 +312,11 @@ object Complex extends CompanionOptics[Complex] {
 
 ## Caching and Performance
 
-Schema derivation is cached automatically. The first time you call `.derive()` or `.encode()`/`.decode()` for a given format, the codec is derived and cached. Subsequent calls reuse the cached instance, so there's no performance penalty for deriving codecs multiple times.
+The `Schema` class caches format-based codec instances internally when using the `encode` and `decode` methods. Direct calls to `.derive()` are not cached and will recompute the codec each time.
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
-import zio.blocks.schema.json.JsonFormat
+import zio.blocks.schema.json.{JsonFormat, JsonBinaryCodec}
 
 case class Person(name: String, age: Int)
 
@@ -324,16 +324,16 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-// First derivation - computes and caches
+// Direct derivation - NOT cached, recomputed each time
 val codec1 = Schema[Person].derive(JsonFormat.deriver)
-
-// Second derivation - returns cached instance
 val codec2 = Schema[Person].derive(JsonFormat.deriver)
+// codec1 eq codec2  // false - different instances
 
-// codec1 eq codec2  // true - same instance
+// Cache derived codecs as vals to avoid recomputation
+val cachedCodec: JsonBinaryCodec[Person] = Schema[Person].derive(JsonFormat.deriver)
 ```
 
-The caching also applies to the convenience methods `encode` and `decode` on `Schema`:
+However, the `Schema` class does cache codecs internally when using format-based `encode` and `decode` methods:
 
 ```scala mdoc:compile-only
 import java.nio.ByteBuffer
@@ -342,11 +342,14 @@ import zio.blocks.schema.json.JsonFormat
 
 val person = Person("Alice", 30)
 
-// These calls use cached codec instances
+// These calls use Schema's internal cache (keyed by Format)
+// The first call derives and caches, subsequent calls reuse
 val buffer = ByteBuffer.allocate(1024)
 Schema[Person].encode(JsonFormat)(buffer)(person)
 val decoded = Schema[Person].decode(JsonFormat)(buffer)
 ```
+
+For best performance, cache derived codecs as `val` fields in your companion objects rather than calling `.derive()` repeatedly.
 
 ## Creating Custom Derivers
 
@@ -568,9 +571,9 @@ The `Format` abstraction provides a unified interface for working with serializa
 ```scala
 // From zio.blocks.schema.codec package
 trait Format {
-  type TypeClass[A] <: Codec[A]
-  type EncodeOutput
   type DecodeInput
+  type EncodeOutput
+  type TypeClass[A] <: Codec[DecodeInput, EncodeOutput, A]
   
   def mimeType: String
   def deriver: Deriver[TypeClass]
@@ -688,11 +691,11 @@ object Event extends CompanionOptics[Event] {
 |--------|--------|-------------|
 | **JSON** | `zio-blocks-schema` | Fast, type-safe JSON (included in core) |
 | **Avro** | `zio-blocks-schema-avro` | Apache Avro binary format |
-| **TOON** | `zio-blocks-schema-toon` | Compact, LLM-optimized format |
+| **TOON** | `zio-blocks-schema-toon` | Compact, LLM-optimized text format |
 | **MessagePack** | `zio-blocks-schema-messagepack` | Efficient binary serialization |
-| **BSON** | `zio-blocks-schema-bson` | MongoDB's binary JSON format (planned) |
+| **BSON** | `zio-blocks-schema-bson` | MongoDB's binary JSON format |
+| **Thrift** | `zio-blocks-schema-thrift` | Apache Thrift |
 | **Protobuf** | `zio-blocks-schema-protobuf` | Protocol Buffers (planned) |
-| **Thrift** | `zio-blocks-schema-thrift` | Apache Thrift (planned) |
 
 ## See Also
 
