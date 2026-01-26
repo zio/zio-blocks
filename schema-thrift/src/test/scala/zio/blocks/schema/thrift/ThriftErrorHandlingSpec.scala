@@ -79,9 +79,7 @@ object ThriftErrorHandlingSpec extends SchemaBaseSpec {
 
         val bytes  = transport.getArray().take(transport.length())
         val buffer = ByteBuffer.wrap(bytes)
-        // This should succeed - empty struct with STOP is valid but fields are null/default
         val result = Schema[RecordWithOption].decode(ThriftFormat)(buffer)
-        // RecordWithOption has an optional field, so empty is valid
         assertTrue(result.isRight)
       }
     ),
@@ -97,7 +95,6 @@ object ThriftErrorHandlingSpec extends SchemaBaseSpec {
         protocol.writeFieldBegin(new TField("name", TType.STRING, 2))
         protocol.writeString("test")
         protocol.writeFieldEnd()
-        // Unknown bool field
         protocol.writeFieldBegin(new TField("unknown", TType.BOOL, 99))
         protocol.writeBool(true)
         protocol.writeFieldEnd()
@@ -212,7 +209,6 @@ object ThriftErrorHandlingSpec extends SchemaBaseSpec {
         protocol.writeFieldBegin(new TField("id", TType.I32, 1))
         protocol.writeI32(500)
         protocol.writeFieldEnd()
-        // Unknown set field
         protocol.writeFieldBegin(new TField("unknownSet", TType.SET, 33))
         protocol.writeSetBegin(new TSet(TType.STRING, 2))
         protocol.writeString("item1")

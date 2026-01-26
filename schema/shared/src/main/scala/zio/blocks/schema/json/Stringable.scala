@@ -39,9 +39,7 @@ object Stringable {
     def asString(a: A): String = f(a)
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Scala Primitives
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit val unitStringable: Stringable[Unit] = instance(_ => "()")
 
@@ -63,17 +61,13 @@ object Stringable {
 
   implicit val stringStringable: Stringable[String] = instance(identity)
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Arbitrary Precision Numbers
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit val bigIntStringable: Stringable[BigInt] = instance(_.toString)
 
   implicit val bigDecimalStringable: Stringable[BigDecimal] = instance(_.toString)
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Java Time Types
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit val dayOfWeekStringable: Stringable[DayOfWeek] = instance(_.toString)
 
@@ -107,11 +101,9 @@ object Stringable {
 
   implicit val zonedDateTimeStringable: Stringable[ZonedDateTime] = instance(_.toString)
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Java Util Types
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit val uuidStringable: Stringable[UUID] = instance(_.toString)
-
+  // In Currency use getCurrencyCode
   implicit val currencyStringable: Stringable[Currency] = instance(_.getCurrencyCode)
 }
