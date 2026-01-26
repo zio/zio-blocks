@@ -60,12 +60,12 @@ object MigrationMacros {
   ): Unit = ${ validateMigrationImpl[A, B]('sourceSchema, 'targetSchema, 'actions) }
 
   def validateMigrationImpl[A: Type, B: Type](
-    sourceSchema: Expr[Schema[A]],
-    targetSchema: Expr[Schema[B]],
-    actions: Expr[Vector[MigrationAction]]
+    @scala.annotation.unused sourceSchema: Expr[Schema[A]],
+    @scala.annotation.unused targetSchema: Expr[Schema[B]],
+    @scala.annotation.unused actions: Expr[Vector[MigrationAction]]
   )(using Quotes): Expr[Unit] = {
-    import quotes.reflect.*
-    // Validation logic: check all target fields are covered
+    // TODO: Add compile-time validation logic
+    // For now, validation is done at runtime in Migration.apply
     '{ () }
   }
 }
