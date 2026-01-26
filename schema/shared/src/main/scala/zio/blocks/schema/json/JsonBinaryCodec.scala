@@ -46,6 +46,8 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
     case _ => RegisterOffset.Zero
   }
 
+  def toJsonSchema: JsonSchema = ???
+
   /**
    * Attempts to decode a value of type `A` from the specified `JsonReader`, but
    * may fail with `JsonBinaryCodecError` error if the JSON input does not
