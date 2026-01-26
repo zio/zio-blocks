@@ -521,7 +521,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       }.map(assert(_)(isLeft(containsString("Invalid JSON literal: unexpected end of input at: .")))) &&
       typeCheck {
         """json"[1,02]""""
-      }.map(assert(_)(isLeft(containsString("Invalid JSON literal: illegal number with leading zero at: [1]"))))
+      }.map(assert(_)(isLeft(containsString("Invalid JSON literal: illegal number with leading zero at: .at(1)"))))
     } @@ exceptNative
   )
 }

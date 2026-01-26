@@ -2189,7 +2189,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("throws on tabular row value count mismatch with header field count") {
         decodeError(
           "people[2]{name,age}:\n  Ada,25\n  Bob",
-          "Missing required field in tabular row: age at: .people[1]",
+          "Missing required field in tabular row: age at: .people.at(1)",
           deriveCodec[PersonListWrapper](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },

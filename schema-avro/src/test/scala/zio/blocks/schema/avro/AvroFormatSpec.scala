@@ -516,7 +516,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         ) &&
         roundTrip((1 to 32).map(x => new java.util.UUID(x, x)).toList, 514) &&
         decodeError[List[Int]](Array.empty[Byte], "Unexpected end of input at: .") &&
-        decodeError[List[Int]](Array[Byte](100, 42, 42, 42), "Unexpected end of input at: [3]") &&
+        decodeError[List[Int]](Array[Byte](100, 42, 42, 42), "Unexpected end of input at: .at(3)") &&
         decodeError[List[Int]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
         decodeError[List[Int]](
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
@@ -576,7 +576,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         roundTrip(Map("VVV" -> java.time.LocalDate.of(2025, 1, 1), "WWW" -> java.time.LocalDate.of(2025, 1, 2)), 18) &&
         roundTrip(Map("VVV" -> new java.util.UUID(1L, 1L), "WWW" -> new java.util.UUID(2L, 2L)), 42) &&
         decodeError[Map[String, Int]](Array.empty[Byte], "Unexpected end of input at: .") &&
-        decodeError[Map[String, Int]](Array[Byte](100), "Unexpected end of input at: [0]") &&
+        decodeError[Map[String, Int]](Array[Byte](100), "Unexpected end of input at: .at(0)") &&
         decodeError[Map[String, Int]](Array(0x01.toByte), "Expected positive map part size, got -1 at: .") &&
         decodeError[Map[String, Int]](
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
@@ -613,13 +613,13 @@ object AvroFormatSpec extends SchemaBaseSpec {
         ) &&
         roundTrip(Map(1 -> 1L, 2 -> 2L), 6) &&
         decodeError[Map[Int, Long]](Array.empty[Byte], "Unexpected end of input at: .") &&
-        decodeError[Map[Int, Long]](Array[Byte](100), "Unexpected end of input at: [0]") &&
+        decodeError[Map[Int, Long]](Array[Byte](100), "Unexpected end of input at: .at(0)") &&
         decodeError[Map[Int, Long]](Array(0x01.toByte), "Expected positive map part size, got -1 at: .") &&
         decodeError[Map[Int, Long]](
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           "Expected map size not greater than 2147483639, got 2147483647 at: ."
         ) &&
-        decodeError[Map[Int, Long]](Array[Byte](2, 2, 0xff.toByte), "Unexpected end of input at: {1}")
+        decodeError[Map[Int, Long]](Array[Byte](2, 2, 0xff.toByte), "Unexpected end of input at: .atKey(1)")
       },
       test("non string key with recursive values") {
         avroSchema[Map[Recursive, Int]](
@@ -661,7 +661,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         roundTrip(Option(42), 2) &&
         roundTrip[Option[Int]](None, 1) &&
         decodeError[Option[Int]](Array[Byte](4), "Expected enum index from 0 to 1, got 2 at: .") &&
-        decodeError[Option[Int]](Array[Byte](2, 0xff.toByte), "Unexpected end of input at: <Some>.value")
+        decodeError[Option[Int]](Array[Byte](2, 0xff.toByte), "Unexpected end of input at: .when[Some].value")
       },
       test("either") {
         avroSchema[Either[String, Int]](
@@ -681,7 +681,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         avroSchema[Email]("\"string\"") &&
         roundTrip[Email](Email("john@gmail.com"), 15) &&
         decodeError[Email](bytes, "Expected Email at: .") &&
-        decodeError[Email](Array[Byte](100), "Unexpected end of input at: .~")
+        decodeError[Email](Array[Byte](100), "Unexpected end of input at: .wrapped")
       },
       test("as a record field") {
         avroSchema[Record3](
@@ -760,64 +760,64 @@ object AvroFormatSpec extends SchemaBaseSpec {
         ) &&
         decodeError[DynamicValue](Array[Byte](10), "Expected enum index from 0 to 4, got 5 at: .") &&
         decodeError[DynamicValue](Array.empty[Byte], "Unexpected end of input at: .") &&
-        decodeError[DynamicValue](Array[Byte](0), "Unexpected end of input at: <Primitive>") &&
+        decodeError[DynamicValue](Array[Byte](0), "Unexpected end of input at: .when[Primitive]") &&
         decodeError[DynamicValue](
           Array[Byte](0, 60),
-          "Expected enum index from 0 to 29, got 30 at: <Primitive>"
+          "Expected enum index from 0 to 29, got 30 at: .when[Primitive]"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](0, 8, 0xff.toByte),
-          "Unexpected end of input at: <Primitive>.value"
+          "Unexpected end of input at: .when[Primitive].value"
         ) &&
-        decodeError[DynamicValue](Array[Byte](2), "Unexpected end of input at: <Record>.fields") &&
+        decodeError[DynamicValue](Array[Byte](2), "Unexpected end of input at: .when[Record].fields") &&
         decodeError[DynamicValue](
           Array[Byte](2, 1),
-          "Expected positive collection part size, got -1 at: <Record>.fields"
+          "Expected positive collection part size, got -1 at: .when[Record].fields"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](2, 2, 2),
-          "Unexpected end of input at: <Record>.fields[0]._1"
+          "Unexpected end of input at: .when[Record].fields.at(0)._1"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](2, 2, 0, 10),
-          "Expected enum index from 0 to 4, got 5 at: <Record>.fields[0]._2"
+          "Expected enum index from 0 to 4, got 5 at: .when[Record].fields.at(0)._2"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](2, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
-          "Expected collection size not greater than 2147483639, got 2147483647 at: <Record>.fields"
+          "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Record].fields"
         ) &&
-        decodeError[DynamicValue](Array[Byte](4, 2), "Unexpected end of input at: <Variant>.caseName") &&
+        decodeError[DynamicValue](Array[Byte](4, 2), "Unexpected end of input at: .when[Variant].caseName") &&
         decodeError[DynamicValue](
           Array[Byte](4, 0, 10),
-          "Expected enum index from 0 to 4, got 5 at: <Variant>.value"
+          "Expected enum index from 0 to 4, got 5 at: .when[Variant].value"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](6, 1),
-          "Expected positive collection part size, got -1 at: <Sequence>.elements"
+          "Expected positive collection part size, got -1 at: .when[Sequence].elements"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](6, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
-          "Expected collection size not greater than 2147483639, got 2147483647 at: <Sequence>.elements"
+          "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Sequence].elements"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](6, 2, 10),
-          "Expected enum index from 0 to 4, got 5 at: <Sequence>.elements[0]"
+          "Expected enum index from 0 to 4, got 5 at: .when[Sequence].elements.at(0)"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](8, 1),
-          "Expected positive collection part size, got -1 at: <Map>.entries"
+          "Expected positive collection part size, got -1 at: .when[Map].entries"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](8, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
-          "Expected collection size not greater than 2147483639, got 2147483647 at: <Map>.entries"
+          "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Map].entries"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](8, 2, 10),
-          "Expected enum index from 0 to 4, got 5 at: <Map>.entries[0]._1"
+          "Expected enum index from 0 to 4, got 5 at: .when[Map].entries.at(0)._1"
         ) &&
         decodeError[DynamicValue](
           Array[Byte](8, 2, 0, 0, 10),
-          "Expected enum index from 0 to 4, got 5 at: <Map>.entries[0]._2"
+          "Expected enum index from 0 to 4, got 5 at: .when[Map].entries.at(0)._2"
         )
       },
       test("as record field values") {

@@ -511,8 +511,7 @@ private object CompanionOptics {
             case Apply(TypeApply(Select(p, "apply"), _), List(Literal(IntConstant(i)))) => (p, i)
             case _                                                                      =>
               fail(
-                s"Invalid optic path. Expected elements built using the optic DSL (e.g. .field, <<T>>, .wrapped[T], .when[T], .at(index), .each, .eachKey, .eachValue, .atKey(key)). " +
-                  s"(Internal representation looks like .<field>, <<T>>, [<index>], [<indices>], {<key>}, {<keys>}, [*], {*:}, {*}, or .~.) Got '${term.show}'."
+                s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '${term.show}'."
               )
           }
           var parentTpe = parent.tpe.widen.dealias
