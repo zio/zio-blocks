@@ -957,31 +957,48 @@ object DynamicValue {
       case DynamicOptic.Node.Elements =>
         dv match {
           case s: Sequence =>
-            val newElems = s.elements.flatMap(e => modifyAtPathImpl(e, nodes, idx + 1, f))
-            if (newElems.isEmpty && s.elements.nonEmpty) None
-            else Some(Sequence(newElems))
+            var found    = false
+            val newElems = s.elements.map { e =>
+              modifyAtPathImpl(e, nodes, idx + 1, f) match {
+                case Some(nv) =>
+                  found = true
+                  nv
+                case None => e
+              }
+            }
+            if (found) Some(Sequence(newElems)) else None
           case _ => None
         }
 
       case DynamicOptic.Node.MapKeys =>
         dv match {
           case m: Map =>
-            val newEntries = m.entries.flatMap { case (k, v) =>
-              modifyAtPathImpl(k, nodes, idx + 1, f).map(nk => (nk, v))
+            var found      = false
+            val newEntries = m.entries.map { case (k, v) =>
+              modifyAtPathImpl(k, nodes, idx + 1, f) match {
+                case Some(nk) =>
+                  found = true
+                  (nk, v)
+                case None => (k, v)
+              }
             }
-            if (newEntries.isEmpty && m.entries.nonEmpty) None
-            else Some(Map(newEntries))
+            if (found) Some(Map(newEntries)) else None
           case _ => None
         }
 
       case DynamicOptic.Node.MapValues =>
         dv match {
           case m: Map =>
-            val newEntries = m.entries.flatMap { case (k, v) =>
-              modifyAtPathImpl(v, nodes, idx + 1, f).map(nv => (k, nv))
+            var found      = false
+            val newEntries = m.entries.map { case (k, v) =>
+              modifyAtPathImpl(v, nodes, idx + 1, f) match {
+                case Some(nv) =>
+                  found = true
+                  (k, nv)
+                case None => (k, v)
+              }
             }
-            if (newEntries.isEmpty && m.entries.nonEmpty) None
-            else Some(Map(newEntries))
+            if (found) Some(Map(newEntries)) else None
           case _ => None
         }
 
@@ -1846,9 +1863,104 @@ object DynamicValue {
 
     var result: DynamicValue = Record.empty
     kvs.foreach { case (path, value) =>
-      result = result.insert(path, value)
+      result = upsertAtPathCreatingParents(result, path, value)
     }
     result
+  }
+
+  private def upsertAtPathCreatingParents(
+    dv: DynamicValue,
+    path: DynamicOptic,
+    value: DynamicValue
+  ): DynamicValue = {
+    val nodes = path.nodes
+    if (nodes.isEmpty) return value
+
+    def createContainer(nextNode: DynamicOptic.Node): DynamicValue = nextNode match {
+      case _: DynamicOptic.Node.Field    => Record.empty
+      case _: DynamicOptic.Node.AtIndex  => Sequence.empty
+      case _: DynamicOptic.Node.AtMapKey => Map.empty
+      case _: DynamicOptic.Node.Case     => Record.empty
+      case _                             => Record.empty
+    }
+
+    def go(current: DynamicValue, idx: Int): DynamicValue = {
+      if (idx >= nodes.length) return value
+
+      val node   = nodes(idx)
+      val isLast = idx == nodes.length - 1
+
+      node match {
+        case DynamicOptic.Node.Field(name) =>
+          current match {
+            case r: Record =>
+              val fieldIdx = r.fields.indexWhere(_._1 == name)
+              if (fieldIdx >= 0) {
+                val (_, v) = r.fields(fieldIdx)
+                val newV   = if (isLast) value else go(v, idx + 1)
+                Record(r.fields.updated(fieldIdx, (name, newV)))
+              } else {
+                val newV = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
+                Record(r.fields :+ (name, newV))
+              }
+            case _ =>
+              val newV = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
+              Record(Vector((name, newV)))
+          }
+
+        case DynamicOptic.Node.AtIndex(index) =>
+          current match {
+            case s: Sequence =>
+              if (index >= 0 && index < s.elements.length) {
+                val newV = if (isLast) value else go(s.elements(index), idx + 1)
+                Sequence(s.elements.updated(index, newV))
+              } else if (index == s.elements.length) {
+                val newV = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
+                Sequence(s.elements :+ newV)
+              } else {
+                val padding = Vector.fill(index - s.elements.length)(Null: DynamicValue)
+                val newV    = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
+                Sequence(s.elements ++ padding :+ newV)
+              }
+            case _ =>
+              val padding = Vector.fill(index)(Null: DynamicValue)
+              val newV    = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
+              Sequence(padding :+ newV)
+          }
+
+        case DynamicOptic.Node.AtMapKey(key) =>
+          current match {
+            case m: Map =>
+              val keyIdx = m.entries.indexWhere(_._1 == key)
+              if (keyIdx >= 0) {
+                val (k, v) = m.entries(keyIdx)
+                val newV   = if (isLast) value else go(v, idx + 1)
+                Map(m.entries.updated(keyIdx, (k, newV)))
+              } else {
+                val newV = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
+                Map(m.entries :+ (key, newV))
+              }
+            case _ =>
+              val newV = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
+              Map(Vector((key, newV)))
+          }
+
+        case DynamicOptic.Node.Case(caseName) =>
+          current match {
+            case v: Variant if v.caseNameValue == caseName =>
+              val newInner = if (isLast) value else go(v.value, idx + 1)
+              Variant(caseName, newInner)
+            case _ =>
+              val newInner = if (isLast) value else go(Record.empty, idx + 1)
+              Variant(caseName, newInner)
+          }
+
+        case _ =>
+          go(current, idx + 1)
+      }
+    }
+
+    go(dv, 0)
   }
 
   // ─────────────────────────────────────────────────────────────────────────

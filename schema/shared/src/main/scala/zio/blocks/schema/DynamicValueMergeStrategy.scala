@@ -109,7 +109,10 @@ object DynamicValueMergeStrategy {
   final case class Custom(
     f: (DynamicOptic, DynamicValue, DynamicValue) => DynamicValue,
     r: (DynamicOptic, DynamicValueType) => Boolean = (_, t) =>
-      t == DynamicValueType.Record || t == DynamicValueType.Sequence || t == DynamicValueType.Map
+      t == DynamicValueType.Record ||
+        t == DynamicValueType.Sequence ||
+        t == DynamicValueType.Map ||
+        t == DynamicValueType.Variant
   ) extends DynamicValueMergeStrategy {
     def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean                = r(path, valueType)
     def apply(path: DynamicOptic, left: DynamicValue, right: DynamicValue): DynamicValue = f(path, left, right)
