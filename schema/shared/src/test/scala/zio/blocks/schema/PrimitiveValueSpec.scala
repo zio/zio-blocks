@@ -359,7 +359,8 @@ object PrimitiveValueSpec extends SchemaBaseSpec {
         assert(back)(equalTo(Right(value)))
       },
       test("UUID roundtrips") {
-        val uuid                  = java.util.UUID.randomUUID()
+        // Use fixed UUID instead of randomUUID() for Scala.js compatibility (no SecureRandom)
+        val uuid                  = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
         val value: PrimitiveValue = PrimitiveValue.UUID(uuid)
         val dyn                   = Schema[PrimitiveValue].toDynamicValue(value)
         val back                  = Schema[PrimitiveValue].fromDynamicValue(dyn)
