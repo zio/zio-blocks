@@ -5,18 +5,18 @@ import zio.test._
 object DynamicValueSelectionSpec extends SchemaBaseSpec {
 
   // Test helpers
-  val stringVal: DynamicValue  = DynamicValue.string("hello")
-  val intVal: DynamicValue     = DynamicValue.int(42)
-  val boolVal: DynamicValue    = DynamicValue.boolean(true)
-  val nullVal: DynamicValue    = DynamicValue.Null
-  val recordVal: DynamicValue  = DynamicValue.Record("name" -> stringVal, "age" -> intVal, "active" -> boolVal)
-  val seqVal: DynamicValue     = DynamicValue.Sequence(stringVal, intVal, nullVal)
-  val mapVal: DynamicValue     = DynamicValue.Map(stringVal -> intVal, intVal -> boolVal)
-  val variantVal: DynamicValue = DynamicValue.Variant("Some", stringVal)
+  val stringVal: DynamicValue    = DynamicValue.string("hello")
+  val intVal: DynamicValue       = DynamicValue.int(42)
+  val boolVal: DynamicValue      = DynamicValue.boolean(true)
+  val nullVal: DynamicValue      = DynamicValue.Null
+  val recordVal: DynamicValue    = DynamicValue.Record("name" -> stringVal, "age" -> intVal, "active" -> boolVal)
+  val seqVal: DynamicValue       = DynamicValue.Sequence(stringVal, intVal, nullVal)
+  val mapVal: DynamicValue       = DynamicValue.Map(stringVal -> intVal, intVal -> boolVal)
+  val variantVal: DynamicValue   = DynamicValue.Variant("Some", stringVal)
   val nestedRecord: DynamicValue = DynamicValue.Record(
-    "user" -> recordVal,
+    "user"  -> recordVal,
     "items" -> seqVal,
-    "meta" -> mapVal
+    "meta"  -> mapVal
   )
 
   def spec: Spec[TestEnvironment, Any] = suite("DynamicValueSelectionSpec")(
@@ -131,7 +131,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.oneUnsafe == stringVal)
       },
       test("oneUnsafe throws for empty selection") {
-        val sel = DynamicValueSelection.empty
+        val sel    = DynamicValueSelection.empty
         val result = try {
           sel.oneUnsafe
           false
@@ -145,7 +145,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.anyUnsafe == stringVal)
       },
       test("anyUnsafe throws for empty selection") {
-        val sel = DynamicValueSelection.empty
+        val sel    = DynamicValueSelection.empty
         val result = try {
           sel.anyUnsafe
           false
@@ -235,7 +235,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
     ),
     suite("Combinators")(
       test("map transforms values") {
-        val sel = DynamicValueSelection.succeed(intVal)
+        val sel    = DynamicValueSelection.succeed(intVal)
         val mapped = sel.map {
           case DynamicValue.Primitive(PrimitiveValue.Int(n)) =>
             DynamicValue.int(n * 2)
@@ -244,14 +244,14 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(mapped.one == Right(DynamicValue.int(84)))
       },
       test("flatMap chains selections") {
-        val sel = recordVal.select
+        val sel    = recordVal.select
         val result = sel.flatMap { dv =>
           dv.get("name")
         }
         assertTrue(result.one == Right(stringVal))
       },
       test("filter keeps matching values") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, intVal, boolVal))
+        val sel      = DynamicValueSelection.succeedMany(Vector(stringVal, intVal, boolVal))
         val filtered = sel.filter {
           case _: DynamicValue.Primitive => true
           case _                         => false
@@ -259,7 +259,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(filtered.size == 3)
       },
       test("filter removes non-matching values") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, recordVal, intVal))
+        val sel      = DynamicValueSelection.succeedMany(Vector(stringVal, recordVal, intVal))
         val filtered = sel.filter {
           case _: DynamicValue.Record => true
           case _                      => false
@@ -267,7 +267,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(filtered.size == 1)
       },
       test("collect gathers matching values") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, intVal, boolVal))
+        val sel       = DynamicValueSelection.succeedMany(Vector(stringVal, intVal, boolVal))
         val collected = sel.collect { case DynamicValue.Primitive(PrimitiveValue.Int(n)) =>
           n
         }
@@ -419,7 +419,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(result == Right(DynamicValue.int(84)))
       },
       test("transformFields renames fields") {
-        val sel    = recordVal.select.transformFields { (_, name) => name.toUpperCase }
+        val sel    = recordVal.select.transformFields((_, name) => name.toUpperCase)
         val result = sel.one.map(_.fields.map(_._1))
         assertTrue(result == Right(Vector("NAME", "AGE", "ACTIVE")))
       },
@@ -481,8 +481,8 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
     ),
     suite("Merge")(
       test("merge combines two selections") {
-        val sel1 = DynamicValue.Record("a" -> intVal).select
-        val sel2 = DynamicValue.Record("b" -> stringVal).select
+        val sel1   = DynamicValue.Record("a" -> intVal).select
+        val sel2   = DynamicValue.Record("b" -> stringVal).select
         val result = sel1.merge(sel2).one.map { dv =>
           dv.fields.length
         }
@@ -498,14 +498,14 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
     suite("Fallible mutations")(
       test("modifyOrFail succeeds when path exists") {
         val path = DynamicOptic.root.field("age")
-        val sel = recordVal.select.modifyOrFail(path) { case DynamicValue.Primitive(PrimitiveValue.Int(n)) =>
+        val sel  = recordVal.select.modifyOrFail(path) { case DynamicValue.Primitive(PrimitiveValue.Int(n)) =>
           DynamicValue.int(n + 10)
         }
         assertTrue(sel.isSuccess)
       },
       test("modifyOrFail fails when path does not exist") {
         val path = DynamicOptic.root.field("missing")
-        val sel = recordVal.select.modifyOrFail(path) { case dv =>
+        val sel  = recordVal.select.modifyOrFail(path) { case dv =>
           dv
         }
         assertTrue(sel.isFailure)
