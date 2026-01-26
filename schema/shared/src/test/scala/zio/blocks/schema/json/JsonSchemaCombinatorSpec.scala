@@ -21,45 +21,45 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
       test("validates if both schemas pass") {
         val combined = minLength3 && maxLength5
         assertTrue(
-          combined.conforms(Json.str("abc")),
-          combined.conforms(Json.str("abcd")),
-          combined.conforms(Json.str("abcde"))
+          combined.conforms(Json.String("abc")),
+          combined.conforms(Json.String("abcd")),
+          combined.conforms(Json.String("abcde"))
         )
       },
       test("fails if first schema fails") {
         val combined = minLength3 && maxLength5
-        assertTrue(!combined.conforms(Json.str("ab")))
+        assertTrue(!combined.conforms(Json.String("ab")))
       },
       test("fails if second schema fails") {
         val combined = minLength3 && maxLength5
-        assertTrue(!combined.conforms(Json.str("abcdef")))
+        assertTrue(!combined.conforms(Json.String("abcdef")))
       },
       test("fails if both schemas fail") {
         val combined = minLength3 && maxLength5
-        assertTrue(!combined.conforms(Json.number(42)))
+        assertTrue(!combined.conforms(Json.Number(42)))
       },
       test("&& with True is identity") {
         val schema = stringSchema && JsonSchema.True
         assertTrue(
-          schema.conforms(Json.str("hello")),
-          !schema.conforms(Json.number(42))
+          schema.conforms(Json.String("hello")),
+          !schema.conforms(Json.Number(42))
         )
       },
       test("&& with False always fails") {
         val schema = stringSchema && JsonSchema.False
         assertTrue(
-          !schema.conforms(Json.str("hello")),
-          !schema.conforms(Json.number(42))
+          !schema.conforms(Json.String("hello")),
+          !schema.conforms(Json.Number(42))
         )
       },
       test("multiple schemas via &&") {
         val schema = positive && lessThan100
         assertTrue(
-          schema.conforms(Json.number(50)),
-          !schema.conforms(Json.number(0)),
-          !schema.conforms(Json.number(-5)),
-          !schema.conforms(Json.number(100)),
-          !schema.conforms(Json.number(150))
+          schema.conforms(Json.Number(50)),
+          !schema.conforms(Json.Number(0)),
+          !schema.conforms(Json.Number(-5)),
+          !schema.conforms(Json.Number(100)),
+          !schema.conforms(Json.Number(150))
         )
       }
     ),
@@ -67,17 +67,17 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
       test("validates if either schema passes") {
         val combined = stringSchema || integerSchema
         assertTrue(
-          combined.conforms(Json.str("hello")),
-          combined.conforms(Json.number(42))
+          combined.conforms(Json.String("hello")),
+          combined.conforms(Json.Number(42))
         )
       },
       test("validates if first schema passes") {
         val combined = stringSchema || integerSchema
-        assertTrue(combined.conforms(Json.str("hello")))
+        assertTrue(combined.conforms(Json.String("hello")))
       },
       test("validates if second schema passes") {
         val combined = stringSchema || integerSchema
-        assertTrue(combined.conforms(Json.number(42)))
+        assertTrue(combined.conforms(Json.Number(42)))
       },
       test("fails if neither schema passes") {
         val combined = stringSchema || integerSchema
@@ -86,23 +86,23 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
       test("|| with True always passes") {
         val schema = stringSchema || JsonSchema.True
         assertTrue(
-          schema.conforms(Json.str("hello")),
-          schema.conforms(Json.number(42)),
+          schema.conforms(Json.String("hello")),
+          schema.conforms(Json.Number(42)),
           schema.conforms(Json.True)
         )
       },
       test("|| with False is identity") {
         val schema = stringSchema || JsonSchema.False
         assertTrue(
-          schema.conforms(Json.str("hello")),
-          !schema.conforms(Json.number(42))
+          schema.conforms(Json.String("hello")),
+          !schema.conforms(Json.Number(42))
         )
       },
       test("multiple schemas via ||") {
         val schema = stringSchema || integerSchema || booleanSchema
         assertTrue(
-          schema.conforms(Json.str("hello")),
-          schema.conforms(Json.number(42)),
+          schema.conforms(Json.String("hello")),
+          schema.conforms(Json.Number(42)),
           schema.conforms(Json.True),
           !schema.conforms(Json.Null)
         )
@@ -112,42 +112,42 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
       test("validates if schema fails") {
         val notString = !stringSchema
         assertTrue(
-          notString.conforms(Json.number(42)),
+          notString.conforms(Json.Number(42)),
           notString.conforms(Json.True),
           notString.conforms(Json.Null)
         )
       },
       test("fails if schema passes") {
         val notString = !stringSchema
-        assertTrue(!notString.conforms(Json.str("hello")))
+        assertTrue(!notString.conforms(Json.String("hello")))
       },
       test("!True is False") {
         val notTrue = !JsonSchema.True
         assertTrue(
-          !notTrue.conforms(Json.str("hello")),
-          !notTrue.conforms(Json.number(42))
+          !notTrue.conforms(Json.String("hello")),
+          !notTrue.conforms(Json.Number(42))
         )
       },
       test("!False is True") {
         val notFalse = !JsonSchema.False
         assertTrue(
-          notFalse.conforms(Json.str("hello")),
-          notFalse.conforms(Json.number(42))
+          notFalse.conforms(Json.String("hello")),
+          notFalse.conforms(Json.Number(42))
         )
       },
       test("double negation is identity") {
         val doubleNot = !(!stringSchema)
         assertTrue(
-          doubleNot.conforms(Json.str("hello")),
-          !doubleNot.conforms(Json.number(42))
+          doubleNot.conforms(Json.String("hello")),
+          !doubleNot.conforms(Json.Number(42))
         )
       },
       test("not with constraint schema") {
         val notPositive = !positive
         assertTrue(
-          notPositive.conforms(Json.number(0)),
-          notPositive.conforms(Json.number(-5)),
-          !notPositive.conforms(Json.number(5))
+          notPositive.conforms(Json.Number(0)),
+          notPositive.conforms(Json.Number(-5)),
+          !notPositive.conforms(Json.Number(5))
         )
       }
     ),
@@ -161,11 +161,11 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
         val rightAssoc = a && (b && c)
 
         val testCases = List(
-          Json.str("abc"),
-          Json.str("a"),
-          Json.str("abcdefghijk"),
-          Json.str("ABC"),
-          Json.number(42)
+          Json.String("abc"),
+          Json.String("a"),
+          Json.String("abcdefghijk"),
+          Json.String("ABC"),
+          Json.Number(42)
         )
 
         assertTrue(
@@ -183,11 +183,11 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
         val rightAssoc = a || (b || c)
 
         val testCases = List(
-          Json.str("hello"),
-          Json.number(42),
+          Json.String("hello"),
+          Json.Number(42),
           Json.True,
           Json.Null,
-          Json.arr()
+          Json.Array()
         )
 
         assertTrue(
@@ -204,11 +204,11 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
         val ba = b && a
 
         val testCases = List(
-          Json.str("ab"),
-          Json.str("abc"),
-          Json.str("abcde"),
-          Json.str("abcdef"),
-          Json.number(42)
+          Json.String("ab"),
+          Json.String("abc"),
+          Json.String("abcde"),
+          Json.String("abcdef"),
+          Json.Number(42)
         )
 
         assertTrue(
@@ -223,8 +223,8 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
         val ba = b || a
 
         val testCases = List(
-          Json.str("hello"),
-          Json.number(42),
+          Json.String("hello"),
+          Json.Number(42),
           Json.True,
           Json.Null
         )
@@ -243,9 +243,9 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
         val rhs = (!a) || (!b)
 
         val testCases = List(
-          Json.str("hello"),
-          Json.str("ab"),
-          Json.number(42),
+          Json.String("hello"),
+          Json.String("ab"),
+          Json.Number(42),
           Json.True,
           Json.Null
         )
@@ -262,11 +262,11 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
         val rhs = (!a) && (!b)
 
         val testCases = List(
-          Json.str("hello"),
-          Json.number(42),
+          Json.String("hello"),
+          Json.Number(42),
           Json.True,
           Json.Null,
-          Json.arr()
+          Json.Array()
         )
 
         assertTrue(
@@ -278,10 +278,10 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
       test("string or (integer and positive)") {
         val schema = stringSchema || (integerSchema && positive)
         assertTrue(
-          schema.conforms(Json.str("hello")),
-          schema.conforms(Json.number(5)),
-          !schema.conforms(Json.number(-5)),
-          !schema.conforms(Json.number(3.14)),
+          schema.conforms(Json.String("hello")),
+          schema.conforms(Json.Number(5)),
+          !schema.conforms(Json.Number(-5)),
+          !schema.conforms(Json.Number(3.14)),
           !schema.conforms(Json.True)
         )
       },
@@ -290,9 +290,9 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
         assertTrue(
           schema.conforms(Json.True),
           schema.conforms(Json.Null),
-          schema.conforms(Json.arr()),
-          !schema.conforms(Json.str("hello")),
-          !schema.conforms(Json.number(42))
+          schema.conforms(Json.Array()),
+          !schema.conforms(Json.String("hello")),
+          !schema.conforms(Json.Number(42))
         )
       },
       test("(positive or null) and (lessThan100 or null)") {
@@ -300,18 +300,18 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
         val lessThan100OrNull = lessThan100 || nullSchema
         val schema            = positiveOrNull && lessThan100OrNull
         assertTrue(
-          schema.conforms(Json.number(50)),
+          schema.conforms(Json.Number(50)),
           schema.conforms(Json.Null),
-          !schema.conforms(Json.number(0)),
-          !schema.conforms(Json.number(150)),
-          !schema.conforms(Json.str("hello"))
+          !schema.conforms(Json.Number(0)),
+          !schema.conforms(Json.Number(150)),
+          !schema.conforms(Json.String("hello"))
         )
       },
       test("triple negation") {
         val tripleNot = !(!(!stringSchema))
         assertTrue(
-          !tripleNot.conforms(Json.str("hello")),
-          tripleNot.conforms(Json.number(42))
+          !tripleNot.conforms(Json.String("hello")),
+          tripleNot.conforms(Json.Number(42))
         )
       }
     ),
@@ -319,7 +319,7 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
       test("schema && True == schema (for validation)") {
         val schema    = minLength3
         val combined  = schema && JsonSchema.True
-        val testCases = List(Json.str("ab"), Json.str("abc"), Json.number(42))
+        val testCases = List(Json.String("ab"), Json.String("abc"), Json.Number(42))
         assertTrue(
           testCases.forall(j => combined.conforms(j) == schema.conforms(j))
         )
@@ -327,7 +327,7 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
       test("schema || False == schema (for validation)") {
         val schema    = minLength3
         val combined  = schema || JsonSchema.False
-        val testCases = List(Json.str("ab"), Json.str("abc"), Json.number(42))
+        val testCases = List(Json.String("ab"), Json.String("abc"), Json.Number(42))
         assertTrue(
           testCases.forall(j => combined.conforms(j) == schema.conforms(j))
         )
@@ -335,15 +335,15 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
       test("schema && False == False") {
         val combined = stringSchema && JsonSchema.False
         assertTrue(
-          !combined.conforms(Json.str("hello")),
-          !combined.conforms(Json.number(42))
+          !combined.conforms(Json.String("hello")),
+          !combined.conforms(Json.Number(42))
         )
       },
       test("schema || True == True") {
         val combined = stringSchema || JsonSchema.True
         assertTrue(
-          combined.conforms(Json.str("hello")),
-          combined.conforms(Json.number(42)),
+          combined.conforms(Json.String("hello")),
+          combined.conforms(Json.Number(42)),
           combined.conforms(Json.Null)
         )
       }
@@ -353,7 +353,7 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
         val a         = stringSchema
         val b         = integerSchema
         val lhs       = a && (a || b)
-        val testCases = List(Json.str("hello"), Json.number(42), Json.True)
+        val testCases = List(Json.String("hello"), Json.Number(42), Json.True)
         assertTrue(
           testCases.forall(j => lhs.conforms(j) == a.conforms(j))
         )
@@ -362,7 +362,7 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
         val a         = stringSchema
         val b         = minLength3
         val lhs       = a || (a && b)
-        val testCases = List(Json.str("hello"), Json.str("ab"), Json.number(42))
+        val testCases = List(Json.String("hello"), Json.String("ab"), Json.Number(42))
         assertTrue(
           testCases.forall(j => lhs.conforms(j) == a.conforms(j))
         )

@@ -23,25 +23,25 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
       test("String schema produces string JSON Schema") {
         val schema     = Schema[String].toJsonSchema
         val json       = schema.toJson
-        val typeString = json.get("type").string
+        val typeString = json.get("type").one.map(_.asInstanceOf[Json.String].value)
         assertTrue(typeString == Right("string"))
       },
       test("Int schema produces integer JSON Schema") {
         val schema     = Schema[Int].toJsonSchema
         val json       = schema.toJson
-        val typeString = json.get("type").string
+        val typeString = json.get("type").one.map(_.asInstanceOf[Json.String].value)
         assertTrue(typeString == Right("integer"))
       },
       test("Boolean schema produces boolean JSON Schema") {
         val schema     = Schema[Boolean].toJsonSchema
         val json       = schema.toJson
-        val typeString = json.get("type").string
+        val typeString = json.get("type").one.map(_.asInstanceOf[Json.String].value)
         assertTrue(typeString == Right("boolean"))
       },
       test("Double schema produces number JSON Schema") {
         val schema     = Schema[Double].toJsonSchema
         val json       = schema.toJson
-        val typeString = json.get("type").string
+        val typeString = json.get("type").one.map(_.asInstanceOf[Json.String].value)
         assertTrue(typeString == Right("number"))
       }
     ),
@@ -49,19 +49,19 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
       test("case class produces object JSON Schema with properties") {
         val schema     = Schema[Person].toJsonSchema
         val json       = schema.toJson
-        val typeString = json.get("type").string
+        val typeString = json.get("type").one.map(_.asInstanceOf[Json.String].value)
         val hasName    = json.get("properties").get("name").isSuccess
         val hasAge     = json.get("properties").get("age").isSuccess
         assertTrue(typeString == Right("object"), hasName, hasAge)
       },
       test("generated schema validates matching JSON") {
         val schema   = Schema[Person].toJsonSchema
-        val validObj = Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))
+        val validObj = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
         assertTrue(schema.conforms(validObj))
       },
       test("generated schema rejects non-matching JSON") {
         val schema     = Schema[Person].toJsonSchema
-        val invalidObj = Json.obj("name" -> Json.number(123), "age" -> Json.str("not-a-number"))
+        val invalidObj = Json.Object("name" -> Json.Number(123), "age" -> Json.String("not-a-number"))
         assertTrue(!schema.conforms(invalidObj))
       }
     ),
@@ -69,13 +69,13 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
       test("List[Int] produces array JSON Schema") {
         val schema     = Schema[List[Int]].toJsonSchema
         val json       = schema.toJson
-        val typeString = json.get("type").string
+        val typeString = json.get("type").one.map(_.asInstanceOf[Json.String].value)
         assertTrue(typeString == Right("array"))
       },
       test("Map[String, Int] produces object JSON Schema") {
         val schema     = Schema[Map[String, Int]].toJsonSchema
         val json       = schema.toJson
-        val typeString = json.get("type").string
+        val typeString = json.get("type").one.map(_.asInstanceOf[Json.String].value)
         assertTrue(typeString == Right("object"))
       }
     ),
@@ -83,7 +83,7 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
       test("Option[String] produces nullable string JSON Schema") {
         val schema = Schema[Option[String]].toJsonSchema
         assertTrue(
-          schema.conforms(Json.str("hello")),
+          schema.conforms(Json.String("hello")),
           schema.conforms(Json.Null)
         )
       }
@@ -92,9 +92,9 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
       test("sealed trait enum produces enum JSON Schema") {
         val schema = Schema[Color].toJsonSchema
         assertTrue(
-          schema.conforms(Json.str("Red")),
-          schema.conforms(Json.str("Green")),
-          schema.conforms(Json.str("Blue"))
+          schema.conforms(Json.String("Red")),
+          schema.conforms(Json.String("Green")),
+          schema.conforms(Json.String("Blue"))
         )
       }
     )

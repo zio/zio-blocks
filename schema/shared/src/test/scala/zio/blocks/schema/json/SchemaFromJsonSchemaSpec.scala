@@ -188,32 +188,32 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
     ),
     suite("Round-trip through DynamicValue")(
       test("JSON object survives round-trip through DynamicValue") {
-        val original = Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))
+        val original = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
         val dv       = original.toDynamicValue
         val restored = Json.fromDynamicValue(dv)
         assertTrue(original == restored)
       },
       test("JSON array survives round-trip through DynamicValue") {
-        val original = Json.arr(Json.number(1), Json.number(2), Json.number(3))
+        val original = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
         val dv       = original.toDynamicValue
         val restored = Json.fromDynamicValue(dv)
         assertTrue(original == restored)
       },
       test("nested JSON structure survives round-trip") {
-        val original = Json.obj(
-          "users" -> Json.arr(
-            Json.obj("name" -> Json.str("Alice"), "active" -> Json.True),
-            Json.obj("name" -> Json.str("Bob"), "active"   -> Json.False)
+        val original = Json.Object(
+          "users" -> Json.Array(
+            Json.Object("name" -> Json.String("Alice"), "active" -> Json.True),
+            Json.Object("name" -> Json.String("Bob"), "active"   -> Json.False)
           ),
-          "count" -> Json.number(2)
+          "count" -> Json.Number(2)
         )
         val dv       = original.toDynamicValue
         val restored = Json.fromDynamicValue(dv)
         assertTrue(original == restored)
       },
       test("primitive JSON values survive round-trip") {
-        val stringVal = Json.str("hello")
-        val numberVal = Json.number(42)
+        val stringVal = Json.String("hello")
+        val numberVal = Json.Number(42)
         val boolVal   = Json.True
         val nullVal   = Json.Null
 
@@ -225,13 +225,13 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         )
       },
       test("complex nested structure round-trips correctly") {
-        val original = Json.obj(
-          "config" -> Json.obj(
-            "settings" -> Json.obj(
+        val original = Json.Object(
+          "config" -> Json.Object(
+            "settings" -> Json.Object(
               "enabled" -> Json.True,
-              "values"  -> Json.arr(Json.number(1), Json.number(2), Json.number(3))
+              "values"  -> Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
             ),
-            "name" -> Json.str("test")
+            "name" -> Json.String("test")
           ),
           "metadata" -> Json.Null
         )
@@ -246,7 +246,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
         val codec       = schemaForJs.derive(JsonFormat.deriver)
 
-        val original = Json.obj("key" -> Json.str("value"))
+        val original = Json.Object("key" -> Json.String("value"))
         val encoded  = codec.encodeToString(original)
         val decoded  = codec.decode(encoded)
 
@@ -279,9 +279,9 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
         val codec       = schemaForJs.derive(JsonFormat.deriver)
 
-        val original = Json.arr(
-          Json.obj("id" -> Json.number(1), "name" -> Json.str("first")),
-          Json.obj("id" -> Json.number(2), "name" -> Json.str("second"))
+        val original = Json.Array(
+          Json.Object("id" -> Json.Number(1), "name" -> Json.String("first")),
+          Json.Object("id" -> Json.Number(2), "name" -> Json.String("second"))
         )
         val encoded = codec.encodeToString(original)
         val decoded = codec.decode(encoded)
@@ -325,7 +325,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("implicit Schema[Json] round-trips correctly") {
         val codec    = Schema[Json].derive(JsonFormat.deriver)
-        val original = Json.obj("nested" -> Json.obj("array" -> Json.arr(Json.number(1), Json.str("two"))))
+        val original = Json.Object("nested" -> Json.Object("array" -> Json.Array(Json.Number(1), Json.String("two"))))
         val encoded  = codec.encodeToString(original)
         val decoded  = codec.decode(encoded)
 

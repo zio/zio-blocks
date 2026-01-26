@@ -184,82 +184,82 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
         assertTrue(anchor.value == "my-anchor")
       }
     ),
-    suite("JsonType")(
+    suite("JsonSchemaType")(
       test("all JSON types have correct fromString") {
         assertTrue(
-          JsonType.fromString("string") == Some(JsonType.String),
-          JsonType.fromString("number") == Some(JsonType.Number),
-          JsonType.fromString("integer") == Some(JsonType.Integer),
-          JsonType.fromString("boolean") == Some(JsonType.Boolean),
-          JsonType.fromString("null") == Some(JsonType.Null),
-          JsonType.fromString("array") == Some(JsonType.Array),
-          JsonType.fromString("object") == Some(JsonType.Object)
+          JsonSchemaType.fromString("string") == Some(JsonSchemaType.String),
+          JsonSchemaType.fromString("number") == Some(JsonSchemaType.Number),
+          JsonSchemaType.fromString("integer") == Some(JsonSchemaType.Integer),
+          JsonSchemaType.fromString("boolean") == Some(JsonSchemaType.Boolean),
+          JsonSchemaType.fromString("null") == Some(JsonSchemaType.Null),
+          JsonSchemaType.fromString("array") == Some(JsonSchemaType.Array),
+          JsonSchemaType.fromString("object") == Some(JsonSchemaType.Object)
         )
       },
       test("fromString returns None for unknown types") {
         assertTrue(
-          JsonType.fromString("unknown").isEmpty,
-          JsonType.fromString("").isEmpty,
-          JsonType.fromString("STRING").isEmpty
+          JsonSchemaType.fromString("unknown").isEmpty,
+          JsonSchemaType.fromString("").isEmpty,
+          JsonSchemaType.fromString("STRING").isEmpty
         )
       },
       test("all JSON types have correct toJsonString") {
         assertTrue(
-          JsonType.String.toJsonString == "string",
-          JsonType.Number.toJsonString == "number",
-          JsonType.Integer.toJsonString == "integer",
-          JsonType.Boolean.toJsonString == "boolean",
-          JsonType.Null.toJsonString == "null",
-          JsonType.Array.toJsonString == "array",
-          JsonType.Object.toJsonString == "object"
+          JsonSchemaType.String.toJsonString == "string",
+          JsonSchemaType.Number.toJsonString == "number",
+          JsonSchemaType.Integer.toJsonString == "integer",
+          JsonSchemaType.Boolean.toJsonString == "boolean",
+          JsonSchemaType.Null.toJsonString == "null",
+          JsonSchemaType.Array.toJsonString == "array",
+          JsonSchemaType.Object.toJsonString == "object"
         )
       },
       test("all constants list") {
-        assertTrue(JsonType.all.size == 7)
+        assertTrue(JsonSchemaType.all.size == 7)
       }
     ),
     suite("SchemaType")(
       test("Single contains checks type equality") {
-        val st = SchemaType.Single(JsonType.String)
+        val st = SchemaType.Single(JsonSchemaType.String)
         assertTrue(
-          st.contains(JsonType.String),
-          !st.contains(JsonType.Number)
+          st.contains(JsonSchemaType.String),
+          !st.contains(JsonSchemaType.Number)
         )
       },
       test("Union contains checks type membership") {
-        val st = SchemaType.Union(::(JsonType.String, List(JsonType.Number)))
+        val st = SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Number)))
         assertTrue(
-          st.contains(JsonType.String),
-          st.contains(JsonType.Number),
-          !st.contains(JsonType.Boolean)
+          st.contains(JsonSchemaType.String),
+          st.contains(JsonSchemaType.Number),
+          !st.contains(JsonSchemaType.Boolean)
         )
       },
       test("Single toJson produces string") {
-        val st = SchemaType.Single(JsonType.String)
+        val st = SchemaType.Single(JsonSchemaType.String)
         assertTrue(st.toJson == Json.String("string"))
       },
       test("Union toJson produces array") {
-        val st = SchemaType.Union(::(JsonType.String, List(JsonType.Number)))
-        assertTrue(st.toJson == Json.Array(Vector(Json.String("string"), Json.String("number"))))
+        val st = SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Number)))
+        assertTrue(st.toJson == Json.Array(Json.String("string"), Json.String("number")))
       },
       test("fromJson parses single type") {
         val result = SchemaType.fromJson(Json.String("string"))
-        assertTrue(result == Right(SchemaType.Single(JsonType.String)))
+        assertTrue(result == Right(SchemaType.Single(JsonSchemaType.String)))
       },
       test("fromJson parses type array") {
-        val result = SchemaType.fromJson(Json.Array(Vector(Json.String("string"), Json.String("number"))))
-        assertTrue(result == Right(SchemaType.Union(::(JsonType.String, List(JsonType.Number)))))
+        val result = SchemaType.fromJson(Json.Array(Json.String("string"), Json.String("number")))
+        assertTrue(result == Right(SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Number)))))
       },
       test("fromJson returns error for unknown type") {
         val result = SchemaType.fromJson(Json.String("unknown"))
         assertTrue(result.isLeft)
       },
       test("fromJson returns error for non-string in array") {
-        val result = SchemaType.fromJson(Json.Array(Vector(Json.number(42))))
+        val result = SchemaType.fromJson(Json.Array(Json.Number(42)))
         assertTrue(result.isLeft)
       },
       test("fromJson returns error for empty array") {
-        val result = SchemaType.fromJson(Json.Array(Vector.empty))
+        val result = SchemaType.fromJson(Json.Array())
         assertTrue(result.isLeft)
       }
     ),
@@ -332,10 +332,10 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
       test("enumOfStrings creates enum of string values") {
         val schema = JsonSchema.enumOfStrings(::("red", List("green", "blue")))
         assertTrue(
-          schema.conforms(Json.str("red")),
-          schema.conforms(Json.str("green")),
-          schema.conforms(Json.str("blue")),
-          !schema.conforms(Json.str("yellow"))
+          schema.conforms(Json.String("red")),
+          schema.conforms(Json.String("green")),
+          schema.conforms(Json.String("blue")),
+          !schema.conforms(Json.String("yellow"))
         )
       },
       test("ref creates $ref schema") {
@@ -369,8 +369,8 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
         assertTrue(
           schema == JsonSchema.False,
           !schema.conforms(Json.Null),
-          !schema.conforms(Json.str("hello")),
-          !schema.conforms(Json.number(42))
+          !schema.conforms(Json.String("hello")),
+          !schema.conforms(Json.Number(42))
         )
       },
       test("!False returns True") {
@@ -381,28 +381,28 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
     suite("Format validation edge cases")(
       test("date format rejects malformed date") {
         val schema = JsonSchema.string(format = Some("date"))
-        assertTrue(!schema.conforms(Json.str("not-a-date")))
+        assertTrue(!schema.conforms(Json.String("not-a-date")))
       },
       test("time format validates time strings") {
         val schema = JsonSchema.string(format = Some("time"))
         assertTrue(
-          schema.conforms(Json.str("12:30:45Z")),
-          !schema.conforms(Json.str("not-a-time"))
+          schema.conforms(Json.String("12:30:45Z")),
+          !schema.conforms(Json.String("not-a-time"))
         )
       },
       test("uri format rejects malformed URIs") {
         val schema = JsonSchema.string(format = Some("uri"))
         assertTrue(
-          schema.conforms(Json.str("https://example.com")),
-          !schema.conforms(Json.str("not a valid uri with spaces"))
+          schema.conforms(Json.String("https://example.com")),
+          !schema.conforms(Json.String("not a valid uri with spaces"))
         )
       },
       test("uri-reference format handles edge cases") {
         val schema = JsonSchema.string(format = Some("uri-reference"))
         assertTrue(
-          schema.conforms(Json.str("/path/to/resource")),
-          schema.conforms(Json.str("../relative")),
-          schema.conforms(Json.str("#fragment"))
+          schema.conforms(Json.String("/path/to/resource")),
+          schema.conforms(Json.String("../relative")),
+          schema.conforms(Json.String("#fragment"))
         )
       }
     ),
@@ -412,18 +412,18 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("fromJson with object returns error") {
-        val result = SchemaType.fromJson(Json.obj())
+        val result = SchemaType.fromJson(Json.Object())
         assertTrue(result.isLeft)
       }
     ),
     suite("JsonSchema.fromJson edge cases")(
       test("fromJson with invalid allOf field returns error") {
-        val json   = Json.obj("allOf" -> Json.str("not-an-array"))
+        val json   = Json.Object("allOf" -> Json.String("not-an-array"))
         val result = JsonSchema.fromJson(json)
         assertTrue(result.isLeft)
       },
       test("fromJson with invalid properties field returns error") {
-        val json   = Json.obj("properties" -> Json.str("not-an-object"))
+        val json   = Json.Object("properties" -> Json.String("not-an-object"))
         val result = JsonSchema.fromJson(json)
         assertTrue(result.isLeft)
       }
@@ -435,9 +435,9 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
           maxContains = Some(NonNegativeInt.unsafe(2))
         )
         assertTrue(
-          schema.conforms(Json.arr(Json.str("a"), Json.number(1))),
-          schema.conforms(Json.arr(Json.str("a"), Json.str("b"), Json.number(1))),
-          !schema.conforms(Json.arr(Json.str("a"), Json.str("b"), Json.str("c")))
+          schema.conforms(Json.Array(Json.String("a"), Json.Number(1))),
+          schema.conforms(Json.Array(Json.String("a"), Json.String("b"), Json.Number(1))),
+          !schema.conforms(Json.Array(Json.String("a"), Json.String("b"), Json.String("c")))
         )
       }
     ),
@@ -454,11 +454,11 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
           )
         )
         assertTrue(
-          schema.conforms(Json.obj("name" -> Json.str("Alice"))),
+          schema.conforms(Json.Object("name" -> Json.String("Alice"))),
           schema.conforms(
-            Json.obj("credit_card" -> Json.str("1234"), "billing_address" -> Json.str("123 Main St"))
+            Json.Object("credit_card" -> Json.String("1234"), "billing_address" -> Json.String("123 Main St"))
           ),
-          !schema.conforms(Json.obj("credit_card" -> Json.str("1234")))
+          !schema.conforms(Json.Object("credit_card" -> Json.String("1234")))
         )
       }
     )

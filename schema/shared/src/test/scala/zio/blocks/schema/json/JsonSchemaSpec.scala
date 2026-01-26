@@ -9,18 +9,18 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("True accepts all JSON values") {
         assertTrue(
           JsonSchema.True.conforms(Json.Null),
-          JsonSchema.True.conforms(Json.bool(true)),
-          JsonSchema.True.conforms(Json.str("hello")),
-          JsonSchema.True.conforms(Json.number(42)),
-          JsonSchema.True.conforms(Json.arr()),
-          JsonSchema.True.conforms(Json.obj())
+          JsonSchema.True.conforms(Json.Boolean(true)),
+          JsonSchema.True.conforms(Json.String("hello")),
+          JsonSchema.True.conforms(Json.Number(42)),
+          JsonSchema.True.conforms(Json.Array()),
+          JsonSchema.True.conforms(Json.Object())
         )
       },
       test("False rejects all JSON values") {
         assertTrue(
           !JsonSchema.False.conforms(Json.Null),
-          !JsonSchema.False.conforms(Json.bool(true)),
-          !JsonSchema.False.conforms(Json.str("hello"))
+          !JsonSchema.False.conforms(Json.Boolean(true)),
+          !JsonSchema.False.conforms(Json.String("hello"))
         )
       }
     ),
@@ -28,34 +28,34 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("string type accepts strings only") {
         val schema = JsonSchema.string()
         assertTrue(
-          schema.conforms(Json.str("hello")),
-          !schema.conforms(Json.number(42)),
-          !schema.conforms(Json.bool(true)),
+          schema.conforms(Json.String("hello")),
+          !schema.conforms(Json.Number(42)),
+          !schema.conforms(Json.Boolean(true)),
           !schema.conforms(Json.Null)
         )
       },
       test("integer type accepts integers only") {
         val schema = JsonSchema.integer()
         assertTrue(
-          schema.conforms(Json.number(42)),
-          schema.conforms(Json.number(-100)),
-          !schema.conforms(Json.number(3.14)),
-          !schema.conforms(Json.str("42"))
+          schema.conforms(Json.Number(42)),
+          schema.conforms(Json.Number(-100)),
+          !schema.conforms(Json.Number(3.14)),
+          !schema.conforms(Json.String("42"))
         )
       },
       test("number type accepts all numbers") {
         val schema = JsonSchema.number()
         assertTrue(
-          schema.conforms(Json.number(42)),
-          schema.conforms(Json.number(3.14)),
-          !schema.conforms(Json.str("42"))
+          schema.conforms(Json.Number(42)),
+          schema.conforms(Json.Number(3.14)),
+          !schema.conforms(Json.String("42"))
         )
       },
       test("boolean type accepts booleans only") {
         assertTrue(
-          JsonSchema.boolean.conforms(Json.bool(true)),
-          JsonSchema.boolean.conforms(Json.bool(false)),
-          !JsonSchema.boolean.conforms(Json.str("true"))
+          JsonSchema.boolean.conforms(Json.Boolean(true)),
+          JsonSchema.boolean.conforms(Json.Boolean(false)),
+          !JsonSchema.boolean.conforms(Json.String("true"))
         )
       }
     ),
@@ -63,17 +63,17 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("minimum constraint") {
         val schema = JsonSchema.number(minimum = Some(BigDecimal(0)))
         assertTrue(
-          schema.conforms(Json.number(0)),
-          schema.conforms(Json.number(100)),
-          !schema.conforms(Json.number(-1))
+          schema.conforms(Json.Number(0)),
+          schema.conforms(Json.Number(100)),
+          !schema.conforms(Json.Number(-1))
         )
       },
       test("maximum constraint") {
         val schema = JsonSchema.number(maximum = Some(BigDecimal(100)))
         assertTrue(
-          schema.conforms(Json.number(100)),
-          schema.conforms(Json.number(0)),
-          !schema.conforms(Json.number(101))
+          schema.conforms(Json.Number(100)),
+          schema.conforms(Json.Number(0)),
+          !schema.conforms(Json.Number(101))
         )
       }
     ),
@@ -81,25 +81,25 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("minLength constraint") {
         val schema = JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(3)))
         assertTrue(
-          schema.conforms(Json.str("abc")),
-          schema.conforms(Json.str("abcd")),
-          !schema.conforms(Json.str("ab"))
+          schema.conforms(Json.String("abc")),
+          schema.conforms(Json.String("abcd")),
+          !schema.conforms(Json.String("ab"))
         )
       },
       test("maxLength constraint") {
         val schema = JsonSchema.string(maxLength = Some(NonNegativeInt.unsafe(5)))
         assertTrue(
-          schema.conforms(Json.str("12345")),
-          schema.conforms(Json.str("123")),
-          !schema.conforms(Json.str("123456"))
+          schema.conforms(Json.String("12345")),
+          schema.conforms(Json.String("123")),
+          !schema.conforms(Json.String("123456"))
         )
       },
       test("pattern constraint") {
         val schema = JsonSchema.string(pattern = Some(RegexPattern.unsafe("^[a-z]+$")))
         assertTrue(
-          schema.conforms(Json.str("hello")),
-          !schema.conforms(Json.str("Hello")),
-          !schema.conforms(Json.str("hello123"))
+          schema.conforms(Json.String("hello")),
+          !schema.conforms(Json.String("Hello")),
+          !schema.conforms(Json.String("hello123"))
         )
       }
     ),
@@ -107,17 +107,17 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("items constraint") {
         val schema = JsonSchema.array(items = Some(JsonSchema.integer()))
         assertTrue(
-          schema.conforms(Json.arr(Json.number(1), Json.number(2))),
-          schema.conforms(Json.arr()),
-          !schema.conforms(Json.arr(Json.str("a")))
+          schema.conforms(Json.Array(Json.Number(1), Json.Number(2))),
+          schema.conforms(Json.Array()),
+          !schema.conforms(Json.Array(Json.String("a")))
         )
       },
       test("minItems constraint") {
         val schema = JsonSchema.array(minItems = Some(NonNegativeInt.unsafe(2)))
         assertTrue(
-          schema.conforms(Json.arr(Json.number(1), Json.number(2))),
-          !schema.conforms(Json.arr(Json.number(1))),
-          !schema.conforms(Json.arr())
+          schema.conforms(Json.Array(Json.Number(1), Json.Number(2))),
+          !schema.conforms(Json.Array(Json.Number(1))),
+          !schema.conforms(Json.Array())
         )
       }
     ),
@@ -127,9 +127,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer()))
         )
         assertTrue(
-          schema.conforms(Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))),
-          schema.conforms(Json.obj("name" -> Json.str("Bob"))),
-          !schema.conforms(Json.obj("name" -> Json.number(42)))
+          schema.conforms(Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))),
+          schema.conforms(Json.Object("name" -> Json.String("Bob"))),
+          !schema.conforms(Json.Object("name" -> Json.Number(42)))
         )
       },
       test("required constraint") {
@@ -138,8 +138,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("name"))
         )
         assertTrue(
-          schema.conforms(Json.obj("name" -> Json.str("Alice"))),
-          !schema.conforms(Json.obj())
+          schema.conforms(Json.Object("name" -> Json.String("Alice"))),
+          !schema.conforms(Json.Object())
         )
       },
       test("additionalProperties false") {
@@ -148,8 +148,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           additionalProperties = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.obj("name" -> Json.str("Alice"))),
-          !schema.conforms(Json.obj("name" -> Json.str("Alice"), "extra" -> Json.number(1)))
+          schema.conforms(Json.Object("name" -> Json.String("Alice"))),
+          !schema.conforms(Json.Object("name" -> Json.String("Alice"), "extra" -> Json.Number(1)))
         )
       }
     ),
@@ -157,42 +157,42 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("allOf combinator (&&)") {
         val schema = JsonSchema.integer() && JsonSchema.number(minimum = Some(BigDecimal(0)))
         assertTrue(
-          schema.conforms(Json.number(42)),
-          !schema.conforms(Json.number(-1)),
-          !schema.conforms(Json.number(3.14))
+          schema.conforms(Json.Number(42)),
+          !schema.conforms(Json.Number(-1)),
+          !schema.conforms(Json.Number(3.14))
         )
       },
       test("anyOf combinator (||)") {
         val schema = JsonSchema.string() || JsonSchema.integer()
         assertTrue(
-          schema.conforms(Json.str("hello")),
-          schema.conforms(Json.number(42)),
-          !schema.conforms(Json.bool(true))
+          schema.conforms(Json.String("hello")),
+          schema.conforms(Json.Number(42)),
+          !schema.conforms(Json.Boolean(true))
         )
       },
       test("not combinator (!)") {
         val schema = !JsonSchema.string()
         assertTrue(
-          !schema.conforms(Json.str("hello")),
-          schema.conforms(Json.number(42)),
-          schema.conforms(Json.bool(true))
+          !schema.conforms(Json.String("hello")),
+          schema.conforms(Json.Number(42)),
+          schema.conforms(Json.Boolean(true))
         )
       }
     ),
     suite("enum and const")(
       test("enum constraint") {
-        val schema = JsonSchema.enumOf(::(Json.str("red"), List(Json.str("green"), Json.str("blue"))))
+        val schema = JsonSchema.enumOf(::(Json.String("red"), List(Json.String("green"), Json.String("blue"))))
         assertTrue(
-          schema.conforms(Json.str("red")),
-          schema.conforms(Json.str("green")),
-          !schema.conforms(Json.str("yellow"))
+          schema.conforms(Json.String("red")),
+          schema.conforms(Json.String("green")),
+          !schema.conforms(Json.String("yellow"))
         )
       },
       test("const constraint") {
-        val schema = JsonSchema.constOf(Json.str("fixed"))
+        val schema = JsonSchema.constOf(Json.String("fixed"))
         assertTrue(
-          schema.conforms(Json.str("fixed")),
-          !schema.conforms(Json.str("other"))
+          schema.conforms(Json.String("fixed")),
+          !schema.conforms(Json.String("other"))
         )
       }
     ),
@@ -218,21 +218,21 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         val schema   = JsonSchema.string()
         val nullable = schema.withNullable
         assertTrue(
-          nullable.conforms(Json.str("hello")),
+          nullable.conforms(Json.String("hello")),
           nullable.conforms(Json.Null),
-          !nullable.conforms(Json.number(42))
+          !nullable.conforms(Json.Number(42))
         )
       }
     ),
     suite("Type unions")(
       test("union type accepts any of the types") {
         val schema = JsonSchema.Object(
-          `type` = Some(SchemaType.Union(::(JsonType.String, List(JsonType.Number))))
+          `type` = Some(SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Number))))
         )
         assertTrue(
-          schema.conforms(Json.str("hello")),
-          schema.conforms(Json.number(42)),
-          !schema.conforms(Json.bool(true)),
+          schema.conforms(Json.String("hello")),
+          schema.conforms(Json.Number(42)),
+          !schema.conforms(Json.Boolean(true)),
           !schema.conforms(Json.Null)
         )
       }
@@ -241,26 +241,26 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("exclusiveMinimum constraint") {
         val schema = JsonSchema.number(exclusiveMinimum = Some(BigDecimal(0)))
         assertTrue(
-          schema.conforms(Json.number(1)),
-          !schema.conforms(Json.number(0)),
-          !schema.conforms(Json.number(-1))
+          schema.conforms(Json.Number(1)),
+          !schema.conforms(Json.Number(0)),
+          !schema.conforms(Json.Number(-1))
         )
       },
       test("exclusiveMaximum constraint") {
         val schema = JsonSchema.number(exclusiveMaximum = Some(BigDecimal(100)))
         assertTrue(
-          schema.conforms(Json.number(99)),
-          !schema.conforms(Json.number(100)),
-          !schema.conforms(Json.number(101))
+          schema.conforms(Json.Number(99)),
+          !schema.conforms(Json.Number(100)),
+          !schema.conforms(Json.Number(101))
         )
       },
       test("multipleOf constraint") {
         val schema = JsonSchema.number(multipleOf = Some(PositiveNumber.unsafe(BigDecimal(5))))
         assertTrue(
-          schema.conforms(Json.number(0)),
-          schema.conforms(Json.number(10)),
-          schema.conforms(Json.number(-15)),
-          !schema.conforms(Json.number(7))
+          schema.conforms(Json.Number(0)),
+          schema.conforms(Json.Number(10)),
+          schema.conforms(Json.Number(-15)),
+          !schema.conforms(Json.Number(7))
         )
       }
     ),
@@ -268,31 +268,31 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("maxItems constraint") {
         val schema = JsonSchema.array(maxItems = Some(NonNegativeInt.unsafe(3)))
         assertTrue(
-          schema.conforms(Json.arr(Json.number(1), Json.number(2))),
-          schema.conforms(Json.arr(Json.number(1), Json.number(2), Json.number(3))),
-          !schema.conforms(Json.arr(Json.number(1), Json.number(2), Json.number(3), Json.number(4)))
+          schema.conforms(Json.Array(Json.Number(1), Json.Number(2))),
+          schema.conforms(Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))),
+          !schema.conforms(Json.Array(Json.Number(1), Json.Number(2), Json.Number(3), Json.Number(4)))
         )
       },
       test("uniqueItems constraint") {
         val schema = JsonSchema.array(uniqueItems = Some(true))
         assertTrue(
-          schema.conforms(Json.arr(Json.number(1), Json.number(2), Json.number(3))),
-          !schema.conforms(Json.arr(Json.number(1), Json.number(2), Json.number(1)))
+          schema.conforms(Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))),
+          !schema.conforms(Json.Array(Json.Number(1), Json.Number(2), Json.Number(1)))
         )
       },
       test("prefixItems constraint") {
         val schema = JsonSchema.array(prefixItems = Some(::(JsonSchema.string(), List(JsonSchema.integer()))))
         assertTrue(
-          schema.conforms(Json.arr(Json.str("a"), Json.number(1))),
-          schema.conforms(Json.arr(Json.str("a"), Json.number(1), Json.bool(true))),
-          !schema.conforms(Json.arr(Json.number(1), Json.str("a")))
+          schema.conforms(Json.Array(Json.String("a"), Json.Number(1))),
+          schema.conforms(Json.Array(Json.String("a"), Json.Number(1), Json.Boolean(true))),
+          !schema.conforms(Json.Array(Json.Number(1), Json.String("a")))
         )
       },
       test("contains constraint") {
         val schema = JsonSchema.array(contains = Some(JsonSchema.string()))
         assertTrue(
-          schema.conforms(Json.arr(Json.number(1), Json.str("found"), Json.number(2))),
-          !schema.conforms(Json.arr(Json.number(1), Json.number(2)))
+          schema.conforms(Json.Array(Json.Number(1), Json.String("found"), Json.Number(2))),
+          !schema.conforms(Json.Array(Json.Number(1), Json.Number(2)))
         )
       }
     ),
@@ -300,15 +300,15 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("minProperties constraint") {
         val schema = JsonSchema.obj(minProperties = Some(NonNegativeInt.unsafe(2)))
         assertTrue(
-          schema.conforms(Json.obj("a" -> Json.number(1), "b" -> Json.number(2))),
-          !schema.conforms(Json.obj("a" -> Json.number(1)))
+          schema.conforms(Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))),
+          !schema.conforms(Json.Object("a" -> Json.Number(1)))
         )
       },
       test("maxProperties constraint") {
         val schema = JsonSchema.obj(maxProperties = Some(NonNegativeInt.unsafe(2)))
         assertTrue(
-          schema.conforms(Json.obj("a" -> Json.number(1), "b" -> Json.number(2))),
-          !schema.conforms(Json.obj("a" -> Json.number(1), "b" -> Json.number(2), "c" -> Json.number(3)))
+          schema.conforms(Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))),
+          !schema.conforms(Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2), "c" -> Json.Number(3)))
         )
       },
       test("propertyNames constraint") {
@@ -316,8 +316,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           propertyNames = Some(JsonSchema.string(pattern = Some(RegexPattern.unsafe("^[a-z]+$"))))
         )
         assertTrue(
-          schema.conforms(Json.obj("name" -> Json.number(1))),
-          !schema.conforms(Json.obj("Name" -> Json.number(1)))
+          schema.conforms(Json.Object("name" -> Json.Number(1))),
+          !schema.conforms(Json.Object("Name" -> Json.Number(1)))
         )
       },
       test("dependentRequired constraint") {
@@ -325,25 +325,25 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           dependentRequired = Some(Map("credit_card" -> Set("billing_address")))
         )
         assertTrue(
-          schema.conforms(Json.obj("name" -> Json.str("Alice"))),
+          schema.conforms(Json.Object("name" -> Json.String("Alice"))),
           schema.conforms(
-            Json.obj("credit_card" -> Json.str("1234"), "billing_address" -> Json.str("123 Main St"))
+            Json.Object("credit_card" -> Json.String("1234"), "billing_address" -> Json.String("123 Main St"))
           ),
-          !schema.conforms(Json.obj("credit_card" -> Json.str("1234")))
+          !schema.conforms(Json.Object("credit_card" -> Json.String("1234")))
         )
       }
     ),
     suite("Conditional validation")(
       test("if/then/else validation") {
         val schema = JsonSchema.Object(
-          `if` = Some(JsonSchema.obj(properties = Some(Map("country" -> JsonSchema.constOf(Json.str("USA")))))),
+          `if` = Some(JsonSchema.obj(properties = Some(Map("country" -> JsonSchema.constOf(Json.String("USA")))))),
           `then` = Some(JsonSchema.obj(required = Some(Set("postal_code")))),
           `else` = Some(JsonSchema.True)
         )
         assertTrue(
-          schema.conforms(Json.obj("country" -> Json.str("USA"), "postal_code" -> Json.str("12345"))),
-          schema.conforms(Json.obj("country" -> Json.str("Canada"))),
-          !schema.conforms(Json.obj("country" -> Json.str("USA")))
+          schema.conforms(Json.Object("country" -> Json.String("USA"), "postal_code" -> Json.String("12345"))),
+          schema.conforms(Json.Object("country" -> Json.String("Canada"))),
+          !schema.conforms(Json.Object("country" -> Json.String("USA")))
         )
       }
     ),
@@ -358,10 +358,10 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           )
         )
         assertTrue(
-          schema.conforms(Json.obj("a" -> Json.number(1))),
-          schema.conforms(Json.obj("b" -> Json.number(1))),
-          !schema.conforms(Json.obj("a" -> Json.number(1), "b" -> Json.number(2))),
-          !schema.conforms(Json.obj("c" -> Json.number(1)))
+          schema.conforms(Json.Object("a" -> Json.Number(1))),
+          schema.conforms(Json.Object("b" -> Json.Number(1))),
+          !schema.conforms(Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))),
+          !schema.conforms(Json.Object("c" -> Json.Number(1)))
         )
       }
     ),
@@ -371,7 +371,7 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
-        val result = schema.check(Json.obj())
+        val result = schema.check(Json.Object())
         assertTrue(
           result.isDefined,
           result.get.errors.length >= 2
@@ -396,11 +396,11 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(roundtrip.isRight)
       },
       test("empty object parses to empty Object") {
-        val result = JsonSchema.fromJson(Json.obj())
+        val result = JsonSchema.fromJson(Json.Object())
         assertTrue(
           result.isRight,
-          result.exists(_.conforms(Json.str("anything"))),
-          result.exists(_.conforms(Json.number(42)))
+          result.exists(_.conforms(Json.String("anything"))),
+          result.exists(_.conforms(Json.Number(42)))
         )
       }
     ),
@@ -411,9 +411,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         val c      = JsonSchema.number(maximum = Some(BigDecimal(100)))
         val left   = (a && b) && c
         val right  = a && (b && c)
-        val value1 = Json.number(50)
-        val value2 = Json.number(-1)
-        val value3 = Json.number(150)
+        val value1 = Json.Number(50)
+        val value2 = Json.Number(-1)
+        val value3 = Json.Number(150)
         assertTrue(
           left.conforms(value1) == right.conforms(value1),
           left.conforms(value2) == right.conforms(value2),
@@ -426,9 +426,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         val c      = JsonSchema.boolean
         val left   = (a || b) || c
         val right  = a || (b || c)
-        val value1 = Json.str("test")
-        val value2 = Json.number(42)
-        val value3 = Json.bool(true)
+        val value1 = Json.String("test")
+        val value2 = Json.Number(42)
+        val value3 = Json.Boolean(true)
         val value4 = Json.Null
         assertTrue(
           left.conforms(value1) == right.conforms(value1),
@@ -440,15 +440,15 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("True && x == x semantically") {
         val x = JsonSchema.string()
         assertTrue(
-          (JsonSchema.True && x).conforms(Json.str("hello")),
-          !(JsonSchema.True && x).conforms(Json.number(42))
+          (JsonSchema.True && x).conforms(Json.String("hello")),
+          !(JsonSchema.True && x).conforms(Json.Number(42))
         )
       },
       test("False || x == x semantically") {
         val x = JsonSchema.integer()
         assertTrue(
-          (JsonSchema.False || x).conforms(Json.number(42)),
-          !(JsonSchema.False || x).conforms(Json.str("hello"))
+          (JsonSchema.False || x).conforms(Json.Number(42)),
+          !(JsonSchema.False || x).conforms(Json.String("hello"))
         )
       }
     ),
@@ -459,7 +459,7 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("name"))
         )
         val schemaForJson = Schema.fromJsonSchema(jsonSchema)
-        val dv            = Json.obj("name" -> Json.str("Alice")).toDynamicValue
+        val dv            = Json.Object("name" -> Json.String("Alice")).toDynamicValue
         val result        = schemaForJson.fromDynamicValue(dv)
         assertTrue(result.isRight)
       },
@@ -469,14 +469,14 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("name"))
         )
         val schemaForJson = Schema.fromJsonSchema(jsonSchema)
-        val dv            = Json.obj().toDynamicValue
+        val dv            = Json.Object().toDynamicValue
         val result        = schemaForJson.fromDynamicValue(dv)
         assertTrue(result.isLeft)
       }
     ),
     suite("Schema[Json]")(
       test("Schema[Json] round-trips through DynamicValue") {
-        val json   = Json.obj("name" -> Json.str("test"), "count" -> Json.number(42))
+        val json   = Json.Object("name" -> Json.String("test"), "count" -> Json.Number(42))
         val dv     = Schema.schemaJson.toDynamicValue(json)
         val result = Schema.schemaJson.fromDynamicValue(dv)
         assertTrue(result == Right(json))
@@ -486,162 +486,162 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("date-time format validates RFC 3339 date-times") {
         val schema = JsonSchema.string(format = Some("date-time"))
         assertTrue(
-          schema.conforms(Json.str("2024-01-15T10:30:00Z")),
-          schema.conforms(Json.str("2024-01-15T10:30:00+05:00")),
-          schema.conforms(Json.str("2024-01-15T10:30:00.123Z")),
-          !schema.conforms(Json.str("2024-01-15")),
-          !schema.conforms(Json.str("not-a-date-time")),
-          !schema.conforms(Json.str("2024-13-15T10:30:00Z")),
-          !schema.conforms(Json.str("2024-02-30T10:30:00Z"))
+          schema.conforms(Json.String("2024-01-15T10:30:00Z")),
+          schema.conforms(Json.String("2024-01-15T10:30:00+05:00")),
+          schema.conforms(Json.String("2024-01-15T10:30:00.123Z")),
+          !schema.conforms(Json.String("2024-01-15")),
+          !schema.conforms(Json.String("not-a-date-time")),
+          !schema.conforms(Json.String("2024-13-15T10:30:00Z")),
+          !schema.conforms(Json.String("2024-02-30T10:30:00Z"))
         )
       },
       test("date format validates RFC 3339 dates") {
         val schema = JsonSchema.string(format = Some("date"))
         assertTrue(
-          schema.conforms(Json.str("2024-01-15")),
-          schema.conforms(Json.str("2024-02-29")),
-          !schema.conforms(Json.str("2023-02-29")),
-          !schema.conforms(Json.str("2024-13-01")),
-          !schema.conforms(Json.str("not-a-date"))
+          schema.conforms(Json.String("2024-01-15")),
+          schema.conforms(Json.String("2024-02-29")),
+          !schema.conforms(Json.String("2023-02-29")),
+          !schema.conforms(Json.String("2024-13-01")),
+          !schema.conforms(Json.String("not-a-date"))
         )
       },
       test("time format validates RFC 3339 times") {
         val schema = JsonSchema.string(format = Some("time"))
         assertTrue(
-          schema.conforms(Json.str("10:30:00Z")),
-          schema.conforms(Json.str("10:30:00+05:00")),
-          schema.conforms(Json.str("10:30:00.123Z")),
-          !schema.conforms(Json.str("25:00:00Z")),
-          !schema.conforms(Json.str("10:60:00Z")),
-          !schema.conforms(Json.str("not-a-time"))
+          schema.conforms(Json.String("10:30:00Z")),
+          schema.conforms(Json.String("10:30:00+05:00")),
+          schema.conforms(Json.String("10:30:00.123Z")),
+          !schema.conforms(Json.String("25:00:00Z")),
+          !schema.conforms(Json.String("10:60:00Z")),
+          !schema.conforms(Json.String("not-a-time"))
         )
       },
       test("email format validates email addresses") {
         val schema = JsonSchema.string(format = Some("email"))
         assertTrue(
-          schema.conforms(Json.str("user@example.com")),
-          schema.conforms(Json.str("user.name@sub.domain.org")),
-          !schema.conforms(Json.str("not-an-email")),
-          !schema.conforms(Json.str("@missing-local.com")),
-          !schema.conforms(Json.str("missing-at.com"))
+          schema.conforms(Json.String("user@example.com")),
+          schema.conforms(Json.String("user.name@sub.domain.org")),
+          !schema.conforms(Json.String("not-an-email")),
+          !schema.conforms(Json.String("@missing-local.com")),
+          !schema.conforms(Json.String("missing-at.com"))
         )
       },
       test("uuid format validates RFC 4122 UUIDs") {
         val schema = JsonSchema.string(format = Some("uuid"))
         assertTrue(
-          schema.conforms(Json.str("550e8400-e29b-41d4-a716-446655440000")),
-          schema.conforms(Json.str("550E8400-E29B-41D4-A716-446655440000")),
-          !schema.conforms(Json.str("not-a-uuid")),
-          !schema.conforms(Json.str("550e8400-e29b-41d4-a716")),
-          !schema.conforms(Json.str("550e8400e29b41d4a716446655440000"))
+          schema.conforms(Json.String("550e8400-e29b-41d4-a716-446655440000")),
+          schema.conforms(Json.String("550E8400-E29B-41D4-A716-446655440000")),
+          !schema.conforms(Json.String("not-a-uuid")),
+          !schema.conforms(Json.String("550e8400-e29b-41d4-a716")),
+          !schema.conforms(Json.String("550e8400e29b41d4a716446655440000"))
         )
       },
       test("uri format validates URIs with scheme") {
         val schema = JsonSchema.string(format = Some("uri"))
         assertTrue(
-          schema.conforms(Json.str("https://example.com")),
-          schema.conforms(Json.str("http://localhost:8080/path?query=value")),
-          schema.conforms(Json.str("mailto:user@example.com")),
-          !schema.conforms(Json.str("/relative/path")),
-          !schema.conforms(Json.str("example.com"))
+          schema.conforms(Json.String("https://example.com")),
+          schema.conforms(Json.String("http://localhost:8080/path?query=value")),
+          schema.conforms(Json.String("mailto:user@example.com")),
+          !schema.conforms(Json.String("/relative/path")),
+          !schema.conforms(Json.String("example.com"))
         )
       },
       test("uri-reference format validates URIs and relative references") {
         val schema = JsonSchema.string(format = Some("uri-reference"))
         assertTrue(
-          schema.conforms(Json.str("https://example.com")),
-          schema.conforms(Json.str("/relative/path")),
-          schema.conforms(Json.str("../parent")),
-          schema.conforms(Json.str("#anchor"))
+          schema.conforms(Json.String("https://example.com")),
+          schema.conforms(Json.String("/relative/path")),
+          schema.conforms(Json.String("../parent")),
+          schema.conforms(Json.String("#anchor"))
         )
       },
       test("ipv4 format validates IPv4 addresses") {
         val schema = JsonSchema.string(format = Some("ipv4"))
         assertTrue(
-          schema.conforms(Json.str("192.168.1.1")),
-          schema.conforms(Json.str("0.0.0.0")),
-          schema.conforms(Json.str("255.255.255.255")),
-          !schema.conforms(Json.str("256.1.1.1")),
-          !schema.conforms(Json.str("192.168.1")),
-          !schema.conforms(Json.str("not-an-ip"))
+          schema.conforms(Json.String("192.168.1.1")),
+          schema.conforms(Json.String("0.0.0.0")),
+          schema.conforms(Json.String("255.255.255.255")),
+          !schema.conforms(Json.String("256.1.1.1")),
+          !schema.conforms(Json.String("192.168.1")),
+          !schema.conforms(Json.String("not-an-ip"))
         )
       },
       test("ipv6 format validates IPv6 addresses") {
         val schema = JsonSchema.string(format = Some("ipv6"))
         assertTrue(
-          schema.conforms(Json.str("2001:0db8:85a3:0000:0000:8a2e:0370:7334")),
-          schema.conforms(Json.str("2001:db8:85a3::8a2e:370:7334")),
-          schema.conforms(Json.str("::1")),
-          schema.conforms(Json.str("::")),
-          !schema.conforms(Json.str("not-an-ipv6")),
-          !schema.conforms(Json.str("192.168.1.1"))
+          schema.conforms(Json.String("2001:0db8:85a3:0000:0000:8a2e:0370:7334")),
+          schema.conforms(Json.String("2001:db8:85a3::8a2e:370:7334")),
+          schema.conforms(Json.String("::1")),
+          schema.conforms(Json.String("::")),
+          !schema.conforms(Json.String("not-an-ipv6")),
+          !schema.conforms(Json.String("192.168.1.1"))
         )
       },
       test("hostname format validates RFC 1123 hostnames") {
         val schema = JsonSchema.string(format = Some("hostname"))
         assertTrue(
-          schema.conforms(Json.str("example.com")),
-          schema.conforms(Json.str("sub.example.com")),
-          schema.conforms(Json.str("localhost")),
-          !schema.conforms(Json.str("-invalid.com")),
-          !schema.conforms(Json.str("invalid-.com"))
+          schema.conforms(Json.String("example.com")),
+          schema.conforms(Json.String("sub.example.com")),
+          schema.conforms(Json.String("localhost")),
+          !schema.conforms(Json.String("-invalid.com")),
+          !schema.conforms(Json.String("invalid-.com"))
         )
       },
       test("regex format validates ECMA-262 regular expressions") {
         val schema = JsonSchema.string(format = Some("regex"))
         assertTrue(
-          schema.conforms(Json.str("^[a-z]+$")),
-          schema.conforms(Json.str("\\d{3}-\\d{4}")),
-          !schema.conforms(Json.str("[invalid"))
+          schema.conforms(Json.String("^[a-z]+$")),
+          schema.conforms(Json.String("\\d{3}-\\d{4}")),
+          !schema.conforms(Json.String("[invalid"))
         )
       },
       test("duration format validates ISO 8601 durations") {
         val schema = JsonSchema.string(format = Some("duration"))
         assertTrue(
-          schema.conforms(Json.str("P1Y")),
-          schema.conforms(Json.str("P1M")),
-          schema.conforms(Json.str("P1D")),
-          schema.conforms(Json.str("PT1H")),
-          schema.conforms(Json.str("PT1M")),
-          schema.conforms(Json.str("PT1S")),
-          schema.conforms(Json.str("P1Y2M3DT4H5M6S")),
-          !schema.conforms(Json.str("P")),
-          !schema.conforms(Json.str("PT")),
-          !schema.conforms(Json.str("not-a-duration"))
+          schema.conforms(Json.String("P1Y")),
+          schema.conforms(Json.String("P1M")),
+          schema.conforms(Json.String("P1D")),
+          schema.conforms(Json.String("PT1H")),
+          schema.conforms(Json.String("PT1M")),
+          schema.conforms(Json.String("PT1S")),
+          schema.conforms(Json.String("P1Y2M3DT4H5M6S")),
+          !schema.conforms(Json.String("P")),
+          !schema.conforms(Json.String("PT")),
+          !schema.conforms(Json.String("not-a-duration"))
         )
       },
       test("json-pointer format validates RFC 6901 JSON Pointers") {
         val schema = JsonSchema.string(format = Some("json-pointer"))
         assertTrue(
-          schema.conforms(Json.str("")),
-          schema.conforms(Json.str("/foo")),
-          schema.conforms(Json.str("/foo/bar")),
-          schema.conforms(Json.str("/foo~0bar")),
-          schema.conforms(Json.str("/foo~1bar")),
-          !schema.conforms(Json.str("no-leading-slash"))
+          schema.conforms(Json.String("")),
+          schema.conforms(Json.String("/foo")),
+          schema.conforms(Json.String("/foo/bar")),
+          schema.conforms(Json.String("/foo~0bar")),
+          schema.conforms(Json.String("/foo~1bar")),
+          !schema.conforms(Json.String("no-leading-slash"))
         )
       },
       test("unknown formats pass validation (annotation-only)") {
         val schema = JsonSchema.string(format = Some("custom-unknown-format"))
         assertTrue(
-          schema.conforms(Json.str("any value")),
-          schema.conforms(Json.str("passes because unknown"))
+          schema.conforms(Json.String("any value")),
+          schema.conforms(Json.String("passes because unknown"))
         )
       },
       test("format validation is skipped with annotationOnly options") {
         val schema  = JsonSchema.string(format = Some("email"))
         val options = ValidationOptions.annotationOnly
         assertTrue(
-          schema.conforms(Json.str("not-an-email"), options),
-          schema.conforms(Json.str("anything"), options)
+          schema.conforms(Json.String("not-an-email"), options),
+          schema.conforms(Json.String("anything"), options)
         )
       },
       test("format validation is enabled with formatAssertion options") {
         val schema  = JsonSchema.string(format = Some("email"))
         val options = ValidationOptions.formatAssertion
         assertTrue(
-          schema.conforms(Json.str("user@example.com"), options),
-          !schema.conforms(Json.str("not-an-email"), options)
+          schema.conforms(Json.String("user@example.com"), options),
+          !schema.conforms(Json.String("not-an-email"), options)
         )
       },
       test("format validation propagates through nested schemas") {
@@ -656,22 +656,22 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         )
         assertTrue(
           schema.conforms(
-            Json.obj(
-              "email"    -> Json.str("user@example.com"),
-              "website"  -> Json.str("https://example.com"),
-              "contacts" -> Json.arr(Json.str("a@b.com"), Json.str("c@d.org"))
+            Json.Object(
+              "email"    -> Json.String("user@example.com"),
+              "website"  -> Json.String("https://example.com"),
+              "contacts" -> Json.Array(Json.String("a@b.com"), Json.String("c@d.org"))
             )
           ),
           !schema.conforms(
-            Json.obj(
-              "email"   -> Json.str("invalid-email"),
-              "website" -> Json.str("https://example.com")
+            Json.Object(
+              "email"   -> Json.String("invalid-email"),
+              "website" -> Json.String("https://example.com")
             )
           ),
           !schema.conforms(
-            Json.obj(
-              "email"    -> Json.str("user@example.com"),
-              "contacts" -> Json.arr(Json.str("a@b.com"), Json.str("invalid"))
+            Json.Object(
+              "email"    -> Json.String("user@example.com"),
+              "contacts" -> Json.Array(Json.String("a@b.com"), Json.String("invalid"))
             )
           )
         )
@@ -679,11 +679,11 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("format validation only applies to strings") {
         val schema = JsonSchema.Object(format = Some("email"))
         assertTrue(
-          schema.conforms(Json.number(42)),
-          schema.conforms(Json.bool(true)),
+          schema.conforms(Json.Number(42)),
+          schema.conforms(Json.Boolean(true)),
           schema.conforms(Json.Null),
-          schema.conforms(Json.arr()),
-          schema.conforms(Json.obj())
+          schema.conforms(Json.Array()),
+          schema.conforms(Json.Object())
         )
       }
     ),
@@ -694,8 +694,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedProperties = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.obj("name" -> Json.str("Alice"))),
-          !schema.conforms(Json.obj("name" -> Json.str("Alice"), "extra" -> Json.number(1)))
+          schema.conforms(Json.Object("name" -> Json.String("Alice"))),
+          !schema.conforms(Json.Object("name" -> Json.String("Alice"), "extra" -> Json.Number(1)))
         )
       },
       test("validates unevaluated properties against schema") {
@@ -704,9 +704,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedProperties = Some(JsonSchema.integer())
         )
         assertTrue(
-          schema.conforms(Json.obj("name" -> Json.str("Alice"))),
-          schema.conforms(Json.obj("name" -> Json.str("Alice"), "extra" -> Json.number(42))),
-          !schema.conforms(Json.obj("name" -> Json.str("Alice"), "extra" -> Json.str("not-an-int")))
+          schema.conforms(Json.Object("name" -> Json.String("Alice"))),
+          schema.conforms(Json.Object("name" -> Json.String("Alice"), "extra" -> Json.Number(42))),
+          !schema.conforms(Json.Object("name" -> Json.String("Alice"), "extra" -> Json.String("not-an-int")))
         )
       },
       test("properties evaluated by patternProperties are not unevaluated") {
@@ -715,8 +715,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedProperties = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.obj("x_foo" -> Json.str("bar"))),
-          !schema.conforms(Json.obj("foo" -> Json.str("bar")))
+          schema.conforms(Json.Object("x_foo" -> Json.String("bar"))),
+          !schema.conforms(Json.Object("foo" -> Json.String("bar")))
         )
       },
       test("properties evaluated by additionalProperties are not unevaluated") {
@@ -726,8 +726,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedProperties = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))),
-          !schema.conforms(Json.obj("name" -> Json.str("Alice"), "age" -> Json.str("thirty")))
+          schema.conforms(Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))),
+          !schema.conforms(Json.Object("name" -> Json.String("Alice"), "age" -> Json.String("thirty")))
         )
       },
       test("properties from allOf subschemas are evaluated") {
@@ -741,8 +741,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedProperties = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.obj("foo" -> Json.str("a"), "bar" -> Json.number(1))),
-          !schema.conforms(Json.obj("foo" -> Json.str("a"), "bar" -> Json.number(1), "baz" -> Json.bool(true)))
+          schema.conforms(Json.Object("foo" -> Json.String("a"), "bar" -> Json.Number(1))),
+          !schema.conforms(Json.Object("foo" -> Json.String("a"), "bar" -> Json.Number(1), "baz" -> Json.Boolean(true)))
         )
       },
       test("properties from anyOf valid subschemas are evaluated") {
@@ -756,9 +756,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedProperties = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.obj("foo" -> Json.str("a"))),
-          schema.conforms(Json.obj("bar" -> Json.number(1))),
-          !schema.conforms(Json.obj("baz" -> Json.bool(true)))
+          schema.conforms(Json.Object("foo" -> Json.String("a"))),
+          schema.conforms(Json.Object("bar" -> Json.Number(1))),
+          !schema.conforms(Json.Object("baz" -> Json.Boolean(true)))
         )
       },
       test("properties from oneOf valid subschema are evaluated") {
@@ -766,11 +766,11 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           oneOf = Some(
             ::(
               JsonSchema.obj(properties =
-                Some(Map("type" -> JsonSchema.constOf(Json.str("a")), "a" -> JsonSchema.string()))
+                Some(Map("type" -> JsonSchema.constOf(Json.String("a")), "a" -> JsonSchema.string()))
               ),
               List(
                 JsonSchema.obj(properties =
-                  Some(Map("type" -> JsonSchema.constOf(Json.str("b")), "b" -> JsonSchema.integer()))
+                  Some(Map("type" -> JsonSchema.constOf(Json.String("b")), "b" -> JsonSchema.integer()))
                 )
               )
             )
@@ -778,22 +778,26 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedProperties = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.obj("type" -> Json.str("a"), "a" -> Json.str("value"))),
-          schema.conforms(Json.obj("type" -> Json.str("b"), "b" -> Json.number(42))),
-          !schema.conforms(Json.obj("type" -> Json.str("a"), "a" -> Json.str("value"), "extra" -> Json.bool(true)))
+          schema.conforms(Json.Object("type" -> Json.String("a"), "a" -> Json.String("value"))),
+          schema.conforms(Json.Object("type" -> Json.String("b"), "b" -> Json.Number(42))),
+          !schema.conforms(
+            Json.Object("type" -> Json.String("a"), "a" -> Json.String("value"), "extra" -> Json.Boolean(true))
+          )
         )
       },
       test("properties from if/then branch are evaluated") {
         val schema = JsonSchema.Object(
-          `if` = Some(JsonSchema.obj(properties = Some(Map("type" -> JsonSchema.constOf(Json.str("a")))))),
+          `if` = Some(JsonSchema.obj(properties = Some(Map("type" -> JsonSchema.constOf(Json.String("a")))))),
           `then` = Some(JsonSchema.obj(properties = Some(Map("a" -> JsonSchema.string())))),
           `else` = Some(JsonSchema.obj(properties = Some(Map("b" -> JsonSchema.integer())))),
           unevaluatedProperties = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.obj("type" -> Json.str("a"), "a" -> Json.str("value"))),
-          schema.conforms(Json.obj("type" -> Json.str("b"), "b" -> Json.number(42))),
-          !schema.conforms(Json.obj("type" -> Json.str("a"), "a" -> Json.str("value"), "extra" -> Json.bool(true)))
+          schema.conforms(Json.Object("type" -> Json.String("a"), "a" -> Json.String("value"))),
+          schema.conforms(Json.Object("type" -> Json.String("b"), "b" -> Json.Number(42))),
+          !schema.conforms(
+            Json.Object("type" -> Json.String("a"), "a" -> Json.String("value"), "extra" -> Json.Boolean(true))
+          )
         )
       },
       test("properties from $ref are evaluated") {
@@ -803,8 +807,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedProperties = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.obj("foo" -> Json.str("bar"))),
-          !schema.conforms(Json.obj("foo" -> Json.str("bar"), "extra" -> Json.number(1)))
+          schema.conforms(Json.Object("foo" -> Json.String("bar"))),
+          !schema.conforms(Json.Object("foo" -> Json.String("bar"), "extra" -> Json.Number(1)))
         )
       }
     ),
@@ -815,8 +819,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedItems = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.arr(Json.str("a"), Json.number(1))),
-          !schema.conforms(Json.arr(Json.str("a"), Json.number(1), Json.bool(true)))
+          schema.conforms(Json.Array(Json.String("a"), Json.Number(1))),
+          !schema.conforms(Json.Array(Json.String("a"), Json.Number(1), Json.Boolean(true)))
         )
       },
       test("validates unevaluated items against schema") {
@@ -825,9 +829,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedItems = Some(JsonSchema.integer())
         )
         assertTrue(
-          schema.conforms(Json.arr(Json.str("a"))),
-          schema.conforms(Json.arr(Json.str("a"), Json.number(1), Json.number(2))),
-          !schema.conforms(Json.arr(Json.str("a"), Json.str("not-an-int")))
+          schema.conforms(Json.Array(Json.String("a"))),
+          schema.conforms(Json.Array(Json.String("a"), Json.Number(1), Json.Number(2))),
+          !schema.conforms(Json.Array(Json.String("a"), Json.String("not-an-int")))
         )
       },
       test("items keyword evaluates all remaining items") {
@@ -837,13 +841,13 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedItems = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.arr(Json.str("a"), Json.number(1), Json.number(2))),
-          !schema.conforms(Json.arr(Json.str("a"), Json.str("not-a-number")))
+          schema.conforms(Json.Array(Json.String("a"), Json.Number(1), Json.Number(2))),
+          !schema.conforms(Json.Array(Json.String("a"), Json.String("not-a-number")))
         )
       },
       test("items from allOf subschemas are evaluated") {
         val schema = JsonSchema.Object(
-          `type` = Some(SchemaType.Single(JsonType.Array)),
+          `type` = Some(SchemaType.Single(JsonSchemaType.Array)),
           allOf = Some(
             ::(
               JsonSchema.array(prefixItems = Some(::(JsonSchema.string(), Nil))),
@@ -853,8 +857,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedItems = Some(JsonSchema.False)
         )
         assertTrue(
-          schema.conforms(Json.arr(Json.str("a"), Json.number(1))),
-          !schema.conforms(Json.arr(Json.str("a"), Json.number(1), Json.bool(true)))
+          schema.conforms(Json.Array(Json.String("a"), Json.Number(1))),
+          !schema.conforms(Json.Array(Json.String("a"), Json.Number(1), Json.Boolean(true)))
         )
       },
       test("contains does not mark items as evaluated") {
@@ -863,8 +867,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           unevaluatedItems = Some(JsonSchema.False)
         )
         assertTrue(
-          !schema.conforms(Json.arr(Json.str("a"))),
-          !schema.conforms(Json.arr(Json.number(1), Json.str("b")))
+          !schema.conforms(Json.Array(Json.String("a"))),
+          !schema.conforms(Json.Array(Json.Number(1), Json.String("b")))
         )
       }
     )

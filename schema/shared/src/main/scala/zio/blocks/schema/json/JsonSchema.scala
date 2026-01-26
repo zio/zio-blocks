@@ -409,31 +409,38 @@ object EvaluationResult {
 }
 
 // =============================================================================
-// JSON Primitive Type Enumeration
+// JSON Schema Type Keyword Enumeration
 // =============================================================================
 
-sealed trait JsonType extends Product with Serializable {
+/**
+ * Represents the "type" keyword values in JSON Schema.
+ *
+ * Note: This is distinct from [[JsonType]] which represents runtime JSON value
+ * types. JSON Schema's type keyword includes "integer" as a distinct type,
+ * while runtime JSON only has "number" for all numeric values.
+ */
+sealed trait JsonSchemaType extends Product with Serializable {
   def toJsonString: String = this match {
-    case JsonType.Null    => "null"
-    case JsonType.Boolean => "boolean"
-    case JsonType.String  => "string"
-    case JsonType.Number  => "number"
-    case JsonType.Integer => "integer"
-    case JsonType.Array   => "array"
-    case JsonType.Object  => "object"
+    case JsonSchemaType.Null    => "null"
+    case JsonSchemaType.Boolean => "boolean"
+    case JsonSchemaType.String  => "string"
+    case JsonSchemaType.Number  => "number"
+    case JsonSchemaType.Integer => "integer"
+    case JsonSchemaType.Array   => "array"
+    case JsonSchemaType.Object  => "object"
   }
 }
 
-object JsonType {
-  case object Null    extends JsonType
-  case object Boolean extends JsonType
-  case object String  extends JsonType
-  case object Number  extends JsonType
-  case object Integer extends JsonType
-  case object Array   extends JsonType
-  case object Object  extends JsonType
+object JsonSchemaType {
+  case object Null    extends JsonSchemaType
+  case object Boolean extends JsonSchemaType
+  case object String  extends JsonSchemaType
+  case object Number  extends JsonSchemaType
+  case object Integer extends JsonSchemaType
+  case object Array   extends JsonSchemaType
+  case object Object  extends JsonSchemaType
 
-  def fromString(s: String): Option[JsonType] = s match {
+  def fromString(s: String): Option[JsonSchemaType] = s match {
     case "null"    => Some(Null)
     case "boolean" => Some(Boolean)
     case "string"  => Some(String)
@@ -444,7 +451,7 @@ object JsonType {
     case _         => None
   }
 
-  val all: Seq[JsonType] = Seq(Null, Boolean, String, Number, Integer, Array, Object)
+  val all: Seq[JsonSchemaType] = Seq(Null, Boolean, String, Number, Integer, Array, Object)
 }
 
 // =============================================================================
@@ -454,29 +461,29 @@ object JsonType {
 sealed trait SchemaType extends Product with Serializable {
   def toJson: Json = this match {
     case SchemaType.Single(t) => Json.String(t.toJsonString)
-    case SchemaType.Union(ts) => Json.Array(ts.map(t => Json.String(t.toJsonString)).toVector)
+    case SchemaType.Union(ts) => Json.Array(ts.map(t => Json.String(t.toJsonString)): _*)
   }
 
-  def contains(t: JsonType): scala.Boolean = this match {
+  def contains(t: JsonSchemaType): scala.Boolean = this match {
     case SchemaType.Single(st) => st == t
     case SchemaType.Union(ts)  => ts.contains(t)
   }
 }
 
 object SchemaType {
-  final case class Single(value: JsonType)     extends SchemaType
-  final case class Union(values: ::[JsonType]) extends SchemaType
+  final case class Single(value: JsonSchemaType)     extends SchemaType
+  final case class Union(values: ::[JsonSchemaType]) extends SchemaType
 
   def fromJson(json: Json): Either[String, SchemaType] = json match {
     case s: Json.String =>
-      JsonType.fromString(s.value) match {
+      JsonSchemaType.fromString(s.value) match {
         case Some(t) => Right(Single(t))
         case None    => Left(s"Unknown type: ${s.value}")
       }
     case a: Json.Array =>
       val types = a.value.map {
         case s: Json.String =>
-          JsonType.fromString(s.value) match {
+          JsonSchemaType.fromString(s.value) match {
             case Some(t) => Right(t)
             case None    => Left(s"Unknown type: ${s.value}")
           }
@@ -594,19 +601,19 @@ sealed trait JsonSchema extends Product with Serializable {
   /** Make this schema nullable (accepts null in addition to current types). */
   def withNullable: JsonSchema = this match {
     case JsonSchema.True      => JsonSchema.True
-    case JsonSchema.False     => JsonSchema.ofType(JsonType.Null)
+    case JsonSchema.False     => JsonSchema.ofType(JsonSchemaType.Null)
     case s: JsonSchema.Object =>
       s.`type` match {
-        case Some(SchemaType.Single(t)) if t == JsonType.Null =>
+        case Some(SchemaType.Single(t)) if t == JsonSchemaType.Null =>
           s
         case Some(SchemaType.Single(t)) =>
-          s.copy(`type` = Some(SchemaType.Union(new ::(JsonType.Null, t :: Nil))))
-        case Some(SchemaType.Union(ts)) if ts.contains(JsonType.Null) =>
+          s.copy(`type` = Some(SchemaType.Union(new ::(JsonSchemaType.Null, t :: Nil))))
+        case Some(SchemaType.Union(ts)) if ts.contains(JsonSchemaType.Null) =>
           s
         case Some(SchemaType.Union(ts)) =>
-          s.copy(`type` = Some(SchemaType.Union(new ::(JsonType.Null, ts.toList))))
+          s.copy(`type` = Some(SchemaType.Union(new ::(JsonSchemaType.Null, ts.toList))))
         case None =>
-          JsonSchema.Object(anyOf = Some(new ::(JsonSchema.ofType(JsonType.Null), s :: Nil)))
+          JsonSchema.Object(anyOf = Some(new ::(JsonSchema.ofType(JsonSchemaType.Null), s :: Nil)))
       }
   }
 }
@@ -791,9 +798,9 @@ object JsonSchema {
       $comment.foreach(v => fields += ("$comment" -> Json.String(v)))
 
       // Applicator vocabulary (Composition)
-      allOf.foreach(v => fields += ("allOf" -> Json.Array(v.map(_.toJson).toVector)))
-      anyOf.foreach(v => fields += ("anyOf" -> Json.Array(v.map(_.toJson).toVector)))
-      oneOf.foreach(v => fields += ("oneOf" -> Json.Array(v.map(_.toJson).toVector)))
+      allOf.foreach(v => fields += ("allOf" -> Json.Array(v.map(_.toJson): _*)))
+      anyOf.foreach(v => fields += ("anyOf" -> Json.Array(v.map(_.toJson): _*)))
+      oneOf.foreach(v => fields += ("oneOf" -> Json.Array(v.map(_.toJson): _*)))
       not.foreach(v => fields += ("not" -> v.toJson))
 
       // Applicator vocabulary (Conditional)
@@ -818,7 +825,7 @@ object JsonSchema {
       }
 
       // Applicator vocabulary (Array)
-      prefixItems.foreach(v => fields += ("prefixItems" -> Json.Array(v.map(_.toJson).toVector)))
+      prefixItems.foreach(v => fields += ("prefixItems" -> Json.Array(v.map(_.toJson): _*)))
       items.foreach(v => fields += ("items" -> v.toJson))
       contains.foreach(v => fields += ("contains" -> v.toJson))
 
@@ -828,7 +835,7 @@ object JsonSchema {
 
       // Validation vocabulary (Type)
       `type`.foreach(v => fields += ("type" -> v.toJson))
-      `enum`.foreach(v => fields += ("enum" -> Json.Array(v.toVector)))
+      `enum`.foreach(v => fields += ("enum" -> Json.Array(v: _*)))
       const.foreach(v => fields += ("const" -> v))
 
       // Validation vocabulary (Numeric)
@@ -853,10 +860,10 @@ object JsonSchema {
       // Validation vocabulary (Object)
       minProperties.foreach(v => fields += ("minProperties" -> Json.Number(v.value.toString)))
       maxProperties.foreach(v => fields += ("maxProperties" -> Json.Number(v.value.toString)))
-      required.foreach(v => fields += ("required" -> Json.Array(v.map(Json.String(_)).toVector)))
+      required.foreach(v => fields += ("required" -> Json.Array(v.toSeq.map(Json.String(_)): _*)))
       dependentRequired.foreach { d =>
         val depsObj = Json.Object(Chunk.from(d.map { case (name, reqs) =>
-          (name, Json.Array(reqs.map(Json.String(_)).toVector))
+          (name, Json.Array(reqs.toSeq.map(Json.String(_)): _*))
         }))
         fields += ("dependentRequired" -> depsObj)
       }
@@ -876,7 +883,7 @@ object JsonSchema {
       deprecated.foreach(v => fields += ("deprecated" -> Json.Boolean(v)))
       readOnly.foreach(v => fields += ("readOnly" -> Json.Boolean(v)))
       writeOnly.foreach(v => fields += ("writeOnly" -> Json.Boolean(v)))
-      examples.foreach(v => fields += ("examples" -> Json.Array(v.toVector)))
+      examples.foreach(v => fields += ("examples" -> Json.Array(v: _*)))
 
       // Extensions
       extensions.foreach { case (k, v) => fields += (k -> v) }
@@ -932,14 +939,14 @@ object JsonSchema {
       // Type validation
       `type`.foreach { schemaType =>
         val typeMatches = json match {
-          case Json.Null       => schemaType.contains(JsonType.Null)
-          case _: Json.Boolean => schemaType.contains(JsonType.Boolean)
-          case _: Json.String  => schemaType.contains(JsonType.String)
+          case Json.Null       => schemaType.contains(JsonSchemaType.Null)
+          case _: Json.Boolean => schemaType.contains(JsonSchemaType.Boolean)
+          case _: Json.String  => schemaType.contains(JsonSchemaType.String)
           case n: Json.Number  =>
-            val isInt = n.numberValue.exists(bd => bd.isWhole)
-            schemaType.contains(JsonType.Number) || (isInt && schemaType.contains(JsonType.Integer))
-          case _: Json.Array  => schemaType.contains(JsonType.Array)
-          case _: Json.Object => schemaType.contains(JsonType.Object)
+            val isInt = n.toBigDecimalOption.exists(bd => bd.isWhole)
+            schemaType.contains(JsonSchemaType.Number) || (isInt && schemaType.contains(JsonSchemaType.Integer))
+          case _: Json.Array  => schemaType.contains(JsonSchemaType.Array)
+          case _: Json.Object => schemaType.contains(JsonSchemaType.Object)
         }
         if (!typeMatches) {
           val expected = schemaType match {
@@ -967,7 +974,7 @@ object JsonSchema {
       // Numeric validations
       json match {
         case n: Json.Number =>
-          n.numberValue.foreach { value =>
+          n.toBigDecimalOption.foreach { value =>
             minimum.foreach { min =>
               if (value < min) addError(s"Value $value is less than minimum $min")
             }
@@ -1297,7 +1304,7 @@ object JsonSchema {
   // Smart Constructors
   // ===========================================================================
 
-  def ofType(t: JsonType): JsonSchema =
+  def ofType(t: JsonSchemaType): JsonSchema =
     Object(`type` = Some(SchemaType.Single(t)))
 
   def string(
@@ -1306,7 +1313,7 @@ object JsonSchema {
     pattern: Option[RegexPattern] = None,
     format: Option[String] = None
   ): JsonSchema = Object(
-    `type` = Some(SchemaType.Single(JsonType.String)),
+    `type` = Some(SchemaType.Single(JsonSchemaType.String)),
     minLength = minLength,
     maxLength = maxLength,
     pattern = pattern,
@@ -1331,7 +1338,7 @@ object JsonSchema {
     exclusiveMaximum: Option[BigDecimal] = None,
     multipleOf: Option[PositiveNumber] = None
   ): JsonSchema = Object(
-    `type` = Some(SchemaType.Single(JsonType.Number)),
+    `type` = Some(SchemaType.Single(JsonSchemaType.Number)),
     minimum = minimum,
     maximum = maximum,
     exclusiveMinimum = exclusiveMinimum,
@@ -1346,7 +1353,7 @@ object JsonSchema {
     exclusiveMaximum: Option[BigDecimal] = None,
     multipleOf: Option[PositiveNumber] = None
   ): JsonSchema = Object(
-    `type` = Some(SchemaType.Single(JsonType.Integer)),
+    `type` = Some(SchemaType.Single(JsonSchemaType.Integer)),
     minimum = minimum,
     maximum = maximum,
     exclusiveMinimum = exclusiveMinimum,
@@ -1365,7 +1372,7 @@ object JsonSchema {
     maxContains: Option[NonNegativeInt] = None,
     unevaluatedItems: Option[JsonSchema] = None
   ): JsonSchema = Object(
-    `type` = Some(SchemaType.Single(JsonType.Array)),
+    `type` = Some(SchemaType.Single(JsonSchemaType.Array)),
     items = items,
     prefixItems = prefixItems,
     minItems = minItems,
@@ -1397,7 +1404,7 @@ object JsonSchema {
     maxProperties: Option[NonNegativeInt] = None,
     unevaluatedProperties: Option[JsonSchema] = None
   ): JsonSchema = Object(
-    `type` = Some(SchemaType.Single(JsonType.Object)),
+    `type` = Some(SchemaType.Single(JsonSchemaType.Object)),
     properties = properties,
     required = required,
     additionalProperties = additionalProperties,
@@ -1423,8 +1430,8 @@ object JsonSchema {
   def refString(uri: String): JsonSchema =
     Object($ref = Some(UriReference(uri)))
 
-  val `null`: JsonSchema  = ofType(JsonType.Null)
-  val boolean: JsonSchema = ofType(JsonType.Boolean)
+  val `null`: JsonSchema  = ofType(JsonSchemaType.Null)
+  val boolean: JsonSchema = ofType(JsonSchemaType.Boolean)
 
   // ===========================================================================
   // Parsing Helpers
@@ -1440,7 +1447,7 @@ object JsonSchema {
       fieldMap.get(key).collect { case b: Json.Boolean => b.value }
 
     def getNumber(key: String): Option[BigDecimal] =
-      fieldMap.get(key).collect { case n: Json.Number => n.numberValue }.flatten
+      fieldMap.get(key).collect { case n: Json.Number => n.toBigDecimalOption }.flatten
 
     def getNonNegativeInt(key: String): Option[NonNegativeInt] =
       getNumber(key).flatMap(n => NonNegativeInt(n.toInt))

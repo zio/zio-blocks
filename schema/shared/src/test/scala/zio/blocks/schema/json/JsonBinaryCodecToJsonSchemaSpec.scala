@@ -97,76 +97,76 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
       test("String produces string JSON Schema") {
         val jsonSchema = Schema[String].toJsonSchema
         val json       = jsonSchema.toJson
-        assertTrue(json.get("type").string == Right("string"))
+        assertTrue(json.get("type").one == Right(Json.String("string")))
       },
       test("Boolean produces boolean JSON Schema") {
         val jsonSchema = Schema[Boolean].toJsonSchema
         val json       = jsonSchema.toJson
-        assertTrue(json.get("type").string == Right("boolean"))
+        assertTrue(json.get("type").one == Right(Json.String("boolean")))
       },
       test("Int produces integer JSON Schema") {
         val jsonSchema = Schema[Int].toJsonSchema
         val json       = jsonSchema.toJson
-        assertTrue(json.get("type").string == Right("integer"))
+        assertTrue(json.get("type").one == Right(Json.String("integer")))
       },
       test("Long produces integer JSON Schema") {
         val jsonSchema = Schema[Long].toJsonSchema
         val json       = jsonSchema.toJson
-        assertTrue(json.get("type").string == Right("integer"))
+        assertTrue(json.get("type").one == Right(Json.String("integer")))
       },
       test("Double produces number JSON Schema") {
         val jsonSchema = Schema[Double].toJsonSchema
         val json       = jsonSchema.toJson
-        assertTrue(json.get("type").string == Right("number"))
+        assertTrue(json.get("type").one == Right(Json.String("number")))
       },
       test("Float produces number JSON Schema") {
         val jsonSchema = Schema[Float].toJsonSchema
         val json       = jsonSchema.toJson
-        assertTrue(json.get("type").string == Right("number"))
+        assertTrue(json.get("type").one == Right(Json.String("number")))
       },
       test("Byte produces integer JSON Schema with min/max constraints") {
         val jsonSchema = Schema[Byte].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("integer"),
-          json.get("minimum").number == Right(BigDecimal(-128)),
-          json.get("maximum").number == Right(BigDecimal(127))
+          json.get("type").one == Right(Json.String("integer")),
+          json.get("minimum").one == Right(Json.Number("-128")),
+          json.get("maximum").one == Right(Json.Number("127"))
         )
       },
       test("Short produces integer JSON Schema with min/max constraints") {
         val jsonSchema = Schema[Short].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("integer"),
-          json.get("minimum").number == Right(BigDecimal(-32768)),
-          json.get("maximum").number == Right(BigDecimal(32767))
+          json.get("type").one == Right(Json.String("integer")),
+          json.get("minimum").one == Right(Json.Number("-32768")),
+          json.get("maximum").one == Right(Json.Number("32767"))
         )
       },
       test("Char produces string JSON Schema with minLength/maxLength = 1") {
         val jsonSchema = Schema[Char].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("minLength").number == Right(BigDecimal(1)),
-          json.get("maxLength").number == Right(BigDecimal(1))
+          json.get("type").one == Right(Json.String("string")),
+          json.get("minLength").one == Right(Json.Number("1")),
+          json.get("maxLength").one == Right(Json.Number("1"))
         )
       },
       test("BigInt produces integer JSON Schema") {
         val jsonSchema = Schema[BigInt].toJsonSchema
         val json       = jsonSchema.toJson
-        assertTrue(json.get("type").string == Right("integer"))
+        assertTrue(json.get("type").one == Right(Json.String("integer")))
       },
       test("BigDecimal produces number JSON Schema") {
         val jsonSchema = Schema[BigDecimal].toJsonSchema
         val json       = jsonSchema.toJson
-        assertTrue(json.get("type").string == Right("number"))
+        assertTrue(json.get("type").one == Right(Json.String("number")))
       },
       test("Unit produces empty object JSON Schema") {
         val jsonSchema = Schema[Unit].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("object"),
-          json.get("additionalProperties").boolean == Right(false)
+          json.get("type").one == Right(Json.String("object")),
+          json.get("additionalProperties").one == Right(Json.Boolean(false))
         )
       }
     ),
@@ -175,80 +175,80 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[Instant].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("format").string == Right("date-time")
+          json.get("type").one == Right(Json.String("string")),
+          json.get("format").one == Right(Json.String("date-time"))
         )
       },
       test("LocalDate produces string with date format") {
         val jsonSchema = Schema[LocalDate].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("format").string == Right("date")
+          json.get("type").one == Right(Json.String("string")),
+          json.get("format").one == Right(Json.String("date"))
         )
       },
       test("LocalTime produces string with time format") {
         val jsonSchema = Schema[LocalTime].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("format").string == Right("time")
+          json.get("type").one == Right(Json.String("string")),
+          json.get("format").one == Right(Json.String("time"))
         )
       },
       test("LocalDateTime produces string with date-time format") {
         val jsonSchema = Schema[LocalDateTime].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("format").string == Right("date-time")
+          json.get("type").one == Right(Json.String("string")),
+          json.get("format").one == Right(Json.String("date-time"))
         )
       },
       test("OffsetDateTime produces string with date-time format") {
         val jsonSchema = Schema[OffsetDateTime].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("format").string == Right("date-time")
+          json.get("type").one == Right(Json.String("string")),
+          json.get("format").one == Right(Json.String("date-time"))
         )
       },
       test("OffsetTime produces string with time format") {
         val jsonSchema = Schema[OffsetTime].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("format").string == Right("time")
+          json.get("type").one == Right(Json.String("string")),
+          json.get("format").one == Right(Json.String("time"))
         )
       },
       test("ZonedDateTime produces string with date-time format") {
         val jsonSchema = Schema[ZonedDateTime].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("format").string == Right("date-time")
+          json.get("type").one == Right(Json.String("string")),
+          json.get("format").one == Right(Json.String("date-time"))
         )
       },
       test("Duration produces string with duration format") {
         val jsonSchema = Schema[Duration].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("format").string == Right("duration")
+          json.get("type").one == Right(Json.String("string")),
+          json.get("format").one == Right(Json.String("duration"))
         )
       },
       test("Period produces string with duration format") {
         val jsonSchema = Schema[Period].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("format").string == Right("duration")
+          json.get("type").one == Right(Json.String("string")),
+          json.get("format").one == Right(Json.String("duration"))
         )
       },
       test("UUID produces string with uuid format") {
         val jsonSchema = Schema[UUID].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("string"),
-          json.get("format").string == Right("uuid")
+          json.get("type").one == Right(Json.String("string")),
+          json.get("format").one == Right(Json.String("uuid"))
         )
       }
     ),
@@ -257,31 +257,33 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[Person].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("object"),
-          json.get("properties").get("name").get("type").string == Right("string"),
-          json.get("properties").get("age").get("type").string == Right("integer")
+          json.get("type").one == Right(Json.String("object")),
+          json.get("properties").get("name").get("type").one == Right(Json.String("string")),
+          json.get("properties").get("age").get("type").one == Right(Json.String("integer"))
         )
       },
       test("required fields are listed in required array") {
         val jsonSchema = Schema[Person].toJsonSchema
         val json       = jsonSchema.toJson
-        val required   = json.get("required").first.map(_.elements.flatMap(_.stringValue).toSet)
+        val required   = json.get("required").one.map(_.elements.collect { case s: Json.String => s.value }.toSet)
         assertTrue(required == Right(Set("name", "age")))
       },
       test("nested case classes produce nested object schemas") {
         val jsonSchema = Schema[Company].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("object"),
-          json.get("properties").get("address").get("type").string == Right("object"),
-          json.get("properties").get("address").get("properties").get("street").get("type").string == Right("string"),
-          json.get("properties").get("employees").get("type").string == Right("array")
+          json.get("type").one == Right(Json.String("object")),
+          json.get("properties").get("address").get("type").one == Right(Json.String("object")),
+          json.get("properties").get("address").get("properties").get("street").get("type").one == Right(
+            Json.String("string")
+          ),
+          json.get("properties").get("employees").get("type").one == Right(Json.String("array"))
         )
       },
       test("optional fields are not in required array") {
         val jsonSchema = Schema[Address].toJsonSchema
         val json       = jsonSchema.toJson
-        val required   = json.get("required").first.map(_.elements.flatMap(_.stringValue).toSet)
+        val required   = json.get("required").one.map(_.elements.collect { case s: Json.String => s.value }.toSet)
         assertTrue(
           required == Right(Set("street", "city"))
         )
@@ -289,17 +291,17 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
       test("fields with defaults are not in required array") {
         val jsonSchema = Schema[OptionalFields].toJsonSchema
         val json       = jsonSchema.toJson
-        val required   = json.get("required").first.map(_.elements.flatMap(_.stringValue).toSet)
+        val required   = json.get("required").one.map(_.elements.collect { case s: Json.String => s.value }.toSet)
         assertTrue(required == Right(Set("required")))
       },
       test("generated schema validates matching JSON") {
         val jsonSchema = Schema[Person].toJsonSchema
-        val validJson  = Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))
+        val validJson  = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
         assertTrue(jsonSchema.conforms(validJson))
       },
       test("generated schema rejects invalid JSON") {
         val jsonSchema  = Schema[Person].toJsonSchema
-        val invalidJson = Json.obj("name" -> Json.number(123), "age" -> Json.str("not-a-number"))
+        val invalidJson = Json.Object("name" -> Json.Number(123), "age" -> Json.String("not-a-number"))
         assertTrue(!jsonSchema.conforms(invalidJson))
       }
     ),
@@ -308,42 +310,42 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[List[Int]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("array"),
-          json.get("items").get("type").string == Right("integer")
+          json.get("type").one == Right(Json.String("array")),
+          json.get("items").get("type").one == Right(Json.String("integer"))
         )
       },
       test("Set[String] produces array schema with string items") {
         val jsonSchema = Schema[Set[String]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("array"),
-          json.get("items").get("type").string == Right("string")
+          json.get("type").one == Right(Json.String("array")),
+          json.get("items").get("type").one == Right(Json.String("string"))
         )
       },
       test("Vector[Double] produces array schema with number items") {
         val jsonSchema = Schema[Vector[Double]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("array"),
-          json.get("items").get("type").string == Right("number")
+          json.get("type").one == Right(Json.String("array")),
+          json.get("items").get("type").one == Right(Json.String("number"))
         )
       },
       test("List[Person] produces array schema with object items") {
         val jsonSchema = Schema[List[Person]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("array"),
-          json.get("items").get("type").string == Right("object"),
-          json.get("items").get("properties").get("name").get("type").string == Right("string")
+          json.get("type").one == Right(Json.String("array")),
+          json.get("items").get("type").one == Right(Json.String("object")),
+          json.get("items").get("properties").get("name").get("type").one == Right(Json.String("string"))
         )
       },
       test("nested collections produce nested array schemas") {
         val jsonSchema = Schema[List[List[Int]]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("array"),
-          json.get("items").get("type").string == Right("array"),
-          json.get("items").get("items").get("type").string == Right("integer")
+          json.get("type").one == Right(Json.String("array")),
+          json.get("items").get("type").one == Right(Json.String("array")),
+          json.get("items").get("items").get("type").one == Right(Json.String("integer"))
         )
       }
     ),
@@ -352,17 +354,17 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[Map[String, Int]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("object"),
-          json.get("additionalProperties").get("type").string == Right("integer")
+          json.get("type").one == Right(Json.String("object")),
+          json.get("additionalProperties").get("type").one == Right(Json.String("integer"))
         )
       },
       test("Map[String, Person] produces object schema with object additionalProperties") {
         val jsonSchema = Schema[Map[String, Person]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").string == Right("object"),
-          json.get("additionalProperties").get("type").string == Right("object"),
-          json.get("additionalProperties").get("properties").get("name").get("type").string == Right("string")
+          json.get("type").one == Right(Json.String("object")),
+          json.get("additionalProperties").get("type").one == Right(Json.String("object")),
+          json.get("additionalProperties").get("properties").get("name").get("type").one == Right(Json.String("string"))
         )
       }
     ),
@@ -370,21 +372,21 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
       test("Option[String] produces nullable schema") {
         val jsonSchema = Schema[Option[String]].toJsonSchema
         assertTrue(
-          jsonSchema.conforms(Json.str("hello")),
+          jsonSchema.conforms(Json.String("hello")),
           jsonSchema.conforms(Json.Null)
         )
       },
       test("Option[Int] produces nullable schema") {
         val jsonSchema = Schema[Option[Int]].toJsonSchema
         assertTrue(
-          jsonSchema.conforms(Json.number(42)),
+          jsonSchema.conforms(Json.Number(42)),
           jsonSchema.conforms(Json.Null)
         )
       },
       test("Option[Person] produces nullable object schema") {
         val jsonSchema = Schema[Option[Person]].toJsonSchema
         assertTrue(
-          jsonSchema.conforms(Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))),
+          jsonSchema.conforms(Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))),
           jsonSchema.conforms(Json.Null)
         )
       }
@@ -393,16 +395,16 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
       test("Color enum produces enum schema with string values") {
         val jsonSchema = Schema[Color].toJsonSchema
         assertTrue(
-          jsonSchema.conforms(Json.str("Red")),
-          jsonSchema.conforms(Json.str("Green")),
-          jsonSchema.conforms(Json.str("Blue")),
-          !jsonSchema.conforms(Json.str("Yellow"))
+          jsonSchema.conforms(Json.String("Red")),
+          jsonSchema.conforms(Json.String("Green")),
+          jsonSchema.conforms(Json.String("Blue")),
+          !jsonSchema.conforms(Json.String("Yellow"))
         )
       },
       test("Color enum JSON contains enum keyword") {
         val jsonSchema = Schema[Color].toJsonSchema
         val json       = jsonSchema.toJson
-        val enumValues = json.get("enum").first.map(_.elements.flatMap(_.stringValue).toSet)
+        val enumValues = json.get("enum").one.map(_.elements.collect { case s: Json.String => s.value }.toSet)
         assertTrue(enumValues == Right(Set("Red", "Green", "Blue")))
       }
     ),
@@ -414,33 +416,34 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("Shape variant validates Circle") {
         val jsonSchema = Schema[Shape].toJsonSchema
-        val circleJson = Json.obj("Circle" -> Json.obj("radius" -> Json.number(5.0)))
+        val circleJson = Json.Object("Circle" -> Json.Object("radius" -> Json.Number(5.0)))
         assertTrue(jsonSchema.conforms(circleJson))
       },
       test("Shape variant validates Rectangle") {
         val jsonSchema = Schema[Shape].toJsonSchema
-        val rectJson   = Json.obj("Rectangle" -> Json.obj("width" -> Json.number(10.0), "height" -> Json.number(20.0)))
+        val rectJson   =
+          Json.Object("Rectangle" -> Json.Object("width" -> Json.Number(10.0), "height" -> Json.Number(20.0)))
         assertTrue(jsonSchema.conforms(rectJson))
       },
       test("Shape variant rejects invalid shape") {
         val jsonSchema  = Schema[Shape].toJsonSchema
-        val invalidJson = Json.obj("Triangle" -> Json.obj("base" -> Json.number(5.0)))
+        val invalidJson = Json.Object("Triangle" -> Json.Object("base" -> Json.Number(5.0)))
         assertTrue(!jsonSchema.conforms(invalidJson))
       }
     ),
     suite("Complex nested structures")(
       test("deeply nested structure produces correct schema") {
         val jsonSchema = Schema[Company].toJsonSchema
-        val validJson  = Json.obj(
-          "name"    -> Json.str("Acme Corp"),
-          "address" -> Json.obj(
-            "street"  -> Json.str("123 Main St"),
-            "city"    -> Json.str("Springfield"),
-            "zipCode" -> Json.str("12345")
+        val validJson  = Json.Object(
+          "name"    -> Json.String("Acme Corp"),
+          "address" -> Json.Object(
+            "street"  -> Json.String("123 Main St"),
+            "city"    -> Json.String("Springfield"),
+            "zipCode" -> Json.String("12345")
           ),
-          "employees" -> Json.arr(
-            Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30)),
-            Json.obj("name" -> Json.str("Bob"), "age"   -> Json.number(25))
+          "employees" -> Json.Array(
+            Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30)),
+            Json.Object("name" -> Json.String("Bob"), "age"   -> Json.Number(25))
           )
         )
         assertTrue(jsonSchema.conforms(validJson))
@@ -449,52 +452,52 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[TemporalTypes].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("properties").get("instant").get("format").string == Right("date-time"),
-          json.get("properties").get("localDate").get("format").string == Right("date"),
-          json.get("properties").get("localTime").get("format").string == Right("time"),
-          json.get("properties").get("duration").get("format").string == Right("duration")
+          json.get("properties").get("instant").get("format").one == Right(Json.String("date-time")),
+          json.get("properties").get("localDate").get("format").one == Right(Json.String("date")),
+          json.get("properties").get("localTime").get("format").one == Right(Json.String("time")),
+          json.get("properties").get("duration").get("format").one == Right(Json.String("duration"))
         )
       },
       test("record with UUID produces correct schema") {
         val jsonSchema = Schema[WithUUID].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("properties").get("id").get("format").string == Right("uuid"),
-          json.get("properties").get("name").get("type").string == Right("string")
+          json.get("properties").get("id").get("format").one == Right(Json.String("uuid")),
+          json.get("properties").get("name").get("type").one == Right(Json.String("string"))
         )
       }
     ),
     suite("Schema validation behavior")(
       test("schema validates conforming primitives") {
         assertTrue(
-          Schema[String].toJsonSchema.conforms(Json.str("hello")),
-          Schema[Int].toJsonSchema.conforms(Json.number(42)),
+          Schema[String].toJsonSchema.conforms(Json.String("hello")),
+          Schema[Int].toJsonSchema.conforms(Json.Number(42)),
           Schema[Boolean].toJsonSchema.conforms(Json.True),
-          Schema[Double].toJsonSchema.conforms(Json.number(3.14))
+          Schema[Double].toJsonSchema.conforms(Json.Number(3.14))
         )
       },
       test("schema rejects non-conforming primitives") {
         assertTrue(
-          !Schema[String].toJsonSchema.conforms(Json.number(42)),
-          !Schema[Int].toJsonSchema.conforms(Json.str("hello")),
-          !Schema[Boolean].toJsonSchema.conforms(Json.number(1))
+          !Schema[String].toJsonSchema.conforms(Json.Number(42)),
+          !Schema[Int].toJsonSchema.conforms(Json.String("hello")),
+          !Schema[Boolean].toJsonSchema.conforms(Json.Number(1))
         )
       },
       test("array schema validates arrays") {
         val jsonSchema = Schema[List[Int]].toJsonSchema
         assertTrue(
-          jsonSchema.conforms(Json.arr(Json.number(1), Json.number(2), Json.number(3))),
-          jsonSchema.conforms(Json.arr()),
-          !jsonSchema.conforms(Json.obj()),
-          !jsonSchema.conforms(Json.str("not an array"))
+          jsonSchema.conforms(Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))),
+          jsonSchema.conforms(Json.Array()),
+          !jsonSchema.conforms(Json.Object()),
+          !jsonSchema.conforms(Json.String("not an array"))
         )
       },
       test("object schema validates objects") {
         val jsonSchema = Schema[Person].toJsonSchema
         assertTrue(
-          jsonSchema.conforms(Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))),
-          !jsonSchema.conforms(Json.arr()),
-          !jsonSchema.conforms(Json.str("not an object"))
+          jsonSchema.conforms(Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))),
+          !jsonSchema.conforms(Json.Array()),
+          !jsonSchema.conforms(Json.String("not an object"))
         )
       }
     )
