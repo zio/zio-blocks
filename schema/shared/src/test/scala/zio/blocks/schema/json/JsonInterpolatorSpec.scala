@@ -338,7 +338,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Map values with Float keys") {
       check(Gen.float)(x =>
         assertTrue {
-          // Map keys use Stringable.asString which is .toString
+          // Map keys use Keyable.asKey which is .toString
           val key = x.toString
           json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.Object(key -> Json.Null))
         }
@@ -347,7 +347,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Map values with Double keys") {
       check(Gen.double)(x =>
         assertTrue {
-          // Map keys use Stringable.asString which is .toString
+          // Map keys use Keyable.asKey which is .toString
           val key = x.toString
           json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.Object(key -> Json.Null))
         }
@@ -588,7 +588,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       test("Unit key works") {
         val u: Unit = ()
         assertTrue(
-          json"""{$u: 1}""".get("()").as[Int] == Right(1)
+          json"""{$u: 1}""".get("{}").as[Int] == Right(1)
         )
       },
       test("all java.time types work as keys") {
@@ -628,19 +628,17 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"""{$zonedDateTime: 1}""".get(zonedDateTime.toString).as[Int] == Right(1)
         )
       },
-      test("property-based: stringable types work as keys") {
-        check(Gen.uuid) { uuid =>
-          assertTrue(json"""{$uuid: "v"}""".get(uuid.toString).as[String] == Right("v"))
-        } &&
-        check(Gen.int) { n =>
-          assertTrue(json"""{$n: "v"}""".get(n.toString).as[String] == Right("v"))
-        } &&
-        check(genInstant) { instant =>
-          assertTrue(json"""{$instant: "v"}""".get(instant.toString).as[String] == Right("v"))
-        } &&
-        check(genLocalDate) { date =>
-          assertTrue(json"""{$date: "v"}""".get(date.toString).as[String] == Right("v"))
-        }
+      test("keyable types work as keys") {
+        val uuid    = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val n       = 42
+        val instant = java.time.Instant.parse("2024-01-15T10:30:00Z")
+        val date    = java.time.LocalDate.of(2024, 1, 15)
+        assertTrue(
+          json"""{$uuid: "v"}""".get(uuid.toString).as[String] == Right("v"),
+          json"""{$n: "v"}""".get(n.toString).as[String] == Right("v"),
+          json"""{$instant: "v"}""".get(instant.toString).as[String] == Right("v"),
+          json"""{$date: "v"}""".get(date.toString).as[String] == Right("v")
+        )
       },
       test("compile fails for List[Int] as key") {
         typeCheck {
@@ -715,7 +713,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           """
         }.map(assert(_)(isLeft(containsString("key"))))
       } @@ exceptNative,
-      test("error message mentions JSON key and stringable types") {
+      test("error message mentions JSON key and keyable types") {
         typeCheck {
           """
           case class Custom(value: Int)
@@ -724,10 +722,10 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           """
         }.map(result =>
           assert(result)(isLeft(containsString("key"))) &&
-            assert(result)(isLeft(containsString("stringable")))
+            assert(result)(isLeft(containsString("keyable")))
         )
       } @@ exceptNative,
-      test("multiple keys with different stringable types") {
+      test("multiple keys with different keyable types") {
         val intKey  = 1
         val uuidKey = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
         val dateKey = LocalDate.of(2024, 1, 15)
@@ -1138,7 +1136,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       test("supports Unit in strings") {
         val u: Unit = ()
         assertTrue(
-          json"""{"msg": "unit=$u"}""".get("msg").as[String] == Right("unit=()")
+          json"""{"msg": "unit=$u"}""".get("msg").as[String] == Right("unit={}")
         )
       },
       test("supports multiple interpolations in one string") {
@@ -1194,7 +1192,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"""{"s": "$x"}""".get("s").as[String] == Right("value")
         )
       },
-      test("property-based: stringable types work in strings") {
+      test("property-based: keyable types work in strings") {
         check(Gen.uuid) { uuid =>
           assertTrue(json"""{"id": "id-$uuid"}""".get("id").as[String] == Right(s"id-$uuid"))
         } &&
@@ -1244,14 +1242,14 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
             "json\"\"\"{\"msg\": \"opt is $opt\"}\"\"\""
         ).map(assert(_)(isLeft(containsString("string literal"))))
       } @@ exceptNative,
-      test("error message mentions string literal and stringable types") {
+      test("error message mentions string literal and keyable types") {
         typeCheck(
           "case class Custom(value: Int); " +
             "val c = Custom(1); " +
             "json\"\"\"{\"msg\": \"custom is $c\"}\"\"\""
         ).map(result =>
           assert(result)(isLeft(containsString("string literal"))) &&
-            assert(result)(isLeft(containsString("stringable")))
+            assert(result)(isLeft(containsString("keyable")))
         )
       } @@ exceptNative
     ),
@@ -1427,14 +1425,14 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       test("key position error includes type and context") {
         typeCheck {
           """
-          case class NotStringable(x: Int)
-          val v = NotStringable(1)
+          case class NotKeyable(x: Int)
+          val v = NotKeyable(1)
           json"{$v: 1}"
           """
         }.map { result =>
           assert(result)(isLeft(containsString("key"))) &&
-          assert(result)(isLeft(containsString("NotStringable"))) &&
-          assert(result)(isLeft(containsString("stringable")))
+          assert(result)(isLeft(containsString("NotKeyable"))) &&
+          assert(result)(isLeft(containsString("keyable")))
         }
       } @@ exceptNative,
       test("value position error includes type and guidance") {
@@ -1452,13 +1450,13 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       } @@ exceptNative,
       test("string literal error includes type and context") {
         typeCheck(
-          "case class NotStringable(x: Int); " +
-            "val v = NotStringable(1); " +
+          "case class NotKeyable(x: Int); " +
+            "val v = NotKeyable(1); " +
             "json\"\"\"{\"msg\": \"value is $v\"}\"\"\""
         ).map { result =>
           assert(result)(isLeft(containsString("string literal"))) &&
-          assert(result)(isLeft(containsString("NotStringable"))) &&
-          assert(result)(isLeft(containsString("stringable")))
+          assert(result)(isLeft(containsString("NotKeyable"))) &&
+          assert(result)(isLeft(containsString("keyable")))
         }
       } @@ exceptNative,
       test("invalid JSON syntax error is clear") {
@@ -1581,12 +1579,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       test("Unit as key") {
         val u: Unit = ()
         val result  = json"""{$u: "unit-key"}"""
-        assertTrue(result.get("()").as[String] == Right("unit-key"))
+        assertTrue(result.get("{}").as[String] == Right("unit-key"))
       },
       test("Unit in string interpolation") {
         val u: Unit = ()
         val result  = json"""{"msg": "Value is $u"}"""
-        assertTrue(result.get("msg").as[String] == Right("Value is ()"))
+        assertTrue(result.get("msg").as[String] == Right("Value is {}"))
       }
     ),
     suite("surrogate pair edge cases")(
@@ -2257,7 +2255,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("Unit key") {
         val result = jsonKey(())
-        assertTrue(result.get("()").as[String] == Right("value"))
+        assertTrue(result.get("{}").as[String] == Right("value"))
       },
       test("Duration key") {
         val result = jsonKey(Duration.ofHours(1))

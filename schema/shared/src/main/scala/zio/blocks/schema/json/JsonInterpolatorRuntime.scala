@@ -9,7 +9,7 @@ import scala.annotation.tailrec
  * Shared runtime utilities for JSON string interpolation. Used by both Scala 2
  * and Scala 3 macro implementations.
  */
-object JsonInterpolatorRuntime {
+private[json] object JsonInterpolatorRuntime {
 
   /**
    * Validates a JSON literal at compile time with context-aware placeholder
@@ -119,7 +119,7 @@ object JsonInterpolatorRuntime {
       out.write('"')
       JsonBinaryCodec.bigIntCodec.encode(bi, out)
       out.write('"')
-    case _: Unit               => JsonBinaryCodec.stringCodec.encode("()", out)
+    case _: Unit               => JsonBinaryCodec.stringCodec.encode("{}", out)
     case d: Duration           => JsonBinaryCodec.durationCodec.encode(d, out)
     case dow: DayOfWeek        => JsonBinaryCodec.dayOfWeekCodec.encode(dow, out)
     case i: Instant            => JsonBinaryCodec.instantCodec.encode(i, out)
@@ -145,8 +145,8 @@ object JsonInterpolatorRuntime {
   }
 
   /**
-   * Writes a stringable value inside a JSON string context (without quotes, as
-   * the quotes are part of the literal context).
+   * Writes a keyable value inside a JSON string context (without quotes, as the
+   * quotes are part of the literal context).
    */
   private[this] def writeInString(out: ByteArrayOutputStream, value: Any): Unit = value match {
     case s: String             => writeRawString(out, s)

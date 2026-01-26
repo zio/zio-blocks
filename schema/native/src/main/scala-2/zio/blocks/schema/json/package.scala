@@ -35,18 +35,18 @@ private object JsonInterpolatorMacros {
         val argType = argExpr.actualType.widen
         ctx match {
           case InterpolationContext.Key =>
-            val stringableTc       = typeOf[Stringable[_]].typeConstructor
-            val stringableType     = appliedType(stringableTc, argType)
-            val stringableInstance = c.inferImplicitValue(stringableType, silent = true)
-            if (stringableInstance == EmptyTree) {
+            val keyableTc       = typeOf[Keyable[_]].typeConstructor
+            val keyableType     = appliedType(keyableTc, argType)
+            val keyableInstance = c.inferImplicitValue(keyableType, silent = true)
+            if (keyableInstance == EmptyTree) {
               c.abort(
                 argExpr.tree.pos,
                 s"Type $argType cannot be used as JSON key. " +
-                  "Only stringable types (primitives, UUID, dates, etc.) are allowed."
+                  "Only keyable types (primitives, UUID, dates, etc.) are allowed."
               )
             }
-            // Pre-convert to String using Stringable
-            q"$stringableInstance.asString(${argExpr.tree})"
+            // Pre-convert to String using Keyable
+            q"$keyableInstance.asKey(${argExpr.tree})"
 
           case InterpolationContext.Value =>
             val encoderTc       = typeOf[JsonEncoder[_]].typeConstructor
@@ -68,19 +68,19 @@ private object JsonInterpolatorMacros {
             }"""
 
           case InterpolationContext.InString =>
-            // Validate Stringable[A] for inside-string interpolation
-            val stringableTc       = typeOf[Stringable[_]].typeConstructor
-            val stringableType     = appliedType(stringableTc, argType)
-            val stringableInstance = c.inferImplicitValue(stringableType, silent = true)
-            if (stringableInstance == EmptyTree) {
+            // Validate Keyable[A] for inside-string interpolation
+            val keyableTc       = typeOf[Keyable[_]].typeConstructor
+            val keyableType     = appliedType(keyableTc, argType)
+            val keyableInstance = c.inferImplicitValue(keyableType, silent = true)
+            if (keyableInstance == EmptyTree) {
               c.abort(
                 argExpr.tree.pos,
                 s"Type $argType cannot be used inside a JSON string literal. " +
-                  "Only stringable types (primitives, UUID, dates, etc.) are allowed."
+                  "Only keyable types (primitives, UUID, dates, etc.) are allowed."
               )
             }
-            // Pre-convert to String using Stringable
-            q"$stringableInstance.asString(${argExpr.tree})"
+            // Pre-convert to String using Keyable
+            q"$keyableInstance.asKey(${argExpr.tree})"
         }
       }
     } else {

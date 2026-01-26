@@ -35,21 +35,21 @@ package object json {
         val argType = argExpr.asTerm.tpe.widen
         ctx match {
           case InterpolationContext.Key =>
-            val stringableTc   = TypeRepr.of[Stringable]
-            val stringableType = stringableTc.appliedTo(argType)
-            Implicits.search(stringableType) match {
+            val keyableTc   = TypeRepr.of[Keyable]
+            val keyableType = keyableTc.appliedTo(argType)
+            Implicits.search(keyableType) match {
               case success: ImplicitSearchSuccess =>
-                // Pre-convert to String using Stringable
+                // Pre-convert to String using Keyable
                 argType.asType match {
                   case '[t] =>
-                    val stringableExpr = success.tree.asExprOf[Stringable[t]]
-                    val typedArgExpr   = argExpr.asExprOf[t]
-                    '{ $stringableExpr.asString($typedArgExpr) }
+                    val keyableExpr  = success.tree.asExprOf[Keyable[t]]
+                    val typedArgExpr = argExpr.asExprOf[t]
+                    '{ $keyableExpr.asKey($typedArgExpr) }
                 }
               case _: ImplicitSearchFailure =>
                 report.errorAndAbort(
                   s"Type ${argType.show} cannot be used as JSON key. " +
-                    "Only stringable types (primitives, UUID, dates, etc.) are allowed."
+                    "Only keyable types (primitives, UUID, dates, etc.) are allowed."
                 )
             }
           case InterpolationContext.Value =>
@@ -75,22 +75,22 @@ package object json {
                 )
             }
           case InterpolationContext.InString =>
-            // Validate Stringable[A] for inside-string interpolation
-            val stringableTc   = TypeRepr.of[Stringable]
-            val stringableType = stringableTc.appliedTo(argType)
-            Implicits.search(stringableType) match {
+            // Validate Keyable[A] for inside-string interpolation
+            val keyableTc   = TypeRepr.of[Keyable]
+            val keyableType = keyableTc.appliedTo(argType)
+            Implicits.search(keyableType) match {
               case success: ImplicitSearchSuccess =>
-                // Pre-convert to String using Stringable
+                // Pre-convert to String using Keyable
                 argType.asType match {
                   case '[t] =>
-                    val stringableExpr = success.tree.asExprOf[Stringable[t]]
-                    val typedArgExpr   = argExpr.asExprOf[t]
-                    '{ $stringableExpr.asString($typedArgExpr) }
+                    val keyableExpr  = success.tree.asExprOf[Keyable[t]]
+                    val typedArgExpr = argExpr.asExprOf[t]
+                    '{ $keyableExpr.asKey($typedArgExpr) }
                 }
               case _: ImplicitSearchFailure =>
                 report.errorAndAbort(
                   s"Type ${argType.show} cannot be used inside a JSON string literal. " +
-                    "Only stringable types (primitives, UUID, dates, etc.) are allowed."
+                    "Only keyable types (primitives, UUID, dates, etc.) are allowed."
                 )
             }
         }

@@ -10,7 +10,7 @@ import scala.collection.mutable
  * interpolation occurs in key position, value position, or inside a string
  * literal.
  */
-object ContextDetector {
+private[json] object ContextDetector {
 
   /**
    * Analyzes StringContext parts and returns the context for each

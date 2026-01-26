@@ -173,8 +173,8 @@ object JsonEncoder {
         )
     }
 
-  implicit def mapWithStringableKeyEncoder[K, V](implicit
-    keyStringable: Stringable[K],
+  implicit def mapWithKeyableKeyEncoder[K, V](implicit
+    keyKeyable: Keyable[K],
     valueEncoder: JsonEncoder[V]
   ): JsonEncoder[Map[K, V]] =
     new JsonEncoder[Map[K, V]] {
@@ -182,7 +182,7 @@ object JsonEncoder {
         new Json.Object(
           map
             .foldLeft(Chunk.newBuilder[(String, Json)]) { (acc, kv) =>
-              acc.addOne((keyStringable.asString(kv._1), valueEncoder.encode(kv._2)))
+              acc.addOne((keyKeyable.asKey(kv._1), valueEncoder.encode(kv._2)))
             }
             .result()
         )
