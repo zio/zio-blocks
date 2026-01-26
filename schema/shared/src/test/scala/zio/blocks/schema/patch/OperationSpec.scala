@@ -604,10 +604,16 @@ object OperationSpec extends SchemaBaseSpec {
           """{"Set":{"value":true}}"""
         )
       },
-      test("Null/Unit primitive in DynamicValue") {
+      test("Null in DynamicValue") {
         roundTrip(
-          Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Unit)): Patch.Operation,
+          Patch.Operation.Set(DynamicValue.Null): Patch.Operation,
           """{"Set":{"value":null}}"""
+        )
+      },
+      test("Unit primitive in DynamicValue encodes as empty object") {
+        encode(
+          Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Unit)): Patch.Operation,
+          """{"Set":{"value":{}}}"""
         )
       }
     )
