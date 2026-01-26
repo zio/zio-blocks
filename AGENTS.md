@@ -24,6 +24,7 @@ Examples use `<module>` as placeholder — substitute the actual project (e.g., 
 - If editing `js/` or `native/`: include that platform
 
 **Stage 2 — Coverage** (once, replaces final test run)
+- **Before pushing: final test run MUST use coverage, not plain `test`**
 - Modified module(s) only: `sbt "<module>JVM/coverage; <module>JVM/test; <module>JVM/coverageReport"`
 - Add tests until coverage minimums met (see build.sbt for thresholds)
 - This IS the test run — no separate test step needed
