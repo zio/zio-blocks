@@ -35,12 +35,13 @@ object UnionTypesSpec extends ZIOSpecDefault {
       val schema     = Schema.derived[Result]
       val structural = schema.structural
       val typeName   = structural.reflect.typeName.name
-      val caseTypes  = typeName.split('|').map(_.trim).toSet
 
       assertTrue(
-        caseTypes.size == 2,
-        caseTypes.exists(t => t.contains("Tag:\"Success\"")),
-        caseTypes.exists(t => t.contains("Tag:\"Failure\""))
+        typeName.contains("|"),
+        typeName.contains("Tag:\"Success\""),
+        typeName.contains("Tag:\"Failure\""),
+        typeName.contains("value:Int"),
+        typeName.contains("error:String")
       )
     }
   )

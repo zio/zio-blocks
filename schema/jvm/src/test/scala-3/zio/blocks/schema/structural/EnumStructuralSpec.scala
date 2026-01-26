@@ -30,8 +30,10 @@ object EnumStructuralSpec extends ZIOSpecDefault {
         val structural = schema.structural
         val typeName   = structural.reflect.typeName.name
         assertTrue(
-          typeName.contains("Blue") || typeName.contains("Red") || typeName.contains("Green"),
-          typeName.contains("|") || typeName.contains("Tag")
+          typeName.contains("Tag:\"Red\""),
+          typeName.contains("Tag:\"Green\""),
+          typeName.contains("Tag:\"Blue\""),
+          typeName.contains("|")
         )
       },
       test("parameterized enum converts to structural union type") {
@@ -39,8 +41,13 @@ object EnumStructuralSpec extends ZIOSpecDefault {
         val structural = schema.structural
         val typeName   = structural.reflect.typeName.name
         assertTrue(
-          typeName.contains("Circle") || typeName.contains("Rectangle") || typeName.contains("Triangle"),
-          typeName.contains("radius") || typeName.contains("width") || typeName.contains("base")
+          typeName.contains("Tag:\"Circle\""),
+          typeName.contains("Tag:\"Rectangle\""),
+          typeName.contains("Tag:\"Triangle\""),
+          typeName.contains("radius:Double"),
+          typeName.contains("width:Double"),
+          typeName.contains("base:Double"),
+          typeName.contains("|")
         )
       },
       test("structural enum schema is still a Variant") {
