@@ -76,9 +76,12 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     else sb.toString
   }
 
-  /** Renders this optic path using Scala-style method syntax (e.g., `.when[Case]`, `.each`, `.atKey(<key>)`). This is
-    * used for typed Optic error messages, as opposed to `toString` which uses the compact interpolator syntax.
-    */
+  /**
+   * Renders this optic path using Scala-style method syntax (e.g.,
+   * `.when[Case]`, `.each`, `.atKey(<key>)`). This is used for typed Optic
+   * error messages, as opposed to `toString` which uses the compact
+   * interpolator syntax.
+   */
   lazy val toScalaString: String = {
     val sb  = new StringBuilder
     val len = nodes.length
