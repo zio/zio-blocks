@@ -3,7 +3,42 @@ package zio.blocks.schema
 import zio.blocks.schema.json.Json
 import zio.blocks.schema.patch.{DynamicPatch, Differ}
 
+/**
+ * A schema-less, dynamically-typed representation of any value.
+ *
+ * `DynamicValue` provides a universal data model that can represent any
+ * structured value without requiring compile-time type information. It serves
+ * as an intermediate representation for serialization, schema evolution, data
+ * transformation, and cross-format conversion.
+ *
+ * The ADT consists of six cases:
+ *   - [[DynamicValue.Primitive]] - Scalar values (strings, numbers, booleans,
+ *     temporal types, etc.)
+ *   - [[DynamicValue.Record]] - Named fields, analogous to case classes or JSON
+ *     objects
+ *   - [[DynamicValue.Variant]] - Tagged unions, analogous to sealed traits
+ *   - [[DynamicValue.Sequence]] - Ordered collections (lists, arrays, vectors)
+ *   - [[DynamicValue.Map]] - Key-value pairs where keys are also DynamicValues
+ *   - [[DynamicValue.Null]] - Represents absence of a value
+ *
+ * Navigation and modification use [[DynamicOptic]], a path-based lens system
+ * for traversing and updating nested structures.
+ *
+ * @see
+ *   [[Schema.toDynamicValue]] for converting typed values to DynamicValue
+ * @see
+ *   [[Schema.fromDynamicValue]] for converting DynamicValue back to typed
+ *   values
+ * @see
+ *   [[DynamicOptic]] for path-based navigation
+ */
 sealed trait DynamicValue {
+
+  /**
+   * Returns a numeric index representing this value's type, used for ordering
+   * values of different types. The ordering is: Primitive(0) < Record(1) <
+   * Variant(2) < Sequence(3) < Map(4) < Null(5).
+   */
   def typeIndex: Int
 
   def compare(that: DynamicValue): Int
@@ -16,6 +51,14 @@ sealed trait DynamicValue {
 
   final def <=(that: DynamicValue): Boolean = compare(that) <= 0
 
+  /**
+   * Computes the difference between this DynamicValue and another, producing a
+   * [[DynamicPatch]] that can transform this value into `that`.
+   *
+   * The diff algorithm produces minimal patches using type-appropriate
+   * operations: numeric deltas for numbers, string edit operations for text,
+   * and structural diffs for records, sequences, and maps.
+   */
   def diff(that: DynamicValue): DynamicPatch = DynamicValue.diff(this, that)
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -381,6 +424,13 @@ object DynamicValue {
   // ADT Cases
   // ─────────────────────────────────────────────────────────────────────────
 
+  /**
+   * A scalar value wrapped in a [[PrimitiveValue]].
+   *
+   * Primitives include strings, booleans, all numeric types (Int, Long, Double,
+   * Float, Short, Byte, BigInt, BigDecimal), temporal types (Instant, Duration,
+   * LocalDate, etc.), UUID, Char, and Unit.
+   */
   case class Primitive(value: PrimitiveValue) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
       case Primitive(thatValue) => value == thatValue
@@ -407,6 +457,13 @@ object DynamicValue {
     }
   }
 
+  /**
+   * A collection of named fields, analogous to a case class or JSON object.
+   *
+   * Field order is preserved and significant for equality comparison. Use
+   * [[DynamicValue.sortFields]] to normalize field ordering for
+   * order-independent comparison.
+   */
   final case class Record(override val fields: Vector[(String, DynamicValue)]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
       case Record(thatFields) =>
@@ -469,6 +526,12 @@ object DynamicValue {
     def apply(fields: (String, DynamicValue)*): Record = new Record(fields.toVector)
   }
 
+  /**
+   * A tagged union value, analogous to a sealed trait with case classes.
+   *
+   * Contains a case name identifying which variant is active and the
+   * associated value for that case.
+   */
   final case class Variant(caseNameValue: String, value: DynamicValue) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
       case Variant(thatCaseName, thatValue) => caseNameValue == thatCaseName && value == thatValue
@@ -504,6 +567,11 @@ object DynamicValue {
     }
   }
 
+  /**
+   * An ordered collection of values, analogous to a List, Array, or Vector.
+   *
+   * Element order is preserved and significant for equality comparison.
+   */
   final case class Sequence(override val elements: Vector[DynamicValue]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
       case Sequence(thatElements) =>
@@ -558,6 +626,14 @@ object DynamicValue {
     def apply(elements: DynamicValue*): Sequence = new Sequence(elements.toVector)
   }
 
+  /**
+   * A collection of key-value pairs where both keys and values are
+   * DynamicValues.
+   *
+   * Unlike [[Record]] which uses String keys, Map supports arbitrary
+   * DynamicValue keys. Entry order is preserved and significant for equality
+   * comparison. Use [[DynamicValue.sortMapKeys]] to normalize key ordering.
+   */
   final case class Map(override val entries: Vector[(DynamicValue, DynamicValue)]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
       case Map(thatEntries) =>
@@ -620,6 +696,12 @@ object DynamicValue {
     def apply(entries: (DynamicValue, DynamicValue)*): Map = new Map(entries.toVector)
   }
 
+  /**
+   * Represents the absence of a value.
+   *
+   * Analogous to JSON null or Scala's None. Use [[DynamicValue.dropNulls]] to
+   * recursively remove Null values from containers.
+   */
   case object Null extends DynamicValue {
     def typeIndex: Int = 5
 
