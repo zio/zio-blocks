@@ -4,51 +4,95 @@ import zio.blocks.schema.DynamicOptic
 
 /**
  * Strategy for merging two JSON values.
+ *
+ * A `MergeStrategy` is a function `(DynamicOptic, Json, Json) => Json` that
+ * determines how to merge two JSON values at a given path. The [[recurse]]
+ * method controls whether the merge driver should descend into containers
+ * (objects/arrays) or call [[apply]] directly.
+ *
+ * When [[recurse]] returns `true` for a container type:
+ *   - Objects are merged by key (union of keys, recursive merge on shared keys)
+ *   - Arrays are merged by index (union of indices, recursive merge on shared
+ *     indices)
+ *
+ * When [[recurse]] returns `false`, [[apply]] is called with the container
+ * values directly.
  */
-sealed trait MergeStrategy
+sealed trait MergeStrategy extends ((DynamicOptic, Json, Json) => Json) {
+
+  /**
+   * Determines whether the merge driver should recurse into a container (object
+   * or array) at the given path.
+   *
+   * If true, the driver merges by key (objects) or by index (arrays),
+   * recursively calling merge on each child pair.
+   *
+   * If false, the driver calls [[apply]] with the container values directly.
+   */
+  def recurse(path: DynamicOptic, jsonType: JsonType): Boolean
+}
 
 object MergeStrategy {
 
   /**
-   * Automatically determines the best merge strategy based on the types of
-   * values:
-   *   - Objects are merged deeply (recursively)
-   *   - Arrays are concatenated
-   *   - Other values are replaced
+   * Deep merge: recursively merge all objects and arrays. Objects merge by key,
+   * arrays merge by index (not concatenation). At leaves, right value wins.
    */
-  case object Auto extends MergeStrategy
+  case object Auto extends MergeStrategy {
+    def recurse(path: DynamicOptic, jsonType: JsonType): Boolean = true
+    def apply(path: DynamicOptic, left: Json, right: Json): Json = right
+  }
 
   /**
-   * Recursively merges objects. For non-object values, the right-hand side
-   * replaces the left-hand side. Arrays are concatenated.
+   * Complete replacement: no merging at any level. Right value completely
+   * replaces left value.
    */
-  case object Deep extends MergeStrategy
+  case object Replace extends MergeStrategy {
+    def recurse(path: DynamicOptic, jsonType: JsonType): Boolean = false
+    def apply(path: DynamicOptic, left: Json, right: Json): Json = right
+  }
 
   /**
-   * Performs a shallow merge of objects (only top-level keys). Nested objects
-   * are replaced rather than merged. Arrays are concatenated.
+   * Shallow merge: merge only at the root level, no recursion. Top-level object
+   * keys or array indices are merged, but nested containers are replaced (right
+   * wins).
    */
-  case object Shallow extends MergeStrategy
+  case object Shallow extends MergeStrategy {
+    def recurse(path: DynamicOptic, jsonType: JsonType): Boolean =
+      path.nodes.isEmpty
+    def apply(path: DynamicOptic, left: Json, right: Json): Json = right
+  }
 
   /**
-   * The right-hand side value completely replaces the left-hand side value.
+   * Concatenate arrays instead of merging by index. Objects are still merged by
+   * key recursively.
    */
-  case object Replace extends MergeStrategy
+  case object Concat extends MergeStrategy {
+    def recurse(path: DynamicOptic, jsonType: JsonType): Boolean =
+      jsonType == JsonType.Object
+    def apply(path: DynamicOptic, left: Json, right: Json): Json =
+      (left, right) match {
+        case (la: Json.Array, ra: Json.Array) =>
+          new Json.Array(la.value ++ ra.value)
+        case _ => right
+      }
+  }
 
   /**
-   * For arrays, concatenates them. For objects, merges keys. For other types,
-   * replaces with the right-hand side.
-   */
-  case object Concat extends MergeStrategy
-
-  /**
-   * Custom merge strategy that allows full control over how values are merged.
-   * The function receives the path to the current location, the left value, and
-   * the right value, and returns the merged result.
+   * Custom merge strategy with full control over recursion and merging.
    *
    * @param f
    *   A function that takes (path, left, right) and returns the merged JSON
    *   value
+   * @param r
+   *   A function that determines whether to recurse into containers (default:
+   *   always recurse)
    */
-  final case class Custom(f: (DynamicOptic, Json, Json) => Json) extends MergeStrategy
+  final case class Custom(
+    f: (DynamicOptic, Json, Json) => Json,
+    r: (DynamicOptic, JsonType) => Boolean = (_, _) => true
+  ) extends MergeStrategy {
+    def recurse(path: DynamicOptic, jsonType: JsonType): Boolean = r(path, jsonType)
+    def apply(path: DynamicOptic, left: Json, right: Json): Json = f(path, left, right)
+  }
 }
