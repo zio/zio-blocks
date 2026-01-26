@@ -444,6 +444,76 @@ object Tree {
 }
 ```
 
+## Debug-Friendly toString
+
+`Reflect` types have a custom `toString` that produces a human-readable SDL (Schema Definition Language) format. This makes debugging schemas much easier compared to the default case class output.
+
+```scala
+import zio.blocks.schema._
+
+case class Person(name: String, age: Int, address: Address)
+case class Address(street: String, city: String)
+
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+println(Schema[Person].reflect)
+// Output:
+// record Person {
+//   name: String
+//   age: Int
+//   address: record Address {
+//     street: String
+//     city: String
+//   }
+// }
+```
+
+**Format by Reflect type:**
+
+| Type | Format |
+|------|--------|
+| `Primitive` | Type name (e.g., `String`, `Int`, `java.time.Instant`) |
+| `Record` | `record Name { fields... }` |
+| `Variant` | `variant Name { \| Case1 \| Case2... }` |
+| `Sequence` | `sequence List[Element]` or multiline for complex elements |
+| `Map` | `map Map[Key, Value]` or multiline for complex types |
+| `Wrapper` | `wrapper Name(underlying)` |
+| `Deferred` | `deferred => TypeName` (breaks recursive cycles) |
+| `Dynamic` | `DynamicValue` |
+
+**Variant example:**
+
+```scala
+sealed trait PaymentMethod
+case object Cash extends PaymentMethod
+case class CreditCard(number: String, cvv: String) extends PaymentMethod
+
+// toString output:
+// variant PaymentMethod {
+//   | Cash
+//   | CreditCard(
+//       number: String,
+//       cvv: String
+//     )
+// }
+```
+
+**Recursive type example:**
+
+```scala
+case class Tree(value: Int, children: List[Tree])
+
+// toString output:
+// record Tree {
+//   value: Int
+//   children: sequence List[
+//     deferred => Tree
+//   ]
+// }
+```
+
 ## Auto-Derivation
 
 While you can manually construct `Reflect` instances as shown in the examples above, ZIO Blocks provides powerful auto-derivation capabilities that can automatically generate `Schema` instances (and thus `Reflect` instances) for most Scala types using macros and implicit resolution.

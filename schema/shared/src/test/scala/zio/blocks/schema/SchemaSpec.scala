@@ -1534,7 +1534,7 @@ object SchemaSpec extends SchemaBaseSpec {
       test("encodes values using provided formats and outputs") {
         assert(encodeToString { out =>
           Schema[DynamicValue].encode(ToStringFormat)(out)(DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        })(equalTo("Primitive(Int(1))"))
+        })(equalTo("1"))
       }
     ),
     suite("Reflect.Deferred")(
@@ -1995,7 +1995,7 @@ object SchemaSpec extends SchemaBaseSpec {
       extends TextFormat(
         "text/plain",
         new Deriver[TextCodec] {
-          override def derivePrimitive[F[_, _], A](
+          override def derivePrimitive[A](
             primitiveType: PrimitiveType[A],
             typeName: TypeName[A],
             binding: Binding[BindingType.Primitive, A],

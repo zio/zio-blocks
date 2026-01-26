@@ -323,6 +323,11 @@ object Lens {
     lazy val toDynamic: DynamicOptic =
       new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Field(term.name))))
 
+    override def toString: String = {
+      val path = focusTerms.map(term => s".${term.name}").mkString
+      s"Lens(_$path)"
+    }
+
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
 
@@ -503,6 +508,11 @@ object Prism {
 
     lazy val toDynamic: DynamicOptic =
       new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Case(term.name))))
+
+    override def toString: String = {
+      val path = focusTerms.map(term => s".when[${term.name}]").mkString
+      s"Prism(_$path)"
+    }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
@@ -1187,6 +1197,29 @@ object Optional {
       }
       nodes.result()
     })
+
+    override def toString: String = {
+      if (bindings eq null) init()
+      val sb  = new StringBuilder
+      val len = bindings.length
+      var idx = 0
+      while (idx < len) {
+        bindings(idx) match {
+          case _: LensBinding =>
+            sb.append('.').append(focusTerms(idx).name)
+          case _: PrismBinding =>
+            sb.append(".when[").append(focusTerms(idx).name).append(']')
+          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            sb.append(".wrapped[").append(focus.typeName.toString).append(']')
+          case at: AtBinding[Col] @scala.unchecked =>
+            sb.append(".at(").append(at.index).append(')')
+          case _ =>
+            sb.append(".atKey(<key>)")
+        }
+        idx += 1
+      }
+      s"Optional(_${sb.toString})"
+    }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]]) ^
@@ -2861,6 +2894,39 @@ object Traversal {
       }
       nodes.result()
     })
+
+    override def toString: String = {
+      if (bindings eq null) init()
+      val sb  = new StringBuilder
+      val len = bindings.length
+      var idx = 0
+      while (idx < len) {
+        bindings(idx) match {
+          case _: LensBinding =>
+            sb.append('.').append(focusTerms(idx).name)
+          case _: PrismBinding =>
+            sb.append(".when[").append(focusTerms(idx).name).append(']')
+          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            sb.append(".wrapped[").append(focus.typeName.toString).append(']')
+          case at: AtBinding[Col] @scala.unchecked =>
+            sb.append(".at(").append(at.index).append(')')
+          case _: AtKeyBinding[Key, Map] @scala.unchecked =>
+            sb.append(".atKey(<key>)")
+          case _: AtIndicesBinding[Col] @scala.unchecked =>
+            sb.append(".atIndices(<indices>)")
+          case _: AtKeysBinding[Key, Map] @scala.unchecked =>
+            sb.append(".atKeys(<keys>)")
+          case _: SeqBinding[Col] @scala.unchecked =>
+            sb.append(".each")
+          case _: MapKeyBinding[Map] @scala.unchecked =>
+            sb.append(".eachKey")
+          case _ =>
+            sb.append(".eachValue")
+        }
+        idx += 1
+      }
+      s"Traversal(_${sb.toString})"
+    }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]]) ^

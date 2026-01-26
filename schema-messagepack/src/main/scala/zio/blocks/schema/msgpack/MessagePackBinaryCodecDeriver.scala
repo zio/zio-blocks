@@ -8,7 +8,7 @@ import scala.util.control.NonFatal
 object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   import MessagePackBinaryCodec._
 
-  override def derivePrimitive[F[_, _], A](
+  override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeName: TypeName[A],
     binding: Binding[BindingType.Primitive, A],

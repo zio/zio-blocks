@@ -13,7 +13,7 @@ object AvroFormat
     extends BinaryFormat(
       "application/avro",
       new Deriver[AvroBinaryCodec] {
-        override def derivePrimitive[F[_, _], A](
+        override def derivePrimitive[A](
           primitiveType: PrimitiveType[A],
           typeName: TypeName[A],
           binding: Binding[BindingType.Primitive, A],

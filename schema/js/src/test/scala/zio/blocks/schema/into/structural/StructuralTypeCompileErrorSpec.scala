@@ -1,5 +1,6 @@
 package zio.blocks.schema.into.structural
 
+import zio.blocks.schema._
 import zio.test._
 
 /**
@@ -7,7 +8,7 @@ import zio.test._
  *
  *   - Structural → Product: Requires reflection, fails at compile time on JS
  */
-object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
+object StructuralTypeCompileErrorSpec extends SchemaBaseSpec {
 
   def spec = suite("StructuralTypeCompileErrorSpec")(
     suite("Structural to Product - Compile Error on JS")(

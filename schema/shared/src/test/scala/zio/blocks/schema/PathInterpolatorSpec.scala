@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.test._
 import zio.test.Assertion._
 
-object PathInterpolatorSpec extends ZIOSpecDefault {
+object PathInterpolatorSpec extends SchemaBaseSpec {
   import DynamicOptic.Node
 
   def spec = suite("PathInterpolatorSpec")(

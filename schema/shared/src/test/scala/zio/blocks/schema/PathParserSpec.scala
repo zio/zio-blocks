@@ -2,7 +2,7 @@ package zio.blocks.schema
 
 import zio.test._
 
-object PathParserSpec extends ZIOSpecDefault {
+object PathParserSpec extends SchemaBaseSpec {
   import PathParser._
   import PathParser.ParseError._
   import DynamicOptic.Node

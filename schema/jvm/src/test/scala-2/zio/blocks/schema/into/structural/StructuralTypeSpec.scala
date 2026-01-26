@@ -15,7 +15,7 @@ import scala.language.reflectiveCalls
  * The Product → Structural direction works cross-platform (see DynamicTypeSpec)
  * because it generates an anonymous Dynamic class at compile time.
  */
-object StructuralTypeSpec extends ZIOSpecDefault {
+object StructuralTypeSpec extends SchemaBaseSpec {
 
   // === Target Case Classes ===
   case class Person(name: String, age: Int)

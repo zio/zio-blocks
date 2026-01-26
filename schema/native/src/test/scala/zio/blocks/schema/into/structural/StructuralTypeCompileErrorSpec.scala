@@ -1,11 +1,12 @@
 package zio.blocks.schema.into.structural
 
+import zio.blocks.schema._
 import zio.test._
 
 /**
  * Tests that structural type conversions fail at compile time on Scala Native.
  */
-object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
+object StructuralTypeCompileErrorSpec extends SchemaBaseSpec {
 
   def spec = suite("StructuralTypeCompileErrorSpec")(
     suite("Structural to Product - Compile Error on Native")(
