@@ -14,6 +14,23 @@ import zio.blocks.schema._
 extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[A, B, Handled, Provided]) {
 
   /**
+   * Builds the migration with compile-time validation.
+   *
+   * This method only compiles when the migration is complete:
+   *   - All fields removed from source (in A but not B) must be handled
+   *   - All fields added to target (in B but not A) must be provided
+   *
+   * Fields that exist in both schemas are automatically considered handled/provided.
+   *
+   * @return
+   *   A complete, validated Migration[A, B]
+   */
+  inline def buildChecked(using
+      proof: ValidationProof[A, B, Handled, Provided]
+  ): Migration[A, B] =
+    builder.buildPartial
+
+  /**
    * Adds a field to a record with a default value using selector syntax. Adds
    * the target field name to Provided.
    */
@@ -204,9 +221,14 @@ private[migration] object MigrationBuilderMacrosImpl {
     target: Expr[B => Any],
     default: Expr[SchemaExpr[DynamicValue, ?]]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Tuple.Append[Provided, FieldName]]] = {
-    val optic = MigrationBuilderMacros.extractOptic[B, Any](target)
-    val _     = extractFieldNameAsType[B, Any](target)
-    // The return type is refined by the macro's declared return type
+    import q.reflect.*
+    val optic     = MigrationBuilderMacros.extractOptic[B, Any](target)
+    val fieldName = extractFieldNameFromSelector(target.asTerm)
+
+    // Create literal type for field name
+    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    given Type[FieldName] = fieldNameType
+
     '{
       $builder
         .addField($optic, $default)
@@ -225,7 +247,14 @@ private[migration] object MigrationBuilderMacrosImpl {
     source: Expr[A => Any],
     defaultForReverse: Expr[SchemaExpr[DynamicValue, ?]]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Provided]] = {
-    val optic = MigrationBuilderMacros.extractOptic[A, Any](source)
+    import q.reflect.*
+    val optic     = MigrationBuilderMacros.extractOptic[A, Any](source)
+    val fieldName = extractFieldNameFromSelector(source.asTerm)
+
+    // Create literal type for field name
+    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    given Type[FieldName] = fieldNameType
+
     '{
       $builder
         .dropField($optic, $defaultForReverse)
@@ -245,8 +274,18 @@ private[migration] object MigrationBuilderMacrosImpl {
     from: Expr[A => Any],
     to: Expr[B => Any]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FromName], Tuple.Append[Provided, ToName]]] = {
-    val fromOptic   = MigrationBuilderMacros.extractOptic[A, Any](from)
-    val toFieldName = MigrationBuilderMacros.extractFieldName[B, Any](to)
+    import q.reflect.*
+    val fromOptic    = MigrationBuilderMacros.extractOptic[A, Any](from)
+    val toFieldName  = MigrationBuilderMacros.extractFieldName[B, Any](to)
+    val fromName     = extractFieldNameFromSelector(from.asTerm)
+    val toName       = extractFieldNameFromSelector(to.asTerm)
+
+    // Create literal types for field names
+    val fromNameType = ConstantType(StringConstant(fromName)).asType.asInstanceOf[Type[FromName]]
+    val toNameType   = ConstantType(StringConstant(toName)).asType.asInstanceOf[Type[ToName]]
+    given Type[FromName] = fromNameType
+    given Type[ToName]   = toNameType
+
     '{
       $builder
         .renameField($fromOptic, $toFieldName)
@@ -267,7 +306,14 @@ private[migration] object MigrationBuilderMacrosImpl {
   )(using
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]] = {
-    val optic = MigrationBuilderMacros.extractOptic[A, Any](at)
+    import q.reflect.*
+    val optic     = MigrationBuilderMacros.extractOptic[A, Any](at)
+    val fieldName = extractFieldNameFromSelector(at.asTerm)
+
+    // Create literal type for field name
+    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    given Type[FieldName] = fieldNameType
+
     '{
       $builder
         .transformField($optic, $transform)
@@ -288,7 +334,14 @@ private[migration] object MigrationBuilderMacrosImpl {
   )(using
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]] = {
-    val optic = MigrationBuilderMacros.extractOptic[A, Any](at)
+    import q.reflect.*
+    val optic     = MigrationBuilderMacros.extractOptic[A, Any](at)
+    val fieldName = extractFieldNameFromSelector(at.asTerm)
+
+    // Create literal type for field name
+    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    given Type[FieldName] = fieldNameType
+
     '{
       $builder
         .mandateField($optic, $default)
@@ -309,7 +362,14 @@ private[migration] object MigrationBuilderMacrosImpl {
   )(using
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]] = {
-    val optic = MigrationBuilderMacros.extractOptic[A, Any](at)
+    import q.reflect.*
+    val optic     = MigrationBuilderMacros.extractOptic[A, Any](at)
+    val fieldName = extractFieldNameFromSelector(at.asTerm)
+
+    // Create literal type for field name
+    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    given Type[FieldName] = fieldNameType
+
     '{
       $builder
         .optionalizeField($optic, $defaultForReverse)
@@ -330,7 +390,14 @@ private[migration] object MigrationBuilderMacrosImpl {
   )(using
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]] = {
-    val optic = MigrationBuilderMacros.extractOptic[A, Any](at)
+    import q.reflect.*
+    val optic     = MigrationBuilderMacros.extractOptic[A, Any](at)
+    val fieldName = extractFieldNameFromSelector(at.asTerm)
+
+    // Create literal type for field name
+    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    given Type[FieldName] = fieldNameType
+
     '{
       $builder
         .changeFieldType($optic, $converter)
@@ -350,8 +417,15 @@ private[migration] object MigrationBuilderMacrosImpl {
     sourcePaths: Expr[Seq[A => Any]],
     combiner: Expr[SchemaExpr[DynamicValue, ?]]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Tuple.Append[Provided, TargetName]]] = {
+    import q.reflect.*
     val targetOptic  = MigrationBuilderMacros.extractOptic[B, Any](target)
     val sourceOptics = MigrationBuilderMacros.extractOptics[A, Any](sourcePaths)
+    val targetName   = extractFieldNameFromSelector(target.asTerm)
+
+    // Create literal type for field name
+    val targetNameType = ConstantType(StringConstant(targetName)).asType.asInstanceOf[Type[TargetName]]
+    given Type[TargetName] = targetNameType
+
     '{
       $builder
         .joinFields($targetOptic, $sourceOptics, $combiner)
@@ -371,8 +445,15 @@ private[migration] object MigrationBuilderMacrosImpl {
     targetPaths: Expr[Seq[B => Any]],
     splitter: Expr[SchemaExpr[DynamicValue, ?]]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, SourceName], Provided]] = {
+    import q.reflect.*
     val sourceOptic  = MigrationBuilderMacros.extractOptic[A, Any](source)
     val targetOptics = MigrationBuilderMacros.extractOptics[B, Any](targetPaths)
+    val sourceName   = extractFieldNameFromSelector(source.asTerm)
+
+    // Create literal type for field name
+    val sourceNameType = ConstantType(StringConstant(sourceName)).asType.asInstanceOf[Type[SourceName]]
+    given Type[SourceName] = sourceNameType
+
     '{
       $builder
         .splitField($sourceOptic, $targetOptics, $splitter)
@@ -431,32 +512,30 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
   }
 
-  // Helper to extract field name as a type - this is needed for type-level tracking
-  private def extractFieldNameAsType[A: Type, B: Type](
-    selector: Expr[A => B]
-  )(using q: Quotes): String = {
+  // Helper to extract field name from selector expression
+  private def extractFieldNameFromSelector(using q: Quotes)(term: q.reflect.Term): String = {
     import q.reflect.*
 
-    def toPathBody(term: Term): Term = term match {
+    def toPathBody(t: Term): Term = t match {
       case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
       case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
       case _                                               =>
-        report.errorAndAbort(s"Expected a lambda expression, got '${term.show}'", term.pos)
+        report.errorAndAbort(s"Expected a lambda expression, got '${t.show}'", t.pos)
     }
 
-    def extractLastFieldName(term: Term): String = term match {
+    def extractLastFieldName(t: Term): String = t match {
       case Select(_, fieldName) => fieldName
       case Typed(expr, _)       => extractLastFieldName(expr)
       case _: Ident             =>
-        report.errorAndAbort("Selector must access a field", term.pos)
+        report.errorAndAbort("Selector must access a field", t.pos)
       case _ =>
         report.errorAndAbort(
-          s"Unsupported selector pattern: '${term.show}'. Only simple field access is supported",
-          term.pos
+          s"Unsupported selector pattern: '${t.show}'. Only simple field access is supported",
+          t.pos
         )
     }
 
-    val pathBody = toPathBody(selector.asTerm)
+    val pathBody = toPathBody(term)
     extractLastFieldName(pathBody)
   }
 }
