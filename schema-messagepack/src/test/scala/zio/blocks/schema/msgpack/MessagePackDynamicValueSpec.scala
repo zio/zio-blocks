@@ -165,6 +165,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
   )
 
   def normalize(value: DynamicValue): DynamicValue = value match {
+    case Primitive(PrimitiveValue.Unit)     => Record(Vector.empty)
     case Primitive(PrimitiveValue.Byte(b))  => Primitive(PrimitiveValue.Long(b.toLong))
     case Primitive(PrimitiveValue.Short(s)) => Primitive(PrimitiveValue.Long(s.toLong))
     case Primitive(PrimitiveValue.Int(i))   => Primitive(PrimitiveValue.Long(i.toLong))
