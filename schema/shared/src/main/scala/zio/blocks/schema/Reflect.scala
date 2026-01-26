@@ -1749,7 +1749,10 @@ case class Deferred[F[_, _], A](
     new Record(Vector(new Term("value", element)), typeId, F.fromBinding(Binding.Record.right))
   }
 
-  def either[F[_, _], A, B](l: Reflect[F, A], r: Reflect[F, B])(implicit F: FromBinding[F]): Variant[F, Either[A, B]] = {
+  def either[F[_, _], A, B](
+    l: Reflect[F, A],
+    r: Reflect[F, B]
+  )(implicit F: FromBinding[F]): Variant[F, Either[A, B]] = {
     val typeId = zio.blocks.typeid.TypeId.applied[Either[A, B]](
       zio.blocks.typeid.TypeId.either,
       zio.blocks.typeid.TypeRepr.Ref(l.typeId),

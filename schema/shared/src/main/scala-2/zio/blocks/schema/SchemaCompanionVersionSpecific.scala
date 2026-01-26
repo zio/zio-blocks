@@ -130,7 +130,7 @@ private object SchemaCompanionVersionSpecific {
       else {
         val ownerChainOf = (s: Symbol) => Iterator.iterate(s)(_.owner).takeWhile(_ != NoSymbol).toArray.reverseIterator
         val path         = ownerChainOf(tpe.typeSymbol)
-          .zipAll(ownerChainOf(enclosingOwner), NoSymbol, NoSymbol)
+          .zipAll(ownerChainOf(c.internal.enclosingOwner), NoSymbol, NoSymbol)
           .dropWhile(x => x._1 == x._2)
           .takeWhile(x => x._1 != NoSymbol)
           .map(x => x._1.name.toTermName)
