@@ -27,6 +27,9 @@ private[schema] object Differ {
         case (DynamicValue.Map(oldEntries), DynamicValue.Map(newEntries)) =>
           diffMap(oldEntries, newEntries)
 
+        case (DynamicValue.Null, DynamicValue.Null) =>
+          DynamicPatch.empty
+
         case _ =>
           // Type mismatch - use Set to replace entirely
           DynamicPatch.root(Patch.Operation.Set(newValue))

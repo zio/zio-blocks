@@ -529,8 +529,8 @@ object DynamicValue {
   /**
    * A tagged union value, analogous to a sealed trait with case classes.
    *
-   * Contains a case name identifying which variant is active and the
-   * associated value for that case.
+   * Contains a case name identifying which variant is active and the associated
+   * value for that case.
    */
   final case class Variant(caseNameValue: String, value: DynamicValue) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
