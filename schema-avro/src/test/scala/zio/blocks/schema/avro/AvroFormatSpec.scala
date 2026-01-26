@@ -537,7 +537,55 @@ object AvroFormatSpec extends SchemaBaseSpec {
         decodeError[List[Char]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
         decodeError[List[Long]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
         decodeError[List[Float]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
-        decodeError[List[Double]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .")
+        decodeError[List[Double]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[Array[Boolean]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[Array[Byte]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[Array[Short]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[Array[Char]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[Array[Int]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[Array[Long]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[Array[Float]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[Array[Double]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[Array[Boolean]](
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          "Expected collection size not greater than 2147483639, got 2147483647 at: ."
+        ) &&
+        decodeError[Array[Byte]](
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          "Expected collection size not greater than 2147483639, got 2147483647 at: ."
+        ) &&
+        decodeError[Array[Short]](
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          "Expected collection size not greater than 2147483639, got 2147483647 at: ."
+        ) &&
+        decodeError[Array[Char]](
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          "Expected collection size not greater than 2147483639, got 2147483647 at: ."
+        ) &&
+        decodeError[Array[Int]](
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          "Expected collection size not greater than 2147483639, got 2147483647 at: ."
+        ) &&
+        decodeError[Array[Long]](
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          "Expected collection size not greater than 2147483639, got 2147483647 at: ."
+        ) &&
+        decodeError[Array[Float]](
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          "Expected collection size not greater than 2147483639, got 2147483647 at: ."
+        ) &&
+        decodeError[Array[Double]](
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          "Expected collection size not greater than 2147483639, got 2147483647 at: ."
+        ) &&
+        roundTrip(Array.empty[Boolean], 1) &&
+        roundTrip(Array.empty[Byte], 1) &&
+        roundTrip(Array.empty[Short], 1) &&
+        roundTrip(Array.empty[Char], 1) &&
+        roundTrip(Array.empty[Int], 1) &&
+        roundTrip(Array.empty[Long], 1) &&
+        roundTrip(Array.empty[Float], 1) &&
+        roundTrip(Array.empty[Double], 1)
       },
       test("complex values") {
         avroSchema[List[Record1]](

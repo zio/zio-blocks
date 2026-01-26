@@ -293,7 +293,7 @@ object TypeIdSpec extends ZIOSpecDefault {
           TypeId.set.fullName == "scala.collection.immutable.Set",
           TypeId.seq.fullName == "scala.collection.immutable.Seq",
           TypeId.indexedSeq.fullName == "scala.collection.immutable.IndexedSeq",
-          TypeId.either.fullName == "scala.Either",
+          TypeId.either.fullName == "scala.util.Either",
           TypeId.some.fullName == "scala.Some",
           TypeId.none.fullName == "scala.None"
         )
