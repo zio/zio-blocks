@@ -1637,8 +1637,7 @@ object DynamicValue {
       })
     case v: Variant =>
       val childPath = path.caseOf(v.caseNameValue)
-      if (p(childPath, v.value)) dv
-      else Variant(v.caseNameValue, pruneImpl(v.value, childPath, p))
+      Variant(v.caseNameValue, pruneImpl(v.value, childPath, p))
     case other => other
   }
 
