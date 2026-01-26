@@ -782,17 +782,53 @@ object JsonSpec extends SchemaBaseSpec {
           val pruned = json.prune(j => j.is(JsonType.Null))
           assertTrue(pruned.elements == Chunk(Json.Number("1"), Json.Number("2")))
         },
-        test("partition splits by predicate") {
+        test("partition splits by value predicate") {
           val json          = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3"), Json.Number("4"))
-          val (evens, odds) = json.partition { (_, j) =>
-            j match {
-              case Json.Number(n) => n.toInt % 2 == 0
-              case _              => false
-            }
+          val (evens, odds) = json.partition {
+            case Json.Number(n) => n.toInt % 2 == 0
+            case _              => false
           }
           assertTrue(
             evens.elements == Chunk(Json.Number("2"), Json.Number("4")),
             odds.elements == Chunk(Json.Number("1"), Json.Number("3"))
+          )
+        },
+        test("partitionPath splits by path predicate") {
+          val json = Json.Object(
+            "keep" -> Json.Object("a" -> Json.Number("1"), "b" -> Json.Number("2")),
+            "drop" -> Json.Object("c" -> Json.Number("3"))
+          )
+          val (kept, dropped) = json.partitionPath { path =>
+            path.nodes.exists {
+              case DynamicOptic.Node.Field("keep") => true
+              case _                               => false
+            }
+          }
+          assertTrue(
+            kept.get("keep").get("a").one == Right(Json.Number("1")),
+            kept.get("drop").isFailure,
+            dropped.get("drop").get("c").one == Right(Json.Number("3")),
+            dropped.get("keep").isFailure
+          )
+        },
+        test("partitionBoth splits by path and value predicate") {
+          val json = Json.Object(
+            "a" -> Json.Number("1"),
+            "b" -> Json.String("x"),
+            "c" -> Json.Number("2")
+          )
+          val (matching, nonMatching) = json.partitionBoth { (path, j) =>
+            path.nodes.lastOption.exists {
+              case DynamicOptic.Node.Field("a") | DynamicOptic.Node.Field("c") => true
+              case _                                                           => false
+            } && j.is(JsonType.Number)
+          }
+          assertTrue(
+            matching.get("a").one == Right(Json.Number("1")),
+            matching.get("c").one == Right(Json.Number("2")),
+            matching.get("b").isFailure,
+            nonMatching.get("b").one == Right(Json.String("x")),
+            nonMatching.get("a").isFailure
           )
         },
         test("project extracts specific paths") {
@@ -1609,7 +1645,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("partition on primitives") {
           val json                    = Json.String("hello")
-          val (matching, nonMatching) = json.partition((_, j) => j.is(JsonType.String))
+          val (matching, nonMatching) = json.partition(_.is(JsonType.String))
           assertTrue(matching == json, nonMatching == Json.Null)
         }
       ),

@@ -345,10 +345,26 @@ sealed trait Json {
   def project(paths: DynamicOptic*): Json = Json.projectImpl(this, paths)
 
   /**
-   * Partitions elements/fields based on a predicate. Returns a tuple of
-   * (matching, non-matching) JSON values.
+   * Partitions elements/fields based on a predicate on the value. Returns a
+   * tuple of (matching, non-matching) JSON values.
+   *
+   * @example
+   *   {{{json.partition(_.is(JsonType.Number)) // (numbers, non-numbers)}}}
    */
-  def partition(p: (DynamicOptic, Json) => Boolean): (Json, Json) = Json.partitionImpl(this, DynamicOptic.root, p)
+  def partition(p: Json => Boolean): (Json, Json) = Json.partitionImpl(this, DynamicOptic.root, (_, json) => p(json))
+
+  /**
+   * Partitions elements/fields based on a predicate on the path. Returns a
+   * tuple of (matching, non-matching) JSON values.
+   */
+  def partitionPath(p: DynamicOptic => Boolean): (Json, Json) =
+    Json.partitionImpl(this, DynamicOptic.root, (path, _) => p(path))
+
+  /**
+   * Partitions elements/fields based on a predicate on both path and value.
+   * Returns a tuple of (matching, non-matching) JSON values.
+   */
+  def partitionBoth(p: (DynamicOptic, Json) => Boolean): (Json, Json) = Json.partitionImpl(this, DynamicOptic.root, p)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Folding Methods
