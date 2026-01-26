@@ -323,6 +323,16 @@ object Lens {
     lazy val toDynamic: DynamicOptic =
       new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Field(term.name))))
 
+    override def toString: String = {
+      val sb = new StringBuilder("Lens(_")
+      var idx = 0
+      while (idx < focusTerms.length) {
+        sb.append('.').append(focusTerms(idx).name)
+        idx += 1
+      }
+      sb.append(')').toString()
+    }
+
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
 
@@ -503,6 +513,16 @@ object Prism {
 
     lazy val toDynamic: DynamicOptic =
       new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Case(term.name))))
+
+    override def toString: String = {
+      val sb = new StringBuilder("Prism(_")
+      var idx = 0
+      while (idx < focusTerms.length) {
+        sb.append(".when[").append(focusTerms(idx).name).append("].value")
+        idx += 1
+      }
+      sb.append(')').toString()
+    }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
@@ -1187,6 +1207,46 @@ object Optional {
       }
       nodes.result()
     })
+
+    override def toString: String = {
+      val sb = new StringBuilder("Optional(_")
+      val nodes = toDynamic.nodes
+      var idx = 0
+      while (idx < nodes.length) {
+        nodes(idx) match {
+          case DynamicOptic.Node.Field(name)    => sb.append('.').append(name)
+          case DynamicOptic.Node.Case(name)     => sb.append(".when[").append(name).append("].value")
+          case DynamicOptic.Node.AtIndex(index) => sb.append(".at(").append(index).append(')')
+          case DynamicOptic.Node.AtMapKey(key)  => sb.append(".atKey(").append(dynamicValueToString(key)).append(')')
+          case DynamicOptic.Node.AtIndices(indices) => sb.append(".atIndices(").append(indices.mkString(", ")).append(')')
+          case DynamicOptic.Node.AtMapKeys(keys) => sb.append(".atKeys(").append(keys.map(dynamicValueToString).mkString(", ")).append(')')
+          case DynamicOptic.Node.Elements       => sb.append(".each")
+          case DynamicOptic.Node.MapKeys        => sb.append(".eachKey")
+          case DynamicOptic.Node.MapValues      => sb.append(".eachValue")
+          case DynamicOptic.Node.Wrapped         => sb.append(".wrapped")
+        }
+        idx += 1
+      }
+      sb.append(')').toString()
+    }
+
+    private def dynamicValueToString(value: DynamicValue): String = value match {
+      case DynamicValue.Primitive(p) =>
+        p match {
+          case PrimitiveValue.String(s) => "\"" + s + "\""
+          case PrimitiveValue.Int(v)    => v.toString
+          case PrimitiveValue.Long(v)   => v.toString
+          case PrimitiveValue.Float(v)  => v.toString
+          case PrimitiveValue.Double(v) => v.toString
+          case PrimitiveValue.Boolean(v) => v.toString
+          case PrimitiveValue.Byte(v)   => v.toString
+          case PrimitiveValue.Short(v)  => v.toString
+          case PrimitiveValue.Char(v)   => v.toString
+          case PrimitiveValue.Unit      => "()"
+          case other                    => other.toString
+        }
+      case other => other.toString
+    }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]]) ^
@@ -2843,17 +2903,17 @@ object Traversal {
               DynamicOptic.Node.Wrapped
             case at: AtBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndex(at.index)
-            case atKey: AtKeyBinding[Key, Map] @scala.unchecked =>
-              new DynamicOptic.Node.AtMapKey(atKey.keySchema.toDynamicValue(atKey.key))
+            case atKeysBinding: AtKeysBinding[Key, Map] @scala.unchecked =>
+              new DynamicOptic.Node.AtMapKeys(atKeysBinding.keys.map(key => atKeysBinding.keySchema.toDynamicValue(key)))
+            case atKeyBinding: AtKeyBinding[Key, Map] @scala.unchecked =>
+              new DynamicOptic.Node.AtMapKey(atKeyBinding.keySchema.toDynamicValue(atKeyBinding.key))
             case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
-              new DynamicOptic.Node.AtIndices(ArraySeq.unsafeWrapArray(atIndices.indices))
-            case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
-              new DynamicOptic.Node.AtMapKeys(atKeys.keys.map(atKeys.keySchema.toDynamicValue))
+              new DynamicOptic.Node.AtIndices(atIndices.indices)
             case _: SeqBinding[Col] @scala.unchecked =>
               DynamicOptic.Node.Elements
             case _: MapKeyBinding[Map] @scala.unchecked =>
               DynamicOptic.Node.MapKeys
-            case _ =>
+            case _: MapValueBinding[Map] @scala.unchecked =>
               DynamicOptic.Node.MapValues
           }
         }
@@ -2861,6 +2921,46 @@ object Traversal {
       }
       nodes.result()
     })
+
+    override def toString: String = {
+      val sb = new StringBuilder("Traversal(_")
+      val nodes = toDynamic.nodes
+      var idx = 0
+      while (idx < nodes.length) {
+        nodes(idx) match {
+          case DynamicOptic.Node.Field(name)    => sb.append('.').append(name)
+          case DynamicOptic.Node.Case(name)     => sb.append(".when[").append(name).append("].value")
+          case DynamicOptic.Node.AtIndex(index) => sb.append(".at(").append(index).append(')')
+          case DynamicOptic.Node.AtMapKey(key)  => sb.append(".atKey(").append(dynamicValueToString(key)).append(')')
+          case DynamicOptic.Node.AtIndices(indices) => sb.append(".atIndices(").append(indices.mkString(", ")).append(')')
+          case DynamicOptic.Node.AtMapKeys(keys) => sb.append(".atKeys(").append(keys.map(dynamicValueToString).mkString(", ")).append(')')
+          case DynamicOptic.Node.Elements       => sb.append(".each")
+          case DynamicOptic.Node.MapKeys        => sb.append(".eachKey")
+          case DynamicOptic.Node.MapValues      => sb.append(".eachValue")
+          case DynamicOptic.Node.Wrapped         => sb.append(".wrapped")
+        }
+        idx += 1
+      }
+      sb.append(')').toString()
+    }
+
+    private def dynamicValueToString(value: DynamicValue): String = value match {
+      case DynamicValue.Primitive(p) =>
+        p match {
+          case PrimitiveValue.String(s) => "\"" + s + "\""
+          case PrimitiveValue.Int(v)    => v.toString
+          case PrimitiveValue.Long(v)   => v.toString
+          case PrimitiveValue.Float(v)  => v.toString
+          case PrimitiveValue.Double(v) => v.toString
+          case PrimitiveValue.Boolean(v) => v.toString
+          case PrimitiveValue.Byte(v)   => v.toString
+          case PrimitiveValue.Short(v)  => v.toString
+          case PrimitiveValue.Char(v)   => v.toString
+          case PrimitiveValue.Unit      => "()"
+          case other                    => other.toString
+        }
+      case other => other.toString
+    }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]]) ^
