@@ -299,6 +299,8 @@ val decodedPerson = Person.codec.decode(json)
 println(s"Decoded Person: $decodedPerson")
 ```
 
+For a comprehensive guide on type-class derivation including configuring derivers, using the fluent API, instance overrides, and creating custom derivers, see the [Type-Class Derivation](./derivation.md) documentation.
+
 ## Metadata Operations
 
 ZIO Blocks allows attaching metadata to schemas and their fields, such as documentation, example values, and default values. This metadata can be useful for generating API documentation, client code, or providing hints to serialization formats.

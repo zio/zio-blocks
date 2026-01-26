@@ -71,7 +71,7 @@ val msgpackCodec = Schema[Person].derive(MessagePackFormat.deriver) // MessagePa
 - **Universal Data Formats**: JSON, Avro, TOON (compact LLM-optimized format), with Protobuf, Thrift, BSON, and MessagePack planned.
 - **High Performance**: Register-based design stores primitives directly in byte arrays, enabling zero-allocation serialization.
 - **Reflective Optics**: Type-safe lenses, prisms, and traversals with embedded structural metadata.
-- **Automatic Derivation**: Derive type class instances for any type with a schema.
+- **Automatic Type-Class Derivation**: Derive codecs, validators, and custom type-classes for any type with a schema. See the [Type-Class Derivation guide](./reference/derivation.md) for details.
 
 ### Installation
 
