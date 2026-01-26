@@ -100,19 +100,33 @@ The `json"..."` interpolator validates JSON syntax at compile time, catching err
 
 ## Type Testing and Access
 
-### Type Testing
+### Unified Type Operations
+
+The `Json` type provides unified methods for type testing and narrowing with path-dependent return types.
+`JsonType` also implements `Json => Boolean`, so it can be used directly as a predicate for filtering.
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonType}
 
-val json = Json.parseUnsafe("""{"count": 42}""")
+val json: Json = Json.parseUnsafe("""{"count": 42}""")
 
-json.isObject   // true
-json.isArray    // false
-json.isString   // false
-json.isNumber   // false
-json.isBoolean  // false
-json.isNull     // false
+// Type testing with is()
+json.is(JsonType.Object)  // true
+json.is(JsonType.Array)   // false
+
+// Type narrowing with as() - returns Option[jsonType.Type]
+val obj: Option[Json.Object] = json.as(JsonType.Object)  // Some(Json.Object(...))
+val arr: Option[Json.Array] = json.as(JsonType.Array)    // None
+
+// Value extraction with unwrap() - returns Option[jsonType.Unwrap]
+val str: Json = Json.str("hello")
+val strValue: Option[String] = str.unwrap(JsonType.String)  // Some("hello")
+
+val num: Json = Json.number(42)
+val numValue: Option[BigDecimal] = num.unwrap(JsonType.Number)  // Some(42)
+
+// JsonType as predicate - use directly in query
+val strings = json.query(JsonType.String)  // all string values in the JSON tree
 ```
 
 ### Direct Value Access
@@ -120,20 +134,11 @@ json.isNull     // false
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
 
-val str = Json.str("hello")
-str.stringValue  // Some("hello")
-
-val num = Json.number(42)
-num.numberValue  // Some(42)
-
-val bool = Json.bool(true)
-bool.booleanValue  // Some(true)
-
 val obj = Json.obj("a" -> Json.number(1))
-obj.fields  // Seq(("a", Json.Number(1)))
+obj.fields  // Chunk(("a", Json.Number(1)))
 
 val arr = Json.arr(Json.number(1), Json.number(2))
-arr.elements  // Seq(Json.Number(1), Json.Number(2))
+arr.elements  // Chunk(Json.Number(1), Json.Number(2))
 ```
 
 ## Navigation
@@ -380,12 +385,12 @@ val camelCase = json.transformKeys { (path, key) =>
 Keep only values matching a predicate:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonType}
 
 val json = Json.parseUnsafe("""{"a": 1, "b": null, "c": 2, "d": null}""")
 
 // Remove nulls (using predicate)
-val noNulls = json.filter((_, v) => !v.isNull)
+val noNulls = json.filter((_, v) => !v.is(JsonType.Null))
 // {"a": 1, "c": 2}
 ```
 
@@ -412,12 +417,12 @@ val projected = json.project(p".user.name", p".user.email")
 Split based on a predicate:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonType}
 
 val json = Json.parseUnsafe("""{"a": 1, "b": "text", "c": 2}""")
 
 // Separate numbers from non-numbers
-val (numbers, nonNumbers) = json.partition((_, v) => v.isNumber)
+val (numbers, nonNumbers) = json.partition((_, v) => v.is(JsonType.Number))
 // numbers: {"a": 1, "c": 2}
 // nonNumbers: {"b": "text"}
 ```
