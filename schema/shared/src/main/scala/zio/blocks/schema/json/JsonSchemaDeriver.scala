@@ -9,14 +9,15 @@ object JsonSchemaDeriver {
   def derive(schema: Schema[_]): JsonSchema = derive(schema.reflect)
 
   private def derive(reflect: Reflect.Bound[_]): JsonSchema = reflect match {
-    case p: Reflect.Primitive[Binding, _]   => derivePrimitive(p.primitiveType)
-    case r: Reflect.Record[Binding, _]      => deriveRecord(r)
-    case s: Reflect.Sequence[Binding, _, _] => deriveSequence(s)
-    case m: Reflect.Map[Binding, _, _, _]   => deriveMap(m)
-    case v: Reflect.Variant[Binding, _]     => deriveVariant(v)
-    case w: Reflect.Wrapper[Binding, _, _]  => derive(w.wrapped.asInstanceOf[Reflect.Bound[_]])
-    case _: Reflect.Deferred[Binding, _]    => ObjectSchema() // Recursive types not fully handled in this basic version
-    case _                                  => ObjectSchema()
+    case p: Reflect.Primitive[Binding, _] => derivePrimitive(p.primitiveType)
+    case r: Reflect.Record[Binding, _]    => deriveRecord(r)
+    case v: Reflect.Variant[Binding, _]   => deriveVariant(v)
+    case w: Reflect.Wrapper[Binding, _, _] => derive(w.wrapped.asInstanceOf[Reflect.Bound[_]])
+    case _: Reflect.Deferred[Binding, _]   => ObjectSchema()
+    case _ =>
+      if (reflect.isSequence) deriveSequence(reflect.asSequenceUnknown.get)
+      else if (reflect.isMap) deriveMap(reflect.asMapUnknown.get)
+      else ObjectSchema()
   }
 
   private def derivePrimitive(p: PrimitiveType[_]): JsonSchema = p match {
@@ -42,17 +43,21 @@ object JsonSchemaDeriver {
     )
   }
 
-  private def deriveSequence(s: Reflect.Sequence[Binding, _, _]): JsonSchema =
+  private def deriveSequence(s: Reflect.Sequence.Unknown[Binding]): JsonSchema = {
+    val seq = s.sequence
     ObjectSchema(
       schemaType = Some(List(JsonType.Array)),
-      items = Some(derive(s.element.asInstanceOf[Reflect.Bound[_]]))
+      items = Some(derive(seq.element.asInstanceOf[Reflect.Bound[_]]))
     )
+  }
 
-  private def deriveMap(m: Reflect.Map[Binding, _, _, _]): JsonSchema =
+  private def deriveMap(m: Reflect.Map.Unknown[Binding]): JsonSchema = {
+    val map = m.map
     ObjectSchema(
       schemaType = Some(List(JsonType.Object)),
-      additionalProperties = Some(derive(m.value.asInstanceOf[Reflect.Bound[_]]))
+      additionalProperties = Some(derive(map.value.asInstanceOf[Reflect.Bound[_]]))
     )
+  }
 
   private def deriveVariant(v: Reflect.Variant[Binding, _]): JsonSchema = {
     val cases = v.cases.map(c => derive(c.value.asInstanceOf[Reflect.Bound[_]])).toList
