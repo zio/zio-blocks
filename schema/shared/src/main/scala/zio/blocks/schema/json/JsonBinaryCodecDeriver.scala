@@ -518,7 +518,7 @@ class JsonBinaryCodecDeriver private[json] (
 
                 override def toJsonSchema: JsonSchema = enumNames match {
                   case head :: tail =>
-                    JsonSchema.SchemaObject(`enum` = Some(new ::(Json.String(head), tail.map(Json.String.apply))))
+                    JsonSchema.Object(`enum` = Some(new ::(Json.String(head), tail.map(Json.String.apply))))
                   case Nil => JsonSchema.string()
                 }
               }
@@ -590,7 +590,7 @@ class JsonBinaryCodecDeriver private[json] (
                     override def toJsonSchema: JsonSchema = {
                       val caseSchemas = collectCaseSchemas(root.caseInfos).toList
                       caseSchemas match {
-                        case head :: tail => JsonSchema.SchemaObject(oneOf = Some(new ::(head, tail)))
+                        case head :: tail => JsonSchema.Object(oneOf = Some(new ::(head, tail)))
                         case Nil          => JsonSchema.True
                       }
                     }
@@ -651,7 +651,7 @@ class JsonBinaryCodecDeriver private[json] (
                     override def toJsonSchema: JsonSchema = {
                       val caseSchemas = caseLeafCodecs.map(_.toJsonSchema).toList
                       caseSchemas match {
-                        case head :: tail => JsonSchema.SchemaObject(oneOf = Some(new ::(head, tail)))
+                        case head :: tail => JsonSchema.Object(oneOf = Some(new ::(head, tail)))
                         case Nil          => JsonSchema.True
                       }
                     }
@@ -726,7 +726,7 @@ class JsonBinaryCodecDeriver private[json] (
                     override def toJsonSchema: JsonSchema = {
                       val caseSchemas = collectCaseSchemas(root.caseInfos).toList
                       caseSchemas match {
-                        case head :: tail => JsonSchema.SchemaObject(oneOf = Some(new ::(head, tail)))
+                        case head :: tail => JsonSchema.Object(oneOf = Some(new ::(head, tail)))
                         case Nil          => JsonSchema.True
                       }
                     }
@@ -738,7 +738,7 @@ class JsonBinaryCodecDeriver private[json] (
                           val name        = leaf.getName
                           if (name ne null) {
                             Array(
-                              JsonSchema.`object`(
+                              JsonSchema.obj(
                                 properties = Some(Map(name -> innerSchema)),
                                 required = Some(Set(name)),
                                 additionalProperties = Some(JsonSchema.False)
@@ -1555,7 +1555,7 @@ class JsonBinaryCodecDeriver private[json] (
           override def nullValue: Map[Key, Value] = constructor.emptyObject[Key, Value]
 
           override def toJsonSchema: JsonSchema =
-            JsonSchema.`object`(additionalProperties = Some(valueCodec.toJsonSchema))
+            JsonSchema.obj(additionalProperties = Some(valueCodec.toJsonSchema))
         }
       } else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isRecord) {
@@ -1930,7 +1930,7 @@ class JsonBinaryCodecDeriver private[json] (
                 .filter(fi => fi.nonTransient && !fi.isOptional && !fi.isCollection && !fi.hasDefault)
                 .map(_.getName)
                 .toSet
-              JsonSchema.`object`(
+              JsonSchema.obj(
                 properties = Some(properties),
                 required = if (requiredFields.nonEmpty) Some(requiredFields) else None,
                 additionalProperties = if (doReject) Some(JsonSchema.False) else None

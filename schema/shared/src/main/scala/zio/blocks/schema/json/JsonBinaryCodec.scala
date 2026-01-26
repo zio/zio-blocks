@@ -432,7 +432,7 @@ object JsonBinaryCodec {
       out.writeObjectEnd()
     }
 
-    override def toJsonSchema: JsonSchema = JsonSchema.`object`(
+    override def toJsonSchema: JsonSchema = JsonSchema.obj(
       properties = Some(Map.empty),
       additionalProperties = Some(JsonSchema.False)
     )

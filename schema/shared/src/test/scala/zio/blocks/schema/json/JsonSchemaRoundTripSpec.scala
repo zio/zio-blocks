@@ -24,18 +24,18 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       }
     ),
     suite("Empty object equivalence")(
-      test("{} parses to SchemaObject.empty") {
+      test("{} parses to Object.empty") {
         val result = JsonSchema.fromJson(Json.obj())
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject => s == JsonSchema.SchemaObject.empty
-            case _                          => false
+            case s: JsonSchema.Object => s == JsonSchema.Object.empty
+            case _                    => false
           }
         )
       },
-      test("SchemaObject.empty is semantically equivalent to True") {
-        val empty = JsonSchema.SchemaObject.empty
+      test("Object.empty is semantically equivalent to True") {
+        val empty = JsonSchema.Object.empty
         assertTrue(
           empty.conforms(Json.Null),
           empty.conforms(Json.bool(true)),
@@ -45,8 +45,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           empty.conforms(Json.obj())
         )
       },
-      test("SchemaObject.empty serializes to empty object") {
-        val result = JsonSchema.SchemaObject.empty.toJson
+      test("Object.empty serializes to empty object") {
+        val result = JsonSchema.Object.empty.toJson
         assertTrue(result == Json.obj())
       }
     ),
@@ -127,7 +127,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("object with all constraints round-trips") {
-        val schema = JsonSchema.`object`(
+        val schema = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name")),
           additionalProperties = Some(JsonSchema.boolean),
@@ -154,7 +154,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("allOf schema round-trips") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           allOf = Some(::(JsonSchema.string(), List(JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1))))))
         )
         val json      = schema.toJson
@@ -162,7 +162,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("anyOf schema round-trips") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           anyOf = Some(::(JsonSchema.string(), List(JsonSchema.integer())))
         )
         val json      = schema.toJson
@@ -170,7 +170,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("oneOf schema round-trips") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           oneOf = Some(::(JsonSchema.string(), List(JsonSchema.integer())))
         )
         val json      = schema.toJson
@@ -178,7 +178,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("not schema round-trips") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           not = Some(JsonSchema.string())
         )
         val json      = schema.toJson
@@ -186,25 +186,25 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("if/then/else schema round-trips") {
-        val schema = JsonSchema.SchemaObject(
-          `if` = Some(JsonSchema.`object`(properties = Some(Map("type" -> JsonSchema.constOf(Json.str("a")))))),
-          `then` = Some(JsonSchema.`object`(required = Some(Set("a_field")))),
-          `else` = Some(JsonSchema.`object`(required = Some(Set("b_field"))))
+        val schema = JsonSchema.Object(
+          `if` = Some(JsonSchema.obj(properties = Some(Map("type" -> JsonSchema.constOf(Json.str("a")))))),
+          `then` = Some(JsonSchema.obj(required = Some(Set("a_field")))),
+          `else` = Some(JsonSchema.obj(required = Some(Set("b_field"))))
         )
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
         assertTrue(roundtrip == Right(schema))
       },
       test("dependentSchemas round-trips") {
-        val schema = JsonSchema.SchemaObject(
-          dependentSchemas = Some(Map("credit_card" -> JsonSchema.`object`(required = Some(Set("billing_address")))))
+        val schema = JsonSchema.Object(
+          dependentSchemas = Some(Map("credit_card" -> JsonSchema.obj(required = Some(Set("billing_address")))))
         )
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
         assertTrue(roundtrip == Right(schema))
       },
       test("dependentRequired round-trips") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           dependentRequired = Some(Map("credit_card" -> Set("billing_address", "security_code")))
         )
         val json      = schema.toJson
@@ -212,8 +212,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("$ref schema round-trips") {
-        val schema = JsonSchema.SchemaObject(
-          $defs = Some(Map("address" -> JsonSchema.`object`(properties = Some(Map("street" -> JsonSchema.string()))))),
+        val schema = JsonSchema.Object(
+          $defs = Some(Map("address" -> JsonSchema.obj(properties = Some(Map("street" -> JsonSchema.string()))))),
           $ref = Some(UriReference("#/$defs/address"))
         )
         val json      = schema.toJson
@@ -221,19 +221,19 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("deeply nested schema round-trips") {
-        val schema = JsonSchema.`object`(
+        val schema = JsonSchema.obj(
           properties = Some(
             Map(
               "users" -> JsonSchema.array(
                 items = Some(
-                  JsonSchema.`object`(
+                  JsonSchema.obj(
                     properties = Some(
                       Map(
                         "name"    -> JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1))),
                         "email"   -> JsonSchema.string(format = Some("email")),
                         "age"     -> JsonSchema.integer(minimum = Some(BigDecimal(0))),
                         "tags"    -> JsonSchema.array(items = Some(JsonSchema.string()), uniqueItems = Some(true)),
-                        "address" -> JsonSchema.`object`(
+                        "address" -> JsonSchema.obj(
                           properties = Some(
                             Map(
                               "street"  -> JsonSchema.string(),
@@ -264,7 +264,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           "x-another"          -> Json.number(42),
           "x-complex"          -> Json.obj("nested" -> Json.arr(Json.bool(true), Json.bool(false)))
         )
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           `type` = Some(SchemaType.Single(JsonType.String)),
           extensions = extensions
         )
@@ -274,8 +274,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           roundtrip.isRight,
           roundtrip.exists {
-            case s: JsonSchema.SchemaObject => s.extensions == extensions
-            case _                          => false
+            case s: JsonSchema.Object => s.extensions == extensions
+            case _                    => false
           }
         )
       },
@@ -285,7 +285,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           "x-nullable"        -> Json.bool(true),
           "x-deprecated-info" -> Json.obj("since" -> Json.str("v2.0"))
         )
-        val schema = JsonSchema.SchemaObject(extensions = extensions)
+        val schema = JsonSchema.Object(extensions = extensions)
         val json   = schema.toJson
 
         extensions.foreach { case (key, value) =>
@@ -296,15 +296,15 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           roundtrip.isRight,
           roundtrip.exists {
-            case s: JsonSchema.SchemaObject => s.extensions == extensions
-            case _                          => false
+            case s: JsonSchema.Object => s.extensions == extensions
+            case _                    => false
           }
         )
       }
     ),
     suite("All keyword serialization")(
       test("core vocabulary keywords serialize correctly") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           $id = Some(UriReference("https://example.com/schema")),
           $schema = Some(new URI("https://json-schema.org/draft/2020-12/schema")),
           $anchor = Some(Anchor("myAnchor")),
@@ -329,13 +329,13 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("type keyword serializes single type as string") {
-        val schema = JsonSchema.SchemaObject(`type` = Some(SchemaType.Single(JsonType.String)))
+        val schema = JsonSchema.Object(`type` = Some(SchemaType.Single(JsonType.String)))
         val json   = schema.toJson
         assertTrue(json.asInstanceOf[Json.Object].value.toMap.get("type").contains(Json.str("string")))
       },
       test("type keyword serializes union as array") {
         val schema =
-          JsonSchema.SchemaObject(`type` = Some(SchemaType.Union(::(JsonType.String, List(JsonType.Number)))))
+          JsonSchema.Object(`type` = Some(SchemaType.Union(::(JsonType.String, List(JsonType.Number)))))
         val json = schema.toJson
         assertTrue(
           json
@@ -347,7 +347,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("numeric keywords serialize correctly") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           minimum = Some(BigDecimal(0)),
           maximum = Some(BigDecimal(100)),
           exclusiveMinimum = Some(BigDecimal(-1)),
@@ -366,7 +366,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("string keywords serialize correctly") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           minLength = Some(NonNegativeInt.unsafe(5)),
           maxLength = Some(NonNegativeInt.unsafe(100)),
           pattern = Some(RegexPattern.unsafe("^[a-z]+$")),
@@ -383,7 +383,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("array keywords serialize correctly") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           minItems = Some(NonNegativeInt.unsafe(1)),
           maxItems = Some(NonNegativeInt.unsafe(10)),
           uniqueItems = Some(true),
@@ -410,7 +410,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("object keywords serialize correctly") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           minProperties = Some(NonNegativeInt.unsafe(1)),
           maxProperties = Some(NonNegativeInt.unsafe(10)),
           required = Some(Set("name", "age")),
@@ -419,7 +419,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           additionalProperties = Some(JsonSchema.False),
           propertyNames = Some(JsonSchema.string(maxLength = Some(NonNegativeInt.unsafe(20)))),
           dependentRequired = Some(Map("foo" -> Set("bar"))),
-          dependentSchemas = Some(Map("baz" -> JsonSchema.`object`(required = Some(Set("qux"))))),
+          dependentSchemas = Some(Map("baz" -> JsonSchema.obj(required = Some(Set("qux"))))),
           unevaluatedProperties = Some(JsonSchema.False)
         )
         val json     = schema.toJson
@@ -439,7 +439,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("composition keywords serialize correctly") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           allOf = Some(::(JsonSchema.string(), List(JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1)))))),
           anyOf = Some(::(JsonSchema.string(), List(JsonSchema.integer()))),
           oneOf = Some(::(JsonSchema.boolean, List(JsonSchema.`null`))),
@@ -456,10 +456,10 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("conditional keywords serialize correctly") {
-        val schema = JsonSchema.SchemaObject(
-          `if` = Some(JsonSchema.`object`(properties = Some(Map("type" -> JsonSchema.constOf(Json.str("a")))))),
-          `then` = Some(JsonSchema.`object`(required = Some(Set("a")))),
-          `else` = Some(JsonSchema.`object`(required = Some(Set("b"))))
+        val schema = JsonSchema.Object(
+          `if` = Some(JsonSchema.obj(properties = Some(Map("type" -> JsonSchema.constOf(Json.str("a")))))),
+          `then` = Some(JsonSchema.obj(required = Some(Set("a")))),
+          `else` = Some(JsonSchema.obj(required = Some(Set("b"))))
         )
         val json     = schema.toJson
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
@@ -471,10 +471,10 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("content keywords serialize correctly") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           contentEncoding = Some("base64"),
           contentMediaType = Some("application/json"),
-          contentSchema = Some(JsonSchema.`object`(properties = Some(Map("data" -> JsonSchema.string()))))
+          contentSchema = Some(JsonSchema.obj(properties = Some(Map("data" -> JsonSchema.string()))))
         )
         val json     = schema.toJson
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
@@ -486,7 +486,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("meta-data keywords serialize correctly") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           title = Some("My Schema"),
           description = Some("A description of the schema"),
           default = Some(Json.str("default value")),
@@ -516,7 +516,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject =>
+            case s: JsonSchema.Object =>
               s.`type`.contains(SchemaType.Single(JsonType.String))
             case _ => false
           }
@@ -528,7 +528,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject =>
+            case s: JsonSchema.Object =>
               s.`type`.contains(SchemaType.Union(::(JsonType.String, List(JsonType.Null))))
             case _ => false
           }
@@ -547,7 +547,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject =>
+            case s: JsonSchema.Object =>
               s.properties.exists(_.keySet == Set("name", "age")) &&
               s.required.contains(Set("name"))
             case _ => false
@@ -563,8 +563,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject => s.items.isDefined
-            case _                          => false
+            case s: JsonSchema.Object => s.items.isDefined
+            case _                    => false
           }
         )
       },
@@ -584,7 +584,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject =>
+            case s: JsonSchema.Object =>
               s.$ref.exists(_.value == "#/$defs/address") &&
               s.$defs.exists(_.contains("address"))
             case _ => false
@@ -602,8 +602,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject => s.allOf.exists(_.length == 2)
-            case _                          => false
+            case s: JsonSchema.Object => s.allOf.exists(_.length == 2)
+            case _                    => false
           }
         )
       },
@@ -617,7 +617,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject =>
+            case s: JsonSchema.Object =>
               s.`if`.isDefined && s.`then`.isDefined && s.`else`.contains(JsonSchema.True)
             case _ => false
           }
@@ -629,7 +629,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject =>
+            case s: JsonSchema.Object =>
               s.`enum`.exists(_.length == 3)
             case _ => false
           }
@@ -641,7 +641,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject =>
+            case s: JsonSchema.Object =>
               s.const.contains(Json.str("fixed"))
             case _ => false
           }
@@ -674,7 +674,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("round-trip preserves validation behavior for object schema") {
-        val original = JsonSchema.`object`(
+        val original = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string())),
           required = Some(Set("name"))
         )
@@ -714,8 +714,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists {
-            case s: JsonSchema.SchemaObject => s.`type`.isEmpty
-            case _                          => false
+            case s: JsonSchema.Object => s.`type`.isEmpty
+            case _                    => false
           }
         )
       },

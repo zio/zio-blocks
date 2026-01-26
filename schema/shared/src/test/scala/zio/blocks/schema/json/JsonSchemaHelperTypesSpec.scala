@@ -341,7 +341,7 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
       test("ref creates $ref schema") {
         val schema = JsonSchema.ref(UriReference("#/$defs/myType"))
         schema match {
-          case s: JsonSchema.SchemaObject =>
+          case s: JsonSchema.Object =>
             assertTrue(s.$ref.isDefined, s.$ref.get.value == "#/$defs/myType")
           case _ => assertTrue(false)
         }
@@ -349,7 +349,7 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
       test("refString creates $ref schema from string") {
         val schema = JsonSchema.refString("#/$defs/anotherType")
         schema match {
-          case s: JsonSchema.SchemaObject =>
+          case s: JsonSchema.Object =>
             assertTrue(s.$ref.isDefined, s.$ref.get.value == "#/$defs/anotherType")
           case _ => assertTrue(false)
         }
@@ -443,10 +443,10 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
     ),
     suite("dependentSchemas validation")(
       test("dependentSchemas applies schema when property is present") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           dependentSchemas = Some(
             Map(
-              "credit_card" -> JsonSchema.`object`(
+              "credit_card" -> JsonSchema.obj(
                 properties = Some(Map("billing_address" -> JsonSchema.string())),
                 required = Some(Set("billing_address"))
               )

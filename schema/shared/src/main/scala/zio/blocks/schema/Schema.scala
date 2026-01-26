@@ -376,7 +376,7 @@ object Schema extends SchemaCompanionVersionSpecific {
     new TypeName[Json](Namespace.zioBlocksSchema, "Json")
 
   /** Schema for Json values (no validation, accepts any Json). */
-  implicit val json: Schema[Json] = new Schema(
+  implicit val schemaJson: Schema[Json] = new Schema(
     new Reflect.Wrapper[Binding, Json, DynamicValue](
       Schema[DynamicValue].reflect,
       jsonTypeName,

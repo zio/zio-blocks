@@ -45,7 +45,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
       },
       test("delegation works for complex schemas") {
         val json   = Json.obj("name" -> Json.str("Alice"), "age" -> Json.number(30))
-        val schema = JsonSchema.`object`(
+        val schema = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
@@ -108,7 +108,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
         )
       },
       test("object validation") {
-        val schema = JsonSchema.`object`(
+        val schema = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string())),
           required = Some(Set("name"))
         )
@@ -168,7 +168,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
         )
       },
       test("enum validation") {
-        val schema = JsonSchema.SchemaObject(
+        val schema = JsonSchema.Object(
           `enum` = Some(::(Json.str("red"), List(Json.str("green"), Json.str("blue"))))
         )
         assertTrue(
@@ -178,7 +178,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
         )
       },
       test("const validation") {
-        val schema = JsonSchema.SchemaObject(const = Some(Json.str("fixed")))
+        val schema = JsonSchema.Object(const = Some(Json.str("fixed")))
         assertTrue(
           Json.str("fixed").conforms(schema),
           !Json.str("other").conforms(schema)
@@ -187,11 +187,11 @@ object JsonCheckSpec extends SchemaBaseSpec {
     ),
     suite("Nested validation via Json methods")(
       test("nested object validation") {
-        val addressSchema = JsonSchema.`object`(
+        val addressSchema = JsonSchema.obj(
           properties = Some(Map("city" -> JsonSchema.string())),
           required = Some(Set("city"))
         )
-        val schema = JsonSchema.`object`(
+        val schema = JsonSchema.obj(
           properties = Some(Map("address" -> addressSchema)),
           required = Some(Set("address"))
         )
@@ -203,7 +203,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
         )
       },
       test("array items validation") {
-        val itemSchema = JsonSchema.`object`(
+        val itemSchema = JsonSchema.obj(
           properties = Some(Map("id" -> JsonSchema.integer())),
           required = Some(Set("id"))
         )
@@ -227,7 +227,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
         )
       },
       test("check provides error details for missing required field") {
-        val schema = JsonSchema.`object`(
+        val schema = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string())),
           required = Some(Set("name"))
         )

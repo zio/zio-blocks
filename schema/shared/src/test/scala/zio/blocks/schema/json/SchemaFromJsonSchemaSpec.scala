@@ -51,7 +51,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(result.isRight)
       },
       test("object schema accepts object values with required properties") {
-        val jsonSchema = JsonSchema.`object`(
+        val jsonSchema = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
@@ -61,11 +61,11 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(result.isRight)
       },
       test("nested object schema validates correctly") {
-        val addressSchema = JsonSchema.`object`(
+        val addressSchema = JsonSchema.obj(
           properties = Some(Map("city" -> JsonSchema.string(), "zip" -> JsonSchema.string())),
           required = Some(Set("city"))
         )
-        val jsonSchema = JsonSchema.`object`(
+        val jsonSchema = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string(), "address" -> addressSchema)),
           required = Some(Set("name"))
         )
@@ -105,7 +105,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("object schema rejects non-object values") {
-        val jsonSchema = JsonSchema.`object`(
+        val jsonSchema = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string()))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
@@ -114,7 +114,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("object schema rejects missing required properties") {
-        val jsonSchema = JsonSchema.`object`(
+        val jsonSchema = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
@@ -131,11 +131,11 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("nested object validation fails for invalid nested property") {
-        val addressSchema = JsonSchema.`object`(
+        val addressSchema = JsonSchema.obj(
           properties = Some(Map("city" -> JsonSchema.string())),
           required = Some(Set("city"))
         )
-        val jsonSchema = JsonSchema.`object`(
+        val jsonSchema = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string(), "address" -> addressSchema)),
           required = Some(Set("name", "address"))
         )
@@ -157,8 +157,8 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         )
       },
       test("error for nested property includes field path") {
-        val jsonSchema = JsonSchema.`object`(
-          properties = Some(Map("user" -> JsonSchema.`object`(properties = Some(Map("age" -> JsonSchema.integer())))))
+        val jsonSchema = JsonSchema.obj(
+          properties = Some(Map("user" -> JsonSchema.obj(properties = Some(Map("age" -> JsonSchema.integer())))))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
         val codec       = schemaForJs.derive(JsonFormat.deriver)
@@ -173,7 +173,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("missing required field error is descriptive") {
-        val jsonSchema = JsonSchema.`object`(
+        val jsonSchema = JsonSchema.obj(
           properties = Some(Map("name" -> JsonSchema.string())),
           required = Some(Set("name"))
         )
@@ -253,7 +253,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(decoded == Right(original))
       },
       test("validated Schema[Json] accepts valid JSON") {
-        val jsonSchema = JsonSchema.`object`(
+        val jsonSchema = JsonSchema.obj(
           properties = Some(Map("status" -> JsonSchema.string())),
           required = Some(Set("status"))
         )
@@ -264,7 +264,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(result.isRight)
       },
       test("validated Schema[Json] rejects invalid JSON") {
-        val jsonSchema = JsonSchema.`object`(
+        val jsonSchema = JsonSchema.obj(
           properties = Some(Map("status" -> JsonSchema.string())),
           required = Some(Set("status"))
         )
@@ -289,7 +289,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(decoded == Right(original))
       },
       test("complex schema with constraints validates correctly") {
-        val jsonSchema = JsonSchema.`object`(
+        val jsonSchema = JsonSchema.obj(
           properties = Some(
             Map(
               "name" -> JsonSchema.string(minLength = Some(NonNegativeInt.one)),

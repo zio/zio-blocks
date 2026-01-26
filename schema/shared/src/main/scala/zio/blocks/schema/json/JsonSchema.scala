@@ -14,9 +14,11 @@ import scala.util.control.NonFatal
 /**
  * Non-negative integer (>= 0). Used for minLength, maxLength, minItems, etc.
  */
-final case class NonNegativeInt private (value: Int) extends AnyVal
+final case class NonNegativeInt private[json] (value: Int) extends AnyVal
 
-object NonNegativeInt {
+object NonNegativeInt extends NonNegativeIntCompanionVersionSpecific {
+
+  /** Creates a NonNegativeInt from a runtime value, returning Option. */
   def apply(n: Int): Option[NonNegativeInt] =
     if (n >= 0) Some(new NonNegativeInt(n)) else None
 
@@ -32,9 +34,13 @@ object NonNegativeInt {
 /**
  * Strictly positive number (> 0). Used for multipleOf.
  */
-final case class PositiveNumber private (value: BigDecimal) extends AnyVal
+final case class PositiveNumber private[json] (value: BigDecimal) extends AnyVal
 
-object PositiveNumber {
+object PositiveNumber extends PositiveNumberCompanionVersionSpecific {
+
+  /**
+   * Creates a PositiveNumber from a runtime BigDecimal value, returning Option.
+   */
   def apply(n: BigDecimal): Option[PositiveNumber] =
     if (n > 0) Some(new PositiveNumber(n)) else None
 
@@ -542,39 +548,39 @@ sealed trait JsonSchema extends Product with Serializable {
 
   /** Combine with another schema using allOf. */
   def &&(that: JsonSchema): JsonSchema = (this, that) match {
-    case (JsonSchema.False, _)                                      => JsonSchema.False
-    case (_, JsonSchema.False)                                      => JsonSchema.False
-    case (JsonSchema.True, s)                                       => s
-    case (s, JsonSchema.True)                                       => s
-    case (s1: JsonSchema.SchemaObject, s2: JsonSchema.SchemaObject) =>
+    case (JsonSchema.False, _)                          => JsonSchema.False
+    case (_, JsonSchema.False)                          => JsonSchema.False
+    case (JsonSchema.True, s)                           => s
+    case (s, JsonSchema.True)                           => s
+    case (s1: JsonSchema.Object, s2: JsonSchema.Object) =>
       (s1.allOf, s2.allOf) match {
         case (Some(a1), Some(a2)) =>
-          JsonSchema.SchemaObject(allOf = Some(new ::(a1.head, a1.tail ++ a2.toList)))
+          JsonSchema.Object(allOf = Some(new ::(a1.head, a1.tail ++ a2.toList)))
         case (Some(a1), None) =>
-          JsonSchema.SchemaObject(allOf = Some(new ::(s2, a1.toList)))
+          JsonSchema.Object(allOf = Some(new ::(s2, a1.toList)))
         case (None, Some(a2)) =>
-          JsonSchema.SchemaObject(allOf = Some(new ::(s1, a2.toList)))
+          JsonSchema.Object(allOf = Some(new ::(s1, a2.toList)))
         case (None, None) =>
-          JsonSchema.SchemaObject(allOf = Some(new ::(s1, s2 :: Nil)))
+          JsonSchema.Object(allOf = Some(new ::(s1, s2 :: Nil)))
       }
   }
 
   /** Combine with another schema using anyOf. */
   def ||(that: JsonSchema): JsonSchema = (this, that) match {
-    case (JsonSchema.True, _)                                       => JsonSchema.True
-    case (_, JsonSchema.True)                                       => JsonSchema.True
-    case (JsonSchema.False, s)                                      => s
-    case (s, JsonSchema.False)                                      => s
-    case (s1: JsonSchema.SchemaObject, s2: JsonSchema.SchemaObject) =>
+    case (JsonSchema.True, _)                           => JsonSchema.True
+    case (_, JsonSchema.True)                           => JsonSchema.True
+    case (JsonSchema.False, s)                          => s
+    case (s, JsonSchema.False)                          => s
+    case (s1: JsonSchema.Object, s2: JsonSchema.Object) =>
       (s1.anyOf, s2.anyOf) match {
         case (Some(a1), Some(a2)) =>
-          JsonSchema.SchemaObject(anyOf = Some(new ::(a1.head, a1.tail ++ a2.toList)))
+          JsonSchema.Object(anyOf = Some(new ::(a1.head, a1.tail ++ a2.toList)))
         case (Some(a1), None) =>
-          JsonSchema.SchemaObject(anyOf = Some(new ::(s2, a1.toList)))
+          JsonSchema.Object(anyOf = Some(new ::(s2, a1.toList)))
         case (None, Some(a2)) =>
-          JsonSchema.SchemaObject(anyOf = Some(new ::(s1, a2.toList)))
+          JsonSchema.Object(anyOf = Some(new ::(s1, a2.toList)))
         case (None, None) =>
-          JsonSchema.SchemaObject(anyOf = Some(new ::(s1, s2 :: Nil)))
+          JsonSchema.Object(anyOf = Some(new ::(s1, s2 :: Nil)))
       }
   }
 
@@ -582,14 +588,14 @@ sealed trait JsonSchema extends Product with Serializable {
   def unary_! : JsonSchema = this match {
     case JsonSchema.True  => JsonSchema.False
     case JsonSchema.False => JsonSchema.True
-    case s                => JsonSchema.SchemaObject(not = Some(s))
+    case s                => JsonSchema.Object(not = Some(s))
   }
 
   /** Make this schema nullable (accepts null in addition to current types). */
   def withNullable: JsonSchema = this match {
-    case JsonSchema.True            => JsonSchema.True
-    case JsonSchema.False           => JsonSchema.ofType(JsonType.Null)
-    case s: JsonSchema.SchemaObject =>
+    case JsonSchema.True      => JsonSchema.True
+    case JsonSchema.False     => JsonSchema.ofType(JsonType.Null)
+    case s: JsonSchema.Object =>
       s.`type` match {
         case Some(SchemaType.Single(t)) if t == JsonType.Null =>
           s
@@ -600,7 +606,7 @@ sealed trait JsonSchema extends Product with Serializable {
         case Some(SchemaType.Union(ts)) =>
           s.copy(`type` = Some(SchemaType.Union(new ::(JsonType.Null, ts.toList))))
         case None =>
-          JsonSchema.SchemaObject(anyOf = Some(new ::(JsonSchema.ofType(JsonType.Null), s :: Nil)))
+          JsonSchema.Object(anyOf = Some(new ::(JsonSchema.ofType(JsonType.Null), s :: Nil)))
       }
   }
 }
@@ -615,7 +621,7 @@ object JsonSchema {
   def fromJson(json: Json): Either[SchemaError, JsonSchema] = json match {
     case Json.Boolean(true)  => Right(True)
     case Json.Boolean(false) => Right(False)
-    case obj: Json.Object    => parseSchemaObject(obj)
+    case obj: Json.Object    => parseObject(obj)
     case other               =>
       Left(
         SchemaError.expectationMismatch(
@@ -655,9 +661,9 @@ object JsonSchema {
 
   /**
    * A schema object containing keywords from JSON Schema 2020-12. All fields
-   * are optional; an empty SchemaObject is equivalent to True.
+   * are optional; an empty Object is equivalent to True.
    */
-  final case class SchemaObject(
+  final case class Object(
     // =========================================================================
     // Core Vocabulary
     // =========================================================================
@@ -899,8 +905,8 @@ object JsonSchema {
 
       def collectFromSchema(schema: JsonSchema, j: Json): EvaluationResult =
         schema match {
-          case s: SchemaObject => s.checkWithEvaluation(j, options, trace)
-          case _               =>
+          case s: Object => s.checkWithEvaluation(j, options, trace)
+          case _         =>
             schema.check(j, options) match {
               case Some(e) => EvaluationResult(e.errors.toList, Set.empty, Set.empty)
               case None    => EvaluationResult.empty
@@ -1283,8 +1289,8 @@ object JsonSchema {
     }
   }
 
-  object SchemaObject {
-    val empty: SchemaObject = SchemaObject()
+  object Object {
+    val empty: Object = Object()
   }
 
   // ===========================================================================
@@ -1292,14 +1298,14 @@ object JsonSchema {
   // ===========================================================================
 
   def ofType(t: JsonType): JsonSchema =
-    SchemaObject(`type` = Some(SchemaType.Single(t)))
+    Object(`type` = Some(SchemaType.Single(t)))
 
   def string(
     minLength: Option[NonNegativeInt] = None,
     maxLength: Option[NonNegativeInt] = None,
     pattern: Option[RegexPattern] = None,
     format: Option[String] = None
-  ): JsonSchema = SchemaObject(
+  ): JsonSchema = Object(
     `type` = Some(SchemaType.Single(JsonType.String)),
     minLength = minLength,
     maxLength = maxLength,
@@ -1307,13 +1313,24 @@ object JsonSchema {
     format = format
   )
 
+  /**
+   * Convenience constructor for string schema with non-optional length
+   * constraints.
+   */
+  def string(minLength: NonNegativeInt, maxLength: NonNegativeInt): JsonSchema =
+    string(minLength = Some(minLength), maxLength = Some(maxLength))
+
+  /** Convenience constructor for string schema with pattern. */
+  def string(pattern: RegexPattern): JsonSchema =
+    string(pattern = Some(pattern))
+
   def number(
     minimum: Option[BigDecimal] = None,
     maximum: Option[BigDecimal] = None,
     exclusiveMinimum: Option[BigDecimal] = None,
     exclusiveMaximum: Option[BigDecimal] = None,
     multipleOf: Option[PositiveNumber] = None
-  ): JsonSchema = SchemaObject(
+  ): JsonSchema = Object(
     `type` = Some(SchemaType.Single(JsonType.Number)),
     minimum = minimum,
     maximum = maximum,
@@ -1328,7 +1345,7 @@ object JsonSchema {
     exclusiveMinimum: Option[BigDecimal] = None,
     exclusiveMaximum: Option[BigDecimal] = None,
     multipleOf: Option[PositiveNumber] = None
-  ): JsonSchema = SchemaObject(
+  ): JsonSchema = Object(
     `type` = Some(SchemaType.Single(JsonType.Integer)),
     minimum = minimum,
     maximum = maximum,
@@ -1347,7 +1364,7 @@ object JsonSchema {
     minContains: Option[NonNegativeInt] = None,
     maxContains: Option[NonNegativeInt] = None,
     unevaluatedItems: Option[JsonSchema] = None
-  ): JsonSchema = SchemaObject(
+  ): JsonSchema = Object(
     `type` = Some(SchemaType.Single(JsonType.Array)),
     items = items,
     prefixItems = prefixItems,
@@ -1360,7 +1377,17 @@ object JsonSchema {
     unevaluatedItems = unevaluatedItems
   )
 
-  def `object`(
+  /**
+   * Convenience constructor for array schema with items and length constraints.
+   */
+  def array(items: JsonSchema, minItems: NonNegativeInt, maxItems: NonNegativeInt): JsonSchema =
+    array(items = Some(items), minItems = Some(minItems), maxItems = Some(maxItems))
+
+  /** Convenience constructor for array schema with just items. */
+  def array(items: JsonSchema): JsonSchema =
+    array(items = Some(items))
+
+  def obj(
     properties: Option[Map[String, JsonSchema]] = None,
     required: Option[Set[String]] = None,
     additionalProperties: Option[JsonSchema] = None,
@@ -1369,7 +1396,7 @@ object JsonSchema {
     minProperties: Option[NonNegativeInt] = None,
     maxProperties: Option[NonNegativeInt] = None,
     unevaluatedProperties: Option[JsonSchema] = None
-  ): JsonSchema = SchemaObject(
+  ): JsonSchema = Object(
     `type` = Some(SchemaType.Single(JsonType.Object)),
     properties = properties,
     required = required,
@@ -1382,19 +1409,19 @@ object JsonSchema {
   )
 
   def enumOf(values: ::[Json]): JsonSchema =
-    SchemaObject(`enum` = Some(values))
+    Object(`enum` = Some(values))
 
   def enumOfStrings(values: ::[String]): JsonSchema =
-    SchemaObject(`enum` = Some(new ::(Json.String(values.head), values.tail.map(Json.String(_)))))
+    Object(`enum` = Some(new ::(Json.String(values.head), values.tail.map(Json.String(_)))))
 
   def constOf(value: Json): JsonSchema =
-    SchemaObject(const = Some(value))
+    Object(const = Some(value))
 
   def ref(uri: UriReference): JsonSchema =
-    SchemaObject($ref = Some(uri))
+    Object($ref = Some(uri))
 
   def refString(uri: String): JsonSchema =
-    SchemaObject($ref = Some(UriReference(uri)))
+    Object($ref = Some(UriReference(uri)))
 
   val `null`: JsonSchema  = ofType(JsonType.Null)
   val boolean: JsonSchema = ofType(JsonType.Boolean)
@@ -1403,7 +1430,7 @@ object JsonSchema {
   // Parsing Helpers
   // ===========================================================================
 
-  private def parseSchemaObject(obj: Json.Object): Either[SchemaError, SchemaObject] = {
+  private def parseObject(obj: Json.Object): Either[SchemaError, Object] = {
     val fieldMap = obj.value.toMap
 
     def getString(key: String): Option[String] =
@@ -1582,7 +1609,7 @@ object JsonSchema {
       )
       val extensions = fieldMap.filterNot { case (k, _) => knownKeys.contains(k) }
 
-      SchemaObject(
+      Object(
         $id = getString("$id").map(UriReference(_)),
         $schema = getString("$schema").flatMap(s =>
           try Some(new URI(s))

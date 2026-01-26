@@ -13,7 +13,7 @@ The `JsonSchema` type is a sealed ADT representing all valid JSON Schema documen
 JsonSchema
  ├── JsonSchema.True          (accepts all values - equivalent to {})
  ├── JsonSchema.False         (rejects all values - equivalent to {"not": {}})
- └── JsonSchema.SchemaObject  (full schema with all keywords)
+ └── JsonSchema.Object        (full schema with all keywords)
 ```
 
 Key features:
@@ -69,10 +69,10 @@ Create schemas for string validation:
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{JsonSchema, NonNegativeInt, RegexPattern}
 
-// String with length constraints
+// String with length constraints (compile-time validated literals)
 val username = JsonSchema.string(
-  minLength = NonNegativeInt(3),
-  maxLength = NonNegativeInt(20)
+  NonNegativeInt.literal(3),
+  NonNegativeInt.literal(20)
 )
 
 // String with pattern
@@ -124,9 +124,9 @@ val stringArray = JsonSchema.array(
 
 // Array with length constraints
 val shortList = JsonSchema.array(
-  items = Some(JsonSchema.ofType(JsonType.Number)),
-  minItems = NonNegativeInt(1),
-  maxItems = NonNegativeInt(5)
+  JsonSchema.ofType(JsonType.Number),
+  NonNegativeInt.literal(1),
+  NonNegativeInt.literal(5)
 )
 
 // Array with unique items
@@ -152,7 +152,7 @@ Create schemas for object validation:
 import zio.blocks.schema.json.{JsonSchema, JsonType}
 
 // Object with properties
-val person = JsonSchema.`object`(
+val person = JsonSchema.obj(
   properties = Some(Map(
     "name" -> JsonSchema.ofType(JsonType.String),
     "age" -> JsonSchema.ofType(JsonType.Integer)
@@ -161,7 +161,7 @@ val person = JsonSchema.`object`(
 )
 
 // Object with no additional properties
-val strictPerson = JsonSchema.`object`(
+val strictPerson = JsonSchema.obj(
   properties = Some(Map(
     "name" -> JsonSchema.ofType(JsonType.String),
     "age" -> JsonSchema.ofType(JsonType.Integer)
@@ -204,7 +204,7 @@ val nullSchema = JsonSchema.ofType(JsonType.Null)
 
 // allOf - must match all schemas
 val stringAndNotEmpty = stringSchema && JsonSchema.string(
-  minLength = zio.blocks.schema.json.NonNegativeInt(1)
+  minLength = Some(zio.blocks.schema.json.NonNegativeInt.literal(1))
 )
 
 // anyOf - must match at least one schema
@@ -240,9 +240,9 @@ Apply different schemas based on conditions:
 import zio.blocks.schema.json.{JsonSchema, JsonType, NonNegativeInt}
 
 // If type is string, require minLength
-val conditionalSchema = JsonSchema.SchemaObject(
+val conditionalSchema = JsonSchema.Object(
   `if` = Some(JsonSchema.ofType(JsonType.String)),
-  `then` = Some(JsonSchema.string(minLength = NonNegativeInt(1))),
+  `then` = Some(JsonSchema.string(minLength = Some(NonNegativeInt.literal(1)))),
   `else` = Some(JsonSchema.True)
 )
 ```
@@ -255,7 +255,7 @@ Apply schemas when properties are present:
 import zio.blocks.schema.json.{JsonSchema, JsonType}
 
 // If "credit_card" exists, require "billing_address"
-val paymentSchema = JsonSchema.SchemaObject(
+val paymentSchema = JsonSchema.Object(
   properties = Some(Map(
     "credit_card" -> JsonSchema.ofType(JsonType.String),
     "billing_address" -> JsonSchema.ofType(JsonType.String)
@@ -273,7 +273,7 @@ val paymentSchema = JsonSchema.SchemaObject(
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{JsonSchema, Json, JsonType}
 
-val schema = JsonSchema.`object`(
+val schema = JsonSchema.obj(
   properties = Some(Map(
     "name" -> JsonSchema.ofType(JsonType.String),
     "age" -> JsonSchema.integer(minimum = Some(BigDecimal(0)))
@@ -325,10 +325,10 @@ Validation errors include path information:
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{JsonSchema, Json, JsonType}
 
-val schema = JsonSchema.`object`(
+val schema = JsonSchema.obj(
   properties = Some(Map(
     "users" -> JsonSchema.array(
-      items = Some(JsonSchema.`object`(
+      items = Some(JsonSchema.obj(
         properties = Some(Map(
           "email" -> JsonSchema.string(format = Some("email"))
         ))
@@ -382,8 +382,8 @@ val fromJson = JsonSchema.fromJson(json)
 import zio.blocks.schema.json.{JsonSchema, JsonType, NonNegativeInt}
 
 val schema = JsonSchema.string(
-  minLength = NonNegativeInt(1),
-  maxLength = NonNegativeInt(100)
+  NonNegativeInt.literal(1),
+  NonNegativeInt.literal(100)
 )
 
 val json = schema.toJson
@@ -422,7 +422,7 @@ JSON Schema 2020-12 introduces `unevaluatedProperties` and `unevaluatedItems` fo
 import zio.blocks.schema.json.{JsonSchema, JsonType}
 
 // Reject any properties not defined in properties or patternProperties
-val strictObject = JsonSchema.SchemaObject(
+val strictObject = JsonSchema.Object(
   properties = Some(Map(
     "name" -> JsonSchema.ofType(JsonType.String)
   )),
@@ -430,7 +430,7 @@ val strictObject = JsonSchema.SchemaObject(
 )
 
 // Reject extra array items not matched by prefixItems or items
-val strictArray = JsonSchema.SchemaObject(
+val strictArray = JsonSchema.Object(
   prefixItems = Some(new ::(
     JsonSchema.ofType(JsonType.String),
     JsonSchema.ofType(JsonType.Number) :: Nil
@@ -441,7 +441,7 @@ val strictArray = JsonSchema.SchemaObject(
 
 ## Schema Object Fields
 
-`JsonSchema.SchemaObject` supports all JSON Schema 2020-12 keywords:
+`JsonSchema.Object` supports all JSON Schema 2020-12 keywords:
 
 ### Core Vocabulary
 - `$id`, `$schema`, `$anchor`, `$dynamicAnchor`
@@ -509,13 +509,13 @@ The implementation passes **817 of 844 tests** (97%+) from the official JSON Sch
 import zio.blocks.schema.json._
 
 // Define a complex schema
-val userSchema = JsonSchema.`object`(
+val userSchema = JsonSchema.obj(
   properties = Some(Map(
     "id" -> JsonSchema.string(format = Some("uuid")),
     "email" -> JsonSchema.string(format = Some("email")),
     "name" -> JsonSchema.string(
-      minLength = NonNegativeInt(1),
-      maxLength = NonNegativeInt(100)
+      NonNegativeInt.literal(1),
+      NonNegativeInt.literal(100)
     ),
     "age" -> JsonSchema.integer(
       minimum = Some(BigDecimal(0)),
@@ -525,10 +525,10 @@ val userSchema = JsonSchema.`object`(
       items = Some(JsonSchema.enumOfStrings(
         new ::("admin", "user" :: "guest" :: Nil)
       )),
-      minItems = NonNegativeInt(1),
+      minItems = Some(NonNegativeInt.literal(1)),
       uniqueItems = Some(true)
     ),
-    "metadata" -> JsonSchema.`object`(
+    "metadata" -> JsonSchema.obj(
       additionalProperties = Some(JsonSchema.ofType(JsonType.String))
     )
   )),
