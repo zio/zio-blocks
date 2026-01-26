@@ -689,7 +689,7 @@ object JsonSpec extends SchemaBaseSpec {
       suite("DynamicValue conversion")(
         test("toDynamicValue converts primitives") {
           assertTrue(
-            Json.Null.toDynamicValue == DynamicValue.Primitive(PrimitiveValue.Unit),
+            Json.Null.toDynamicValue == DynamicValue.Null,
             Json.Boolean(true).toDynamicValue == DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
             Json.String("hello").toDynamicValue == DynamicValue.Primitive(PrimitiveValue.String("hello"))
           )

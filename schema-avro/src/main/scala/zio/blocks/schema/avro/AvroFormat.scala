@@ -984,7 +984,12 @@ object AvroFormat
                       )
                     )
                     createAvroRecord("zio.blocks.schema.DynamicValue", "Map", mapFields)
-                  }
+                  },
+                  createAvroRecord(
+                    "zio.blocks.schema.DynamicValue",
+                    "Null",
+                    new java.util.ArrayList[AvroSchema.Field](0)
+                  )
                 )
               )
             )
@@ -1154,7 +1159,9 @@ object AvroFormat
               } catch {
                 case error if NonFatal(error) => decodeError(spanMap, spanEntries, error)
               }
-            case idx => decodeError(s"Expected enum index from 0 to 4, got $idx")
+            case 5 =>
+              DynamicValue.Null
+            case idx => decodeError(s"Expected enum index from 0 to 5, got $idx")
           }
 
           def encode(value: DynamicValue, encoder: BinaryEncoder): Unit = value match {
@@ -1267,7 +1274,7 @@ object AvroFormat
               encoder.writeInt(0)
             case variant: DynamicValue.Variant =>
               encoder.writeInt(2)
-              encoder.writeString(variant.caseName)
+              encoder.writeString(variant.caseNameValue)
               encode(variant.value, encoder)
             case sequence: DynamicValue.Sequence =>
               encoder.writeInt(3)
@@ -1295,6 +1302,8 @@ object AvroFormat
                 }
               }
               encoder.writeInt(0)
+            case DynamicValue.Null =>
+              encoder.writeInt(5)
           }
 
           private[this] def createPrimitiveValueAvroRecord(name: String, codec: AvroBinaryCodec[?]): AvroSchema = {

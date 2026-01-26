@@ -734,7 +734,6 @@ object JsonBinaryCodec {
     private[this] val trueValue        = new DynamicValue.Primitive(new PrimitiveValue.Boolean(true))
     private[this] val emptyArrayValue  = new DynamicValue.Sequence(Vector.empty)
     private[this] val emptyObjectValue = new DynamicValue.Map(Vector.empty)
-    private[this] val unitValue        = new DynamicValue.Primitive(PrimitiveValue.Unit)
 
     def decodeValue(in: JsonReader, default: DynamicValue): DynamicValue = {
       val b = in.nextToken()
@@ -782,14 +781,14 @@ object JsonBinaryCodec {
         }
       } else {
         in.rollbackToken()
-        in.readNullOrError(unitValue, "expected JSON value")
+        in.readNullOrError(DynamicValue.Null, "expected JSON value")
       }
     }
 
     def encodeValue(x: DynamicValue, out: JsonWriter): Unit = x match {
       case primitive: DynamicValue.Primitive =>
         primitive.value match {
-          case _: PrimitiveValue.Unit.type      => out.writeNull()
+          case _: PrimitiveValue.Unit.type      => out.writeObjectStart(); out.writeObjectEnd()
           case v: PrimitiveValue.Boolean        => out.writeVal(v.value)
           case v: PrimitiveValue.Byte           => out.writeVal(v.value)
           case v: PrimitiveValue.Short          => out.writeVal(v.value)
@@ -832,7 +831,7 @@ object JsonBinaryCodec {
         out.writeObjectEnd()
       case variant: DynamicValue.Variant =>
         out.writeObjectStart()
-        out.writeKey(variant.caseName)
+        out.writeKey(variant.caseNameValue)
         encodeValue(variant.value, out)
         out.writeObjectEnd()
       case sequence: DynamicValue.Sequence =>
@@ -853,6 +852,8 @@ object JsonBinaryCodec {
           encodeValue(kv._2, out)
         }
         out.writeObjectEnd()
+      case DynamicValue.Null =>
+        out.writeNull()
     }
 
     override def encodeKey(x: DynamicValue, out: JsonWriter): Unit = x match {
