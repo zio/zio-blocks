@@ -251,9 +251,14 @@ object ReflectSpec extends SchemaBaseSpec {
       test("gets and updates primitive examples") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
+          primitiveBinding = Binding.Primitive[Long](),
           typeId = TestTypeId.long,
-          doc = Doc("Long (positive)")
+          doc = Doc("Long (positive)"),
+          storedExamples = Seq(
+            DynamicValue.Primitive(PrimitiveValue.Long(1L)),
+            DynamicValue.Primitive(PrimitiveValue.Long(2L)),
+            DynamicValue.Primitive(PrimitiveValue.Long(3L))
+          )
         )
         assert(long1.examples)(equalTo(Seq(1L, 2L, 3L))) &&
         assert(Reflect.int[Binding].examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))

@@ -80,7 +80,7 @@ object DynamicValueCoverageSpec extends SchemaBaseSpec {
     test("Multi field record") {
       val dv = DynamicValue.Record(
         "name" -> DynamicValue.Primitive(PrimitiveValue.String("test")),
-        "age" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+        "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(42))
       )
       assertTrue(
         dv.get("name").either.isRight,
@@ -122,23 +122,29 @@ object DynamicValueCoverageSpec extends SchemaBaseSpec {
       assertTrue(dv.elements.isEmpty)
     },
     test("Non-empty sequence get valid index") {
-      val dv = DynamicValue.Sequence(Chunk(
-        DynamicValue.Primitive(PrimitiveValue.Int(1)),
-        DynamicValue.Primitive(PrimitiveValue.Int(2)),
-        DynamicValue.Primitive(PrimitiveValue.Int(3))
-      ))
+      val dv = DynamicValue.Sequence(
+        Chunk(
+          DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          DynamicValue.Primitive(PrimitiveValue.Int(2)),
+          DynamicValue.Primitive(PrimitiveValue.Int(3))
+        )
+      )
       assertTrue(dv.get(1).either.isRight)
     },
     test("Non-empty sequence get invalid index") {
-      val dv = DynamicValue.Sequence(Chunk(
-        DynamicValue.Primitive(PrimitiveValue.Int(1))
-      ))
+      val dv = DynamicValue.Sequence(
+        Chunk(
+          DynamicValue.Primitive(PrimitiveValue.Int(1))
+        )
+      )
       assertTrue(dv.get(100).either.isLeft)
     },
     test("Sequence toString") {
-      val dv = DynamicValue.Sequence(Chunk(
-        DynamicValue.Primitive(PrimitiveValue.Int(1))
-      ))
+      val dv = DynamicValue.Sequence(
+        Chunk(
+          DynamicValue.Primitive(PrimitiveValue.Int(1))
+        )
+      )
       assertTrue(dv.toString.nonEmpty)
     }
   )
@@ -150,21 +156,21 @@ object DynamicValueCoverageSpec extends SchemaBaseSpec {
       assertTrue(dv.entries.isEmpty)
     },
     test("Non-empty map") {
-      val key: DynamicValue = DynamicValue.Primitive(PrimitiveValue.String("key"))
+      val key: DynamicValue   = DynamicValue.Primitive(PrimitiveValue.String("key"))
       val value: DynamicValue = DynamicValue.Primitive(PrimitiveValue.Int(42))
-      val dv = DynamicValue.Map(key -> value)
+      val dv                  = DynamicValue.Map(key -> value)
       assertTrue(dv.entries.nonEmpty)
     },
     test("Non-empty map get valid key") {
-      val key: DynamicValue = DynamicValue.Primitive(PrimitiveValue.String("key"))
+      val key: DynamicValue   = DynamicValue.Primitive(PrimitiveValue.String("key"))
       val value: DynamicValue = DynamicValue.Primitive(PrimitiveValue.Int(42))
-      val dv = DynamicValue.Map(key -> value)
+      val dv                  = DynamicValue.Map(key -> value)
       assertTrue(dv.get(key).either.isRight)
     },
     test("Non-empty map get invalid key") {
-      val key: DynamicValue = DynamicValue.Primitive(PrimitiveValue.String("key"))
-      val value: DynamicValue = DynamicValue.Primitive(PrimitiveValue.Int(42))
-      val dv = DynamicValue.Map(key -> value)
+      val key: DynamicValue        = DynamicValue.Primitive(PrimitiveValue.String("key"))
+      val value: DynamicValue      = DynamicValue.Primitive(PrimitiveValue.Int(42))
+      val dv                       = DynamicValue.Map(key -> value)
       val unknownKey: DynamicValue = DynamicValue.Primitive(PrimitiveValue.String("unknown"))
       assertTrue(dv.get(unknownKey).either.isLeft)
     }
@@ -179,9 +185,9 @@ object DynamicValueCoverageSpec extends SchemaBaseSpec {
       assertTrue(dv.toString.nonEmpty)
     },
     test("Map toString") {
-      val key: DynamicValue = DynamicValue.Primitive(PrimitiveValue.String("key"))
+      val key: DynamicValue   = DynamicValue.Primitive(PrimitiveValue.String("key"))
       val value: DynamicValue = DynamicValue.Primitive(PrimitiveValue.Int(42))
-      val dv = DynamicValue.Map(key -> value)
+      val dv                  = DynamicValue.Map(key -> value)
       assertTrue(dv.toString.nonEmpty)
     },
     test("Null toString") {

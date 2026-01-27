@@ -1850,7 +1850,12 @@ object SchemaSpec extends SchemaBaseSpec {
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
             TestTypeId.int,
-            Binding.Primitive(examples = Seq(1, 2, 3))
+            Binding.Primitive.int,
+            storedExamples = Seq(
+              DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              DynamicValue.Primitive(PrimitiveValue.Int(2)),
+              DynamicValue.Primitive(PrimitiveValue.Int(3))
+            )
           )
         }
         assert(Schema(deferred1).examples)(equalTo(Seq(1, 2, 3))) &&

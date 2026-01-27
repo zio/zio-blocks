@@ -147,9 +147,9 @@ object SchemaErrorSpec extends SchemaBaseSpec {
         assertTrue(error.errors.size == 1)
       },
       test("combined error has size equal to sum") {
-        val e1 = SchemaError.missingField(Nil, "a")
-        val e2 = SchemaError.missingField(Nil, "b")
-        val e3 = SchemaError.missingField(Nil, "c")
+        val e1       = SchemaError.missingField(Nil, "a")
+        val e2       = SchemaError.missingField(Nil, "b")
+        val e3       = SchemaError.missingField(Nil, "c")
         val combined = e1 ++ e2 ++ e3
         assertTrue(combined.errors.size == 3)
       }
@@ -169,7 +169,7 @@ object SchemaErrorSpec extends SchemaBaseSpec {
       },
       test("prependPath with multiple nodes") {
         val error = SchemaError.conversionFailed(Nil, "test")
-        val path = List(
+        val path  = List(
           DynamicOptic.Node.Field("a"),
           DynamicOptic.Node.AtIndex(0),
           DynamicOptic.Node.Field("b")
@@ -210,7 +210,7 @@ object SchemaErrorSpec extends SchemaBaseSpec {
         assertTrue(error.getMessage.contains("testField"))
       },
       test("error can be thrown and caught") {
-        val error = SchemaError.conversionFailed(Nil, "intentional")
+        val error  = SchemaError.conversionFailed(Nil, "intentional")
         val caught = try {
           throw error
         } catch {
@@ -223,7 +223,7 @@ object SchemaErrorSpec extends SchemaBaseSpec {
       test("deeply nested cause chain") {
         val inner1 = SchemaError.conversionFailed(Nil, "level 3")
         val inner2 = SchemaError.conversionFailed("level 2", inner1)
-        val outer = SchemaError.conversionFailed("level 1", inner2)
+        val outer  = SchemaError.conversionFailed("level 1", inner2)
         assertTrue(
           outer.message.contains("level 1"),
           outer.message.contains("level 2"),
@@ -231,8 +231,8 @@ object SchemaErrorSpec extends SchemaBaseSpec {
         )
       },
       test("combining errors from different paths") {
-        val e1 = SchemaError.missingField(List(DynamicOptic.Node.Field("users")), "name")
-        val e2 = SchemaError.missingField(List(DynamicOptic.Node.Field("posts")), "title")
+        val e1       = SchemaError.missingField(List(DynamicOptic.Node.Field("users")), "name")
+        val e2       = SchemaError.missingField(List(DynamicOptic.Node.Field("posts")), "title")
         val combined = e1 ++ e2
         assertTrue(
           combined.message.contains("name"),

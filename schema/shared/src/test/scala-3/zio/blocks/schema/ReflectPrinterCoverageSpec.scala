@@ -48,9 +48,9 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
   }
 
   sealed trait SimpleVariant
-  case class CaseA(x: Int) extends SimpleVariant
+  case class CaseA(x: Int)    extends SimpleVariant
   case class CaseB(y: String) extends SimpleVariant
-  case object CaseC extends SimpleVariant
+  case object CaseC           extends SimpleVariant
   object SimpleVariant {
     implicit val schema: Schema[SimpleVariant] = Schema.derived
   }
@@ -100,7 +100,7 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
   val printVariantTests = suite("printVariant")(
     test("Print variant with cases") {
       val variant = Schema[SimpleVariant].reflect.asVariant.get
-      val result = ReflectPrinter.printVariant(variant)
+      val result  = ReflectPrinter.printVariant(variant)
       assertTrue(
         result.contains("variant SimpleVariant"),
         result.contains("CaseA"),
@@ -110,7 +110,7 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
     },
     test("Print Either variant") {
       val variant = Schema[Either[String, Int]].reflect.asVariant.get
-      val result = ReflectPrinter.printVariant(variant)
+      val result  = ReflectPrinter.printVariant(variant)
       assertTrue(
         result.contains("variant"),
         result.contains("Left") || result.contains("Right")
@@ -118,7 +118,7 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
     },
     test("Print Option variant") {
       val variant = Schema[Option[String]].reflect.asVariant.get
-      val result = ReflectPrinter.printVariant(variant)
+      val result  = ReflectPrinter.printVariant(variant)
       assertTrue(result.contains("variant"))
     }
   )
@@ -127,9 +127,9 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
   val printSequenceTests = suite("printSequence")(
     test("Print List sequence") {
       val schema = Schema[List[String]]
-      val seq = schema.reflect match {
+      val seq    = schema.reflect match {
         case s: Reflect.Sequence[_, _, _] => Some(s)
-        case _ => None
+        case _                            => None
       }
       assertTrue(seq.isDefined)
       val result = ReflectPrinter.printSequence(seq.get.asInstanceOf[Reflect.Sequence[Binding, String, List]])
@@ -137,17 +137,17 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
     },
     test("Print Vector sequence") {
       val schema = Schema[Vector[Int]]
-      val seq = schema.reflect match {
+      val seq    = schema.reflect match {
         case s: Reflect.Sequence[_, _, _] => Some(s)
-        case _ => None
+        case _                            => None
       }
       assertTrue(seq.isDefined)
     },
     test("Print Set sequence") {
       val schema = Schema[Set[String]]
-      val seq = schema.reflect match {
+      val seq    = schema.reflect match {
         case s: Reflect.Sequence[_, _, _] => Some(s)
-        case _ => None
+        case _                            => None
       }
       assertTrue(seq.isDefined)
     }
@@ -157,12 +157,13 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
   val printMapTests = suite("printMap")(
     test("Print String to Int map") {
       val schema = Schema[Map[String, Int]]
-      val map = schema.reflect match {
+      val map    = schema.reflect match {
         case m: Reflect.Map[_, _, _, _] => Some(m)
-        case _ => None
+        case _                          => None
       }
       assertTrue(map.isDefined)
-      val result = ReflectPrinter.printMap(map.get.asInstanceOf[Reflect.Map[Binding, String, Int, scala.collection.immutable.Map]])
+      val result =
+        ReflectPrinter.printMap(map.get.asInstanceOf[Reflect.Map[Binding, String, Int, scala.collection.immutable.Map]])
       assertTrue(result.contains("map"))
     }
   )
@@ -171,10 +172,11 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
   val printWrapperTests = suite("printWrapper")(
     test("Print Option wrapper") {
       // Option is typically a variant, not a wrapper, but we test what's available
-      val schema = Schema[Option[Int]]
+      val schema  = Schema[Option[Int]]
       val printed = schema.reflect match {
-        case v: Reflect.Variant[_, _] => ReflectPrinter.printVariant(v)
-        case w: Reflect.Wrapper[_, _, _] => ReflectPrinter.printWrapper(w.asInstanceOf[Reflect.Wrapper[Binding, Option[Int], Int]])
+        case v: Reflect.Variant[_, _]    => ReflectPrinter.printVariant(v)
+        case w: Reflect.Wrapper[_, _, _] =>
+          ReflectPrinter.printWrapper(w.asInstanceOf[Reflect.Wrapper[Binding, Option[Int], Int]])
         case _ => "other"
       }
       assertTrue(printed.nonEmpty)
@@ -185,14 +187,14 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
   val printTermTests = suite("printTerm")(
     test("Print term for record field") {
       val record = Schema[SingleField].reflect.asRecord.get
-      val field = record.fields(0)
+      val field  = record.fields(0)
       val result = ReflectPrinter.printTerm(field)
       assertTrue(result.contains("value"))
     },
     test("Print term for variant case") {
       val variant = Schema[SimpleVariant].reflect.asVariant.get
-      val case_ = variant.cases(0)
-      val result = ReflectPrinter.printTerm(case_)
+      val case_   = variant.cases(0)
+      val result  = ReflectPrinter.printTerm(case_)
       assertTrue(result.contains("CaseA"))
     }
   )
@@ -281,9 +283,9 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
       assertTrue(sdl.contains("List") && sdl.contains("Map"))
     },
     test("SDL for all primitive types") {
-      val intSdl = ReflectPrinter.sdlTypeName(TypeId.of[Int])
+      val intSdl    = ReflectPrinter.sdlTypeName(TypeId.of[Int])
       val stringSdl = ReflectPrinter.sdlTypeName(TypeId.of[String])
-      val boolSdl = ReflectPrinter.sdlTypeName(TypeId.of[Boolean])
+      val boolSdl   = ReflectPrinter.sdlTypeName(TypeId.of[Boolean])
       assertTrue(intSdl == "Int" && stringSdl == "String" && boolSdl == "Boolean")
     },
     test("Print record via public API") {
@@ -293,13 +295,13 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
     },
     test("Print variant via public API") {
       val variant = Schema[SimpleVariant].reflect.asVariant.get
-      val result = ReflectPrinter.printVariant(variant)
+      val result  = ReflectPrinter.printVariant(variant)
       assertTrue(result.contains("SimpleVariant"))
     },
     test("Print sequence via public API") {
       val schema = Schema[List[String]]
-      val seq = schema.reflect match {
-        case s: Reflect.Sequence[_, _, _] => 
+      val seq    = schema.reflect match {
+        case s: Reflect.Sequence[_, _, _] =>
           ReflectPrinter.printSequence(s.asInstanceOf[Reflect.Sequence[binding.Binding, String, List]])
         case _ => "not a sequence"
       }
@@ -307,16 +309,18 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
     },
     test("Print map via public API") {
       val schema = Schema[Map[String, Int]]
-      val map = schema.reflect match {
-        case m: Reflect.Map[_, _, _, _] => 
-          ReflectPrinter.printMap(m.asInstanceOf[Reflect.Map[binding.Binding, String, Int, scala.collection.immutable.Map]])
+      val map    = schema.reflect match {
+        case m: Reflect.Map[_, _, _, _] =>
+          ReflectPrinter.printMap(
+            m.asInstanceOf[Reflect.Map[binding.Binding, String, Int, scala.collection.immutable.Map]]
+          )
         case _ => "not a map"
       }
       assertTrue(map.contains("map"))
     },
     test("Print Option variant via public API") {
       val variant = Schema[Option[SingleField]].reflect.asVariant.get
-      val result = ReflectPrinter.printVariant(variant)
+      val result  = ReflectPrinter.printVariant(variant)
       assertTrue(result.nonEmpty)
     },
     test("Print deeply nested record via public API") {
@@ -326,7 +330,7 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
       object Level2 { implicit val schema: Schema[Level2] = Schema.derived }
       case class Level1(l2: Level2)
       object Level1 { implicit val schema: Schema[Level1] = Schema.derived }
-      
+
       val record = Schema[Level1].reflect.asRecord.get
       val result = ReflectPrinter.printRecord(record)
       assertTrue(result.contains("Level1") && result.contains("l2"))
@@ -344,7 +348,7 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
         s: String
       )
       object AllPrimitives { implicit val schema: Schema[AllPrimitives] = Schema.derived }
-      
+
       val record = Schema[AllPrimitives].reflect.asRecord.get
       val result = ReflectPrinter.printRecord(record)
       assertTrue(result.contains("AllPrimitives"))
@@ -363,8 +367,8 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
     },
     test("Print nested sequence via public API") {
       val schema = Schema[List[List[Int]]]
-      val seq = schema.reflect match {
-        case s: Reflect.Sequence[_, _, _] => 
+      val seq    = schema.reflect match {
+        case s: Reflect.Sequence[_, _, _] =>
           ReflectPrinter.printSequence(s.asInstanceOf[Reflect.Sequence[binding.Binding, List[Int], List]])
         case _ => "not a sequence"
       }
@@ -372,9 +376,11 @@ object ReflectPrinterCoverageSpec extends SchemaBaseSpec {
     },
     test("Print nested map via public API") {
       val schema = Schema[Map[String, Map[String, Int]]]
-      val map = schema.reflect match {
-        case m: Reflect.Map[_, _, _, _] => 
-          ReflectPrinter.printMap(m.asInstanceOf[Reflect.Map[binding.Binding, String, Map[String, Int], scala.collection.immutable.Map]])
+      val map    = schema.reflect match {
+        case m: Reflect.Map[_, _, _, _] =>
+          ReflectPrinter.printMap(
+            m.asInstanceOf[Reflect.Map[binding.Binding, String, Map[String, Int], scala.collection.immutable.Map]]
+          )
         case _ => "not a map"
       }
       assertTrue(map.contains("map"))

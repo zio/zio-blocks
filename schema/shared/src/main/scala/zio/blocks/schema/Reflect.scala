@@ -442,7 +442,8 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
       for {
         fields <- Lazy.foreach(fields)(_.transform(path, Term.Type.Record, f))
-        record <- f.transformRecord(path, fields, typeId, recordBinding, doc, modifiers)
+        record <-
+          f.transformRecord(path, fields, typeId, recordBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield record
 
     lazy val registers: IndexedSeq[Register[Any]] = ArraySeq.unsafeWrapArray(Record.registers(fieldValues))
@@ -619,7 +620,8 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
       for {
         cases   <- Lazy.foreach(cases)(_.transform(path, Term.Type.Variant, f))
-        variant <- f.transformVariant(path, cases, typeId, variantBinding, doc, modifiers)
+        variant <-
+          f.transformVariant(path, cases, typeId, variantBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield variant
 
     def typeId(value: TypeId[A]): Variant[F, A] = copy(typeId = value)
@@ -816,7 +818,8 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
       for {
         element  <- element.transform(path(DynamicOptic.elements), f)
-        sequence <- f.transformSequence(path, element, typeId, seqBinding, doc, modifiers)
+        sequence <-
+          f.transformSequence(path, element, typeId, seqBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield sequence
 
     def seqConstructor(implicit F: HasBinding[F]): SeqConstructor[C] = F.seqConstructor(seqBinding)
@@ -942,7 +945,7 @@ object Reflect {
       for {
         key   <- key.transform(path(DynamicOptic.mapKeys), f)
         value <- value.transform(path(DynamicOptic.mapValues), f)
-        map   <- f.transformMap(path, key, value, typeId, mapBinding, doc, modifiers)
+        map   <- f.transformMap(path, key, value, typeId, mapBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield map
 
     def typeId(value: TypeId[M[K, V]]): Map[F, K, V, M] = copy(typeId = value)
@@ -1014,7 +1017,7 @@ object Reflect {
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Dynamic[G]] =
       for {
-        dynamic <- f.transformDynamic(path, typeId, dynamicBinding, doc, modifiers)
+        dynamic <- f.transformDynamic(path, typeId, dynamicBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield dynamic
 
     def typeId(value: TypeId[DynamicValue]): Dynamic[F] = copy(typeId = value)
@@ -1078,7 +1081,16 @@ object Reflect {
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Primitive[G, A]] =
       for {
-        primitive <- f.transformPrimitive(path, primitiveType, typeId, primitiveBinding, doc, modifiers)
+        primitive <- f.transformPrimitive(
+                       path,
+                       primitiveType,
+                       typeId,
+                       primitiveBinding,
+                       doc,
+                       modifiers,
+                       storedDefaultValue,
+                       storedExamples
+                     )
       } yield primitive
 
     def typeId(value: TypeId[A]): Primitive[F, A] = copy(typeId = value)
@@ -1147,7 +1159,17 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {
         wrapped <- wrapped.transform(path, f)
-        wrapper <- f.transformWrapper(path, wrapped, typeId, wrapperPrimitiveType, wrapperBinding, doc, modifiers)
+        wrapper <- f.transformWrapper(
+                     path,
+                     wrapped,
+                     typeId,
+                     wrapperPrimitiveType,
+                     wrapperBinding,
+                     doc,
+                     modifiers,
+                     storedDefaultValue,
+                     storedExamples
+                   )
       } yield wrapper
 
     def typeName(value: TypeId[A]): Wrapper[F, A, B] = copy(typeId = value)
