@@ -20,13 +20,14 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    *   - All fields removed from source (in A but not B) must be handled
    *   - All fields added to target (in B but not A) must be provided
    *
-   * Fields that exist in both schemas are automatically considered handled/provided.
+   * Fields that exist in both schemas are automatically considered
+   * handled/provided.
    *
    * @return
    *   A complete, validated Migration[A, B]
    */
   inline def buildChecked(using
-      proof: ValidationProof[A, B, Handled, Provided]
+    proof: ValidationProof[A, B, Handled, Provided]
   ): Migration[A, B] =
     builder.buildPartial
 
@@ -226,7 +227,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     val fieldName = extractFieldNameFromSelector(target.asTerm)
 
     // Create literal type for field name
-    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
     given Type[FieldName] = fieldNameType
 
     '{
@@ -252,7 +253,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     val fieldName = extractFieldNameFromSelector(source.asTerm)
 
     // Create literal type for field name
-    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
     given Type[FieldName] = fieldNameType
 
     '{
@@ -275,14 +276,14 @@ private[migration] object MigrationBuilderMacrosImpl {
     to: Expr[B => Any]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FromName], Tuple.Append[Provided, ToName]]] = {
     import q.reflect.*
-    val fromOptic    = MigrationBuilderMacros.extractOptic[A, Any](from)
-    val toFieldName  = MigrationBuilderMacros.extractFieldName[B, Any](to)
-    val fromName     = extractFieldNameFromSelector(from.asTerm)
-    val toName       = extractFieldNameFromSelector(to.asTerm)
+    val fromOptic   = MigrationBuilderMacros.extractOptic[A, Any](from)
+    val toFieldName = MigrationBuilderMacros.extractFieldName[B, Any](to)
+    val fromName    = extractFieldNameFromSelector(from.asTerm)
+    val toName      = extractFieldNameFromSelector(to.asTerm)
 
     // Create literal types for field names
-    val fromNameType = ConstantType(StringConstant(fromName)).asType.asInstanceOf[Type[FromName]]
-    val toNameType   = ConstantType(StringConstant(toName)).asType.asInstanceOf[Type[ToName]]
+    val fromNameType     = ConstantType(StringConstant(fromName)).asType.asInstanceOf[Type[FromName]]
+    val toNameType       = ConstantType(StringConstant(toName)).asType.asInstanceOf[Type[ToName]]
     given Type[FromName] = fromNameType
     given Type[ToName]   = toNameType
 
@@ -311,7 +312,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     val fieldName = extractFieldNameFromSelector(at.asTerm)
 
     // Create literal type for field name
-    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
     given Type[FieldName] = fieldNameType
 
     '{
@@ -339,7 +340,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     val fieldName = extractFieldNameFromSelector(at.asTerm)
 
     // Create literal type for field name
-    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
     given Type[FieldName] = fieldNameType
 
     '{
@@ -367,7 +368,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     val fieldName = extractFieldNameFromSelector(at.asTerm)
 
     // Create literal type for field name
-    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
     given Type[FieldName] = fieldNameType
 
     '{
@@ -395,7 +396,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     val fieldName = extractFieldNameFromSelector(at.asTerm)
 
     // Create literal type for field name
-    val fieldNameType = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
+    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
     given Type[FieldName] = fieldNameType
 
     '{
@@ -423,7 +424,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     val targetName   = extractFieldNameFromSelector(target.asTerm)
 
     // Create literal type for field name
-    val targetNameType = ConstantType(StringConstant(targetName)).asType.asInstanceOf[Type[TargetName]]
+    val targetNameType     = ConstantType(StringConstant(targetName)).asType.asInstanceOf[Type[TargetName]]
     given Type[TargetName] = targetNameType
 
     '{
@@ -451,7 +452,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     val sourceName   = extractFieldNameFromSelector(source.asTerm)
 
     // Create literal type for field name
-    val sourceNameType = ConstantType(StringConstant(sourceName)).asType.asInstanceOf[Type[SourceName]]
+    val sourceNameType     = ConstantType(StringConstant(sourceName)).asType.asInstanceOf[Type[SourceName]]
     given Type[SourceName] = sourceNameType
 
     '{

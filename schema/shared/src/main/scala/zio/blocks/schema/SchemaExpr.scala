@@ -401,7 +401,11 @@ object SchemaExpr {
                     return Left(
                       new OpticCheck(
                         new ::(
-                          new OpticCheck.WrappingError(optic, optic, SchemaError.validationFailed(s"Field $name not found")),
+                          new OpticCheck.WrappingError(
+                            optic,
+                            optic,
+                            SchemaError.validationFailed(s"Field $name not found")
+                          ),
                           Nil
                         )
                       )
@@ -421,7 +425,11 @@ object SchemaExpr {
             return Left(
               new OpticCheck(
                 new ::(
-                  new OpticCheck.WrappingError(optic, optic, SchemaError.validationFailed("Only Field access supported in Dynamic SchemaExpr")),
+                  new OpticCheck.WrappingError(
+                    optic,
+                    optic,
+                    SchemaError.validationFailed("Only Field access supported in Dynamic SchemaExpr")
+                  ),
                   Nil
                 )
               )
@@ -460,7 +468,14 @@ object SchemaExpr {
             case Left(err)        =>
               Left(
                 new OpticCheck(
-                  new ::(new OpticCheck.WrappingError(DynamicOptic.root, DynamicOptic.root, SchemaError.validationFailed(err)), Nil)
+                  new ::(
+                    new OpticCheck.WrappingError(
+                      DynamicOptic.root,
+                      DynamicOptic.root,
+                      SchemaError.validationFailed(err)
+                    ),
+                    Nil
+                  )
                 )
               )
           }
