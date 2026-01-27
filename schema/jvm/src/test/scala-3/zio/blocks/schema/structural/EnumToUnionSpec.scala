@@ -88,6 +88,26 @@ object EnumToUnionSpec extends ZIOSpecDefault {
           fields.toMap.get("radius").contains(DynamicValue.Primitive(PrimitiveValue.Double(5.0)))
         case _ => false
       })
+    },
+    test("simple enum converts to expected structural union type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        enum Color { case Red, Green, Blue }
+        val schema = Schema.derived[Color]
+        val structural: Schema[{def Tag: "Blue"} | {def Tag: "Green"} | {def Tag: "Red"}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
+    },
+    test("parameterized enum converts to expected structural union type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        enum Shape {
+          case Circle(radius: Double)
+          case Rectangle(width: Double, height: Double)
+          case Triangle(base: Double, height: Double)
+        }
+        val schema = Schema.derived[Shape]
+        val structural: Schema[{def Tag: "Circle"; def radius: Double} | {def Tag: "Rectangle"; def height: Double; def width: Double} | {def Tag: "Triangle"; def base: Double; def height: Double}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     }
   )
 }

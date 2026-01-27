@@ -41,10 +41,8 @@ object StructuralBindingSpec extends ZIOSpecDefault {
         val structural = schema.structural
 
         val dynamic = DynamicValue.Record(
-          Vector(
-            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-          )
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+          "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
         )
 
         val structuralAny = structural.asInstanceOf[Schema[Any]]
@@ -109,10 +107,8 @@ object StructuralBindingSpec extends ZIOSpecDefault {
         val dynamic = DynamicValue.Variant(
           "Rectangle",
           DynamicValue.Record(
-            Vector(
-              "width" -> DynamicValue.Primitive(PrimitiveValue.Double(10.0)),
-              "h"     -> DynamicValue.Primitive(PrimitiveValue.Double(20.0))
-            )
+            "width" -> DynamicValue.Primitive(PrimitiveValue.Double(10.0)),
+            "h"     -> DynamicValue.Primitive(PrimitiveValue.Double(20.0))
           )
         )
 
@@ -169,10 +165,8 @@ object StructuralBindingSpec extends ZIOSpecDefault {
         val structural = schema.structural
 
         val dynamic = DynamicValue.Record(
-          Vector(
-            "_1" -> DynamicValue.Primitive(PrimitiveValue.String("world")),
-            "_2" -> DynamicValue.Primitive(PrimitiveValue.Int(100))
-          )
+          "_1" -> DynamicValue.Primitive(PrimitiveValue.String("world")),
+          "_2" -> DynamicValue.Primitive(PrimitiveValue.Int(100))
         )
 
         val structuralAny = structural.asInstanceOf[Schema[Any]]

@@ -1,9 +1,9 @@
-package zio.blocks.schema.structural.errors
+package zio.blocks.schema.structural
 
 import zio.test._
 
 /**
- * Tests for unsupported type conversion and validates supported type behavior.
+ * Tests for supported structural type conversions.
  *
  * ==Supported Types==
  *   - Case classes (product types)
@@ -16,18 +16,10 @@ import zio.test._
  * ==Sum Types (Scala 2 vs Scala 3)==
  * Sum type error tests are in scala-2 specific: SumTypeErrorSpec.scala In Scala
  * 3, sealed traits/enums are supported via union types.
- *
- * ==Expected Error Format for Scala 2 Sum Types==
- * {{{
- * Cannot generate ToStructural for MyType.
- *
- * Only product types (case classes) and tuples are currently supported.
- * Sum types (sealed traits) are not supported in Scala 2.
- * }}}
  */
-object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
+object SupportedTypesSpec extends ZIOSpecDefault {
 
-  def spec = suite("UnsupportedTypeErrorSpec")(
+  def spec = suite("SupportedTypesSpec")(
     suite("Supported Product Types")(
       test("simple case class converts to structural") {
         typeCheck {
@@ -37,7 +29,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class Simple(x: Int, y: String)
 
           val schema = Schema.derived[Simple]
-          schema.structural
+          val structural: Schema[{def x: Int; def y: String}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -54,7 +46,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           )
 
           val schema = Schema.derived[Primitives]
-          schema.structural
+          val structural: Schema[{def a: Int; def b: Long; def c: Float; def d: Double; def e: Boolean; def f: Byte; def g: Short; def h: Char; def i: String}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -68,7 +60,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class WithOption(required: String, optional: Option[Int])
 
           val schema = Schema.derived[WithOption]
-          schema.structural
+          val structural: Schema[{def optional: Option[Int]; def required: String}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -82,7 +74,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class WithList(items: List[Int])
 
           val schema = Schema.derived[WithList]
-          schema.structural
+          val structural: Schema[{def items: List[Int]}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -96,7 +88,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class WithSet(items: Set[String])
 
           val schema = Schema.derived[WithSet]
-          schema.structural
+          val structural: Schema[{def items: Set[String]}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -110,7 +102,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class WithVector(items: Vector[Double])
 
           val schema = Schema.derived[WithVector]
-          schema.structural
+          val structural: Schema[{def items: Vector[Double]}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -124,7 +116,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class WithMap(mapping: Map[String, Int])
 
           val schema = Schema.derived[WithMap]
-          schema.structural
+          val structural: Schema[{def mapping: Map[String, Int]}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -139,7 +131,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class Outer(name: String, inner: Inner)
 
           val schema = Schema.derived[Outer]
-          schema.structural
+          val structural: Schema[{def inner: Inner; def name: String}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -156,7 +148,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class Root(level1: Level1)
 
           val schema = Schema.derived[Root]
-          schema.structural
+          val structural: Schema[{def level1: Level1}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -170,7 +162,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class Empty()
 
           val schema = Schema.derived[Empty]
-          schema.structural
+          val structural: Schema[{}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -184,7 +176,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case object Singleton
 
           val schema = Schema.derived[Singleton.type]
-          schema.structural
+          val structural: Schema[{}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -241,7 +233,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           import zio.blocks.schema._
 
           val schema = Schema.derived[(Int, String)]
-          schema.structural
+          val structural: Schema[{def _1: Int; def _2: String}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -253,7 +245,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           import zio.blocks.schema._
 
           val schema = Schema.derived[(Int, String, Boolean)]
-          schema.structural
+          val structural: Schema[{def _1: Int; def _2: String; def _3: Boolean}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -265,7 +257,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           import zio.blocks.schema._
 
           val schema = Schema.derived[((Int, String), (Boolean, Double))]
-          schema.structural
+          val structural: Schema[{def _1: (Int, String); def _2: (Boolean, Double)}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -278,7 +270,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
 
           case class Point(x: Int, y: Int)
           val schema = Schema.derived[(Point, String)]
-          schema.structural
+          val structural: Schema[{def _1: Point; def _2: String}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -296,7 +288,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class WithEither(result: Either[String, Int])
 
           val schema = Schema.derived[WithEither]
-          schema.structural
+          val structural: Schema[{def result: Either[String, Int]}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -310,7 +302,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class Complex(items: Option[List[Int]])
 
           val schema = Schema.derived[Complex]
-          schema.structural
+          val structural: Schema[{def items: Option[List[Int]]}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)
@@ -324,7 +316,7 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
           case class ComplexMap(data: Map[String, List[Int]])
 
           val schema = Schema.derived[ComplexMap]
-          schema.structural
+          val structural: Schema[{def data: Map[String, List[Int]]}] = schema.structural
           """
         }.map { result =>
           assertTrue(result.isRight)

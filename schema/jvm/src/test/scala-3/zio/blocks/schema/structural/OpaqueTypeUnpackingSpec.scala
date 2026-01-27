@@ -115,6 +115,32 @@ object OpaqueTypeUnpackingSpec extends ZIOSpecDefault {
           typeName.contains("name:String")
         )
       }
+    ),
+    suite("Type checking with explicit structural types")(
+      test("User unpacks UserId to String in structural type") {
+        typeCheck("""
+          import zio.blocks.schema._
+          import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
+          val schema = Schema.derived[User]
+          val structural: Schema[{def id: String; def name: String}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
+      },
+      test("Person unpacks Age to Int in structural type") {
+        typeCheck("""
+          import zio.blocks.schema._
+          import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec.{Person => PersonType, _}
+          val schema = Schema.derived[PersonType]
+          val structural: Schema[{def age: Int; def name: String}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
+      },
+      test("GameResult unpacks Score to Double in structural type") {
+        typeCheck("""
+          import zio.blocks.schema._
+          import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
+          val schema = Schema.derived[GameResult]
+          val structural: Schema[{def player: String; def score: Double}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
+      }
     )
   )
 }

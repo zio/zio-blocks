@@ -43,6 +43,22 @@ object UnionTypesSpec extends ZIOSpecDefault {
         typeName.contains("value:Int"),
         typeName.contains("error:String")
       )
+    },
+    test("Result sealed trait converts to union structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.structural.UnionTypesSpec._
+        val schema = Schema.derived[Result]
+        val structural: Schema[{def Tag: "Success"; def value: Int} | {def Tag: "Failure"; def error: String}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
+    },
+    test("Status sealed trait converts to union structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.structural.UnionTypesSpec._
+        val schema = Schema.derived[Status]
+        val structural: Schema[{def Tag: "Active"} | {def Tag: "Inactive"}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     }
   )
 }

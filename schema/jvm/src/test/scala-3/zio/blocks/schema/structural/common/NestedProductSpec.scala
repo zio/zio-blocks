@@ -30,6 +30,15 @@ object NestedProductSpec extends ZIOSpecDefault {
       val dynamic   = schema.toDynamicValue(person)
       val roundTrip = schema.fromDynamicValue(dynamic)
       assertTrue(roundTrip == Right(person))
+    },
+    test("nested case class converts to expected structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        case class Address(street: String, city: String, zip: Int)
+        case class Person(name: String, age: Int, address: Address)
+        val schema = Schema.derived[Person]
+        val structural: Schema[{def address: Address; def age: Int; def name: String}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     }
   )
 }
