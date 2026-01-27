@@ -27,7 +27,7 @@ jobs:
           sudo apt-get install -y locales
           sudo locale-gen en_US.UTF-8
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -51,7 +51,7 @@ jobs:
         scala: ['2.13.x', '3.x']
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Set JVM options for JDK 25+
@@ -87,7 +87,7 @@ jobs:
         scala: ['2.13.x', '3.x']
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -106,7 +106,7 @@ jobs:
 
   testNative:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -114,10 +114,10 @@ jobs:
         platform: ['Native']
         scala: ['2.13.x', '3.x']
     env:
-      SCALANATIVE_THREAD_STACK_SIZE: 32m    
+      SCALANATIVE_THREAD_STACK_SIZE: 128m
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -148,7 +148,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' }}
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action

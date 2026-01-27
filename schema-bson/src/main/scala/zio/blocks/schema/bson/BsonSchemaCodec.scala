@@ -2,7 +2,7 @@ package zio.blocks.schema.bson
 
 import org.bson.{BsonReader, BsonWriter, BsonValue}
 import zio.blocks.schema._
-import zio.blocks.schema.binding.Registers
+import zio.blocks.schema.binding.{Register, RegisterOffset, Registers}
 
 object BsonSchemaCodec {
 
@@ -168,11 +168,25 @@ object BsonSchemaCodec {
 
   // Record (case class) codec derivation
   private def deriveRecordCodec[A](record: Reflect.Record.Bound[A], config: Config): BsonCodec[A] = {
-    val fields        = record.fields
-    val binding       = record.binding.asInstanceOf[zio.blocks.schema.binding.Binding.Record[A]]
-    val constructor   = binding.constructor
-    val deconstructor = binding.deconstructor
-    val registers     = record.registers
+    val fields                               = record.fields
+    val binding                              = record.binding.asInstanceOf[zio.blocks.schema.binding.Binding.Record[A]]
+    val constructor                          = binding.constructor
+    val deconstructor                        = binding.deconstructor
+    val bindingUsedRegs                      = deconstructor.usedRegisters
+    val registers: IndexedSeq[Register[Any]] =
+      if (
+        RegisterOffset.getObjects(bindingUsedRegs) == fields.length &&
+        RegisterOffset.getBytes(bindingUsedRegs) == 0
+      ) {
+        var offset = 0L
+        fields.indices.map { _ =>
+          val reg = new Register.Object[AnyRef](offset).asInstanceOf[Register[Any]]
+          offset = RegisterOffset.incrementObjects(offset)
+          reg
+        }
+      } else {
+        record.registers
+      }
 
     // Derive codecs for each field
     val fieldCodecs: Array[BsonCodec[Any]] = fields.map { field =>

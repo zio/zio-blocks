@@ -2570,7 +2570,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Map[Int, Long]]("", "unexpected end of input at: .") &&
         decodeError[Map[Int, Long]]("true", "expected '{' or null at: .") &&
         decodeError[Map[Int, Long]]("""{"1"""", "unexpected end of input at: .at(0)") &&
-        decodeError[Map[Int, Long]]("""{"1":""", "unexpected end of input at: .atKey(<key>)") &&
+        decodeError[Map[Int, Long]]("""{"1":""", "unexpected end of input at: .atKey(1)") &&
         decodeError[Map[Int, Long]]("""{"1":2]""", "expected '}' or ',' at: .") &&
         encodeError(Map(() -> 1L), "encoding as JSON key is not supported") &&
         decodeError[Map[Unit, Long]]("""{"null":1}""", "decoding as JSON key is not supported at: .at(0)")
@@ -2828,7 +2828,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     ),
     suite("dynamic value")(
       test("top-level") {
-        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Unit), "null") &&
+        roundTrip[DynamicValue](DynamicValue.Null, "null") &&
+        encode[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Unit), "{}") &&
         roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Boolean(true)), "true") &&
         roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Boolean(false)), "false") &&
         encode[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte)), "1") &&
@@ -3134,7 +3135,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   case class UserId(value: Long)
 
   object UserId {
-    implicit val schema: Schema[UserId] = Schema.derived.wrapTotal(x => new UserId(x), _.value)
+    implicit val schema: Schema[UserId] =
+      Schema[Long].transform[UserId](x => new UserId(x), _.value).withTypeName[UserId]
   }
 
   case class Email(value: String)
@@ -3448,7 +3450,10 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
+    // Note: AnyVal classes are NOT true opaque types - they get boxed in generic contexts.
+    // Use withTypeName instead of asOpaqueType for AnyVal wrappers.
+    implicit val schema: Schema[PosInt] =
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeName[PosInt]
   }
 
   case class Counter(value: PosInt)

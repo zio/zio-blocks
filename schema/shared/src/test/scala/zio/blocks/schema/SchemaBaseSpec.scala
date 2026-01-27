@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.durationInt
-import zio.test.{TestAspect, TestAspectAtLeastR, TestEnvironment, TestPlatform, ZIOSpecDefault}
+import zio.test._
 
 trait SchemaBaseSpec extends ZIOSpecDefault {
   override def aspects: zio.Chunk[TestAspectAtLeastR[TestEnvironment]] =
@@ -14,9 +14,7 @@ trait SchemaBaseSpec extends ZIOSpecDefault {
         TestAspect.size(10),
         TestAspect.samples(50)
       )
-    } else {
-      zio.Chunk(TestAspect.timeout(120.seconds), TestAspect.timed, TestAspect.sequential, TestAspect.size(10))
-    }
+    } else zio.Chunk(TestAspect.timeout(120.seconds), TestAspect.timed, TestAspect.sequential, TestAspect.size(10))
 
   import zio.blocks.typeid.{TypeId, TypeDefKind}
 

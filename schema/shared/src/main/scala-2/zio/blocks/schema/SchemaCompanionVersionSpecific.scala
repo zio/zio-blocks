@@ -31,7 +31,6 @@ private object SchemaCompanionVersionSpecific {
 
   def derived[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Schema[A]] = {
     import c.universe._
-    import c.internal._
 
     def fail(msg: String): Nothing = CommonMacroOps.fail(c)(msg)
 
@@ -78,20 +77,7 @@ private object SchemaCompanionVersionSpecific {
       if (isZioPreludeNewtype(tpe)) zioPreludeNewtypeDealias(tpe)
       else tpe
 
-    def companion(tpe: Type): Symbol = {
-      val comp = tpe.typeSymbol.companion
-      if (comp.isModule) comp
-      else {
-        val ownerChainOf = (s: Symbol) => Iterator.iterate(s)(_.owner).takeWhile(_ != NoSymbol).toArray.reverseIterator
-        val path         = ownerChainOf(tpe.typeSymbol)
-          .zipAll(ownerChainOf(enclosingOwner), NoSymbol, NoSymbol)
-          .dropWhile(x => x._1 == x._2)
-          .takeWhile(x => x._1 != NoSymbol)
-          .map(x => x._1.name.toTermName)
-        if (path.isEmpty) NoSymbol
-        else c.typecheck(path.foldLeft[Tree](Ident(path.next()))(Select(_, _)), silent = true).symbol
-      }
-    }
+    def companion(tpe: Type): Symbol = CommonMacroOps.companion(c)(tpe)
 
     def primaryConstructor(tpe: Type): MethodSymbol = tpe.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
@@ -205,6 +191,8 @@ private object SchemaCompanionVersionSpecific {
 
       q"new zio.blocks.typeid.TypeId(zio.blocks.typeid.DynamicTypeId($ownerTree, $name, List(..$typeParams), zio.blocks.typeid.TypeDefKind.Class(), Nil, Nil))"
     }
+
+
 
     def modifiers(tpe: Type): List[Tree] = {
       val modifiers = new mutable.ListBuffer[Tree]

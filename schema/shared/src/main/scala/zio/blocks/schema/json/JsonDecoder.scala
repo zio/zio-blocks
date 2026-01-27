@@ -464,9 +464,9 @@ object JsonDecoder {
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonDecoder[A] = new JsonDecoder[A] {
     private[this] val codec = schema.derive(JsonBinaryCodecDeriver)
 
-    def decode(json: Json): Either[JsonError, A] = codec.decode(json.encodeToBytes) match {
+    def decode(json: Json): Either[JsonError, A] = codec.decode(json.printBytes) match {
       case r: Right[_, _] => r.asInstanceOf[Either[JsonError, A]]
-      case Left(err)      => Left(JsonError.fromSchemaError(err))
+      case Left(error)    => Left(JsonError.fromSchemaError(error))
     }
   }
 }

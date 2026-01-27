@@ -81,14 +81,14 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       assert(DynamicOptic.wrapped.apply(Schema[A].reflect): Option[Any])(isNone)
     },
     test("toString returns a path") {
-      assert(A.x.toDynamic.toString)(equalTo(".when[X]")) &&
-      assert(A.x(X.y).toDynamic.toString)(equalTo(".when[X].y")) &&
-      assert(A.x(X.y)(Y.z).toDynamic.toString)(equalTo(".when[X].y.z")) &&
-      assert(DynamicOptic.root.at(0).atKey("Z").toString)(equalTo(".at(0).atKey(<key>)")) &&
+      assert(A.x.toDynamic.toString)(equalTo("<X>")) &&
+      assert(A.x(X.y).toDynamic.toString)(equalTo("<X>.y")) &&
+      assert(A.x(X.y)(Y.z).toDynamic.toString)(equalTo("<X>.y.z")) &&
+      assert(DynamicOptic.root.at(0).atKey("Z").toString)(equalTo("[0]{\"Z\"}")) &&
       assert(DynamicOptic.root.atIndices(0, 1, 2).atKeys("X", "Y", "Z").toString)(
-        equalTo(".atIndices(<indices>).atKeys(<keys>)")
+        equalTo("[0,1,2]{\"X\", \"Y\", \"Z\"}")
       ) &&
-      assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo(".each.eachKey.eachValue.wrapped"))
+      assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo("[*]{*:}{*}.~"))
     }
   )
 
@@ -125,6 +125,7 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
+    implicit val schema: Schema[PosInt] =
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).asOpaqueType[PosInt]
   }
 }

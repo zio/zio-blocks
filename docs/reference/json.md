@@ -100,19 +100,33 @@ The `json"..."` interpolator validates JSON syntax at compile time, catching err
 
 ## Type Testing and Access
 
-### Type Testing
+### Unified Type Operations
+
+The `Json` type provides unified methods for type testing and narrowing with path-dependent return types.
+`JsonType` also implements `Json => Boolean`, so it can be used directly as a predicate for filtering.
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonType}
 
-val json = Json.parseUnsafe("""{"count": 42}""")
+val json: Json = Json.parseUnsafe("""{"count": 42}""")
 
-json.isObject   // true
-json.isArray    // false
-json.isString   // false
-json.isNumber   // false
-json.isBoolean  // false
-json.isNull     // false
+// Type testing with is()
+json.is(JsonType.Object)  // true
+json.is(JsonType.Array)   // false
+
+// Type narrowing with as() - returns Option[jsonType.Type]
+val obj: Option[Json.Object] = json.as(JsonType.Object)  // Some(Json.Object(...))
+val arr: Option[Json.Array] = json.as(JsonType.Array)    // None
+
+// Value extraction with unwrap() - returns Option[jsonType.Unwrap]
+val str: Json = Json.str("hello")
+val strValue: Option[String] = str.unwrap(JsonType.String)  // Some("hello")
+
+val num: Json = Json.number(42)
+val numValue: Option[BigDecimal] = num.unwrap(JsonType.Number)  // Some(42)
+
+// JsonType as predicate - use directly in query
+val strings = json.query(JsonType.String)  // all string values in the JSON tree
 ```
 
 ### Direct Value Access
@@ -120,20 +134,11 @@ json.isNull     // false
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
 
-val str = Json.str("hello")
-str.stringValue  // Some("hello")
-
-val num = Json.number(42)
-num.numberValue  // Some(42)
-
-val bool = Json.bool(true)
-bool.booleanValue  // Some(true)
-
 val obj = Json.obj("a" -> Json.number(1))
-obj.fields  // Seq(("a", Json.Number(1)))
+obj.fields  // Chunk(("a", Json.Number(1)))
 
 val arr = Json.arr(Json.number(1), Json.number(2))
-arr.elements  // Seq(Json.Number(1), Json.Number(2))
+arr.elements  // Chunk(Json.Number(1), Json.Number(2))
 ```
 
 ## Navigation
@@ -201,15 +206,15 @@ val json = Json.parseUnsafe("""{"users": [{"name": "Alice"}]}""")
 
 // Fluent chaining
 val result: JsonSelection = json
-  .get("users")
-  .asArray
-  .apply(0)
-  .get("name")
-  .asString
+ .get("users")
+ .asArrays
+ .apply(0)
+ .get("name")
+ .asStrings
 
 // Extract values
-result.string      // Right("Alice")
-result.single      // Right(Json.String("Alice"))
+result.as[String]  // Right("Alice")
+result.one         // Right(Json.String("Alice"))
 result.isSuccess   // true
 result.isFailure   // false
 ```
@@ -221,22 +226,24 @@ import zio.blocks.schema.json.{Json, JsonSelection}
 
 val selection: JsonSelection = ???
 
-// Get single value
-selection.single  // Either[JsonError, Json]
-selection.first   // Either[JsonError, Json] (first of many)
-selection.one     // Either[JsonError, Json] (single or wrap in array)
+// Get single value (exactly one required)
+selection.one     // Either[JsonError, Json]
+// Get any single value (first of many)
+selection.any     // Either[JsonError, Json]
+// Get all values condensed (wraps multiple in array)
+selection.all     // Either[JsonError, Json]
 
-// Get all values
-selection.all     // Either[JsonError, Vector[Json]]
+// Get underlying result
+selection.either    // Either[JsonError, Vector[Json]]
 selection.toVector  // Vector[Json] (empty on error)
 
-// Type-specific extraction
-selection.string   // Either[JsonError, String]
-selection.number   // Either[JsonError, BigDecimal]
-selection.boolean  // Either[JsonError, Boolean]
-selection.int      // Either[JsonError, Int]
-selection.long     // Either[JsonError, Long]
-selection.double   // Either[JsonError, Double]
+// Decode to specific types
+selection.as[String]      // Either[JsonError, String]
+selection.as[BigDecimal]  // Either[JsonError, BigDecimal]
+selection.as[Boolean]     // Either[JsonError, Boolean]
+selection.as[Int]         // Either[JsonError, Int]
+selection.as[Long]        // Either[JsonError, Long]
+selection.as[Double]      // Either[JsonError, Double]
 ```
 
 ## Modification
@@ -378,12 +385,12 @@ val camelCase = json.transformKeys { (path, key) =>
 Keep only values matching a predicate:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonType}
 
 val json = Json.parseUnsafe("""{"a": 1, "b": null, "c": 2, "d": null}""")
 
 // Remove nulls (using predicate)
-val noNulls = json.filter((_, v) => !v.isNull)
+val noNulls = json.filter((_, v) => !v.is(JsonType.Null))
 // {"a": 1, "c": 2}
 ```
 
@@ -410,12 +417,12 @@ val projected = json.project(p".user.name", p".user.email")
 Split based on a predicate:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonType}
 
 val json = Json.parseUnsafe("""{"a": 1, "b": "text", "c": 2}""")
 
 // Separate numbers from non-numbers
-val (numbers, nonNumbers) = json.partition((_, v) => v.isNumber)
+val (numbers, nonNumbers) = json.partition((_, v) => v.is(JsonType.Number))
 // numbers: {"a": 1, "c": 2}
 // nonNumbers: {"b": "text"}
 ```

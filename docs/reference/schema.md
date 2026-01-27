@@ -215,6 +215,89 @@ val schema = Schema[DynamicValue]  // Semi-structured data (superset of JSON)
 
 Having the schema for `DynamicValue` allows seamless encoding/decoding between `DynamicValue` and other formats, such as JSON, Avro, Protobuf, etc. It enables us to convert our type-safe data into a semi-structured representation and serialize it into any desired format.
 
+### DynamicValue toString (EJSON Format)
+
+`DynamicValue` has a custom `toString` that produces EJSON (Extended JSON) format - a superset of JSON that handles non-string keys, tagged variants, and typed primitives:
+
+```scala
+import zio.blocks.schema._
+
+// Records have unquoted keys
+val record = DynamicValue.Record(Vector(
+  "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+  "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+))
+println(record)
+// {
+//   name: "Alice",
+//   age: 30
+// }
+
+// Maps have quoted string keys
+val map = DynamicValue.Map(Vector(
+  DynamicValue.Primitive(PrimitiveValue.String("key")) ->
+    DynamicValue.Primitive(PrimitiveValue.String("value"))
+))
+println(map)
+// {
+//   "key": "value"
+// }
+
+// Variants use @ metadata
+val variant = DynamicValue.Variant("Some", DynamicValue.Record(Vector(
+  "value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+)))
+println(variant)
+// {
+//   value: 42
+// } @ {tag: "Some"}
+
+// Typed primitives use @ metadata
+val instant = DynamicValue.Primitive(PrimitiveValue.Instant(java.time.Instant.now))
+println(instant)
+// 1705312800000 @ {type: "instant"}
+```
+
+**Key EJSON properties:**
+- **Records**: unquoted keys (`{ name: "John" }`)
+- **Maps**: quoted string keys (`{ "name": "John" }`) or unquoted non-string keys (`{ 42: "value" }`)
+- **Variants**: postfix `@ {tag: "CaseName"}`
+- **Typed primitives**: postfix `@ {type: "instant"}` for types that would lose precision as JSON
+
+## Debug-Friendly toString
+
+`Schema` has a custom `toString` that wraps the underlying `Reflect` output in a `Schema { ... }` block, providing a complete structural view of your data types:
+
+```scala
+import zio.blocks.schema._
+
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+println(Schema[Person])
+// Output:
+// Schema {
+//   record Person {
+//     name: String
+//     age: Int
+//   }
+// }
+```
+
+For primitive schemas:
+
+```scala
+println(Schema[Int])
+// Output:
+// Schema {
+//   Int
+// }
+```
+
+This format makes it easy to inspect complex nested schemas during debugging. See the [Reflect documentation](./reflect.md#debug-friendly-tostring) for details on the SDL format used for the inner structure.
+
 ## Encoding and Decoding
 
 The `Schema[A]` provides methods to encode and decode values of type `A` to/from various formats using the `Format` abstraction:
@@ -496,21 +579,21 @@ Here is an example of adding modifiers to a schema:
 
 ## Wrapper Types
 
-ZIO Blocks provides convenient methods for creating schemas for wrapper types, such as newtypes, opaque types and value classes. These methods are `wrap` and `wrapTotal`, which allow defining schemas for types that wrap an underlying type:
+ZIO Blocks provides convenient methods for creating schemas for wrapper types, such as newtypes, opaque types and value classes. These methods are `transform` and `transformOrFail`, which allow defining schemas for types that wrap an underlying type:
 
 ```scala
 final case class Schema[A](reflect: Reflect.Bound[A]) {
-  def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = ???
-  def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A]            = ???
+  def transform[B](to: A => B, from: B => A): Schema[B]                              = ???
+  def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A): Schema[B]   = ???
 }
 ```
 
-The `wrap` method is used for types where the wrapping operation may fail (e.g., validation), while `wrapTotal` is used for total transformations that never fail. 
+The `transformOrFail` method is used for types where the transformation may fail (e.g., validation), while `transform` is used for total transformations that never fail. 
 
 Here are examples of both:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{Schema, SchemaError}
 
 // For types with validation (may fail)
 case class Email(value: String)
@@ -518,24 +601,23 @@ case class Email(value: String)
 object Email {
   private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
   
-  implicit val schema: Schema[Email] = Schema.derived[Email]
-    .wrap[String](
-      wrap = {
+  implicit val schema: Schema[Email] = Schema[String]
+    .transformOrFail(
+      {
         case x @ EmailRegex(_*) => Right(Email(x))
-        case _                  => Left("Invalid email format")
+        case _                  => Left(SchemaError.validationFailed("Invalid email format"))
       },
-      unwrap = _.value
+      _.value
     )
+    .withTypeName[Email]
 }
 
 // For total transformations (never fail)
 case class UserId(value: Long)
 
 object UserId {
-  implicit val schema: Schema[UserId] = Schema.derived[UserId]
-    .wrapTotal(
-      wrap = UserId(_),
-      unwrap = _.value
-    )
+  implicit val schema: Schema[UserId] = Schema[Long]
+    .transform(UserId(_), _.value)
+    .withTypeName[UserId]
 }
 ```

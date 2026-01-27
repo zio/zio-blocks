@@ -65,7 +65,7 @@ object ThriftFormat
           }
 
         // Deriver implementation
-        override def derivePrimitive[F[_, _], A](
+        override def derivePrimitive[A](
           primitiveType: PrimitiveType[A],
           typeId: TypeId[A],
           binding: Binding[BindingType.Primitive, A],
@@ -635,6 +635,8 @@ object ThriftFormat
                   encode(k, protocol)
                   encode(v, protocol)
                 }
+              case DynamicValue.Null =>
+                ThriftBinaryCodec.unitCodec.encode((), protocol)
             }
         }
       }

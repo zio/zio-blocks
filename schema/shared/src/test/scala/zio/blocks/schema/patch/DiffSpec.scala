@@ -992,6 +992,34 @@ object DiffSpec extends SchemaBaseSpec {
         assertTrue(result == Right(updated))
       }
     ),
+    suite("DynamicValue.Null diffing")(
+      test("diff(Null, Null) produces empty patch") {
+        val patch = Differ.diff(DynamicValue.Null, DynamicValue.Null)
+        assertTrue(patch.isEmpty)
+      },
+      test("diff(Null, other) produces Set patch") {
+        val other = DynamicValue.int(42)
+        val patch = Differ.diff(DynamicValue.Null, other)
+        assertTrue(!patch.isEmpty) &&
+        assertTrue(
+          patch.ops.head.operation match {
+            case Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(42))) => true
+            case _                                                                   => false
+          }
+        )
+      },
+      test("diff(other, Null) produces Set patch") {
+        val other = DynamicValue.string("hello")
+        val patch = Differ.diff(other, DynamicValue.Null)
+        assertTrue(!patch.isEmpty) &&
+        assertTrue(
+          patch.ops.head.operation match {
+            case Patch.Operation.Set(DynamicValue.Null) => true
+            case _                                      => false
+          }
+        )
+      }
+    ),
     suite("Empty-to-empty diffs")(
       test("empty-to-empty for String") {
         val schema = Schema[String]

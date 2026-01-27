@@ -156,7 +156,7 @@ object OpticSpec extends SchemaBaseSpec {
               startsWithString(
                 "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '"
               ) &&
-                endsWithString(".equals(null)'")
+                endsWithString(".equals(null)'.")
             )
           )
         )
@@ -1436,7 +1436,7 @@ object OpticSpec extends SchemaBaseSpec {
         assert(Case6.akmil.check(Case6(Map())))(
           isSome(
             hasError(
-              "During attempted access at .mil.atKey(<key>), encountered missing key at .mil.atKey(<key>)"
+              "During attempted access at .mil.atKey(1), encountered missing key at .mil.atKey(1)"
             )
           )
         )
@@ -2732,7 +2732,7 @@ object OpticSpec extends SchemaBaseSpec {
         assert(Collections.aiasasi_asi.check(ArraySeq(ArraySeq())))(
           isSome(
             hasError(
-              "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>)"
+              "During attempted access at .atIndices(1, 2).each, encountered a sequence out of bounds at .atIndices(1, 2): index is 1, but size is 1"
             )
           )
         ) &&
@@ -2753,7 +2753,7 @@ object OpticSpec extends SchemaBaseSpec {
         assert(Collections.ailli_li.check(List(List())))(
           isSome(
             hasError(
-              "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>): index is 1, but size is 1"
+              "During attempted access at .atIndices(1).each, encountered a sequence out of bounds at .atIndices(1): index is 1, but size is 1"
             )
           )
         ) &&
@@ -2766,17 +2766,17 @@ object OpticSpec extends SchemaBaseSpec {
         ) &&
         assert(Collections.akmill_ll.check(Map()))(
           isSome(
-            hasError("During attempted access at .atKey(<key>).each, encountered missing key at .atKey(<key>)")
+            hasError("During attempted access at .atKey(1).each, encountered missing key at .atKey(1)")
           )
         ) &&
         assert(Collections.aksmill_ll.check(Map()))(
           isSome(
-            hasError("During attempted access at .atKeys(<keys>).each, encountered missing key at .atKeys(<keys>)")
+            hasError("During attempted access at .atKeys(1).each, encountered missing key at .atKeys(1)")
           )
         ) &&
         assert(Collections.lmil_akmil.check(List(Map())))(
           isSome(
-            hasError("During attempted access at .each.atKey(<key>), encountered missing key at .each.atKey(<key>)")
+            hasError("During attempted access at .each.atKey(1), encountered missing key at .each.atKey(1)")
           )
         )
       },

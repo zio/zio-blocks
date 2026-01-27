@@ -221,6 +221,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         }
     )
 
+
   private def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
     if (isEnumValue(tpe)) tpe.termSymbol
     else tpe.typeSymbol

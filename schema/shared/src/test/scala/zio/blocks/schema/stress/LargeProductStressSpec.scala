@@ -9,7 +9,7 @@ import zio.test._
  * These tests verify that the macro can handle products with 20+ fields and
  * that conversions work correctly with large data structures.
  */
-object LargeProductStressSpec extends ZIOSpecDefault {
+object LargeProductStressSpec extends SchemaBaseSpec {
 
   // 10-field product
   case class Product10A(

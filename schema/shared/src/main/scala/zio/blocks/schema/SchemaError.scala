@@ -103,18 +103,18 @@ object SchemaError {
   }
 
   case class MissingField(source: DynamicOptic, fieldName: String) extends Single {
-    override def message: String = s"Missing field '$fieldName' at: $source"
+    override def message: String = s"Missing field '$fieldName' at: ${source.toScalaString}"
   }
 
   case class DuplicatedField(source: DynamicOptic, fieldName: String) extends Single {
-    override def message: String = s"Duplicated field '$fieldName' at: $source"
+    override def message: String = s"Duplicated field '$fieldName' at: ${source.toScalaString}"
   }
 
   case class ExpectationMismatch(source: DynamicOptic, expectation: String) extends Single {
-    override def message: String = s"$expectation at: $source"
+    override def message: String = s"$expectation at: ${source.toScalaString}"
   }
 
   case class UnknownCase(source: DynamicOptic, caseName: String) extends Single {
-    override def message: String = s"Unknown case '$caseName' at: $source"
+    override def message: String = s"Unknown case '$caseName' at: ${source.toScalaString}"
   }
 }

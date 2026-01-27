@@ -39,22 +39,135 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     var idx = 0
     while (idx < len) {
       nodes(idx) match {
-        case Node.Field(name)    => sb.append('.').append(name)
-        case Node.Case(name)     => sb.append(".when[").append(name).append(']')
-        case Node.AtIndex(index) => sb.append(".at(").append(index).append(')')
-        case Node.AtMapKey(_)    => sb.append(".atKey(<key>)")
-        case Node.AtIndices(_)   => sb.append(".atIndices(<indices>)")
-        case Node.AtMapKeys(_)   => sb.append(".atKeys(<keys>)")
-        case Node.Elements       => sb.append(".each")
-        case Node.MapKeys        => sb.append(".eachKey")
-        case Node.MapValues      => sb.append(".eachValue")
-        case Node.Wrapped        => sb.append(".wrapped")
+        case Node.Field(name)        => sb.append('.').append(name)
+        case Node.Case(name)         => sb.append('<').append(name).append('>')
+        case Node.AtIndex(index)     => sb.append('[').append(index).append(']')
+        case Node.AtIndices(indices) =>
+          sb.append('[')
+          val idxLen = indices.length
+          var i      = 0
+          while (i < idxLen) {
+            if (i > 0) sb.append(',')
+            sb.append(indices(i))
+            i += 1
+          }
+          sb.append(']')
+        case Node.AtMapKey(key) =>
+          sb.append('{')
+          renderDynamicValue(sb, key)
+          sb.append('}')
+        case Node.AtMapKeys(keys) =>
+          sb.append('{')
+          val keyLen = keys.length
+          var i      = 0
+          while (i < keyLen) {
+            if (i > 0) sb.append(", ")
+            renderDynamicValue(sb, keys(i))
+            i += 1
+          }
+          sb.append('}')
+        case Node.Elements  => sb.append("[*]")
+        case Node.MapKeys   => sb.append("{*:}")
+        case Node.MapValues => sb.append("{*}")
+        case Node.Wrapped   => sb.append(".~")
       }
       idx += 1
     }
     if (sb.isEmpty) "."
     else sb.toString
   }
+
+  /**
+   * Renders this optic path using Scala-style method syntax (e.g.,
+   * `.when[Case]`, `.each`, `.atKey(<key>)`). This is used for typed Optic
+   * error messages, as opposed to `toString` which uses the compact
+   * interpolator syntax.
+   */
+  lazy val toScalaString: String = {
+    val sb  = new StringBuilder
+    val len = nodes.length
+    var idx = 0
+    while (idx < len) {
+      nodes(idx) match {
+        case Node.Field(name)        => sb.append('.').append(name)
+        case Node.Case(name)         => sb.append(".when[").append(name).append(']')
+        case Node.AtIndex(index)     => sb.append(".at(").append(index).append(')')
+        case Node.AtIndices(indices) =>
+          sb.append(".atIndices(")
+          val idxLen = indices.length
+          var i      = 0
+          while (i < idxLen) {
+            if (i > 0) sb.append(", ")
+            sb.append(indices(i))
+            i += 1
+          }
+          sb.append(')')
+        case Node.AtMapKey(key) =>
+          sb.append(".atKey(")
+          renderDynamicValue(sb, key)
+          sb.append(')')
+        case Node.AtMapKeys(keys) =>
+          sb.append(".atKeys(")
+          val keyLen = keys.length
+          var i      = 0
+          while (i < keyLen) {
+            if (i > 0) sb.append(", ")
+            renderDynamicValue(sb, keys(i))
+            i += 1
+          }
+          sb.append(')')
+        case Node.Elements  => sb.append(".each")
+        case Node.MapKeys   => sb.append(".eachKey")
+        case Node.MapValues => sb.append(".eachValue")
+        case Node.Wrapped   => sb.append(".wrapped")
+      }
+      idx += 1
+    }
+    if (sb.isEmpty) "."
+    else sb.toString
+  }
+
+  private def renderDynamicValue(sb: StringBuilder, value: DynamicValue): Unit =
+    value match {
+      case DynamicValue.Primitive(pv) =>
+        pv match {
+          case PrimitiveValue.String(s) =>
+            sb.append('"')
+            var i = 0
+            while (i < s.length) {
+              s.charAt(i) match {
+                case '\n' => sb.append("\\n")
+                case '\t' => sb.append("\\t")
+                case '\r' => sb.append("\\r")
+                case '"'  => sb.append("\\\"")
+                case '\\' => sb.append("\\\\")
+                case c    => sb.append(c)
+              }
+              i += 1
+            }
+            sb.append('"')
+          case PrimitiveValue.Boolean(b) => sb.append(b)
+          case PrimitiveValue.Char(c)    =>
+            sb.append('\'')
+            c match {
+              case '\n' => sb.append("\\\\n")
+              case '\t' => sb.append("\\\\t")
+              case '\r' => sb.append("\\\\r")
+              case '\'' => sb.append("\\\\'")
+              case '\\' => sb.append("\\\\\\\\")
+              case char => sb.append(char)
+            }
+            sb.append('\'')
+          case PrimitiveValue.Byte(b)   => sb.append(b)
+          case PrimitiveValue.Short(s)  => sb.append(s)
+          case PrimitiveValue.Int(i)    => sb.append(i)
+          case PrimitiveValue.Long(l)   => sb.append(l)
+          case PrimitiveValue.Float(f)  => sb.append(f)
+          case PrimitiveValue.Double(d) => sb.append(d)
+          case _                        => sb.append(pv.toString)
+        }
+      case _ => sb.append(value.toString)
+    }
 }
 
 object DynamicOptic {

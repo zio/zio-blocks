@@ -21,7 +21,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
   case class Person(name: String, age: Int)
 
-  object Person extends DerivedOptics[Person] {
+  object Person extends DerivedOptics {
     implicit val schema: Schema[Person] = Schema.derived
   }
 
@@ -33,7 +33,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
   case object Point extends Shape
 
-  object Shape extends DerivedOptics[Shape] {
+  object Shape extends DerivedOptics {
     implicit val schema: Schema[Shape] = Schema.derived
   }
 
@@ -57,7 +57,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
         case class Entity(id: Int, name: String) extends HasId
 
-        object Entity extends DerivedOptics[Entity] {
+        object Entity extends DerivedOptics.Of[Entity] {
           implicit val schema: Schema[Entity] = Schema.derived
         }
 
@@ -70,7 +70,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
       test("lens for fields with keyword names") {
         case class Keywords(`type`: String, `class`: Int, `val`: Boolean)
 
-        object Keywords extends DerivedOptics[Keywords] {
+        object Keywords extends DerivedOptics.Of[Keywords] {
           implicit val schema: Schema[Keywords] = Schema.derived
         }
 
@@ -82,11 +82,11 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
       test("lens for generic case class") {
         case class Box[A](value: A)
 
-        object BoxInt extends DerivedOptics[Box[Int]] {
+        object BoxInt extends DerivedOptics.Of[Box[Int]] {
           implicit val boxIntSchema: Schema[Box[Int]] = Schema.derived
         }
 
-        object BoxString extends DerivedOptics[Box[String]] {
+        object BoxString extends DerivedOptics.Of[Box[String]] {
           implicit val boxStringSchema: Schema[Box[String]] = Schema.derived
         }
 
@@ -105,7 +105,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
       test("lens works when companion uses type alias of its own type (case class)") {
         type AP = Person
 
-        object AliasedPerson extends DerivedOptics[AP] {
+        object AliasedPerson extends DerivedOptics.Of[AP] {
           implicit val schema: Schema[AP] = Schema.derived
         }
 
@@ -121,7 +121,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
         type AAA = AA
 
-        object TripleAliasedPerson extends DerivedOptics[AAA] {
+        object TripleAliasedPerson extends DerivedOptics.Of[AAA] {
           implicit val schema: Schema[Person] = Schema.derived
         }
 
@@ -131,7 +131,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
       test("empty case class produces empty optics") {
         case class Empty()
 
-        object Empty extends DerivedOptics[Empty] {
+        object Empty extends DerivedOptics.Of[Empty] {
           implicit val schema: Schema[Empty] = Schema.derived
         }
 
@@ -140,7 +140,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
       test("case class with private constructor") {
         case class Private private (value: Int)
 
-        object Private extends DerivedOptics[Private] {
+        object Private extends DerivedOptics.Of[Private] {
           implicit val schema: Schema[Private] = Schema.derived
 
           def create(v: Int): Private = Private(v)
@@ -155,7 +155,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
       test("recursive type (Tree) derives optics") {
         case class Tree(value: Int, children: List[Tree])
 
-        object Tree extends DerivedOptics[Tree] {
+        object Tree extends DerivedOptics.Of[Tree] {
           implicit val schema: Schema[Tree] = Schema.derived
         }
 
@@ -170,11 +170,11 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
         case class NodeB(value: Int, next: Option[NodeA])
 
-        object NodeA extends DerivedOptics[NodeA] {
+        object NodeA extends DerivedOptics.Of[NodeA] {
           implicit val schema: Schema[NodeA] = Schema.derived
         }
 
-        object NodeB extends DerivedOptics[NodeB] {
+        object NodeB extends DerivedOptics.Of[NodeB] {
           implicit val schema: Schema[NodeB] = Schema.derived
         }
 
@@ -187,7 +187,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
       test("macro derivation succeeds for case class with backtick-escaped field names") {
         case class SpecialFields(`my funny name`: String, `field-with-dashes`: Int)
 
-        object SpecialFields extends DerivedOptics[SpecialFields] {
+        object SpecialFields extends DerivedOptics.Of[SpecialFields] {
           implicit val schema: Schema[SpecialFields] = Schema.derived
         }
 
@@ -216,7 +216,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
         case class VarStress[B](value: B) extends Stress[B]
 
-        object StressInt extends DerivedOptics[Stress[Int]] {
+        object StressInt extends DerivedOptics.Of[Stress[Int]] {
           implicit val schema: Schema[Stress[Int]] = Schema.derived
         }
 
@@ -237,7 +237,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
         case class PartialChild[Z](z: Z) extends MultiParam[Z, String] // Partial fix
 
-        object MultiParamIntString extends DerivedOptics[MultiParam[Int, String]] {
+        object MultiParamIntString extends DerivedOptics.Of[MultiParam[Int, String]] {
           implicit val schema: Schema[MultiParam[Int, String]] = Schema.derived
         }
 
@@ -256,7 +256,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
         case class ChildWithDifferentName[X](value: X) extends Parent[X]
 
-        object ParentString extends DerivedOptics[Parent[String]] {
+        object ParentString extends DerivedOptics.Of[Parent[String]] {
           implicit val schema: Schema[Parent[String]] = Schema.derived
         }
 
@@ -273,7 +273,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
         case class TripleChild[P, Q, R](p: P, q: Q, r: R) extends Triple[P, Q, R]
         case class DoubleFixed[T](t: T) extends Triple[Int, T, Boolean]
 
-        object TripleTest extends DerivedOptics[Triple[Int, String, Boolean]] {
+        object TripleTest extends DerivedOptics.Of[Triple[Int, String, Boolean]] {
           implicit val schema: Schema[Triple[Int, String, Boolean]] = Schema.derived
         }
 
@@ -295,11 +295,11 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
         case class Failure[T](msg: String) extends GenericResult[T]
 
-        object ResultInt extends DerivedOptics[GenericResult[Int]] {
+        object ResultInt extends DerivedOptics.Of[GenericResult[Int]] {
           implicit val schema: Schema[GenericResult[Int]] = Schema.derived
         }
 
-        object ResultString extends DerivedOptics[GenericResult[String]] {
+        object ResultString extends DerivedOptics.Of[GenericResult[String]] {
           implicit val schema: Schema[GenericResult[String]] = Schema.derived
         }
 
@@ -320,7 +320,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
       test("prism works when companion uses type alias of its own type (sealed trait)") {
         type AS = Shape
 
-        object AliasedShape extends DerivedOptics[AS] {
+        object AliasedShape extends DerivedOptics.Of[AS] {
           implicit val schema: Schema[Shape] = Schema.derived
         }
 
@@ -341,7 +341,7 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
 
         case object `weird case name` extends SpecialCases
 
-        object SpecialCases extends DerivedOptics[SpecialCases] {
+        object SpecialCases extends DerivedOptics.Of[SpecialCases] {
           implicit val schema: Schema[SpecialCases] = Schema.derived
         }
 
@@ -351,13 +351,25 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
           SpecialCases.optics.`my-special-case`.getOption(case1) == Some(`my-special-case`(5)),
           SpecialCases.optics.`another special case`.getOption(case2) == Some(`another special case`("VVV"))
         )
+      },
+      test("prism for case object has correct singleton type") {
+        // Case objects should have singleton type in the prism:
+        // Prism[Shape, Point.type] not Prism[Shape, Shape]
+        val pointPrism: Prism[Shape, Point.type] = Shape.optics.point
+
+        val s1: Shape = Point
+        val s2: Shape = Circle(1.0)
+        assertTrue(
+          pointPrism.getOption(s1) == Some(Point),
+          pointPrism.getOption(s2) == None
+        )
       }
     ),
     suite("Lens generation for wrappers")(
       test("robustness: wrapperAsRecord strategy works for custom wrapper types") {
         case class CustomWrapper(value: String)
 
-        object CustomWrapper extends DerivedOptics[CustomWrapper] {
+        object CustomWrapper extends DerivedOptics.Of[CustomWrapper] {
           implicit val schema: Schema[CustomWrapper] = new Schema(
             new Reflect.Wrapper[Binding, CustomWrapper, String](
               Schema[String].reflect,

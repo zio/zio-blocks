@@ -72,14 +72,14 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   object Name extends Newtype[String] {
     override def assertion = assert(!zio.prelude.Assertion.isEmptyString)
 
-    implicit val schema: Schema[Name] = Schema.derived
-      .wrap[String](
-        s => {
-          if (s.length > 0) new Right(s.asInstanceOf[Name])
-          else new Left(SchemaError.validationFailed("String must not be empty"))
-        },
-        _.asInstanceOf[String]
+    implicit val schema: Schema[Name] = Schema[String]
+      .transformOrFail[Name](
+        s =>
+          if (s.length > 0) Right(s.asInstanceOf[Name])
+          else Left(SchemaError.validationFailed("String must not be empty")),
+        (n: Name) => n.asInstanceOf[String]
       )
+      .asOpaqueType[Name]
   }
 
   type Kilogram = Kilogram.Type

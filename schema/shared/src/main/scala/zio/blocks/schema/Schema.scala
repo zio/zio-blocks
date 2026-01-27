@@ -90,6 +90,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def patch(value: A, patch: Patch[A]): Either[SchemaError, A] =
     patch.apply(value, PatchMode.Strict)
 
+  @deprecated("Use Schema[B].transformOrFail(...).withTypeName[A] instead", "1.0.0")
   def wrap[B: Schema](wrap: B => Either[SchemaError, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
@@ -99,6 +100,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
     )
   )
 
+  @deprecated("Use Schema[B].transform(...).withTypeName[A] instead", "1.0.0")
   def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
@@ -131,7 +133,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
    *     else Left(SchemaError.validationFailed("must be positive"))
    *
    *   implicit val schema: Schema[PositiveInt] =
-   *     Schema[Int].transformOrFail(make, _.value)
+   *     Schema[Int].transformOrFail(make, _.value).withTypeName[PositiveInt]
    * }
    *   }}}
    *
@@ -153,6 +155,114 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(to, from, passthroughErrors = true)
     )
   )
+
+  /**
+   * Transforms this schema from type `A` to type `B` using total functions.
+   *
+   * This is useful for creating schemas for simple wrapper types where the
+   * transformation cannot fail.
+   *
+   * @example
+   *   {{{
+   * case class UserId(value: Long)
+   * object UserId {
+   *   implicit val schema: Schema[UserId] =
+   *     Schema[Long].transform(UserId(_), _.value).withTypeName[UserId]
+   * }
+   *   }}}
+   *
+   * @param to
+   *   Total function to transform `A` to `B`
+   * @param from
+   *   Total function to transform `B` back to `A`
+   * @tparam B
+   *   The target type
+   * @return
+   *   A new schema for type `B`
+   */
+  def transform[B](to: A => B, from: B => A): Schema[B] = new Schema(
+    new Reflect.Wrapper[Binding, B, A](
+      reflect,
+      reflect.typeName.asInstanceOf[TypeName[B]],
+      None,
+      new Binding.Wrapper(a => Right(to(a)), from)
+    )
+  )
+
+  /**
+   * Updates the TypeName of this schema to match type `B`.
+   *
+   * This is typically used after `transform` or `transformOrFail` to give the
+   * resulting schema the correct nominal type name.
+   *
+   * @example
+   *   {{{
+   * case class UserId(value: Long)
+   * object UserId {
+   *   implicit val schema: Schema[UserId] =
+   *     Schema[Long].transform(UserId(_), _.value).withTypeName[UserId]
+   * }
+   *   }}}
+   *
+   * @tparam B
+   *   The type whose TypeName should be used
+   * @return
+   *   A new schema with the updated TypeName
+   */
+  def withTypeName[B](implicit typeName: TypeName[B]): Schema[B] =
+    new Schema(reflect.typeName(typeName.asInstanceOf[TypeName[A]])).asInstanceOf[Schema[B]]
+
+  /**
+   * Marks this schema as an opaque type, setting both the TypeName and the
+   * underlying primitive type for optimized register storage.
+   *
+   * Use this after `transform` or `transformOrFail` when creating schemas for
+   * opaque types or newtypes whose runtime representation is the same as the
+   * underlying primitive type.
+   *
+   * For case class wrappers (where the runtime representation differs from the
+   * primitive), use `withTypeName` instead.
+   *
+   * @example
+   *   {{{
+   * // For opaque types / newtypes
+   * opaque type Age = Int
+   * object Age {
+   *   def apply(n: Int): Age = n
+   *   def unwrap(a: Age): Int = a
+   *
+   *   implicit val schema: Schema[Age] =
+   *     Schema[Int].transform(Age.apply, Age.unwrap).asOpaqueType[Age]
+   * }
+   *   }}}
+   *
+   * @tparam B
+   *   The opaque type whose TypeName should be used
+   * @return
+   *   A new schema with the updated TypeName and primitive type set
+   */
+  def asOpaqueType[B](implicit typeName: TypeName[B]): Schema[B] =
+    reflect match {
+      case w: Reflect.Wrapper[Binding, A, ?] =>
+        val primitiveType = Reflect.unwrapToPrimitiveTypeOption(w.wrapped)
+        new Schema(
+          w.copy(
+            typeName = typeName.asInstanceOf[TypeName[A]],
+            wrapperPrimitiveType = primitiveType.asInstanceOf[Option[PrimitiveType[A]]]
+          )
+        ).asInstanceOf[Schema[B]]
+      case _ =>
+        new Schema(reflect.typeName(typeName.asInstanceOf[TypeName[A]])).asInstanceOf[Schema[B]]
+    }
+
+  override def toString: String = {
+    val reflectStr = reflect.toString
+    if (reflectStr.contains('\n')) {
+      s"Schema {\n  ${reflectStr.replace("\n", "\n  ")}\n}"
+    } else {
+      s"Schema {\n  $reflectStr\n}"
+    }
+  }
 }
 
 object Schema extends SchemaCompanionVersionSpecific {
@@ -257,4 +367,7 @@ object Schema extends SchemaCompanionVersionSpecific {
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
+
+  implicit def either[A, B](implicit l: Schema[A], r: Schema[B]): Schema[Either[A, B]] =
+    new Schema(Reflect.either(l.reflect, r.reflect))
 }

@@ -454,6 +454,8 @@ object Reflect {
     override def asRecord: Option[Reflect.Record[F, A]] = new Some(this)
 
     override def isRecord: Boolean = true
+
+    override def toString: String = ReflectPrinter.printRecord(this)
   }
 
   object Record {
@@ -619,6 +621,8 @@ object Reflect {
     override def asVariant: Option[Reflect.Variant[F, A]] = new Some(this)
 
     override def isVariant: Boolean = true
+
+    override def toString: String = ReflectPrinter.printVariant(this)
   }
 
   object Variant {
@@ -822,6 +826,8 @@ object Reflect {
     })
 
     override def isSequence: Boolean = true
+
+    override def toString: String = ReflectPrinter.printSequence(this)
   }
 
   object Sequence {
@@ -936,6 +942,8 @@ object Reflect {
     })
 
     override def isMap: Boolean = true
+
+    override def toString: String = ReflectPrinter.printMap(this)
   }
 
   object Map {
@@ -999,6 +1007,8 @@ object Reflect {
     override def asDynamic: Option[Reflect.Dynamic[F]] = new Some(this)
 
     override def isDynamic: Boolean = true
+
+    override def toString: String = ReflectPrinter.sdlTypeName(typeName)
   }
 
   object Dynamic {
@@ -1057,6 +1067,8 @@ object Reflect {
     override def asPrimitive: Option[Reflect.Primitive[F, A]] = new Some(this)
 
     override def isPrimitive: Boolean = true
+
+    override def toString: String = ReflectPrinter.sdlTypeName(typeName)
   }
 
   object Primitive {
@@ -1128,6 +1140,8 @@ object Reflect {
     })
 
     override def isWrapper: Boolean = true
+
+    override def toString: String = ReflectPrinter.printWrapper(this)
 
     def nodeType: Reflect.Type.Wrapper[A, B] = new Reflect.Type.Wrapper
   }
@@ -1392,7 +1406,7 @@ object Reflect {
       }
     }
 
-    private[this] val visited =
+    private[schema] val visited =
       new ThreadLocal[java.util.IdentityHashMap[AnyRef, Unit]] {
         override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] = new java.util.IdentityHashMap
       }
@@ -1403,6 +1417,16 @@ object Reflect {
       }
 
     def nodeType = value.nodeType
+
+    override def toString: String = {
+      val v = visited.get
+      if (v.containsKey(this)) s"deferred => ${typeName}"
+      else {
+        v.put(this, ())
+        try value.toString
+        finally v.remove(this)
+      }
+    }
   }
 
   private class IdentityTuple(val v1: AnyRef, val v2: AnyRef) {
@@ -1654,6 +1678,23 @@ object Reflect {
       Vector(new Term("None", none), new Term("Some", someUnit(element))),
       TypeId.from[Option[Unit]],
       F.fromBinding(Binding.Variant.option)
+    )
+
+  private[this] def left[F[_, _], A, B](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Left[A, B]] =
+    new Record(Vector(new Term("value", element)), TypeName.left(element.typeName), F.fromBinding(Binding.Record.left))
+
+  private[this] def right[F[_, _], A, B](element: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, Right[A, B]] =
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.right(element.typeName),
+      F.fromBinding(Binding.Record.right)
+    )
+
+  def either[F[_, _], A, B](l: Reflect[F, A], r: Reflect[F, B])(implicit F: FromBinding[F]): Variant[F, Either[A, B]] =
+    new Variant(
+      Vector(new Term("Left", left[F, A, B](l)), new Term("Right", right[F, A, B](r))),
+      TypeName.either(l.typeName, r.typeName),
+      F.fromBinding(Binding.Variant.either)
     )
 
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] =
