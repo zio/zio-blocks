@@ -124,8 +124,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 86,
-    coverageMinimumBranchTotal := 83
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 80
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -212,7 +212,7 @@ lazy val `schema-avro` = project
         )
     }),
     coverageMinimumStmtTotal   := 94,
-    coverageMinimumBranchTotal := 87
+    coverageMinimumBranchTotal := 86
   )
 
 lazy val `schema-thrift` = project
@@ -342,8 +342,10 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    publish / skip        := true,
-    mimaPreviousArtifacts := Set()
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)

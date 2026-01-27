@@ -321,6 +321,15 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders dynamic as its type name") {
         val schema = Schema.dynamic
         assertTrue(schema.reflect.toString == "DynamicValue")
+      },
+      test("renders sequence of dynamic values") {
+        lazy implicit val schema: Schema[List[DynamicValue]] = Schema.list[DynamicValue]
+        assertTrue(schema.reflect.toString == "sequence List[DynamicValue]")
+      },
+      test("renders map with dynamic values") {
+        lazy implicit val schema: Schema[collection.immutable.Map[DynamicValue, DynamicValue]] =
+          Schema.map[DynamicValue, DynamicValue]
+        assertTrue(schema.reflect.toString == "map Map[DynamicValue, DynamicValue]")
       }
     ),
 
