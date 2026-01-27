@@ -57,4 +57,7 @@ object WriterConfig
       indentionStep = 0,
       preferredBufSize = 32768,
       escapeUnicode = false
-    )
+    ) {
+
+  val withIndentionStep2: WriterConfig = WriterConfig.withIndentionStep(2)
+}
