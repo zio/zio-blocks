@@ -86,16 +86,18 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         obj.oneOf.exists(_.size == 2)
       )
     },
-        test("derive wrapper (AnyVal)") {
-            val schema = Schema[UserId]
-            val jsonSchema = schema.toJsonSchema
-            val obj = jsonSchema.asInstanceOf[ObjectSchema]
-            // Schema.derived treats AnyVal as a Record by default in this version
-            assertTrue(
-                obj.schemaType == Some(List(JsonType.Object)),
-                obj.properties.exists(_.get("id").exists(_.asInstanceOf[ObjectSchema].schemaType == Some(List(JsonType.String))))
-            )
-        },
+    test("derive wrapper (AnyVal)") {
+      val schema     = Schema[UserId]
+      val jsonSchema = schema.toJsonSchema
+      val obj        = jsonSchema.asInstanceOf[ObjectSchema]
+      // Schema.derived treats AnyVal as a Record by default in this version
+      assertTrue(
+        obj.schemaType == Some(List(JsonType.Object)),
+        obj.properties.exists(
+          _.get("id").exists(_.asInstanceOf[ObjectSchema].schemaType == Some(List(JsonType.String)))
+        )
+      )
+    },
     test("derive optional field") {
       val schema     = Schema[OptionalField]
       val jsonSchema = schema.toJsonSchema
