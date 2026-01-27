@@ -418,10 +418,10 @@ sealed trait Json {
   def patch(patch: Json): Either[JsonError, Json] = ???
 
   /** Checks if this JSON conforms to a JSON Schema. */
-  def check(schema: Json): Either[JsonError, Unit] = ???
+  def check(schema: JsonSchema): Option[SchemaError] = schema.check(this)
 
   /** Returns true if this JSON conforms to a JSON Schema. */
-  def conforms(schema: Json): Boolean = ???
+  def conforms(schema: JsonSchema): scala.Boolean = schema.conforms(this)
 }
 
 object Json {

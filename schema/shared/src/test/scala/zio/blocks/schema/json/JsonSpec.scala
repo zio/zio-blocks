@@ -3229,6 +3229,410 @@ object JsonSpec extends SchemaBaseSpec {
           }
         )
       )
+    ),
+    suite("JsonDecoder combinators")(
+      test("map transforms decoded value") {
+        val decoder = JsonDecoder.intDecoder.map(_ * 2)
+        val result  = decoder.decode(Json.Number(21))
+        assertTrue(result == Right(42))
+      },
+      test("flatMap chains decoders") {
+        val decoder = JsonDecoder.intDecoder.flatMap { n =>
+          if (n > 0) Right(n * 2)
+          else Left(JsonError("Expected positive number"))
+        }
+        val result1 = decoder.decode(Json.Number(21))
+        val result2 = decoder.decode(Json.Number(-5))
+        assertTrue(result1 == Right(42)) &&
+        assertTrue(result2.isLeft)
+      },
+      test("orElse tries alternative decoder on failure") {
+        val decoder = JsonDecoder.intDecoder.orElse(JsonDecoder.stringDecoder.map(_.toInt))
+        val result1 = decoder.decode(Json.Number(42))
+        val result2 = decoder.decode(Json.String("42"))
+        assertTrue(result1 == Right(42)) &&
+        assertTrue(result2 == Right(42))
+      },
+      test("tuple2Decoder decodes pairs from Json.Array") {
+        val decoder = JsonDecoder.tuple2Decoder[Int, String]
+        val result  = decoder.decode(Json.Array(Chunk(Json.Number(42), Json.String("test"))))
+        assertTrue(result == Right((42, "test")))
+      },
+      test("tuple2Decoder fails on wrong size") {
+        val decoder = JsonDecoder.tuple2Decoder[Int, String]
+        val result  = decoder.decode(Json.Array(Chunk(Json.Number(42))))
+        assertTrue(result.isLeft)
+      },
+      test("tuple3Decoder decodes triples from Json.Array") {
+        val decoder = JsonDecoder.tuple3Decoder[Int, String, Boolean]
+        val result  = decoder.decode(Json.Array(Chunk(Json.Number(42), Json.String("test"), Json.Boolean(true))))
+        assertTrue(result == Right((42, "test", true)))
+      },
+      test("tuple3Decoder fails on wrong size") {
+        val decoder = JsonDecoder.tuple3Decoder[Int, String, Boolean]
+        val result  = decoder.decode(Json.Array(Chunk(Json.Number(42), Json.String("test"))))
+        assertTrue(result.isLeft)
+      },
+      test("eitherDecoder decodes Left from Json.Object") {
+        val decoder = JsonDecoder.eitherDecoder[Int, String]
+        val result  = decoder.decode(Json.Object(Chunk("Left" -> Json.Number(42))))
+        assertTrue(result == Right(Left(42)))
+      },
+      test("eitherDecoder decodes Right from Json.Object") {
+        val decoder = JsonDecoder.eitherDecoder[Int, String]
+        val result  = decoder.decode(Json.Object(Chunk("Right" -> Json.String("test"))))
+        assertTrue(result == Right(Right("test")))
+      },
+      test("eitherDecoder fails on invalid structure") {
+        val decoder = JsonDecoder.eitherDecoder[Int, String]
+        val result  = decoder.decode(Json.Object(Chunk("Invalid" -> Json.Number(42))))
+        assertTrue(result.isLeft)
+      },
+      test("setDecoder decodes Set from Json.Array") {
+        val decoder = JsonDecoder.setDecoder[Int]
+        val result  = decoder.decode(Json.Array(Chunk(Json.Number(1), Json.Number(2), Json.Number(3))))
+        assertTrue(result == Right(Set(1, 2, 3)))
+      },
+      test("seqDecoder decodes Seq from Json.Array") {
+        val decoder = JsonDecoder.seqDecoder[Int]
+        val result  = decoder.decode(Json.Array(Chunk(Json.Number(1), Json.Number(2), Json.Number(3))))
+        assertTrue(result == Right(Seq(1, 2, 3)))
+      },
+      test("charDecoder decodes single character") {
+        val result = JsonDecoder.charDecoder.decode(Json.String("a"))
+        assertTrue(result == Right('a'))
+      },
+      test("charDecoder fails on multi-char string") {
+        val result = JsonDecoder.charDecoder.decode(Json.String("abc"))
+        assertTrue(result.isLeft)
+      },
+      test("unitDecoder decodes null") {
+        val result = JsonDecoder.unitDecoder.decode(Json.Null)
+        assertTrue(result == Right(()))
+      },
+      test("unitDecoder fails on non-null") {
+        val result = JsonDecoder.unitDecoder.decode(Json.Number(42))
+        assertTrue(result.isLeft)
+      },
+      test("byteDecoder decodes valid byte") {
+        val result = JsonDecoder.byteDecoder.decode(Json.Number(127))
+        assertTrue(result == Right(127.toByte))
+      },
+      test("byteDecoder fails on out-of-range number") {
+        val result = JsonDecoder.byteDecoder.decode(Json.Number(1000))
+        assertTrue(result.isLeft)
+      },
+      test("shortDecoder decodes valid short") {
+        val result = JsonDecoder.shortDecoder.decode(Json.Number(32767))
+        assertTrue(result == Right(32767.toShort))
+      },
+      test("shortDecoder fails on out-of-range number") {
+        val result = JsonDecoder.shortDecoder.decode(Json.Number(100000))
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("JsonEncoder combinators")(
+      test("contramap transforms input before encoding") {
+        val encoder = JsonEncoder.intEncoder.contramap[String](_.toInt)
+        val result  = encoder.encode("42")
+        assertTrue(result == Json.Number(42))
+      },
+      test("tuple2Encoder encodes pairs to Json.Array") {
+        val encoder = JsonEncoder.tuple2Encoder[Int, String]
+        val result  = encoder.encode((42, "test"))
+        assertTrue(result == Json.Array(Chunk(Json.Number(42), Json.String("test"))))
+      },
+      test("tuple3Encoder encodes triples to Json.Array") {
+        val encoder = JsonEncoder.tuple3Encoder[Int, String, Boolean]
+        val result  = encoder.encode((42, "test", true))
+        assertTrue(result == Json.Array(Chunk(Json.Number(42), Json.String("test"), Json.Boolean(true))))
+      },
+      test("eitherEncoder encodes Left to Json.Object") {
+        val encoder = JsonEncoder.eitherEncoder[Int, String]
+        val result  = encoder.encode(Left(42))
+        assertTrue(result == Json.Object(Chunk("Left" -> Json.Number(42))))
+      },
+      test("eitherEncoder encodes Right to Json.Object") {
+        val encoder = JsonEncoder.eitherEncoder[Int, String]
+        val result  = encoder.encode(Right("test"))
+        assertTrue(result == Json.Object(Chunk("Right" -> Json.String("test"))))
+      },
+      test("setEncoder encodes Set to Json.Array") {
+        val encoder = JsonEncoder.setEncoder[Int]
+        val result  = encoder.encode(Set(1, 2, 3))
+        assertTrue(result.isInstanceOf[Json.Array])
+      },
+      test("seqEncoder encodes Seq to Json.Array") {
+        val encoder = JsonEncoder.seqEncoder[Int]
+        val result  = encoder.encode(Seq(1, 2, 3))
+        assertTrue(result == Json.Array(Chunk(Json.Number(1), Json.Number(2), Json.Number(3))))
+      },
+      test("byteEncoder encodes byte") {
+        val result = JsonEncoder.byteEncoder.encode(127.toByte)
+        assertTrue(result == Json.Number(127))
+      },
+      test("shortEncoder encodes short") {
+        val result = JsonEncoder.shortEncoder.encode(32767.toShort)
+        assertTrue(result == Json.Number(32767))
+      },
+      test("charEncoder encodes char") {
+        val result = JsonEncoder.charEncoder.encode('a')
+        assertTrue(result == Json.String("a"))
+      },
+      test("unitEncoder encodes unit") {
+        val result = JsonEncoder.unitEncoder.encode(())
+        assertTrue(result == Json.Null)
+      },
+      test("bigIntEncoder encodes BigInt") {
+        val result = JsonEncoder.bigIntEncoder.encode(BigInt("123456789012345678901234567890"))
+        assertTrue(result == Json.Number("123456789012345678901234567890"))
+      }
+    ),
+    suite("JsonDecoder Java time types")(
+      test("dayOfWeekDecoder decodes valid day") {
+        val result = JsonDecoder.dayOfWeekDecoder.decode(Json.String("MONDAY"))
+        assertTrue(result == Right(java.time.DayOfWeek.MONDAY))
+      },
+      test("dayOfWeekDecoder fails on invalid day") {
+        val result = JsonDecoder.dayOfWeekDecoder.decode(Json.String("NOTADAY"))
+        assertTrue(result.isLeft)
+      },
+      test("durationDecoder decodes valid duration") {
+        val result = JsonDecoder.durationDecoder.decode(Json.String("PT1H30M"))
+        assertTrue(result == Right(java.time.Duration.parse("PT1H30M")))
+      },
+      test("durationDecoder fails on invalid duration") {
+        val result = JsonDecoder.durationDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("instantDecoder decodes valid instant") {
+        val result = JsonDecoder.instantDecoder.decode(Json.String("2023-01-01T00:00:00Z"))
+        assertTrue(result == Right(java.time.Instant.parse("2023-01-01T00:00:00Z")))
+      },
+      test("instantDecoder fails on invalid instant") {
+        val result = JsonDecoder.instantDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("localDateDecoder decodes valid date") {
+        val result = JsonDecoder.localDateDecoder.decode(Json.String("2023-01-01"))
+        assertTrue(result == Right(java.time.LocalDate.parse("2023-01-01")))
+      },
+      test("localDateDecoder fails on invalid date") {
+        val result = JsonDecoder.localDateDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("localTimeDecoder decodes valid time") {
+        val result = JsonDecoder.localTimeDecoder.decode(Json.String("12:30:45"))
+        assertTrue(result == Right(java.time.LocalTime.parse("12:30:45")))
+      },
+      test("localTimeDecoder fails on invalid time") {
+        val result = JsonDecoder.localTimeDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("localDateTimeDecoder decodes valid datetime") {
+        val result = JsonDecoder.localDateTimeDecoder.decode(Json.String("2023-01-01T12:30:45"))
+        assertTrue(result == Right(java.time.LocalDateTime.parse("2023-01-01T12:30:45")))
+      },
+      test("localDateTimeDecoder fails on invalid datetime") {
+        val result = JsonDecoder.localDateTimeDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("monthDecoder decodes valid month") {
+        val result = JsonDecoder.monthDecoder.decode(Json.String("JANUARY"))
+        assertTrue(result == Right(java.time.Month.JANUARY))
+      },
+      test("monthDecoder fails on invalid month") {
+        val result = JsonDecoder.monthDecoder.decode(Json.String("NOTAMONTH"))
+        assertTrue(result.isLeft)
+      },
+      test("monthDayDecoder decodes valid month-day") {
+        val result = JsonDecoder.monthDayDecoder.decode(Json.String("--01-15"))
+        assertTrue(result == Right(java.time.MonthDay.parse("--01-15")))
+      },
+      test("monthDayDecoder fails on invalid month-day") {
+        val result = JsonDecoder.monthDayDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("offsetDateTimeDecoder decodes valid offset datetime") {
+        val result = JsonDecoder.offsetDateTimeDecoder.decode(Json.String("2023-01-01T12:30:45+01:00"))
+        assertTrue(result == Right(java.time.OffsetDateTime.parse("2023-01-01T12:30:45+01:00")))
+      },
+      test("offsetDateTimeDecoder fails on invalid offset datetime") {
+        val result = JsonDecoder.offsetDateTimeDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("offsetTimeDecoder decodes valid offset time") {
+        val result = JsonDecoder.offsetTimeDecoder.decode(Json.String("12:30:45+01:00"))
+        assertTrue(result == Right(java.time.OffsetTime.parse("12:30:45+01:00")))
+      },
+      test("offsetTimeDecoder fails on invalid offset time") {
+        val result = JsonDecoder.offsetTimeDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("periodDecoder decodes valid period") {
+        val result = JsonDecoder.periodDecoder.decode(Json.String("P1Y2M3D"))
+        assertTrue(result == Right(java.time.Period.parse("P1Y2M3D")))
+      },
+      test("periodDecoder fails on invalid period") {
+        val result = JsonDecoder.periodDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("yearDecoder decodes valid year") {
+        val result = JsonDecoder.yearDecoder.decode(Json.String("2023"))
+        assertTrue(result == Right(java.time.Year.parse("2023")))
+      },
+      test("yearDecoder fails on invalid year") {
+        val result = JsonDecoder.yearDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("yearMonthDecoder decodes valid year-month") {
+        val result = JsonDecoder.yearMonthDecoder.decode(Json.String("2023-01"))
+        assertTrue(result == Right(java.time.YearMonth.parse("2023-01")))
+      },
+      test("yearMonthDecoder fails on invalid year-month") {
+        val result = JsonDecoder.yearMonthDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("zoneOffsetDecoder decodes valid zone offset") {
+        val result = JsonDecoder.zoneOffsetDecoder.decode(Json.String("+01:00"))
+        assertTrue(result == Right(java.time.ZoneOffset.of("+01:00")))
+      },
+      test("zoneOffsetDecoder fails on invalid zone offset") {
+        val result = JsonDecoder.zoneOffsetDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("zoneIdDecoder decodes valid zone id") {
+        val result = JsonDecoder.zoneIdDecoder.decode(Json.String("America/New_York"))
+        assertTrue(result == Right(java.time.ZoneId.of("America/New_York")))
+      },
+      test("zoneIdDecoder fails on invalid zone id") {
+        val result = JsonDecoder.zoneIdDecoder.decode(Json.String("Invalid/Zone"))
+        assertTrue(result.isLeft)
+      },
+      test("zonedDateTimeDecoder decodes valid zoned datetime") {
+        val result = JsonDecoder.zonedDateTimeDecoder.decode(Json.String("2023-01-01T12:30:45+01:00[Europe/Paris]"))
+        assertTrue(result == Right(java.time.ZonedDateTime.parse("2023-01-01T12:30:45+01:00[Europe/Paris]")))
+      },
+      test("zonedDateTimeDecoder fails on invalid zoned datetime") {
+        val result = JsonDecoder.zonedDateTimeDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("uuidDecoder decodes valid UUID") {
+        val uuid   = "550e8400-e29b-41d4-a716-446655440000"
+        val result = JsonDecoder.uuidDecoder.decode(Json.String(uuid))
+        assertTrue(result == Right(java.util.UUID.fromString(uuid)))
+      },
+      test("uuidDecoder fails on invalid UUID") {
+        val result = JsonDecoder.uuidDecoder.decode(Json.String("invalid"))
+        assertTrue(result.isLeft)
+      },
+      test("currencyDecoder decodes valid currency") {
+        val result = JsonDecoder.currencyDecoder.decode(Json.String("USD"))
+        assertTrue(result == Right(java.util.Currency.getInstance("USD")))
+      },
+      test("currencyDecoder fails on invalid currency") {
+        val result = JsonDecoder.currencyDecoder.decode(Json.String("INVALID"))
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("JsonEncoder Java time types")(
+      test("dayOfWeekEncoder encodes day") {
+        val result = JsonEncoder.dayOfWeekEncoder.encode(java.time.DayOfWeek.MONDAY)
+        assertTrue(result == Json.String("MONDAY"))
+      },
+      test("durationEncoder encodes duration") {
+        val result = JsonEncoder.durationEncoder.encode(java.time.Duration.parse("PT1H30M"))
+        assertTrue(result == Json.String("PT1H30M"))
+      },
+      test("instantEncoder encodes instant") {
+        val instant = java.time.Instant.parse("2023-01-01T00:00:00Z")
+        val result  = JsonEncoder.instantEncoder.encode(instant)
+        assertTrue(result == Json.String("2023-01-01T00:00:00Z"))
+      },
+      test("localDateEncoder encodes date") {
+        val result = JsonEncoder.localDateEncoder.encode(java.time.LocalDate.parse("2023-01-01"))
+        assertTrue(result == Json.String("2023-01-01"))
+      },
+      test("localTimeEncoder encodes time") {
+        val result = JsonEncoder.localTimeEncoder.encode(java.time.LocalTime.parse("12:30:45"))
+        assertTrue(result == Json.String("12:30:45"))
+      },
+      test("localDateTimeEncoder encodes datetime") {
+        val result = JsonEncoder.localDateTimeEncoder.encode(java.time.LocalDateTime.parse("2023-01-01T12:30:45"))
+        assertTrue(result == Json.String("2023-01-01T12:30:45"))
+      },
+      test("monthEncoder encodes month") {
+        val result = JsonEncoder.monthEncoder.encode(java.time.Month.JANUARY)
+        assertTrue(result == Json.String("JANUARY"))
+      },
+      test("monthDayEncoder encodes month-day") {
+        val result = JsonEncoder.monthDayEncoder.encode(java.time.MonthDay.parse("--01-15"))
+        assertTrue(result == Json.String("--01-15"))
+      },
+      test("offsetDateTimeEncoder encodes offset datetime") {
+        val odt    = java.time.OffsetDateTime.parse("2023-01-01T12:30:45+01:00")
+        val result = JsonEncoder.offsetDateTimeEncoder.encode(odt)
+        assertTrue(result == Json.String("2023-01-01T12:30:45+01:00"))
+      },
+      test("offsetTimeEncoder encodes offset time") {
+        val result = JsonEncoder.offsetTimeEncoder.encode(java.time.OffsetTime.parse("12:30:45+01:00"))
+        assertTrue(result == Json.String("12:30:45+01:00"))
+      },
+      test("periodEncoder encodes period") {
+        val result = JsonEncoder.periodEncoder.encode(java.time.Period.parse("P1Y2M3D"))
+        assertTrue(result == Json.String("P1Y2M3D"))
+      },
+      test("yearEncoder encodes year") {
+        val result = JsonEncoder.yearEncoder.encode(java.time.Year.parse("2023"))
+        assertTrue(result == Json.String("2023"))
+      },
+      test("yearMonthEncoder encodes year-month") {
+        val result = JsonEncoder.yearMonthEncoder.encode(java.time.YearMonth.parse("2023-01"))
+        assertTrue(result == Json.String("2023-01"))
+      },
+      test("zoneOffsetEncoder encodes zone offset") {
+        val result = JsonEncoder.zoneOffsetEncoder.encode(java.time.ZoneOffset.of("+01:00"))
+        assertTrue(result == Json.String("+01:00"))
+      },
+      test("zoneIdEncoder encodes zone id") {
+        val result = JsonEncoder.zoneIdEncoder.encode(java.time.ZoneId.of("America/New_York"))
+        assertTrue(result == Json.String("America/New_York"))
+      },
+      test("zonedDateTimeEncoder encodes zoned datetime") {
+        val zdt    = java.time.ZonedDateTime.parse("2023-01-01T12:30:45+01:00[Europe/Paris]")
+        val result = JsonEncoder.zonedDateTimeEncoder.encode(zdt)
+        assertTrue(result == Json.String("2023-01-01T12:30:45+01:00[Europe/Paris]"))
+      },
+      test("uuidEncoder encodes UUID") {
+        val uuid   = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val result = JsonEncoder.uuidEncoder.encode(uuid)
+        assertTrue(result == Json.String("550e8400-e29b-41d4-a716-446655440000"))
+      },
+      test("currencyEncoder encodes currency") {
+        val result = JsonEncoder.currencyEncoder.encode(java.util.Currency.getInstance("USD"))
+        assertTrue(result == Json.String("USD"))
+      }
+    ),
+    suite("JsonDecoder error paths")(
+      test("vectorDecoder propagates element errors") {
+        val result =
+          JsonDecoder.vectorDecoder[Int].decode(Json.Array(Chunk(Json.Number(1), Json.String("not a number"))))
+        assertTrue(result.isLeft)
+      },
+      test("listDecoder propagates element errors") {
+        val result = JsonDecoder.listDecoder[Int].decode(Json.Array(Chunk(Json.Number(1), Json.String("not a number"))))
+        assertTrue(result.isLeft)
+      },
+      test("mapDecoder propagates value errors") {
+        val result = JsonDecoder
+          .mapDecoder[Int]
+          .decode(Json.Object(Chunk("a" -> Json.Number(1), "b" -> Json.String("not a number"))))
+        assertTrue(result.isLeft)
+      },
+      test("parseString fails on non-string") {
+        val result = JsonDecoder.uuidDecoder.decode(Json.Number(123))
+        assertTrue(result.isLeft)
+      }
     )
   )
 
