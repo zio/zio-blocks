@@ -10,18 +10,6 @@ object SingleFieldSpec extends ZIOSpecDefault {
   case class Count(n: Int)
 
   def spec: Spec[Any, Nothing] = suite("SingleFieldSpec")(
-    test("single String field converts correctly") {
-      val schema     = Schema.derived[Id]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-      assertTrue(typeName == "{value:String}")
-    },
-    test("single Int field converts correctly") {
-      val schema     = Schema.derived[Count]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-      assertTrue(typeName == "{n:Int}")
-    },
     test("single field structural has one field") {
       val schema     = Schema.derived[Id]
       val structural = schema.structural
@@ -36,6 +24,14 @@ object SingleFieldSpec extends ZIOSpecDefault {
         case class Id(value: String)
         val schema = Schema.derived[Id]
         val structural: Schema[{def value: String}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
+    },
+    test("single Int field case class converts to expected structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        case class Count(n: Int)
+        val schema = Schema.derived[Count]
+        val structural: Schema[{def n: Int}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     }
   )

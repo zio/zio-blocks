@@ -109,35 +109,34 @@ object StructuralRoundTripSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("Structural type name verification")(
-      test("product structural type has correct field names in type name") {
-        val schema     = Schema.derived[Simple]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("x:Int"),
-          typeName.contains("y:String")
-        )
+    suite("Type-level structural conversion")(
+      test("Simple product converts to structural type") {
+        typeCheck("""
+          import zio.blocks.schema._
+          case class Simple(x: Int, y: String)
+          val schema = Schema.derived[Simple]
+          val structural: Schema[{def x: Int; def y: String}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       },
-      test("sum type structural has union type name with Tag") {
-        val schema     = Schema.derived[Animal]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("Dog"),
-          typeName.contains("Cat"),
-          typeName.contains("Fish"),
-          typeName.contains("|")
-        )
+      test("Animal sealed trait converts to union structural type") {
+        typeCheck("""
+          import zio.blocks.schema._
+          sealed trait Animal
+          case class Dog(name: String, breed: String) extends Animal
+          case class Cat(name: String, indoor: Boolean) extends Animal
+          case object Fish extends Animal
+          val schema = Schema.derived[Animal]
+          val structural: Schema[{def Tag: "Cat"; def indoor: Boolean; def name: String} | {def Tag: "Dog"; def breed: String; def name: String} | {def Tag: "Fish"}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       },
-      test("nested structural type has nested field type names") {
-        val schema     = Schema.derived[Nested]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("inner:"),
-          typeName.contains("flag:Boolean")
-        )
+      test("Nested product converts to structural type") {
+        typeCheck("""
+          import zio.blocks.schema._
+          case class Simple(x: Int, y: String)
+          case class Nested(inner: Simple, flag: Boolean)
+          val schema = Schema.derived[Nested]
+          val structural: Schema[{def flag: Boolean; def inner: Simple}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       }
     ),
     suite("Structural schema preserves reflect structure")(

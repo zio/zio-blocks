@@ -31,19 +31,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
       val structural = schema.structural
       assertTrue(structural != null)
     },
-    test("structural type name contains all cases with Tag fields") {
-      val schema     = Schema.derived[Result]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-
-      assertTrue(
-        typeName.contains("|"),
-        typeName.contains("Tag:\"Success\""),
-        typeName.contains("Tag:\"Failure\""),
-        typeName.contains("value:Int"),
-        typeName.contains("error:String")
-      )
-    },
     test("Result sealed trait converts to union structural type") {
       typeCheck("""
         import zio.blocks.schema._

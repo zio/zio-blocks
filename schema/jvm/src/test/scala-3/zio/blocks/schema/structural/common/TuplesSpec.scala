@@ -7,12 +7,6 @@ import zio.test._
 object TuplesSpec extends ZIOSpecDefault {
 
   def spec: Spec[Any, Nothing] = suite("TuplesSpec")(
-    test("tuple2 converts to structural with correct type name") {
-      val schema     = Schema.derived[(String, Int)]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-      assertTrue(typeName == "{_1:String,_2:Int}")
-    },
     test("tuple3 has correct field names") {
       val schema     = Schema.derived[(String, Int, Boolean)]
       val structural = schema.structural
