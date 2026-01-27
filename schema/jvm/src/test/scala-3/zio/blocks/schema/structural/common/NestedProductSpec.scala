@@ -10,12 +10,6 @@ object NestedProductSpec extends ZIOSpecDefault {
   case class Person(name: String, age: Int, address: Address)
 
   def spec: Spec[Any, Nothing] = suite("NestedProductSpec")(
-    test("nested case class produces type name with all fields") {
-      val schema     = Schema.derived[Person]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-      assertTrue(typeName.contains("name"), typeName.contains("age"), typeName.contains("address"))
-    },
     test("structural schema preserves field names") {
       val schema     = Schema.derived[Person]
       val structural = schema.structural

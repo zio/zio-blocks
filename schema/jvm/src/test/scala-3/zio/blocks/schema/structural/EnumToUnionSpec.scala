@@ -27,20 +27,25 @@ object EnumToUnionSpec extends ZIOSpecDefault {
   }
 
   def spec = suite("EnumToUnionSpec")(
-    test("simple enum structural has exact union type name") {
-      val schema     = Schema.derived[Color]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-      assertTrue(typeName == """{Tag:"Blue"}|{Tag:"Green"}|{Tag:"Red"}""")
+    test("simple enum converts to structural union type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        enum Color { case Red, Green, Blue }
+        val schema = Schema.derived[Color]
+        val structural: Schema[{def Tag: "Blue"} | {def Tag: "Green"} | {def Tag: "Red"}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     },
-    test("parameterized enum structural has exact union type name with fields") {
-      val schema     = Schema.derived[Shape]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-      assertTrue(
-        typeName ==
-          """{Tag:"Circle",radius:Double}|{Tag:"Rectangle",height:Double,width:Double}|{Tag:"Triangle",base:Double,height:Double}"""
-      )
+    test("parameterized enum converts to structural union type with fields") {
+      typeCheck("""
+        import zio.blocks.schema._
+        enum Shape {
+          case Circle(radius: Double)
+          case Rectangle(width: Double, height: Double)
+          case Triangle(base: Double, height: Double)
+        }
+        val schema = Schema.derived[Shape]
+        val structural: Schema[{def Tag: "Circle"; def radius: Double} | {def Tag: "Rectangle"; def height: Double; def width: Double} | {def Tag: "Triangle"; def base: Double; def height: Double}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     },
     test("structural enum schema is a Variant") {
       val schema     = Schema.derived[Color]
@@ -88,26 +93,6 @@ object EnumToUnionSpec extends ZIOSpecDefault {
           fields.toMap.get("radius").contains(DynamicValue.Primitive(PrimitiveValue.Double(5.0)))
         case _ => false
       })
-    },
-    test("simple enum converts to expected structural union type") {
-      typeCheck("""
-        import zio.blocks.schema._
-        enum Color { case Red, Green, Blue }
-        val schema = Schema.derived[Color]
-        val structural: Schema[{def Tag: "Blue"} | {def Tag: "Green"} | {def Tag: "Red"}] = schema.structural
-      """).map(result => assertTrue(result.isRight))
-    },
-    test("parameterized enum converts to expected structural union type") {
-      typeCheck("""
-        import zio.blocks.schema._
-        enum Shape {
-          case Circle(radius: Double)
-          case Rectangle(width: Double, height: Double)
-          case Triangle(base: Double, height: Double)
-        }
-        val schema = Schema.derived[Shape]
-        val structural: Schema[{def Tag: "Circle"; def radius: Double} | {def Tag: "Rectangle"; def height: Double; def width: Double} | {def Tag: "Triangle"; def base: Double; def height: Double}] = schema.structural
-      """).map(result => assertTrue(result.isRight))
     }
   )
 }

@@ -33,67 +33,56 @@ object OpaqueTypeUnpackingSpec extends ZIOSpecDefault {
   def spec = suite("OpaqueTypeUnpackingSpec")(
     suite("Simple opaque types are unpacked to primitives")(
       test("UserId (opaque String) is unpacked to String in structural type") {
-        val schema     = Schema.derived[User]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("id:String"),
-          typeName.contains("name:String"),
-          !typeName.contains("UserId")
-        )
+        typeCheck("""
+          import zio.blocks.schema._
+          import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
+          val schema = Schema.derived[User]
+          val structural: Schema[{def id: String; def name: String}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       },
       test("Age (opaque Int) is unpacked to Int in structural type") {
-        val schema     = Schema.derived[Person]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("age:Int"),
-          typeName.contains("name:String"),
-          !typeName.contains("Age")
-        )
+        typeCheck("""
+          import zio.blocks.schema._
+          import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec.{Person => PersonType, _}
+          val schema = Schema.derived[PersonType]
+          val structural: Schema[{def age: Int; def name: String}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       },
       test("Score (opaque Double) is unpacked to Double in structural type") {
-        val schema     = Schema.derived[GameResult]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("score:Double"),
-          typeName.contains("player:String"),
-          !typeName.contains("Score")
-        )
+        typeCheck("""
+          import zio.blocks.schema._
+          import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
+          val schema = Schema.derived[GameResult]
+          val structural: Schema[{def player: String; def score: Double}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       }
     ),
     suite("Nested opaque types are unpacked recursively")(
       test("nested case class with opaque fields is fully unpacked") {
-        val schema     = Schema.derived[NestedOpaque]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("score:Double"),
-          typeName.contains("user:"),
-          !typeName.contains("Score"),
-          !typeName.contains("UserId")
-        )
+        typeCheck("""
+          import zio.blocks.schema._
+          import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
+          val schema = Schema.derived[NestedOpaque]
+          val structural: Schema[{def score: Double; def user: User}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       }
     ),
     suite("Opaque types in collections are unpacked")(
       test("List[UserId] field appears in structural type") {
-        val schema     = Schema.derived[ListOfOpaque]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("ids:List"),
-          !typeName.contains("UserId")
-        )
+        typeCheck("""
+          import zio.blocks.schema._
+          import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
+          val schema = Schema.derived[ListOfOpaque]
+          val structural: Schema[{def ids: List[String]}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       },
       test("Option[UserId] field appears in structural type") {
-        val schema     = Schema.derived[OptionalOpaque]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("maybeId:Option"),
-          !typeName.contains("UserId")
-        )
+        typeCheck("""
+          import zio.blocks.schema._
+          import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
+          val schema = Schema.derived[OptionalOpaque]
+          val structural: Schema[{def maybeId: Option[String]}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       }
     ),
     suite("Structural schema round-trip with opaque types")(
@@ -106,14 +95,13 @@ object OpaqueTypeUnpackingSpec extends ZIOSpecDefault {
 
         assertTrue(roundTrip == Right(original))
       },
-      test("structural schema of User has correct type name") {
-        val schema     = Schema.derived[User]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("id:String"),
-          typeName.contains("name:String")
-        )
+      test("structural schema of User has correct type") {
+        typeCheck("""
+          import zio.blocks.schema._
+          import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
+          val schema = Schema.derived[User]
+          val structural: Schema[{def id: String; def name: String}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       }
     ),
     suite("Type checking with explicit structural types")(

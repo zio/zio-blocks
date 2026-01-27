@@ -10,18 +10,6 @@ object EmptyProductSpec extends ZIOSpecDefault {
   case object Singleton
 
   def spec: Spec[Any, Nothing] = suite("EmptyProductSpec")(
-    test("empty case class converts to structural") {
-      val schema     = Schema.derived[Empty]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-      assertTrue(typeName == "{}")
-    },
-    test("case object converts to structural") {
-      val schema     = Schema.derived[Singleton.type]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-      assertTrue(typeName == "{}")
-    },
     test("empty structural has zero fields") {
       val schema     = Schema.derived[Empty]
       val structural = schema.structural
@@ -36,6 +24,14 @@ object EmptyProductSpec extends ZIOSpecDefault {
         import zio.blocks.schema._
         case class Empty()
         val schema = Schema.derived[Empty]
+        val structural: Schema[{}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
+    },
+    test("case object converts to expected structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        case object Singleton
+        val schema = Schema.derived[Singleton.type]
         val structural: Schema[{}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     }

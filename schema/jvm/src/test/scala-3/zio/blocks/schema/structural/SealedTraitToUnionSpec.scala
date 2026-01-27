@@ -33,10 +33,16 @@ object SealedTraitToUnionSpec extends ZIOSpecDefault {
 
   def spec = suite("SealedTraitToUnionSpec")(
     test("sealed trait structural has exact union type name") {
-      val schema     = Schema.derived[Result]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-      assertTrue(typeName == """{Tag:"Failure",error:String}|{Tag:"Success",value:Int}""")
+      typeCheck("""
+        import zio.blocks.schema._
+        sealed trait Result
+        object Result {
+          case class Success(value: Int) extends Result
+          case class Failure(error: String) extends Result
+        }
+        val schema = Schema.derived[Result]
+        val structural: Schema[{def Tag: "Failure"; def error: String} | {def Tag: "Success"; def value: Int}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     },
     test("structural sealed trait schema is a Variant") {
       val schema     = Schema.derived[Result]
@@ -57,10 +63,16 @@ object SealedTraitToUnionSpec extends ZIOSpecDefault {
       assertTrue(caseCount == 2)
     },
     test("sealed trait with case objects has exact structural type name") {
-      val schema     = Schema.derived[Status]
-      val structural = schema.structural
-      val typeName   = structural.reflect.typeName.name
-      assertTrue(typeName == """{Tag:"Active"}|{Tag:"Inactive"}""")
+      typeCheck("""
+        import zio.blocks.schema._
+        sealed trait Status
+        object Status {
+          case object Active extends Status
+          case object Inactive extends Status
+        }
+        val schema = Schema.derived[Status]
+        val structural: Schema[{def Tag: "Active"} | {def Tag: "Inactive"}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     },
     test("three variant sealed trait structural has all cases") {
       val schema     = Schema.derived[Animal]

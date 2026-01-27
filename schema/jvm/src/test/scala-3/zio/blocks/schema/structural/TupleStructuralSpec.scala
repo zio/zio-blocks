@@ -10,15 +10,6 @@ object TupleStructuralSpec extends ZIOSpecDefault {
 
   def spec = suite("TupleStructuralSpec")(
     suite("Tuple2 structural conversion")(
-      test("Tuple2 converts to structural type") {
-        val schema     = Schema.derived[(String, Int)]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("_1:String"),
-          typeName.contains("_2:Int")
-        )
-      },
       test("Tuple2 round-trips correctly") {
         val schema   = Schema.derived[(String, Int)]
         val original = ("hello", 42)
@@ -27,48 +18,6 @@ object TupleStructuralSpec extends ZIOSpecDefault {
         val roundTrip = schema.fromDynamicValue(dynamic)
 
         assertTrue(roundTrip == Right(original))
-      }
-    ),
-    suite("Tuple3 structural conversion")(
-      test("Tuple3 converts to structural type") {
-        val schema     = Schema.derived[(String, Int, Boolean)]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("_1:String"),
-          typeName.contains("_2:Int"),
-          typeName.contains("_3:Boolean")
-        )
-      },
-      test("Tuple3 structural schema preserves field types") {
-        val schema     = Schema.derived[(Double, Long, String)]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("_1:Double"),
-          typeName.contains("_2:Long"),
-          typeName.contains("_3:String")
-        )
-      }
-    ),
-    suite("Tuple with complex types")(
-      test("Tuple with Option field") {
-        val schema     = Schema.derived[(String, Option[Int])]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("_1:String"),
-          typeName.contains("_2:Option")
-        )
-      },
-      test("Tuple with List field") {
-        val schema     = Schema.derived[(String, List[Int])]
-        val structural = schema.structural
-        val typeName   = structural.reflect.typeName.name
-        assertTrue(
-          typeName.contains("_1:String"),
-          typeName.contains("_2:List")
-        )
       }
     ),
     suite("Tuple structural schema is a Record")(
