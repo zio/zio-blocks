@@ -53,7 +53,8 @@ sealed trait DynamicValue {
 
   /**
    * Computes the difference between this DynamicValue and another, producing a
-   * [[zio.blocks.schema.patch.DynamicPatch]] that can transform this value into `that`.
+   * [[zio.blocks.schema.patch.DynamicPatch]] that can transform this value into
+   * `that`.
    *
    * The diff algorithm produces minimal patches using type-appropriate
    * operations: numeric deltas for numbers, string edit operations for text,
