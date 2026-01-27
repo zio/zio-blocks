@@ -167,7 +167,7 @@ object MigrationScenarioSpec extends SchemaBaseSpec {
           MigrationAction.AddField(
             DynamicOptic.root,
             "shippingAddress",
-            Resolved.Literal.dynamicValue(defaultAddress)
+            Resolved.Literal(defaultAddress)
           )
         )
         val order = dynamicRecord(
@@ -232,7 +232,7 @@ object MigrationScenarioSpec extends SchemaBaseSpec {
           MigrationAction.AddField(
             DynamicOptic.root,
             "logging",
-            Resolved.Literal.dynamicValue(defaultLogging)
+            Resolved.Literal(defaultLogging)
           )
         )
         val config = dynamicRecord(
@@ -306,7 +306,7 @@ object MigrationScenarioSpec extends SchemaBaseSpec {
           MigrationAction.AddField(
             DynamicOptic.root,
             "pagination",
-            Resolved.Literal.dynamicValue(pagination)
+            Resolved.Literal(pagination)
           )
         )
         val response = dynamicRecord(

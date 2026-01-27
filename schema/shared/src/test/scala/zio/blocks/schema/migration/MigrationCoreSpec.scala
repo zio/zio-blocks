@@ -419,14 +419,14 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         )
         assertTrue(migration.isIdentity)
       },
-      test("Migration.applyUnsafe returns value on success") {
+      test("Migration.unsafeApply returns value on success") {
         val migration = Migration[SimpleRecord, SimpleRecord](
           DynamicMigration.identity,
           SimpleRecord.schema,
           SimpleRecord.schema
         )
         val input = SimpleRecord(1, "test")
-        assertTrue(migration.applyUnsafe(input) == input)
+        assertTrue(migration.unsafeApply(input) == input)
       }
     )
   )

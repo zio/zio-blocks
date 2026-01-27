@@ -135,7 +135,7 @@ object TypedMigrationSpec extends SchemaBaseSpec {
         )
         val migration = Migration[PersonV1, PersonV2](dynMigration, schemaV1, schemaV2)
 
-        val result = migration.applyUnsafe(PersonV1("Alice", 30))
+        val result = migration.unsafeApply(PersonV1("Alice", 30))
         assertTrue(result == PersonV2("Alice", 30))
       },
       test("failed applyUnsafe throws exception") {
@@ -148,7 +148,7 @@ object TypedMigrationSpec extends SchemaBaseSpec {
         val migration = Migration[PersonV1, PersonV2](dynMigration, schemaV1, schemaV2)
 
         val threw = try {
-          migration.applyUnsafe(PersonV1("Alice", 30))
+          migration.unsafeApply(PersonV1("Alice", 30))
           false
         } catch {
           case _: Throwable => true

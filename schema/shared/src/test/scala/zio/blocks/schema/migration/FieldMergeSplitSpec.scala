@@ -209,7 +209,7 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
             "city",
             Resolved.FieldAccess("city", Resolved.FieldAccess("address", Resolved.Identity))
           ),
-          MigrationAction.DropField(DynamicOptic.root, "address", Resolved.Literal.dynamicValue(dynamicRecord()))
+          MigrationAction.DropField(DynamicOptic.root, "address", Resolved.Literal(dynamicRecord()))
         ))
         val input = dynamicRecord(
           "name" -> dynamicString("Alice"),

@@ -85,7 +85,7 @@ object TransformExpressionSpec extends SchemaBaseSpec {
       },
       test("Literal.dynamicValue returns provided value") {
         val value = dynamicRecord("a" -> dynamicInt(1), "b" -> dynamicInt(2))
-        val expr = Resolved.Literal.dynamicValue(value)
+        val expr = Resolved.Literal(value)
         assertTrue(expr.evalDynamic == Right(value))
       }
     ),
@@ -243,21 +243,21 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     suite("Coalesce expression")(
       test("returns first non-None value") {
         val expr = Resolved.Coalesce(
-          Resolved.Literal.dynamicValue(dynamicNone),
-          Resolved.Literal.dynamicValue(dynamicSome(dynamicInt(42)))
+          Resolved.Literal(dynamicNone),
+          Resolved.Literal(dynamicSome(dynamicInt(42)))
         )
         assertTrue(expr.evalDynamic == Right(dynamicSome(dynamicInt(42))))
       },
       test("returns primary if not None") {
         val expr = Resolved.Coalesce(
-          Resolved.Literal.dynamicValue(dynamicSome(dynamicInt(1))),
-          Resolved.Literal.dynamicValue(dynamicSome(dynamicInt(2)))
+          Resolved.Literal(dynamicSome(dynamicInt(1))),
+          Resolved.Literal(dynamicSome(dynamicInt(2)))
         )
         assertTrue(expr.evalDynamic == Right(dynamicSome(dynamicInt(1))))
       },
       test("returns fallback if primary is None") {
         val expr = Resolved.Coalesce(
-          Resolved.Literal.dynamicValue(dynamicNone),
+          Resolved.Literal(dynamicNone),
           Resolved.Literal.int(99)
         )
         assertTrue(expr.evalDynamic == Right(dynamicInt(99)))
@@ -266,14 +266,14 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     suite("GetOrElse expression")(
       test("extracts Some value") {
         val expr = Resolved.GetOrElse(
-          Resolved.Literal.dynamicValue(dynamicSome(dynamicInt(42))),
+          Resolved.Literal(dynamicSome(dynamicInt(42))),
           Resolved.Literal.int(0)
         )
         assertTrue(expr.evalDynamic == Right(dynamicInt(42)))
       },
       test("returns default for None") {
         val expr = Resolved.GetOrElse(
-          Resolved.Literal.dynamicValue(dynamicNone),
+          Resolved.Literal(dynamicNone),
           Resolved.Literal.int(99)
         )
         assertTrue(expr.evalDynamic == Right(dynamicInt(99)))
@@ -296,7 +296,7 @@ object TransformExpressionSpec extends SchemaBaseSpec {
       },
       test("wraps record in Some") {
         val record = dynamicRecord("x" -> dynamicInt(1))
-        val expr = Resolved.WrapSome(Resolved.Literal.dynamicValue(record))
+        val expr = Resolved.WrapSome(Resolved.Literal(record))
         assertTrue(expr.evalDynamic == Right(dynamicSome(record)))
       },
       test("wraps input value in Some") {

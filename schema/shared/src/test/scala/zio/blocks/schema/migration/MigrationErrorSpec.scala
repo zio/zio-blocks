@@ -83,7 +83,7 @@ object MigrationErrorSpec extends SchemaBaseSpec {
         val result = action.apply(dynamicRecord())
         result match {
           case Left(error) =>
-            assertTrue(error.at == DynamicOptic.root)
+            assertTrue(error.path == DynamicOptic.root)
           case _ => assertTrue(false)
         }
       },
@@ -97,7 +97,7 @@ object MigrationErrorSpec extends SchemaBaseSpec {
       test("error preserves deep path") {
         val path = DynamicOptic.root.field("a").field("b").field("c")
         val error = MigrationError.PathNotFound(path)
-        assertTrue(error.at == path)
+        assertTrue(error.path == path)
       }
     ),
     suite("Error propagation")(
@@ -202,7 +202,7 @@ object MigrationErrorSpec extends SchemaBaseSpec {
           schema
         )
         try {
-          migration.applyUnsafe(TestRecord(42))
+          migration.unsafeApply(TestRecord(42))
           assertTrue(false) // Should have thrown
         } catch {
           case _: MigrationError => assertTrue(true)
