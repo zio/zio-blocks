@@ -106,7 +106,6 @@ private[schema] object CommonMacroOps {
     subTypes.toList
   }
 
-
   def typeId(
     c: blackbox.Context
   )(typeIdCache: mutable.HashMap[c.Type, TypeId[?]], tpe: c.Type): TypeId[?] = {
@@ -138,16 +137,18 @@ private[schema] object CommonMacroOps {
         val owner = Owner((packages.map(Owner.Package(_)) ::: values.map(Owner.Term(_))).toList)
         val tArgs = typeArgs(c)(tpe).map(ta => typeId(c)(typeIdCache, ta))
 
-        new TypeId(DynamicTypeId(
-          owner,
-          name,
-          tArgs.zipWithIndex.map { case (arg, i) =>
-            TypeParam(arg.show, i, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty)
-          },
-          TypeDefKind.Class(),
-          Nil,
-          Nil
-        ))
+        new TypeId(
+          DynamicTypeId(
+            owner,
+            name,
+            tArgs.zipWithIndex.map { case (arg, i) =>
+              TypeParam(arg.show, i, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty)
+            },
+            TypeDefKind.Class(),
+            Nil,
+            Nil
+          )
+        )
       }
 
     typeIdCache.getOrElseUpdate(
@@ -155,7 +156,8 @@ private[schema] object CommonMacroOps {
       tpe match {
         case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
           var tTypeId = calculateTypeId(compTpe)
-          if (tTypeId.name.endsWith(".type")) tTypeId = TypeId(tTypeId.dynamic.copy(name = tTypeId.name.stripSuffix(".type")))
+          if (tTypeId.name.endsWith(".type"))
+            tTypeId = TypeId(tTypeId.dynamic.copy(name = tTypeId.name.stripSuffix(".type")))
           tTypeId
         case _ =>
           calculateTypeId(tpe)
@@ -166,11 +168,12 @@ private[schema] object CommonMacroOps {
   def typeIdToTree(c: blackbox.Context)(tid: TypeId[?]): c.Tree = {
     import c.universe._
 
-    val dynamic = tid.dynamic
+    val dynamic       = tid.dynamic
     val ownerSegments = dynamic.owner.segments.map {
       case Owner.Package(name) => q"_root_.zio.blocks.typeid.Owner.Package($name)"
       case Owner.Term(name)    => q"_root_.zio.blocks.typeid.Owner.Term($name)"
       case Owner.Type(name)    => q"_root_.zio.blocks.typeid.Owner.Type($name)"
+      case Owner.Local(name)   => q"_root_.zio.blocks.typeid.Owner.Local($name)"
     }
     val typeParams = dynamic.typeParams.map { tp =>
       q"_root_.zio.blocks.typeid.TypeParam(${tp.name}, ${tp.index}, _root_.zio.blocks.typeid.Variance.Invariant, _root_.zio.blocks.typeid.TypeBounds.empty)"
@@ -188,4 +191,3 @@ private[schema] object CommonMacroOps {
     )"""
   }
 }
-

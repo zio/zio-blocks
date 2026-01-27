@@ -141,8 +141,6 @@ private object SchemaCompanionVersionSpecific {
       q"new zio.blocks.typeid.TypeId(zio.blocks.typeid.DynamicTypeId($ownerTree, $name, List(..$typeParams), zio.blocks.typeid.TypeDefKind.Class(), Nil, Nil))"
     }
 
-
-
     def modifiers(tpe: Type): List[Tree] = {
       val modifiers = new mutable.ListBuffer[Tree]
       tpe.typeSymbol.annotations.foreach { annotation =>

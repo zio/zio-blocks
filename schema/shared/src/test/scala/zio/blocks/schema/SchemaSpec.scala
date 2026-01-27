@@ -129,7 +129,7 @@ object SchemaSpec extends SchemaBaseSpec {
 
     implicit val schema: Schema[PosInt] =
       Schema[Int]
-        .transformOrFail(i => PosInt.apply(i).left.map(SchemaError.validationFailed), _.value)
+        .transformOrFail(i => PosInt.apply(i).left.map(SchemaError.validationFailed), (p: PosInt) => p.value)
         .withTypeName[PosInt]
     val wrapped: Optional[PosInt, Int] = $(_.wrapped[Int])
   }
@@ -137,7 +137,8 @@ object SchemaSpec extends SchemaBaseSpec {
   case class Email(value: String)
 
   object Email extends CompanionOptics[Email] {
-    implicit val schema: Schema[Email]   = Schema[String].transform(x => new Email(x), _.value).withTypeName[Email]
+    implicit val schema: Schema[Email] =
+      Schema[String].transform(x => new Email(x), (e: Email) => e.value).withTypeName[Email]
     val wrapped: Optional[Email, String] = $(_.wrapped[String])
   }
 

@@ -23,7 +23,7 @@ object TypeIdMacros {
           makeSyntheticTypeId("Intersection", parents)
 
         case ExistentialType(_, underlying) => getTypeId(underlying)
-        case _ =>
+        case _                              =>
           c.abort(c.enclosingPosition, s"Cannot derive TypeId for $tpe. It must be a nominal type.")
       }
     }

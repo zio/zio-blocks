@@ -1414,7 +1414,7 @@ object Reflect {
 
     override def toString: String = {
       val v = visited.get
-      if (v.containsKey(this)) s"deferred => ${typeName}"
+      if (v.containsKey(this)) s"deferred => ${typeId}"
       else {
         v.put(this, ())
         try value.toString
