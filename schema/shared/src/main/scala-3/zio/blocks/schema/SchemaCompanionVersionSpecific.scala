@@ -427,17 +427,13 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               case Some(dvSelect) =>
                 val dv = dvSelect.asExpr.asInstanceOf[Expr[ft]]
                 if (modifiers eq Nil) {
-                  if (isNonRec) '{ $schema.reflect.defaultValue($dv).asTerm[S]($name) }
-                  else '{ new Reflect.Deferred(() => $schema.reflect).defaultValue($dv).asTerm[S]($name) }
+                  '{ new Reflect.Deferred(() => $schema.reflect).defaultValue($dv).asTerm[S]($name) }
                 } else {
-                  if (isNonRec) '{ $schema.reflect.defaultValue($dv).asTerm[S]($name).copy(modifiers = $ms) }
-                  else {
-                    '{
-                      new Reflect.Deferred(() => $schema.reflect)
-                        .defaultValue($dv)
-                        .asTerm[S]($name)
-                        .copy(modifiers = $ms)
-                    }
+                  '{
+                    new Reflect.Deferred(() => $schema.reflect)
+                      .defaultValue($dv)
+                      .asTerm[S]($name)
+                      .copy(modifiers = $ms)
                   }
                 }
               case _ =>

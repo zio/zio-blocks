@@ -199,9 +199,10 @@ object ReflectSpec extends SchemaBaseSpec {
       test("gets and updates primitive examples") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
+          primitiveBinding = Binding.Primitive[Long](),
           typeName = TypeName.long,
-          doc = Doc("Long (positive)")
+          doc = Doc("Long (positive)"),
+          storedExamples = Seq(1L, 2L, 3L).map(l => DynamicValue.Primitive(PrimitiveValue.Long(l)))
         )
         assert(long1.examples)(equalTo(Seq(1L, 2L, 3L))) &&
         assert(Reflect.int[Binding].examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))
@@ -505,8 +506,16 @@ object ReflectSpec extends SchemaBaseSpec {
           typeName = TypeName.list(TypeName.double),
           seqBinding = Binding.Seq[List, Double](
             constructor = SeqConstructor.listConstructor,
-            deconstructor = SeqDeconstructor.listDeconstructor,
-            examples = Seq(List(0.1, 0.2, 0.3))
+            deconstructor = SeqDeconstructor.listDeconstructor
+          ),
+          storedExamples = Seq(
+            DynamicValue.Sequence(
+              zio.blocks.chunk.Chunk(
+                DynamicValue.Primitive(PrimitiveValue.Double(0.1)),
+                DynamicValue.Primitive(PrimitiveValue.Double(0.2)),
+                DynamicValue.Primitive(PrimitiveValue.Double(0.3))
+              )
+            )
           )
         )
         assert(sequence1.examples)(equalTo(Seq(List(0.1, 0.2, 0.3)))) &&
@@ -606,8 +615,16 @@ object ReflectSpec extends SchemaBaseSpec {
           typeName = TypeName.map(TypeName.int, TypeName.long),
           mapBinding = Binding.Map[Map, Int, Long](
             constructor = MapConstructor.map,
-            deconstructor = MapDeconstructor.map,
-            examples = Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil
+            deconstructor = MapDeconstructor.map
+          ),
+          storedExamples = Seq(
+            DynamicValue.Map(
+              zio.blocks.chunk.Chunk(
+                (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Long(1L))),
+                (DynamicValue.Primitive(PrimitiveValue.Int(2)), DynamicValue.Primitive(PrimitiveValue.Long(2L))),
+                (DynamicValue.Primitive(PrimitiveValue.Int(3)), DynamicValue.Primitive(PrimitiveValue.Long(3L)))
+              )
+            )
           )
         )
         assert(map1.examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)) &&
@@ -679,7 +696,8 @@ object ReflectSpec extends SchemaBaseSpec {
       },
       test("gets and updates dynamic examples") {
         val dynamic1 = Reflect.Dynamic[Binding](
-          dynamicBinding = Binding.Dynamic(examples = DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)
+          dynamicBinding = Binding.Dynamic(),
+          storedExamples = DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil
         )
         assert(dynamic1.examples)(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)) &&
         assert(dynamic1.examples(DynamicValue.Primitive(PrimitiveValue.Int(1))).examples)(
