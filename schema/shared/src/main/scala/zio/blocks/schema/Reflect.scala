@@ -3,7 +3,7 @@ package zio.blocks.schema
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.{DynamicTypeId, Owner, StandardTypes, TypeBounds, TypeDefKind, TypeId, TypeParam, Variance}

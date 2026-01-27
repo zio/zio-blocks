@@ -898,7 +898,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("SequenceEdit Insert toString") {
         val patch = DynamicPatch(
           DynamicOptic.root.field("items"),
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(1, Vector(intVal(42), intVal(43)))))
+          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(1, Chunk(intVal(42), intVal(43)))))
         )
         val str = patch.toString
         assertTrue(str.contains("+ [1:"), str.contains("+ [2:"))
@@ -906,7 +906,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("SequenceEdit Append toString") {
         val patch = DynamicPatch(
           DynamicOptic.root.field("items"),
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Append(Vector(intVal(99)))))
+          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Append(Chunk(intVal(99)))))
         )
         val str = patch.toString
         assertTrue(str.contains("+ "))

@@ -1586,7 +1586,7 @@ object SchemaSpec extends SchemaBaseSpec {
           )
         )(isLeft(hasError("Expected String at: .each.at(0)"))) &&
         assert(
-          Schema[List[SchemaRecord]].fromDynamicValue(DynamicValue.Sequence(Vector(DynamicValue.Record(Vector.empty))))
+          Schema[List[SchemaRecord]].fromDynamicValue(DynamicValue.Sequence(Chunk(DynamicValue.Record(Chunk.empty))))
         )(
           isLeft(
             equalTo(
