@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 object DynamicValueRegressionSpec extends SchemaBaseSpec {
@@ -8,10 +9,10 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
       suite("Fix #5: Elements case preserves unmodified elements")(
         test("modify with .elements preserves unmatched elements") {
           val seq = DynamicValue.Sequence(
-            Vector(
-              DynamicValue.Record(Vector("x" -> DynamicValue.int(1))),
+            Chunk(
+              DynamicValue.Record(Chunk("x" -> DynamicValue.int(1))),
               DynamicValue.int(2),
-              DynamicValue.Record(Vector("x" -> DynamicValue.int(3)))
+              DynamicValue.Record(Chunk("x" -> DynamicValue.int(3)))
             )
           )
 
@@ -20,17 +21,17 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
 
           assertTrue(
             result == DynamicValue.Sequence(
-              Vector(
-                DynamicValue.Record(Vector("x" -> DynamicValue.int(99))),
+              Chunk(
+                DynamicValue.Record(Chunk("x" -> DynamicValue.int(99))),
                 DynamicValue.int(2),
-                DynamicValue.Record(Vector("x" -> DynamicValue.int(99)))
+                DynamicValue.Record(Chunk("x" -> DynamicValue.int(99)))
               )
             )
           )
         },
         test("modify with .elements returns original when no matches") {
           val seq = DynamicValue.Sequence(
-            Vector(
+            Chunk(
               DynamicValue.int(1),
               DynamicValue.int(2)
             )
@@ -43,11 +44,11 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
         },
         test("modify with .elements preserves sequence length") {
           val seq = DynamicValue.Sequence(
-            Vector(
-              DynamicValue.Record(Vector("x" -> DynamicValue.int(1))),
+            Chunk(
+              DynamicValue.Record(Chunk("x" -> DynamicValue.int(1))),
               DynamicValue.string("not a record"),
-              DynamicValue.Record(Vector("y" -> DynamicValue.int(2))),
-              DynamicValue.Record(Vector("x" -> DynamicValue.int(3)))
+              DynamicValue.Record(Chunk("y" -> DynamicValue.int(2))),
+              DynamicValue.Record(Chunk("x" -> DynamicValue.int(3)))
             )
           )
 
@@ -64,8 +65,8 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
       suite("Fix #6: MapKeys/MapValues preserve unmodified entries")(
         test("modify with .mapValues preserves unmatched entries") {
           val map = DynamicValue.Map(
-            Vector(
-              DynamicValue.string("a") -> DynamicValue.Record(Vector("x" -> DynamicValue.int(1))),
+            Chunk(
+              DynamicValue.string("a") -> DynamicValue.Record(Chunk("x" -> DynamicValue.int(1))),
               DynamicValue.string("b") -> DynamicValue.int(2)
             )
           )
@@ -75,8 +76,8 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
 
           assertTrue(
             result == DynamicValue.Map(
-              Vector(
-                DynamicValue.string("a") -> DynamicValue.Record(Vector("x" -> DynamicValue.int(99))),
+              Chunk(
+                DynamicValue.string("a") -> DynamicValue.Record(Chunk("x" -> DynamicValue.int(99))),
                 DynamicValue.string("b") -> DynamicValue.int(2)
               )
             )
@@ -84,9 +85,9 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
         },
         test("modify with .mapKeys preserves unmatched entries") {
           val map = DynamicValue.Map(
-            Vector(
-              DynamicValue.Record(Vector("id" -> DynamicValue.int(1))) -> DynamicValue.string("a"),
-              DynamicValue.int(2)                                      -> DynamicValue.string("b")
+            Chunk(
+              DynamicValue.Record(Chunk("id" -> DynamicValue.int(1))) -> DynamicValue.string("a"),
+              DynamicValue.int(2)                                     -> DynamicValue.string("b")
             )
           )
 
@@ -101,7 +102,7 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
         },
         test("modify with .mapValues returns original when no matches") {
           val map = DynamicValue.Map(
-            Vector(
+            Chunk(
               DynamicValue.string("a") -> DynamicValue.int(1),
               DynamicValue.string("b") -> DynamicValue.int(2)
             )
@@ -117,11 +118,11 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
         test("Custom merge strategy with default recursion recurses into Variants") {
           val left = DynamicValue.Variant(
             "Some",
-            DynamicValue.Record(Vector("a" -> DynamicValue.int(1)))
+            DynamicValue.Record(Chunk("a" -> DynamicValue.int(1)))
           )
           val right = DynamicValue.Variant(
             "Some",
-            DynamicValue.Record(Vector("b" -> DynamicValue.int(2)))
+            DynamicValue.Record(Chunk("b" -> DynamicValue.int(2)))
           )
 
           val strategy = DynamicValueMergeStrategy.Custom(
@@ -134,7 +135,7 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
             result == DynamicValue.Variant(
               "Some",
               DynamicValue.Record(
-                Vector(
+                Chunk(
                   "a" -> DynamicValue.int(1),
                   "b" -> DynamicValue.int(2)
                 )
@@ -145,11 +146,11 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
         test("Custom default recursion matches Auto for Variant handling") {
           val left = DynamicValue.Variant(
             "Test",
-            DynamicValue.Record(Vector("x" -> DynamicValue.int(1), "y" -> DynamicValue.int(2)))
+            DynamicValue.Record(Chunk("x" -> DynamicValue.int(1), "y" -> DynamicValue.int(2)))
           )
           val right = DynamicValue.Variant(
             "Test",
-            DynamicValue.Record(Vector("y" -> DynamicValue.int(3), "z" -> DynamicValue.int(4)))
+            DynamicValue.Record(Chunk("y" -> DynamicValue.int(3), "z" -> DynamicValue.int(4)))
           )
 
           val customResult = left.merge(right, DynamicValueMergeStrategy.Custom(f = (_, _, r) => r))
@@ -169,9 +170,9 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
 
           assertTrue(
             result == DynamicValue.Record(
-              Vector(
+              Chunk(
                 "a" -> DynamicValue.Record(
-                  Vector(
+                  Chunk(
                     "b" -> DynamicValue.int(1),
                     "c" -> DynamicValue.int(2)
                   )
@@ -189,11 +190,11 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
 
           assertTrue(
             result == DynamicValue.Record(
-              Vector(
+              Chunk(
                 "a" -> DynamicValue.Record(
-                  Vector(
+                  Chunk(
                     "b" -> DynamicValue.Record(
-                      Vector(
+                      Chunk(
                         "c" -> DynamicValue.int(1)
                       )
                     )
@@ -205,9 +206,9 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
         },
         test("toKV and fromKV round-trip for nested records") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "user" -> DynamicValue.Record(
-                Vector(
+                Chunk(
                   "name"  -> DynamicValue.string("Alice"),
                   "email" -> DynamicValue.string("alice@example.com")
                 )
@@ -231,9 +232,9 @@ object DynamicValueRegressionSpec extends SchemaBaseSpec {
 
           assertTrue(
             result == DynamicValue.Record(
-              Vector(
+              Chunk(
                 "items" -> DynamicValue.Sequence(
-                  Vector(
+                  Chunk(
                     DynamicValue.int(1),
                     DynamicValue.int(2)
                   )

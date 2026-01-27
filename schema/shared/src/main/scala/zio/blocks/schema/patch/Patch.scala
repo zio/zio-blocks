@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.binding.Binding
 
@@ -115,7 +116,7 @@ object Patch {
     val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, Vector]]
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
-    val dynamicElements = elements.map(schemaA.toDynamicValue)
+    val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
     val seqOp           = Patch.SeqOp.Append(dynamicElements)
     val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
@@ -127,7 +128,7 @@ object Patch {
     val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, List]]
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
-    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
     val seqOp           = Patch.SeqOp.Append(dynamicElements)
     val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
@@ -139,7 +140,7 @@ object Patch {
     val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, Seq]]
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
-    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
     val seqOp           = Patch.SeqOp.Append(dynamicElements)
     val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
@@ -153,7 +154,7 @@ object Patch {
     val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, IndexedSeq]]
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
-    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
     val seqOp           = Patch.SeqOp.Append(dynamicElements)
     val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
@@ -167,7 +168,7 @@ object Patch {
     val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, LazyList]]
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
-    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
     val seqOp           = Patch.SeqOp.Append(dynamicElements)
     val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
@@ -181,7 +182,7 @@ object Patch {
     val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, Vector]]
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
-    val dynamicElements = elements.map(schemaA.toDynamicValue)
+    val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
     val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
     val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
@@ -195,7 +196,7 @@ object Patch {
     val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, List]]
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
-    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
     val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
     val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
@@ -209,7 +210,7 @@ object Patch {
     val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, Seq]]
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
-    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
     val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
     val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
@@ -223,7 +224,7 @@ object Patch {
     val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, IndexedSeq]]
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
-    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
     val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
     val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)
@@ -237,7 +238,7 @@ object Patch {
     val seqReflect      = optic.focus.asInstanceOf[Reflect.Sequence[Binding, A, LazyList]]
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
-    val dynamicElements = elements.map(schemaA.toDynamicValue).toVector
+    val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
     val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
     val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
     Patch(DynamicPatch(Vector(op)), schemaS)

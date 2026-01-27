@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
@@ -272,7 +273,7 @@ object OperationSpec extends SchemaBaseSpec {
         roundTrip(
           Patch.SeqOp.Insert(
             0,
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.Int(1)),
               DynamicValue.Primitive(PrimitiveValue.Int(2))
             )
@@ -280,25 +281,25 @@ object OperationSpec extends SchemaBaseSpec {
           """{"Insert":{"index":0,"values":[1,2]}}"""
         )
       },
-      test("Insert empty vector") {
+      test("Insert empty Chunk") {
         roundTrip(
-          Patch.SeqOp.Insert(5, Vector.empty): Patch.SeqOp,
+          Patch.SeqOp.Insert(5, Chunk.empty): Patch.SeqOp,
           """{"Insert":{"index":5}}"""
         )
       },
       test("Append elements") {
         roundTrip(
           Patch.SeqOp.Append(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.String("hello"))
             )
           ): Patch.SeqOp,
           """{"Append":{"values":["hello"]}}"""
         )
       },
-      test("Append empty vector") {
+      test("Append empty Chunk") {
         roundTrip(
-          Patch.SeqOp.Append(Vector.empty): Patch.SeqOp,
+          Patch.SeqOp.Append(Chunk.empty): Patch.SeqOp,
           """{"Append":{}}"""
         )
       },
@@ -391,7 +392,7 @@ object OperationSpec extends SchemaBaseSpec {
         roundTrip(
           Patch.Operation.Set(
             DynamicValue.Record(
-              Vector(
+              Chunk(
                 "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
                 "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
               )
@@ -404,7 +405,7 @@ object OperationSpec extends SchemaBaseSpec {
         roundTrip(
           Patch.Operation.Set(
             DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 DynamicValue.Primitive(PrimitiveValue.Int(1)),
                 DynamicValue.Primitive(PrimitiveValue.Int(2)),
                 DynamicValue.Primitive(PrimitiveValue.Int(3))
@@ -437,7 +438,7 @@ object OperationSpec extends SchemaBaseSpec {
           Patch.Operation.SequenceEdit(
             Vector(
               Patch.SeqOp.Delete(0, 2),
-              Patch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(99))))
+              Patch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(99))))
             )
           ): Patch.Operation,
           """{"SequenceEdit":{"ops":[{"Delete":{"index":0,"count":2}},{"Append":{"values":[99]}}]}}"""
@@ -582,7 +583,7 @@ object OperationSpec extends SchemaBaseSpec {
     suite("Edge cases")(
       test("Patch.Operation.Set with empty sequence") {
         roundTrip(
-          Patch.Operation.Set(DynamicValue.Sequence(Vector.empty)): Patch.Operation,
+          Patch.Operation.Set(DynamicValue.Sequence(Chunk.empty)): Patch.Operation,
           """{"Set":{"value":[]}}"""
         )
       },
@@ -594,7 +595,7 @@ object OperationSpec extends SchemaBaseSpec {
       },
       test("Very large index values") {
         roundTrip(
-          Patch.SeqOp.Insert(Int.MaxValue, Vector.empty): Patch.SeqOp,
+          Patch.SeqOp.Insert(Int.MaxValue, Chunk.empty): Patch.SeqOp,
           s"""{"Insert":{"index":${Int.MaxValue}}}"""
         )
       },
