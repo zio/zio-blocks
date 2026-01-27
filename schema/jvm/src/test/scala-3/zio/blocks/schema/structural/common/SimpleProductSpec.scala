@@ -28,6 +28,14 @@ object SimpleProductSpec extends ZIOSpecDefault {
       val schema   = Schema.derived[PersonLike]
       val typeName = schema.reflect.typeName.name
       assertTrue(typeName == "{age:Int,name:String}")
+    },
+    test("case class converts to expected structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        case class Person(name: String, age: Int)
+        val schema = Schema.derived[Person]
+        val structural: Schema[{def age: Int; def name: String}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     }
   )
 }

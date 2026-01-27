@@ -17,10 +17,8 @@ object StructuralTypeSpec extends ZIOSpecDefault {
     test("structural type round-trips through DynamicValue") {
       val schema  = Schema.derived[PersonLike]
       val dynamic = DynamicValue.Record(
-        Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-          "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-        )
+        "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+        "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
       )
       val result = schema.fromDynamicValue(dynamic)
       result match {
@@ -43,10 +41,8 @@ object StructuralTypeSpec extends ZIOSpecDefault {
     test("structural type with primitives round-trips") {
       val schema  = Schema.derived[PointLike]
       val dynamic = DynamicValue.Record(
-        Vector(
-          "x" -> DynamicValue.Primitive(PrimitiveValue.Int(100)),
-          "y" -> DynamicValue.Primitive(PrimitiveValue.Int(200))
-        )
+        "x" -> DynamicValue.Primitive(PrimitiveValue.Int(100)),
+        "y" -> DynamicValue.Primitive(PrimitiveValue.Int(200))
       )
       val result = schema.fromDynamicValue(dynamic)
       result match {

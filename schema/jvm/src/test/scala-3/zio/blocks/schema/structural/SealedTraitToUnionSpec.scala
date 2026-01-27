@@ -98,7 +98,7 @@ object SealedTraitToUnionSpec extends ZIOSpecDefault {
 
       val dynamic = DynamicValue.Variant(
         "Success",
-        DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(100))))
+        DynamicValue.Record("value" -> DynamicValue.Primitive(PrimitiveValue.Int(100)))
       )
 
       val result = structural.fromDynamicValue(dynamic)
@@ -123,6 +123,30 @@ object SealedTraitToUnionSpec extends ZIOSpecDefault {
         dogFields.get.contains("name"),
         dogFields.get.contains("breed")
       )
+    },
+    test("sealed trait converts to expected structural union type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        sealed trait Result
+        object Result {
+          case class Success(value: Int) extends Result
+          case class Failure(error: String) extends Result
+        }
+        val schema = Schema.derived[Result]
+        val structural: Schema[{def Tag: "Failure"; def error: String} | {def Tag: "Success"; def value: Int}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
+    },
+    test("sealed trait with case objects converts to expected structural union type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        sealed trait Status
+        object Status {
+          case object Active extends Status
+          case object Inactive extends Status
+        }
+        val schema = Schema.derived[Status]
+        val structural: Schema[{def Tag: "Active"} | {def Tag: "Inactive"}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     }
   )
 }

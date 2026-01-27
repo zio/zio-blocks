@@ -27,6 +27,20 @@ object TuplesSpec extends ZIOSpecDefault {
       val dynamic   = schema.toDynamicValue(tuple)
       val roundTrip = schema.fromDynamicValue(dynamic)
       assertTrue(roundTrip == Right(tuple))
+    },
+    test("tuple2 converts to expected structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        val schema = Schema.derived[(String, Int)]
+        val structural: Schema[{def _1: String; def _2: Int}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
+    },
+    test("tuple3 converts to expected structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        val schema = Schema.derived[(String, Int, Boolean)]
+        val structural: Schema[{def _1: String; def _2: Int; def _3: Boolean}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     }
   )
 }

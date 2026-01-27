@@ -29,6 +29,14 @@ object SingleFieldSpec extends ZIOSpecDefault {
         case record: Reflect.Record[_, _] => record.fields.size
       }
       assertTrue(numFields == 1)
+    },
+    test("single field case class converts to expected structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        case class Id(value: String)
+        val schema = Schema.derived[Id]
+        val structural: Schema[{def value: String}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     }
   )
 }

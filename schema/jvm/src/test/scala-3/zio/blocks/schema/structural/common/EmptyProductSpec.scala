@@ -30,6 +30,14 @@ object EmptyProductSpec extends ZIOSpecDefault {
         case _                            => -1
       }
       assertTrue(numFields == 0)
+    },
+    test("empty case class converts to expected structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        case class Empty()
+        val schema = Schema.derived[Empty]
+        val structural: Schema[{}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     }
   )
 }

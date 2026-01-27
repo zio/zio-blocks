@@ -88,6 +88,22 @@ object TupleStructuralSpec extends ZIOSpecDefault {
         }
         assertTrue(fieldCount == 3)
       }
+    ),
+    suite("Type-level structural conversion")(
+      test("Tuple2 converts to expected structural type") {
+        typeCheck("""
+          import zio.blocks.schema._
+          val schema = Schema.derived[(String, Int)]
+          val structural: Schema[{def _1: String; def _2: Int}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
+      },
+      test("Tuple3 converts to expected structural type") {
+        typeCheck("""
+          import zio.blocks.schema._
+          val schema = Schema.derived[(String, Int, Boolean)]
+          val structural: Schema[{def _1: String; def _2: Int; def _3: Boolean}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
+      }
     )
   )
 }

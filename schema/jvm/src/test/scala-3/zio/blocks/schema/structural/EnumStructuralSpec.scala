@@ -65,6 +65,14 @@ object EnumStructuralSpec extends ZIOSpecDefault {
           case v: Reflect.Variant[_, _] => v.cases.size
         }
         assertTrue(caseCount == 3)
+      },
+      test("enum converts to expected structural union type") {
+        typeCheck("""
+          import zio.blocks.schema._
+          enum Color { case Red, Green, Blue }
+          val schema = Schema.derived[Color]
+          val structural: Schema[{def Tag: "Blue"} | {def Tag: "Green"} | {def Tag: "Red"}] = schema.structural
+        """).map(result => assertTrue(result.isRight))
       }
     )
   )

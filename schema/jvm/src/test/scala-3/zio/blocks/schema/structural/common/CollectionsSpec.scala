@@ -28,6 +28,22 @@ object CollectionsSpec extends ZIOSpecDefault {
       val dynamic = schema.toDynamicValue(team)
       val result  = schema.fromDynamicValue(dynamic)
       assertTrue(result == Right(team))
+    },
+    test("Team with List and Option converts to structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.structural.common.CollectionsSpec._
+        val schema = Schema.derived[Team]
+        val structural: Schema[{def leader: Option[String]; def members: List[String]; def name: String}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
+    },
+    test("Config with Map converts to structural type") {
+      typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.structural.common.CollectionsSpec._
+        val schema = Schema.derived[Config]
+        val structural: Schema[{def settings: Map[String, Int]}] = schema.structural
+      """).map(result => assertTrue(result.isRight))
     }
   )
 }
