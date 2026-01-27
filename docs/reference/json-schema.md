@@ -25,6 +25,50 @@ Key features:
 - **Combinators** - Compose schemas with `&&` (allOf), `||` (anyOf), `!` (not)
 - **817 of 844 official tests passing** (97%+)
 
+## Deriving JSON Schema from Schema
+
+The most common use case is deriving a JSON Schema from an existing `Schema[A]`.
+
+### Basic Derivation
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+// Get JSON Schema directly from Schema
+val jsonSchema: JsonSchema = Schema[Person].toJsonSchema
+
+// The derived schema validates JSON values
+val valid = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
+val invalid = Json.Object("name" -> Json.Number(123))
+
+jsonSchema.conforms(valid)   // true
+jsonSchema.conforms(invalid) // false
+```
+
+### Through JsonBinaryCodec
+
+For more control, derive through `JsonBinaryCodec`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class User(email: String, active: Boolean)
+object User {
+  implicit val schema: Schema[User] = Schema.derived
+}
+
+// Derive codec first, then get JSON Schema
+val codec = Schema[User].derive(JsonFormat.deriver)
+val jsonSchema = codec.toJsonSchema
+```
+
 ## Creating Schemas
 
 ### Boolean Schemas
