@@ -18,6 +18,16 @@ object JsonSchemaSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Payment] = Schema.derived[Payment]
   }
 
+  case class UserId(id: String) extends AnyVal
+  object UserId {
+    implicit val schema: Schema[UserId] = Schema.derived[UserId]
+  }
+
+  case class OptionalField(name: Option[String])
+  object OptionalField {
+    implicit val schema: Schema[OptionalField] = Schema.derived[OptionalField]
+  }
+
   def spec = suite("JsonSchemaSpec")(
     test("derive primitive string") {
       val schema     = Schema[String]
@@ -74,6 +84,24 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       val obj        = jsonSchema.asInstanceOf[ObjectSchema]
       assertTrue(
         obj.oneOf.exists(_.size == 2)
+      )
+    },
+    test("derive wrapper (AnyVal)") {
+      val schema     = Schema[UserId]
+      val jsonSchema = schema.toJsonSchema
+      val obj        = jsonSchema.asInstanceOf[ObjectSchema]
+      // Wrapper typically derives to the underlying type schema
+      assertTrue(
+        obj.schemaType == Some(List(JsonType.String))
+      )
+    },
+    test("derive optional field") {
+      val schema     = Schema[OptionalField]
+      val jsonSchema = schema.toJsonSchema
+      val obj        = jsonSchema.asInstanceOf[ObjectSchema]
+      assertTrue(
+        obj.schemaType == Some(List(JsonType.Object)),
+        obj.properties.exists(_.contains("name"))
       )
     }
   )
