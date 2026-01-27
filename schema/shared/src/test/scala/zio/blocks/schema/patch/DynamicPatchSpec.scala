@@ -718,6 +718,280 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
       }
     ),
+    suite("toString rendering")(
+      test("empty patch toString") {
+        val patch = DynamicPatch.empty
+        assertTrue(patch.toString == "DynamicPatch {}")
+      },
+      test("Set operation toString") {
+        val patch = DynamicPatch(DynamicOptic.root.field("name"), DynamicPatch.Operation.Set(stringVal("Alice")))
+        assertTrue(patch.toString.contains(".name = "))
+      },
+      test("IntDelta positive toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("count"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(10))
+        )
+        assertTrue(patch.toString.contains("+= 10"))
+      },
+      test("IntDelta negative toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("count"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(-5))
+        )
+        assertTrue(patch.toString.contains("-= 5"))
+      },
+      test("LongDelta positive toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("value"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(100L))
+        )
+        assertTrue(patch.toString.contains("+= 100"))
+      },
+      test("LongDelta negative toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("value"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(-50L))
+        )
+        assertTrue(patch.toString.contains("-= 50"))
+      },
+      test("DoubleDelta positive toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("rate"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(1.5))
+        )
+        assertTrue(patch.toString.contains("+= 1.5"))
+      },
+      test("DoubleDelta negative toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("rate"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(-0.5))
+        )
+        assertTrue(patch.toString.contains("-= 0.5"))
+      },
+      test("FloatDelta positive toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("rate"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(2.5f))
+        )
+        assertTrue(patch.toString.contains("+= 2.5"))
+      },
+      test("FloatDelta negative toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("rate"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(-1.5f))
+        )
+        assertTrue(patch.toString.contains("-= 1.5"))
+      },
+      test("ShortDelta positive toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("val"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta(5: Short))
+        )
+        assertTrue(patch.toString.contains("+= 5"))
+      },
+      test("ShortDelta negative toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("val"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta(-3: Short))
+        )
+        assertTrue(patch.toString.contains("-= 3"))
+      },
+      test("ByteDelta positive toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("b"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta(2: Byte))
+        )
+        assertTrue(patch.toString.contains("+= 2"))
+      },
+      test("ByteDelta negative toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("b"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta(-1: Byte))
+        )
+        assertTrue(patch.toString.contains("-= 1"))
+      },
+      test("BigIntDelta positive toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("big"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigIntDelta(BigInt(1000)))
+        )
+        assertTrue(patch.toString.contains("+= 1000"))
+      },
+      test("BigIntDelta negative toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("big"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigIntDelta(BigInt(-500)))
+        )
+        assertTrue(patch.toString.contains("-= 500"))
+      },
+      test("BigDecimalDelta positive toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("dec"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigDecimalDelta(BigDecimal(12.5)))
+        )
+        assertTrue(patch.toString.contains("+= 12.5"))
+      },
+      test("BigDecimalDelta negative toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("dec"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigDecimalDelta(BigDecimal(-7.25)))
+        )
+        assertTrue(patch.toString.contains("-= 7.25"))
+      },
+      test("StringEdit Insert toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("text"),
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Insert(5, "inserted")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.contains("+ [5:"))
+      },
+      test("StringEdit Delete toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("text"),
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Delete(0, 5)))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.contains("- [0, 5]"))
+      },
+      test("StringEdit Append toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("text"),
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Append("suffix")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.contains("+ \"suffix\""))
+      },
+      test("StringEdit Modify toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("text"),
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Modify(2, 3, "NEW")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.contains("~ [2, 3:"))
+      },
+      test("StringEdit with escape characters toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("text"),
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Append("line1\nline2\ttab\"quote\\")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(
+          str.contains("\\n"),
+          str.contains("\\t"),
+          str.contains("\\\""),
+          str.contains("\\\\")
+        )
+      },
+      test("SequenceEdit Insert toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("items"),
+          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(1, Vector(intVal(42), intVal(43)))))
+        )
+        val str = patch.toString
+        assertTrue(str.contains("+ [1:"), str.contains("+ [2:"))
+      },
+      test("SequenceEdit Append toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("items"),
+          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Append(Vector(intVal(99)))))
+        )
+        val str = patch.toString
+        assertTrue(str.contains("+ "))
+      },
+      test("SequenceEdit Delete single toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("items"),
+          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Delete(2, 1)))
+        )
+        val str = patch.toString
+        assertTrue(str.contains("- [2]"))
+      },
+      test("SequenceEdit Delete multiple toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("items"),
+          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Delete(1, 3)))
+        )
+        val str = patch.toString
+        assertTrue(str.contains("- [1, 2, 3]"))
+      },
+      test("SequenceEdit Modify with Set toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("items"),
+          DynamicPatch.Operation.SequenceEdit(
+            Vector(DynamicPatch.SeqOp.Modify(0, DynamicPatch.Operation.Set(intVal(100))))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.contains("~ [0:"))
+      },
+      test("SequenceEdit Modify with nested operation toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("items"),
+          DynamicPatch.Operation.SequenceEdit(
+            Vector(
+              DynamicPatch.SeqOp.Modify(
+                0,
+                DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+              )
+            )
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.contains("~ [0]:"))
+      },
+      test("MapEdit Add toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("data"),
+          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Add(stringVal("key"), intVal(42))))
+        )
+        val str = patch.toString
+        assertTrue(str.contains("+ {"))
+      },
+      test("MapEdit Remove toString") {
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("data"),
+          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Remove(stringVal("key"))))
+        )
+        val str = patch.toString
+        assertTrue(str.contains("- {"))
+      },
+      test("MapEdit Modify toString") {
+        val nestedPatch = DynamicPatch(
+          Vector(DynamicPatch.DynamicPatchOp(DynamicOptic.root, DynamicPatch.Operation.Set(intVal(99))))
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("data"),
+          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Modify(stringVal("key"), nestedPatch)))
+        )
+        val str = patch.toString
+        assertTrue(str.contains("~ {"))
+      },
+      test("Nested patch operation toString") {
+        val innerPatch = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(DynamicOptic.root.field("x"), DynamicPatch.Operation.Set(intVal(10)))
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("nested"),
+          DynamicPatch.Operation.Patch(innerPatch)
+        )
+        val str = patch.toString
+        assertTrue(str.contains(".nested:"), str.contains(".x = "))
+      }
+    ),
     suite("Edge cases")(
       test("empty path applies to root") {
         val original = intVal(42)

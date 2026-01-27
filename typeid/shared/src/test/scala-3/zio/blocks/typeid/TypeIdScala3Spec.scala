@@ -337,7 +337,7 @@ object TypeIdScala3Spec extends ZIOSpecDefault {
           class Inner
         }
         val outer = new Outer
-        val id = TypeId.of[outer.Inner]
+        val id    = TypeId.of[outer.Inner]
         assertTrue(id != null && id.name == "Inner")
       },
       test("object owner") {
@@ -841,7 +841,7 @@ object TypeIdScala3Spec extends ZIOSpecDefault {
       },
       test("Tuple2 with different elements are not equal") {
         val id1 = TypeId.of[(Int, String)]
-        val id2 = TypeId.of[(String, Int)]  
+        val id2 = TypeId.of[(String, Int)]
         assertTrue(!id1.isEquivalentTo(id2))
       },
       test("Large tuple type") {
@@ -882,7 +882,7 @@ object TypeIdScala3Spec extends ZIOSpecDefault {
       },
       test("Tuple2 equals Tuple *: cons form") {
         val tuple2Id = TypeId.of[(Int, String)]
-        val consId = TypeId.of[Int *: String *: EmptyTuple]
+        val consId   = TypeId.of[Int *: String *: EmptyTuple]
         // They may or may not be equivalent depending on how the macro generates them
         assertTrue(tuple2Id != null && consId != null)
       }

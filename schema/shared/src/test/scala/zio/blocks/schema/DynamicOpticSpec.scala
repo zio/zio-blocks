@@ -2,10 +2,138 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
 import zio.test.Assertion.{equalTo, isNone, isSome}
-import zio.test.{Spec, TestEnvironment, assert}
+import zio.test.{Spec, TestEnvironment, assert, assertTrue}
 
 object DynamicOpticSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("DynamicOpticSpec")(
+    suite("Node types")(
+      test("Field node construction and properties") {
+        val field = DynamicOptic.Node.Field("name")
+        assertTrue(
+          field.name == "name",
+          field.isInstanceOf[DynamicOptic.Node],
+          DynamicOptic.root.field("name").nodes.head == field
+        )
+      },
+      test("Case node construction and properties") {
+        val caseNode = DynamicOptic.Node.Case("SomeCase")
+        assertTrue(
+          caseNode.name == "SomeCase",
+          caseNode.isInstanceOf[DynamicOptic.Node],
+          DynamicOptic.root.caseOf("SomeCase").nodes.head == caseNode
+        )
+      },
+      test("AtIndex node construction and properties") {
+        val atIndex = DynamicOptic.Node.AtIndex(5)
+        assertTrue(
+          atIndex.index == 5,
+          atIndex.isInstanceOf[DynamicOptic.Node],
+          DynamicOptic.root.at(5).nodes.head == atIndex
+        )
+      },
+      test("AtMapKey node construction and properties") {
+        val key      = Schema[String].toDynamicValue("testKey")
+        val atMapKey = DynamicOptic.Node.AtMapKey(key)
+        assertTrue(
+          atMapKey.key == key,
+          atMapKey.isInstanceOf[DynamicOptic.Node],
+          DynamicOptic.root.atKey("testKey").nodes.head == atMapKey
+        )
+      },
+      test("Elements node is singleton") {
+        assertTrue(
+          DynamicOptic.Node.Elements == DynamicOptic.Node.Elements,
+          DynamicOptic.elements.nodes.head == DynamicOptic.Node.Elements
+        )
+      },
+      test("MapKeys node is singleton") {
+        assertTrue(
+          DynamicOptic.Node.MapKeys == DynamicOptic.Node.MapKeys,
+          DynamicOptic.mapKeys.nodes.head == DynamicOptic.Node.MapKeys
+        )
+      },
+      test("MapValues node is singleton") {
+        assertTrue(
+          DynamicOptic.Node.MapValues == DynamicOptic.Node.MapValues,
+          DynamicOptic.mapValues.nodes.head == DynamicOptic.Node.MapValues
+        )
+      },
+      test("Wrapped node is singleton") {
+        assertTrue(
+          DynamicOptic.Node.Wrapped == DynamicOptic.Node.Wrapped,
+          DynamicOptic.wrapped.nodes.head == DynamicOptic.Node.Wrapped
+        )
+      },
+      test("AtIndices node construction") {
+        val atIndices = DynamicOptic.Node.AtIndices(Seq(0, 1, 2))
+        assertTrue(
+          atIndices.index == Seq(0, 1, 2),
+          DynamicOptic.root.atIndices(0, 1, 2).nodes.head == atIndices
+        )
+      },
+      test("AtMapKeys node construction") {
+        val keys      = Seq("a", "b", "c").map(Schema[String].toDynamicValue)
+        val atMapKeys = DynamicOptic.Node.AtMapKeys(keys)
+        assertTrue(
+          atMapKeys.keys == keys,
+          DynamicOptic.root.atKeys("a", "b", "c").nodes.head == atMapKeys
+        )
+      }
+    ),
+    suite("DynamicOptic properties")(
+      test("root has empty nodes") {
+        assertTrue(DynamicOptic.root.nodes.isEmpty)
+      },
+      test("nodes are immutable") {
+        val optic1 = DynamicOptic.root.field("a")
+        val optic2 = optic1.field("b")
+        assertTrue(
+          optic1.nodes.length == 1,
+          optic2.nodes.length == 2,
+          optic1.nodes.head == DynamicOptic.Node.Field("a"),
+          optic2.nodes.last == DynamicOptic.Node.Field("b")
+        )
+      },
+      test("multiple compositions") {
+        val optic = DynamicOptic.root
+          .field("users")
+          .at(0)
+          .field("address")
+          .field("city")
+        assertTrue(
+          optic.nodes.length == 4,
+          optic.toString == ".users[0].address.city"
+        )
+      },
+      test("mixed traversal paths") {
+        val optic = DynamicOptic.root
+          .caseOf("Person")
+          .field("contacts")
+          .elements
+          .field("email")
+        assertTrue(
+          optic.nodes.length == 4,
+          optic.toString.contains("<Person>")
+        )
+      }
+    ),
+    suite("DynamicOptic equality")(
+      test("equal optics have same nodes") {
+        val optic1 = DynamicOptic.root.field("a").field("b")
+        val optic2 = DynamicOptic.root.field("a").field("b")
+        assertTrue(optic1 == optic2, optic1.hashCode == optic2.hashCode)
+      },
+      test("different optics are not equal") {
+        val optic1 = DynamicOptic.root.field("a")
+        val optic2 = DynamicOptic.root.field("b")
+        assertTrue(optic1 != optic2)
+      },
+      test("optics with different node types are not equal") {
+        val optic1 = DynamicOptic.root.field("a")
+        val optic2 = DynamicOptic.root.caseOf("a")
+        assertTrue(optic1 != optic2)
+      }
+    ),
     test("path interpolator matches manual DynamicOptic construction") {
       assert(p"<X>.y")(equalTo(A.x(X.y).toDynamic)) &&
       assert(p"<X>.y.z")(equalTo(A.x(X.y)(Y.z).toDynamic)) &&

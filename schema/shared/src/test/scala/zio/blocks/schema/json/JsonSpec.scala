@@ -1044,56 +1044,681 @@ object JsonSpec extends SchemaBaseSpec {
       }
     ),
     suite("JsonDecoder")(
-      test("decode primitives") {
-        assertTrue(
-          Json.String("hello").as[String] == Right("hello"),
-          Json.Number("42").as[Int] == Right(42),
-          Json.Boolean(true).as[Boolean] == Right(true)
-        )
-      },
-      test("decode Option") {
-        assertTrue(
-          Json.String("hello").as[Option[String]] == Right(Some("hello")),
-          Json.Null.as[Option[String]] == Right(None)
-        )
-      },
-      test("decode Vector") {
-        val json = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3"))
-        assertTrue(json.as[Vector[Int]] == Right(Vector(1, 2, 3)))
-      },
-      test("decode Map") {
-        val json = Json.Object("a" -> Json.Number("1"), "b" -> Json.Number("2"))
-        assertTrue(json.as[Map[String, Int]] == Right(Map("a" -> 1, "b" -> 2)))
-      }
+      suite("primitive decoders")(
+        test("string decoder success and failure") {
+          assertTrue(
+            Json.String("hello").as[String] == Right("hello"),
+            Json.String("").as[String] == Right(""),
+            Json.Number("42").as[String].isLeft,
+            Json.Boolean(true).as[String].isLeft,
+            Json.Null.as[String].isLeft,
+            Json.Array().as[String].isLeft,
+            Json.Object().as[String].isLeft
+          )
+        },
+        test("boolean decoder success and failure") {
+          assertTrue(
+            Json.Boolean(true).as[Boolean] == Right(true),
+            Json.Boolean(false).as[Boolean] == Right(false),
+            Json.String("true").as[Boolean].isLeft,
+            Json.Number("1").as[Boolean].isLeft,
+            Json.Null.as[Boolean].isLeft
+          )
+        },
+        test("int decoder success and failure") {
+          assertTrue(
+            Json.Number("42").as[Int] == Right(42),
+            Json.Number("0").as[Int] == Right(0),
+            Json.Number("-100").as[Int] == Right(-100),
+            Json.Number("2147483647").as[Int] == Right(Int.MaxValue),
+            Json.Number("-2147483648").as[Int] == Right(Int.MinValue),
+            Json.String("42").as[Int].isLeft,
+            Json.Boolean(true).as[Int].isLeft
+          )
+        },
+        test("long decoder success and failure") {
+          assertTrue(
+            Json.Number("42").as[Long] == Right(42L),
+            Json.Number("9223372036854775807").as[Long] == Right(Long.MaxValue),
+            Json.Number("-9223372036854775808").as[Long] == Right(Long.MinValue),
+            Json.String("42").as[Long].isLeft,
+            Json.Boolean(true).as[Long].isLeft
+          )
+        },
+        test("float decoder success and failure") {
+          assertTrue(
+            Json.Number("3.14").as[Float].isRight,
+            Json.Number("0").as[Float] == Right(0.0f),
+            Json.Number("-1.5").as[Float] == Right(-1.5f),
+            Json.String("3.14").as[Float].isLeft,
+            Json.Boolean(true).as[Float].isLeft,
+            Json.Null.as[Float].isLeft
+          )
+        },
+        test("double decoder success and failure") {
+          assertTrue(
+            Json.Number("3.14159").as[Double] == Right(3.14159),
+            Json.Number("0").as[Double] == Right(0.0),
+            Json.Number("-100.5").as[Double] == Right(-100.5),
+            Json.String("3.14").as[Double].isLeft,
+            Json.Boolean(true).as[Double].isLeft
+          )
+        },
+        test("bigDecimal decoder success and failure") {
+          assertTrue(
+            Json.Number("123.456").as[BigDecimal] == Right(BigDecimal("123.456")),
+            Json.Number("99999999999999999999.99").as[BigDecimal].isRight,
+            Json.String("123").as[BigDecimal].isLeft,
+            Json.Boolean(true).as[BigDecimal].isLeft
+          )
+        },
+        test("bigInt decoder success and failure") {
+          assertTrue(
+            Json.Number("12345678901234567890").as[BigInt] == Right(BigInt("12345678901234567890")),
+            Json.Number("0").as[BigInt] == Right(BigInt(0)),
+            Json.Number("-99999").as[BigInt] == Right(BigInt(-99999)),
+            Json.String("123").as[BigInt].isLeft,
+            Json.Number("123.456").as[BigInt].isLeft
+          )
+        },
+        test("byte decoder success and failure") {
+          assertTrue(
+            Json.Number("42").as[Byte] == Right(42.toByte),
+            Json.Number("127").as[Byte] == Right(Byte.MaxValue),
+            Json.Number("-128").as[Byte] == Right(Byte.MinValue),
+            Json.String("42").as[Byte].isLeft,
+            Json.Boolean(true).as[Byte].isLeft
+          )
+        },
+        test("short decoder success and failure") {
+          assertTrue(
+            Json.Number("1000").as[Short] == Right(1000.toShort),
+            Json.Number("32767").as[Short] == Right(Short.MaxValue),
+            Json.Number("-32768").as[Short] == Right(Short.MinValue),
+            Json.String("1000").as[Short].isLeft
+          )
+        },
+        test("char decoder success and failure") {
+          assertTrue(
+            Json.String("a").as[Char] == Right('a'),
+            Json.String("Z").as[Char] == Right('Z'),
+            Json.String("ab").as[Char].isLeft,
+            Json.String("").as[Char].isLeft,
+            Json.Number("65").as[Char].isLeft
+          )
+        },
+        test("unit decoder success and failure") {
+          assertTrue(
+            Json.Null.as[Unit] == Right(()),
+            Json.String("null").as[Unit].isLeft,
+            Json.Number("0").as[Unit].isLeft,
+            Json.Boolean(false).as[Unit].isLeft
+          )
+        },
+        test("json identity decoder") {
+          val json = Json.Object("key" -> Json.Number("42"))
+          assertTrue(json.as[Json] == Right(json))
+        }
+      ),
+      suite("collection decoders")(
+        test("Option decoder with Some and None") {
+          assertTrue(
+            Json.String("hello").as[Option[String]] == Right(Some("hello")),
+            Json.Number("42").as[Option[Int]] == Right(Some(42)),
+            Json.Null.as[Option[String]] == Right(None),
+            Json.Null.as[Option[Int]] == Right(None)
+          )
+        },
+        test("Option decoder with nested conversion failure") {
+          assertTrue(
+            Json.String("not a number").as[Option[Int]].isLeft
+          )
+        },
+        test("Vector decoder success and failure") {
+          val json = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3"))
+          assertTrue(
+            json.as[Vector[Int]] == Right(Vector(1, 2, 3)),
+            Json.Array().as[Vector[String]] == Right(Vector.empty),
+            Json.Object().as[Vector[Int]].isLeft,
+            Json.String("not array").as[Vector[Int]].isLeft
+          )
+        },
+        test("Vector decoder with element conversion failure") {
+          val json = Json.Array(Json.Number("1"), Json.String("oops"), Json.Number("3"))
+          assertTrue(json.as[Vector[Int]].isLeft)
+        },
+        test("List decoder success and failure") {
+          val json = Json.Array(Json.String("a"), Json.String("b"))
+          assertTrue(
+            json.as[List[String]] == Right(List("a", "b")),
+            Json.Array().as[List[Int]] == Right(List.empty),
+            Json.String("not array").as[List[Int]].isLeft
+          )
+        },
+        test("List decoder with element conversion failure") {
+          val json = Json.Array(Json.Number("1"), Json.Boolean(true))
+          assertTrue(json.as[List[Int]].isLeft)
+        },
+        test("Seq decoder success and failure") {
+          val json = Json.Array(Json.Number("10"), Json.Number("20"))
+          assertTrue(
+            json.as[Seq[Int]] == Right(Seq(10, 20)),
+            Json.Array().as[Seq[String]] == Right(Seq.empty),
+            Json.Number("42").as[Seq[Int]].isLeft
+          )
+        },
+        test("Set decoder success and failure") {
+          val json = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("1"))
+          assertTrue(
+            json.as[Set[Int]] == Right(Set(1, 2)),
+            Json.Array().as[Set[String]] == Right(Set.empty),
+            Json.Boolean(true).as[Set[Int]].isLeft
+          )
+        },
+        test("Map decoder success and failure") {
+          val json = Json.Object("a" -> Json.Number("1"), "b" -> Json.Number("2"))
+          assertTrue(
+            json.as[Map[String, Int]] == Right(Map("a" -> 1, "b" -> 2)),
+            Json.Object().as[Map[String, String]] == Right(Map.empty),
+            Json.Array().as[Map[String, Int]].isLeft,
+            Json.String("not object").as[Map[String, Int]].isLeft
+          )
+        },
+        test("Map decoder with value conversion failure") {
+          val json = Json.Object("a" -> Json.Number("1"), "b" -> Json.String("oops"))
+          assertTrue(json.as[Map[String, Int]].isLeft)
+        }
+      ),
+      suite("tuple decoders")(
+        test("tuple2 decoder success and failure") {
+          val json = Json.Array(Json.Number("1"), Json.String("hello"))
+          assertTrue(
+            json.as[(Int, String)] == Right((1, "hello")),
+            Json.Array(Json.Number("1")).as[(Int, String)].isLeft,
+            Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3")).as[(Int, String)].isLeft,
+            Json.Object().as[(Int, String)].isLeft
+          )
+        },
+        test("tuple2 decoder with element conversion failure") {
+          val json = Json.Array(Json.String("not int"), Json.String("hello"))
+          assertTrue(json.as[(Int, String)].isLeft)
+        },
+        test("tuple3 decoder success and failure") {
+          val json = Json.Array(Json.Number("1"), Json.String("hello"), Json.Boolean(true))
+          assertTrue(
+            json.as[(Int, String, Boolean)] == Right((1, "hello", true)),
+            Json.Array(Json.Number("1"), Json.Number("2")).as[(Int, String, Boolean)].isLeft,
+            Json.String("not array").as[(Int, String, Boolean)].isLeft
+          )
+        },
+        test("tuple3 decoder with element conversion failure at each position") {
+          assertTrue(
+            Json.Array(Json.String("bad"), Json.String("ok"), Json.Boolean(true)).as[(Int, String, Boolean)].isLeft,
+            Json.Array(Json.Number("1"), Json.Number("bad"), Json.Boolean(true)).as[(Int, String, Boolean)].isLeft,
+            Json.Array(Json.Number("1"), Json.String("ok"), Json.String("bad")).as[(Int, String, Boolean)].isLeft
+          )
+        }
+      ),
+      suite("either decoder")(
+        test("Either decoder success for Left and Right") {
+          val leftJson  = Json.Object("Left" -> Json.String("error"))
+          val rightJson = Json.Object("Right" -> Json.Number("42"))
+          assertTrue(
+            leftJson.as[Either[String, Int]] == Right(Left("error")),
+            rightJson.as[Either[String, Int]] == Right(Right(42))
+          )
+        },
+        test("Either decoder failure for invalid structure") {
+          assertTrue(
+            Json.Object("Neither" -> Json.Number("1")).as[Either[String, Int]].isLeft,
+            Json.Object().as[Either[String, Int]].isLeft,
+            Json.Array().as[Either[String, Int]].isLeft,
+            Json.String("not object").as[Either[String, Int]].isLeft
+          )
+        },
+        test("Either decoder with value conversion failure") {
+          val leftBad  = Json.Object("Left" -> Json.Number("not string"))
+          val rightBad = Json.Object("Right" -> Json.String("not int"))
+          assertTrue(
+            leftBad.as[Either[String, Int]].isLeft,
+            rightBad.as[Either[String, Int]].isLeft
+          )
+        }
+      ),
+      suite("java.time decoders")(
+        test("DayOfWeek decoder") {
+          assertTrue(
+            Json.String("MONDAY").as[java.time.DayOfWeek] == Right(java.time.DayOfWeek.MONDAY),
+            Json.String("FRIDAY").as[java.time.DayOfWeek] == Right(java.time.DayOfWeek.FRIDAY),
+            Json.String("INVALID").as[java.time.DayOfWeek].isLeft,
+            Json.Number("1").as[java.time.DayOfWeek].isLeft
+          )
+        },
+        test("Duration decoder") {
+          assertTrue(
+            Json.String("PT1H30M").as[java.time.Duration] == Right(java.time.Duration.ofMinutes(90)),
+            Json.String("PT0S").as[java.time.Duration] == Right(java.time.Duration.ZERO),
+            Json.String("invalid").as[java.time.Duration].isLeft,
+            Json.Number("100").as[java.time.Duration].isLeft
+          )
+        },
+        test("Instant decoder") {
+          assertTrue(
+            Json.String("2025-01-01T00:00:00Z").as[java.time.Instant].isRight,
+            Json.String("1970-01-01T00:00:00Z").as[java.time.Instant] == Right(java.time.Instant.EPOCH),
+            Json.String("not a date").as[java.time.Instant].isLeft
+          )
+        },
+        test("LocalDate decoder") {
+          assertTrue(
+            Json.String("2025-07-18").as[java.time.LocalDate] == Right(java.time.LocalDate.of(2025, 7, 18)),
+            Json.String("invalid").as[java.time.LocalDate].isLeft
+          )
+        },
+        test("LocalTime decoder") {
+          assertTrue(
+            Json.String("08:30:00").as[java.time.LocalTime] == Right(java.time.LocalTime.of(8, 30, 0)),
+            Json.String("invalid").as[java.time.LocalTime].isLeft
+          )
+        },
+        test("LocalDateTime decoder") {
+          assertTrue(
+            Json.String("2025-07-18T08:30:00").as[java.time.LocalDateTime] ==
+              Right(java.time.LocalDateTime.of(2025, 7, 18, 8, 30, 0)),
+            Json.String("invalid").as[java.time.LocalDateTime].isLeft
+          )
+        },
+        test("Month decoder") {
+          assertTrue(
+            Json.String("JANUARY").as[java.time.Month] == Right(java.time.Month.JANUARY),
+            Json.String("DECEMBER").as[java.time.Month] == Right(java.time.Month.DECEMBER),
+            Json.String("NOTAMONTH").as[java.time.Month].isLeft
+          )
+        },
+        test("MonthDay decoder") {
+          assertTrue(
+            Json.String("--07-18").as[java.time.MonthDay] == Right(java.time.MonthDay.of(7, 18)),
+            Json.String("invalid").as[java.time.MonthDay].isLeft
+          )
+        },
+        test("OffsetDateTime decoder") {
+          assertTrue(
+            Json.String("2025-07-18T08:30:00+02:00").as[java.time.OffsetDateTime].isRight,
+            Json.String("invalid").as[java.time.OffsetDateTime].isLeft
+          )
+        },
+        test("OffsetTime decoder") {
+          assertTrue(
+            Json.String("08:30:00+02:00").as[java.time.OffsetTime].isRight,
+            Json.String("invalid").as[java.time.OffsetTime].isLeft
+          )
+        },
+        test("Period decoder") {
+          assertTrue(
+            Json.String("P1Y2M3D").as[java.time.Period] == Right(java.time.Period.of(1, 2, 3)),
+            Json.String("invalid").as[java.time.Period].isLeft
+          )
+        },
+        test("Year decoder") {
+          assertTrue(
+            Json.String("2025").as[java.time.Year] == Right(java.time.Year.of(2025)),
+            Json.String("invalid").as[java.time.Year].isLeft
+          )
+        },
+        test("YearMonth decoder") {
+          assertTrue(
+            Json.String("2025-07").as[java.time.YearMonth] == Right(java.time.YearMonth.of(2025, 7)),
+            Json.String("invalid").as[java.time.YearMonth].isLeft
+          )
+        },
+        test("ZoneOffset decoder") {
+          assertTrue(
+            Json.String("+02:00").as[java.time.ZoneOffset] == Right(java.time.ZoneOffset.ofHours(2)),
+            Json.String("Z").as[java.time.ZoneOffset] == Right(java.time.ZoneOffset.UTC),
+            Json.String("invalid").as[java.time.ZoneOffset].isLeft
+          )
+        },
+        test("ZoneId decoder") {
+          assertTrue(
+            Json.String("UTC").as[java.time.ZoneId] == Right(java.time.ZoneId.of("UTC")),
+            Json.String("America/New_York").as[java.time.ZoneId].isRight,
+            Json.String("Invalid/Zone").as[java.time.ZoneId].isLeft
+          )
+        },
+        test("ZonedDateTime decoder") {
+          assertTrue(
+            Json.String("2025-07-18T08:30:00+02:00[Europe/Warsaw]").as[java.time.ZonedDateTime].isRight,
+            Json.String("invalid").as[java.time.ZonedDateTime].isLeft
+          )
+        }
+      ),
+      suite("other standard type decoders")(
+        test("UUID decoder") {
+          val uuid = java.util.UUID.randomUUID()
+          assertTrue(
+            Json.String(uuid.toString).as[java.util.UUID] == Right(uuid),
+            Json.String("not-a-uuid").as[java.util.UUID].isLeft,
+            Json.Number("123").as[java.util.UUID].isLeft
+          )
+        },
+        test("Currency decoder") {
+          assertTrue(
+            Json.String("USD").as[java.util.Currency] == Right(java.util.Currency.getInstance("USD")),
+            Json.String("EUR").as[java.util.Currency] == Right(java.util.Currency.getInstance("EUR")),
+            Json.String("INVALID").as[java.util.Currency].isLeft
+          )
+        }
+      ),
+      suite("combinator methods")(
+        test("map transforms decoded value") {
+          val decoder = JsonDecoder[Int].map(_ * 2)
+          assertTrue(
+            decoder.decode(Json.Number("21")) == Right(42),
+            decoder.decode(Json.String("not int")).isLeft
+          )
+        },
+        test("flatMap chains decoders") {
+          val decoder = JsonDecoder[Int].flatMap { n =>
+            if (n > 0) Right(n.toString)
+            else Left(JsonError("must be positive"))
+          }
+          assertTrue(
+            decoder.decode(Json.Number("42")) == Right("42"),
+            decoder.decode(Json.Number("-1")).isLeft
+          )
+        },
+        test("orElse provides fallback") {
+          val decoder = JsonDecoder[Int].orElse(JsonDecoder[String].map(_.length))
+          assertTrue(
+            decoder.decode(Json.Number("42")) == Right(42),
+            decoder.decode(Json.String("hello")) == Right(5)
+          )
+        },
+        test("JsonDecoder.apply summons decoder") {
+          val decoder = JsonDecoder[String]
+          assertTrue(decoder.decode(Json.String("test")) == Right("test"))
+        },
+        test("JsonDecoder.instance creates custom decoder") {
+          val decoder = JsonDecoder.instance[Boolean] {
+            case Json.String("yes") => Right(true)
+            case Json.String("no")  => Right(false)
+            case _                  => Left(JsonError("expected yes/no"))
+          }
+          assertTrue(
+            decoder.decode(Json.String("yes")) == Right(true),
+            decoder.decode(Json.String("no")) == Right(false),
+            decoder.decode(Json.String("maybe")).isLeft
+          )
+        }
+      )
     ),
     suite("JsonEncoder")(
-      test("encode primitives") {
-        assertTrue(
-          JsonEncoder[String].encode("hello") == Json.String("hello"),
-          JsonEncoder[Int].encode(42) == Json.Number("42"),
-          JsonEncoder[Boolean].encode(true) == Json.Boolean(true)
-        )
-      },
-      test("encode Option") {
-        assertTrue(
-          JsonEncoder[Option[String]].encode(Some("hello")) == Json.String("hello"),
-          JsonEncoder[Option[String]].encode(None) == Json.Null
-        )
-      },
-      test("encode Vector") {
-        assertTrue(
-          JsonEncoder[Vector[Int]]
-            .encode(Vector(1, 2, 3)) == Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3"))
-        )
-      },
-      test("encode Map") {
-        val encoded = JsonEncoder[Map[String, Int]].encode(Map("a" -> 1, "b" -> 2))
-        assert(encoded.is(JsonType.Object))(equalTo(true)) &&
-        assertTrue(
-          encoded.get("a").as[BigDecimal] == Right(BigDecimal(1)),
-          encoded.get("b").as[BigDecimal] == Right(BigDecimal(2))
-        )
-      }
+      suite("Primitive encoders")(
+        test("encode String") {
+          assertTrue(JsonEncoder[String].encode("hello") == Json.String("hello"))
+        },
+        test("encode Boolean") {
+          assertTrue(
+            JsonEncoder[Boolean].encode(true) == Json.Boolean(true),
+            JsonEncoder[Boolean].encode(false) == Json.Boolean(false)
+          )
+        },
+        test("encode Int") {
+          assertTrue(JsonEncoder[Int].encode(42) == Json.Number("42"))
+        },
+        test("encode Long") {
+          assertTrue(JsonEncoder[Long].encode(9876543210L) == Json.Number("9876543210"))
+        },
+        test("encode Float") {
+          val encoded = JsonEncoder[Float].encode(3.14f)
+          assertTrue(encoded.is(JsonType.Number))
+        },
+        test("encode Double") {
+          val encoded = JsonEncoder[Double].encode(3.141592653589793)
+          assertTrue(encoded.is(JsonType.Number))
+        },
+        test("encode BigDecimal") {
+          assertTrue(JsonEncoder[BigDecimal].encode(BigDecimal("123.456")).is(JsonType.Number))
+        },
+        test("encode BigInt") {
+          assertTrue(JsonEncoder[BigInt].encode(BigInt("123456789012345678901234567890")).is(JsonType.Number))
+        },
+        test("encode Byte") {
+          assertTrue(JsonEncoder[Byte].encode(127.toByte) == Json.Number("127"))
+        },
+        test("encode Short") {
+          assertTrue(JsonEncoder[Short].encode(32767.toShort) == Json.Number("32767"))
+        },
+        test("encode Char") {
+          assertTrue(JsonEncoder[Char].encode('A') == Json.String("A"))
+        },
+        test("encode Unit") {
+          assertTrue(JsonEncoder[Unit].encode(()) == Json.Null)
+        },
+        test("encode Null") {
+          assertTrue(JsonEncoder[Null].encode(null) == Json.Null)
+        }
+      ),
+      suite("Json identity encoders")(
+        test("encode Json") {
+          val json = Json.Object("a" -> Json.Number("1"))
+          assertTrue(JsonEncoder[Json].encode(json) == json)
+        },
+        test("encode Json.Object") {
+          val obj = Json.Object("key" -> Json.String("value"))
+          assertTrue(JsonEncoder[Json.Object].encode(obj) == obj)
+        },
+        test("encode Json.Array") {
+          val arr = Json.Array(Json.Number("1"), Json.Number("2"))
+          assertTrue(JsonEncoder[Json.Array].encode(arr) == arr)
+        },
+        test("encode Json.String") {
+          val str = Json.String("test")
+          assertTrue(JsonEncoder[Json.String].encode(str) == str)
+        },
+        test("encode Json.Number") {
+          val num = Json.Number("42")
+          assertTrue(JsonEncoder[Json.Number].encode(num) == num)
+        },
+        test("encode Json.Boolean") {
+          val bool = Json.Boolean(true)
+          assertTrue(JsonEncoder[Json.Boolean].encode(bool) == bool)
+        },
+        test("encode Json.Null.type") {
+          assertTrue(JsonEncoder[Json.Null.type].encode(Json.Null) == Json.Null)
+        }
+      ),
+      suite("Collection encoders")(
+        test("encode Option[Some]") {
+          assertTrue(JsonEncoder[Option[String]].encode(Some("hello")) == Json.String("hello"))
+        },
+        test("encode Option[None]") {
+          assertTrue(JsonEncoder[Option[String]].encode(None) == Json.Null)
+        },
+        test("encode Vector") {
+          val encoded = JsonEncoder[Vector[Int]].encode(Vector(1, 2, 3))
+          assertTrue(encoded == Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3")))
+        },
+        test("encode List") {
+          val encoded = JsonEncoder[List[Int]].encode(List(10, 20, 30))
+          assertTrue(encoded == Json.Array(Json.Number("10"), Json.Number("20"), Json.Number("30")))
+        },
+        test("encode Seq") {
+          val encoded = JsonEncoder[Seq[String]].encode(Seq("a", "b", "c"))
+          assertTrue(encoded == Json.Array(Json.String("a"), Json.String("b"), Json.String("c")))
+        },
+        test("encode Set") {
+          val encoded = JsonEncoder[Set[Int]].encode(Set(1, 2, 3))
+          assertTrue(encoded.is(JsonType.Array))
+        },
+        test("encode Array") {
+          val encoded = JsonEncoder[Array[Int]].encode(Array(5, 6, 7))
+          assertTrue(encoded == Json.Array(Json.Number("5"), Json.Number("6"), Json.Number("7")))
+        },
+        test("encode Iterable") {
+          val encoded = JsonEncoder[Iterable[Int]].encode(Iterable(100, 200))
+          assertTrue(encoded == Json.Array(Json.Number("100"), Json.Number("200")))
+        },
+        test("encode Map[String, V]") {
+          val encoded = JsonEncoder[Map[String, Int]].encode(Map("a" -> 1, "b" -> 2))
+          assertTrue(
+            encoded.is(JsonType.Object),
+            encoded.get("a").as[BigDecimal] == Right(BigDecimal(1)),
+            encoded.get("b").as[BigDecimal] == Right(BigDecimal(2))
+          )
+        },
+        test("encode Map with Keyable key") {
+          val encoded = JsonEncoder[Map[Int, String]].encode(Map(1 -> "one", 2 -> "two"))
+          assertTrue(
+            encoded.is(JsonType.Object),
+            encoded.get("1").as[String] == Right("one"),
+            encoded.get("2").as[String] == Right("two")
+          )
+        }
+      ),
+      suite("Tuple encoders")(
+        test("encode Tuple2") {
+          val encoded = JsonEncoder[(String, Int)].encode(("hello", 42))
+          assertTrue(encoded == Json.Array(Json.String("hello"), Json.Number("42")))
+        },
+        test("encode Tuple3") {
+          val encoded = JsonEncoder[(Int, String, Boolean)].encode((1, "two", true))
+          assertTrue(encoded == Json.Array(Json.Number("1"), Json.String("two"), Json.Boolean(true)))
+        }
+      ),
+      suite("Either encoder")(
+        test("encode Left") {
+          val encoded = JsonEncoder[Either[String, Int]].encode(Left("error"))
+          assertTrue(
+            encoded.is(JsonType.Object),
+            encoded.get("Left").as[String] == Right("error")
+          )
+        },
+        test("encode Right") {
+          val encoded = JsonEncoder[Either[String, Int]].encode(Right(42))
+          assertTrue(
+            encoded.is(JsonType.Object),
+            encoded.get("Right").as[BigDecimal] == Right(BigDecimal(42))
+          )
+        }
+      ),
+      suite("java.time encoders")(
+        test("encode DayOfWeek") {
+          assertTrue(JsonEncoder[java.time.DayOfWeek].encode(java.time.DayOfWeek.MONDAY) == Json.String("MONDAY"))
+        },
+        test("encode Duration") {
+          val duration = java.time.Duration.ofHours(2).plusMinutes(30)
+          val encoded  = JsonEncoder[java.time.Duration].encode(duration)
+          assertTrue(encoded == Json.String(duration.toString))
+        },
+        test("encode Instant") {
+          val instant = java.time.Instant.parse("2024-01-15T10:30:00Z")
+          val encoded = JsonEncoder[java.time.Instant].encode(instant)
+          assertTrue(encoded == Json.String("2024-01-15T10:30:00Z"))
+        },
+        test("encode LocalDate") {
+          val date    = java.time.LocalDate.of(2024, 1, 15)
+          val encoded = JsonEncoder[java.time.LocalDate].encode(date)
+          assertTrue(encoded == Json.String("2024-01-15"))
+        },
+        test("encode LocalTime") {
+          val time    = java.time.LocalTime.of(14, 30, 45)
+          val encoded = JsonEncoder[java.time.LocalTime].encode(time)
+          assertTrue(encoded == Json.String("14:30:45"))
+        },
+        test("encode LocalDateTime") {
+          val dateTime = java.time.LocalDateTime.of(2024, 1, 15, 14, 30, 45)
+          val encoded  = JsonEncoder[java.time.LocalDateTime].encode(dateTime)
+          assertTrue(encoded == Json.String("2024-01-15T14:30:45"))
+        },
+        test("encode Month") {
+          assertTrue(JsonEncoder[java.time.Month].encode(java.time.Month.JANUARY) == Json.String("JANUARY"))
+        },
+        test("encode MonthDay") {
+          val monthDay = java.time.MonthDay.of(12, 25)
+          val encoded  = JsonEncoder[java.time.MonthDay].encode(monthDay)
+          assertTrue(encoded == Json.String("--12-25"))
+        },
+        test("encode OffsetDateTime") {
+          val odt     = java.time.OffsetDateTime.of(2024, 1, 15, 14, 30, 45, 0, java.time.ZoneOffset.UTC)
+          val encoded = JsonEncoder[java.time.OffsetDateTime].encode(odt)
+          assertTrue(encoded == Json.String("2024-01-15T14:30:45Z"))
+        },
+        test("encode OffsetTime") {
+          val ot      = java.time.OffsetTime.of(14, 30, 45, 0, java.time.ZoneOffset.ofHours(5))
+          val encoded = JsonEncoder[java.time.OffsetTime].encode(ot)
+          assertTrue(encoded == Json.String("14:30:45+05:00"))
+        },
+        test("encode Period") {
+          val period  = java.time.Period.of(1, 2, 3)
+          val encoded = JsonEncoder[java.time.Period].encode(period)
+          assertTrue(encoded == Json.String("P1Y2M3D"))
+        },
+        test("encode Year") {
+          val year    = java.time.Year.of(2024)
+          val encoded = JsonEncoder[java.time.Year].encode(year)
+          assertTrue(encoded == Json.String("2024"))
+        },
+        test("encode YearMonth") {
+          val ym      = java.time.YearMonth.of(2024, 6)
+          val encoded = JsonEncoder[java.time.YearMonth].encode(ym)
+          assertTrue(encoded == Json.String("2024-06"))
+        },
+        test("encode ZoneOffset") {
+          val zo      = java.time.ZoneOffset.ofHours(-5)
+          val encoded = JsonEncoder[java.time.ZoneOffset].encode(zo)
+          assertTrue(encoded == Json.String("-05:00"))
+        },
+        test("encode ZoneId") {
+          val zoneId  = java.time.ZoneId.of("America/New_York")
+          val encoded = JsonEncoder[java.time.ZoneId].encode(zoneId)
+          assertTrue(encoded == Json.String("America/New_York"))
+        },
+        test("encode ZonedDateTime") {
+          val zdt     = java.time.ZonedDateTime.of(2024, 1, 15, 14, 30, 45, 0, java.time.ZoneId.of("UTC"))
+          val encoded = JsonEncoder[java.time.ZonedDateTime].encode(zdt)
+          assertTrue(encoded.is(JsonType.String))
+        }
+      ),
+      suite("Other standard types")(
+        test("encode UUID") {
+          val uuid    = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+          val encoded = JsonEncoder[java.util.UUID].encode(uuid)
+          assertTrue(encoded == Json.String("550e8400-e29b-41d4-a716-446655440000"))
+        },
+        test("encode Currency") {
+          val currency = java.util.Currency.getInstance("USD")
+          val encoded  = JsonEncoder[java.util.Currency].encode(currency)
+          assertTrue(encoded == Json.String("USD"))
+        }
+      ),
+      suite("Combinator methods")(
+        test("contramap transforms input before encoding") {
+          case class Person(name: String, age: Int)
+          val personEncoder = JsonEncoder[String].contramap[Person](_.name)
+          val encoded       = personEncoder.encode(Person("Alice", 30))
+          assertTrue(encoded == Json.String("Alice"))
+        },
+        test("contramap chains correctly") {
+          val intEncoder          = JsonEncoder[Int]
+          val stringLengthEncoder = intEncoder.contramap[String](_.length)
+          val encoded             = stringLengthEncoder.encode("hello")
+          assertTrue(encoded == Json.Number("5"))
+        }
+      ),
+      suite("Schema-derived encoder")(
+        test("encodes case class through Schema derivation") {
+          case class SimplePerson(name: String, age: Int)
+          implicit val schema: Schema[SimplePerson] = Schema.derived
+          val encoder                               = JsonEncoder.fromSchema[SimplePerson]
+          val encoded                               = encoder.encode(SimplePerson("Bob", 25))
+          assertTrue(
+            encoded.is(JsonType.Object),
+            encoded.get("name").as[String] == Right("Bob"),
+            encoded.get("age").as[BigDecimal] == Right(BigDecimal(25))
+          )
+        }
+      )
     ),
     suite("additional coverage")(
       suite("merge strategies")(
@@ -2210,6 +2835,399 @@ object JsonSpec extends SchemaBaseSpec {
           val back        = Schema[Json].fromDynamicValue(dyn)
           assertTrue(back == Right(value))
         }
+      ),
+      suite("JsonDecoder comprehensive coverage")(
+        suite("Primitive decoders")(
+          test("decode String from String") {
+            val result = JsonDecoder[String].decode(Json.String("hello"))
+            assertTrue(result == Right("hello"))
+          },
+          test("decode String fails on non-String") {
+            val result = JsonDecoder[String].decode(Json.Number("42"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Boolean from Boolean") {
+            val resultTrue  = JsonDecoder[Boolean].decode(Json.Boolean(true))
+            val resultFalse = JsonDecoder[Boolean].decode(Json.Boolean(false))
+            assertTrue(resultTrue == Right(true), resultFalse == Right(false))
+          },
+          test("decode Boolean fails on non-Boolean") {
+            val result = JsonDecoder[Boolean].decode(Json.String("true"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Int from Number") {
+            val result = JsonDecoder[Int].decode(Json.Number("42"))
+            assertTrue(result == Right(42))
+          },
+          test("decode Int fails on non-Number") {
+            val result = JsonDecoder[Int].decode(Json.String("42"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Long from Number") {
+            val result = JsonDecoder[Long].decode(Json.Number("9223372036854775807"))
+            assertTrue(result == Right(Long.MaxValue))
+          },
+          test("decode Long fails on non-Number") {
+            val result = JsonDecoder[Long].decode(Json.Boolean(true))
+            assertTrue(result.isLeft)
+          },
+          test("decode Float from Number") {
+            val result = JsonDecoder[Float].decode(Json.Number("3.14"))
+            assertTrue(result.isRight)
+          },
+          test("decode Float fails on non-Number") {
+            val result = JsonDecoder[Float].decode(Json.String("3.14"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Double from Number") {
+            val result = JsonDecoder[Double].decode(Json.Number("3.141592653589793"))
+            assertTrue(result == Right(3.141592653589793))
+          },
+          test("decode Double fails on non-Number") {
+            val result = JsonDecoder[Double].decode(Json.Null)
+            assertTrue(result.isLeft)
+          },
+          test("decode BigDecimal from Number") {
+            val result = JsonDecoder[BigDecimal].decode(Json.Number("123456789.123456789"))
+            assertTrue(result.isRight)
+          },
+          test("decode BigDecimal fails on non-Number") {
+            val result = JsonDecoder[BigDecimal].decode(Json.Array())
+            assertTrue(result.isLeft)
+          },
+          test("decode BigInt from Number") {
+            val result = JsonDecoder[BigInt].decode(Json.Number("123456789012345678901234567890"))
+            assertTrue(result.isRight)
+          },
+          test("decode BigInt fails on non-Number") {
+            val result = JsonDecoder[BigInt].decode(Json.Object())
+            assertTrue(result.isLeft)
+          },
+          test("decode Byte from Number") {
+            val result = JsonDecoder[Byte].decode(Json.Number("127"))
+            assertTrue(result == Right(127.toByte))
+          },
+          test("decode Byte fails on non-Number") {
+            val result = JsonDecoder[Byte].decode(Json.String("127"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Short from Number") {
+            val result = JsonDecoder[Short].decode(Json.Number("32767"))
+            assertTrue(result == Right(Short.MaxValue))
+          },
+          test("decode Short fails on non-Number") {
+            val result = JsonDecoder[Short].decode(Json.Null)
+            assertTrue(result.isLeft)
+          },
+          test("decode Char from single-char String") {
+            val result = JsonDecoder[Char].decode(Json.String("a"))
+            assertTrue(result == Right('a'))
+          },
+          test("decode Char fails on multi-char String") {
+            val result = JsonDecoder[Char].decode(Json.String("ab"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Char fails on non-String") {
+            val result = JsonDecoder[Char].decode(Json.Number("65"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Unit from Null") {
+            val result = JsonDecoder[Unit].decode(Json.Null)
+            assertTrue(result == Right(()))
+          },
+          test("decode Unit fails on non-Null") {
+            val result = JsonDecoder[Unit].decode(Json.String(""))
+            assertTrue(result.isLeft)
+          },
+          test("decode Json returns the input unchanged") {
+            val input  = Json.Object("a" -> Json.Number("1"))
+            val result = JsonDecoder[Json].decode(input)
+            assertTrue(result == Right(input))
+          }
+        ),
+        suite("Collection decoders")(
+          test("decode Option[A] from value") {
+            val result = JsonDecoder[Option[Int]].decode(Json.Number("42"))
+            assertTrue(result == Right(Some(42)))
+          },
+          test("decode Option[A] from Null") {
+            val result = JsonDecoder[Option[Int]].decode(Json.Null)
+            assertTrue(result == Right(None))
+          },
+          test("decode Option[A] propagates inner error") {
+            val result = JsonDecoder[Option[Int]].decode(Json.String("not a number"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Vector[A] from Array") {
+            val result =
+              JsonDecoder[Vector[Int]].decode(Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("3")))
+            assertTrue(result == Right(Vector(1, 2, 3)))
+          },
+          test("decode Vector[A] fails on non-Array") {
+            val result = JsonDecoder[Vector[Int]].decode(Json.Object())
+            assertTrue(result.isLeft)
+          },
+          test("decode Vector[A] propagates element error with index") {
+            val result = JsonDecoder[Vector[Int]].decode(Json.Array(Json.Number("1"), Json.String("bad")))
+            assertTrue(result.isLeft)
+          },
+          test("decode List[A] from Array") {
+            val result = JsonDecoder[List[String]].decode(Json.Array(Json.String("a"), Json.String("b")))
+            assertTrue(result == Right(List("a", "b")))
+          },
+          test("decode List[A] fails on non-Array") {
+            val result = JsonDecoder[List[Int]].decode(Json.Number("42"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Seq[A] from Array") {
+            val result = JsonDecoder[Seq[Boolean]].decode(Json.Array(Json.Boolean(true), Json.Boolean(false)))
+            assertTrue(result == Right(Seq(true, false)))
+          },
+          test("decode Seq[A] fails on non-Array") {
+            val result = JsonDecoder[Seq[Int]].decode(Json.String("[]"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Set[A] from Array") {
+            val result = JsonDecoder[Set[Int]].decode(Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("1")))
+            assertTrue(result == Right(Set(1, 2)))
+          },
+          test("decode Set[A] fails on non-Array") {
+            val result = JsonDecoder[Set[String]].decode(Json.Boolean(true))
+            assertTrue(result.isLeft)
+          },
+          test("decode Map[String, V] from Object") {
+            val result =
+              JsonDecoder[Map[String, Int]].decode(Json.Object("a" -> Json.Number("1"), "b" -> Json.Number("2")))
+            assertTrue(result == Right(Map("a" -> 1, "b" -> 2)))
+          },
+          test("decode Map[String, V] fails on non-Object") {
+            val result = JsonDecoder[Map[String, Int]].decode(Json.Array())
+            assertTrue(result.isLeft)
+          },
+          test("decode Map[String, V] propagates value error with field") {
+            val result = JsonDecoder[Map[String, Int]].decode(Json.Object("a" -> Json.String("bad")))
+            assertTrue(result.isLeft)
+          }
+        ),
+        suite("Tuple decoders")(
+          test("decode Tuple2 from 2-element Array") {
+            val result = JsonDecoder[(Int, String)].decode(Json.Array(Json.Number("42"), Json.String("hello")))
+            assertTrue(result == Right((42, "hello")))
+          },
+          test("decode Tuple2 fails on wrong size Array") {
+            val result = JsonDecoder[(Int, String)].decode(Json.Array(Json.Number("42")))
+            assertTrue(result.isLeft)
+          },
+          test("decode Tuple2 fails on non-Array") {
+            val result = JsonDecoder[(Int, String)].decode(Json.Object())
+            assertTrue(result.isLeft)
+          },
+          test("decode Tuple2 propagates first element error") {
+            val result = JsonDecoder[(Int, String)].decode(Json.Array(Json.String("bad"), Json.String("ok")))
+            assertTrue(result.isLeft)
+          },
+          test("decode Tuple2 propagates second element error") {
+            val result = JsonDecoder[(Int, String)].decode(Json.Array(Json.Number("42"), Json.Number("123")))
+            assertTrue(result.isLeft)
+          },
+          test("decode Tuple3 from 3-element Array") {
+            val result = JsonDecoder[(Int, String, Boolean)].decode(
+              Json.Array(Json.Number("1"), Json.String("a"), Json.Boolean(true))
+            )
+            assertTrue(result == Right((1, "a", true)))
+          },
+          test("decode Tuple3 fails on wrong size Array") {
+            val result = JsonDecoder[(Int, String, Boolean)].decode(
+              Json.Array(Json.Number("1"), Json.String("a"))
+            )
+            assertTrue(result.isLeft)
+          },
+          test("decode Tuple3 fails on non-Array") {
+            val result = JsonDecoder[(Int, String, Boolean)].decode(Json.Null)
+            assertTrue(result.isLeft)
+          }
+        ),
+        suite("Either decoder")(
+          test("decode Either Left from Object with Left key") {
+            val result = JsonDecoder[Either[Int, String]].decode(Json.Object("Left" -> Json.Number("42")))
+            assertTrue(result == Right(Left(42)))
+          },
+          test("decode Either Right from Object with Right key") {
+            val result = JsonDecoder[Either[Int, String]].decode(Json.Object("Right" -> Json.String("hello")))
+            assertTrue(result == Right(Right("hello")))
+          },
+          test("decode Either fails on Object without Left or Right key") {
+            val result = JsonDecoder[Either[Int, String]].decode(Json.Object("wrong" -> Json.Number("42")))
+            assertTrue(result.isLeft)
+          },
+          test("decode Either fails on non-Object") {
+            val result = JsonDecoder[Either[Int, String]].decode(Json.Array())
+            assertTrue(result.isLeft)
+          },
+          test("decode Either propagates Left value error") {
+            val result = JsonDecoder[Either[Int, String]].decode(Json.Object("Left" -> Json.String("bad")))
+            assertTrue(result.isLeft)
+          },
+          test("decode Either propagates Right value error") {
+            val result = JsonDecoder[Either[Int, String]].decode(Json.Object("Right" -> Json.Number("123")))
+            assertTrue(result.isLeft)
+          }
+        ),
+        suite("java.time decoders")(
+          test("decode DayOfWeek from String") {
+            val result = JsonDecoder[java.time.DayOfWeek].decode(Json.String("MONDAY"))
+            assertTrue(result == Right(java.time.DayOfWeek.MONDAY))
+          },
+          test("decode DayOfWeek fails on invalid String") {
+            val result = JsonDecoder[java.time.DayOfWeek].decode(Json.String("INVALID"))
+            assertTrue(result.isLeft)
+          },
+          test("decode DayOfWeek fails on non-String") {
+            val result = JsonDecoder[java.time.DayOfWeek].decode(Json.Number("1"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Duration from String") {
+            val result = JsonDecoder[java.time.Duration].decode(Json.String("PT1H30M"))
+            assertTrue(result == Right(java.time.Duration.ofHours(1).plusMinutes(30)))
+          },
+          test("decode Duration fails on invalid String") {
+            val result = JsonDecoder[java.time.Duration].decode(Json.String("invalid"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Instant from String") {
+            val result = JsonDecoder[java.time.Instant].decode(Json.String("2023-01-15T10:30:00Z"))
+            assertTrue(result.isRight)
+          },
+          test("decode Instant fails on invalid String") {
+            val result = JsonDecoder[java.time.Instant].decode(Json.String("not-an-instant"))
+            assertTrue(result.isLeft)
+          },
+          test("decode LocalDate from String") {
+            val result = JsonDecoder[java.time.LocalDate].decode(Json.String("2023-01-15"))
+            assertTrue(result == Right(java.time.LocalDate.of(2023, 1, 15)))
+          },
+          test("decode LocalDate fails on invalid String") {
+            val result = JsonDecoder[java.time.LocalDate].decode(Json.String("2023-13-45"))
+            assertTrue(result.isLeft)
+          },
+          test("decode LocalTime from String") {
+            val result = JsonDecoder[java.time.LocalTime].decode(Json.String("10:30:00"))
+            assertTrue(result == Right(java.time.LocalTime.of(10, 30, 0)))
+          },
+          test("decode LocalDateTime from String") {
+            val result = JsonDecoder[java.time.LocalDateTime].decode(Json.String("2023-01-15T10:30:00"))
+            assertTrue(result == Right(java.time.LocalDateTime.of(2023, 1, 15, 10, 30, 0)))
+          },
+          test("decode Month from String") {
+            val result = JsonDecoder[java.time.Month].decode(Json.String("JANUARY"))
+            assertTrue(result == Right(java.time.Month.JANUARY))
+          },
+          test("decode MonthDay from String") {
+            val result = JsonDecoder[java.time.MonthDay].decode(Json.String("--01-15"))
+            assertTrue(result == Right(java.time.MonthDay.of(1, 15)))
+          },
+          test("decode OffsetDateTime from String") {
+            val result = JsonDecoder[java.time.OffsetDateTime].decode(Json.String("2023-01-15T10:30:00+01:00"))
+            assertTrue(result.isRight)
+          },
+          test("decode OffsetTime from String") {
+            val result = JsonDecoder[java.time.OffsetTime].decode(Json.String("10:30:00+01:00"))
+            assertTrue(result.isRight)
+          },
+          test("decode Period from String") {
+            val result = JsonDecoder[java.time.Period].decode(Json.String("P1Y2M3D"))
+            assertTrue(result == Right(java.time.Period.of(1, 2, 3)))
+          },
+          test("decode Year from String") {
+            val result = JsonDecoder[java.time.Year].decode(Json.String("2023"))
+            assertTrue(result == Right(java.time.Year.of(2023)))
+          },
+          test("decode YearMonth from String") {
+            val result = JsonDecoder[java.time.YearMonth].decode(Json.String("2023-01"))
+            assertTrue(result == Right(java.time.YearMonth.of(2023, 1)))
+          },
+          test("decode ZoneOffset from String") {
+            val result = JsonDecoder[java.time.ZoneOffset].decode(Json.String("+01:00"))
+            assertTrue(result == Right(java.time.ZoneOffset.ofHours(1)))
+          },
+          test("decode ZoneId from String") {
+            val result = JsonDecoder[java.time.ZoneId].decode(Json.String("UTC"))
+            assertTrue(result == Right(java.time.ZoneId.of("UTC")))
+          },
+          test("decode ZonedDateTime from String") {
+            val result =
+              JsonDecoder[java.time.ZonedDateTime].decode(Json.String("2023-01-15T10:30:00+01:00[Europe/Paris]"))
+            assertTrue(result.isRight)
+          }
+        ),
+        suite("Other standard type decoders")(
+          test("decode UUID from String") {
+            val uuid   = java.util.UUID.randomUUID()
+            val result = JsonDecoder[java.util.UUID].decode(Json.String(uuid.toString))
+            assertTrue(result == Right(uuid))
+          },
+          test("decode UUID fails on invalid String") {
+            val result = JsonDecoder[java.util.UUID].decode(Json.String("not-a-uuid"))
+            assertTrue(result.isLeft)
+          },
+          test("decode Currency from String") {
+            val result = JsonDecoder[java.util.Currency].decode(Json.String("USD"))
+            assertTrue(result == Right(java.util.Currency.getInstance("USD")))
+          },
+          test("decode Currency fails on invalid String") {
+            val result = JsonDecoder[java.util.Currency].decode(Json.String("INVALID_CURRENCY"))
+            assertTrue(result.isLeft)
+          }
+        ),
+        suite("Combinator methods")(
+          test("map transforms decoded value") {
+            val decoder = JsonDecoder[Int].map(_ * 2)
+            val result  = decoder.decode(Json.Number("21"))
+            assertTrue(result == Right(42))
+          },
+          test("map propagates error") {
+            val decoder = JsonDecoder[Int].map(_ * 2)
+            val result  = decoder.decode(Json.String("bad"))
+            assertTrue(result.isLeft)
+          },
+          test("flatMap transforms with Either result") {
+            val decoder = JsonDecoder[Int].flatMap { n =>
+              if (n > 0) Right(n) else Left(JsonError("Must be positive"))
+            }
+            val resultPositive = decoder.decode(Json.Number("42"))
+            val resultNegative = decoder.decode(Json.Number("-1"))
+            assertTrue(resultPositive == Right(42), resultNegative.isLeft)
+          },
+          test("orElse tries alternative decoder on failure") {
+            val decoder        = JsonDecoder[Int].orElse(JsonDecoder.instance(_ => Right(-1)))
+            val resultSuccess  = decoder.decode(Json.Number("42"))
+            val resultFallback = decoder.decode(Json.String("bad"))
+            assertTrue(resultSuccess == Right(42), resultFallback == Right(-1))
+          },
+          test("orElse returns first success") {
+            val decoder = JsonDecoder[Int].orElse(JsonDecoder.instance(_ => Right(-1)))
+            val result  = decoder.decode(Json.Number("100"))
+            assertTrue(result == Right(100))
+          },
+          test("instance creates decoder from function") {
+            val decoder = JsonDecoder.instance[String] {
+              case s: Json.String => Right(s.value.toUpperCase)
+              case _              => Left(JsonError("Expected String"))
+            }
+            val result = decoder.decode(Json.String("hello"))
+            assertTrue(result == Right("HELLO"))
+          }
+        ),
+        suite("Schema-derived decoder")(
+          test("derives decoder for case class") {
+            case class TestPerson(name: String, age: Int)
+            implicit val schema: Schema[TestPerson] = Schema.derived
+            val decoder                             = JsonDecoder.fromSchema[TestPerson]
+            val json                                = Json.parse("""{"name":"Alice","age":30}""".getBytes("UTF-8")).toOption.get
+            val result                              = decoder.decode(json)
+            assertTrue(result == Right(TestPerson("Alice", 30)))
+          }
+        )
       )
     )
   )

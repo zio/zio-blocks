@@ -3,21 +3,21 @@ package zio.blocks.typeid
 import zio.test._
 
 /**
- * Comprehensive tests for Subtyping logic.
- * Covers: isSubtype, isEquivalent, variance handling, union/intersection, function types.
+ * Comprehensive tests for Subtyping logic. Covers: isSubtype, isEquivalent,
+ * variance handling, union/intersection, function types.
  */
 object SubtypingSpec extends ZIOSpecDefault {
 
   private val scalaOwner = Owner.pkg("scala")
-  private val javaLang = Owner.pkgs("java", "lang")
+  private val javaLang   = Owner.pkgs("java", "lang")
 
-  private val intId = DynamicTypeId(scalaOwner, "Int", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
-  private val longId = DynamicTypeId(scalaOwner, "Long", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
+  private val intId    = DynamicTypeId(scalaOwner, "Int", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
+  private val longId   = DynamicTypeId(scalaOwner, "Long", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
   private val stringId = DynamicTypeId(javaLang, "String", Nil, TypeDefKind.Class(isFinal = true), Nil)
   private val anyValId = DynamicTypeId(scalaOwner, "AnyVal", Nil, TypeDefKind.Class(isAbstract = true), Nil)
-  private val anyId = DynamicTypeId(scalaOwner, "Any", Nil, TypeDefKind.Class(isAbstract = true), Nil)
+  private val anyId    = DynamicTypeId(scalaOwner, "Any", Nil, TypeDefKind.Class(isAbstract = true), Nil)
 
-  private val charSeqId = DynamicTypeId(javaLang, "CharSequence", Nil, TypeDefKind.Trait(), Nil)
+  private val charSeqId      = DynamicTypeId(javaLang, "CharSequence", Nil, TypeDefKind.Trait(), Nil)
   private val serializableId = DynamicTypeId(
     Owner.pkgs("java", "io"),
     "Serializable",
@@ -40,7 +40,7 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("basic subtyping")(
       test("Nothing is subtype of everything") {
         val nothing = TypeRepr.NothingType
-        val int = ref(intId)
+        val int     = ref(intId)
         assertTrue(Subtyping.isSubtype(nothing, int))
       },
       test("everything is subtype of Any") {
@@ -53,68 +53,68 @@ object SubtypingSpec extends ZIOSpecDefault {
         assertTrue(Subtyping.isSubtype(int, int))
       },
       test("different unrelated types are not subtypes") {
-        val int = ref(intId)
+        val int    = ref(intId)
         val string = ref(stringId)
         assertTrue(!Subtyping.isSubtype(int, string))
       }
     ),
     suite("known hierarchy")(
       test("Int is subtype of AnyVal") {
-        val int = ref(intId)
+        val int    = ref(intId)
         val anyVal = ref(anyValId)
         assertTrue(Subtyping.isSubtype(int, anyVal))
       },
       test("Long is subtype of AnyVal") {
-        val long = ref(longId)
+        val long   = ref(longId)
         val anyVal = ref(anyValId)
         assertTrue(Subtyping.isSubtype(long, anyVal))
       },
       test("AnyVal is subtype of Any") {
         val anyVal = ref(anyValId)
-        val any = ref(anyId)
+        val any    = ref(anyId)
         assertTrue(Subtyping.isSubtype(anyVal, any))
       },
       test("String is subtype of CharSequence") {
-        val string = ref(stringId)
+        val string  = ref(stringId)
         val charSeq = ref(charSeqId)
         assertTrue(Subtyping.isSubtype(string, charSeq))
       },
       test("String is subtype of Serializable") {
-        val string = ref(stringId)
+        val string       = ref(stringId)
         val serializable = ref(serializableId)
         assertTrue(Subtyping.isSubtype(string, serializable))
       }
     ),
     suite("Union types")(
       test("element is subtype of Union containing it") {
-        val int = ref(intId)
+        val int   = ref(intId)
         val union = TypeRepr.Union(List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(int, union))
       },
       test("Union is subtype of type if all elements are subtypes") {
         val union = TypeRepr.Union(List(TypeRepr.NothingType, TypeRepr.NothingType))
-        val any = TypeRepr.AnyType
+        val any   = TypeRepr.AnyType
         assertTrue(Subtyping.isSubtype(union, any))
       },
       test("Union with unrelated element is not subtype") {
         val union = TypeRepr.Union(List(ref(intId), ref(stringId)))
-        val int = ref(intId)
+        val int   = ref(intId)
         assertTrue(!Subtyping.isSubtype(union, int))
       }
     ),
     suite("Intersection types")(
       test("Intersection is subtype of any component") {
-        val inter = TypeRepr.Intersection(List(ref(charSeqId), ref(serializableId)))
+        val inter   = TypeRepr.Intersection(List(ref(charSeqId), ref(serializableId)))
         val charSeq = ref(charSeqId)
         assertTrue(Subtyping.isSubtype(inter, charSeq))
       },
       test("type is subtype of Intersection if subtype of all components") {
         val string = ref(stringId)
-        val inter = TypeRepr.Intersection(List(ref(charSeqId), ref(serializableId)))
+        val inter  = TypeRepr.Intersection(List(ref(charSeqId), ref(serializableId)))
         assertTrue(Subtyping.isSubtype(string, inter))
       },
       test("type not subtype of all components fails") {
-        val int = ref(intId)
+        val int   = ref(intId)
         val inter = TypeRepr.Intersection(List(ref(charSeqId), ref(serializableId)))
         assertTrue(!Subtyping.isSubtype(int, inter))
       }
@@ -143,7 +143,7 @@ object SubtypingSpec extends ZIOSpecDefault {
         assertTrue(Subtyping.isEquivalent(int1, int2))
       },
       test("non-subtypes are not equivalent") {
-        val int = ref(intId)
+        val int    = ref(intId)
         val string = ref(stringId)
         assertTrue(!Subtyping.isEquivalent(int, string))
       }
@@ -151,20 +151,20 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("variance in generic types")(
       test("List[Nothing] is subtype of List[Int] (covariance)") {
         val listNothing = ref(listId, List(TypeRepr.NothingType))
-        val listInt = ref(listId, List(ref(intId)))
+        val listInt     = ref(listId, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(listNothing, listInt))
       },
       test("List[Int] is not subtype of List[String] (different args)") {
-        val listInt = ref(listId, List(ref(intId)))
+        val listInt    = ref(listId, List(ref(intId)))
         val listString = ref(listId, List(ref(stringId)))
         assertTrue(!Subtyping.isSubtype(listInt, listString))
       }
     ),
     suite("wildcard handling")(
       test("concrete type is subtype of wildcard with matching bounds") {
-        val int = ref(intId)
-        val wildcard = TypeRepr.Wildcard(TypeBounds(Some(TypeRepr.NothingType), Some(TypeRepr.AnyType)))
-        val listInt = ref(listId, List(int))
+        val int          = ref(intId)
+        val wildcard     = TypeRepr.Wildcard(TypeBounds(Some(TypeRepr.NothingType), Some(TypeRepr.AnyType)))
+        val listInt      = ref(listId, List(int))
         val listWildcard = ref(listId, List(wildcard))
         assertTrue(Subtyping.isSubtype(listInt, listWildcard))
       }
@@ -199,26 +199,26 @@ object SubtypingSpec extends ZIOSpecDefault {
         assertTrue(bounds.hasLower && bounds.hasUpper && !bounds.isUnbounded)
       },
       test("combining bounds with & operator - both have lower") {
-        val b1 = TypeBounds.lower(ref(intId))
-        val b2 = TypeBounds.lower(ref(stringId))
+        val b1       = TypeBounds.lower(ref(intId))
+        val b2       = TypeBounds.lower(ref(stringId))
         val combined = b1 & b2
         assertTrue(combined.hasLower && combined.lower.get.isInstanceOf[TypeRepr.Union])
       },
       test("combining bounds with & operator - both have upper") {
-        val b1 = TypeBounds.upper(ref(charSeqId))
-        val b2 = TypeBounds.upper(ref(serializableId))
+        val b1       = TypeBounds.upper(ref(charSeqId))
+        val b2       = TypeBounds.upper(ref(serializableId))
         val combined = b1 & b2
         assertTrue(combined.hasUpper && combined.upper.get.isInstanceOf[TypeRepr.Intersection])
       },
       test("combining bounds with & operator - one has lower, one has none") {
-        val b1 = TypeBounds.lower(ref(intId))
-        val b2 = TypeBounds.empty
+        val b1       = TypeBounds.lower(ref(intId))
+        val b2       = TypeBounds.empty
         val combined = b1 & b2
         assertTrue(combined.hasLower && combined.lower == b1.lower)
       },
       test("combining bounds with & - one has upper, one has none") {
-        val b1 = TypeBounds.empty
-        val b2 = TypeBounds.upper(ref(anyId))
+        val b1       = TypeBounds.empty
+        val b2       = TypeBounds.upper(ref(anyId))
         val combined = b1 & b2
         assertTrue(combined.hasUpper && combined.upper == b2.upper)
       },
@@ -250,7 +250,7 @@ object SubtypingSpec extends ZIOSpecDefault {
       },
       test("factory with bounds preserves bounds") {
         val bounds = TypeBounds.upper(ref(anyId))
-        val param = TypeParam.covariant("T", 0, bounds)
+        val param  = TypeParam.covariant("T", 0, bounds)
         assertTrue(param.bounds == bounds)
       }
     ),
@@ -319,7 +319,7 @@ object SubtypingSpec extends ZIOSpecDefault {
           TypeDefKind.Trait(),
           Nil
         )
-        val setInt = ref(setId, List(ref(intId)))
+        val setInt     = ref(setId, List(ref(intId)))
         val setNothing = ref(setId, List(TypeRepr.NothingType))
         // Invariant means Nothing is NOT subtype of Int for Set
         assertTrue(!Subtyping.isSubtype(setNothing, setInt))
@@ -340,7 +340,7 @@ object SubtypingSpec extends ZIOSpecDefault {
       test("type alias dealiases before comparison") {
         val intAlias = DynamicTypeId(scalaOwner, "MyInt", Nil, TypeDefKind.TypeAlias(ref(intId)), Nil)
         val aliasRef = ref(intAlias)
-        val intRef = ref(intId)
+        val intRef   = ref(intId)
         assertTrue(Subtyping.isEquivalent(aliasRef, intRef))
       },
       test("structurally equal refs are subtypes") {
@@ -356,7 +356,7 @@ object SubtypingSpec extends ZIOSpecDefault {
           TypeDefKind.Class(),
           List(ref(charSeqId)) // Parent: CharSequence
         )
-        val child = ref(childId)
+        val child   = ref(childId)
         val charSeq = ref(charSeqId)
         assertTrue(Subtyping.isSubtype(child, charSeq))
       }
@@ -373,7 +373,7 @@ object SubtypingSpec extends ZIOSpecDefault {
       },
       test("EmptyTuple is equivalent to itself") {
         val emptyId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Object, Nil)
-        val empty = ref(emptyId)
+        val empty   = ref(emptyId)
         assertTrue(Subtyping.isEquivalent(empty, empty))
       }
     ),
@@ -419,68 +419,68 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("knownHierarchy coverage")(
       test("Double is subtype of AnyVal") {
         val doubleId = DynamicTypeId(scalaOwner, "Double", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
-        val double = ref(doubleId)
-        val anyVal = ref(anyValId)
+        val double   = ref(doubleId)
+        val anyVal   = ref(anyValId)
         assertTrue(Subtyping.isSubtype(double, anyVal))
       },
       test("Float is subtype of AnyVal") {
         val floatId = DynamicTypeId(scalaOwner, "Float", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
-        val float = ref(floatId)
-        val anyVal = ref(anyValId)
+        val float   = ref(floatId)
+        val anyVal  = ref(anyValId)
         assertTrue(Subtyping.isSubtype(float, anyVal))
       },
       test("Boolean is subtype of AnyVal") {
         val boolId = DynamicTypeId(scalaOwner, "Boolean", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
-        val bool = ref(boolId)
+        val bool   = ref(boolId)
         val anyVal = ref(anyValId)
         assertTrue(Subtyping.isSubtype(bool, anyVal))
       },
       test("Char is subtype of AnyVal") {
         val charId = DynamicTypeId(scalaOwner, "Char", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
-        val char = ref(charId)
+        val char   = ref(charId)
         val anyVal = ref(anyValId)
         assertTrue(Subtyping.isSubtype(char, anyVal))
       },
       test("Byte is subtype of AnyVal") {
         val byteId = DynamicTypeId(scalaOwner, "Byte", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
-        val byte = ref(byteId)
+        val byte   = ref(byteId)
         val anyVal = ref(anyValId)
         assertTrue(Subtyping.isSubtype(byte, anyVal))
       },
       test("Short is subtype of AnyVal") {
         val shortId = DynamicTypeId(scalaOwner, "Short", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
-        val short = ref(shortId)
-        val anyVal = ref(anyValId)
+        val short   = ref(shortId)
+        val anyVal  = ref(anyValId)
         assertTrue(Subtyping.isSubtype(short, anyVal))
       },
       test("Unit is subtype of AnyVal") {
         val unitId = DynamicTypeId(scalaOwner, "Unit", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
-        val unit = ref(unitId)
+        val unit   = ref(unitId)
         val anyVal = ref(anyValId)
         assertTrue(Subtyping.isSubtype(unit, anyVal))
       },
       test("String is subtype of Comparable") {
         val comparableId = DynamicTypeId(javaLang, "Comparable", Nil, TypeDefKind.Trait(), Nil)
-        val string = ref(stringId)
-        val comparable = ref(comparableId)
+        val string       = ref(stringId)
+        val comparable   = ref(comparableId)
         assertTrue(Subtyping.isSubtype(string, comparable))
       },
       test("AnyRef is subtype of Any") {
         val anyRefId = DynamicTypeId(scalaOwner, "AnyRef", Nil, TypeDefKind.Class(), Nil)
-        val anyRef = ref(anyRefId)
-        val any = ref(anyId)
+        val anyRef   = ref(anyRefId)
+        val any      = ref(anyId)
         assertTrue(Subtyping.isSubtype(anyRef, any))
       },
       test("Object is subtype of Any") {
         val objectId = DynamicTypeId(javaLang, "Object", Nil, TypeDefKind.Class(), Nil)
-        val obj = ref(objectId)
-        val any = ref(anyId)
+        val obj      = ref(objectId)
+        val any      = ref(anyId)
         assertTrue(Subtyping.isSubtype(obj, any))
       }
     ),
     suite("wildcard bounds coverage")(
       test("List[Int] is subtype of List[_ <: Any]") {
-        val listInt = TypeRepr.Ref(listId, List(ref(intId)))
+        val listInt      = TypeRepr.Ref(listId, List(ref(intId)))
         val listWildcard = TypeRepr.Ref(listId, List(TypeRepr.Wildcard(TypeBounds(None, Some(TypeRepr.AnyType)))))
         assertTrue(Subtyping.isSubtype(listInt, listWildcard))
       },
@@ -490,16 +490,16 @@ object SubtypingSpec extends ZIOSpecDefault {
         assertTrue(Subtyping.isSubtype(listWild1, listWild2))
       },
       test("Wildcard with lower bound") {
-        val w1 = TypeRepr.Wildcard(TypeBounds(Some(ref(intId)), None))
-        val w2 = TypeRepr.Wildcard(TypeBounds(Some(TypeRepr.NothingType), None))
+        val w1       = TypeRepr.Wildcard(TypeBounds(Some(ref(intId)), None))
+        val w2       = TypeRepr.Wildcard(TypeBounds(Some(TypeRepr.NothingType), None))
         val applied1 = TypeRepr.Ref(listId, List(w1))
         val applied2 = TypeRepr.Ref(listId, List(w2))
         assertTrue(Subtyping.isSubtype(applied1, applied2))
       },
       test("Wildcard with upper bound against concrete type") {
-        val w = TypeRepr.Wildcard(TypeBounds(None, Some(ref(intId))))
+        val w        = TypeRepr.Wildcard(TypeBounds(None, Some(ref(intId))))
         val listWild = TypeRepr.Ref(listId, List(w))
-        val listInt = TypeRepr.Ref(listId, List(ref(intId)))
+        val listInt  = TypeRepr.Ref(listId, List(ref(intId)))
         // Covariant List[_ <: Int] is subtype of List[Int] since the upper bound is Int
         assertTrue(Subtyping.isSubtype(listWild, listInt))
       }
@@ -532,7 +532,7 @@ object SubtypingSpec extends ZIOSpecDefault {
       },
       test("AppliedType with incompatible bases") {
         val applied1 = TypeRepr.AppliedType(ref(listId), List(ref(intId)))
-        val setId = DynamicTypeId(
+        val setId    = DynamicTypeId(
           Owner.pkgs("scala", "collection", "immutable"),
           "Set",
           List(TypeParam("A", 0, Variance.Invariant)),
@@ -587,7 +587,7 @@ object SubtypingSpec extends ZIOSpecDefault {
         assertTrue(deepCtx.tooDeep)
       },
       test("context deeper increments depth") {
-        val ctx = Subtyping.Context()
+        val ctx    = Subtyping.Context()
         val deeper = ctx.deeper
         assertTrue(deeper.depth == 1)
       }
@@ -595,18 +595,18 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("tuple cons handling")(
       test("TupleN type is subtype of itself") {
         val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
-        val tuple = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val tuple    = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(tuple, tuple))
       },
       test("Tuple1 type is recognized") {
         val tuple1Id = DynamicTypeId(scalaOwner, "Tuple1", Nil, TypeDefKind.Class(), Nil)
-        val tuple = TypeRepr.Ref(tuple1Id, List(ref(intId)))
+        val tuple    = TypeRepr.Ref(tuple1Id, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(tuple, tuple))
       },
       test("*: cons type self-subtype") {
-        val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val consId  = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
         val emptyId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Object, Nil)
-        val cons = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(emptyId, Nil)))
+        val cons    = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(emptyId, Nil)))
         assertTrue(Subtyping.isSubtype(cons, cons))
       }
     ),
@@ -618,8 +618,8 @@ object SubtypingSpec extends ZIOSpecDefault {
       },
       test("empty params with non-empty args falls back to structural") {
         val noParamsId = DynamicTypeId(scalaOwner, "NoParams", Nil, TypeDefKind.Class(), Nil)
-        val ref1 = TypeRepr.Ref(noParamsId, List(ref(intId)))
-        val ref2 = TypeRepr.Ref(noParamsId, List(ref(intId)))
+        val ref1       = TypeRepr.Ref(noParamsId, List(ref(intId)))
+        val ref2       = TypeRepr.Ref(noParamsId, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(ref1, ref2))
       },
       test("params extended when fewer than args") {
@@ -674,19 +674,21 @@ object SubtypingSpec extends ZIOSpecDefault {
     ),
     suite("tuple type handling")(
       test("*: cons chain is subtype of itself") {
-        val consId = DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
+        val consId =
+          DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
         val emptyId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Object, Nil)
-        val cons = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(emptyId, Nil)))
+        val cons    = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(emptyId, Nil)))
         assertTrue(Subtyping.isSubtype(cons, cons))
       },
       test("TupleN type is self-subtype") {
-        val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", List(TypeParam("A", 0), TypeParam("B", 1)), TypeDefKind.Class(), Nil)
+        val tuple2Id =
+          DynamicTypeId(scalaOwner, "Tuple2", List(TypeParam("A", 0), TypeParam("B", 1)), TypeDefKind.Class(), Nil)
         val tuple = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(tuple, tuple))
       },
       test("Tuple1 type works") {
         val tuple1Id = DynamicTypeId(scalaOwner, "Tuple1", List(TypeParam("A", 0)), TypeDefKind.Class(), Nil)
-        val tuple = TypeRepr.Ref(tuple1Id, List(ref(intId)))
+        val tuple    = TypeRepr.Ref(tuple1Id, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(tuple, tuple))
       },
       test("EmptyTuple variants match") {
@@ -695,13 +697,20 @@ object SubtypingSpec extends ZIOSpecDefault {
         assertTrue(Subtyping.isSubtype(TypeRepr.Ref(emptyId1, Nil), TypeRepr.Ref(emptyId2, Nil)))
       },
       test("Wildcard at tuple tail position treated as EmptyTuple") {
-        val consId = DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
+        val consId =
+          DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
         val wild = TypeRepr.Wildcard(TypeBounds.empty)
         val cons = TypeRepr.Ref(consId, List(ref(intId), wild))
         assertTrue(Subtyping.isSubtype(cons, cons))
       },
       test("Tuple3 elements match") {
-        val tuple3Id = DynamicTypeId(scalaOwner, "Tuple3", List(TypeParam("A", 0), TypeParam("B", 1), TypeParam("C", 2)), TypeDefKind.Class(), Nil)
+        val tuple3Id = DynamicTypeId(
+          scalaOwner,
+          "Tuple3",
+          List(TypeParam("A", 0), TypeParam("B", 1), TypeParam("C", 2)),
+          TypeDefKind.Class(),
+          Nil
+        )
         val tuple = TypeRepr.Ref(tuple3Id, List(ref(intId), ref(stringId), ref(intId)))
         assertTrue(Subtyping.isSubtype(tuple, tuple))
       }
@@ -720,8 +729,8 @@ object SubtypingSpec extends ZIOSpecDefault {
       },
       test("Function with covariant result") {
         val nothing = TypeRepr.NothingType
-        val fn1 = TypeRepr.Function(List(ref(intId)), nothing)
-        val fn2 = TypeRepr.Function(List(ref(intId)), ref(stringId))
+        val fn1     = TypeRepr.Function(List(ref(intId)), nothing)
+        val fn2     = TypeRepr.Function(List(ref(intId)), ref(stringId))
         assertTrue(Subtyping.isSubtype(fn1, fn2))
       },
       test("Function param count mismatch") {
@@ -827,8 +836,8 @@ object SubtypingSpec extends ZIOSpecDefault {
       test("NothingType is subtype of everything") {
         assertTrue(
           Subtyping.isSubtype(TypeRepr.NothingType, TypeRepr.AnyType) &&
-          Subtyping.isSubtype(TypeRepr.NothingType, TypeRepr.UnitType) &&
-          Subtyping.isSubtype(TypeRepr.NothingType, TypeRepr.NullType)
+            Subtyping.isSubtype(TypeRepr.NothingType, TypeRepr.UnitType) &&
+            Subtyping.isSubtype(TypeRepr.NothingType, TypeRepr.NullType)
         )
       }
     ),
@@ -883,19 +892,19 @@ object SubtypingSpec extends ZIOSpecDefault {
     ),
     suite("wildcard bounds detailed")(
       test("Wildcard with lower bound") {
-        val w = TypeRepr.Wildcard(TypeBounds.lower(ref(intId)))
+        val w        = TypeRepr.Wildcard(TypeBounds.lower(ref(intId)))
         val listWild = TypeRepr.Ref(listId, List(w))
         assertTrue(Subtyping.isSubtype(listWild, listWild))
       },
       test("Wildcard with both bounds") {
-        val w = TypeRepr.Wildcard(TypeBounds(Some(TypeRepr.NothingType), Some(TypeRepr.AnyType)))
+        val w        = TypeRepr.Wildcard(TypeBounds(Some(TypeRepr.NothingType), Some(TypeRepr.AnyType)))
         val listWild = TypeRepr.Ref(listId, List(w))
         assertTrue(Subtyping.isSubtype(listWild, listWild))
       },
       test("Wildcard upper matching exact type") {
         val bounds = TypeBounds.upper(ref(intId))
-        val w = TypeRepr.Wildcard(bounds)
-        val listW = TypeRepr.Ref(listId, List(w))
+        val w      = TypeRepr.Wildcard(bounds)
+        val listW  = TypeRepr.Ref(listId, List(w))
         assertTrue(Subtyping.isSubtype(listW, listW) && bounds.upper.contains(ref(intId)))
       },
       test("Two wildcards with compatible bounds") {
@@ -962,12 +971,12 @@ object SubtypingSpec extends ZIOSpecDefault {
     ),
     suite("depth limit and recursion")(
       test("Context tracks depth") {
-        val ctx = Subtyping.Context()
+        val ctx    = Subtyping.Context()
         val deeper = ctx.deeper
         assertTrue(deeper.depth == 1)
       },
       test("Context tracks assumptions") {
-        val ctx = Subtyping.Context()
+        val ctx     = Subtyping.Context()
         val assumed = ctx.assume(ref(intId), ref(stringId))
         assertTrue(assumed.isAssumed(ref(intId), ref(stringId)))
       },
@@ -992,8 +1001,8 @@ object SubtypingSpec extends ZIOSpecDefault {
       },
       test("AppliedType with incompatible base fails") {
         val otherId = DynamicTypeId(scalaOwner, "Other", List(TypeParam("A", 0)), TypeDefKind.Class(), Nil)
-        val app1 = TypeRepr.AppliedType(ref(listId), List(ref(intId)))
-        val app2 = TypeRepr.AppliedType(ref(otherId), List(ref(intId)))
+        val app1    = TypeRepr.AppliedType(ref(listId), List(ref(intId)))
+        val app2    = TypeRepr.AppliedType(ref(otherId), List(ref(intId)))
         assertTrue(!Subtyping.isSubtype(app1, app2))
       },
       test("AppliedType fallback to structural when no TypeId") {
@@ -1012,7 +1021,7 @@ object SubtypingSpec extends ZIOSpecDefault {
           Nil
         )
         val aliased = ref(aliasId)
-        val target = ref(intId)
+        val target  = ref(intId)
         assertTrue(Subtyping.isSubtype(aliased, target))
       },
       test("Both sides dealiased") {
@@ -1062,79 +1071,79 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("elements compatible wildcards")(
       test("Wildcard matches any concrete in tuple comparison") {
         val wild = TypeRepr.Wildcard(TypeBounds.empty)
-        val int = ref(intId)
-        val t1 = TypeRepr.Tuple(List(wild, int))
-        val t2 = TypeRepr.Tuple(List(int, wild))
+        val int  = ref(intId)
+        val t1   = TypeRepr.Tuple(List(wild, int))
+        val t2   = TypeRepr.Tuple(List(int, wild))
         assertTrue(Subtyping.isSubtype(t1, t1) && Subtyping.isSubtype(t2, t2))
       }
     ),
     suite("TypeBounds & operator extended")(
       test("& with None lower on left, Some on right") {
-        val b1 = TypeBounds.empty
-        val b2 = TypeBounds.lower(ref(intId))
+        val b1       = TypeBounds.empty
+        val b2       = TypeBounds.lower(ref(intId))
         val combined = b1 & b2
         assertTrue(combined.lower == b2.lower)
       },
       test("& with None upper on left, Some on right") {
-        val b1 = TypeBounds.empty
-        val b2 = TypeBounds.upper(ref(anyId))
+        val b1       = TypeBounds.empty
+        val b2       = TypeBounds.upper(ref(anyId))
         val combined = b1 & b2
         assertTrue(combined.upper == b2.upper)
       },
       test("& with Some upper on left, None on right") {
-        val b1 = TypeBounds.upper(ref(anyId))
-        val b2 = TypeBounds.empty
+        val b1       = TypeBounds.upper(ref(anyId))
+        val b2       = TypeBounds.empty
         val combined = b1 & b2
         assertTrue(combined.upper == b1.upper)
       },
       test("& with Some lower on left, None on right") {
-        val b1 = TypeBounds.lower(ref(intId))
-        val b2 = TypeBounds.empty
+        val b1       = TypeBounds.lower(ref(intId))
+        val b2       = TypeBounds.empty
         val combined = b1 & b2
         assertTrue(combined.lower == b1.lower)
       },
       test("& with both None lower") {
-        val b1 = TypeBounds.upper(ref(anyId))
-        val b2 = TypeBounds.upper(ref(charSeqId))
+        val b1       = TypeBounds.upper(ref(anyId))
+        val b2       = TypeBounds.upper(ref(charSeqId))
         val combined = b1 & b2
         assertTrue(combined.lower.isEmpty)
       },
       test("& with both None upper") {
-        val b1 = TypeBounds.lower(ref(intId))
-        val b2 = TypeBounds.lower(ref(stringId))
+        val b1       = TypeBounds.lower(ref(intId))
+        val b2       = TypeBounds.lower(ref(stringId))
         val combined = b1 & b2
         assertTrue(combined.upper.isEmpty)
       },
       test("exact bounds combined creates intersection") {
-        val b1 = TypeBounds.exact(ref(intId))
-        val b2 = TypeBounds.exact(ref(stringId))
+        val b1       = TypeBounds.exact(ref(intId))
+        val b2       = TypeBounds.exact(ref(stringId))
         val combined = b1 & b2
         assertTrue(combined.hasLower && combined.hasUpper)
       }
     ),
     suite("wildcard subtyping detailed")(
       test("Wildcard with upper bound subtype check") {
-        val w = TypeRepr.Wildcard(TypeBounds.upper(ref(charSeqId)))
+        val w     = TypeRepr.Wildcard(TypeBounds.upper(ref(charSeqId)))
         val listW = TypeRepr.Ref(listId, List(w))
         assertTrue(Subtyping.isSubtype(listW, listW))
       },
       test("Wildcard with lower bound subtype check") {
-        val w = TypeRepr.Wildcard(TypeBounds.lower(ref(intId)))
+        val w     = TypeRepr.Wildcard(TypeBounds.lower(ref(intId)))
         val listW = TypeRepr.Ref(listId, List(w))
         assertTrue(Subtyping.isSubtype(listW, listW))
       },
       test("Concrete type vs wildcard with tight upper bound") {
-        val w = TypeRepr.Wildcard(TypeBounds.upper(ref(intId)))
+        val w        = TypeRepr.Wildcard(TypeBounds.upper(ref(intId)))
         val concrete = ref(intId)
-        val l1 = TypeRepr.Ref(listId, List(concrete))
-        val l2 = TypeRepr.Ref(listId, List(w))
+        val l1       = TypeRepr.Ref(listId, List(concrete))
+        val l2       = TypeRepr.Ref(listId, List(w))
         assertTrue(Subtyping.isSubtype(l1, l2))
       },
       test("Wildcard with lower bound vs concrete") {
-        val w = TypeRepr.Wildcard(TypeBounds.lower(TypeRepr.NothingType))
+        val w        = TypeRepr.Wildcard(TypeBounds.lower(TypeRepr.NothingType))
         val concrete = ref(intId)
-        val l1 = TypeRepr.Ref(listId, List(w))
-        val l2 = TypeRepr.Ref(listId, List(concrete))
+        val l1       = TypeRepr.Ref(listId, List(w))
+        val l2       = TypeRepr.Ref(listId, List(concrete))
         // Wildcard <: concrete needs upper bound that subtypes concrete
         assertTrue(Subtyping.isSubtype(l1, l1) && l2.args.nonEmpty)
       },
@@ -1149,40 +1158,40 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("parent hierarchy traversal")(
       test("Subtype via captured parent") {
         val parentId = DynamicTypeId(scalaOwner, "Parent", Nil, TypeDefKind.Trait(), Nil)
-        val childId = DynamicTypeId(
-          scalaOwner, 
-          "Child", 
-          Nil, 
-          TypeDefKind.Class(), 
+        val childId  = DynamicTypeId(
+          scalaOwner,
+          "Child",
+          Nil,
+          TypeDefKind.Class(),
           List(TypeRepr.Ref(parentId, Nil))
         )
         assertTrue(Subtyping.isSubtype(ref(childId), ref(parentId)))
       },
       test("Not subtype when no parent match") {
         val unrelatedId = DynamicTypeId(scalaOwner, "Unrelated", Nil, TypeDefKind.Trait(), Nil)
-        val childId = DynamicTypeId(
-          scalaOwner, 
-          "Child", 
-          Nil, 
-          TypeDefKind.Class(), 
-          Nil  // no parents
+        val childId     = DynamicTypeId(
+          scalaOwner,
+          "Child",
+          Nil,
+          TypeDefKind.Class(),
+          Nil // no parents
         )
         assertTrue(!Subtyping.isSubtype(ref(childId), ref(unrelatedId)) || ref(childId) == ref(unrelatedId))
       },
       test("Transitive subtyping via parents") {
         val grandparentId = DynamicTypeId(scalaOwner, "GrandParent", Nil, TypeDefKind.Trait(), Nil)
-        val parentId = DynamicTypeId(
-          scalaOwner, 
-          "Parent", 
-          Nil, 
-          TypeDefKind.Trait(), 
+        val parentId      = DynamicTypeId(
+          scalaOwner,
+          "Parent",
+          Nil,
+          TypeDefKind.Trait(),
           List(TypeRepr.Ref(grandparentId, Nil))
         )
         val childId = DynamicTypeId(
-          scalaOwner, 
-          "Child", 
-          Nil, 
-          TypeDefKind.Class(), 
+          scalaOwner,
+          "Child",
+          Nil,
+          TypeDefKind.Class(),
           List(TypeRepr.Ref(parentId, Nil))
         )
         assertTrue(Subtyping.isSubtype(ref(childId), ref(grandparentId)))
@@ -1243,8 +1252,8 @@ object SubtypingSpec extends ZIOSpecDefault {
       test("Extended params for extra args") {
         // When we have more args than params, params are extended with invariant
         val noParamId = DynamicTypeId(scalaOwner, "NoParams", Nil, TypeDefKind.Class(), Nil)
-        val t1 = TypeRepr.Ref(noParamId, List(ref(intId)))
-        val t2 = TypeRepr.Ref(noParamId, List(ref(intId)))
+        val t1        = TypeRepr.Ref(noParamId, List(ref(intId)))
+        val t2        = TypeRepr.Ref(noParamId, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(t1, t2))
       },
       test("Covariant allows subtype args") {
@@ -1272,17 +1281,17 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("tuple cons and TupleN handling")(
       test("*: detected as tuple cons") {
         val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
-        val cons = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.NothingType))
+        val cons   = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.NothingType))
         assertTrue(Subtyping.isSubtype(cons, cons))
       },
       test("Tuple2 detected as TupleN") {
         val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
-        val tuple = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val tuple    = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(tuple, tuple))
       },
       test("Tuple1 special case") {
         val tuple1Id = DynamicTypeId(scalaOwner, "Tuple1", Nil, TypeDefKind.Class(), Nil)
-        val tuple = TypeRepr.Ref(tuple1Id, List(ref(intId)))
+        val tuple    = TypeRepr.Ref(tuple1Id, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(tuple, tuple))
       },
       test("EmptyTuple match") {
@@ -1296,20 +1305,23 @@ object SubtypingSpec extends ZIOSpecDefault {
     ),
     suite("flattenTupleCons coverage")(
       test("*: chain flattens correctly") {
-        val consId = DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
+        val consId =
+          DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
         val emptyId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Object, Nil)
-        val chain = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(emptyId, Nil)))
+        val chain   = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(emptyId, Nil)))
         assertTrue(Subtyping.isSubtype(chain, chain))
       },
       test("Nested *: chain") {
-        val consId = DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
+        val consId =
+          DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
         val emptyId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Object, Nil)
-        val inner = TypeRepr.Ref(consId, List(ref(stringId), TypeRepr.Ref(emptyId, Nil)))
-        val outer = TypeRepr.Ref(consId, List(ref(intId), inner))
+        val inner   = TypeRepr.Ref(consId, List(ref(stringId), TypeRepr.Ref(emptyId, Nil)))
+        val outer   = TypeRepr.Ref(consId, List(ref(intId), inner))
         assertTrue(Subtyping.isSubtype(outer, outer))
       },
       test("*: with wildcard tail matches EmptyTuple") {
-        val consId = DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
+        val consId =
+          DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
         val chain = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Wildcard(TypeBounds.empty)))
         assertTrue(Subtyping.isSubtype(chain, chain))
       },
@@ -1321,26 +1333,27 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("flattenTupleN coverage")(
       test("Tuple2 flattens to 2 elements") {
         val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
-        val tuple = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val tuple    = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(tuple, tuple))
       },
       test("Tuple3 flattens to 3 elements") {
         val tuple3Id = DynamicTypeId(scalaOwner, "Tuple3", Nil, TypeDefKind.Class(), Nil)
-        val tuple = TypeRepr.Ref(tuple3Id, List(ref(intId), ref(stringId), ref(intId)))
+        val tuple    = TypeRepr.Ref(tuple3Id, List(ref(intId), ref(stringId), ref(intId)))
         assertTrue(Subtyping.isSubtype(tuple, tuple))
       },
       test("Tuple1 special case") {
         val tuple1Id = DynamicTypeId(scalaOwner, "Tuple1", Nil, TypeDefKind.Class(), Nil)
-        val tuple = TypeRepr.Ref(tuple1Id, List(ref(intId)))
+        val tuple    = TypeRepr.Ref(tuple1Id, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(tuple, tuple))
       }
     ),
     suite("elementsCompatible coverage")(
       test("Wildcard on left matches anything") {
-        val consId = DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
+        val consId =
+          DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
         val emptyId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Object, Nil)
-        val chain1 = TypeRepr.Ref(consId, List(TypeRepr.Wildcard(TypeBounds.empty), TypeRepr.Ref(emptyId, Nil)))
-        val chain2 = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(emptyId, Nil)))
+        val chain1  = TypeRepr.Ref(consId, List(TypeRepr.Wildcard(TypeBounds.empty), TypeRepr.Ref(emptyId, Nil)))
+        val chain2  = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(emptyId, Nil)))
         assertTrue(Subtyping.isSubtype(chain1, chain1) && Subtyping.isSubtype(chain2, chain2))
       },
       test("Wildcard on right matches anything") {
@@ -1356,7 +1369,7 @@ object SubtypingSpec extends ZIOSpecDefault {
       },
       test("Nominal equivalence in elementsCompatible") {
         val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
-        val tuple1 = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val tuple1   = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(tuple1, tuple1))
       }
     ),
@@ -1383,25 +1396,25 @@ object SubtypingSpec extends ZIOSpecDefault {
         assertTrue(Subtyping.isSubtype(l1, l2))
       },
       test("Concrete to Wildcard with lower bound") {
-        val w = TypeRepr.Wildcard(TypeBounds.lower(ref(stringId)))
+        val w  = TypeRepr.Wildcard(TypeBounds.lower(ref(stringId)))
         val l1 = TypeRepr.Ref(listId, List(ref(stringId)))
         val l2 = TypeRepr.Ref(listId, List(w))
         assertTrue(Subtyping.isSubtype(l1, l2))
       },
       test("Concrete to Wildcard with upper bound") {
-        val w = TypeRepr.Wildcard(TypeBounds.upper(ref(charSeqId)))
+        val w  = TypeRepr.Wildcard(TypeBounds.upper(ref(charSeqId)))
         val l1 = TypeRepr.Ref(listId, List(ref(stringId)))
         val l2 = TypeRepr.Ref(listId, List(w))
         assertTrue(Subtyping.isSubtype(l1, l2))
       },
       test("Wildcard to Concrete - upper bound tight") {
-        val w = TypeRepr.Wildcard(TypeBounds.upper(ref(intId)))
+        val w  = TypeRepr.Wildcard(TypeBounds.upper(ref(intId)))
         val l1 = TypeRepr.Ref(listId, List(w))
         val l2 = TypeRepr.Ref(listId, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(l1, l2))
       },
       test("Wildcard to Concrete - fails when no upper bound") {
-        val w = TypeRepr.Wildcard(TypeBounds.lower(ref(intId)))
+        val w  = TypeRepr.Wildcard(TypeBounds.lower(ref(intId)))
         val l1 = TypeRepr.Ref(listId, List(w))
         val l2 = TypeRepr.Ref(listId, List(ref(intId)))
         assertTrue(!Subtyping.isSubtype(l1, l2) || Subtyping.isSubtype(l1, l2))
@@ -1500,13 +1513,17 @@ object SubtypingSpec extends ZIOSpecDefault {
     ),
     suite("fallback tuple equivalence branch")(
       test("*: chain vs TupleN structural equivalence") {
-        val consId = DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
-        val emptyId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Object, Nil)
+        val consId =
+          DynamicTypeId(scalaOwner, "*:", List(TypeParam("H", 0), TypeParam("T", 1)), TypeDefKind.Class(), Nil)
+        val emptyId  = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Object, Nil)
         val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
-        val chain = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(consId, List(ref(stringId), TypeRepr.Ref(emptyId, Nil)))))
+        val chain    =
+          TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(consId, List(ref(stringId), TypeRepr.Ref(emptyId, Nil)))))
         val tuple = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         // Both represent (Int, String)
-        assertTrue(Subtyping.isSubtype(chain, tuple) || Subtyping.isSubtype(tuple, chain) || Subtyping.isSubtype(chain, chain))
+        assertTrue(
+          Subtyping.isSubtype(chain, tuple) || Subtyping.isSubtype(tuple, chain) || Subtyping.isSubtype(chain, chain)
+        )
       }
     ),
     suite("Ref shortcuts with args")(
@@ -1539,13 +1556,13 @@ object SubtypingSpec extends ZIOSpecDefault {
         assertTrue(!Subtyping.isSubtype(ref(intId), ref(intId))(deepCtx))
       },
       test("assume prevents infinite recursion") {
-        val ctx = Subtyping.Context()
+        val ctx     = Subtyping.Context()
         val assumed = ctx.assume(ref(intId), ref(stringId))
         assertTrue(assumed.isAssumed(ref(intId), ref(stringId)))
       },
       test("deeper increments depth") {
         val ctx = Subtyping.Context()
-        val d = ctx.deeper
+        val d   = ctx.deeper
         assertTrue(d.depth == 1)
       }
     ),
@@ -1602,11 +1619,12 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("EmptyTuple recognition")(
       test("EmptyTuple recognized by full name") {
         val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
-        val emptyRef = TypeRepr.Ref(emptyTupleId, Nil)
+        val emptyRef     = TypeRepr.Ref(emptyTupleId, Nil)
         assertTrue(Subtyping.isSubtype(emptyRef, emptyRef))
       },
       test("EmptyTuple via Tuple$package") {
-        val emptyTupleId = DynamicTypeId(Owner.pkgs("scala", "Tuple$package"), "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
+        val emptyTupleId =
+          DynamicTypeId(Owner.pkgs("scala", "Tuple$package"), "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
         val emptyRef = TypeRepr.Ref(emptyTupleId, Nil)
         assertTrue(Subtyping.isSubtype(emptyRef, emptyRef))
       }
@@ -1616,22 +1634,22 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("Tuple type recognition")(
       test("*: recognized as tuple cons") {
         val tupleConsId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
-        val t = TypeRepr.Ref(tupleConsId, List(ref(intId), TypeRepr.NothingType))
+        val t           = TypeRepr.Ref(tupleConsId, List(ref(intId), TypeRepr.NothingType))
         assertTrue(t != null)
       },
       test("Tuple2 recognized as TupleN") {
         val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
-        val t = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val t        = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(t, t))
       },
       test("Tuple3 recognized as TupleN") {
         val tuple3Id = DynamicTypeId(scalaOwner, "Tuple3", Nil, TypeDefKind.Class(), Nil)
-        val t = TypeRepr.Ref(tuple3Id, List(ref(intId), ref(stringId), ref(intId)))
+        val t        = TypeRepr.Ref(tuple3Id, List(ref(intId), ref(stringId), ref(intId)))
         assertTrue(Subtyping.isSubtype(t, t))
       },
       test("Tuple1 recognized") {
         val tuple1Id = DynamicTypeId(scalaOwner, "Tuple1", Nil, TypeDefKind.Class(), Nil)
-        val t = TypeRepr.Ref(tuple1Id, List(ref(intId)))
+        val t        = TypeRepr.Ref(tuple1Id, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(t, t))
       }
     ),
@@ -1639,16 +1657,16 @@ object SubtypingSpec extends ZIOSpecDefault {
     // ========== flattenTupleCons branches ==========
     suite("flattenTupleCons all branches")(
       test("*: chain with multiple elements") {
-        val tupleConsId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val tupleConsId  = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
-        val tail = TypeRepr.Ref(emptyTupleId, Nil)
-        val chain = TypeRepr.Ref(tupleConsId, List(ref(intId), TypeRepr.Ref(tupleConsId, List(ref(stringId), tail))))
+        val tail         = TypeRepr.Ref(emptyTupleId, Nil)
+        val chain        = TypeRepr.Ref(tupleConsId, List(ref(intId), TypeRepr.Ref(tupleConsId, List(ref(stringId), tail))))
         assertTrue(Subtyping.isSubtype(chain, chain))
       },
       test("*: chain with wildcard tail") {
         val tupleConsId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
-        val wc = TypeRepr.Wildcard(TypeBounds.empty)
-        val chain = TypeRepr.Ref(tupleConsId, List(ref(intId), wc))
+        val wc          = TypeRepr.Wildcard(TypeBounds.empty)
+        val chain       = TypeRepr.Ref(tupleConsId, List(ref(intId), wc))
         assertTrue(Subtyping.isSubtype(chain, chain))
       },
       test("Non *: type returns None from flattenTupleCons") {
@@ -1661,20 +1679,23 @@ object SubtypingSpec extends ZIOSpecDefault {
     // ========== tupleStructurallyEqual branches ==========
     suite("tupleStructurallyEqual branches")(
       test("*: chain is equivalent to TupleN with same elements") {
-        val tupleConsId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
-        val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
+        val tupleConsId  = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val tuple2Id     = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
-        val consChain = TypeRepr.Ref(tupleConsId, List(ref(intId), TypeRepr.Ref(tupleConsId, List(ref(stringId), TypeRepr.Ref(emptyTupleId, Nil)))))
+        val consChain    = TypeRepr.Ref(
+          tupleConsId,
+          List(ref(intId), TypeRepr.Ref(tupleConsId, List(ref(stringId), TypeRepr.Ref(emptyTupleId, Nil))))
+        )
         val tuple2 = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
-        // This tests the tupleStructurallyEqual path; the types may be structurally equivalent 
+        // This tests the tupleStructurallyEqual path; the types may be structurally equivalent
         // but isSubtype may not recognize this without specific handlers
         assertTrue(Subtyping.isEquivalent(consChain, consChain) && Subtyping.isEquivalent(tuple2, tuple2))
       },
       test("Different size tuples not equal") {
         val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
         val tuple3Id = DynamicTypeId(scalaOwner, "Tuple3", Nil, TypeDefKind.Class(), Nil)
-        val t2 = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
-        val t3 = TypeRepr.Ref(tuple3Id, List(ref(intId), ref(stringId), ref(intId)))
+        val t2       = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val t3       = TypeRepr.Ref(tuple3Id, List(ref(intId), ref(stringId), ref(intId)))
         assertTrue(!Subtyping.isSubtype(t2, t3))
       },
       test("None from flattenTupleCons returns false in tupleStructurallyEqual") {
@@ -1703,7 +1724,7 @@ object SubtypingSpec extends ZIOSpecDefault {
       },
       test("tupleStructurallyEqual path in elementsCompatible") {
         val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
-        val t = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val t        = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(t, t))
       },
       test("Nominal equivalence in elementsCompatible - same name at scala package") {
@@ -1784,7 +1805,7 @@ object SubtypingSpec extends ZIOSpecDefault {
       },
       test("Tuple fallback in structurallyEqual") {
         val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
-        val t = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val t        = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(t, t))
       }
     ),
@@ -1837,22 +1858,24 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("checkArgs all branches")(
       test("Empty params with nonEmpty args falls back to structural equality") {
         val noParamId = DynamicTypeId(scalaOwner, "NoParams", Nil, TypeDefKind.Class(), Nil)
-        val withArgs = TypeRepr.Ref(noParamId, List(ref(intId)))
+        val withArgs  = TypeRepr.Ref(noParamId, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(withArgs, withArgs))
       },
       test("Extended params when fewer params than args") {
         val singleParamId = DynamicTypeId(
-          scalaOwner, "Single",
+          scalaOwner,
+          "Single",
           List(TypeParam("A", 0, Variance.Covariant)),
-          TypeDefKind.Class(), Nil
+          TypeDefKind.Class(),
+          Nil
         )
         val withTwoArgs = TypeRepr.Ref(singleParamId, List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(withTwoArgs, withTwoArgs))
       },
       test("Wildcard vs Wildcard with upper bounds") {
-        val wc1 = TypeRepr.Wildcard(TypeBounds(None, Some(ref(charSeqId))))
-        val wc2 = TypeRepr.Wildcard(TypeBounds(None, Some(TypeRepr.AnyType)))
-        val id = DynamicTypeId(scalaOwner, "Box", List(TypeParam("A", 0, Variance.Covariant)), TypeDefKind.Class(), Nil)
+        val wc1  = TypeRepr.Wildcard(TypeBounds(None, Some(ref(charSeqId))))
+        val wc2  = TypeRepr.Wildcard(TypeBounds(None, Some(TypeRepr.AnyType)))
+        val id   = DynamicTypeId(scalaOwner, "Box", List(TypeParam("A", 0, Variance.Covariant)), TypeDefKind.Class(), Nil)
         val box1 = TypeRepr.Ref(id, List(wc1))
         val box2 = TypeRepr.Ref(id, List(wc2))
         assertTrue(Subtyping.isSubtype(box1, box2))
@@ -1860,39 +1883,41 @@ object SubtypingSpec extends ZIOSpecDefault {
       test("Wildcard vs Wildcard with lower bounds") {
         val wc1 = TypeRepr.Wildcard(TypeBounds(Some(ref(stringId)), None))
         val wc2 = TypeRepr.Wildcard(TypeBounds(Some(ref(charSeqId)), None))
-        val id = DynamicTypeId(scalaOwner, "Box", List(TypeParam("A", 0, Variance.Contravariant)), TypeDefKind.Class(), Nil)
+        val id  =
+          DynamicTypeId(scalaOwner, "Box", List(TypeParam("A", 0, Variance.Contravariant)), TypeDefKind.Class(), Nil)
         val box1 = TypeRepr.Ref(id, List(wc1))
         val box2 = TypeRepr.Ref(id, List(wc2))
         assertTrue(Subtyping.isSubtype(box1, box2) || !Subtyping.isSubtype(box1, box2))
       },
       test("Concrete vs Wildcard - checks bounds") {
-        val wc = TypeRepr.Wildcard(TypeBounds(None, Some(ref(charSeqId))))
-        val id = DynamicTypeId(scalaOwner, "Box", List(TypeParam("A", 0, Variance.Covariant)), TypeDefKind.Class(), Nil)
+        val wc   = TypeRepr.Wildcard(TypeBounds(None, Some(ref(charSeqId))))
+        val id   = DynamicTypeId(scalaOwner, "Box", List(TypeParam("A", 0, Variance.Covariant)), TypeDefKind.Class(), Nil)
         val box1 = TypeRepr.Ref(id, List(ref(stringId)))
         val box2 = TypeRepr.Ref(id, List(wc))
         assertTrue(Subtyping.isSubtype(box1, box2))
       },
       test("Wildcard vs Concrete - checks upper bound") {
-        val wc = TypeRepr.Wildcard(TypeBounds(None, Some(ref(stringId))))
-        val id = DynamicTypeId(scalaOwner, "Box", List(TypeParam("A", 0, Variance.Covariant)), TypeDefKind.Class(), Nil)
+        val wc   = TypeRepr.Wildcard(TypeBounds(None, Some(ref(stringId))))
+        val id   = DynamicTypeId(scalaOwner, "Box", List(TypeParam("A", 0, Variance.Covariant)), TypeDefKind.Class(), Nil)
         val box1 = TypeRepr.Ref(id, List(wc))
         val box2 = TypeRepr.Ref(id, List(ref(stringId)))
         assertTrue(Subtyping.isSubtype(box1, box2) || !Subtyping.isSubtype(box1, box2))
       },
       test("Invariant variance requires equivalence") {
-        val id = DynamicTypeId(scalaOwner, "Inv", List(TypeParam("A", 0, Variance.Invariant)), TypeDefKind.Class(), Nil)
+        val id   = DynamicTypeId(scalaOwner, "Inv", List(TypeParam("A", 0, Variance.Invariant)), TypeDefKind.Class(), Nil)
         val box1 = TypeRepr.Ref(id, List(ref(intId)))
         val box2 = TypeRepr.Ref(id, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(box1, box2))
       },
       test("Covariant variance allows subtype") {
-        val id = DynamicTypeId(scalaOwner, "Cov", List(TypeParam("A", 0, Variance.Covariant)), TypeDefKind.Class(), Nil)
+        val id   = DynamicTypeId(scalaOwner, "Cov", List(TypeParam("A", 0, Variance.Covariant)), TypeDefKind.Class(), Nil)
         val box1 = TypeRepr.Ref(id, List(ref(stringId)))
         val box2 = TypeRepr.Ref(id, List(ref(charSeqId)))
         assertTrue(Subtyping.isSubtype(box1, box2))
       },
       test("Contravariant variance reverses check") {
-        val id = DynamicTypeId(scalaOwner, "Contra", List(TypeParam("A", 0, Variance.Contravariant)), TypeDefKind.Class(), Nil)
+        val id =
+          DynamicTypeId(scalaOwner, "Contra", List(TypeParam("A", 0, Variance.Contravariant)), TypeDefKind.Class(), Nil)
         val box1 = TypeRepr.Ref(id, List(ref(charSeqId)))
         val box2 = TypeRepr.Ref(id, List(ref(stringId)))
         assertTrue(Subtyping.isSubtype(box1, box2))
@@ -1925,7 +1950,10 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("Parent hierarchy lookup")(
       test("Parents list checked when hierarchy not found") {
         val childId = DynamicTypeId(
-          Owner.pkgs("com", "example"), "Child", Nil, TypeDefKind.Class(),
+          Owner.pkgs("com", "example"),
+          "Child",
+          Nil,
+          TypeDefKind.Class(),
           List(ref(charSeqId))
         )
         assertTrue(Subtyping.isSubtype(ref(childId), ref(charSeqId)))
@@ -1959,7 +1987,9 @@ object SubtypingSpec extends ZIOSpecDefault {
         assertTrue(s != null)
       },
       test("Structural def member") {
-        val s = TypeRepr.Structural(List(Member.Def("foo", List(ParamClause.Regular(List(Param("a", ref(intId))))), ref(stringId))))
+        val s = TypeRepr.Structural(
+          List(Member.Def("foo", List(ParamClause.Regular(List(Param("a", ref(intId))))), ref(stringId)))
+        )
         assertTrue(s != null)
       },
       test("Structural type member") {
@@ -1972,120 +2002,120 @@ object SubtypingSpec extends ZIOSpecDefault {
     suite("Tuple function coverage")(
       // These tests use DynamicTypeIds that match the patterns checked by private functions
       test("isEmptyTuple via Ref with EmptyTuple name") {
-        val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
+        val emptyTupleId  = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleRef = TypeRepr.Ref(emptyTupleId, Nil)
         // EmptyTuple should be subtype of itself
         assertTrue(Subtyping.isSubtype(emptyTupleRef, emptyTupleRef))
       },
       test("isEmptyTuple via Tuple$package.EmptyTuple") {
-        val tuplePackage = Owner.pkgs("scala", "Tuple$package")
-        val emptyTupleId = DynamicTypeId(tuplePackage, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
+        val tuplePackage  = Owner.pkgs("scala", "Tuple$package")
+        val emptyTupleId  = DynamicTypeId(tuplePackage, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleRef = TypeRepr.Ref(emptyTupleId, Nil)
         assertTrue(Subtyping.isSubtype(emptyTupleRef, emptyTupleRef))
       },
       test("isTupleCons with *: identifier") {
         // Create a *: chain: Int *: EmptyTuple
-        val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
-        val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
+        val consId        = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val emptyTupleId  = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleRef = TypeRepr.Ref(emptyTupleId, Nil)
-        val consChain = TypeRepr.Ref(consId, List(ref(intId), emptyTupleRef))
+        val consChain     = TypeRepr.Ref(consId, List(ref(intId), emptyTupleRef))
         assertTrue(Subtyping.isSubtype(consChain, consChain))
       },
       test("isTupleN with Tuple2 identifier") {
         val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
-        val tuple2 = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val tuple2   = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         assertTrue(Subtyping.isSubtype(tuple2, tuple2))
       },
       test("isTuple1 with Tuple1 identifier") {
         val tuple1Id = DynamicTypeId(scalaOwner, "Tuple1", Nil, TypeDefKind.Class(), Nil)
-        val tuple1 = TypeRepr.Ref(tuple1Id, List(ref(intId)))
+        val tuple1   = TypeRepr.Ref(tuple1Id, List(ref(intId)))
         assertTrue(Subtyping.isSubtype(tuple1, tuple1))
       },
       test("flattenTupleCons with nested *: chain") {
         // Int *: String *: EmptyTuple
-        val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
-        val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
+        val consId        = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val emptyTupleId  = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleRef = TypeRepr.Ref(emptyTupleId, Nil)
-        val innerCons = TypeRepr.Ref(consId, List(ref(stringId), emptyTupleRef))
-        val outerCons = TypeRepr.Ref(consId, List(ref(intId), innerCons))
+        val innerCons     = TypeRepr.Ref(consId, List(ref(stringId), emptyTupleRef))
+        val outerCons     = TypeRepr.Ref(consId, List(ref(intId), innerCons))
         assertTrue(Subtyping.isSubtype(outerCons, outerCons))
       },
       test("flattenTupleN with Tuple3") {
         val tuple3Id = DynamicTypeId(scalaOwner, "Tuple3", Nil, TypeDefKind.Class(), Nil)
-        val tuple3 = TypeRepr.Ref(tuple3Id, List(ref(intId), ref(stringId), ref(longId)))
+        val tuple3   = TypeRepr.Ref(tuple3Id, List(ref(intId), ref(stringId), ref(longId)))
         assertTrue(Subtyping.isSubtype(tuple3, tuple3))
       },
       test("tupleStructurallyEqual - comparing *: chain to TupleN") {
         // Int *: String *: EmptyTuple vs Tuple2[Int, String]
-        val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
-        val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
-        val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
+        val consId        = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val tuple2Id      = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
+        val emptyTupleId  = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleRef = TypeRepr.Ref(emptyTupleId, Nil)
-        val innerCons = TypeRepr.Ref(consId, List(ref(stringId), emptyTupleRef))
-        val consChain = TypeRepr.Ref(consId, List(ref(intId), innerCons))
-        val tuple2 = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val innerCons     = TypeRepr.Ref(consId, List(ref(stringId), emptyTupleRef))
+        val consChain     = TypeRepr.Ref(consId, List(ref(intId), innerCons))
+        val tuple2        = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         // Both are tuples with same elements, should be equivalent
         assertTrue(Subtyping.isEquivalent(consChain, consChain) && Subtyping.isEquivalent(tuple2, tuple2))
       },
       test("elementsCompatible with Wildcard") {
-        val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
-        val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
+        val consId        = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val emptyTupleId  = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleRef = TypeRepr.Ref(emptyTupleId, Nil)
-        val wildcardCons = TypeRepr.Ref(consId, List(TypeRepr.Wildcard(TypeBounds.empty), emptyTupleRef))
+        val wildcardCons  = TypeRepr.Ref(consId, List(TypeRepr.Wildcard(TypeBounds.empty), emptyTupleRef))
         assertTrue(Subtyping.isSubtype(wildcardCons, wildcardCons))
       },
       test("tupleType check triggers isTupleType path") {
         // This should trigger the isTupleType check in structurallyEqual fallback
-        val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val consId       = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
-        val consRef = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(emptyTupleId, Nil)))
-        val nonTupleRef = ref(stringId)
+        val consRef      = TypeRepr.Ref(consId, List(ref(intId), TypeRepr.Ref(emptyTupleId, Nil)))
+        val nonTupleRef  = ref(stringId)
         // Comparing tuple to non-tuple should not match
         assertTrue(!Subtyping.isSubtype(consRef, nonTupleRef))
       },
       test("*: chain with wildcard tail") {
-        val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
-        val wildcardTail = TypeRepr.Wildcard(TypeBounds.empty)
+        val consId           = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val wildcardTail     = TypeRepr.Wildcard(TypeBounds.empty)
         val consWithWildcard = TypeRepr.Ref(consId, List(ref(intId), wildcardTail))
         assertTrue(Subtyping.isSubtype(consWithWildcard, consWithWildcard))
       },
       test("complex nested tuple cons chain") {
         // (Int *: String *: EmptyTuple) *: Boolean *: EmptyTuple
-        val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val consId       = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
-        val emptyRef = TypeRepr.Ref(emptyTupleId, Nil)
-        val boolId = DynamicTypeId(scalaOwner, "Boolean", Nil, TypeDefKind.Class(), Nil)
-        val innerInner = TypeRepr.Ref(consId, List(ref(stringId), emptyRef))
-        val innerTuple = TypeRepr.Ref(consId, List(ref(intId), innerInner))
-        val outerInner = TypeRepr.Ref(consId, List(TypeRepr.Ref(boolId, Nil), emptyRef))
-        val outerTuple = TypeRepr.Ref(consId, List(innerTuple, outerInner))
+        val emptyRef     = TypeRepr.Ref(emptyTupleId, Nil)
+        val boolId       = DynamicTypeId(scalaOwner, "Boolean", Nil, TypeDefKind.Class(), Nil)
+        val innerInner   = TypeRepr.Ref(consId, List(ref(stringId), emptyRef))
+        val innerTuple   = TypeRepr.Ref(consId, List(ref(intId), innerInner))
+        val outerInner   = TypeRepr.Ref(consId, List(TypeRepr.Ref(boolId, Nil), emptyRef))
+        val outerTuple   = TypeRepr.Ref(consId, List(innerTuple, outerInner))
         assertTrue(Subtyping.isSubtype(outerTuple, outerTuple))
       },
       test("Tuple10 with many elements") {
         val tuple10Id = DynamicTypeId(scalaOwner, "Tuple10", Nil, TypeDefKind.Class(), Nil)
-        val args = List.fill(10)(ref(intId))
-        val tuple10 = TypeRepr.Ref(tuple10Id, args)
+        val args      = List.fill(10)(ref(intId))
+        val tuple10   = TypeRepr.Ref(tuple10Id, args)
         assertTrue(Subtyping.isSubtype(tuple10, tuple10))
       },
       test("tupleStructurallyEqual fallback from structurallyEqual") {
         // This tests the fallback case in structurallyEqual (line 224)
-        val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
-        val tuple2Id = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
+        val consId       = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val tuple2Id     = DynamicTypeId(scalaOwner, "Tuple2", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
-        val emptyRef = TypeRepr.Ref(emptyTupleId, Nil)
-        val cons1 = TypeRepr.Ref(consId, List(ref(intId), emptyRef))
-        val tuple1elem = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
+        val emptyRef     = TypeRepr.Ref(emptyTupleId, Nil)
+        val cons1        = TypeRepr.Ref(consId, List(ref(intId), emptyRef))
+        val tuple1elem   = TypeRepr.Ref(tuple2Id, List(ref(intId), ref(stringId)))
         // These are different tuples, so should not be equivalent
         assertTrue(!Subtyping.isEquivalent(cons1, tuple1elem))
       },
       test("elementsCompatible fallback path") {
         // Test the nominal equivalence fallback in elementsCompatible (line 152-155)
-        val consId = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
+        val consId       = DynamicTypeId(scalaOwner, "*:", Nil, TypeDefKind.Class(), Nil)
         val emptyTupleId = DynamicTypeId(scalaOwner, "EmptyTuple", Nil, TypeDefKind.Class(), Nil)
-        val emptyRef = TypeRepr.Ref(emptyTupleId, Nil)
+        val emptyRef     = TypeRepr.Ref(emptyTupleId, Nil)
         // Use same-name types at different owners to test nominal equality
-        val int1 = DynamicTypeId(scalaOwner, "Int", Nil, TypeDefKind.Class(), Nil)
-        val int2 = DynamicTypeId(Owner.pkgs("scala", "runtime"), "Int", Nil, TypeDefKind.Class(), Nil)
+        val int1  = DynamicTypeId(scalaOwner, "Int", Nil, TypeDefKind.Class(), Nil)
+        val int2  = DynamicTypeId(Owner.pkgs("scala", "runtime"), "Int", Nil, TypeDefKind.Class(), Nil)
         val cons1 = TypeRepr.Ref(consId, List(TypeRepr.Ref(int1, Nil), emptyRef))
         val cons2 = TypeRepr.Ref(consId, List(TypeRepr.Ref(int2, Nil), emptyRef))
         // Same name but different owners - both should be self-equivalent

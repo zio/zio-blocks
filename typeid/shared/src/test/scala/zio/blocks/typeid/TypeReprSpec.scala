@@ -3,8 +3,8 @@ package zio.blocks.typeid
 import zio.test._
 
 /**
- * Comprehensive tests for TypeRepr data structures.
- * Covers: show, ordering, canonicalization, equality for Union/Intersection.
+ * Comprehensive tests for TypeRepr data structures. Covers: show, ordering,
+ * canonicalization, equality for Union/Intersection.
  */
 object TypeReprSpec extends ZIOSpecDefault {
 
@@ -50,17 +50,21 @@ object TypeReprSpec extends ZIOSpecDefault {
         assertTrue(applied.show.contains("List") && applied.show.contains("String"))
       },
       test("Union shows pipe-separated types") {
-        val union = TypeRepr.Union(List(
-          TypeRepr.Ref(intId, Nil),
-          TypeRepr.Ref(stringId, Nil)
-        ))
+        val union = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(intId, Nil),
+            TypeRepr.Ref(stringId, Nil)
+          )
+        )
         assertTrue(union.show.contains("|"))
       },
       test("Intersection shows ampersand-separated types") {
-        val intersection = TypeRepr.Intersection(List(
-          TypeRepr.Ref(intId, Nil),
-          TypeRepr.Ref(stringId, Nil)
-        ))
+        val intersection = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(intId, Nil),
+            TypeRepr.Ref(stringId, Nil)
+          )
+        )
         assertTrue(intersection.show.contains("&"))
       },
       test("Structural shows braces with members") {
@@ -75,10 +79,12 @@ object TypeReprSpec extends ZIOSpecDefault {
         assertTrue(func.show.contains("=>"))
       },
       test("Tuple shows parentheses") {
-        val tuple = TypeRepr.Tuple(List(
-          TypeRepr.Ref(intId, Nil),
-          TypeRepr.Ref(stringId, Nil)
-        ))
+        val tuple = TypeRepr.Tuple(
+          List(
+            TypeRepr.Ref(intId, Nil),
+            TypeRepr.Ref(stringId, Nil)
+          )
+        )
         assertTrue(tuple.show.startsWith("(") && tuple.show.endsWith(")"))
       },
       test("ConstantType shows value") {
@@ -137,26 +143,30 @@ object TypeReprSpec extends ZIOSpecDefault {
         assertTrue(TypeRepr.ordering.compare(ref, ref) == 0)
       },
       test("different type tags compare by tag order") {
-        val ref = TypeRepr.Ref(intId, Nil)
+        val ref   = TypeRepr.Ref(intId, Nil)
         val union = TypeRepr.Union(List(TypeRepr.Ref(intId, Nil)))
         assertTrue(TypeRepr.ordering.compare(ref, union) < 0)
       },
       test("same tag, different names compare by name") {
-        val aId = intId.copy(name = "AAA")
-        val bId = intId.copy(name = "ZZZ")
+        val aId  = intId.copy(name = "AAA")
+        val bId  = intId.copy(name = "ZZZ")
         val refA = TypeRepr.Ref(aId, Nil)
         val refB = TypeRepr.Ref(bId, Nil)
         assertTrue(TypeRepr.ordering.compare(refA, refB) < 0)
       },
       test("Union with same elements sorted differently are equal") {
-        val union1 = TypeRepr.Union(List(
-          TypeRepr.Ref(intId, Nil),
-          TypeRepr.Ref(stringId, Nil)
-        ))
-        val union2 = TypeRepr.Union(List(
-          TypeRepr.Ref(stringId, Nil),
-          TypeRepr.Ref(intId, Nil)
-        ))
+        val union1 = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(intId, Nil),
+            TypeRepr.Ref(stringId, Nil)
+          )
+        )
+        val union2 = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(stringId, Nil),
+            TypeRepr.Ref(intId, Nil)
+          )
+        )
         assertTrue(TypeRepr.ordering.compare(union1, union2) == 0)
       },
       test("Function types compare by params then result") {
@@ -207,30 +217,34 @@ object TypeReprSpec extends ZIOSpecDefault {
     ),
     suite("TypeRepr.canonicalize")(
       test("Union with single element reduces to element") {
-        val union = TypeRepr.Union(List(TypeRepr.Ref(intId, Nil)))
+        val union  = TypeRepr.Union(List(TypeRepr.Ref(intId, Nil)))
         val result = TypeRepr.canonicalize(union)
         assertTrue(result == TypeRepr.Ref(intId, Nil))
       },
       test("Intersection with single element reduces to element") {
-        val inter = TypeRepr.Intersection(List(TypeRepr.Ref(stringId, Nil)))
+        val inter  = TypeRepr.Intersection(List(TypeRepr.Ref(stringId, Nil)))
         val result = TypeRepr.canonicalize(inter)
         assertTrue(result == TypeRepr.Ref(stringId, Nil))
       },
       test("Union with duplicates removes duplicates") {
-        val union = TypeRepr.Union(List(
-          TypeRepr.Ref(intId, Nil),
-          TypeRepr.Ref(intId, Nil)
-        ))
+        val union = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(intId, Nil),
+            TypeRepr.Ref(intId, Nil)
+          )
+        )
         val result = TypeRepr.canonicalize(union)
         assertTrue(result == TypeRepr.Ref(intId, Nil))
       },
       test("Union sorts elements by show") {
-        val union = TypeRepr.Union(List(
-          TypeRepr.Ref(stringId, Nil),
-          TypeRepr.Ref(intId, Nil)
-        ))
+        val union = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(stringId, Nil),
+            TypeRepr.Ref(intId, Nil)
+          )
+        )
         val result = TypeRepr.canonicalize(union).asInstanceOf[TypeRepr.Union]
-        val shows = result.types.map(_.show)
+        val shows  = result.types.map(_.show)
         assertTrue(shows == shows.sorted)
       },
       test("AppliedType canonicalizes recursively") {
@@ -252,14 +266,18 @@ object TypeReprSpec extends ZIOSpecDefault {
     ),
     suite("Union equality")(
       test("Unions with same elements in different order are equal") {
-        val union1 = TypeRepr.Union(List(
-          TypeRepr.Ref(intId, Nil),
-          TypeRepr.Ref(stringId, Nil)
-        ))
-        val union2 = TypeRepr.Union(List(
-          TypeRepr.Ref(stringId, Nil),
-          TypeRepr.Ref(intId, Nil)
-        ))
+        val union1 = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(intId, Nil),
+            TypeRepr.Ref(stringId, Nil)
+          )
+        )
+        val union2 = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(stringId, Nil),
+            TypeRepr.Ref(intId, Nil)
+          )
+        )
         assertTrue(union1 == union2)
       },
       test("Unions with different elements are not equal") {
@@ -268,27 +286,35 @@ object TypeReprSpec extends ZIOSpecDefault {
         assertTrue(union1 != union2)
       },
       test("Union hashCode is order-independent") {
-        val union1 = TypeRepr.Union(List(
-          TypeRepr.Ref(intId, Nil),
-          TypeRepr.Ref(stringId, Nil)
-        ))
-        val union2 = TypeRepr.Union(List(
-          TypeRepr.Ref(stringId, Nil),
-          TypeRepr.Ref(intId, Nil)
-        ))
+        val union1 = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(intId, Nil),
+            TypeRepr.Ref(stringId, Nil)
+          )
+        )
+        val union2 = TypeRepr.Union(
+          List(
+            TypeRepr.Ref(stringId, Nil),
+            TypeRepr.Ref(intId, Nil)
+          )
+        )
         assertTrue(union1.hashCode == union2.hashCode)
       }
     ),
     suite("Intersection equality")(
       test("Intersections with same elements in different order are equal") {
-        val inter1 = TypeRepr.Intersection(List(
-          TypeRepr.Ref(intId, Nil),
-          TypeRepr.Ref(stringId, Nil)
-        ))
-        val inter2 = TypeRepr.Intersection(List(
-          TypeRepr.Ref(stringId, Nil),
-          TypeRepr.Ref(intId, Nil)
-        ))
+        val inter1 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(intId, Nil),
+            TypeRepr.Ref(stringId, Nil)
+          )
+        )
+        val inter2 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(stringId, Nil),
+            TypeRepr.Ref(intId, Nil)
+          )
+        )
         assertTrue(inter1 == inter2)
       },
       test("Intersections with different elements are not equal") {
@@ -297,14 +323,18 @@ object TypeReprSpec extends ZIOSpecDefault {
         assertTrue(inter1 != inter2)
       },
       test("Intersection hashCode is order-independent") {
-        val inter1 = TypeRepr.Intersection(List(
-          TypeRepr.Ref(intId, Nil),
-          TypeRepr.Ref(stringId, Nil)
-        ))
-        val inter2 = TypeRepr.Intersection(List(
-          TypeRepr.Ref(stringId, Nil),
-          TypeRepr.Ref(intId, Nil)
-        ))
+        val inter1 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(intId, Nil),
+            TypeRepr.Ref(stringId, Nil)
+          )
+        )
+        val inter2 = TypeRepr.Intersection(
+          List(
+            TypeRepr.Ref(stringId, Nil),
+            TypeRepr.Ref(intId, Nil)
+          )
+        )
         assertTrue(inter1.hashCode == inter2.hashCode)
       }
     ),
@@ -340,7 +370,7 @@ object TypeReprSpec extends ZIOSpecDefault {
         assertTrue(TypeRepr.ordering.compare(TypeRepr.AnyKindType, TypeRepr.AnyKindType) == 0)
       },
       test("different special types have different order") {
-        val any = TypeRepr.AnyType
+        val any     = TypeRepr.AnyType
         val nothing = TypeRepr.NothingType
         assertTrue(TypeRepr.ordering.compare(any, nothing) != 0)
       },
@@ -394,7 +424,7 @@ object TypeReprSpec extends ZIOSpecDefault {
       },
       test("ClassOfConst value is TypeRepr") {
         val tpe = TypeRepr.Ref(intId, Nil)
-        val c = Constant.ClassOfConst(tpe)
+        val c   = Constant.ClassOfConst(tpe)
         assertTrue(c.value == tpe)
       }
     ),
@@ -507,12 +537,12 @@ object TypeReprSpec extends ZIOSpecDefault {
         assertTrue(inter.show.contains("&"))
       },
       test("Union canonicalize sorts elements") {
-        val union = TypeRepr.Union(List(TypeRepr.Ref(stringId, Nil), TypeRepr.Ref(intId, Nil)))
+        val union     = TypeRepr.Union(List(TypeRepr.Ref(stringId, Nil), TypeRepr.Ref(intId, Nil)))
         val canonical = TypeRepr.canonicalize(union).asInstanceOf[TypeRepr.Union]
         assertTrue(canonical.types.size == 2)
       },
       test("Intersection canonicalize sorts elements") {
-        val inter = TypeRepr.Intersection(List(TypeRepr.Ref(stringId, Nil), TypeRepr.Ref(intId, Nil)))
+        val inter     = TypeRepr.Intersection(List(TypeRepr.Ref(stringId, Nil), TypeRepr.Ref(intId, Nil)))
         val canonical = TypeRepr.canonicalize(inter).asInstanceOf[TypeRepr.Intersection]
         assertTrue(canonical.types.size == 2)
       },
@@ -546,11 +576,11 @@ object TypeReprSpec extends ZIOSpecDefault {
       },
       test("Wildcard show with bounds") {
         val wild = TypeRepr.Wildcard(TypeBounds(Some(TypeRepr.NothingType), Some(TypeRepr.AnyType)))
-        assertTrue(wild.show.contains("?"))  // Scala 3 uses ? for wildcards
+        assertTrue(wild.show.contains("?")) // Scala 3 uses ? for wildcards
       },
       test("Wildcard show empty bounds") {
         val wild = TypeRepr.Wildcard(TypeBounds.empty)
-        assertTrue(wild.show == "?")  // Scala 3 uses ? for wildcards
+        assertTrue(wild.show == "?") // Scala 3 uses ? for wildcards
       },
       test("ThisType show") {
         val thisType = TypeRepr.ThisType(TypeRepr.Ref(intId, Nil))
@@ -597,18 +627,18 @@ object TypeReprSpec extends ZIOSpecDefault {
           TypeDefKind.TypeAlias(TypeRepr.Ref(intId, Nil)),
           Nil
         )
-        val aliasRef = TypeRepr.Ref(aliasId, Nil)
+        val aliasRef  = TypeRepr.Ref(aliasId, Nil)
         val dealiased = aliasRef.dealias
         // Dealiased type should be equivalent to Int
         assertTrue(Subtyping.isEquivalent(dealiased, TypeRepr.Ref(intId, Nil)))
       },
       test("Regular Ref does not dealias") {
-        val intRef = TypeRepr.Ref(intId, Nil)
+        val intRef    = TypeRepr.Ref(intId, Nil)
         val dealiased = intRef.dealias
         assertTrue(dealiased == intRef)
       },
       test("AppliedType dealiases base") {
-        val applied = TypeRepr.AppliedType(TypeRepr.Ref(listId, Nil), List(TypeRepr.Ref(intId, Nil)))
+        val applied   = TypeRepr.AppliedType(TypeRepr.Ref(listId, Nil), List(TypeRepr.Ref(intId, Nil)))
         val dealiased = applied.dealias
         assertTrue(dealiased != null)
       }
@@ -635,7 +665,7 @@ object TypeReprSpec extends ZIOSpecDefault {
         assertTrue(u1 != u2)
       },
       test("Union not equal to non-Union") {
-        val u1 = TypeRepr.Union(List(TypeRepr.Ref(intId, Nil)))
+        val u1         = TypeRepr.Union(List(TypeRepr.Ref(intId, Nil)))
         val other: Any = TypeRepr.Ref(intId, Nil)
         assertTrue(u1 != other)
       },
@@ -680,7 +710,7 @@ object TypeReprSpec extends ZIOSpecDefault {
         assertTrue(i1 != i2)
       },
       test("Intersection not equal to non-Intersection") {
-        val i1 = TypeRepr.Intersection(List(TypeRepr.Ref(intId, Nil)))
+        val i1         = TypeRepr.Intersection(List(TypeRepr.Ref(intId, Nil)))
         val other: Any = TypeRepr.Ref(intId, Nil)
         assertTrue(i1 != other)
       },
@@ -740,28 +770,30 @@ object TypeReprSpec extends ZIOSpecDefault {
     ),
     suite("Union and Intersection canonicalization")(
       test("Union canonicalize sorts and deduplicates") {
-        val u = TypeRepr.Union(List(TypeRepr.Ref(stringId, Nil), TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
+        val u     = TypeRepr.Union(List(TypeRepr.Ref(stringId, Nil), TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
         val canon = TypeRepr.canonicalize(u)
         canon match {
           case TypeRepr.Union(types) => assertTrue(types.size == 2)
-          case _ => assertTrue(false)
+          case _                     => assertTrue(false)
         }
       },
       test("Intersection canonicalize sorts and deduplicates") {
-        val i = TypeRepr.Intersection(List(TypeRepr.Ref(stringId, Nil), TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
+        val i = TypeRepr.Intersection(
+          List(TypeRepr.Ref(stringId, Nil), TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil))
+        )
         val canon = TypeRepr.canonicalize(i)
         canon match {
           case TypeRepr.Intersection(types) => assertTrue(types.size == 2)
-          case _ => assertTrue(false)
+          case _                            => assertTrue(false)
         }
       },
       test("Union with single type after dedup becomes single type") {
-        val u = TypeRepr.Union(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(intId, Nil)))
+        val u     = TypeRepr.Union(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(intId, Nil)))
         val canon = TypeRepr.canonicalize(u)
         assertTrue(canon.isInstanceOf[TypeRepr.Ref])
       },
       test("Intersection with single type after dedup becomes single type") {
-        val i = TypeRepr.Intersection(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(intId, Nil)))
+        val i     = TypeRepr.Intersection(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(intId, Nil)))
         val canon = TypeRepr.canonicalize(i)
         assertTrue(canon.isInstanceOf[TypeRepr.Ref])
       }

@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding._
-import zio.blocks.typeid.{Owner, TypeDefKind, TypeId}
+import zio.blocks.typeid.{DynamicTypeId, Owner, TypeDefKind, TypeId}
 import zio.test.Assertion._
 import zio.test._
 
@@ -9,13 +9,15 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
   // Base NamedTuple TypeId - matches the one constructed in SchemaCompanionVersionSpecific macro
   // All NamedTuple variants should compare equal to this base typeId
   private def baseNamedTupleTypeId[T]: TypeId[T] = TypeId[Any](
-    owner = Owner(List(Owner.Package("scala"), Owner.Type("NamedTuple"))),
-    name = "NamedTuple",
-    typeParams = Nil,
-    kind = TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil),
-    parents = Nil,
-    args = Nil,
-    annotations = Nil
+    DynamicTypeId(
+      owner = Owner(List(Owner.Package("scala"), Owner.Type("NamedTuple"))),
+      name = "NamedTuple",
+      typeParams = Nil,
+      kind = TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil),
+      parents = Nil,
+      args = Nil,
+      annotations = Nil
+    )
   ).asInstanceOf[TypeId[T]]
 
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(

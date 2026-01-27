@@ -3,13 +3,14 @@ package zio.blocks.typeid
 import zio.test._
 
 /**
- * Comprehensive tests for DynamicTypeId data structure.
- * Covers: fullName, arity, kind checks, aliasedTo, representation, enumCases, subtyping, equality.
+ * Comprehensive tests for DynamicTypeId data structure. Covers: fullName,
+ * arity, kind checks, aliasedTo, representation, enumCases, subtyping,
+ * equality.
  */
 object DynamicTypeIdSpec extends ZIOSpecDefault {
 
   private val scalaOwner = Owner.pkg("scala")
-  private val javaLang = Owner.pkgs("java", "lang")
+  private val javaLang   = Owner.pkgs("java", "lang")
 
   private def makeClass(
     owner: Owner,
@@ -57,7 +58,7 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
       },
       test("fullName with deep nesting") {
         val owner = Owner.pkgs("com", "example", "app", "models")
-        val id = makeClass(owner, "User")
+        val id    = makeClass(owner, "User")
         assertTrue(id.fullName == "com.example.app.models.User")
       }
     ),
@@ -128,10 +129,14 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
     ),
     suite("isAlias")(
       test("TypeAlias kind returns true") {
-        val id = makeAlias(scalaOwner, "MyString", TypeRepr.Ref(
-          DynamicTypeId(javaLang, "String", Nil, TypeDefKind.Class(isFinal = true), Nil),
-          Nil
-        ))
+        val id = makeAlias(
+          scalaOwner,
+          "MyString",
+          TypeRepr.Ref(
+            DynamicTypeId(javaLang, "String", Nil, TypeDefKind.Class(isFinal = true), Nil),
+            Nil
+          )
+        )
         assertTrue(id.isAlias)
       },
       test("Class kind returns false") {
@@ -141,10 +146,14 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
     ),
     suite("isOpaque")(
       test("OpaqueType kind returns true") {
-        val id = makeOpaque(scalaOwner, "UserId", TypeRepr.Ref(
-          DynamicTypeId(javaLang, "String", Nil, TypeDefKind.Class(isFinal = true), Nil),
-          Nil
-        ))
+        val id = makeOpaque(
+          scalaOwner,
+          "UserId",
+          TypeRepr.Ref(
+            DynamicTypeId(javaLang, "String", Nil, TypeDefKind.Class(isFinal = true), Nil),
+            Nil
+          )
+        )
         assertTrue(id.isOpaque)
       },
       test("Class kind returns false") {
@@ -282,10 +291,13 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
       },
       test("arity with params equals param count") {
         val params = List(
-          EnumCaseParam("value", TypeRepr.Ref(
-            DynamicTypeId(scalaOwner, "Int", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil),
-            Nil
-          ))
+          EnumCaseParam(
+            "value",
+            TypeRepr.Ref(
+              DynamicTypeId(scalaOwner, "Int", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil),
+              Nil
+            )
+          )
         )
         val caseInfo = EnumCaseInfo("Value", 0, params, false)
         assertTrue(caseInfo.arity == 1)
@@ -295,22 +307,27 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
         assertTrue(caseInfo.isObjectCase)
       },
       test("isObjectCase false for parameterized case") {
-        val params = List(EnumCaseParam("n", TypeRepr.Ref(
-          DynamicTypeId(scalaOwner, "Int", Nil, TypeDefKind.Class(), Nil),
-          Nil
-        )))
+        val params = List(
+          EnumCaseParam(
+            "n",
+            TypeRepr.Ref(
+              DynamicTypeId(scalaOwner, "Int", Nil, TypeDefKind.Class(), Nil),
+              Nil
+            )
+          )
+        )
         val caseInfo = EnumCaseInfo("Num", 0, params, false)
         assertTrue(!caseInfo.isObjectCase)
       }
     ),
     suite("isSubtypeOf, isSupertypeOf, isEquivalentTo")(
       test("isSubtypeOf delegates to Subtyping") {
-        val intId = makeClass(scalaOwner, "Int", isValue = true)
+        val intId    = makeClass(scalaOwner, "Int", isValue = true)
         val anyValId = makeClass(scalaOwner, "AnyVal")
         assertTrue(intId.isSubtypeOf(anyValId))
       },
       test("isSupertypeOf is inverse of isSubtypeOf") {
-        val intId = makeClass(scalaOwner, "Int", isValue = true)
+        val intId    = makeClass(scalaOwner, "Int", isValue = true)
         val anyValId = makeClass(scalaOwner, "AnyVal")
         assertTrue(anyValId.isSupertypeOf(intId))
       },
@@ -320,7 +337,7 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
         assertTrue(intId1.isEquivalentTo(intId2))
       },
       test("isEquivalentTo for different types returns false") {
-        val intId = makeClass(scalaOwner, "Int")
+        val intId    = makeClass(scalaOwner, "Int")
         val stringId = makeClass(javaLang, "String")
         assertTrue(!intId.isEquivalentTo(stringId))
       }
@@ -336,7 +353,7 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
         assertTrue(intId1.equals(intId2) && intId2.equals(intId1))
       },
       test("equals returns false for different types") {
-        val intId = makeClass(scalaOwner, "Int")
+        val intId    = makeClass(scalaOwner, "Int")
         val stringId = makeClass(javaLang, "String")
         assertTrue(!intId.equals(stringId))
       },
@@ -371,24 +388,24 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
       },
       test("show with nested owner") {
         val nestedOwner = Owner.pkgs("com", "example", "mypackage")
-        val myId = makeClass(nestedOwner, "MyClass")
+        val myId        = makeClass(nestedOwner, "MyClass")
         assertTrue(myId.show == "com.example.mypackage.MyClass")
       }
     ),
     suite("copy and modification")(
       test("copy creates new instance with same values") {
-        val intId = makeClass(scalaOwner, "Int")
+        val intId  = makeClass(scalaOwner, "Int")
         val copied = intId.copy()
         assertTrue(intId.equals(copied))
       },
       test("copy with modified name") {
-        val intId = makeClass(scalaOwner, "Int")
+        val intId    = makeClass(scalaOwner, "Int")
         val modified = intId.copy(name = "Long")
         assertTrue(modified.name == "Long")
       },
       test("copy with modified args") {
-        val intId = makeClass(scalaOwner, "Int")
-        val intRef = TypeRepr.Ref(intId, Nil)
+        val intId    = makeClass(scalaOwner, "Int")
+        val intRef   = TypeRepr.Ref(intId, Nil)
         val modified = intId.copy(args = List(intRef))
         assertTrue(modified.args.size == 1)
       }
@@ -400,8 +417,8 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
       },
       test("annotations accessible") {
         val deprecatedId = DynamicTypeId(scalaOwner, "deprecated", Nil, TypeDefKind.Class(), Nil)
-        val annotation = Annotation(TypeRepr.Ref(deprecatedId, Nil), Nil)
-        val intId = DynamicTypeId(
+        val annotation   = Annotation(TypeRepr.Ref(deprecatedId, Nil), Nil)
+        val intId        = DynamicTypeId(
           scalaOwner,
           "Int",
           Nil,
@@ -413,7 +430,7 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
         assertTrue(intId.annotations.nonEmpty)
       },
       test("parents with hierarchy") {
-        val intRef = TypeRepr.Ref(makeClass(scalaOwner, "Int"), Nil)
+        val intRef  = TypeRepr.Ref(makeClass(scalaOwner, "Int"), Nil)
         val childId = DynamicTypeId(
           scalaOwner,
           "Child",
@@ -487,7 +504,7 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
       },
       test("fullName with nested owner") {
         val nestedOwner = Owner.pkgs("scala", "collection", "immutable")
-        val id = DynamicTypeId(nestedOwner, "List", Nil, TypeDefKind.Class(), Nil)
+        val id          = DynamicTypeId(nestedOwner, "List", Nil, TypeDefKind.Class(), Nil)
         assertTrue(id.fullName == "scala.collection.immutable.List")
       }
     ),
@@ -575,12 +592,12 @@ object DynamicTypeIdSpec extends ZIOSpecDefault {
     ),
     suite("DynamicTypeId copy")(
       test("copy preserves owner") {
-        val id = makeClass(scalaOwner, "Foo")
+        val id     = makeClass(scalaOwner, "Foo")
         val copied = id.copy(name = "Bar")
         assertTrue(copied.owner == scalaOwner && copied.name == "Bar")
       },
       test("copy can change kind") {
-        val id = makeClass(scalaOwner, "Foo")
+        val id     = makeClass(scalaOwner, "Foo")
         val copied = id.copy(kind = TypeDefKind.Object)
         assertTrue(copied.isObject)
       }

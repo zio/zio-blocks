@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema._
+import zio.blocks.schema.As.reverseInto
 import zio.test._
 import zio.test.Assertion._
 
@@ -25,7 +26,9 @@ object AsSpec extends SchemaBaseSpec {
       asCompileTimeRules,
       numericNarrowingRoundTrip,
       overflowDetection
-    )
+    ),
+    asApplyFromInto,
+    reverseIntoImplicit
   )
 
   case class ValidA(name: String, age: Int = 25)
@@ -756,6 +759,108 @@ object AsSpec extends SchemaBaseSpec {
       val source = IntValueB(Int.MaxValue)
       val as     = As.derived[LongValueA, IntValueB]
       assert(as.from(source))(isRight(equalTo(LongValueA(Int.MaxValue.toLong))))
+    }
+  )
+
+  case class ApplyTestA(x: Int)
+  case class ApplyTestB(x: Long)
+
+  /** Tests for As.apply constructor that creates As from two Into instances */
+  private val asApplyFromInto = suite("As.apply from Into instances")(
+    test("As.apply creates As from two Into instances") {
+      val intoAB: Into[ApplyTestA, ApplyTestB] = (a: ApplyTestA) => Right(ApplyTestB(a.x.toLong))
+      val intoBA: Into[ApplyTestB, ApplyTestA] = (b: ApplyTestB) =>
+        if (b.x >= Int.MinValue && b.x <= Int.MaxValue) Right(ApplyTestA(b.x.toInt))
+        else Left(SchemaError.conversionFailed(Nil, "Value out of Int range"))
+
+      val as = As.apply(intoAB, intoBA)
+      val a  = ApplyTestA(42)
+      val b  = ApplyTestB(42L)
+
+      assert(as.into(a))(isRight(equalTo(b))) &&
+      assert(as.from(b))(isRight(equalTo(a)))
+    },
+    test("As.apply round-trips correctly") {
+      val intoAB: Into[ApplyTestA, ApplyTestB] = (a: ApplyTestA) => Right(ApplyTestB(a.x.toLong))
+      val intoBA: Into[ApplyTestB, ApplyTestA] = (b: ApplyTestB) =>
+        if (b.x >= Int.MinValue && b.x <= Int.MaxValue) Right(ApplyTestA(b.x.toInt))
+        else Left(SchemaError.conversionFailed(Nil, "Value out of Int range"))
+
+      val as       = As.apply(intoAB, intoBA)
+      val original = ApplyTestA(100)
+
+      assert(as.into(original).flatMap(as.from))(isRight(equalTo(original)))
+    },
+    test("As.apply propagates errors from intoAB") {
+      val intoAB: Into[ApplyTestA, ApplyTestB] =
+        (_: ApplyTestA) => Left(SchemaError.conversionFailed(Nil, "Always fails"))
+      val intoBA: Into[ApplyTestB, ApplyTestA] = (b: ApplyTestB) => Right(ApplyTestA(b.x.toInt))
+
+      val as = As.apply(intoAB, intoBA)
+      assert(as.into(ApplyTestA(42)))(isLeft)
+    },
+    test("As.apply propagates errors from intoBA") {
+      val intoAB: Into[ApplyTestA, ApplyTestB] = (a: ApplyTestA) => Right(ApplyTestB(a.x.toLong))
+      val intoBA: Into[ApplyTestB, ApplyTestA] =
+        (_: ApplyTestB) => Left(SchemaError.conversionFailed(Nil, "Always fails"))
+
+      val as = As.apply(intoAB, intoBA)
+      assert(as.from(ApplyTestB(42L)))(isLeft)
+    },
+    test("As.reverse creates reversed As") {
+      val intoAB: Into[ApplyTestA, ApplyTestB] = (a: ApplyTestA) => Right(ApplyTestB(a.x.toLong))
+      val intoBA: Into[ApplyTestB, ApplyTestA] = (b: ApplyTestB) => Right(ApplyTestA(b.x.toInt))
+
+      val as      = As.apply(intoAB, intoBA)
+      val reverse = as.reverse
+
+      val a = ApplyTestA(42)
+      val b = ApplyTestB(42L)
+
+      assert(reverse.into(b))(isRight(equalTo(a))) &&
+      assert(reverse.from(a))(isRight(equalTo(b)))
+    },
+    test("As.reverse.reverse returns equivalent As") {
+      val intoAB: Into[ApplyTestA, ApplyTestB] = (a: ApplyTestA) => Right(ApplyTestB(a.x.toLong))
+      val intoBA: Into[ApplyTestB, ApplyTestA] = (b: ApplyTestB) => Right(ApplyTestA(b.x.toInt))
+
+      val as               = As.apply(intoAB, intoBA)
+      val reverseOfReverse = as.reverse.reverse
+
+      val a = ApplyTestA(42)
+      assert(reverseOfReverse.into(a))(isRight(equalTo(ApplyTestB(42L))))
+    }
+  )
+
+  /** Tests for AsLowPriorityImplicits.reverseInto implicit conversion */
+  private val reverseIntoImplicit = suite("AsLowPriorityImplicits.reverseInto")(
+    test("reverseInto provides implicit Into[B, A] from As[A, B]") {
+      implicit val asAB: As[ApplyTestA, ApplyTestB] = As.apply(
+        (a: ApplyTestA) => Right(ApplyTestB(a.x.toLong)),
+        (b: ApplyTestB) => Right(ApplyTestA(b.x.toInt))
+      )
+
+      // This should compile due to reverseInto implicit
+      val intoBA: Into[ApplyTestB, ApplyTestA] = implicitly[Into[ApplyTestB, ApplyTestA]]
+      assert(intoBA.into(ApplyTestB(42L)))(isRight(equalTo(ApplyTestA(42))))
+    },
+    test("reverseInto propagates As.from errors") {
+      implicit val asAB: As[ApplyTestA, ApplyTestB] = As.apply(
+        (a: ApplyTestA) => Right(ApplyTestB(a.x.toLong)),
+        (_: ApplyTestB) => Left(SchemaError.conversionFailed(Nil, "From always fails"))
+      )
+
+      val intoBA: Into[ApplyTestB, ApplyTestA] = implicitly[Into[ApplyTestB, ApplyTestA]]
+      assert(intoBA.into(ApplyTestB(42L)))(isLeft)
+    },
+    test("reverseInto works with derived As") {
+      case class SourceA(name: String, value: Int)
+      case class TargetB(name: String, value: Int)
+
+      implicit val as: As[SourceA, TargetB] = As.derived
+
+      val intoBA: Into[TargetB, SourceA] = implicitly[Into[TargetB, SourceA]]
+      assert(intoBA.into(TargetB("test", 42)))(isRight(equalTo(SourceA("test", 42))))
     }
   )
 }

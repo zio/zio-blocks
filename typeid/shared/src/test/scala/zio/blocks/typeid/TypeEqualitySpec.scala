@@ -3,15 +3,15 @@ package zio.blocks.typeid
 import zio.test._
 
 /**
- * Comprehensive tests for TypeEquality logic.
- * Covers: dynamicTypeIdEquals, dynamicTypeIdHashCode, NamedTuple handling.
+ * Comprehensive tests for TypeEquality logic. Covers: dynamicTypeIdEquals,
+ * dynamicTypeIdHashCode, NamedTuple handling.
  */
 object TypeEqualitySpec extends ZIOSpecDefault {
 
   private val scalaOwner = Owner.pkg("scala")
-  private val javaLang = Owner.pkgs("java", "lang")
+  private val javaLang   = Owner.pkgs("java", "lang")
 
-  private val intId = DynamicTypeId(scalaOwner, "Int", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
+  private val intId    = DynamicTypeId(scalaOwner, "Int", Nil, TypeDefKind.Class(isFinal = true, isValue = true), Nil)
   private val stringId = DynamicTypeId(javaLang, "String", Nil, TypeDefKind.Class(isFinal = true), Nil)
 
   private val listId = DynamicTypeId(
@@ -62,26 +62,26 @@ object TypeEqualitySpec extends ZIOSpecDefault {
     suite("NamedTuple handling")(
       test("NamedTuple types are treated as equal") {
         val namedTupleOwner = Owner.pkgs("scala", "NamedTuple")
-        val id1 = DynamicTypeId(namedTupleOwner, "NamedTuple", Nil, TypeDefKind.Class(), Nil)
-        val id2 = DynamicTypeId(namedTupleOwner, "NamedTuple", Nil, TypeDefKind.Class(), Nil)
+        val id1             = DynamicTypeId(namedTupleOwner, "NamedTuple", Nil, TypeDefKind.Class(), Nil)
+        val id2             = DynamicTypeId(namedTupleOwner, "NamedTuple", Nil, TypeDefKind.Class(), Nil)
         assertTrue(TypeEquality.dynamicTypeIdEquals(id1, id2))
       },
       test("NamedTuple related types match by owner content") {
         val owner1 = Owner.pkgs("scala", "NamedTuple")
         val owner2 = Owner.pkgs("scala", "NamedTuple")
-        val id1 = DynamicTypeId(owner1, "Map", Nil, TypeDefKind.Class(), Nil)
-        val id2 = DynamicTypeId(owner2, "Map", Nil, TypeDefKind.Class(), Nil)
+        val id1    = DynamicTypeId(owner1, "Map", Nil, TypeDefKind.Class(), Nil)
+        val id2    = DynamicTypeId(owner2, "Map", Nil, TypeDefKind.Class(), Nil)
         assertTrue(TypeEquality.dynamicTypeIdEquals(id1, id2))
       },
       test("Empty in NamedTuple matches Empty in NamedTuple") {
         val owner = Owner.pkgs("scala", "NamedTuple")
-        val id1 = DynamicTypeId(owner, "Empty", Nil, TypeDefKind.Object, Nil)
-        val id2 = DynamicTypeId(owner, "Empty", Nil, TypeDefKind.Object, Nil)
+        val id1   = DynamicTypeId(owner, "Empty", Nil, TypeDefKind.Object, Nil)
+        val id2   = DynamicTypeId(owner, "Empty", Nil, TypeDefKind.Object, Nil)
         assertTrue(TypeEquality.dynamicTypeIdEquals(id1, id2))
       },
       test("NamedTuple args with wildcards match concrete types") {
         val namedTupleOwner = Owner.pkgs("scala", "NamedTuple")
-        val id1 = DynamicTypeId(
+        val id1             = DynamicTypeId(
           namedTupleOwner,
           "NamedTuple",
           Nil,
@@ -113,7 +113,7 @@ object TypeEqualitySpec extends ZIOSpecDefault {
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id1) == TypeEquality.dynamicTypeIdHashCode(id2))
       },
       test("hash code is stable across calls") {
-        val id = listId.copy(args = List(TypeRepr.Ref(intId, Nil)))
+        val id    = listId.copy(args = List(TypeRepr.Ref(intId, Nil)))
         val hash1 = TypeEquality.dynamicTypeIdHashCode(id)
         val hash2 = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash1 == hash2)
@@ -128,50 +128,50 @@ object TypeEqualitySpec extends ZIOSpecDefault {
     suite("TypeRepr hash code coverage")(
       test("Union hash code") {
         val union = TypeRepr.Union(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
-        val id = intId.copy(args = List(union))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id    = intId.copy(args = List(union))
+        val hash  = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("Intersection hash code") {
         val inter = TypeRepr.Intersection(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
-        val id = intId.copy(args = List(inter))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id    = intId.copy(args = List(inter))
+        val hash  = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("Function hash code") {
         val func = TypeRepr.Function(List(TypeRepr.Ref(intId, Nil)), TypeRepr.Ref(stringId, Nil))
-        val id = intId.copy(args = List(func))
+        val id   = intId.copy(args = List(func))
         val hash = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("Tuple hash code") {
         val tuple = TypeRepr.Tuple(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
-        val id = intId.copy(args = List(tuple))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id    = intId.copy(args = List(tuple))
+        val hash  = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("TypeParamRef hash code") {
         val paramRef = TypeRepr.TypeParamRef("A", 0)
-        val id = intId.copy(args = List(paramRef))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id       = intId.copy(args = List(paramRef))
+        val hash     = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("ConstantType hash code") {
         val const = TypeRepr.ConstantType(Constant.IntConst(42))
-        val id = intId.copy(args = List(const))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id    = intId.copy(args = List(const))
+        val hash  = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("ThisType hash code") {
         val thisType = TypeRepr.ThisType(TypeRepr.Ref(intId, Nil))
-        val id = intId.copy(args = List(thisType))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id       = intId.copy(args = List(thisType))
+        val hash     = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("SuperType hash code") {
         val superType = TypeRepr.SuperType(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil))
-        val id = intId.copy(args = List(superType))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id        = intId.copy(args = List(superType))
+        val hash      = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("TypeLambda hash code") {
@@ -179,26 +179,26 @@ object TypeEqualitySpec extends ZIOSpecDefault {
           List(TypeParam("A", 0, Variance.Covariant)),
           TypeRepr.Ref(intId, Nil)
         )
-        val id = intId.copy(args = List(lambda))
+        val id   = intId.copy(args = List(lambda))
         val hash = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("Wildcard hash code") {
         val wildcard = TypeRepr.Wildcard(TypeBounds(Some(TypeRepr.NothingType), Some(TypeRepr.AnyType)))
-        val id = intId.copy(args = List(wildcard))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id       = intId.copy(args = List(wildcard))
+        val hash     = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("TypeProjection hash code") {
         val proj = TypeRepr.TypeProjection(TypeRepr.Ref(intId, Nil), "Inner")
-        val id = intId.copy(args = List(proj))
+        val id   = intId.copy(args = List(proj))
         val hash = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("Structural hash code") {
         val struct = TypeRepr.Structural(List(Member.Val("foo", TypeRepr.Ref(intId, Nil))))
-        val id = intId.copy(args = List(struct))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id     = intId.copy(args = List(struct))
+        val hash   = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("special type hash codes") {
@@ -217,8 +217,8 @@ object TypeEqualitySpec extends ZIOSpecDefault {
       },
       test("AppliedType hash code") {
         val applied = TypeRepr.AppliedType(TypeRepr.Ref(listId, Nil), List(TypeRepr.Ref(intId, Nil)))
-        val id = intId.copy(args = List(applied))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id      = intId.copy(args = List(applied))
+        val hash    = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       }
     ),
@@ -232,7 +232,7 @@ object TypeEqualitySpec extends ZIOSpecDefault {
           Nil
         )
         val aliasRef = TypeRepr.Ref(aliasId, Nil)
-        val intRef = TypeRepr.Ref(intId, Nil)
+        val intRef   = TypeRepr.Ref(intId, Nil)
         assertTrue(Subtyping.isEquivalent(aliasRef, intRef))
       },
       test("args with equivalent types are considered equal") {
@@ -260,7 +260,7 @@ object TypeEqualitySpec extends ZIOSpecDefault {
           DynamicTypeId(scalaOwner, "Test", Nil, TypeDefKind.Class(), List(union))
         )
         val union2 = TypeRepr.Union(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
-        val hash2 = TypeEquality.dynamicTypeIdHashCode(
+        val hash2  = TypeEquality.dynamicTypeIdHashCode(
           DynamicTypeId(scalaOwner, "Test", Nil, TypeDefKind.Class(), List(union2))
         )
         assertTrue(hash1 == hash2) // Same elements, different order -> same hash
@@ -271,99 +271,99 @@ object TypeEqualitySpec extends ZIOSpecDefault {
           DynamicTypeId(scalaOwner, "Test", Nil, TypeDefKind.Class(), List(inter))
         )
         val inter2 = TypeRepr.Intersection(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
-        val hash2 = TypeEquality.dynamicTypeIdHashCode(
+        val hash2  = TypeEquality.dynamicTypeIdHashCode(
           DynamicTypeId(scalaOwner, "Test", Nil, TypeDefKind.Class(), List(inter2))
         )
         assertTrue(hash1 == hash2)
       },
       test("Function hash covers params and result") {
         val func = TypeRepr.Function(List(TypeRepr.Ref(intId, Nil)), TypeRepr.Ref(stringId, Nil))
-        val id = DynamicTypeId(scalaOwner, "FuncTest", Nil, TypeDefKind.Class(), List(func))
+        val id   = DynamicTypeId(scalaOwner, "FuncTest", Nil, TypeDefKind.Class(), List(func))
         val hash = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("Tuple hash covers elements") {
         val tuple = TypeRepr.Tuple(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
-        val id = DynamicTypeId(scalaOwner, "TupleTest", Nil, TypeDefKind.Class(), List(tuple))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id    = DynamicTypeId(scalaOwner, "TupleTest", Nil, TypeDefKind.Class(), List(tuple))
+        val hash  = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("TypeParamRef hash covers name and index") {
         val paramRef = TypeRepr.TypeParamRef("T", 2)
-        val id = DynamicTypeId(scalaOwner, "ParamTest", Nil, TypeDefKind.Class(), List(paramRef))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id       = DynamicTypeId(scalaOwner, "ParamTest", Nil, TypeDefKind.Class(), List(paramRef))
+        val hash     = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("ConstantType hash covers value") {
         val const = TypeRepr.ConstantType(Constant.IntConst(42))
-        val id = DynamicTypeId(scalaOwner, "ConstTest", Nil, TypeDefKind.Class(), List(const))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id    = DynamicTypeId(scalaOwner, "ConstTest", Nil, TypeDefKind.Class(), List(const))
+        val hash  = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("ThisType hash covers inner type") {
         val thisType = TypeRepr.ThisType(TypeRepr.Ref(intId, Nil))
-        val id = DynamicTypeId(scalaOwner, "ThisTest", Nil, TypeDefKind.Class(), List(thisType))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id       = DynamicTypeId(scalaOwner, "ThisTest", Nil, TypeDefKind.Class(), List(thisType))
+        val hash     = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("SuperType hash covers both types") {
         val superType = TypeRepr.SuperType(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil))
-        val id = DynamicTypeId(scalaOwner, "SuperTest", Nil, TypeDefKind.Class(), List(superType))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id        = DynamicTypeId(scalaOwner, "SuperTest", Nil, TypeDefKind.Class(), List(superType))
+        val hash      = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("TypeLambda hash covers params and result") {
         val lambda = TypeRepr.TypeLambda(List(TypeParam("A", 0)), TypeRepr.Ref(intId, Nil))
-        val id = DynamicTypeId(scalaOwner, "LambdaTest", Nil, TypeDefKind.Class(), List(lambda))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id     = DynamicTypeId(scalaOwner, "LambdaTest", Nil, TypeDefKind.Class(), List(lambda))
+        val hash   = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("Wildcard hash with bounds") {
         val wildcard = TypeRepr.Wildcard(TypeBounds(Some(TypeRepr.NothingType), Some(TypeRepr.AnyType)))
-        val id = DynamicTypeId(scalaOwner, "WildTest", Nil, TypeDefKind.Class(), List(wildcard))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id       = DynamicTypeId(scalaOwner, "WildTest", Nil, TypeDefKind.Class(), List(wildcard))
+        val hash     = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("Wildcard hash empty bounds") {
         val wildcard = TypeRepr.Wildcard(TypeBounds.empty)
-        val id = DynamicTypeId(scalaOwner, "WildEmpty", Nil, TypeDefKind.Class(), List(wildcard))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id       = DynamicTypeId(scalaOwner, "WildEmpty", Nil, TypeDefKind.Class(), List(wildcard))
+        val hash     = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("TypeProjection hash covers qualifier and name") {
         val proj = TypeRepr.TypeProjection(TypeRepr.Ref(intId, Nil), "Inner")
-        val id = DynamicTypeId(scalaOwner, "ProjTest", Nil, TypeDefKind.Class(), List(proj))
+        val id   = DynamicTypeId(scalaOwner, "ProjTest", Nil, TypeDefKind.Class(), List(proj))
         val hash = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("Structural hash covers members") {
         val structural = TypeRepr.Structural(List(Member.Val("foo", TypeRepr.Ref(intId, Nil))))
-        val id = DynamicTypeId(scalaOwner, "StructTest", Nil, TypeDefKind.Class(), List(structural))
-        val hash = TypeEquality.dynamicTypeIdHashCode(id)
+        val id         = DynamicTypeId(scalaOwner, "StructTest", Nil, TypeDefKind.Class(), List(structural))
+        val hash       = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("AnyType has specific hash") {
-        val id = DynamicTypeId(scalaOwner, "AnyTest", Nil, TypeDefKind.Class(), List(TypeRepr.AnyType))
+        val id   = DynamicTypeId(scalaOwner, "AnyTest", Nil, TypeDefKind.Class(), List(TypeRepr.AnyType))
         val hash = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("AnyKindType has specific hash") {
-        val id = DynamicTypeId(scalaOwner, "AnyKindTest", Nil, TypeDefKind.Class(), List(TypeRepr.AnyKindType))
+        val id   = DynamicTypeId(scalaOwner, "AnyKindTest", Nil, TypeDefKind.Class(), List(TypeRepr.AnyKindType))
         val hash = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("NothingType has specific hash") {
-        val id = DynamicTypeId(scalaOwner, "NothingTest", Nil, TypeDefKind.Class(), List(TypeRepr.NothingType))
+        val id   = DynamicTypeId(scalaOwner, "NothingTest", Nil, TypeDefKind.Class(), List(TypeRepr.NothingType))
         val hash = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("NullType has specific hash") {
-        val id = DynamicTypeId(scalaOwner, "NullTest", Nil, TypeDefKind.Class(), List(TypeRepr.NullType))
+        val id   = DynamicTypeId(scalaOwner, "NullTest", Nil, TypeDefKind.Class(), List(TypeRepr.NullType))
         val hash = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       },
       test("UnitType has specific hash") {
-        val id = DynamicTypeId(scalaOwner, "UnitTest", Nil, TypeDefKind.Class(), List(TypeRepr.UnitType))
+        val id   = DynamicTypeId(scalaOwner, "UnitTest", Nil, TypeDefKind.Class(), List(TypeRepr.UnitType))
         val hash = TypeEquality.dynamicTypeIdHashCode(id)
         assertTrue(hash != 0)
       }
@@ -378,8 +378,8 @@ object TypeEqualitySpec extends ZIOSpecDefault {
           Nil
         )
         val args = List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil))
-        val id1 = namedTupleId.copy(args = args)
-        val id2 = namedTupleId.copy(args = args)
+        val id1  = namedTupleId.copy(args = args)
+        val id2  = namedTupleId.copy(args = args)
         assertTrue(TypeEquality.dynamicTypeIdEquals(id1, id2))
       },
       test("NamedTuple.Empty equals NamedTuple.Empty") {
@@ -472,7 +472,7 @@ object TypeEqualitySpec extends ZIOSpecDefault {
       },
       test("AppliedType hashCode via dynamicTypeId") {
         val appliedId = listId.copy(args = List(TypeRepr.Ref(intId, Nil)))
-        val hash = TypeEquality.dynamicTypeIdHashCode(appliedId)
+        val hash      = TypeEquality.dynamicTypeIdHashCode(appliedId)
         assertTrue(hash != 0)
       },
       test("Union type hashCode") {
@@ -653,14 +653,18 @@ object TypeEqualitySpec extends ZIOSpecDefault {
           TypeDefKind.Class(),
           Nil
         )
-        val id1 = namedTupleId.copy(args = List(
-          TypeRepr.Wildcard(TypeBounds.empty),
-          TypeRepr.Ref(stringId, Nil)
-        ))
-        val id2 = namedTupleId.copy(args = List(
-          TypeRepr.Ref(intId, Nil),
-          TypeRepr.Ref(stringId, Nil)
-        ))
+        val id1 = namedTupleId.copy(args =
+          List(
+            TypeRepr.Wildcard(TypeBounds.empty),
+            TypeRepr.Ref(stringId, Nil)
+          )
+        )
+        val id2 = namedTupleId.copy(args =
+          List(
+            TypeRepr.Ref(intId, Nil),
+            TypeRepr.Ref(stringId, Nil)
+          )
+        )
         assertTrue(TypeEquality.dynamicTypeIdEquals(id1, id2))
       },
       test("NamedTuple with wrong arg count returns false") {
@@ -763,17 +767,21 @@ object TypeEqualitySpec extends ZIOSpecDefault {
       },
       test("Args equivalence checked via subtyping") {
         val alias = DynamicTypeId(scalaOwner, "IntAlias", Nil, TypeDefKind.TypeAlias(TypeRepr.Ref(intId, Nil)), Nil)
-        val id1 = listId.copy(args = List(TypeRepr.Ref(intId, Nil)))
-        val id2 = listId.copy(args = List(TypeRepr.Ref(alias, Nil)))
+        val id1   = listId.copy(args = List(TypeRepr.Ref(intId, Nil)))
+        val id2   = listId.copy(args = List(TypeRepr.Ref(alias, Nil)))
         assertTrue(TypeEquality.dynamicTypeIdEquals(id1, id2))
       },
       test("Complex nested type equality") {
-        val nestedId = listId.copy(args = List(
-          TypeRepr.AppliedType(TypeRepr.Ref(listId, Nil), List(TypeRepr.Ref(intId, Nil)))
-        ))
-        val nestedId2 = listId.copy(args = List(
-          TypeRepr.AppliedType(TypeRepr.Ref(listId, Nil), List(TypeRepr.Ref(intId, Nil)))
-        ))
+        val nestedId = listId.copy(args =
+          List(
+            TypeRepr.AppliedType(TypeRepr.Ref(listId, Nil), List(TypeRepr.Ref(intId, Nil)))
+          )
+        )
+        val nestedId2 = listId.copy(args =
+          List(
+            TypeRepr.AppliedType(TypeRepr.Ref(listId, Nil), List(TypeRepr.Ref(intId, Nil)))
+          )
+        )
         assertTrue(TypeEquality.dynamicTypeIdEquals(nestedId, nestedId2))
       }
     ),
@@ -872,8 +880,8 @@ object TypeEqualitySpec extends ZIOSpecDefault {
           Nil
         )
         val wildcard = TypeRepr.Wildcard(TypeBounds.empty)
-        val id1 = namedTupleId.copy(args = List(wildcard, TypeRepr.Ref(stringId, Nil)))
-        val id2 = namedTupleId.copy(args = List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
+        val id1      = namedTupleId.copy(args = List(wildcard, TypeRepr.Ref(stringId, Nil)))
+        val id2      = namedTupleId.copy(args = List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
         assertTrue(TypeEquality.dynamicTypeIdEquals(id1, id2))
       },
       test("NamedTuple with wildcard on right") {
@@ -885,8 +893,8 @@ object TypeEqualitySpec extends ZIOSpecDefault {
           Nil
         )
         val wildcard = TypeRepr.Wildcard(TypeBounds.empty)
-        val id1 = namedTupleId.copy(args = List(TypeRepr.Ref(intId, Nil), wildcard))
-        val id2 = namedTupleId.copy(args = List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
+        val id1      = namedTupleId.copy(args = List(TypeRepr.Ref(intId, Nil), wildcard))
+        val id2      = namedTupleId.copy(args = List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
         assertTrue(TypeEquality.dynamicTypeIdEquals(id1, id2))
       }
     ),
@@ -900,8 +908,8 @@ object TypeEqualitySpec extends ZIOSpecDefault {
           Nil
         )
         val wildcard = TypeRepr.Wildcard(TypeBounds.empty)
-        val id1 = namedTupleId.copy(args = List(wildcard, wildcard))
-        val id2 = namedTupleId.copy(args = List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
+        val id1      = namedTupleId.copy(args = List(wildcard, wildcard))
+        val id2      = namedTupleId.copy(args = List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
         assertTrue(TypeEquality.dynamicTypeIdEquals(id1, id2))
       },
       test("Wildcard on right matches any type") {
@@ -913,8 +921,8 @@ object TypeEqualitySpec extends ZIOSpecDefault {
           Nil
         )
         val wildcard = TypeRepr.Wildcard(TypeBounds.empty)
-        val id1 = namedTupleId.copy(args = List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
-        val id2 = namedTupleId.copy(args = List(wildcard, wildcard))
+        val id1      = namedTupleId.copy(args = List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
+        val id2      = namedTupleId.copy(args = List(wildcard, wildcard))
         assertTrue(TypeEquality.dynamicTypeIdEquals(id1, id2))
       },
       test("Both concrete uses Subtyping.isEquivalent") {
@@ -986,32 +994,32 @@ object TypeEqualitySpec extends ZIOSpecDefault {
     suite("dynamicTypeIdHashCode additional coverage")(
       test("Union hashCode computed") {
         val unionType = TypeRepr.Union(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
-        val id = DynamicTypeId(scalaOwner, "UnionTest", Nil, TypeDefKind.Class(), Nil, List(unionType))
+        val id        = DynamicTypeId(scalaOwner, "UnionTest", Nil, TypeDefKind.Class(), Nil, List(unionType))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("Intersection hashCode computed") {
         val intersectionType = TypeRepr.Intersection(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
-        val id = DynamicTypeId(scalaOwner, "IntersectionTest", Nil, TypeDefKind.Class(), Nil, List(intersectionType))
+        val id               = DynamicTypeId(scalaOwner, "IntersectionTest", Nil, TypeDefKind.Class(), Nil, List(intersectionType))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("TypeParamRef hashCode computed") {
         val paramRef = TypeRepr.TypeParamRef("T", 0)
-        val id = DynamicTypeId(scalaOwner, "ParamRefTest", Nil, TypeDefKind.Class(), Nil, List(paramRef))
+        val id       = DynamicTypeId(scalaOwner, "ParamRefTest", Nil, TypeDefKind.Class(), Nil, List(paramRef))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("SuperType hashCode computed") {
         val superType = TypeRepr.SuperType(TypeRepr.Ref(intId, Nil), TypeRepr.AnyType)
-        val id = DynamicTypeId(scalaOwner, "SuperTest", Nil, TypeDefKind.Class(), Nil, List(superType))
+        val id        = DynamicTypeId(scalaOwner, "SuperTest", Nil, TypeDefKind.Class(), Nil, List(superType))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("TypeProjection hashCode computed") {
         val projection = TypeRepr.TypeProjection(TypeRepr.Ref(intId, Nil), "Inner")
-        val id = DynamicTypeId(scalaOwner, "ProjectionTest", Nil, TypeDefKind.Class(), Nil, List(projection))
+        val id         = DynamicTypeId(scalaOwner, "ProjectionTest", Nil, TypeDefKind.Class(), Nil, List(projection))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("Structural hashCode computed") {
         val structural = TypeRepr.Structural(List(Member.Val("x", TypeRepr.Ref(intId, Nil))))
-        val id = DynamicTypeId(scalaOwner, "StructuralTest", Nil, TypeDefKind.Class(), Nil, List(structural))
+        val id         = DynamicTypeId(scalaOwner, "StructuralTest", Nil, TypeDefKind.Class(), Nil, List(structural))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("AnyKindType hashCode computed") {
@@ -1060,7 +1068,14 @@ object TypeEqualitySpec extends ZIOSpecDefault {
     suite("Args size mismatch")(
       test("Different args size returns false") {
         val id1 = DynamicTypeId(scalaOwner, "List", Nil, TypeDefKind.Class(), Nil, List(TypeRepr.Ref(intId, Nil)))
-        val id2 = DynamicTypeId(scalaOwner, "List", Nil, TypeDefKind.Class(), Nil, List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
+        val id2 = DynamicTypeId(
+          scalaOwner,
+          "List",
+          Nil,
+          TypeDefKind.Class(),
+          Nil,
+          List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil))
+        )
         assertTrue(!TypeEquality.dynamicTypeIdEquals(id1, id2))
       },
       test("Same args size checks equivalence") {
@@ -1132,32 +1147,41 @@ object TypeEqualitySpec extends ZIOSpecDefault {
     // ========== computeHashCode all TypeRepr cases ==========
     suite("computeHashCode additional coverage")(
       test("Ref with multiple args") {
-        val id = DynamicTypeId(scalaOwner, "Map", Nil, TypeDefKind.Class(), Nil, List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)))
+        val id = DynamicTypeId(
+          scalaOwner,
+          "Map",
+          Nil,
+          TypeDefKind.Class(),
+          Nil,
+          List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil))
+        )
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("AppliedType hashCode") {
         val applied = TypeRepr.AppliedType(TypeRepr.Ref(intId, Nil), List(TypeRepr.Ref(stringId, Nil)))
-        val id = DynamicTypeId(scalaOwner, "AppTest", Nil, TypeDefKind.Class(), Nil, List(applied))
+        val id      = DynamicTypeId(scalaOwner, "AppTest", Nil, TypeDefKind.Class(), Nil, List(applied))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("Function hashCode with multiple params") {
-        val fn = TypeRepr.Function(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)), TypeRepr.Ref(intId, Nil))
+        val fn =
+          TypeRepr.Function(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil)), TypeRepr.Ref(intId, Nil))
         val id = DynamicTypeId(scalaOwner, "FnTest", Nil, TypeDefKind.Class(), Nil, List(fn))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("Tuple hashCode with multiple elements") {
-        val tuple = TypeRepr.Tuple(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil), TypeRepr.Ref(intId, Nil)))
+        val tuple =
+          TypeRepr.Tuple(List(TypeRepr.Ref(intId, Nil), TypeRepr.Ref(stringId, Nil), TypeRepr.Ref(intId, Nil)))
         val id = DynamicTypeId(scalaOwner, "TupleTest", Nil, TypeDefKind.Class(), Nil, List(tuple))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("ConstantType hashCode") {
         val const = TypeRepr.ConstantType(Constant.StringConst("hello"))
-        val id = DynamicTypeId(scalaOwner, "ConstTest", Nil, TypeDefKind.Class(), Nil, List(const))
+        val id    = DynamicTypeId(scalaOwner, "ConstTest", Nil, TypeDefKind.Class(), Nil, List(const))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("ThisType hashCode") {
         val thisType = TypeRepr.ThisType(TypeRepr.Ref(intId, Nil))
-        val id = DynamicTypeId(scalaOwner, "ThisTest", Nil, TypeDefKind.Class(), Nil, List(thisType))
+        val id       = DynamicTypeId(scalaOwner, "ThisTest", Nil, TypeDefKind.Class(), Nil, List(thisType))
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
       },
       test("Wildcard with lower bound hashCode") {
@@ -1181,7 +1205,11 @@ object TypeEqualitySpec extends ZIOSpecDefault {
       },
       test("Multiple different TypeReprs in args") {
         val id = DynamicTypeId(
-          scalaOwner, "Mixed", Nil, TypeDefKind.Class(), Nil,
+          scalaOwner,
+          "Mixed",
+          Nil,
+          TypeDefKind.Class(),
+          Nil,
           List(TypeRepr.AnyType, TypeRepr.NothingType, TypeRepr.UnitType, TypeRepr.NullType)
         )
         assertTrue(TypeEquality.dynamicTypeIdHashCode(id) != 0)
@@ -1191,10 +1219,12 @@ object TypeEqualitySpec extends ZIOSpecDefault {
     // ========== Edge case: alias comparison ==========
     suite("Alias comparison via Subtyping")(
       test("Type alias resolved via subtyping") {
-        val aliasId = DynamicTypeId(scalaOwner, "String", Nil, TypeDefKind.Class(), Nil)
+        val aliasId  = DynamicTypeId(scalaOwner, "String", Nil, TypeDefKind.Class(), Nil)
         val targetId = DynamicTypeId(Owner.pkgs("java", "lang"), "String", Nil, TypeDefKind.Class(), Nil)
         // Uses the different name/owner path with subtyping
-        assertTrue(!TypeEquality.dynamicTypeIdEquals(aliasId, targetId) || TypeEquality.dynamicTypeIdEquals(aliasId, targetId))
+        assertTrue(
+          !TypeEquality.dynamicTypeIdEquals(aliasId, targetId) || TypeEquality.dynamicTypeIdEquals(aliasId, targetId)
+        )
       }
     )
   )

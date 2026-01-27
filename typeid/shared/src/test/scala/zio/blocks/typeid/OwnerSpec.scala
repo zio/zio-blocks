@@ -3,8 +3,8 @@ package zio.blocks.typeid
 import zio.test._
 
 /**
- * Comprehensive tests for the Owner data structure and its operations.
- * Covers all methods: parent, isRoot, asString, isPrefixOf, toString, parse, pkgs.
+ * Comprehensive tests for the Owner data structure and its operations. Covers
+ * all methods: parent, isRoot, asString, isPrefixOf, toString, parse, pkgs.
  */
 object OwnerSpec extends ZIOSpecDefault {
 
@@ -52,7 +52,7 @@ object OwnerSpec extends ZIOSpecDefault {
         assertTrue(owner.parent.contains(Owner.Root))
       },
       test("parent of multi-segment owner drops last segment") {
-        val owner = Owner.pkgs("java", "lang", "String")
+        val owner    = Owner.pkgs("java", "lang", "String")
         val expected = Owner.pkgs("java", "lang")
         assertTrue(owner.parent.contains(expected))
       }
@@ -94,12 +94,12 @@ object OwnerSpec extends ZIOSpecDefault {
       },
       test("parent is prefix of child") {
         val parent = Owner.pkgs("java", "lang")
-        val child = Owner.pkgs("java", "lang", "String")
+        val child  = Owner.pkgs("java", "lang", "String")
         assertTrue(parent.isPrefixOf(child))
       },
       test("child is not prefix of parent") {
         val parent = Owner.pkgs("java", "lang")
-        val child = Owner.pkgs("java", "lang", "String")
+        val child  = Owner.pkgs("java", "lang", "String")
         assertTrue(!child.isPrefixOf(parent))
       },
       test("unrelated owners are not prefixes") {

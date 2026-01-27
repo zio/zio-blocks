@@ -3,8 +3,8 @@ package zio.blocks.typeid
 import zio.test._
 
 /**
- * Comprehensive tests for StandardTypes predefined type definitions.
- * Covers: all primitive types, java time types, collections.
+ * Comprehensive tests for StandardTypes predefined type definitions. Covers:
+ * all primitive types, java time types, collections.
  */
 object StandardTypesSpec extends ZIOSpecDefault {
 
