@@ -1650,13 +1650,6 @@ object DynamicPatch {
     )
   )
 
-  private implicit lazy val chunkDynamicValueSchema: Schema[Chunk[DynamicValue]] = Schema
-    .vector[DynamicValue]
-    .transform(
-      Chunk.from(_),
-      _.toVector
-    )
-
   implicit lazy val seqOpInsertSchema: Schema[SeqOp.Insert] = {
     import zio.blocks.schema.binding.RegisterOffset
     new Schema(

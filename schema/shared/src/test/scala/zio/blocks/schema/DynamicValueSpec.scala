@@ -2705,6 +2705,153 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val result  = variant.delete(path)
         assertTrue(result == DynamicValue.Record.empty)
       }
+    ),
+    suite("Additional coverage tests")(
+      test("DynamicValue.Record varargs constructor") {
+        val rec = DynamicValue.Record("a" -> intVal, "b" -> stringVal)
+        assertTrue(rec.fields.length == 2)
+      },
+      test("DynamicValue.Sequence varargs constructor") {
+        val seq = DynamicValue.Sequence(intVal, stringVal, boolVal)
+        assertTrue(seq.elements.length == 3)
+      },
+      test("DynamicValue.Map varargs constructor") {
+        val map = DynamicValue.Map(intVal -> stringVal, stringVal -> boolVal)
+        assertTrue(map.entries.length == 2)
+      },
+      test("DynamicValueSelection collect success") {
+        val sel    = DynamicValueSelection.succeed(intVal)
+        val result = sel.collect { case DynamicValue.Primitive(PrimitiveValue.Int(n)) => n }
+        assertTrue(result == Right(Chunk(42)))
+      },
+      test("DynamicValueSelection collect returns empty when no match") {
+        val sel    = DynamicValueSelection.succeed(stringVal)
+        val result = sel.collect { case DynamicValue.Primitive(PrimitiveValue.Int(n)) => n }
+        assertTrue(result.isRight && result.exists(_.isEmpty))
+      },
+      test("DynamicValue.Null compare with self") {
+        assertTrue(DynamicValue.Null.compare(DynamicValue.Null) == 0)
+      },
+      test("DynamicValue compare Record with different lengths") {
+        val r1 = DynamicValue.Record("a" -> intVal)
+        val r2 = DynamicValue.Record("a" -> intVal, "b" -> stringVal)
+        assertTrue(r1.compare(r2) < 0)
+      },
+      test("DynamicValue compare Sequence with different lengths") {
+        val s1 = DynamicValue.Sequence(intVal)
+        val s2 = DynamicValue.Sequence(intVal, stringVal)
+        assertTrue(s1.compare(s2) < 0)
+      },
+      test("DynamicValue compare Map with different lengths") {
+        val m1 = DynamicValue.Map(intVal -> stringVal)
+        val m2 = DynamicValue.Map(intVal -> stringVal, stringVal -> boolVal)
+        assertTrue(m1.compare(m2) < 0)
+      },
+      test("DynamicValue compare across types") {
+        assertTrue(intVal.compare(DynamicValue.Null) < 0) &&
+        assertTrue(recordVal.compare(DynamicValue.Null) < 0) &&
+        assertTrue(variantVal.compare(DynamicValue.Null) < 0) &&
+        assertTrue(seqVal.compare(DynamicValue.Null) < 0) &&
+        assertTrue(mapVal.compare(DynamicValue.Null) < 0)
+      },
+      test("DynamicValue compare with ordering implicit") {
+        val values = Vector(DynamicValue.Null, intVal, recordVal)
+        val sorted = values.sorted
+        assertTrue(sorted.head == intVal)
+      },
+      test("DynamicValue.Primitive unwrap returns value") {
+        val result = intVal.unwrap(DynamicValueType.Primitive)
+        assertTrue(result.isDefined)
+      },
+      test("DynamicValue compare Record fields lexicographically") {
+        val r1 = DynamicValue.Record("a" -> intVal)
+        val r2 = DynamicValue.Record("b" -> intVal)
+        assertTrue(r1.compare(r2) < 0)
+      },
+      test("DynamicValue.Primitive get field returns failure") {
+        val result = intVal.get("field")
+        assertTrue(result.isFailure)
+      },
+      test("DynamicValue.Primitive get index returns failure") {
+        val result = intVal.get(0)
+        assertTrue(result.isFailure)
+      },
+      test("DynamicValue.Primitive get key returns failure") {
+        val result = intVal.get(stringVal)
+        assertTrue(result.isFailure)
+      },
+      test("DynamicValue.Primitive getCase returns failure") {
+        val result = intVal.getCase("Test")
+        assertTrue(result.isFailure)
+      },
+      test("DynamicValue.Sequence get valid index") {
+        val result = seqVal.get(0)
+        assertTrue(result.isSuccess)
+      },
+      test("DynamicValue.Record get valid field") {
+        val result = recordVal.get("name")
+        assertTrue(result.isSuccess)
+      },
+      test("DynamicValue.Variant getCase matching") {
+        val result = variantVal.getCase("Some")
+        assertTrue(result.isSuccess)
+      },
+      test("DynamicValue.Variant getCase non-matching") {
+        val result = variantVal.getCase("None")
+        assertTrue(result.isFailure)
+      }
+    ),
+    suite("toEjson special characters")(
+      test("escapes double quotes") {
+        val value  = DynamicValue.string("hello\"world")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\\""))
+      },
+      test("escapes backslash") {
+        val value  = DynamicValue.string("path\\to\\file")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\\\"))
+      },
+      test("escapes newline") {
+        val value  = DynamicValue.string("line1\nline2")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\n"))
+      },
+      test("escapes tab") {
+        val value  = DynamicValue.string("col1\tcol2")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\t"))
+      },
+      test("escapes carriage return") {
+        val value  = DynamicValue.string("line1\rline2")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\r"))
+      },
+      test("escapes backspace") {
+        val value  = DynamicValue.string("hello\bworld")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\b"))
+      },
+      test("escapes form feed") {
+        val value  = DynamicValue.string("page1\fpage2")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\f"))
+      },
+      test("escapes control characters") {
+        val value  = DynamicValue.string("control\u0001char")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\u0001"))
+      },
+      test("toEjson with indent") {
+        val value = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.string("Alice"),
+            "age"  -> DynamicValue.int(30)
+          )
+        )
+        val result = value.toEjson(indent = 2)
+        assertTrue(result.contains("\n") && result.contains("  "))
+      }
     )
   )
 }

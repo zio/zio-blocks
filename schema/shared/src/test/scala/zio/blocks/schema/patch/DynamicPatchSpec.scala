@@ -1485,6 +1485,302 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val result = patch(original)
         assertTrue(result == Right(expected))
       }
+    ),
+    suite("Elements traversal")(
+      test("applies operation to all elements via Elements node") {
+        val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(3)))
+        val patch    = DynamicPatch(
+          DynamicOptic.root.elements,
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(10))
+        )
+        val result = patch(original)
+        assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(11), intVal(12), intVal(13)))))
+      },
+      test("fails on empty sequence in Strict mode") {
+        val original = DynamicValue.Sequence(Chunk.empty)
+        val patch    = DynamicPatch(
+          DynamicOptic.root.elements,
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(10))
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("returns unchanged on empty sequence in Lenient mode") {
+        val original = DynamicValue.Sequence(Chunk.empty)
+        val patch    = DynamicPatch(
+          DynamicOptic.root.elements,
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(10))
+        )
+        val result = patch(original, PatchMode.Lenient)
+        assertTrue(result == Right(original))
+      },
+      test("applies nested path through elements") {
+        val original = DynamicValue.Sequence(
+          Chunk(
+            personRecord("Alice", 30),
+            personRecord("Bob", 25)
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.elements.field("age"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
+        )
+        val result = patch(original)
+        assertTrue(
+          result == Right(
+            DynamicValue.Sequence(
+              Chunk(
+                personRecord("Alice", 31),
+                personRecord("Bob", 26)
+              )
+            )
+          )
+        )
+      }
+    ),
+    suite("DynamicPatch.toString")(
+      test("renders Set operation") {
+        val patch = DynamicPatch.root(DynamicPatch.Operation.Set(intVal(42)))
+        assertTrue(patch.toString.contains("=") && patch.toString.contains("42"))
+      },
+      test("renders IntDelta positive") {
+        val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(10)))
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("10"))
+      },
+      test("renders IntDelta negative") {
+        val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(-10)))
+        assertTrue(patch.toString.contains("-=") && patch.toString.contains("10"))
+      },
+      test("renders LongDelta") {
+        val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(100L)))
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("100"))
+      },
+      test("renders DoubleDelta") {
+        val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(3.14)))
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("3.14"))
+      },
+      test("renders FloatDelta") {
+        val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(1.5f)))
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("1.5"))
+      },
+      test("renders ShortDelta") {
+        val patch =
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta(5.toShort)))
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("5"))
+      },
+      test("renders ByteDelta") {
+        val patch =
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta(3.toByte)))
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("3"))
+      },
+      test("renders BigIntDelta") {
+        val patch =
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigIntDelta(BigInt(1000))))
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("1000"))
+      },
+      test("renders BigDecimalDelta") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigDecimalDelta(BigDecimal("99.99")))
+        )
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("99.99"))
+      },
+      test("renders InstantDelta") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.InstantDelta(java.time.Duration.ofHours(2)))
+        )
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("PT2H"))
+      },
+      test("renders DurationDelta") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.DurationDelta(java.time.Duration.ofMinutes(30))
+          )
+        )
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("PT30M"))
+      },
+      test("renders LocalDateDelta") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LocalDateDelta(java.time.Period.ofDays(7)))
+        )
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("P7D"))
+      },
+      test("renders LocalDateTimeDelta") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.LocalDateTimeDelta(java.time.Period.ofDays(1), java.time.Duration.ofHours(2))
+          )
+        )
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("P1D") && patch.toString.contains("PT2H"))
+      },
+      test("renders PeriodDelta") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.PeriodDelta(java.time.Period.ofMonths(3)))
+        )
+        assertTrue(patch.toString.contains("+=") && patch.toString.contains("P3M"))
+      },
+      test("renders StringEdit with Insert") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Insert(5, "hello")))
+          )
+        )
+        assertTrue(patch.toString.contains("[5") && patch.toString.contains("hello"))
+      },
+      test("renders StringEdit with Delete") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Delete(0, 5)))
+          )
+        )
+        assertTrue(patch.toString.contains("-") && patch.toString.contains("[0"))
+      },
+      test("renders StringEdit with Append") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Append(" suffix")))
+          )
+        )
+        assertTrue(patch.toString.contains("+") && patch.toString.contains("suffix"))
+      },
+      test("renders StringEdit with Modify") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Modify(2, 3, "new")))
+          )
+        )
+        assertTrue(patch.toString.contains("~") && patch.toString.contains("new"))
+      },
+      test("renders empty patch") {
+        val patch = DynamicPatch.empty
+        assertTrue(patch.toString == "DynamicPatch {}")
+      },
+      test("renders SequenceEdit with Modify") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.SequenceEdit(
+            Vector(DynamicPatch.SeqOp.Modify(0, DynamicPatch.Operation.Set(intVal(99))))
+          )
+        )
+        assertTrue(patch.toString.contains("~") && patch.toString.contains("[0"))
+      },
+      test("renders SequenceEdit with nested operation") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.SequenceEdit(
+            Vector(
+              DynamicPatch.SeqOp.Modify(
+                0,
+                DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+              )
+            )
+          )
+        )
+        assertTrue(patch.toString.contains("~") && patch.toString.contains("[0"))
+      },
+      test("renders MapEdit with Modify") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.MapEdit(
+            Vector(
+              DynamicPatch.MapOp.Modify(
+                stringVal("key"),
+                DynamicPatch(
+                  Vector(DynamicPatch.DynamicPatchOp(DynamicOptic.root, DynamicPatch.Operation.Set(intVal(1))))
+                )
+              )
+            )
+          )
+        )
+        assertTrue(patch.toString.contains("~") && patch.toString.contains("key"))
+      }
+    ),
+    suite("PatchMode.Clobber edge cases")(
+      test("clobber mode clamps insert index") {
+        val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
+        val patch    = DynamicPatch.root(
+          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(100, Chunk(intVal(99)))))
+        )
+        val result = patch(original, PatchMode.Clobber)
+        assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(99)))))
+      },
+      test("clobber mode handles delete out of bounds") {
+        val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
+        val patch    = DynamicPatch.root(
+          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Delete(100, 5)))
+        )
+        val result = patch(original, PatchMode.Clobber)
+        assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))))
+      },
+      test("clobber mode overwrites existing map key on Add") {
+        val original = DynamicValue.Map(
+          Chunk(
+            stringVal("a") -> intVal(1)
+          )
+        )
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Add(stringVal("a"), intVal(99))))
+        )
+        val result = patch(original, PatchMode.Clobber)
+        assertTrue(result == Right(DynamicValue.Map(Chunk(stringVal("a") -> intVal(99)))))
+      },
+      test("clobber mode handles remove for non-existent key") {
+        val original = DynamicValue.Map(
+          Chunk(
+            stringVal("a") -> intVal(1)
+          )
+        )
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Remove(stringVal("nonexistent"))))
+        )
+        val result = patch(original, PatchMode.Clobber)
+        assertTrue(result == Right(original))
+      }
+    ),
+    suite("Wrapped node")(
+      test("Wrapped node applies operation to value") {
+        val original = intVal(42)
+        val patch    = DynamicPatch(
+          DynamicOptic(Vector(DynamicOptic.Node.Wrapped)),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(8))
+        )
+        val result = patch(original)
+        assertTrue(result == Right(intVal(50)))
+      },
+      test("Wrapped node navigates deeper") {
+        val original = personRecord("Alice", 30)
+        val patch    = DynamicPatch(
+          DynamicOptic(Vector(DynamicOptic.Node.Wrapped, DynamicOptic.Node.Field("age"))),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+        )
+        val result = patch(original)
+        assertTrue(result == Right(personRecord("Alice", 35)))
+      }
+    ),
+    suite("Unsupported nodes")(
+      test("AtIndices is not supported") {
+        val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(3)))
+        val patch    = DynamicPatch(
+          DynamicOptic(Vector(DynamicOptic.Node.AtIndices(Chunk(0, 2)))),
+          DynamicPatch.Operation.Set(intVal(99))
+        )
+        val result = patch(original)
+        assertTrue(result.isLeft)
+      },
+      test("MapKeys is not supported") {
+        val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
+        val patch    = DynamicPatch(
+          DynamicOptic(Vector(DynamicOptic.Node.MapKeys)),
+          DynamicPatch.Operation.Set(stringVal("b"))
+        )
+        val result = patch(original)
+        assertTrue(result.isLeft)
+      },
+      test("MapValues is not supported") {
+        val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
+        val patch    = DynamicPatch(
+          DynamicOptic(Vector(DynamicOptic.Node.MapValues)),
+          DynamicPatch.Operation.Set(intVal(99))
+        )
+        val result = patch(original)
+        assertTrue(result.isLeft)
+      }
     )
   )
 }

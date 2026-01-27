@@ -4,7 +4,6 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
-import zio.test.TestAspect
 
 object OperationSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("OperationSpec")(
@@ -287,7 +286,7 @@ object OperationSpec extends SchemaBaseSpec {
           Patch.SeqOp.Insert(5, Chunk.empty): Patch.SeqOp,
           """{"Insert":{"index":5}}"""
         )
-      } @@ TestAspect.ignore,
+      },
       test("Append elements") {
         roundTrip(
           Patch.SeqOp.Append(
@@ -303,7 +302,7 @@ object OperationSpec extends SchemaBaseSpec {
           Patch.SeqOp.Append(Chunk.empty): Patch.SeqOp,
           """{"Append":{}}"""
         )
-      } @@ TestAspect.ignore,
+      },
       test("Delete range") {
         roundTrip(
           Patch.SeqOp.Delete(2, 3): Patch.SeqOp,
@@ -599,7 +598,7 @@ object OperationSpec extends SchemaBaseSpec {
           Patch.SeqOp.Insert(Int.MaxValue, Chunk.empty): Patch.SeqOp,
           s"""{"Insert":{"index":${Int.MaxValue}}}"""
         )
-      } @@ TestAspect.ignore,
+      },
       test("Boolean primitive in DynamicValue") {
         roundTrip(
           Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Boolean(true))): Patch.Operation,
