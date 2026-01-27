@@ -26,7 +26,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    * @return
    *   A complete, validated Migration[A, B]
    */
-  inline def buildChecked(using
+  inline def build(using
     proof: ValidationProof[A, B, Handled, Provided]
   ): Migration[A, B] =
     builder.buildPartial

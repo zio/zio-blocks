@@ -165,11 +165,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         """))(Assertion.isLeft)
       }
     ),
-    suite("buildChecked method")(
-      test("buildChecked compiles for identical schemas") {
+    suite("build method")(
+      test("build compiles for identical schemas") {
         val migration = MigrationBuilder
           .newBuilder[PersonA, PersonB]
-          .buildChecked
+          .build
 
         val personA = PersonA("John", 30)
         val result  = migration(personA)
@@ -177,40 +177,40 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(result.map(_.name == "John").getOrElse(false))
       },
-      test("buildChecked compiles for complete drop migration") {
+      test("build compiles for complete drop migration") {
         val migration = MigrationBuilder
           .newBuilder[DropSource, DropTarget]
           .dropField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
-          .buildChecked
+          .build
 
         val source = DropSource("John", 30, true)
         val result = migration(source)
 
         assertTrue(result.isRight)
       },
-      test("buildChecked compiles for complete add migration") {
+      test("build compiles for complete add migration") {
         val migration = MigrationBuilder
           .newBuilder[AddSource, AddTarget]
           .addField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
-          .buildChecked
+          .build
 
         val source = AddSource("John", 30)
         val result = migration(source)
 
         assertTrue(result.isRight)
       },
-      test("buildChecked compiles for complete rename migration") {
+      test("build compiles for complete rename migration") {
         val migration = MigrationBuilder
           .newBuilder[RenameSource, RenameTarget]
           .renameField(_.oldName, _.newName)
-          .buildChecked
+          .build
 
         val source = RenameSource("John", 30)
         val result = migration(source)
 
         assertTrue(result.isRight)
       },
-      test("buildChecked compiles for complex migration with multiple operations") {
+      test("build compiles for complex migration with multiple operations") {
         // ComplexSource: a, b, c, d
         // ComplexTarget: x, b, y, e
         // shared: b
@@ -223,14 +223,14 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .renameField(_.c, _.y)                                                        // handles c, provides y
           .dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double)) // handles d
           .addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))       // provides e
-          .buildChecked
+          .build
 
         val source = ComplexSource("hello", 42, true, 3.14)
         val result = migration(source)
 
         assertTrue(result.isRight)
       },
-      test("buildChecked with many shared fields") {
+      test("build with many shared fields") {
         // ManySharedSource: shared1, shared2, shared3, removed
         // ManySharedTarget: shared1, shared2, shared3, added
         // Only need to handle "removed" and provide "added"
@@ -239,7 +239,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .newBuilder[ManySharedSource, ManySharedTarget]
           .dropField(_.removed, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
           .addField(_.added, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
-          .buildChecked
+          .build
 
         val source = ManySharedSource("a", 1, true, 2.5)
         val result = migration(source)
@@ -247,8 +247,8 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         assertTrue(result.isRight)
       }
     ),
-    suite("buildChecked compile failures")(
-      test("buildChecked fails to compile when drop is missing") {
+    suite("build compile failures")(
+      test("build fails to compile when drop is missing") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration._
           import zio.blocks.schema._
@@ -258,10 +258,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           implicit val srcSchema: Schema[Src] = Schema.derived
           implicit val tgtSchema: Schema[Tgt] = Schema.derived
 
-          MigrationBuilder.newBuilder[Src, Tgt].buildChecked
+          MigrationBuilder.newBuilder[Src, Tgt].build
         """))(Assertion.isLeft)
       },
-      test("buildChecked fails to compile when add is missing") {
+      test("build fails to compile when add is missing") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration._
           import zio.blocks.schema._
@@ -271,10 +271,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           implicit val srcSchema: Schema[Src] = Schema.derived
           implicit val tgtSchema: Schema[Tgt] = Schema.derived
 
-          MigrationBuilder.newBuilder[Src, Tgt].buildChecked
+          MigrationBuilder.newBuilder[Src, Tgt].build
         """))(Assertion.isLeft)
       },
-      test("buildChecked fails to compile for incomplete complex migration") {
+      test("build fails to compile for incomplete complex migration") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration._
           import zio.blocks.schema._
@@ -287,7 +287,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           // Only handles "a" -> "x", missing c -> y
           MigrationBuilder.newBuilder[Src, Tgt]
             .renameField(_.a, _.x)
-            .buildChecked
+            .build
         """))(Assertion.isLeft)
       }
     ),
@@ -366,7 +366,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .renameField(_.c, _.y)
           .dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
           .addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
-          .buildChecked
+          .build
 
         assertTrue(migration != null)
       },
@@ -376,7 +376,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         val builder3  = builder2.renameField(_.c, _.y)
         val builder4  = builder3.dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
         val builder5  = builder4.addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
-        val migration = builder5.buildChecked
+        val migration = builder5.build
 
         val source = ComplexSource("hello", 42, true, 3.14)
         val result = migration(source)
@@ -393,7 +393,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         val migration = builder2
           .addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
-          .buildChecked
+          .build
 
         assertTrue(migration != null)
       },
@@ -408,7 +408,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         val b2        = b1.dropField(_.drop1, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
         val b3        = b2.dropField(_.drop2, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
         val b4        = b3.dropField(_.drop3, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
-        val migration = b4.buildChecked
+        val migration = b4.build
 
         val source = MultiDropSrc("keep", 1, true, 2.5)
         val result = migration(source)
@@ -427,7 +427,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         val b2        = b1.addField(_.add1, SchemaExpr.Literal[DynamicValue, Int](42, Schema.int))
         val b3        = b2.addField(_.add2, SchemaExpr.Literal[DynamicValue, Boolean](true, Schema.boolean))
         val b4        = b3.addField(_.add3, SchemaExpr.Literal[DynamicValue, Double](3.14, Schema.double))
-        val migration = b4.buildChecked
+        val migration = b4.build
 
         val source = MultiAddSrc("keep")
         val result = migration(source)
@@ -450,7 +450,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[EmptySrc, NonEmptyTgt]
           .addField(_.field, SchemaExpr.Literal[DynamicValue, String]("default", Schema.string))
-          .buildChecked
+          .build
 
         assertTrue(migration(EmptySrc()).isRight)
       },
@@ -467,7 +467,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[NonEmptySrc, EmptyTgt]
           .dropField(_.field, SchemaExpr.Literal[DynamicValue, String]("default", Schema.string))
-          .buildChecked
+          .build
 
         assertTrue(migration(NonEmptySrc("test")).isRight)
       },
@@ -487,7 +487,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .dropField(_.b, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
           .addField(_.x, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
           .addField(_.y, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
-          .buildChecked
+          .build
 
         assertTrue(migration(AllChangedSrc("test", 42)).isRight)
       },
@@ -500,7 +500,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         summon[ValidationProof[SingleA, SingleB, EmptyTuple, EmptyTuple]]
 
-        val migration = MigrationBuilder.newBuilder[SingleA, SingleB].buildChecked
+        val migration = MigrationBuilder.newBuilder[SingleA, SingleB].build
         assertTrue(migration(SingleA("test")).isRight)
       }
     )

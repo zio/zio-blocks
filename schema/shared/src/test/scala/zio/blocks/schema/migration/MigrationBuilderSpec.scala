@@ -47,22 +47,17 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
           builder.actions.isEmpty
         )
       },
-      test("build empty migration for identical schemas") {
+      test("buildPartial empty migration for identical schemas") {
         // Use same schema for source and target - no actions needed
-        val result = MigrationBuilder
+        val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .build
-        result match {
-          case Right(migration) =>
-            assertTrue(
-              migration.sourceSchema != null,
-              migration.targetSchema != null,
-              migration.dynamicMigration.actions.isEmpty
-            )
-          case Left(_) =>
-            // Fail with error message
-            assertTrue(false)
-        }
+          .buildPartial
+
+        assertTrue(
+          migration.sourceSchema != null,
+          migration.targetSchema != null,
+          migration.dynamicMigration.actions.isEmpty
+        )
       },
       test("buildPartial empty migration") {
         val migration = MigrationBuilder
@@ -515,16 +510,9 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
       }
     ),
     suite("Build Methods")(
-      test("build validates while buildPartial does not") {
-        // This migration is incomplete - adds field but doesn't provide it in schema
-        val buildResult = MigrationBuilder
-          .newBuilder[PersonV1, PersonV1]
-          .addField(
-            DynamicOptic.root.field("extra"),
-            SchemaExpr.Literal[DynamicValue, String]("test", Schema.string)
-          )
-          .build
-
+      test("buildPartial bypasses compile-time validation") {
+        // buildPartial allows creating migrations without compile-time checks
+        // This is useful for dynamic migrations or when validation is done elsewhere
         val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
           .addField(
@@ -534,10 +522,25 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
           .buildPartial
 
         assertTrue(
-          // build should fail validation (extra field doesn't exist in schema)
-          buildResult.isLeft,
-          // buildPartial should succeed
-          migration.dynamicMigration.actions.length == 1
+          migration.dynamicMigration.actions.length == 1,
+          migration.sourceSchema == personV1Schema,
+          migration.targetSchema == personV1Schema
+        )
+      },
+      test("buildPartial works for incomplete migrations") {
+        // Can create partial migrations that would fail compile-time validation
+        val migration = MigrationBuilder
+          .newBuilder[PersonV1, PersonV2]
+          .renameField(
+            DynamicOptic.root.field("firstName"),
+            "fullName"
+          )
+          .buildPartial
+
+        // Only one action, but migration is incomplete (missing country, lastName handling)
+        assertTrue(
+          migration.dynamicMigration.actions.length == 1,
+          migration.dynamicMigration.actions.head.isInstanceOf[MigrationAction.Rename]
         )
       }
     ),
@@ -1119,6 +1122,330 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
           assertTrue(result.isLeft) // Should fail with InvalidStructure
         }
       )
+    ),
+    suite("Edge Cases")(
+      test("empty source schema migration") {
+        case class EmptySource()
+        case class NonEmptyTarget(field: String)
+
+        implicit val emptySourceSchema: Schema[EmptySource]       = Schema.derived[EmptySource]
+        implicit val nonEmptyTargetSchema: Schema[NonEmptyTarget] = Schema.derived[NonEmptyTarget]
+
+        val migration = MigrationBuilder
+          .newBuilder[EmptySource, NonEmptyTarget]
+          .addField(
+            DynamicOptic.root.field("field"),
+            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+          )
+          .buildPartial
+
+        val result = migration(EmptySource())
+        assertTrue(
+          result == Right(NonEmptyTarget("default")),
+          result.map(_.field) == Right("default")
+        )
+      },
+      test("empty target schema migration") {
+        case class NonEmptySource(field: String)
+        case class EmptyTarget()
+
+        implicit val nonEmptySourceSchema: Schema[NonEmptySource] = Schema.derived[NonEmptySource]
+        implicit val emptyTargetSchema: Schema[EmptyTarget]       = Schema.derived[EmptyTarget]
+
+        val migration = MigrationBuilder
+          .newBuilder[NonEmptySource, EmptyTarget]
+          .dropField(
+            DynamicOptic.root.field("field"),
+            SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+          )
+          .buildPartial
+
+        val result = migration(NonEmptySource("test"))
+        assertTrue(
+          result.isRight,
+          result == Right(EmptyTarget())
+        )
+      },
+      test("single field schema - identity migration") {
+        case class SingleField(value: String)
+
+        implicit val singleFieldSchema: Schema[SingleField] = Schema.derived[SingleField]
+
+        val migration = MigrationBuilder
+          .newBuilder[SingleField, SingleField]
+          .buildPartial
+
+        val result = migration(SingleField("test"))
+        assertTrue(
+          result.isRight,
+          result.map(_.value) == Right("test")
+        )
+      },
+      test("single field schema - transform only field") {
+        case class SingleField(value: String)
+
+        implicit val singleFieldSchema: Schema[SingleField] = Schema.derived[SingleField]
+
+        val migration = MigrationBuilder
+          .newBuilder[SingleField, SingleField]
+          .transformField(
+            DynamicOptic.root.field("value"),
+            SchemaExpr.StringUppercase(
+              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            )
+          )
+          .buildPartial
+
+        val result = migration(SingleField("test"))
+        assertTrue(
+          result.isRight,
+          result.map(_.value) == Right("TEST")
+        )
+      },
+      test("migration with all fields renamed") {
+        case class AllRenamedSource(a: String, b: Int)
+        case class AllRenamedTarget(x: String, y: Int)
+
+        implicit val sourceSchema: Schema[AllRenamedSource] = Schema.derived[AllRenamedSource]
+        implicit val targetSchema: Schema[AllRenamedTarget] = Schema.derived[AllRenamedTarget]
+
+        val migration = MigrationBuilder
+          .newBuilder[AllRenamedSource, AllRenamedTarget]
+          .renameField(DynamicOptic.root.field("a"), "x")
+          .renameField(DynamicOptic.root.field("b"), "y")
+          .buildPartial
+
+        val result = migration(AllRenamedSource("hello", 42))
+        assertTrue(
+          result == Right(AllRenamedTarget("hello", 42)),
+          result.map(_.x) == Right("hello"),
+          result.map(_.y) == Right(42)
+        )
+      },
+      test("migration preserves field order") {
+        case class Ordered(first: String, second: Int, third: Boolean)
+
+        implicit val orderedSchema: Schema[Ordered] = Schema.derived[Ordered]
+
+        val migration = MigrationBuilder
+          .newBuilder[Ordered, Ordered]
+          .transformField(
+            DynamicOptic.root.field("second"),
+            SchemaExpr.Literal[DynamicValue, Int](100, Schema.int)
+          )
+          .buildPartial
+
+        val result = migration(Ordered("a", 1, true))
+        assertTrue(
+          result.isRight,
+          result.map(_.first) == Right("a"),
+          result.map(_.second) == Right(100),
+          result.map(_.third) == Right(true)
+        )
+      },
+      test("chaining many operations") {
+        case class ManyFields(a: String, b: Int, c: Boolean, d: Double, e: Long)
+
+        implicit val manyFieldsSchema: Schema[ManyFields] = Schema.derived[ManyFields]
+
+        val migration = MigrationBuilder
+          .newBuilder[ManyFields, ManyFields]
+          .transformField(
+            DynamicOptic.root.field("a"),
+            SchemaExpr.StringUppercase(SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root))
+          )
+          .transformField(
+            DynamicOptic.root.field("b"),
+            SchemaExpr.Arithmetic[DynamicValue, Int](
+              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
+              SchemaExpr.Literal[DynamicValue, Int](10, Schema.int),
+              SchemaExpr.ArithmeticOperator.Add,
+              IsNumeric.IsInt
+            )
+          )
+          .transformField(
+            DynamicOptic.root.field("d"),
+            SchemaExpr.Arithmetic[DynamicValue, Double](
+              SchemaExpr.Dynamic[DynamicValue, Double](DynamicOptic.root),
+              SchemaExpr.Literal[DynamicValue, Double](2.0, Schema.double),
+              SchemaExpr.ArithmeticOperator.Multiply,
+              IsNumeric.IsDouble
+            )
+          )
+          .buildPartial
+
+        val input  = ManyFields("test", 1, true, 2.0, 3L)
+        val result = migration(input)
+        assertTrue(
+          migration.dynamicMigration.actions.length == 3,
+          result == Right(ManyFields("TEST", 11, true, 4.0, 3L)),
+          result.map(_.a) == Right("TEST"),
+          result.map(_.b) == Right(11)
+        )
+      },
+      test("migration with Option[T] to T using mandateField") {
+        case class WithOpt(value: Option[Int])
+        case class WithoutOpt(value: Int)
+
+        implicit val withOptSchema: Schema[WithOpt]       = Schema.derived[WithOpt]
+        implicit val withoutOptSchema: Schema[WithoutOpt] = Schema.derived[WithoutOpt]
+
+        val migration = MigrationBuilder
+          .newBuilder[WithOpt, WithoutOpt]
+          .mandateField(
+            DynamicOptic.root.field("value"),
+            SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          )
+          .buildPartial
+
+        val resultSome = migration(WithOpt(Some(42)))
+        val resultNone = migration(WithOpt(None))
+
+        assertTrue(
+          resultSome == Right(WithoutOpt(42)),
+          resultSome.map(_.value) == Right(42),
+          resultNone == Right(WithoutOpt(0)),
+          resultNone.map(_.value) == Right(0)
+        )
+      },
+      test("migration with T to Option[T] using optionalizeField") {
+        case class WithoutOpt(value: Int)
+        case class WithOpt(value: Option[Int])
+
+        implicit val withoutOptSchema: Schema[WithoutOpt] = Schema.derived[WithoutOpt]
+        implicit val withOptSchema: Schema[WithOpt]       = Schema.derived[WithOpt]
+
+        val migration = MigrationBuilder
+          .newBuilder[WithoutOpt, WithOpt]
+          .optionalizeField(
+            DynamicOptic.root.field("value"),
+            SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          )
+          .buildPartial
+
+        val result = migration(WithoutOpt(42))
+        assertTrue(
+          result == Right(WithOpt(Some(42))),
+          result.map(_.value) == Right(Some(42))
+        )
+      },
+      test("DynamicOptic-only migration (no macros)") {
+        // Test that migrations work without any macro-based selectors
+        val migration = MigrationBuilder
+          .newBuilder[PersonV1, PersonV2]
+          .joinFields(
+            DynamicOptic.root.field("fullName"),
+            Vector(
+              DynamicOptic.root.field("firstName"),
+              DynamicOptic.root.field("lastName")
+            ),
+            SchemaExpr.StringConcat[DynamicValue](
+              SchemaExpr.StringConcat[DynamicValue](
+                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
+                SchemaExpr.Literal[DynamicValue, String](" ", Schema.string)
+              ),
+              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+            )
+          )
+          .addField(
+            DynamicOptic.root.field("country"),
+            SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
+          )
+          .buildPartial
+
+        val v1     = PersonV1("John", "Doe", 30)
+        val result = migration(v1)
+
+        assertTrue(
+          result.isRight,
+          result.map(_.fullName) == Right("John Doe"),
+          result.map(_.age) == Right(30),
+          result.map(_.country) == Right("USA")
+        )
+      },
+      test("round-trip migration preserves data") {
+        val forward = MigrationBuilder
+          .newBuilder[PersonV1, PersonV2]
+          .joinFields(
+            DynamicOptic.root.field("fullName"),
+            Vector(
+              DynamicOptic.root.field("firstName"),
+              DynamicOptic.root.field("lastName")
+            ),
+            SchemaExpr.StringConcat[DynamicValue](
+              SchemaExpr.StringConcat[DynamicValue](
+                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
+                SchemaExpr.Literal[DynamicValue, String](" ", Schema.string)
+              ),
+              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+            )
+          )
+          .addField(
+            DynamicOptic.root.field("country"),
+            SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
+          )
+          .buildPartial
+
+        val backward = MigrationBuilder
+          .newBuilder[PersonV2, PersonV1]
+          .splitField(
+            DynamicOptic.root.field("fullName"),
+            Vector(
+              DynamicOptic.root.field("firstName"),
+              DynamicOptic.root.field("lastName")
+            ),
+            SchemaExpr.StringSplit[DynamicValue](
+              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root),
+              " "
+            )
+          )
+          .dropField(
+            DynamicOptic.root.field("country"),
+            SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+          )
+          .buildPartial
+
+        val original  = PersonV1("John", "Doe", 30)
+        val migrated  = forward(original)
+        val roundTrip = migrated.flatMap(backward.apply)
+
+        assertTrue(
+          roundTrip.isRight,
+          roundTrip.map(_.firstName) == Right("John"),
+          roundTrip.map(_.lastName) == Right("Doe"),
+          roundTrip.map(_.age) == Right(30)
+        )
+      },
+      test("variant with multiple cases - transform specific case") {
+        val migration = MigrationBuilder
+          .newBuilder[PaymentMethod, PaymentMethod]
+          .transformCase(
+            DynamicOptic.root,
+            "CreditCard",
+            Vector(
+              MigrationAction.TransformValue(
+                DynamicOptic.root.field("number"),
+                SchemaExpr.StringUppercase(
+                  SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+                )
+              )
+            )
+          )
+          .buildPartial
+
+        // CreditCard case should be transformed
+        val creditCard       = CreditCard("abc-123", "456")
+        val creditCardResult = migration(creditCard)
+
+        // PayPal case should be unchanged
+        val payPal       = PayPal("test@example.com")
+        val payPalResult = migration(payPal)
+
+        assertTrue(
+          creditCardResult.isRight,
+          payPalResult.isRight
+        )
+      }
     )
   )
 }

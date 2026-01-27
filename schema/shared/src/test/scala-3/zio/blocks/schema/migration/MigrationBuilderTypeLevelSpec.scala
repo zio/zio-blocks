@@ -440,13 +440,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
             SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
           )
 
+        // build now returns Migration directly (compile-time validated)
         val migration = builder.build
-        assertTrue(migration.isRight) &&
-        migration.map { m =>
-          val person = PersonV1("John", 30, "NYC")
-          val result = m(person)
-          assertTrue(result.isRight)
-        }.getOrElse(assertTrue(false))
+        val person    = PersonV1("John", 30, "NYC")
+        val result    = migration(person)
+        assertTrue(result.isRight)
       },
       test("buildPartial always succeeds") {
         val migration = MigrationBuilder
