@@ -1,5 +1,7 @@
 package zio.blocks.schema.binding
 
+import scala.annotation.unchecked.uncheckedVariance
+
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -312,10 +314,10 @@ object Binding {
     )
   }
 
-  final case class Seq[C[_], A](
+  final case class Seq[C[_], +A](
     constructor: SeqConstructor[C],
     deconstructor: SeqDeconstructor[C]
-  ) extends Binding[BindingType.Seq[C], C[A]]
+  ) extends Binding[BindingType.Seq[C], C[A @uncheckedVariance]]
 
   object Seq {
     def set[A]: Seq[Set, A] = new Seq(SeqConstructor.setConstructor, SeqDeconstructor.setDeconstructor)
@@ -333,10 +335,10 @@ object Binding {
     def chunk[A]: Seq[Chunk, A] = new Seq(SeqConstructor.chunkConstructor, SeqDeconstructor.chunkDeconstructor)
   }
 
-  final case class Map[M[_, _], K, V](
+  final case class Map[M[_, _], +K, +V](
     constructor: MapConstructor[M],
     deconstructor: MapDeconstructor[M]
-  ) extends Binding[BindingType.Map[M], M[K, V]]
+  ) extends Binding[BindingType.Map[M], M[K @uncheckedVariance, V @uncheckedVariance]]
 
   object Map {
     def map[K, V]: Map[Predef.Map, K, V] = new Map(MapConstructor.map, MapDeconstructor.map)
