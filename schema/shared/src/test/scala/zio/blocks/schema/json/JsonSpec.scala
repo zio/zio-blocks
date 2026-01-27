@@ -704,7 +704,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("fromDynamicValue converts back to Json") {
           val dv = DynamicValue.Record(
-            Vector(
+            Chunk(
               ("name", DynamicValue.Primitive(PrimitiveValue.String("test"))),
               ("count", DynamicValue.Primitive(PrimitiveValue.Int(10)))
             )
@@ -2116,7 +2116,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("fromDynamicValue handles Sequence") {
           val dv = DynamicValue.Sequence(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.Int(1)),
               DynamicValue.Primitive(PrimitiveValue.Int(2))
             )
@@ -2126,7 +2126,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("fromDynamicValue handles Map with string keys") {
           val dv = DynamicValue.Map(
-            Vector(
+            Chunk(
               (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
               (DynamicValue.Primitive(PrimitiveValue.String("b")), DynamicValue.Primitive(PrimitiveValue.Int(2)))
             )
@@ -2140,7 +2140,7 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("fromDynamicValue handles Map with non-string keys as array of pairs") {
           val dv = DynamicValue.Map(
-            Vector(
+            Chunk(
               (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.String("one"))),
               (DynamicValue.Primitive(PrimitiveValue.Int(2)), DynamicValue.Primitive(PrimitiveValue.String("two")))
             )

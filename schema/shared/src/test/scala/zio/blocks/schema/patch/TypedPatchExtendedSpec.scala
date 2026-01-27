@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
@@ -18,7 +19,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
   val dogVariant: DynamicValue = DynamicValue.Variant(
     "Dog",
     DynamicValue.Record(
-      Vector(
+      Chunk(
         "name"  -> stringPrimitive("Rex"),
         "breed" -> stringPrimitive("German Shepherd")
       )
@@ -28,7 +29,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
   val catVariant: DynamicValue = DynamicValue.Variant(
     "Cat",
     DynamicValue.Record(
-      Vector(
+      Chunk(
         "name"  -> stringPrimitive("Whiskers"),
         "lives" -> intPrimitive(9)
       )
@@ -37,21 +38,21 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
 
   // Sample sequence
   val personSequence: DynamicValue = DynamicValue.Sequence(
-    Vector(
+    Chunk(
       DynamicValue.Record(
-        Vector(
+        Chunk(
           "name" -> stringPrimitive("Alice"),
           "age"  -> intPrimitive(30)
         )
       ),
       DynamicValue.Record(
-        Vector(
+        Chunk(
           "name" -> stringPrimitive("Bob"),
           "age"  -> intPrimitive(25)
         )
       ),
       DynamicValue.Record(
-        Vector(
+        Chunk(
           "name" -> stringPrimitive("Charlie"),
           "age"  -> intPrimitive(35)
         )
@@ -61,7 +62,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
 
   // Sample team with nested sequence
   val teamRecord: DynamicValue = DynamicValue.Record(
-    Vector(
+    Chunk(
       "name"    -> stringPrimitive("Engineering"),
       "members" -> personSequence
     )
@@ -103,7 +104,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
       test("can replace entire variant content") {
         val path          = Vector(DynamicOptic.Node.Case("Dog"))
         val newDogContent = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"  -> stringPrimitive("Buddy"),
             "breed" -> stringPrimitive("Labrador")
           )
@@ -125,7 +126,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
         val nestedVariant = DynamicValue.Variant(
           "Container",
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "animal" -> dogVariant
             )
           )
@@ -169,7 +170,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
         }
       },
       test("fails on empty sequence in Strict mode") {
-        val emptySequence = DynamicValue.Sequence(Vector.empty)
+        val emptySequence = DynamicValue.Sequence(Chunk.empty)
         val path          = Vector(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
         val op            =
           DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Anonymous")))
@@ -229,7 +230,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
                 }
               case _ => None
             }
-            assertTrue(allAges == Vector(Some(31), Some(26), Some(36)))
+            assertTrue(allAges == Chunk(Some(31), Some(26), Some(36)))
           case _ =>
             assertTrue(false) // Unexpected result
         }
@@ -237,9 +238,9 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
       test("elements in Strict mode fails if any element fails") {
         // Create a sequence where one element is missing the field
         val mixedSequence = DynamicValue.Sequence(
-          Vector(
-            DynamicValue.Record(Vector("name" -> stringPrimitive("Alice"))),
-            DynamicValue.Record(Vector("different" -> stringPrimitive("Bob"))) // missing "name"
+          Chunk(
+            DynamicValue.Record(Chunk("name" -> stringPrimitive("Alice"))),
+            DynamicValue.Record(Chunk("different" -> stringPrimitive("Bob"))) // missing "name"
           )
         )
 
@@ -253,9 +254,9 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
       },
       test("elements in Lenient mode keeps original on element failure") {
         val mixedSequence = DynamicValue.Sequence(
-          Vector(
-            DynamicValue.Record(Vector("name" -> stringPrimitive("Alice"))),
-            DynamicValue.Record(Vector("different" -> stringPrimitive("Bob")))
+          Chunk(
+            DynamicValue.Record(Chunk("name" -> stringPrimitive("Alice"))),
+            DynamicValue.Record(Chunk("different" -> stringPrimitive("Bob")))
           )
         )
 
@@ -303,7 +304,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
       test("nested wrapped navigation") {
         // Record with a wrapped field
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "value" -> intPrimitive(42)
           )
         )
@@ -349,7 +350,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
         val listVariant = DynamicValue.Variant(
           "ItemList",
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "items" -> personSequence
             )
           )
@@ -370,8 +371,8 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
       test("Field + Elements + Case") {
         // Record with sequence of variants
         val animalList = DynamicValue.Record(
-          Vector(
-            "animals" -> DynamicValue.Sequence(Vector(dogVariant, catVariant, dogVariant))
+          Chunk(
+            "animals" -> DynamicValue.Sequence(Chunk(dogVariant, catVariant, dogVariant))
           )
         )
 

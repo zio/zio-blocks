@@ -6,6 +6,7 @@ import zio.blocks.typeid.TypeId
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema.binding.SeqDeconstructor._
 import zio.blocks.schema._
+import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import scala.util.control.NonFatal
@@ -1041,7 +1042,7 @@ object AvroFormat
               }
             case 1 =>
               try {
-                val builder = Vector.newBuilder[(String, DynamicValue)]
+                val builder = ChunkBuilder.make[(String, DynamicValue)]()
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -1090,7 +1091,7 @@ object AvroFormat
               new DynamicValue.Variant(caseName, value)
             case 3 =>
               try {
-                val builder = Vector.newBuilder[DynamicValue]
+                val builder = ChunkBuilder.make[DynamicValue]()
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -1119,7 +1120,7 @@ object AvroFormat
               }
             case 4 =>
               try {
-                val builder = Vector.newBuilder[(DynamicValue, DynamicValue)]
+                val builder = ChunkBuilder.make[(DynamicValue, DynamicValue)]()
                 var count   = 0L
                 var size    = 0
                 while ({

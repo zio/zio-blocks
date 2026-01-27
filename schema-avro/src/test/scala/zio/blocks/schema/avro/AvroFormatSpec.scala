@@ -2,6 +2,7 @@ package zio.blocks.schema.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import org.apache.avro.{Schema => AvroSchema}
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 
 import zio.blocks.typeid.{TypeId, DynamicTypeId, Owner, TypeDefKind}
@@ -735,7 +736,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.UUID(UUID.randomUUID())), 18) &&
         roundTrip[DynamicValue](
           DynamicValue.Record(
-            Vector(
+            Chunk(
               ("i", DynamicValue.Primitive(PrimitiveValue.Int(1))),
               ("s", DynamicValue.Primitive(PrimitiveValue.String("VVV")))
             )
@@ -745,7 +746,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         roundTrip[DynamicValue](DynamicValue.Variant("Int", DynamicValue.Primitive(PrimitiveValue.Int(1))), 8) &&
         roundTrip[DynamicValue](
           DynamicValue.Sequence(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.Int(1)),
               DynamicValue.Primitive(PrimitiveValue.String("VVV"))
             )
@@ -754,7 +755,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         ) &&
         roundTrip[DynamicValue](
           DynamicValue.Map(
-            Vector(
+            Chunk(
               (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
               (DynamicValue.Primitive(PrimitiveValue.Long(2L)), DynamicValue.Primitive(PrimitiveValue.String("VVV")))
             )
@@ -828,7 +829,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         val value = Dynamic(
           DynamicValue.Primitive(PrimitiveValue.Int(1)),
           DynamicValue.Map(
-            Vector(
+            Chunk(
               (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
               (DynamicValue.Primitive(PrimitiveValue.Long(2L)), DynamicValue.Primitive(PrimitiveValue.String("VVV")))
             )
@@ -843,7 +844,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         val value = Dynamic(
           DynamicValue.Primitive(PrimitiveValue.Int(1)),
           DynamicValue.Map(
-            Vector(
+            Chunk(
               (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
               (DynamicValue.Primitive(PrimitiveValue.Long(2L)), DynamicValue.Primitive(PrimitiveValue.String("VVV")))
             )

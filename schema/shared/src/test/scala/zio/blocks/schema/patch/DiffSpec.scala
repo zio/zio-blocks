@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 import zio.Random
@@ -456,7 +457,7 @@ object DiffSpec extends SchemaBaseSpec {
                   ops == Vector(
                     Patch.SeqOp.Insert(
                       1,
-                      Vector(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+                      Chunk(DynamicValue.Primitive(PrimitiveValue.Int(2)))
                     )
                   )
                 case _ => false
@@ -497,9 +498,9 @@ object DiffSpec extends SchemaBaseSpec {
 
         val expectedOps = Vector(
           Patch.SeqOp.Delete(1, 1),
-          Patch.SeqOp.Insert(1, Vector(DynamicValue.Primitive(PrimitiveValue.String("x")))),
+          Patch.SeqOp.Insert(1, Chunk(DynamicValue.Primitive(PrimitiveValue.String("x")))),
           Patch.SeqOp.Delete(3, 1),
-          Patch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.String("y"))))
+          Patch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.String("y"))))
         )
 
         val opsMatch =
@@ -529,7 +530,7 @@ object DiffSpec extends SchemaBaseSpec {
                 case Patch.Operation.SequenceEdit(ops) =>
                   ops == Vector(
                     Patch.SeqOp.Append(
-                      Vector(
+                      Chunk(
                         DynamicValue.Primitive(PrimitiveValue.Int(1)),
                         DynamicValue.Primitive(PrimitiveValue.Int(2)),
                         DynamicValue.Primitive(PrimitiveValue.Int(3))

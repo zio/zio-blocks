@@ -67,6 +67,27 @@ object CollectionOpsSpec extends SchemaBaseSpec {
     val items: Lens[TodoListIndexedSeq, IndexedSeq[String]] = optic(_.items)
   }
 
+  case class TeamList(name: String, members: List[Person])
+  object TeamList extends CompanionOptics[TeamList] {
+    implicit val schema: Schema[TeamList]     = Schema.derived
+    val name: Lens[TeamList, String]          = optic(_.name)
+    val members: Lens[TeamList, List[Person]] = optic(_.members)
+  }
+
+  case class TeamSeq(name: String, members: Seq[Person])
+  object TeamSeq extends CompanionOptics[TeamSeq] {
+    implicit val schema: Schema[TeamSeq]    = Schema.derived
+    val name: Lens[TeamSeq, String]         = optic(_.name)
+    val members: Lens[TeamSeq, Seq[Person]] = optic(_.members)
+  }
+
+  case class TeamIndexedSeq(name: String, members: IndexedSeq[Person])
+  object TeamIndexedSeq extends CompanionOptics[TeamIndexedSeq] {
+    implicit val schema: Schema[TeamIndexedSeq]           = Schema.derived
+    val name: Lens[TeamIndexedSeq, String]                = optic(_.name)
+    val members: Lens[TeamIndexedSeq, IndexedSeq[Person]] = optic(_.members)
+  }
+
 //Note that there are no tests for LazyList, schema.derived on LazyList leads to malformed tree.
 
   def spec: Spec[TestEnvironment, Any] = suite("CollectionOpsSpec")(
@@ -201,6 +222,12 @@ object CollectionOpsSpec extends SchemaBaseSpec {
         val patch  = Patch.modifyAt(Team.members, 5, Patch.set(Person.age, 31))
         val result = patch(team, PatchMode.Strict)
         assertTrue(result.isLeft)
+      },
+      test("modifies element with empty patch returns original") {
+        val team   = Team("Engineering", Vector(Person("Alice", 30)))
+        val patch  = Patch.modifyAt(Team.members, 0, Patch.empty[Person])
+        val result = patch(team, PatchMode.Strict)
+        assertTrue(result == Right(team))
       }
     ),
     suite("Sequence composition")(
@@ -254,6 +281,20 @@ object CollectionOpsSpec extends SchemaBaseSpec {
         val result = patch(list, PatchMode.Strict)
         assertTrue(result == Right(TodoListList("Tasks", List("Task 1", "Task 3"))))
       }
+    ),
+    suite("Patch.modifyAt for List")(
+      test("modifies element with Set operation") {
+        val team   = TeamList("Engineering", List(Person("Alice", 30), Person("Bob", 25)))
+        val patch  = Patch.modifyAt(TeamList.members, 0, Patch.set(Person.age, 31))
+        val result = patch(team, PatchMode.Strict)
+        assertTrue(result == Right(TeamList("Engineering", List(Person("Alice", 31), Person("Bob", 25)))))
+      },
+      test("modifies element with empty patch") {
+        val team   = TeamList("Engineering", List(Person("Alice", 30)))
+        val patch  = Patch.modifyAt(TeamList.members, 0, Patch.empty[Person])
+        val result = patch(team, PatchMode.Strict)
+        assertTrue(result == Right(team))
+      }
     )
   )
 
@@ -287,6 +328,20 @@ object CollectionOpsSpec extends SchemaBaseSpec {
         val result = patch(list, PatchMode.Strict)
         assertTrue(result == Right(TodoListSeq("Tasks", Seq("Task 1", "Task 3"))))
       }
+    ),
+    suite("Patch.modifyAt for Seq")(
+      test("modifies element with Set operation") {
+        val team   = TeamSeq("Engineering", Seq(Person("Alice", 30), Person("Bob", 25)))
+        val patch  = Patch.modifyAt(TeamSeq.members, 0, Patch.set(Person.age, 31))
+        val result = patch(team, PatchMode.Strict)
+        assertTrue(result == Right(TeamSeq("Engineering", Seq(Person("Alice", 31), Person("Bob", 25)))))
+      },
+      test("modifies element with empty patch") {
+        val team   = TeamSeq("Engineering", Seq(Person("Alice", 30)))
+        val patch  = Patch.modifyAt(TeamSeq.members, 0, Patch.empty[Person])
+        val result = patch(team, PatchMode.Strict)
+        assertTrue(result == Right(team))
+      }
     )
   )
 
@@ -313,6 +368,20 @@ object CollectionOpsSpec extends SchemaBaseSpec {
         val patch  = Patch.deleteAt(TodoListIndexedSeq.items, 1, 1)
         val result = patch(list, PatchMode.Strict)
         assertTrue(result == Right(TodoListIndexedSeq("Tasks", IndexedSeq("Task 1", "Task 3"))))
+      }
+    ),
+    suite("Patch.modifyAt for IndexedSeq")(
+      test("modifies element with Set operation") {
+        val team   = TeamIndexedSeq("Engineering", IndexedSeq(Person("Alice", 30), Person("Bob", 25)))
+        val patch  = Patch.modifyAt(TeamIndexedSeq.members, 0, Patch.set(Person.age, 31))
+        val result = patch(team, PatchMode.Strict)
+        assertTrue(result == Right(TeamIndexedSeq("Engineering", IndexedSeq(Person("Alice", 31), Person("Bob", 25)))))
+      },
+      test("modifies element with empty patch") {
+        val team   = TeamIndexedSeq("Engineering", IndexedSeq(Person("Alice", 30)))
+        val patch  = Patch.modifyAt(TeamIndexedSeq.members, 0, Patch.empty[Person])
+        val result = patch(team, PatchMode.Strict)
+        assertTrue(result == Right(team))
       }
     )
   )

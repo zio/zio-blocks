@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 
 //Differ computes minimal patches between two DynamicValues.
@@ -258,8 +259,8 @@ private[schema] object Differ {
   // Diff two records by comparing fields. Only includes patches for fields that
   // have changed.
   private def diffRecord(
-    oldFields: Vector[(String, DynamicValue)],
-    newFields: Vector[(String, DynamicValue)]
+    oldFields: Chunk[(String, DynamicValue)],
+    newFields: Chunk[(String, DynamicValue)]
   ): DynamicPatch = {
     val oldMap = oldFields.toMap
 
@@ -325,8 +326,8 @@ private[schema] object Differ {
   // Patch.SeqOp.Insert/Delete/Append operations that describe how to transform the
   // old elements into the new ones without replacing the entire collection.
   private def diffSequence(
-    oldElems: Vector[DynamicValue],
-    newElems: Vector[DynamicValue]
+    oldElems: Chunk[DynamicValue],
+    newElems: Chunk[DynamicValue]
   ): DynamicPatch =
     if (oldElems == newElems) {
       DynamicPatch.empty
@@ -343,8 +344,8 @@ private[schema] object Differ {
   // Convert the difference between two sequences into SeqOps using LCS
   // alignment.
   private def computeSequenceOps(
-    oldElems: Vector[DynamicValue],
-    newElems: Vector[DynamicValue]
+    oldElems: Chunk[DynamicValue],
+    newElems: Chunk[DynamicValue]
   ): Vector[Patch.SeqOp] = {
     val ops       = Vector.newBuilder[Patch.SeqOp]
     val matches   = longestCommonSubsequenceIndices(oldElems, newElems)
@@ -359,7 +360,7 @@ private[schema] object Differ {
         curLength -= count
       }
 
-    def emitInsert(values: Vector[DynamicValue]): Unit =
+    def emitInsert(values: Chunk[DynamicValue]): Unit =
       if (values.nonEmpty) {
         val insertionIndex = cursor
         if (insertionIndex == curLength) ops += Patch.SeqOp.Append(values)
@@ -385,8 +386,8 @@ private[schema] object Differ {
 
   // LCS helper that returns the indices of aligned elements.
   private def longestCommonSubsequenceIndices(
-    oldElems: Vector[DynamicValue],
-    newElems: Vector[DynamicValue]
+    oldElems: Chunk[DynamicValue],
+    newElems: Chunk[DynamicValue]
   ): Vector[(Int, Int)] = {
     val m  = oldElems.length
     val n  = newElems.length
@@ -427,8 +428,8 @@ private[schema] object Differ {
   // Diff two maps by comparing keys and values. Produces Add, Remove, and
   // Modify operations.
   private def diffMap(
-    oldEntries: Vector[(DynamicValue, DynamicValue)],
-    newEntries: Vector[(DynamicValue, DynamicValue)]
+    oldEntries: Chunk[(DynamicValue, DynamicValue)],
+    newEntries: Chunk[(DynamicValue, DynamicValue)]
   ): DynamicPatch = {
     val oldMap = oldEntries.toMap
     val newMap = newEntries.toMap

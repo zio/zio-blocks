@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.ChunkBuilder
+
 /**
  * Pure Scala parser for the path interpolator syntax.
  *
@@ -278,7 +280,7 @@ private[schema] object PathParser {
             ctx.skipWhitespace()
             if (ctx.current == ',') {
               // Multiple keys
-              val keys = Vector.newBuilder[DynamicValue]
+              val keys = ChunkBuilder.make[DynamicValue]()
               keys += firstKey
               while (ctx.current == ',') {
                 ctx.advance()

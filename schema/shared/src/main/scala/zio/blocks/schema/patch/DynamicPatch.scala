@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -401,11 +402,11 @@ object DynamicPatch {
 
   // Apply operation to all elements in a sequence.
   private def applyToAllElements(
-    elements: Vector[DynamicValue],
+    elements: Chunk[DynamicValue],
     operation: Operation,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Vector[DynamicValue]] = {
+  ): Either[SchemaError, Chunk[DynamicValue]] = {
     val results                    = new Array[DynamicValue](elements.length)
     var idx                        = 0
     var error: Option[SchemaError] = None
@@ -426,18 +427,18 @@ object DynamicPatch {
       idx += 1
     }
 
-    error.toLeft(results.toVector)
+    error.toLeft(Chunk.fromArray(results))
   }
 
   // Navigate deeper into all elements of a sequence.
   private def navigateAllElements(
-    elements: Vector[DynamicValue],
+    elements: Chunk[DynamicValue],
     path: IndexedSeq[DynamicOptic.Node],
     pathIdx: Int,
     operation: Operation,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Vector[DynamicValue]] = {
+  ): Either[SchemaError, Chunk[DynamicValue]] = {
     val results                    = new Array[DynamicValue](elements.length)
     var idx                        = 0
     var error: Option[SchemaError] = None
@@ -462,7 +463,7 @@ object DynamicPatch {
       idx += 1
     }
 
-    error.toLeft(results.toVector)
+    error.toLeft(Chunk.fromArray(results))
   }
 
   // Check if an error is a Case mismatch (variant case doesn't match expected).
@@ -637,11 +638,11 @@ object DynamicPatch {
     }
 
   private def applySeqOps(
-    elements: Vector[DynamicValue],
+    elements: Chunk[DynamicValue],
     ops: Vector[SeqOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Vector[DynamicValue]] = {
+  ): Either[SchemaError, Chunk[DynamicValue]] = {
     var result                     = elements
     var idx                        = 0
     var error: Option[SchemaError] = None
@@ -663,11 +664,11 @@ object DynamicPatch {
   }
 
   private def applySeqOp(
-    elements: Vector[DynamicValue],
+    elements: Chunk[DynamicValue],
     op: SeqOp,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Vector[DynamicValue]] =
+  ): Either[SchemaError, Chunk[DynamicValue]] =
     op match {
       case SeqOp.Append(values) =>
         Right(elements ++ values)
@@ -758,11 +759,11 @@ object DynamicPatch {
     }
 
   private def applyMapOps(
-    entries: Vector[(DynamicValue, DynamicValue)],
+    entries: Chunk[(DynamicValue, DynamicValue)],
     ops: Vector[MapOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]] = {
+  ): Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]] = {
     var result                     = entries
     var idx                        = 0
     var error: Option[SchemaError] = None
@@ -784,11 +785,11 @@ object DynamicPatch {
   }
 
   private def applyMapOp(
-    entries: Vector[(DynamicValue, DynamicValue)],
+    entries: Chunk[(DynamicValue, DynamicValue)],
     op: MapOp,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]] =
+  ): Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]] =
     op match {
       case MapOp.Add(key, value) =>
         val existingIdx = entries.indexWhere(_._1 == key)
@@ -913,16 +914,16 @@ object DynamicPatch {
     final case class PeriodDelta(delta: java.time.Period) extends PrimitiveOp
   }
 
-  /** Sequence edit operations for lists, vectors, and other sequences. */
+  /** Sequence edit operations for lists, chunks, and other sequences. */
   sealed trait SeqOp
 
   object SeqOp {
 
     /** Insert elements at the given index. */
-    final case class Insert(index: Int, values: Vector[DynamicValue]) extends SeqOp
+    final case class Insert(index: Int, values: Chunk[DynamicValue]) extends SeqOp
 
     /** Append elements to the end of the sequence. */
-    final case class Append(values: Vector[DynamicValue]) extends SeqOp
+    final case class Append(values: Chunk[DynamicValue]) extends SeqOp
 
     /** Delete elements starting at the given index. */
     final case class Delete(index: Int, count: Int) extends SeqOp
@@ -1636,14 +1637,14 @@ object DynamicPatch {
       reflect = new Reflect.Record[Binding, SeqOp.Insert](
         fields = Vector(
           Schema[Int].reflect.asTerm("index"),
-          Schema[Vector[DynamicValue]].reflect.asTerm("values")
+          Schema[Chunk[DynamicValue]].reflect.asTerm("values")
         ),
         typeId = TypeId.of[SeqOp.Insert],
         recordBinding = new Binding.Record(
           constructor = new Constructor[SeqOp.Insert] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(ints = 1, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): SeqOp.Insert =
-              SeqOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[Vector[DynamicValue]])
+              SeqOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[Chunk[DynamicValue]])
           },
           deconstructor = new Deconstructor[SeqOp.Insert] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(ints = 1, objects = 1)
@@ -1668,7 +1669,7 @@ object DynamicPatch {
           constructor = new Constructor[SeqOp.Append] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): SeqOp.Append =
-              SeqOp.Append(in.getObject(offset).asInstanceOf[Vector[DynamicValue]])
+              SeqOp.Append(in.getObject(offset).asInstanceOf[Chunk[DynamicValue]])
           },
           deconstructor = new Deconstructor[SeqOp.Append] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
