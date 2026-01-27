@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
 import zio.blocks.schema.patch.{Patch, PatchMode}
@@ -358,6 +359,8 @@ object Schema extends SchemaCompanionVersionSpecific {
     new Schema(Reflect.indexedSeq(element.reflect))
 
   implicit def seq[A](implicit element: Schema[A]): Schema[Seq[A]] = new Schema(Reflect.seq(element.reflect))
+
+  implicit def chunk[A](implicit element: Schema[A]): Schema[Chunk[A]] = new Schema(Reflect.chunk(element.reflect))
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))

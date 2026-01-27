@@ -1371,6 +1371,32 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(encodeToString { out =>
           Schema[List[Int]].encode(ToStringFormat)(out)(List(1, 2, 3))
         })(equalTo("List(1, 2, 3)"))
+      },
+      test("Chunk roundtrips through DynamicValue") {
+        val intChunk    = Chunk(1, 2, 3)
+        val stringChunk = Chunk("a", "b", "c")
+        val boolChunk   = Chunk(true, false, true)
+        val doubleChunk = Chunk(1.0, 2.0, 3.0)
+        val longChunk   = Chunk(1L, 2L, 3L)
+        val emptyChunk  = Chunk.empty[Int]
+        assert(Schema[Chunk[Int]].fromDynamicValue(Schema[Chunk[Int]].toDynamicValue(intChunk)))(
+          isRight(equalTo(intChunk))
+        ) &&
+        assert(Schema[Chunk[String]].fromDynamicValue(Schema[Chunk[String]].toDynamicValue(stringChunk)))(
+          isRight(equalTo(stringChunk))
+        ) &&
+        assert(Schema[Chunk[Boolean]].fromDynamicValue(Schema[Chunk[Boolean]].toDynamicValue(boolChunk)))(
+          isRight(equalTo(boolChunk))
+        ) &&
+        assert(Schema[Chunk[Double]].fromDynamicValue(Schema[Chunk[Double]].toDynamicValue(doubleChunk)))(
+          isRight(equalTo(doubleChunk))
+        ) &&
+        assert(Schema[Chunk[Long]].fromDynamicValue(Schema[Chunk[Long]].toDynamicValue(longChunk)))(
+          isRight(equalTo(longChunk))
+        ) &&
+        assert(Schema[Chunk[Int]].fromDynamicValue(Schema[Chunk[Int]].toDynamicValue(emptyChunk)))(
+          isRight(equalTo(emptyChunk))
+        )
       }
     ),
     suite("Reflect.Map")(

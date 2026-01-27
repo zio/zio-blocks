@@ -2100,6 +2100,123 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(result == Json.Array(Json.Number("2")))
         }
       )
+    ),
+    suite("Schema instances")(
+      suite("DynamicValue roundtrip")(
+        test("Json.Null roundtrips") {
+          dynamicValueRoundTrip(Json.Null)
+        },
+        test("Json.Boolean roundtrips") {
+          dynamicValueRoundTrip(Json.Boolean(true)) && dynamicValueRoundTrip(Json.Boolean(false))
+        },
+        test("Json.Number roundtrips") {
+          dynamicValueRoundTrip(Json.Number("123.456")) && dynamicValueRoundTrip(Json.Number("-42"))
+        },
+        test("Json.String roundtrips") {
+          dynamicValueRoundTrip(Json.String("hello world"))
+        },
+        test("Json.Array roundtrips") {
+          dynamicValueRoundTrip(Json.Array(Json.Number("1"), Json.String("two"), Json.Null))
+        },
+        test("Json.Object roundtrips") {
+          dynamicValueRoundTrip(Json.Object("a" -> Json.Number("1"), "b" -> Json.String("two")))
+        },
+        test("Json (Null) roundtrips as variant") {
+          dynamicValueRoundTrip(Json.Null: Json)
+        },
+        test("Json (Boolean) roundtrips as variant") {
+          dynamicValueRoundTrip(Json.Boolean(true): Json)
+        },
+        test("Json (Number) roundtrips as variant") {
+          dynamicValueRoundTrip(Json.Number("42"): Json)
+        },
+        test("Json (String) roundtrips as variant") {
+          dynamicValueRoundTrip(Json.String("test"): Json)
+        },
+        test("Json (Array) roundtrips as variant") {
+          dynamicValueRoundTrip(Json.Array(Json.Number("1")): Json)
+        },
+        test("Json (Object) roundtrips as variant") {
+          dynamicValueRoundTrip(Json.Object("x" -> Json.Null): Json)
+        },
+        test("Nested Json roundtrips") {
+          val nested: Json = Json.Object(
+            "users" -> Json.Array(
+              Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number("30")),
+              Json.Object("name" -> Json.String("Bob"), "age"   -> Json.Number("25"))
+            ),
+            "meta" -> Json.Object("count" -> Json.Number("2"))
+          )
+          dynamicValueRoundTrip(nested)
+        }
+      ),
+      suite("JSON roundtrip")(
+        test("Json.Null serializes to JSON") {
+          JsonTestUtils.roundTrip(Json.Null, """{}""")
+        },
+        test("Json.Boolean serializes to JSON") {
+          JsonTestUtils.roundTrip(Json.Boolean(true), """{"value":true}""")
+        },
+        test("Json.Number serializes to JSON") {
+          JsonTestUtils.roundTrip(Json.Number("42"), """{"value":"42"}""")
+        },
+        test("Json.String serializes to JSON") {
+          JsonTestUtils.roundTrip(Json.String("hello"), """{"value":"hello"}""")
+        },
+        test("Json.Array serializes to JSON") {
+          JsonTestUtils.roundTrip(Json.Array(Json.Number("1")), """{"value":[{"Number":{"value":"1"}}]}""")
+        },
+        test("Json (variant) serializes to JSON") {
+          JsonTestUtils.roundTrip(Json.Null: Json, """{"Null":{}}""") &&
+          JsonTestUtils.roundTrip(Json.Boolean(true): Json, """{"Boolean":{"value":true}}""") &&
+          JsonTestUtils.roundTrip(Json.Number("1"): Json, """{"Number":{"value":"1"}}""") &&
+          JsonTestUtils.roundTrip(Json.String("x"): Json, """{"String":{"value":"x"}}""")
+        }
+      ),
+      suite("Schema roundtrip")(
+        test("Json.Null roundtrips through DynamicValue") {
+          val value = Json.Null
+          val dyn   = Schema[Json].toDynamicValue(value)
+          val back  = Schema[Json].fromDynamicValue(dyn)
+          assertTrue(back == Right(value))
+        },
+        test("Json.Boolean roundtrips") {
+          val value: Json = Json.Boolean(true)
+          val dyn         = Schema[Json].toDynamicValue(value)
+          val back        = Schema[Json].fromDynamicValue(dyn)
+          assertTrue(back == Right(value))
+        },
+        test("Json.String roundtrips") {
+          val value: Json = Json.String("hello")
+          val dyn         = Schema[Json].toDynamicValue(value)
+          val back        = Schema[Json].fromDynamicValue(dyn)
+          assertTrue(back == Right(value))
+        },
+        test("Json.Number roundtrips") {
+          val value: Json = Json.Number("123.456")
+          val dyn         = Schema[Json].toDynamicValue(value)
+          val back        = Schema[Json].fromDynamicValue(dyn)
+          assertTrue(back == Right(value))
+        },
+        test("Json.Array roundtrips") {
+          val value: Json = Json.Array(Chunk(Json.Number(1), Json.String("two")))
+          val dyn         = Schema[Json].toDynamicValue(value)
+          val back        = Schema[Json].fromDynamicValue(dyn)
+          assertTrue(back == Right(value))
+        },
+        test("Json.Object roundtrips") {
+          val value: Json = Json.Object(Chunk("a" -> Json.Number(1), "b" -> Json.Boolean(true)))
+          val dyn         = Schema[Json].toDynamicValue(value)
+          val back        = Schema[Json].fromDynamicValue(dyn)
+          assertTrue(back == Right(value))
+        }
+      )
     )
   )
+
+  private def dynamicValueRoundTrip[A](value: A)(implicit schema: Schema[A]): TestResult = {
+    val dynamic = schema.toDynamicValue(value)
+    val result  = schema.fromDynamicValue(dynamic)
+    assertTrue(result == Right(value))
+  }
 }
