@@ -2,6 +2,7 @@ package zio.blocks.schema.binding
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable.ListBuffer
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 trait SeqConstructor[C[_]] {
   type ObjectBuilder[_]
@@ -411,6 +412,18 @@ object SeqConstructor {
     def resultObject[A](builder: ObjectBuilder[A]): collection.immutable.Seq[A] = builder.result()
 
     def emptyObject[A]: Seq[A] = Nil
+  }
+
+  val chunkConstructor: SeqConstructor[Chunk] = new Boxed[Chunk] {
+    type ObjectBuilder[A] = ChunkBuilder[A]
+
+    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = ChunkBuilder.make[A]()
+
+    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
+
+    def resultObject[A](builder: ObjectBuilder[A]): Chunk[A] = builder.result()
+
+    def emptyObject[A]: Chunk[A] = Chunk.empty
   }
 
   abstract class ArrayConstructor extends SeqConstructor[Array] {

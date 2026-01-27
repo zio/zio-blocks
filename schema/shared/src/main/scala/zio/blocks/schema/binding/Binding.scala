@@ -1,5 +1,6 @@
 package zio.blocks.schema.binding
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
@@ -369,6 +370,8 @@ object Binding {
 
     def seq[A]: Seq[collection.immutable.Seq, A] =
       new Seq(SeqConstructor.seqConstructor, SeqDeconstructor.seqDeconstructor)
+
+    def chunk[A]: Seq[Chunk, A] = new Seq(SeqConstructor.chunkConstructor, SeqDeconstructor.chunkDeconstructor)
   }
 
   final case class Map[M[_, _], K, V](
