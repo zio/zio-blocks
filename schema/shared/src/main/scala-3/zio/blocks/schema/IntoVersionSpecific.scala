@@ -1230,7 +1230,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         bTpe
       ) match {
         case Some(sourceField) =>
-          usedSourceFields += sourceField.index
+          usedSourceFields.addOne(sourceField.index)
           FieldMapping(Some(sourceField), targetField)
         case None =>
           // No matching source field found - check for default value or Option type

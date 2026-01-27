@@ -420,7 +420,7 @@ object PrimitiveValue {
   implicit lazy val unitSchema: Schema[Unit.type] = new Schema(
     reflect = new Reflect.Record[Binding, Unit.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Unit"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Unit"),
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Unit.type](Unit),
         deconstructor = new ConstantDeconstructor[Unit.type]
@@ -432,12 +432,11 @@ object PrimitiveValue {
   implicit lazy val booleanSchema: Schema[Boolean] = new Schema(
     reflect = new Reflect.Record[Binding, Boolean](
       fields = Vector(Schema[scala.Boolean].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Boolean"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Boolean"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Boolean] {
           def usedRegisters: RegisterOffset                             = RegisterOffset(booleans = 1)
-          def construct(in: Registers, offset: RegisterOffset): Boolean =
-            Boolean(in.getBoolean(offset))
+          def construct(in: Registers, offset: RegisterOffset): Boolean = new Boolean(in.getBoolean(offset))
         },
         deconstructor = new Deconstructor[Boolean] {
           def usedRegisters: RegisterOffset                                                = RegisterOffset(booleans = 1)
@@ -452,17 +451,15 @@ object PrimitiveValue {
   implicit lazy val byteSchema: Schema[Byte] = new Schema(
     reflect = new Reflect.Record[Binding, Byte](
       fields = Vector(Schema[scala.Byte].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Byte"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Byte"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Byte] {
           def usedRegisters: RegisterOffset                          = RegisterOffset(bytes = 1)
-          def construct(in: Registers, offset: RegisterOffset): Byte =
-            Byte(in.getByte(offset))
+          def construct(in: Registers, offset: RegisterOffset): Byte = new Byte(in.getByte(offset))
         },
         deconstructor = new Deconstructor[Byte] {
           def usedRegisters: RegisterOffset                                             = RegisterOffset(bytes = 1)
-          def deconstruct(out: Registers, offset: RegisterOffset, in: Byte): scala.Unit =
-            out.setByte(offset, in.value)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Byte): scala.Unit = out.setByte(offset, in.value)
         }
       ),
       modifiers = Vector.empty
@@ -472,12 +469,11 @@ object PrimitiveValue {
   implicit lazy val shortSchema: Schema[Short] = new Schema(
     reflect = new Reflect.Record[Binding, Short](
       fields = Vector(Schema[scala.Short].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Short"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Short"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Short] {
           def usedRegisters: RegisterOffset                           = RegisterOffset(shorts = 1)
-          def construct(in: Registers, offset: RegisterOffset): Short =
-            Short(in.getShort(offset))
+          def construct(in: Registers, offset: RegisterOffset): Short = new Short(in.getShort(offset))
         },
         deconstructor = new Deconstructor[Short] {
           def usedRegisters: RegisterOffset                                              = RegisterOffset(shorts = 1)
@@ -492,17 +488,15 @@ object PrimitiveValue {
   implicit lazy val intSchema: Schema[Int] = new Schema(
     reflect = new Reflect.Record[Binding, Int](
       fields = Vector(Schema[scala.Int].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Int"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Int"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Int] {
           def usedRegisters: RegisterOffset                         = RegisterOffset(ints = 1)
-          def construct(in: Registers, offset: RegisterOffset): Int =
-            Int(in.getInt(offset))
+          def construct(in: Registers, offset: RegisterOffset): Int = new Int(in.getInt(offset))
         },
         deconstructor = new Deconstructor[Int] {
           def usedRegisters: RegisterOffset                                            = RegisterOffset(ints = 1)
-          def deconstruct(out: Registers, offset: RegisterOffset, in: Int): scala.Unit =
-            out.setInt(offset, in.value)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Int): scala.Unit = out.setInt(offset, in.value)
         }
       ),
       modifiers = Vector.empty
@@ -512,17 +506,15 @@ object PrimitiveValue {
   implicit lazy val longSchema: Schema[Long] = new Schema(
     reflect = new Reflect.Record[Binding, Long](
       fields = Vector(Schema[scala.Long].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Long"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Long"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Long] {
           def usedRegisters: RegisterOffset                          = RegisterOffset(longs = 1)
-          def construct(in: Registers, offset: RegisterOffset): Long =
-            Long(in.getLong(offset))
+          def construct(in: Registers, offset: RegisterOffset): Long = new Long(in.getLong(offset))
         },
         deconstructor = new Deconstructor[Long] {
           def usedRegisters: RegisterOffset                                             = RegisterOffset(longs = 1)
-          def deconstruct(out: Registers, offset: RegisterOffset, in: Long): scala.Unit =
-            out.setLong(offset, in.value)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Long): scala.Unit = out.setLong(offset, in.value)
         }
       ),
       modifiers = Vector.empty
@@ -532,12 +524,11 @@ object PrimitiveValue {
   implicit lazy val floatSchema: Schema[Float] = new Schema(
     reflect = new Reflect.Record[Binding, Float](
       fields = Vector(Schema[scala.Float].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Float"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Float"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Float] {
           def usedRegisters: RegisterOffset                           = RegisterOffset(floats = 1)
-          def construct(in: Registers, offset: RegisterOffset): Float =
-            Float(in.getFloat(offset))
+          def construct(in: Registers, offset: RegisterOffset): Float = new Float(in.getFloat(offset))
         },
         deconstructor = new Deconstructor[Float] {
           def usedRegisters: RegisterOffset                                              = RegisterOffset(floats = 1)
@@ -552,12 +543,11 @@ object PrimitiveValue {
   implicit lazy val doubleSchema: Schema[Double] = new Schema(
     reflect = new Reflect.Record[Binding, Double](
       fields = Vector(Schema[scala.Double].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Double"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Double"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Double] {
           def usedRegisters: RegisterOffset                            = RegisterOffset(doubles = 1)
-          def construct(in: Registers, offset: RegisterOffset): Double =
-            Double(in.getDouble(offset))
+          def construct(in: Registers, offset: RegisterOffset): Double = new Double(in.getDouble(offset))
         },
         deconstructor = new Deconstructor[Double] {
           def usedRegisters: RegisterOffset                                               = RegisterOffset(doubles = 1)
@@ -572,17 +562,15 @@ object PrimitiveValue {
   implicit lazy val charSchema: Schema[Char] = new Schema(
     reflect = new Reflect.Record[Binding, Char](
       fields = Vector(Schema[scala.Char].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Char"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Char"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Char] {
           def usedRegisters: RegisterOffset                          = RegisterOffset(chars = 1)
-          def construct(in: Registers, offset: RegisterOffset): Char =
-            Char(in.getChar(offset))
+          def construct(in: Registers, offset: RegisterOffset): Char = new Char(in.getChar(offset))
         },
         deconstructor = new Deconstructor[Char] {
           def usedRegisters: RegisterOffset                                             = RegisterOffset(chars = 1)
-          def deconstruct(out: Registers, offset: RegisterOffset, in: Char): scala.Unit =
-            out.setChar(offset, in.value)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Char): scala.Unit = out.setChar(offset, in.value)
         }
       ),
       modifiers = Vector.empty
@@ -592,12 +580,12 @@ object PrimitiveValue {
   implicit lazy val stringSchema: Schema[String] = new Schema(
     reflect = new Reflect.Record[Binding, String](
       fields = Vector(Schema[java.lang.String].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "String"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "String"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[String] {
           def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): String =
-            String(in.getObject(offset).asInstanceOf[java.lang.String])
+            new String(in.getObject(offset).asInstanceOf[java.lang.String])
         },
         deconstructor = new Deconstructor[String] {
           def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -612,12 +600,12 @@ object PrimitiveValue {
   implicit lazy val bigIntSchema: Schema[BigInt] = new Schema(
     reflect = new Reflect.Record[Binding, BigInt](
       fields = Vector(Schema[scala.BigInt].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "BigInt"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "BigInt"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[BigInt] {
           def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): BigInt =
-            BigInt(in.getObject(offset).asInstanceOf[scala.BigInt])
+            new BigInt(in.getObject(offset).asInstanceOf[scala.BigInt])
         },
         deconstructor = new Deconstructor[BigInt] {
           def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -632,12 +620,12 @@ object PrimitiveValue {
   implicit lazy val bigDecimalSchema: Schema[BigDecimal] = new Schema(
     reflect = new Reflect.Record[Binding, BigDecimal](
       fields = Vector(Schema[scala.BigDecimal].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "BigDecimal"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "BigDecimal"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[BigDecimal] {
           def usedRegisters: RegisterOffset                                = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): BigDecimal =
-            BigDecimal(in.getObject(offset).asInstanceOf[scala.BigDecimal])
+            new BigDecimal(in.getObject(offset).asInstanceOf[scala.BigDecimal])
         },
         deconstructor = new Deconstructor[BigDecimal] {
           def usedRegisters: RegisterOffset                                                   = RegisterOffset(objects = 1)
@@ -652,12 +640,12 @@ object PrimitiveValue {
   implicit lazy val dayOfWeekSchema: Schema[DayOfWeek] = new Schema(
     reflect = new Reflect.Record[Binding, DayOfWeek](
       fields = Vector(Schema[java.time.DayOfWeek].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "DayOfWeek"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "DayOfWeek"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[DayOfWeek] {
           def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): DayOfWeek =
-            DayOfWeek(in.getObject(offset).asInstanceOf[java.time.DayOfWeek])
+            new DayOfWeek(in.getObject(offset).asInstanceOf[java.time.DayOfWeek])
         },
         deconstructor = new Deconstructor[DayOfWeek] {
           def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -672,12 +660,12 @@ object PrimitiveValue {
   implicit lazy val durationSchema: Schema[Duration] = new Schema(
     reflect = new Reflect.Record[Binding, Duration](
       fields = Vector(Schema[java.time.Duration].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Duration"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Duration"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Duration] {
           def usedRegisters: RegisterOffset                              = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Duration =
-            Duration(in.getObject(offset).asInstanceOf[java.time.Duration])
+            new Duration(in.getObject(offset).asInstanceOf[java.time.Duration])
         },
         deconstructor = new Deconstructor[Duration] {
           def usedRegisters: RegisterOffset                                                 = RegisterOffset(objects = 1)
@@ -692,12 +680,12 @@ object PrimitiveValue {
   implicit lazy val instantSchema: Schema[Instant] = new Schema(
     reflect = new Reflect.Record[Binding, Instant](
       fields = Vector(Schema[java.time.Instant].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Instant"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Instant"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Instant] {
           def usedRegisters: RegisterOffset                             = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Instant =
-            Instant(in.getObject(offset).asInstanceOf[java.time.Instant])
+            new Instant(in.getObject(offset).asInstanceOf[java.time.Instant])
         },
         deconstructor = new Deconstructor[Instant] {
           def usedRegisters: RegisterOffset                                                = RegisterOffset(objects = 1)
@@ -712,12 +700,12 @@ object PrimitiveValue {
   implicit lazy val localDateSchema: Schema[LocalDate] = new Schema(
     reflect = new Reflect.Record[Binding, LocalDate](
       fields = Vector(Schema[java.time.LocalDate].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "LocalDate"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "LocalDate"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[LocalDate] {
           def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): LocalDate =
-            LocalDate(in.getObject(offset).asInstanceOf[java.time.LocalDate])
+            new LocalDate(in.getObject(offset).asInstanceOf[java.time.LocalDate])
         },
         deconstructor = new Deconstructor[LocalDate] {
           def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -732,12 +720,12 @@ object PrimitiveValue {
   implicit lazy val localDateTimeSchema: Schema[LocalDateTime] = new Schema(
     reflect = new Reflect.Record[Binding, LocalDateTime](
       fields = Vector(Schema[java.time.LocalDateTime].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "LocalDateTime"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "LocalDateTime"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[LocalDateTime] {
           def usedRegisters: RegisterOffset                                   = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): LocalDateTime =
-            LocalDateTime(in.getObject(offset).asInstanceOf[java.time.LocalDateTime])
+            new LocalDateTime(in.getObject(offset).asInstanceOf[java.time.LocalDateTime])
         },
         deconstructor = new Deconstructor[LocalDateTime] {
           def usedRegisters: RegisterOffset                                                      = RegisterOffset(objects = 1)
@@ -752,12 +740,12 @@ object PrimitiveValue {
   implicit lazy val localTimeSchema: Schema[LocalTime] = new Schema(
     reflect = new Reflect.Record[Binding, LocalTime](
       fields = Vector(Schema[java.time.LocalTime].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "LocalTime"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "LocalTime"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[LocalTime] {
           def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): LocalTime =
-            LocalTime(in.getObject(offset).asInstanceOf[java.time.LocalTime])
+            new LocalTime(in.getObject(offset).asInstanceOf[java.time.LocalTime])
         },
         deconstructor = new Deconstructor[LocalTime] {
           def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -772,12 +760,12 @@ object PrimitiveValue {
   implicit lazy val monthSchema: Schema[Month] = new Schema(
     reflect = new Reflect.Record[Binding, Month](
       fields = Vector(Schema[java.time.Month].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Month"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Month"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Month] {
           def usedRegisters: RegisterOffset                           = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Month =
-            Month(in.getObject(offset).asInstanceOf[java.time.Month])
+            new Month(in.getObject(offset).asInstanceOf[java.time.Month])
         },
         deconstructor = new Deconstructor[Month] {
           def usedRegisters: RegisterOffset                                              = RegisterOffset(objects = 1)
@@ -792,12 +780,12 @@ object PrimitiveValue {
   implicit lazy val monthDaySchema: Schema[MonthDay] = new Schema(
     reflect = new Reflect.Record[Binding, MonthDay](
       fields = Vector(Schema[java.time.MonthDay].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "MonthDay"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "MonthDay"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[MonthDay] {
           def usedRegisters: RegisterOffset                              = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): MonthDay =
-            MonthDay(in.getObject(offset).asInstanceOf[java.time.MonthDay])
+            new MonthDay(in.getObject(offset).asInstanceOf[java.time.MonthDay])
         },
         deconstructor = new Deconstructor[MonthDay] {
           def usedRegisters: RegisterOffset                                                 = RegisterOffset(objects = 1)
@@ -812,12 +800,12 @@ object PrimitiveValue {
   implicit lazy val offsetDateTimeSchema: Schema[OffsetDateTime] = new Schema(
     reflect = new Reflect.Record[Binding, OffsetDateTime](
       fields = Vector(Schema[java.time.OffsetDateTime].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "OffsetDateTime"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "OffsetDateTime"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[OffsetDateTime] {
           def usedRegisters: RegisterOffset                                    = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): OffsetDateTime =
-            OffsetDateTime(in.getObject(offset).asInstanceOf[java.time.OffsetDateTime])
+            new OffsetDateTime(in.getObject(offset).asInstanceOf[java.time.OffsetDateTime])
         },
         deconstructor = new Deconstructor[OffsetDateTime] {
           def usedRegisters: RegisterOffset                                                       = RegisterOffset(objects = 1)
@@ -832,12 +820,12 @@ object PrimitiveValue {
   implicit lazy val offsetTimeSchema: Schema[OffsetTime] = new Schema(
     reflect = new Reflect.Record[Binding, OffsetTime](
       fields = Vector(Schema[java.time.OffsetTime].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "OffsetTime"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "OffsetTime"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[OffsetTime] {
           def usedRegisters: RegisterOffset                                = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): OffsetTime =
-            OffsetTime(in.getObject(offset).asInstanceOf[java.time.OffsetTime])
+            new OffsetTime(in.getObject(offset).asInstanceOf[java.time.OffsetTime])
         },
         deconstructor = new Deconstructor[OffsetTime] {
           def usedRegisters: RegisterOffset                                                   = RegisterOffset(objects = 1)
@@ -852,12 +840,12 @@ object PrimitiveValue {
   implicit lazy val periodSchema: Schema[Period] = new Schema(
     reflect = new Reflect.Record[Binding, Period](
       fields = Vector(Schema[java.time.Period].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Period"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Period"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Period] {
           def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Period =
-            Period(in.getObject(offset).asInstanceOf[java.time.Period])
+            new Period(in.getObject(offset).asInstanceOf[java.time.Period])
         },
         deconstructor = new Deconstructor[Period] {
           def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -872,12 +860,12 @@ object PrimitiveValue {
   implicit lazy val yearSchema: Schema[Year] = new Schema(
     reflect = new Reflect.Record[Binding, Year](
       fields = Vector(Schema[java.time.Year].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Year"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Year"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Year] {
           def usedRegisters: RegisterOffset                          = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Year =
-            Year(in.getObject(offset).asInstanceOf[java.time.Year])
+            new Year(in.getObject(offset).asInstanceOf[java.time.Year])
         },
         deconstructor = new Deconstructor[Year] {
           def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 1)
@@ -892,12 +880,12 @@ object PrimitiveValue {
   implicit lazy val yearMonthSchema: Schema[YearMonth] = new Schema(
     reflect = new Reflect.Record[Binding, YearMonth](
       fields = Vector(Schema[java.time.YearMonth].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "YearMonth"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "YearMonth"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[YearMonth] {
           def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): YearMonth =
-            YearMonth(in.getObject(offset).asInstanceOf[java.time.YearMonth])
+            new YearMonth(in.getObject(offset).asInstanceOf[java.time.YearMonth])
         },
         deconstructor = new Deconstructor[YearMonth] {
           def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -912,12 +900,12 @@ object PrimitiveValue {
   implicit lazy val zoneIdSchema: Schema[ZoneId] = new Schema(
     reflect = new Reflect.Record[Binding, ZoneId](
       fields = Vector(Schema[java.time.ZoneId].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "ZoneId"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "ZoneId"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[ZoneId] {
           def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): ZoneId =
-            ZoneId(in.getObject(offset).asInstanceOf[java.time.ZoneId])
+            new ZoneId(in.getObject(offset).asInstanceOf[java.time.ZoneId])
         },
         deconstructor = new Deconstructor[ZoneId] {
           def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -932,12 +920,12 @@ object PrimitiveValue {
   implicit lazy val zoneOffsetSchema: Schema[ZoneOffset] = new Schema(
     reflect = new Reflect.Record[Binding, ZoneOffset](
       fields = Vector(Schema[java.time.ZoneOffset].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "ZoneOffset"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "ZoneOffset"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[ZoneOffset] {
           def usedRegisters: RegisterOffset                                = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): ZoneOffset =
-            ZoneOffset(in.getObject(offset).asInstanceOf[java.time.ZoneOffset])
+            new ZoneOffset(in.getObject(offset).asInstanceOf[java.time.ZoneOffset])
         },
         deconstructor = new Deconstructor[ZoneOffset] {
           def usedRegisters: RegisterOffset                                                   = RegisterOffset(objects = 1)
@@ -952,12 +940,12 @@ object PrimitiveValue {
   implicit lazy val zonedDateTimeSchema: Schema[ZonedDateTime] = new Schema(
     reflect = new Reflect.Record[Binding, ZonedDateTime](
       fields = Vector(Schema[java.time.ZonedDateTime].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "ZonedDateTime"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "ZonedDateTime"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[ZonedDateTime] {
           def usedRegisters: RegisterOffset                                   = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): ZonedDateTime =
-            ZonedDateTime(in.getObject(offset).asInstanceOf[java.time.ZonedDateTime])
+            new ZonedDateTime(in.getObject(offset).asInstanceOf[java.time.ZonedDateTime])
         },
         deconstructor = new Deconstructor[ZonedDateTime] {
           def usedRegisters: RegisterOffset                                                      = RegisterOffset(objects = 1)
@@ -972,12 +960,12 @@ object PrimitiveValue {
   implicit lazy val currencySchema: Schema[Currency] = new Schema(
     reflect = new Reflect.Record[Binding, Currency](
       fields = Vector(Schema[java.util.Currency].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Currency"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "Currency"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Currency] {
           def usedRegisters: RegisterOffset                              = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Currency =
-            Currency(in.getObject(offset).asInstanceOf[java.util.Currency])
+            new Currency(in.getObject(offset).asInstanceOf[java.util.Currency])
         },
         deconstructor = new Deconstructor[Currency] {
           def usedRegisters: RegisterOffset                                                 = RegisterOffset(objects = 1)
@@ -992,12 +980,12 @@ object PrimitiveValue {
   implicit lazy val uuidSchema: Schema[UUID] = new Schema(
     reflect = new Reflect.Record[Binding, UUID](
       fields = Vector(Schema[java.util.UUID].reflect.asTerm("value")),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "UUID"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveValue")), "UUID"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[UUID] {
           def usedRegisters: RegisterOffset                          = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): UUID =
-            UUID(in.getObject(offset).asInstanceOf[java.util.UUID])
+            new UUID(in.getObject(offset).asInstanceOf[java.util.UUID])
         },
         deconstructor = new Deconstructor[UUID] {
           def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 1)
@@ -1043,7 +1031,7 @@ object PrimitiveValue {
         currencySchema.reflect.asTerm("Currency"),
         uuidSchema.reflect.asTerm("UUID")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema")), "PrimitiveValue"),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema")), "PrimitiveValue"),
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[PrimitiveValue] {
           def discriminate(a: PrimitiveValue): scala.Int = a.typeIndex
