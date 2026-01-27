@@ -320,6 +320,7 @@ object ToonTestUtils {
             (keyStr, normalize(v, discriminatorField))
           }
           Record(fields)
+        case DynamicValue.Null => DynamicValue.Null
       }
 
     private def encodeKeyToString(value: DynamicValue): String = value match {

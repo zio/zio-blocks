@@ -2774,7 +2774,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     ),
     suite("dynamic value")(
       test("top-level") {
-        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Unit), "null") &&
+        roundTrip[DynamicValue](DynamicValue.Null, "null") &&
+        encode[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Unit), "{}") &&
         roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Boolean(true)), "true") &&
         roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Boolean(false)), "false") &&
         encode[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte)), "1") &&

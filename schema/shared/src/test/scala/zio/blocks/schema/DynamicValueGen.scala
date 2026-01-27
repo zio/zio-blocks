@@ -40,18 +40,22 @@ object DynamicValueGen {
       Gen.currency.map(PrimitiveValue.Currency.apply)
     )
 
+  // Null generator
+  val genNull: Gen[Any, DynamicValue.Null.type] = Gen.const(DynamicValue.Null)
+
   // Depth-limited generators for Scala Native compatibility
   val genDynamicValue: Gen[Any, DynamicValue] = genDynamicValueWithDepth(2)
 
   private[this] def genDynamicValueWithDepth(maxDepth: Int): Gen[Any, DynamicValue] =
-    if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_))
+    if (maxDepth <= 0) Gen.oneOf(genPrimitiveValue.map(Primitive(_)), genNull)
     else {
       Gen.oneOf(
         genPrimitiveValue.map(Primitive(_)),
         genRecordWithDepth(maxDepth - 1),
         genVariantWithDepth(maxDepth - 1),
         genSequenceWithDepth(maxDepth - 1),
-        genMapWithDepth(maxDepth - 1)
+        genMapWithDepth(maxDepth - 1),
+        genNull
       )
     }
 

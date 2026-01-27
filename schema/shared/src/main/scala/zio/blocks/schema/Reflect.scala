@@ -3,6 +3,7 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
+import zio.blocks.chunk.Chunk
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
@@ -1683,6 +1684,9 @@ object Reflect {
 
   def seq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Seq] =
     new Sequence(element, TypeName.seq(element.typeName), F.fromBinding(Binding.Seq.seq))
+
+  def chunk[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Chunk] =
+    new Sequence(element, TypeName.chunk(element.typeName), F.fromBinding(Binding.Seq.chunk))
 
   def map[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit
     F: FromBinding[F]
