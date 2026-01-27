@@ -1211,7 +1211,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json = Json.Array(Json.Number("1"), Json.Number("2"), Json.Number("1"))
           assertTrue(
             json.as[Set[Int]] == Right(Set(1, 2)),
-            Json.Array().as[Set[String]] == Right(Set.empty),
+            Json.Array().as[Set[String]] == Right(Set.empty[String]),
             Json.Boolean(true).as[Set[Int]].isLeft
           )
         },
@@ -1219,7 +1219,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json = Json.Object("a" -> Json.Number("1"), "b" -> Json.Number("2"))
           assertTrue(
             json.as[Map[String, Int]] == Right(Map("a" -> 1, "b" -> 2)),
-            Json.Object().as[Map[String, String]] == Right(Map.empty),
+            Json.Object().as[Map[String, String]] == Right(Map.empty[String, String]),
             Json.Array().as[Map[String, Int]].isLeft,
             Json.String("not object").as[Map[String, Int]].isLeft
           )
@@ -1470,18 +1470,24 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(JsonEncoder[Long].encode(9876543210L) == Json.Number("9876543210"))
         },
         test("encode Float") {
-          val encoded = JsonEncoder[Float].encode(3.14f)
-          assertTrue(encoded.is(JsonType.Number))
+          val encoded  = JsonEncoder[Float].encode(3.14f)
+          val isNumber = encoded.is(JsonType.Number)
+          assertTrue(isNumber)
         },
         test("encode Double") {
-          val encoded = JsonEncoder[Double].encode(3.141592653589793)
-          assertTrue(encoded.is(JsonType.Number))
+          val encoded  = JsonEncoder[Double].encode(3.141592653589793)
+          val isNumber = encoded.is(JsonType.Number)
+          assertTrue(isNumber)
         },
         test("encode BigDecimal") {
-          assertTrue(JsonEncoder[BigDecimal].encode(BigDecimal("123.456")).is(JsonType.Number))
+          val encoded  = JsonEncoder[BigDecimal].encode(BigDecimal("123.456"))
+          val isNumber = encoded.is(JsonType.Number)
+          assertTrue(isNumber)
         },
         test("encode BigInt") {
-          assertTrue(JsonEncoder[BigInt].encode(BigInt("123456789012345678901234567890")).is(JsonType.Number))
+          val encoded  = JsonEncoder[BigInt].encode(BigInt("123456789012345678901234567890"))
+          val isNumber = encoded.is(JsonType.Number)
+          assertTrue(isNumber)
         },
         test("encode Byte") {
           assertTrue(JsonEncoder[Byte].encode(127.toByte) == Json.Number("127"))
@@ -1549,7 +1555,8 @@ object JsonSpec extends SchemaBaseSpec {
         },
         test("encode Set") {
           val encoded = JsonEncoder[Set[Int]].encode(Set(1, 2, 3))
-          assertTrue(encoded.is(JsonType.Array))
+          val isArray = encoded.is(JsonType.Array)
+          assertTrue(isArray)
         },
         test("encode Array") {
           val encoded = JsonEncoder[Array[Int]].encode(Array(5, 6, 7))
@@ -1560,17 +1567,19 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(encoded == Json.Array(Json.Number("100"), Json.Number("200")))
         },
         test("encode Map[String, V]") {
-          val encoded = JsonEncoder[Map[String, Int]].encode(Map("a" -> 1, "b" -> 2))
+          val encoded  = JsonEncoder[Map[String, Int]].encode(Map("a" -> 1, "b" -> 2))
+          val isObject = encoded.is(JsonType.Object)
           assertTrue(
-            encoded.is(JsonType.Object),
+            isObject,
             encoded.get("a").as[BigDecimal] == Right(BigDecimal(1)),
             encoded.get("b").as[BigDecimal] == Right(BigDecimal(2))
           )
         },
         test("encode Map with Keyable key") {
-          val encoded = JsonEncoder[Map[Int, String]].encode(Map(1 -> "one", 2 -> "two"))
+          val encoded  = JsonEncoder[Map[Int, String]].encode(Map(1 -> "one", 2 -> "two"))
+          val isObject = encoded.is(JsonType.Object)
           assertTrue(
-            encoded.is(JsonType.Object),
+            isObject,
             encoded.get("1").as[String] == Right("one"),
             encoded.get("2").as[String] == Right("two")
           )
@@ -1588,16 +1597,18 @@ object JsonSpec extends SchemaBaseSpec {
       ),
       suite("Either encoder")(
         test("encode Left") {
-          val encoded = JsonEncoder[Either[String, Int]].encode(Left("error"))
+          val encoded  = JsonEncoder[Either[String, Int]].encode(Left("error"))
+          val isObject = encoded.is(JsonType.Object)
           assertTrue(
-            encoded.is(JsonType.Object),
+            isObject,
             encoded.get("Left").as[String] == Right("error")
           )
         },
         test("encode Right") {
-          val encoded = JsonEncoder[Either[String, Int]].encode(Right(42))
+          val encoded  = JsonEncoder[Either[String, Int]].encode(Right(42))
+          val isObject = encoded.is(JsonType.Object)
           assertTrue(
-            encoded.is(JsonType.Object),
+            isObject,
             encoded.get("Right").as[BigDecimal] == Right(BigDecimal(42))
           )
         }
@@ -1675,9 +1686,10 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(encoded == Json.String("America/New_York"))
         },
         test("encode ZonedDateTime") {
-          val zdt     = java.time.ZonedDateTime.of(2024, 1, 15, 14, 30, 45, 0, java.time.ZoneId.of("UTC"))
-          val encoded = JsonEncoder[java.time.ZonedDateTime].encode(zdt)
-          assertTrue(encoded.is(JsonType.String))
+          val zdt      = java.time.ZonedDateTime.of(2024, 1, 15, 14, 30, 45, 0, java.time.ZoneId.of("UTC"))
+          val encoded  = JsonEncoder[java.time.ZonedDateTime].encode(zdt)
+          val isString = encoded.is(JsonType.String)
+          assertTrue(isString)
         }
       ),
       suite("Other standard types")(
@@ -1712,8 +1724,9 @@ object JsonSpec extends SchemaBaseSpec {
           implicit val schema: Schema[SimplePerson] = Schema.derived
           val encoder                               = JsonEncoder.fromSchema[SimplePerson]
           val encoded                               = encoder.encode(SimplePerson("Bob", 25))
+          val isObject                              = encoded.is(JsonType.Object)
           assertTrue(
-            encoded.is(JsonType.Object),
+            isObject,
             encoded.get("name").as[String] == Right("Bob"),
             encoded.get("age").as[BigDecimal] == Right(BigDecimal(25))
           )

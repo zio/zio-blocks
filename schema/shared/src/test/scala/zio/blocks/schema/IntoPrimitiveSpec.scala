@@ -365,7 +365,7 @@ object IntoPrimitiveSpec extends SchemaBaseSpec {
       suite("Map")(
         test("empty map conversion") {
           assertTrue(
-            Into[Map[Int, Long], Map[Long, Int]].into(Map.empty) == Right(Map.empty)
+            Into[Map[Int, Long], Map[Long, Int]].into(Map.empty[Int, Long]) == Right(Map.empty[Long, Int])
           )
         },
         test("map with successful key and value conversion") {

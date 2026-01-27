@@ -1,7 +1,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Reflect, Schema}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Reflect, Schema, SchemaError}
 import zio.blocks.typeid.TypeId
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset

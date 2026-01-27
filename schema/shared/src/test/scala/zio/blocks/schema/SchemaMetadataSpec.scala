@@ -35,8 +35,10 @@ object SchemaMetadataSpec extends SchemaBaseSpec {
         assert(metadata2.getAll(Record.s).length)(equalTo(0))
       },
       test("get returns first value if present") {
-        val metadata = SchemaMetadata[Record, IndexedSeq](Map(Record.s -> IndexedSeq("first")))
-          .add(Record.s, IndexedSeq("second"))
+        val metadata = SchemaMetadata
+          .simple[Record]
+          .add(Record.s, "first")
+          .add(Record.s, "second")
         assert(metadata.get(Record.s))(isSome(equalTo("first")))
       },
       test("get returns None if not present") {

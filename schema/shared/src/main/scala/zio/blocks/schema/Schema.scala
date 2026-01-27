@@ -378,8 +378,7 @@ object Schema extends SchemaCompanionVersionSpecific {
   implicit def either[A, B](implicit l: Schema[A], r: Schema[B]): Schema[Either[A, B]] =
     new Schema(Reflect.either(l.reflect, r.reflect))
 
-  private val jsonTypeName: TypeName[Json] =
-    new TypeName[Json](Namespace.zioBlocksSchema, "Json")
+  private val jsonTypeId: TypeId[Json] = TypeId.of[Json]
 
   /**
    * Construct a Schema[Json] from a JsonSchema. Values are validated against
@@ -388,7 +387,7 @@ object Schema extends SchemaCompanionVersionSpecific {
   def fromJsonSchema(jsonSchema: JsonSchema): Schema[Json] = new Schema(
     new Reflect.Wrapper[Binding, Json, DynamicValue](
       Schema[DynamicValue].reflect,
-      jsonTypeName,
+      jsonTypeId,
       None,
       new Binding.Wrapper[Json, DynamicValue](
         wrap = { dv =>
