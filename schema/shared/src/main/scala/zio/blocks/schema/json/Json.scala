@@ -1856,8 +1856,6 @@ object Json {
         Schema[scala.Boolean].reflect.asTerm("value")
       ),
       typeId = TypeId.of[Boolean],
-      fields = Vector(Schema[scala.Boolean].reflect.asTerm("value")),
-      typeName = new TypeName(namespace, "Boolean"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Boolean] {
           def usedRegisters: RegisterOffset                             = 1
@@ -1876,7 +1874,7 @@ object Json {
   implicit lazy val numberSchema: Schema[Number] = new Schema(
     reflect = new Reflect.Record[Binding, Number](
       fields = Vector(Schema[java.lang.String].reflect.asTerm("value")),
-      typeName = new TypeName(namespace, "Number"),
+      typeId = TypeId.of[Number],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Number] {
           def usedRegisters: RegisterOffset                            = 1
