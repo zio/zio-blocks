@@ -14,8 +14,8 @@ trait MigrationBuilderCompanionVersionSpecific {
   /**
    * Creates a new migration builder for transforming from type A to type B.
    *
-   * In Scala 2, the Handled and Provided type parameters are TList types
-   * that accumulate field names at compile time.
+   * In Scala 2, the Handled and Provided type parameters are TList types that
+   * accumulate field names at compile time.
    */
   def newBuilder[A, B](implicit
     sourceSchema: Schema[A],

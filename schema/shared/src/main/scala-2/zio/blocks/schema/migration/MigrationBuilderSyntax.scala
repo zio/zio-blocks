@@ -17,8 +17,23 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
 ) extends AnyVal {
 
   /**
-   * Adds a field to a record with a default value using selector syntax.
-   * Adds the target field name to Provided.
+   * Builds the migration with compile-time validation.
+   *
+   * This method only compiles when the migration is complete:
+   *   - All fields removed from source (in A but not B) must be handled
+   *   - All fields added to target (in B but not A) must be provided
+   *
+   * Fields that exist in both schemas are automatically considered
+   * handled/provided.
+   *
+   * @return
+   *   A complete, validated Migration[A, B]
+   */
+  def buildChecked: Migration[A, B] = macro MigrationBuilderMacrosImpl.buildCheckedImpl[A, B, Handled, Provided]
+
+  /**
+   * Adds a field to a record with a default value using selector syntax. Adds
+   * the target field name to Provided.
    */
   def addField(
     target: B => Any,
@@ -27,8 +42,8 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
     macro MigrationBuilderMacrosImpl.addFieldImpl[A, B, Handled, Provided]
 
   /**
-   * Removes a field from a record using selector syntax.
-   * Adds the source field name to Handled.
+   * Removes a field from a record using selector syntax. Adds the source field
+   * name to Handled.
    */
   def dropField(
     source: A => Any,
@@ -37,8 +52,8 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
     macro MigrationBuilderMacrosImpl.dropFieldImpl[A, B, Handled, Provided]
 
   /**
-   * Renames a field in a record using selector syntax.
-   * Adds source to Handled and target to Provided.
+   * Renames a field in a record using selector syntax. Adds source to Handled
+   * and target to Provided.
    */
   def renameField(
     from: A => Any,
@@ -67,8 +82,8 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
     macro MigrationBuilderMacrosImpl.mandateFieldImpl[A, B, Handled, Provided]
 
   /**
-   * Wraps a field value in Option (as Some) using selector syntax.
-   * Adds the field name to both Handled and Provided.
+   * Wraps a field value in Option (as Some) using selector syntax. Adds the
+   * field name to both Handled and Provided.
    */
   def optionalizeField(
     at: A => Any,
@@ -119,8 +134,8 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
     macro MigrationBuilderMacrosImpl.transformElementsImpl[A, B, Handled, Provided]
 
   /**
-   * Applies a transformation to all keys in a map using selector syntax.
-   * Does not affect field tracking.
+   * Applies a transformation to all keys in a map using selector syntax. Does
+   * not affect field tracking.
    */
   def transformKeys(
     at: A => Any,
@@ -129,8 +144,8 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
     macro MigrationBuilderMacrosImpl.transformKeysImpl[A, B, Handled, Provided]
 
   /**
-   * Applies a transformation to all values in a map using selector syntax.
-   * Does not affect field tracking.
+   * Applies a transformation to all values in a map using selector syntax. Does
+   * not affect field tracking.
    */
   def transformValues(
     at: A => Any,
@@ -139,8 +154,8 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
     macro MigrationBuilderMacrosImpl.transformValuesImpl[A, B, Handled, Provided]
 
   /**
-   * Renames a variant case using selector syntax.
-   * Does not affect field tracking.
+   * Renames a variant case using selector syntax. Does not affect field
+   * tracking.
    */
   def renameCase(
     from: A => Any,
@@ -170,6 +185,137 @@ object MigrationBuilderSyntax {
 // Macro implementations for Scala 2 selector syntax with type tracking.
 private[migration] object MigrationBuilderMacrosImpl {
   import scala.reflect.macros.whitebox
+
+  // ==========================================================================
+  // buildChecked macro implementation
+  // ==========================================================================
+
+  /**
+   * Compile-time validation for migration completeness.
+   *
+   * This macro:
+   *   1. Extracts field names from A and B types using reflection
+   *   2. Extracts field names from Handled and Provided TList types
+   *   3. Computes which fields are removed (in A but not B) and added (in B but
+   *      not A)
+   *   4. Verifies removed ⊆ handled and added ⊆ provided
+   *   5. Emits compile error if validation fails
+   */
+  def buildCheckedImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
+    c: whitebox.Context
+  ): c.Tree = {
+    import c.universe._
+
+    val builder = c.prefix.tree match {
+      case Apply(_, List(b)) => b
+      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
+    }
+
+    val aType        = weakTypeOf[A]
+    val bType        = weakTypeOf[B]
+    val handledType  = weakTypeOf[Handled]
+    val providedType = weakTypeOf[Provided]
+
+    // Extract field names from case classes A and B
+    val fieldsA = extractCaseClassFields(c)(aType)
+    val fieldsB = extractCaseClassFields(c)(bType)
+
+    // Extract field names from TList types
+    val handled  = extractTListElements(c)(handledType)
+    val provided = extractTListElements(c)(providedType)
+
+    // Compute what needs to be handled/provided
+    val unchanged       = fieldsA.intersect(fieldsB)
+    val removed         = fieldsA.diff(unchanged)
+    val added           = fieldsB.diff(unchanged)
+    val missingHandled  = removed.diff(handled)
+    val missingProvided = added.diff(provided)
+
+    if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
+      val parts = List(
+        if (missingHandled.nonEmpty) Some(s"unhandled fields: ${missingHandled.mkString(", ")}") else None,
+        if (missingProvided.nonEmpty) Some(s"unprovided fields: ${missingProvided.mkString(", ")}") else None
+      ).flatten
+
+      c.abort(
+        c.enclosingPosition,
+        s"Incomplete migration from ${aType.typeSymbol.name} to ${bType.typeSymbol.name}: ${parts.mkString("; ")}"
+      )
+    }
+
+    q"$builder.buildPartial"
+  }
+
+  /**
+   * Extracts field names from a case class type.
+   */
+  private def extractCaseClassFields(c: whitebox.Context)(tpe: c.Type): List[String] = {
+    import c.universe._
+
+    val sym = tpe.typeSymbol
+    if (!sym.isClass || !sym.asClass.isCaseClass) {
+      c.abort(c.enclosingPosition, s"Expected a case class, got ${tpe.typeSymbol.name}")
+    }
+
+    // Get the primary constructor's parameter list
+    val constructor = tpe.decls.collectFirst {
+      case m: MethodSymbol if m.isPrimaryConstructor => m
+    }.getOrElse(
+      c.abort(c.enclosingPosition, s"Could not find primary constructor for ${tpe.typeSymbol.name}")
+    )
+
+    constructor.paramLists.headOption.getOrElse(Nil).map(_.name.decodedName.toString)
+  }
+
+  /**
+   * Extracts field name strings from a TList type.
+   *
+   * Given a type like "a" :: "b" :: TNil, returns List("a", "b").
+   */
+  private def extractTListElements(c: whitebox.Context)(tpe: c.Type): List[String] = {
+    import c.universe._
+
+    val tlistSym = typeOf[TList].typeSymbol
+    val tnilSym  = typeOf[TNil].typeSymbol
+    val tconsSym = typeOf[TCons[_, _]].typeSymbol
+
+    def loop(t: c.Type): List[String] = {
+      val dealiased = t.dealias
+      val sym       = dealiased.typeSymbol
+
+      if (sym == tnilSym) {
+        Nil
+      } else if (sym == tconsSym) {
+        // TCons[H, T] - extract H and recurse on T
+        val args = dealiased.typeArgs
+        if (args.size != 2) {
+          c.abort(c.enclosingPosition, s"Invalid TCons type: $dealiased")
+        }
+        val head = args(0)
+        val tail = args(1)
+
+        // Extract string literal from head type
+        val headStr = head.dealias match {
+          case ConstantType(Constant(s: String)) => s
+          case other                             =>
+            c.abort(c.enclosingPosition, s"Expected string literal type in TList, got: $other")
+        }
+
+        headStr :: loop(tail)
+      } else if (sym == tlistSym) {
+        // Generic TList - cannot extract elements
+        Nil
+      } else {
+        c.abort(c.enclosingPosition, s"Unexpected type in TList position: $dealiased (symbol: $sym)")
+      }
+    }
+
+    loop(tpe)
+  }
+
+  // ==========================================================================
+  // Field extraction helpers
+  // ==========================================================================
 
   /**
    * Extracts the field name from a selector and returns it as a literal type.
@@ -208,13 +354,37 @@ private[migration] object MigrationBuilderMacrosImpl {
   }
 
   /**
-   * Creates the TList Append result type: Append[L, X]#Out
+   * Computes the concrete result type for appending element X to list L.
+   *
+   * Instead of creating Append[L, X]#Out (a type projection), this directly
+   * computes the concrete result type:
+   *   - Append[TNil, X] = X :: TNil
+   *   - Append[H :: T, X] = H :: Append[T, X]
    */
   private def appendType(c: whitebox.Context)(listType: c.Type, elemType: c.Type): c.Type = {
     import c.universe._
-    val appendTpe  = typeOf[Append[_, _]].typeConstructor
-    val appliedTpe = appliedType(appendTpe, List(listType, elemType))
-    appliedTpe.member(TypeName("Out")).asType.toType.asSeenFrom(appliedTpe, appliedTpe.typeSymbol)
+
+    val tnilTpe  = typeOf[TNil]
+    val tconsSym = symbolOf[TCons[_, _]]
+    val tconsTpe = tconsSym.toType.typeConstructor
+
+    def loop(lt: c.Type): c.Type = {
+      val dealiased = lt.dealias
+      if (dealiased =:= tnilTpe) {
+        // Append[TNil, X]#Out = X :: TNil
+        appliedType(tconsTpe, List(elemType, tnilTpe))
+      } else if (dealiased.typeSymbol == tconsSym) {
+        // Append[H :: T, X]#Out = H :: Append[T, X]#Out
+        val args = dealiased.typeArgs
+        val h    = args(0)
+        val t    = args(1)
+        appliedType(tconsTpe, List(h, loop(t)))
+      } else {
+        c.abort(c.enclosingPosition, s"Cannot compute Append for non-TList type: $lt")
+      }
+    }
+
+    loop(listType)
   }
 
   def addFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
