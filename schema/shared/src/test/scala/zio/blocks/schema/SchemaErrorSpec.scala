@@ -140,6 +140,128 @@ object SchemaErrorSpec extends SchemaBaseSpec {
           error.errors.head.isInstanceOf[SchemaError.ConversionFailed]
         )
       }
+    ),
+    suite("errors collection")(
+      test("single error has size 1") {
+        val error = SchemaError.missingField(Nil, "field")
+        assertTrue(error.errors.size == 1)
+      },
+      test("combined error has size equal to sum") {
+        val e1 = SchemaError.missingField(Nil, "a")
+        val e2 = SchemaError.missingField(Nil, "b")
+        val e3 = SchemaError.missingField(Nil, "c")
+        val combined = e1 ++ e2 ++ e3
+        assertTrue(combined.errors.size == 3)
+      }
+    ),
+    suite("error source paths")(
+      test("error at root has empty source") {
+        val error = SchemaError.conversionFailed(Nil, "test")
+        assertTrue(error.errors.head.source.nodes.isEmpty)
+      },
+      test("error at nested path has non-empty source") {
+        val path = List(
+          DynamicOptic.Node.Field("outer"),
+          DynamicOptic.Node.Field("inner")
+        )
+        val error = SchemaError.conversionFailed(path, "test")
+        assertTrue(error.errors.head.source.nodes.size == 2)
+      },
+      test("prependPath with multiple nodes") {
+        val error = SchemaError.conversionFailed(Nil, "test")
+        val path = List(
+          DynamicOptic.Node.Field("a"),
+          DynamicOptic.Node.AtIndex(0),
+          DynamicOptic.Node.Field("b")
+        )
+        val prepended = error.prependPath(path)
+        assertTrue(prepended.errors.head.source.nodes.size == 3)
+      }
+    ),
+    suite("error type inspection")(
+      test("ConversionFailed is correctly typed") {
+        val error = SchemaError.conversionFailed(Nil, "test")
+        assertTrue(error.errors.head.isInstanceOf[SchemaError.ConversionFailed])
+      },
+      test("MissingField is correctly typed") {
+        val error = SchemaError.missingField(Nil, "field")
+        assertTrue(error.errors.head.isInstanceOf[SchemaError.MissingField])
+      },
+      test("DuplicatedField is correctly typed") {
+        val error = SchemaError.duplicatedField(Nil, "field")
+        assertTrue(error.errors.head.isInstanceOf[SchemaError.DuplicatedField])
+      },
+      test("UnknownCase is correctly typed") {
+        val error = SchemaError.unknownCase(Nil, "Case")
+        assertTrue(error.errors.head.isInstanceOf[SchemaError.UnknownCase])
+      },
+      test("ExpectationMismatch is correctly typed") {
+        val error = SchemaError.expectationMismatch(Nil, "expected X")
+        assertTrue(error.errors.head.isInstanceOf[SchemaError.ExpectationMismatch])
+      }
+    ),
+    suite("error throwable behavior")(
+      test("SchemaError extends Throwable") {
+        val error: Throwable = SchemaError.conversionFailed(Nil, "test")
+        assertTrue(error.isInstanceOf[Throwable])
+      },
+      test("getMessage returns message") {
+        val error = SchemaError.missingField(Nil, "testField")
+        assertTrue(error.getMessage.contains("testField"))
+      },
+      test("error can be thrown and caught") {
+        val error = SchemaError.conversionFailed(Nil, "intentional")
+        val caught = try {
+          throw error
+        } catch {
+          case e: SchemaError => e
+        }
+        assertTrue(caught.message.contains("intentional"))
+      }
+    ),
+    suite("complex nested error scenarios")(
+      test("deeply nested cause chain") {
+        val inner1 = SchemaError.conversionFailed(Nil, "level 3")
+        val inner2 = SchemaError.conversionFailed("level 2", inner1)
+        val outer = SchemaError.conversionFailed("level 1", inner2)
+        assertTrue(
+          outer.message.contains("level 1"),
+          outer.message.contains("level 2"),
+          outer.message.contains("level 3")
+        )
+      },
+      test("combining errors from different paths") {
+        val e1 = SchemaError.missingField(List(DynamicOptic.Node.Field("users")), "name")
+        val e2 = SchemaError.missingField(List(DynamicOptic.Node.Field("posts")), "title")
+        val combined = e1 ++ e2
+        assertTrue(
+          combined.message.contains("name"),
+          combined.message.contains("title")
+        )
+      }
+    ),
+    suite("source DynamicOptic")(
+      test("source returns correct optic for Field") {
+        val error = SchemaError.conversionFailed(
+          List(DynamicOptic.Node.Field("test")),
+          "error"
+        )
+        assertTrue(error.errors.head.source.nodes.head == DynamicOptic.Node.Field("test"))
+      },
+      test("source returns correct optic for AtIndex") {
+        val error = SchemaError.conversionFailed(
+          List(DynamicOptic.Node.AtIndex(5)),
+          "error"
+        )
+        assertTrue(error.errors.head.source.nodes.head == DynamicOptic.Node.AtIndex(5))
+      },
+      test("source returns correct optic for Case") {
+        val error = SchemaError.conversionFailed(
+          List(DynamicOptic.Node.Case("SomeCase")),
+          "error"
+        )
+        assertTrue(error.errors.head.source.nodes.head == DynamicOptic.Node.Case("SomeCase"))
+      }
     )
   )
 }

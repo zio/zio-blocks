@@ -126,7 +126,8 @@ object BuildHelper {
       ),
     coverageFailOnMinimum      := true,
     coverageMinimumStmtTotal   := 95,
-    coverageMinimumBranchTotal := 90
+    coverageMinimumBranchTotal := 90,
+    coverageExcludedFiles      := ".*BuildInfo.*"
   )
 
   def nativeSettings: Seq[Def.Setting[?]] = Seq(
