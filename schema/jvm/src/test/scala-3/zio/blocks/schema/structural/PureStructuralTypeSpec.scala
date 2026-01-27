@@ -20,6 +20,49 @@ object PureStructuralTypeSpec extends ZIOSpecDefault {
         case _                            => Set.empty[String]
       }
       assertTrue(fieldNames == Set("name", "age"))
+    },
+    test("pure structural type converts to DynamicValue and back") {
+      val schema = Schema.derived[PersonLike]
+
+      val person: PersonLike = new {
+        @scala.annotation.nowarn
+        def name: String = "Alice"
+        @scala.annotation.nowarn
+        def age: Int = 30
+      }
+
+      val dynamic = schema.toDynamicValue(person)
+
+      assertTrue(
+        dynamic match {
+          case DynamicValue.Record(fields) =>
+            val fieldMap = fields.toMap
+            fieldMap.get("name").contains(DynamicValue.Primitive(PrimitiveValue.String("Alice"))) &&
+            fieldMap.get("age").contains(DynamicValue.Primitive(PrimitiveValue.Int(30)))
+          case _ => false
+        },
+        schema.fromDynamicValue(dynamic).isRight
+      )
+    },
+    test("pure structural type encodes to correct DynamicValue structure") {
+      val schema = Schema.derived[PersonLike]
+
+      val person: PersonLike = new {
+        @scala.annotation.nowarn
+        def name: String = "Bob"
+        @scala.annotation.nowarn
+        def age: Int = 25
+      }
+
+      val dynamic = schema.toDynamicValue(person)
+
+      assertTrue(dynamic match {
+        case DynamicValue.Record(fields) =>
+          val fieldMap = fields.toMap
+          fieldMap.get("name").contains(DynamicValue.Primitive(PrimitiveValue.String("Bob"))) &&
+          fieldMap.get("age").contains(DynamicValue.Primitive(PrimitiveValue.Int(25)))
+        case _ => false
+      })
     }
   )
 }

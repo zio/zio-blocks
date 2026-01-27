@@ -217,7 +217,6 @@ object ToStructuralMacro {
 
         val typeName = normalizeTypeName(fieldInfos.toList.map { case (name, reflect) =>
           (name, reflect.typeName.name)
-          (name, reflect.typeName.name)
         })
 
         new Schema[S](
