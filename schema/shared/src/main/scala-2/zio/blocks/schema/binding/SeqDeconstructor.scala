@@ -1,6 +1,7 @@
 package zio.blocks.schema.binding
 
 import scala.collection.immutable.ArraySeq
+import zio.blocks.chunk.Chunk
 
 trait SeqDeconstructor[C[_]] {
   def deconstruct[A](c: C[A]): Iterator[A]
@@ -97,6 +98,12 @@ object SeqDeconstructor {
     def deconstruct[A](c: collection.immutable.Seq[A]): Iterator[A] = c.iterator
 
     def size[A](c: collection.immutable.Seq[A]): Int = c.size
+  }
+
+  val chunkDeconstructor: SeqDeconstructor[Chunk] = new SeqDeconstructor[Chunk] {
+    def deconstruct[A](c: Chunk[A]): Iterator[A] = c.iterator
+
+    def size[A](c: Chunk[A]): Int = c.length
   }
 
   val arrayDeconstructor: SpecializedIndexed[Array] = new SpecializedIndexed[Array] {

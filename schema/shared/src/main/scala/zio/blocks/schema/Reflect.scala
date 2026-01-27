@@ -3,6 +3,7 @@ package zio.blocks.schema
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.StandardTypes
@@ -1731,6 +1732,9 @@ object Reflect {
       StandardTypes.SeqId.asInstanceOf[TypeId[scala.collection.immutable.Seq[A]]],
       F.fromBinding(Binding.Seq.seq)
     )
+
+  def chunk[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Chunk] =
+    new Sequence(element, TypeName.chunk(element.typeName), F.fromBinding(Binding.Seq.chunk))
 
   def map[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit
     F: FromBinding[F]
