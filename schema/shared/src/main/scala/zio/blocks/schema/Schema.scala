@@ -3,6 +3,7 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
+import zio.blocks.schema.json.{Json, JsonFormat, JsonSchema}
 import zio.blocks.schema.patch.{Patch, PatchMode}
 import java.util.concurrent.ConcurrentHashMap
 
@@ -63,6 +64,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def get(dynamic: DynamicOptic): Option[Reflect.Bound[?]] = reflect.get(dynamic)
 
   def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
+
+  /** Derives a JSON Schema from this Schema. */
+  def toJsonSchema: JsonSchema = derive(JsonFormat.deriver).toJsonSchema
 
   def updated(dynamic: DynamicOptic)(f: Reflect.Updater[Binding]): Option[Schema[A]] =
     reflect.updated(dynamic)(f).map(x => new Schema(x))
@@ -367,4 +371,29 @@ object Schema extends SchemaCompanionVersionSpecific {
 
   implicit def either[A, B](implicit l: Schema[A], r: Schema[B]): Schema[Either[A, B]] =
     new Schema(Reflect.either(l.reflect, r.reflect))
+
+  private val jsonTypeName: TypeName[Json] =
+    new TypeName[Json](Namespace.zioBlocksSchema, "Json")
+
+  /**
+   * Construct a Schema[Json] from a JsonSchema. Values are validated against
+   * the JsonSchema during construction.
+   */
+  def fromJsonSchema(jsonSchema: JsonSchema): Schema[Json] = new Schema(
+    new Reflect.Wrapper[Binding, Json, DynamicValue](
+      Schema[DynamicValue].reflect,
+      jsonTypeName,
+      None,
+      new Binding.Wrapper[Json, DynamicValue](
+        wrap = { dv =>
+          val j = Json.fromDynamicValue(dv)
+          jsonSchema.check(j) match {
+            case None        => Right(j)
+            case Some(error) => Left(error)
+          }
+        },
+        unwrap = j => j.toDynamicValue
+      )
+    )
+  )
 }
