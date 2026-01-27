@@ -39,7 +39,8 @@ Examples use `<module>` as placeholder — substitute the actual project (e.g., 
 - Both Scala versions: `sbt "++3.3.7; <module>JS/test" && sbt "++2.13.18; <module>JS/test"`
 
 **Stage 5 — Downstream** (once)
-- Test downstream dependencies only (see dependency graph below)
+- Test ALL downstream modules (direct + transitive) of any modified module
+- Discover them from the dependency graph below — don't rely on migration guides or memory
 - Both Scala versions, all applicable platforms
 - Skip if no downstream deps exist
 

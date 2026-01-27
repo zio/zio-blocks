@@ -1,5 +1,6 @@
 package zio.blocks.schema.toon
 
+import zio.blocks.chunk.Chunk
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.annotation.{switch, tailrec}
@@ -175,7 +176,7 @@ final class ToonWriter private (
     writeByte(' ')
   }
 
-  def writeTabularHeader(length: Int, fields: Vector[String]): Unit = {
+  def writeTabularHeader(length: Int, fields: Chunk[String]): Unit = {
     ensureIndent()
     writeByte('[')
     writeInt(length)

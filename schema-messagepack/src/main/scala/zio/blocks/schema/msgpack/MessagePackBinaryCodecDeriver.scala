@@ -2,6 +2,7 @@ package zio.blocks.schema.msgpack
 
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema._
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import scala.util.control.NonFatal
 
@@ -630,7 +631,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         } else if ((b & 0xf0) == 0x90 || b == 0xdc || b == 0xdd) {
           val len = in.readArrayHeader()
           if (len < 0) in.decodeError("Array length exceeds maximum (2GB)")
-          val builder = Vector.newBuilder[DynamicValue]
+          val builder = zio.blocks.chunk.ChunkBuilder.make[DynamicValue]()
           var idx     = 0
           while (idx < len) {
             builder += decodeDynamic(in)
@@ -663,9 +664,9 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
               fields(idx) = (k.asInstanceOf[DynamicValue.Primitive].value.asInstanceOf[PrimitiveValue.String].value, v)
               idx += 1
             }
-            DynamicValue.Record(fields.toVector)
+            DynamicValue.Record(Chunk.from(fields))
           } else {
-            DynamicValue.Map(entries.toVector)
+            DynamicValue.Map(Chunk.from(entries))
           }
         } else
           b match {

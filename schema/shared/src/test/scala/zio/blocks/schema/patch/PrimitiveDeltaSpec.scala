@@ -7,13 +7,22 @@ import java.time._
 object PrimitiveDeltaSpec extends SchemaBaseSpec {
 
   // Test data types
-  case class Counter(value: Int, longValue: Long, doubleValue: Double, floatValue: Float)
+  case class Counter(
+    value: Int,
+    longValue: Long,
+    doubleValue: Double,
+    floatValue: Float,
+    shortValue: Short,
+    byteValue: Byte
+  )
   object Counter extends CompanionOptics[Counter] {
     implicit val schema: Schema[Counter]   = Schema.derived
     val value: Lens[Counter, Int]          = optic(_.value)
     val longValue: Lens[Counter, Long]     = optic(_.longValue)
     val doubleValue: Lens[Counter, Double] = optic(_.doubleValue)
     val floatValue: Lens[Counter, Float]   = optic(_.floatValue)
+    val shortValue: Lens[Counter, Short]   = optic(_.shortValue)
+    val byteValue: Lens[Counter, Byte]     = optic(_.byteValue)
   }
 
   case class BigNumbers(bigInt: BigInt, bigDecimal: BigDecimal)
@@ -57,53 +66,53 @@ object PrimitiveDeltaSpec extends SchemaBaseSpec {
   val numericDeltaTests = suite("Numeric Delta Operations")(
     suite("Patch.increment (Int)")(
       test("increments positive value") {
-        val counter = Counter(10, 0L, 0.0, 0.0f)
+        val counter = Counter(10, 0L, 0.0, 0.0f, 0, 0)
         val patch   = Patch.increment(Counter.value, 5)
         val result  = patch(counter, PatchMode.Strict)
-        assertTrue(result == Right(Counter(15, 0L, 0.0, 0.0f)))
+        assertTrue(result == Right(Counter(15, 0L, 0.0, 0.0f, 0, 0)))
       },
       test("decrements with negative delta") {
-        val counter = Counter(10, 0L, 0.0, 0.0f)
+        val counter = Counter(10, 0L, 0.0, 0.0f, 0, 0)
         val patch   = Patch.increment(Counter.value, -3)
         val result  = patch(counter, PatchMode.Strict)
-        assertTrue(result == Right(Counter(7, 0L, 0.0, 0.0f)))
+        assertTrue(result == Right(Counter(7, 0L, 0.0, 0.0f, 0, 0)))
       },
       test("increments from zero") {
-        val counter = Counter(0, 0L, 0.0, 0.0f)
+        val counter = Counter(0, 0L, 0.0, 0.0f, 0, 0)
         val patch   = Patch.increment(Counter.value, 1)
         val result  = patch(counter, PatchMode.Strict)
-        assertTrue(result == Right(Counter(1, 0L, 0.0, 0.0f)))
+        assertTrue(result == Right(Counter(1, 0L, 0.0, 0.0f, 0, 0)))
       },
       test("increments to negative") {
-        val counter = Counter(5, 0L, 0.0, 0.0f)
+        val counter = Counter(5, 0L, 0.0, 0.0f, 0, 0)
         val patch   = Patch.increment(Counter.value, -10)
         val result  = patch(counter, PatchMode.Strict)
-        assertTrue(result == Right(Counter(-5, 0L, 0.0, 0.0f)))
+        assertTrue(result == Right(Counter(-5, 0L, 0.0, 0.0f, 0, 0)))
       }
     ),
     suite("Patch.increment (Long)")(
       test("increments long value") {
-        val counter = Counter(0, 1000000000L, 0.0, 0.0f)
+        val counter = Counter(0, 1000000000L, 0.0, 0.0f, 0, 0)
         val patch   = Patch.increment(Counter.longValue, 500L)
         val result  = patch(counter, PatchMode.Strict)
-        assertTrue(result == Right(Counter(0, 1000000500L, 0.0, 0.0f)))
+        assertTrue(result == Right(Counter(0, 1000000500L, 0.0, 0.0f, 0, 0)))
       },
       test("decrements long value") {
-        val counter = Counter(0, 1000L, 0.0, 0.0f)
+        val counter = Counter(0, 1000L, 0.0, 0.0f, 0, 0)
         val patch   = Patch.increment(Counter.longValue, -200L)
         val result  = patch(counter, PatchMode.Strict)
-        assertTrue(result == Right(Counter(0, 800L, 0.0, 0.0f)))
+        assertTrue(result == Right(Counter(0, 800L, 0.0, 0.0f, 0, 0)))
       }
     ),
     suite("Patch.increment (Double)")(
       test("increments double value") {
-        val counter = Counter(0, 0L, 10.5, 0.0f)
+        val counter = Counter(0, 0L, 10.5, 0.0f, 0, 0)
         val patch   = Patch.increment(Counter.doubleValue, 2.3)
         val result  = patch(counter, PatchMode.Strict)
         assertTrue(result.map(_.doubleValue).exists(v => math.abs(v - 12.8) < 0.0001))
       },
       test("decrements double value") {
-        val counter = Counter(0, 0L, 10.0, 0.0f)
+        val counter = Counter(0, 0L, 10.0, 0.0f, 0, 0)
         val patch   = Patch.increment(Counter.doubleValue, -3.5)
         val result  = patch(counter, PatchMode.Strict)
         assertTrue(result.map(_.doubleValue).exists(v => math.abs(v - 6.5) < 0.0001))
@@ -111,20 +120,48 @@ object PrimitiveDeltaSpec extends SchemaBaseSpec {
     ),
     suite("Patch.increment (Float)")(
       test("increments float value") {
-        val counter = Counter(0, 0L, 0.0, 5.5f)
+        val counter = Counter(0, 0L, 0.0, 5.5f, 0, 0)
         val patch   = Patch.increment(Counter.floatValue, 1.5f)
         val result  = patch(counter, PatchMode.Strict)
         assertTrue(result.map(_.floatValue).exists(v => math.abs(v - 7.0f) < 0.0001f))
       }
     ),
+    suite("Patch.increment (Short)")(
+      test("increments short value") {
+        val counter = Counter(0, 0L, 0.0, 0.0f, 10, 0)
+        val patch   = Patch.increment(Counter.shortValue, 5.toShort)
+        val result  = patch(counter, PatchMode.Strict)
+        assertTrue(result.exists(_.shortValue == 15.toShort))
+      },
+      test("decrements short value") {
+        val counter = Counter(0, 0L, 0.0, 0.0f, 20, 0)
+        val patch   = Patch.increment(Counter.shortValue, (-5).toShort)
+        val result  = patch(counter, PatchMode.Strict)
+        assertTrue(result.exists(_.shortValue == 15.toShort))
+      }
+    ),
+    suite("Patch.increment (Byte)")(
+      test("increments byte value") {
+        val counter = Counter(0, 0L, 0.0, 0.0f, 0, 10)
+        val patch   = Patch.increment(Counter.byteValue, 5.toByte)
+        val result  = patch(counter, PatchMode.Strict)
+        assertTrue(result.exists(_.byteValue == 15.toByte))
+      },
+      test("decrements byte value") {
+        val counter = Counter(0, 0L, 0.0, 0.0f, 0, 20)
+        val patch   = Patch.increment(Counter.byteValue, (-5).toByte)
+        val result  = patch(counter, PatchMode.Strict)
+        assertTrue(result.exists(_.byteValue == 15.toByte))
+      }
+    ),
     suite("Composition")(
       test("composes multiple numeric deltas") {
-        val counter = Counter(10, 0L, 0.0, 0.0f)
+        val counter = Counter(10, 0L, 0.0, 0.0f, 0, 0)
         val patch   = Patch.increment(Counter.value, 5) ++
           Patch.increment(Counter.value, 3) ++
           Patch.increment(Counter.value, -2)
         val result = patch(counter, PatchMode.Strict)
-        assertTrue(result == Right(Counter(16, 0L, 0.0, 0.0f)))
+        assertTrue(result == Right(Counter(16, 0L, 0.0, 0.0f, 0, 0)))
       }
     )
   )
@@ -372,7 +409,7 @@ object PrimitiveDeltaSpec extends SchemaBaseSpec {
       assertTrue(result.isLeft)
     },
     test("composition of different delta types") {
-      val counter = Counter(10, 100L, 5.0, 2.0f)
+      val counter = Counter(10, 100L, 5.0, 2.0f, 0, 0)
       val patch   = Patch.increment(Counter.value, 5) ++
         Patch.increment(Counter.longValue, 50L) ++
         Patch.increment(Counter.doubleValue, 2.5)
@@ -386,7 +423,7 @@ object PrimitiveDeltaSpec extends SchemaBaseSpec {
       )
     },
     test("zero delta does nothing") {
-      val counter = Counter(10, 0L, 0.0, 0.0f)
+      val counter = Counter(10, 0L, 0.0, 0.0f, 0, 0)
       val patch   = Patch.increment(Counter.value, 0)
       val result  = patch(counter, PatchMode.Strict)
       assertTrue(result == Right(counter))

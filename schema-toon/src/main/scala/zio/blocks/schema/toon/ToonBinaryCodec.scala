@@ -9,7 +9,8 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.time._
 import java.util.{Currency, UUID}
 import scala.annotation.switch
-import scala.collection.immutable.{ArraySeq, VectorBuilder}
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
 /**
@@ -834,14 +835,14 @@ object ToonBinaryCodec {
       fields: Array[String],
       length: Int,
       startDepth: Int,
-      builder: VectorBuilder[DynamicValue]
+      builder: ChunkBuilder[DynamicValue]
     ): Unit = {
       var count = 0
       while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
         in.skipBlankLinesInArray(count == 0)
         if (in.hasMoreLines && in.getDepth >= startDepth) {
           val values = in.readInlineArray()
-          val record = new VectorBuilder[(String, DynamicValue)]
+          val record = ChunkBuilder.make[(String, DynamicValue)]()
           var i      = 0
           while (i < fields.length && i < values.length) {
             record += ((fields(i), inferredToDynamicValue(in.inferType(values(i)), values(i))))
@@ -856,7 +857,7 @@ object ToonBinaryCodec {
     private def decodeInlinePrimitives(
       in: ToonReader,
       values: Array[String],
-      builder: VectorBuilder[DynamicValue]
+      builder: ChunkBuilder[DynamicValue]
     ): Unit = {
       var i = 0
       while (i < values.length) {
@@ -869,7 +870,7 @@ object ToonBinaryCodec {
       in: ToonReader,
       length: Int,
       startDepth: Int,
-      builder: VectorBuilder[DynamicValue]
+      builder: ChunkBuilder[DynamicValue]
     ): Unit = {
       var count = 0
       while (count < length && in.hasMoreLines && in.getDepth >= startDepth) {
@@ -884,7 +885,7 @@ object ToonBinaryCodec {
 
     def decodeValue(in: ToonReader, default: DynamicValue): DynamicValue = {
       in.skipBlankLines()
-      if (!in.hasMoreLines) return DynamicValue.Record(Vector.empty)
+      if (!in.hasMoreLines) return DynamicValue.Record.empty
       val content = in.peekTrimmedContent
       if (content.isEmpty) {
         val currentDepth = in.getDepth
@@ -893,7 +894,7 @@ object ToonBinaryCodec {
         if (in.hasMoreLines && in.getDepth > currentDepth) {
           return decodeValue(in, default)
         }
-        return DynamicValue.Record(Vector.empty)
+        return DynamicValue.Record.empty
       }
       if (content.startsWith("[")) {
         return decodeRootArray(in)
@@ -928,7 +929,7 @@ object ToonBinaryCodec {
     }
 
     private def decodeRecordFields(in: ToonReader): DynamicValue = {
-      val builder    = new VectorBuilder[((String, Boolean), DynamicValue)]
+      val builder    = ChunkBuilder.make[((String, Boolean), DynamicValue)]()
       val startDepth = in.getDepth
       in.skipBlankLines()
       while (in.hasMoreLines && in.getDepth >= startDepth && !in.isListItem) {
@@ -960,7 +961,7 @@ object ToonBinaryCodec {
       }
     }
 
-    private def expandAndMergeFieldsWithQuoteInfo(in: ToonReader, fields: Vector[((String, Boolean), DynamicValue)]) = {
+    private def expandAndMergeFieldsWithQuoteInfo(in: ToonReader, fields: Chunk[((String, Boolean), DynamicValue)]) = {
       val keyMap = scala.collection.mutable.LinkedHashMap.empty[String, DynamicValue]
       fields.foreach { case ((key, wasQuoted), value) =>
         val (expandedKey, expandedValue) =
@@ -968,7 +969,7 @@ object ToonBinaryCodec {
           else expandDottedKey(key, value)
         mergeIntoMap(in, keyMap, expandedKey, expandedValue)
       }
-      val result = new VectorBuilder[(String, DynamicValue)]
+      val result = ChunkBuilder.make[(String, DynamicValue)]()
       keyMap.foreach { case (k, v) => result += ((k, v)) }
       maybeExtractVariant(DynamicValue.Record(result.result()), in)
     }
@@ -980,7 +981,7 @@ object ToonBinaryCodec {
             case Some((_, DynamicValue.Primitive(PrimitiveValue.String(caseName)))) =>
               val otherFields = record.fields.filterNot(_._1 == fieldName)
               otherFields match {
-                case Vector(("value", innerValue)) =>
+                case Chunk(("value", innerValue)) =>
                   DynamicValue.Variant(caseName, innerValue)
                 case _ =>
                   DynamicValue.Variant(caseName, DynamicValue.Record(otherFields))
@@ -996,7 +997,7 @@ object ToonBinaryCodec {
         val segments = key.split('.').toList
         if (segments.forall(ToonWriter.isIdentifierSegment)) {
           val nested = segments.tail.foldRight(value) { (segment, acc) =>
-            DynamicValue.Record(Vector((segment, acc)))
+            DynamicValue.Record(Chunk((segment, acc)))
           }
           (segments.head, nested)
         } else (key, value)
@@ -1034,7 +1035,7 @@ object ToonBinaryCodec {
       val mergedMap = scala.collection.mutable.LinkedHashMap.empty[String, DynamicValue]
       existing.fields.foreach { case (k, v) => mergedMap.put(k, v) }
       incoming.fields.foreach { case (k, v) => mergeIntoMap(in, mergedMap, k, v) }
-      val result = new VectorBuilder[(String, DynamicValue)]
+      val result = ChunkBuilder.make[(String, DynamicValue)]()
       mergedMap.foreach { case (k, v) => result += ((k, v)) }
       DynamicValue.Record(result.result())
     }
@@ -1062,7 +1063,7 @@ object ToonBinaryCodec {
       val inlineContent = content.substring(afterBracket + 1).trim
       in.advanceLine()
       in.setActiveDelimiter(delim)
-      val builder    = new VectorBuilder[DynamicValue]
+      val builder    = ChunkBuilder.make[DynamicValue]()
       val startDepth = in.getDepth
       if (fields != null && fields.nonEmpty) {
         in.skipBlankLinesInArray(true)
@@ -1105,7 +1106,7 @@ object ToonBinaryCodec {
       if (braceStart > 0 && braceEnd > braceStart) {
         fields = parseFieldNames(rawKey.substring(braceStart + 1, braceEnd), delim)
       }
-      val builder    = new VectorBuilder[DynamicValue]
+      val builder    = ChunkBuilder.make[DynamicValue]()
       val startDepth = in.getDepth
       in.setActiveDelimiter(delim)
       if (fields != null && fields.nonEmpty) {
@@ -1466,15 +1467,15 @@ object ToonBinaryCodec {
 
     private sealed trait ArrayClassification
     private object ArrayClassification {
-      case object Primitives                          extends ArrayClassification
-      case class UniformRecords(keys: Vector[String]) extends ArrayClassification
-      case object Mixed                               extends ArrayClassification
+      case object Primitives                         extends ArrayClassification
+      case class UniformRecords(keys: Chunk[String]) extends ArrayClassification
+      case object Mixed                              extends ArrayClassification
     }
 
-    private def classifySequence(elements: Vector[DynamicValue]): ArrayClassification = {
-      var allPrimitives                   = true
-      var allRecords                      = true
-      var firstRecordKeys: Vector[String] = null
+    private def classifySequence(elements: Chunk[DynamicValue]): ArrayClassification = {
+      var allPrimitives                  = true
+      var allRecords                     = true
+      var firstRecordKeys: Chunk[String] = null
 
       val it = elements.iterator
       while (it.hasNext && (allPrimitives || allRecords)) {
@@ -1508,7 +1509,7 @@ object ToonBinaryCodec {
       case _                                 => out.writeString(value.toString)
     }
 
-    private def encodeTabularRow(record: DynamicValue.Record, keys: Vector[String], out: ToonWriter): Unit = {
+    private def encodeTabularRow(record: DynamicValue.Record, keys: Chunk[String], out: ToonWriter): Unit = {
       val fieldMap = record.fields.toMap
       var first    = true
       val it       = keys.iterator

@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 object DynamicValueMergeSpec extends SchemaBaseSpec {
@@ -12,40 +13,40 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
   private val strPrimitive2  = string("b")
   private val boolPrimitive1 = boolean(true)
 
-  private val simpleRecord1 = Record(Vector("x" -> intPrimitive1, "y" -> strPrimitive1))
-  private val simpleRecord2 = Record(Vector("x" -> intPrimitive2, "z" -> boolPrimitive1))
+  private val simpleRecord1 = Record(Chunk("x" -> intPrimitive1, "y" -> strPrimitive1))
+  private val simpleRecord2 = Record(Chunk("x" -> intPrimitive2, "z" -> boolPrimitive1))
 
   private val nestedRecord1 = Record(
-    Vector(
+    Chunk(
       "outer" -> intPrimitive1,
-      "inner" -> Record(Vector("a" -> intPrimitive1, "b" -> strPrimitive1))
+      "inner" -> Record(Chunk("a" -> intPrimitive1, "b" -> strPrimitive1))
     )
   )
   private val nestedRecord2 = Record(
-    Vector(
+    Chunk(
       "outer" -> intPrimitive2,
-      "inner" -> Record(Vector("a" -> intPrimitive2, "c" -> boolPrimitive1))
+      "inner" -> Record(Chunk("a" -> intPrimitive2, "c" -> boolPrimitive1))
     )
   )
 
-  private val seq1 = Sequence(Vector(intPrimitive1, strPrimitive1, boolPrimitive1))
-  private val seq2 = Sequence(Vector(intPrimitive2, strPrimitive2))
+  private val seq1 = Sequence(Chunk(intPrimitive1, strPrimitive1, boolPrimitive1))
+  private val seq2 = Sequence(Chunk(intPrimitive2, strPrimitive2))
 
-  private val nestedSeq1 = Sequence(Vector(Record(Vector("x" -> intPrimitive1)), intPrimitive1))
-  private val nestedSeq2 = Sequence(Vector(Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1))))
+  private val nestedSeq1 = Sequence(Chunk(Record(Chunk("x" -> intPrimitive1)), intPrimitive1))
+  private val nestedSeq2 = Sequence(Chunk(Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1))))
 
-  private val map1 = Map(Vector(strPrimitive1 -> intPrimitive1, string("key1") -> strPrimitive1))
-  private val map2 = Map(Vector(strPrimitive1 -> intPrimitive2, string("key2") -> boolPrimitive1))
+  private val map1 = Map(Chunk(strPrimitive1 -> intPrimitive1, string("key1") -> strPrimitive1))
+  private val map2 = Map(Chunk(strPrimitive1 -> intPrimitive2, string("key2") -> boolPrimitive1))
 
-  private val nestedMap1 = Map(Vector(strPrimitive1 -> Record(Vector("x" -> intPrimitive1))))
-  private val nestedMap2 = Map(Vector(strPrimitive1 -> Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1))))
+  private val nestedMap1 = Map(Chunk(strPrimitive1 -> Record(Chunk("x" -> intPrimitive1))))
+  private val nestedMap2 = Map(Chunk(strPrimitive1 -> Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1))))
 
   private val variant1 = Variant("CaseA", intPrimitive1)
   private val variant2 = Variant("CaseA", intPrimitive2)
   private val variant3 = Variant("CaseB", strPrimitive1)
 
-  private val nestedVariant1 = Variant("CaseA", Record(Vector("x" -> intPrimitive1)))
-  private val nestedVariant2 = Variant("CaseA", Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1)))
+  private val nestedVariant1 = Variant("CaseA", Record(Chunk("x" -> intPrimitive1)))
+  private val nestedVariant2 = Variant("CaseA", Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1)))
 
   def spec: Spec[TestEnvironment, Any] = suite("DynamicValueMergeSpec")(
     suite("DynamicValueMergeStrategy.Auto")(
@@ -56,37 +57,37 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
       test("records: deep merge with overlapping fields") {
         val result = simpleRecord1.merge(simpleRecord2, Auto)
         assertTrue(
-          result == Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1, "z" -> boolPrimitive1))
+          result == Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1, "z" -> boolPrimitive1))
         )
       },
       test("records: non-overlapping fields preserved") {
-        val left   = Record(Vector("a" -> intPrimitive1))
-        val right  = Record(Vector("b" -> intPrimitive2))
+        val left   = Record(Chunk("a" -> intPrimitive1))
+        val right  = Record(Chunk("b" -> intPrimitive2))
         val result = left.merge(right, Auto)
-        assertTrue(result == Record(Vector("a" -> intPrimitive1, "b" -> intPrimitive2)))
+        assertTrue(result == Record(Chunk("a" -> intPrimitive1, "b" -> intPrimitive2)))
       },
       test("nested records: deep recursive merge") {
         val result        = nestedRecord1.merge(nestedRecord2, Auto)
         val expectedInner = Record(
-          Vector("a" -> intPrimitive2, "b" -> strPrimitive1, "c" -> boolPrimitive1)
+          Chunk("a" -> intPrimitive2, "b" -> strPrimitive1, "c" -> boolPrimitive1)
         )
-        val expected = Record(Vector("outer" -> intPrimitive2, "inner" -> expectedInner))
+        val expected = Record(Chunk("outer" -> intPrimitive2, "inner" -> expectedInner))
         assertTrue(result == expected)
       },
       test("sequences: merge by index, right wins on overlap") {
         val result = seq1.merge(seq2, Auto)
-        assertTrue(result == Sequence(Vector(intPrimitive2, strPrimitive2, boolPrimitive1)))
+        assertTrue(result == Sequence(Chunk(intPrimitive2, strPrimitive2, boolPrimitive1)))
       },
       test("nested sequences: recursive merge of elements") {
         val result       = nestedSeq1.merge(nestedSeq2, Auto)
-        val expectedElem = Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1))
-        assertTrue(result == Sequence(Vector(expectedElem, intPrimitive1)))
+        val expectedElem = Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1))
+        assertTrue(result == Sequence(Chunk(expectedElem, intPrimitive1)))
       },
       test("maps: merge by key, right wins on overlap") {
         val result = map1.merge(map2, Auto)
         assertTrue(
           result == Map(
-            Vector(
+            Chunk(
               strPrimitive1  -> intPrimitive2,
               string("key1") -> strPrimitive1,
               string("key2") -> boolPrimitive1
@@ -96,7 +97,7 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
       },
       test("nested maps: recursive merge of values") {
         val result   = nestedMap1.merge(nestedMap2, Auto)
-        val expected = Map(Vector(strPrimitive1 -> Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1))))
+        val expected = Map(Chunk(strPrimitive1 -> Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1))))
         assertTrue(result == expected)
       },
       test("variants: same case merges inner values") {
@@ -109,7 +110,7 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
       },
       test("nested variants: recursive merge of inner record") {
         val result   = nestedVariant1.merge(nestedVariant2, Auto)
-        val expected = Variant("CaseA", Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1)))
+        val expected = Variant("CaseA", Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1)))
         assertTrue(result == expected)
       },
       test("null values: right null wins") {
@@ -189,15 +190,15 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
       test("records: root-level merge, nested replaced") {
         val result = simpleRecord1.merge(simpleRecord2, Shallow)
         assertTrue(
-          result == Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1, "z" -> boolPrimitive1))
+          result == Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1, "z" -> boolPrimitive1))
         )
       },
       test("nested records: only root merged, inner replaced entirely") {
         val result   = nestedRecord1.merge(nestedRecord2, Shallow)
         val expected = Record(
-          Vector(
+          Chunk(
             "outer" -> intPrimitive2,
-            "inner" -> Record(Vector("a" -> intPrimitive2, "c" -> boolPrimitive1))
+            "inner" -> Record(Chunk("a" -> intPrimitive2, "c" -> boolPrimitive1))
           )
         )
         assertTrue(result == expected)
@@ -205,29 +206,29 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
       test("sequences: root-level merge by index, nested replaced") {
         val result   = nestedSeq1.merge(nestedSeq2, Shallow)
         val expected = Sequence(
-          Vector(Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1)), intPrimitive1)
+          Chunk(Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1)), intPrimitive1)
         )
         assertTrue(result == expected)
       },
       test("maps: root-level merge, nested replaced") {
         val result   = nestedMap1.merge(nestedMap2, Shallow)
         val expected = Map(
-          Vector(strPrimitive1 -> Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1)))
+          Chunk(strPrimitive1 -> Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1)))
         )
         assertTrue(result == expected)
       },
       test("deeply nested: no recursion beyond root") {
         val deepLeft = Record(
-          Vector(
+          Chunk(
             "level1" -> Record(
-              Vector("level2" -> Record(Vector("a" -> intPrimitive1, "b" -> strPrimitive1)))
+              Chunk("level2" -> Record(Chunk("a" -> intPrimitive1, "b" -> strPrimitive1)))
             )
           )
         )
         val deepRight = Record(
-          Vector(
+          Chunk(
             "level1" -> Record(
-              Vector("level2" -> Record(Vector("a" -> intPrimitive2, "c" -> boolPrimitive1)))
+              Chunk("level2" -> Record(Chunk("a" -> intPrimitive2, "c" -> boolPrimitive1)))
             )
           )
         )
@@ -243,27 +244,27 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
       test("records: merged by key recursively") {
         val result = simpleRecord1.merge(simpleRecord2, Concat)
         assertTrue(
-          result == Record(Vector("x" -> intPrimitive2, "y" -> strPrimitive1, "z" -> boolPrimitive1))
+          result == Record(Chunk("x" -> intPrimitive2, "y" -> strPrimitive1, "z" -> boolPrimitive1))
         )
       },
       test("sequences: concatenated instead of merged by index") {
         val result = seq1.merge(seq2, Concat)
         assertTrue(
           result == Sequence(
-            Vector(intPrimitive1, strPrimitive1, boolPrimitive1, intPrimitive2, strPrimitive2)
+            Chunk(intPrimitive1, strPrimitive1, boolPrimitive1, intPrimitive2, strPrimitive2)
           )
         )
       },
       test("sequences with different lengths: concatenated") {
-        val left   = Sequence(Vector(intPrimitive1))
-        val right  = Sequence(Vector(strPrimitive1, strPrimitive2, boolPrimitive1))
+        val left   = Sequence(Chunk(intPrimitive1))
+        val right  = Sequence(Chunk(strPrimitive1, strPrimitive2, boolPrimitive1))
         val result = left.merge(right, Concat)
         assertTrue(
-          result == Sequence(Vector(intPrimitive1, strPrimitive1, strPrimitive2, boolPrimitive1))
+          result == Sequence(Chunk(intPrimitive1, strPrimitive1, strPrimitive2, boolPrimitive1))
         )
       },
       test("empty sequences: concatenated") {
-        val empty  = Sequence(Vector.empty)
+        val empty  = Sequence(Chunk.empty)
         val result = empty.merge(seq1, Concat)
         assertTrue(result == seq1)
       },
@@ -271,7 +272,7 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
         val result = map1.merge(map2, Concat)
         assertTrue(
           result == Map(
-            Vector(
+            Chunk(
               strPrimitive1  -> intPrimitive2,
               string("key1") -> strPrimitive1,
               string("key2") -> boolPrimitive1
@@ -280,12 +281,12 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
         )
       },
       test("nested records with sequences: sequences concatenated") {
-        val left     = Record(Vector("items" -> Sequence(Vector(intPrimitive1, intPrimitive2))))
-        val right    = Record(Vector("items" -> Sequence(Vector(strPrimitive1, strPrimitive2))))
+        val left     = Record(Chunk("items" -> Sequence(Chunk(intPrimitive1, intPrimitive2))))
+        val right    = Record(Chunk("items" -> Sequence(Chunk(strPrimitive1, strPrimitive2))))
         val result   = left.merge(right, Concat)
         val expected = Record(
-          Vector(
-            "items" -> Sequence(Vector(intPrimitive1, intPrimitive2, strPrimitive1, strPrimitive2))
+          Chunk(
+            "items" -> Sequence(Chunk(intPrimitive1, intPrimitive2, strPrimitive1, strPrimitive2))
           )
         )
         assertTrue(result == expected)
@@ -323,7 +324,7 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
         )
         val result = simpleRecord1.merge(simpleRecord2, strategy)
         assertTrue(
-          result == Record(Vector("x" -> intPrimitive1, "y" -> strPrimitive1, "z" -> boolPrimitive1))
+          result == Record(Chunk("x" -> intPrimitive1, "y" -> strPrimitive1, "z" -> boolPrimitive1))
         )
       },
       test("custom function: no recursion") {
@@ -337,22 +338,22 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
           r = (_, t) => t == DynamicValueType.Record
         )
         val left = Record(
-          Vector(
-            "items"  -> Sequence(Vector(intPrimitive1)),
-            "nested" -> Record(Vector("a" -> intPrimitive1))
+          Chunk(
+            "items"  -> Sequence(Chunk(intPrimitive1)),
+            "nested" -> Record(Chunk("a" -> intPrimitive1))
           )
         )
         val right = Record(
-          Vector(
-            "items"  -> Sequence(Vector(intPrimitive2, strPrimitive1)),
-            "nested" -> Record(Vector("a" -> intPrimitive2, "b" -> strPrimitive1))
+          Chunk(
+            "items"  -> Sequence(Chunk(intPrimitive2, strPrimitive1)),
+            "nested" -> Record(Chunk("a" -> intPrimitive2, "b" -> strPrimitive1))
           )
         )
         val result   = left.merge(right, strategy)
         val expected = Record(
-          Vector(
-            "items"  -> Sequence(Vector(intPrimitive2, strPrimitive1)),
-            "nested" -> Record(Vector("a" -> intPrimitive2, "b" -> strPrimitive1))
+          Chunk(
+            "items"  -> Sequence(Chunk(intPrimitive2, strPrimitive1)),
+            "nested" -> Record(Chunk("a" -> intPrimitive2, "b" -> strPrimitive1))
           )
         )
         assertTrue(result == expected)
@@ -363,10 +364,10 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
           r = (path, _) => path.nodes.length < 1
         )
         val deep1 = Record(
-          Vector("a" -> Record(Vector("b" -> Record(Vector("c" -> intPrimitive1)))))
+          Chunk("a" -> Record(Chunk("b" -> Record(Chunk("c" -> intPrimitive1)))))
         )
         val deep2 = Record(
-          Vector("a" -> Record(Vector("b" -> Record(Vector("c" -> intPrimitive2, "d" -> strPrimitive1)))))
+          Chunk("a" -> Record(Chunk("b" -> Record(Chunk("c" -> intPrimitive2, "d" -> strPrimitive1)))))
         )
         val result = deep1.merge(deep2, strategy)
         assertTrue(result == deep2)
@@ -393,9 +394,9 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
       test("merge with explicit Auto strategy") {
         val result        = nestedRecord1.merge(nestedRecord2, Auto)
         val expectedInner = Record(
-          Vector("a" -> intPrimitive2, "b" -> strPrimitive1, "c" -> boolPrimitive1)
+          Chunk("a" -> intPrimitive2, "b" -> strPrimitive1, "c" -> boolPrimitive1)
         )
-        val expected = Record(Vector("outer" -> intPrimitive2, "inner" -> expectedInner))
+        val expected = Record(Chunk("outer" -> intPrimitive2, "inner" -> expectedInner))
         assertTrue(result == expected)
       },
       test("merge with Replace strategy") {
@@ -409,9 +410,9 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
       test("merge with Shallow strategy") {
         val result   = nestedRecord1.merge(nestedRecord2, Shallow)
         val expected = Record(
-          Vector(
+          Chunk(
             "outer" -> intPrimitive2,
-            "inner" -> Record(Vector("a" -> intPrimitive2, "c" -> boolPrimitive1))
+            "inner" -> Record(Chunk("a" -> intPrimitive2, "c" -> boolPrimitive1))
           )
         )
         assertTrue(result == expected)
@@ -420,7 +421,7 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
         val result = seq1.merge(seq2, Concat)
         assertTrue(
           result == Sequence(
-            Vector(intPrimitive1, strPrimitive1, boolPrimitive1, intPrimitive2, strPrimitive2)
+            Chunk(intPrimitive1, strPrimitive1, boolPrimitive1, intPrimitive2, strPrimitive2)
           )
         )
       },
@@ -430,43 +431,43 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
         assertTrue(result == intPrimitive1)
       },
       test("merge chaining") {
-        val r1     = Record(Vector("a" -> intPrimitive1))
-        val r2     = Record(Vector("b" -> intPrimitive2))
-        val r3     = Record(Vector("c" -> strPrimitive1))
+        val r1     = Record(Chunk("a" -> intPrimitive1))
+        val r2     = Record(Chunk("b" -> intPrimitive2))
+        val r3     = Record(Chunk("c" -> strPrimitive1))
         val result = r1.merge(r2).merge(r3)
         assertTrue(
-          result == Record(Vector("a" -> intPrimitive1, "b" -> intPrimitive2, "c" -> strPrimitive1))
+          result == Record(Chunk("a" -> intPrimitive1, "b" -> intPrimitive2, "c" -> strPrimitive1))
         )
       }
     ),
     suite("Edge cases")(
       test("empty record merge") {
-        val empty  = Record(Vector.empty)
+        val empty  = Record(Chunk.empty)
         val result = empty.merge(simpleRecord1, Auto)
         assertTrue(result == simpleRecord1)
       },
       test("merge into empty record") {
-        val empty  = Record(Vector.empty)
+        val empty  = Record(Chunk.empty)
         val result = simpleRecord1.merge(empty, Auto)
         assertTrue(result == simpleRecord1)
       },
       test("empty sequence merge") {
-        val empty  = Sequence(Vector.empty)
+        val empty  = Sequence(Chunk.empty)
         val result = empty.merge(seq1, Auto)
         assertTrue(result == seq1)
       },
       test("merge into empty sequence") {
-        val empty  = Sequence(Vector.empty)
+        val empty  = Sequence(Chunk.empty)
         val result = seq1.merge(empty, Auto)
         assertTrue(result == seq1)
       },
       test("empty map merge") {
-        val empty  = Map(Vector.empty)
+        val empty  = Map(Chunk.empty)
         val result = empty.merge(map1, Auto)
         assertTrue(result == map1)
       },
       test("merge into empty map") {
-        val empty  = Map(Vector.empty)
+        val empty  = Map(Chunk.empty)
         val result = map1.merge(empty, Auto)
         assertTrue(result == map1)
       },
@@ -484,22 +485,22 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
       },
       test("deeply nested merge with Auto") {
         val deep1 = Record(
-          Vector(
+          Chunk(
             "level1" -> Record(
-              Vector(
+              Chunk(
                 "level2" -> Record(
-                  Vector("level3" -> Record(Vector("value" -> intPrimitive1)))
+                  Chunk("level3" -> Record(Chunk("value" -> intPrimitive1)))
                 )
               )
             )
           )
         )
         val deep2 = Record(
-          Vector(
+          Chunk(
             "level1" -> Record(
-              Vector(
+              Chunk(
                 "level2" -> Record(
-                  Vector("level3" -> Record(Vector("value" -> intPrimitive2, "extra" -> strPrimitive1)))
+                  Chunk("level3" -> Record(Chunk("value" -> intPrimitive2, "extra" -> strPrimitive1)))
                 )
               )
             )
@@ -507,11 +508,11 @@ object DynamicValueMergeSpec extends SchemaBaseSpec {
         )
         val result   = deep1.merge(deep2, Auto)
         val expected = Record(
-          Vector(
+          Chunk(
             "level1" -> Record(
-              Vector(
+              Chunk(
                 "level2" -> Record(
-                  Vector("level3" -> Record(Vector("value" -> intPrimitive2, "extra" -> strPrimitive1)))
+                  Chunk("level3" -> Record(Chunk("value" -> intPrimitive2, "extra" -> strPrimitive1)))
                 )
               )
             )

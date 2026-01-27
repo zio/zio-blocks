@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.blocks.schema._
 import zio.blocks.schema.JavaTimeGen._
@@ -2841,7 +2842,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         ) &&
         roundTrip[DynamicValue](
           DynamicValue.Record(
-            Vector(
+            Chunk(
               ("i", DynamicValue.Primitive(PrimitiveValue.Int(1))),
               ("s", DynamicValue.Primitive(PrimitiveValue.String("VVV")))
             )
@@ -2852,20 +2853,20 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           DynamicValue.Variant("Int", DynamicValue.Primitive(PrimitiveValue.Int(1))),
           """{"Int":1}"""
         ) &&
-        roundTrip[DynamicValue](DynamicValue.Sequence(Vector.empty), "[]") &&
+        roundTrip[DynamicValue](DynamicValue.Sequence(Chunk.empty), "[]") &&
         roundTrip[DynamicValue](
           DynamicValue.Sequence(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.Int(1)),
               DynamicValue.Primitive(PrimitiveValue.String("VVV"))
             )
           ),
           """[1,"VVV"]"""
         ) &&
-        roundTrip[DynamicValue](DynamicValue.Map(Vector.empty), "{}") &&
+        roundTrip[DynamicValue](DynamicValue.Map(Chunk.empty), "{}") &&
         encode[DynamicValue](
           DynamicValue.Map(
-            Vector(
+            Chunk(
               (DynamicValue.Primitive(PrimitiveValue.Boolean(true)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
               (DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte)), DynamicValue.Primitive(PrimitiveValue.Int(2))),
               (DynamicValue.Primitive(PrimitiveValue.Short(1: Short)), DynamicValue.Primitive(PrimitiveValue.Int(3))),
@@ -2966,13 +2967,13 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         ) &&
         encodeError[DynamicValue](
           DynamicValue.Map(
-            Vector((DynamicValue.Primitive(PrimitiveValue.Unit), DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            Chunk((DynamicValue.Primitive(PrimitiveValue.Unit), DynamicValue.Primitive(PrimitiveValue.Int(1))))
           ),
           "encoding as JSON key is not supported"
         ) &&
         encodeError[DynamicValue](
           DynamicValue.Map(
-            Vector((DynamicValue.Sequence(Vector.empty), DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            Chunk((DynamicValue.Sequence(Chunk.empty), DynamicValue.Primitive(PrimitiveValue.Int(1))))
           ),
           "encoding as JSON key is not supported"
         ) &&
@@ -2984,7 +2985,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         val value = Dynamic(
           DynamicValue.Primitive(PrimitiveValue.Int(1)),
           DynamicValue.Record(
-            Vector(
+            Chunk(
               ("VVV", DynamicValue.Primitive(PrimitiveValue.Int(1))),
               ("WWW", DynamicValue.Primitive(PrimitiveValue.Int(2)))
             )
