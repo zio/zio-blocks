@@ -4,7 +4,7 @@ import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema._
 
-import zio.blocks.typeid.{TypeId, Owner, TypeDefKind}
+import zio.blocks.typeid.{TypeId, DynamicTypeId, Owner, TypeDefKind}
 
 import zio.blocks.schema.avro.AvroTestUtils._
 import zio.blocks.schema.binding.Binding
@@ -266,7 +266,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         val codec = Record1.schema
           .deriving(AvroFormat.deriver)
           .instance(
-            TypeId(Owner.parse("scala"), "Int", Nil, TypeDefKind.Class(), Nil).asInstanceOf[TypeId[Int]],
+            TypeId[Int](DynamicTypeId(Owner.parse("scala"), "Int", Nil, TypeDefKind.Class(), Nil)),
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
@@ -369,7 +369,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         val codec = Record2.schema
           .deriving(AvroFormat.deriver)
           .instance(
-            TypeId(Owner.parse("scala"), "Int", Nil, TypeDefKind.Class(), Nil).asInstanceOf[TypeId[Int]],
+            TypeId[Int](DynamicTypeId(Owner.parse("scala"), "Int", Nil, TypeDefKind.Class(), Nil)),
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
@@ -952,7 +952,9 @@ object AvroFormatSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Email] = new Schema(
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
-        TypeId(Owner.parse("zio.blocks.avro.AvroFormatSpec"), "Email", Nil, TypeDefKind.Class(), Nil),
+        TypeId[Email](
+          DynamicTypeId(Owner.parse("zio.blocks.avro.AvroFormatSpec"), "Email", Nil, TypeDefKind.Class(), Nil)
+        ),
         None,
         new Binding.Wrapper(
           {

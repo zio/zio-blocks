@@ -56,22 +56,74 @@ private object SchemaCompanionVersionSpecific {
     def isCollection(tpe: Type): Boolean =
       tpe <:< typeOf[Iterable[?]] || tpe <:< typeOf[Iterator[?]] || tpe <:< typeOf[Array[?]]
 
-    def isZioPreludeNewtype(tpe: Type): Boolean = tpe match {
-      case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-        compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
-      case _ => false
+    def isZioPreludeNewtype(tpe: Type): Boolean = {
+      def check(t: Type): Boolean = t match {
+        case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
+          compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
+        case _ => false
+      }
+      check(tpe) || check(tpe.dealias)
     }
 
-    def zioPreludeNewtypeDealias(tpe: Type): Type = tpe match {
-      case TypeRef(compTpe, _, _) =>
-        compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
-          case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
-          case _         => cannotDealiasZioPreludeNewtype(tpe)
-        }
-      case _ => cannotDealiasZioPreludeNewtype(tpe)
+    def zioPreludeNewtypeDealias(tpe: Type): Type = {
+      val effectiveTpe = tpe.dealias
+      effectiveTpe match {
+        case TypeRef(compTpe, _, _) =>
+          compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
+            case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
+            case _         => cannotDealiasZioPreludeNewtype(tpe)
+          }
+        case _ => cannotDealiasZioPreludeNewtype(tpe)
+      }
     }
 
     def cannotDealiasZioPreludeNewtype(tpe: Type): Nothing = fail(s"Cannot dealias zio-prelude newtype '$tpe'.")
+
+    // Build an owner expression from a symbol chain
+    def buildOwner(sym: Symbol): Tree = {
+      def loop(s: Symbol, acc: List[Tree]): List[Tree] =
+        if (s == NoSymbol || s.isPackageClass && s.fullName == "<root>" || s.fullName == "<empty>") {
+          acc
+        } else if (s.isPackage || s.isPackageClass) {
+          val pkgName = s.name.decodedName.toString
+          if (pkgName != "<root>" && pkgName != "<empty>") {
+            loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Package($pkgName)" :: acc)
+          } else acc
+        } else if (s.isModule || s.isModuleClass) {
+          val termName = s.name.decodedName.toString.stripSuffix("$")
+          loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Term($termName)" :: acc)
+        } else if (s.isClass || s.isType) {
+          loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Type(${s.name.decodedName.toString})" :: acc)
+        } else {
+          loop(s.owner, acc)
+        }
+
+      val segments = loop(sym, Nil)
+      q"_root_.zio.blocks.typeid.Owner(_root_.scala.List(..$segments))"
+    }
+
+    // Build TypeId for ZIO Prelude newtypes by extracting the companion object name and owner
+    def buildTypeIdForZioPreludeNewtype(tpe: Type): Tree = {
+      val effectiveTpe = tpe.dealias
+      effectiveTpe match {
+        case TypeRef(compTpe, _, Nil) =>
+          val companionSym = compTpe.typeSymbol
+          val newtypeName = companionSym.name.decodedName.toString.stripSuffix("$")
+          val ownerTree = buildOwner(companionSym.owner)
+          q"""new _root_.zio.blocks.typeid.TypeId[$tpe](
+            _root_.zio.blocks.typeid.DynamicTypeId(
+              $ownerTree,
+              $newtypeName,
+              _root_.scala.Nil,
+              _root_.zio.blocks.typeid.TypeDefKind.Class(),
+              _root_.scala.Nil,
+              _root_.scala.Nil
+            )
+          )"""
+        case _ =>
+          fail(s"Cannot build TypeId for zio-prelude newtype '$tpe'. Expected TypeRef(compTpe, \"Type\", Nil).")
+      }
+    }
 
     def dealiasOnDemand(tpe: Type): Type =
       if (isZioPreludeNewtype(tpe)) zioPreludeNewtypeDealias(tpe)
@@ -466,9 +518,10 @@ private object SchemaCompanionVersionSpecific {
       } else if (isNonAbstractScalaClass(tpe)) {
         deriveSchemaForNonAbstractScalaClass(tpe)
       } else if (isZioPreludeNewtype(tpe)) {
-        val schema  = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
-        val tpeName = toTree(typeId(tpe))
-        q"new Schema($schema.reflect.typeId($tpeName).asInstanceOf[_root_.zio.blocks.schema.Reflect.Bound[$tpe]])"
+        val sTpe = zioPreludeNewtypeDealias(tpe)
+        val schema = findImplicitOrDeriveSchema(sTpe)
+        val newtypeId = buildTypeIdForZioPreludeNewtype(tpe)
+        q"new Schema($schema.reflect.typeId($newtypeId.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$sTpe]])).asInstanceOf[Schema[$tpe]]"
       } else cannotDeriveSchema(tpe)
 
     def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree = {

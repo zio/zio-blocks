@@ -155,10 +155,42 @@ private[schema] object CommonMacroOps {
       tpe,
       tpe match {
         case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-          var tTypeId = calculateTypeId(compTpe)
-          if (tTypeId.name.endsWith(".type"))
-            tTypeId = TypeId(tTypeId.dynamic.copy(name = tTypeId.name.stripSuffix(".type")))
-          tTypeId
+          // This is a ZIO Prelude newtype pattern: TypeRef(companionType, Type, Nil)
+          // Extract the companion object name and owner chain
+          compTpe match {
+            case SingleType(_, termSym) if termSym.isModule =>
+              val objName = NameTransformer.decode(termSym.name.toString).stripSuffix("$")
+
+              var packages = List.empty[String]
+              var values = List.empty[String]
+              var ownerSym = termSym.owner
+              while (ownerSym != NoSymbol && ownerSym.owner != NoSymbol) {
+                val ownerName = NameTransformer.decode(ownerSym.name.toString)
+                if (ownerSym.isPackage || ownerSym.isPackageClass) {
+                  packages = ownerName :: packages
+                } else {
+                  values = ownerName :: values
+                }
+                ownerSym = ownerSym.owner
+              }
+
+              val owner = Owner((packages.map(Owner.Package(_)) ::: values.map(Owner.Term(_))).toList)
+              new TypeId(
+                DynamicTypeId(
+                  owner,
+                  objName,
+                  Nil,
+                  TypeDefKind.Class(),
+                  Nil,
+                  Nil
+                )
+              )
+            case _ =>
+              var tTypeId = calculateTypeId(compTpe)
+              if (tTypeId.name.endsWith(".type"))
+                tTypeId = TypeId(tTypeId.dynamic.copy(name = tTypeId.name.stripSuffix(".type")))
+              tTypeId
+          }
         case _ =>
           calculateTypeId(tpe)
       }

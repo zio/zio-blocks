@@ -4,9 +4,9 @@ import zio.test._
 import zio.blocks.typeid._
 
 object VerificationSpec extends ZIOSpecDefault {
-  // Helpers
-  val intId      = TypeId(Owner.parse("scala"), "Int", Nil, TypeDefKind.Class(), Nil)
-  val stringId   = TypeId(Owner.parse("java.lang"), "String", Nil, TypeDefKind.Class(), Nil)
+  // Helpers - using DynamicTypeId directly since TypeRepr.Ref expects DynamicTypeId
+  val intId      = DynamicTypeId(Owner.parse("scala"), "Int", Nil, TypeDefKind.Class(), Nil)
+  val stringId   = DynamicTypeId(Owner.parse("java.lang"), "String", Nil, TypeDefKind.Class(), Nil)
   val intType    = TypeRepr.Ref(intId, Nil)
   val stringType = TypeRepr.Ref(stringId, Nil)
 
@@ -28,7 +28,7 @@ object VerificationSpec extends ZIOSpecDefault {
     suite("Subtyping")(
       test("Contravariance works") {
         // Consumer[-A]
-        val consumerId = TypeId(
+        val consumerId = DynamicTypeId(
           Owner.parse("test"),
           "Consumer",
           List(TypeParam("A", 0, Variance.Contravariant)),
@@ -45,7 +45,13 @@ object VerificationSpec extends ZIOSpecDefault {
       test("Covariance works") {
         // Producer[+A]
         val producerId =
-          TypeId(Owner.parse("test"), "Producer", List(TypeParam("A", 0, Variance.Covariant)), TypeDefKind.Class(), Nil)
+          DynamicTypeId(
+            Owner.parse("test"),
+            "Producer",
+            List(TypeParam("A", 0, Variance.Covariant)),
+            TypeDefKind.Class(),
+            Nil
+          )
 
         // Producer[Int] <: Producer[Any]
         val producerAny = TypeRepr.Ref(producerId, List(TypeRepr.AnyType))
