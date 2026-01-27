@@ -1394,7 +1394,8 @@ object JsonSpec extends SchemaBaseSpec {
       ),
       suite("other standard type decoders")(
         test("UUID decoder") {
-          val uuid = java.util.UUID.randomUUID()
+          // Use fixed UUID instead of randomUUID() for Scala.js compatibility (no SecureRandom)
+          val uuid = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
           assertTrue(
             Json.String(uuid.toString).as[java.util.UUID] == Right(uuid),
             Json.String("not-a-uuid").as[java.util.UUID].isLeft,
@@ -3175,7 +3176,8 @@ object JsonSpec extends SchemaBaseSpec {
         ),
         suite("Other standard type decoders")(
           test("decode UUID from String") {
-            val uuid   = java.util.UUID.randomUUID()
+            // Use fixed UUID instead of randomUUID() for Scala.js compatibility (no SecureRandom)
+            val uuid   = java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
             val result = JsonDecoder[java.util.UUID].decode(Json.String(uuid.toString))
             assertTrue(result == Right(uuid))
           },
