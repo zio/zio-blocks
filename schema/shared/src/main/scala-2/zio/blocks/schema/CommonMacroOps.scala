@@ -162,7 +162,7 @@ private[schema] object CommonMacroOps {
               val objName = NameTransformer.decode(termSym.name.toString).stripSuffix("$")
 
               var packages = List.empty[String]
-              var values = List.empty[String]
+              var values   = List.empty[String]
               var ownerSym = termSym.owner
               while (ownerSym != NoSymbol && ownerSym.owner != NoSymbol) {
                 val ownerName = NameTransformer.decode(ownerSym.name.toString)

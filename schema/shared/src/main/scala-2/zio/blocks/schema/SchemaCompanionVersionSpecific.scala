@@ -108,8 +108,8 @@ private object SchemaCompanionVersionSpecific {
       effectiveTpe match {
         case TypeRef(compTpe, _, Nil) =>
           val companionSym = compTpe.typeSymbol
-          val newtypeName = companionSym.name.decodedName.toString.stripSuffix("$")
-          val ownerTree = buildOwner(companionSym.owner)
+          val newtypeName  = companionSym.name.decodedName.toString.stripSuffix("$")
+          val ownerTree    = buildOwner(companionSym.owner)
           q"""new _root_.zio.blocks.typeid.TypeId[$tpe](
             _root_.zio.blocks.typeid.DynamicTypeId(
               $ownerTree,
@@ -518,8 +518,8 @@ private object SchemaCompanionVersionSpecific {
       } else if (isNonAbstractScalaClass(tpe)) {
         deriveSchemaForNonAbstractScalaClass(tpe)
       } else if (isZioPreludeNewtype(tpe)) {
-        val sTpe = zioPreludeNewtypeDealias(tpe)
-        val schema = findImplicitOrDeriveSchema(sTpe)
+        val sTpe      = zioPreludeNewtypeDealias(tpe)
+        val schema    = findImplicitOrDeriveSchema(sTpe)
         val newtypeId = buildTypeIdForZioPreludeNewtype(tpe)
         q"new Schema($schema.reflect.typeId($newtypeId.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$sTpe]])).asInstanceOf[Schema[$tpe]]"
       } else cannotDeriveSchema(tpe)

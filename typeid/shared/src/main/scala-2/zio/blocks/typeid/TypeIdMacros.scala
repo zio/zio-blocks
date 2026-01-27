@@ -53,12 +53,12 @@ object TypeIdMacros {
     }
 
     // Build type parameters list
-    def buildTypeParams(sym: Symbol): Tree = {
+    def buildTypeParams(sym: Symbol): Tree =
       if (!sym.isType) q"_root_.scala.Nil"
       else {
         val params = sym.asType.typeParams.zipWithIndex.map { case (p, idx) =>
-          val paramName = p.name.decodedName.toString
-          val typeSym = p.asType
+          val paramName    = p.name.decodedName.toString
+          val typeSym      = p.asType
           val varianceExpr = if (typeSym.isCovariant) {
             q"_root_.zio.blocks.typeid.Variance.Covariant"
           } else if (typeSym.isContravariant) {
@@ -70,10 +70,9 @@ object TypeIdMacros {
         }
         q"_root_.scala.List(..$params)"
       }
-    }
 
     // Build TypeDefKind
-    def buildDefKind(sym: Symbol): Tree = {
+    def buildDefKind(sym: Symbol): Tree =
       if (sym.isModule || sym.isModuleClass) {
         q"_root_.zio.blocks.typeid.TypeDefKind.Object"
       } else if (sym.isClass) {
@@ -82,10 +81,10 @@ object TypeIdMacros {
           val isSealed = classSym.isSealed
           q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = $isSealed)"
         } else {
-          val isFinal = classSym.isFinal
+          val isFinal    = classSym.isFinal
           val isAbstract = classSym.isAbstract && !classSym.isTrait
-          val isCase = classSym.isCaseClass
-          val isValue = classSym.baseClasses.exists(_.fullName == "scala.AnyVal")
+          val isCase     = classSym.isCaseClass
+          val isValue    = classSym.baseClasses.exists(_.fullName == "scala.AnyVal")
           q"""_root_.zio.blocks.typeid.TypeDefKind.Class(
             isFinal = $isFinal,
             isAbstract = $isAbstract,
@@ -101,17 +100,16 @@ object TypeIdMacros {
       } else {
         q"_root_.zio.blocks.typeid.TypeDefKind.Class()"
       }
-    }
 
     // Build TypeRepr for a type
-    def buildTypeRepr(t: Type): Tree = {
+    def buildTypeRepr(t: Type): Tree =
       t.dealias match {
         case TypeRef(_, sym, Nil) =>
           // Simple type without type args - create a Ref with a DynamicTypeId
-          val name = sym.name.decodedName.toString
-          val ownerExpr = buildOwner(sym.owner)
+          val name           = sym.name.decodedName.toString
+          val ownerExpr      = buildOwner(sym.owner)
           val typeParamsExpr = buildTypeParams(sym)
-          val defKindExpr = buildDefKind(sym)
+          val defKindExpr    = buildDefKind(sym)
           q"""_root_.zio.blocks.typeid.TypeRepr.Ref(
             _root_.zio.blocks.typeid.DynamicTypeId(
               $ownerExpr,
@@ -125,11 +123,11 @@ object TypeIdMacros {
           )"""
         case TypeRef(_, sym, args) =>
           // Applied type - create Ref for constructor with applied args
-          val name = sym.name.decodedName.toString
-          val ownerExpr = buildOwner(sym.owner)
+          val name           = sym.name.decodedName.toString
+          val ownerExpr      = buildOwner(sym.owner)
           val typeParamsExpr = buildTypeParams(sym)
-          val defKindExpr = buildDefKind(sym)
-          val argReprs = args.map(buildTypeRepr)
+          val defKindExpr    = buildDefKind(sym)
+          val argReprs       = args.map(buildTypeRepr)
           q"""_root_.zio.blocks.typeid.TypeRepr.AppliedType(
             _root_.zio.blocks.typeid.TypeRepr.Ref(
               _root_.zio.blocks.typeid.DynamicTypeId(
@@ -146,8 +144,8 @@ object TypeIdMacros {
           )"""
         case _ =>
           // Fallback for other type structures
-          val sym = t.typeSymbol
-          val name = sym.name.decodedName.toString
+          val sym       = t.typeSymbol
+          val name      = sym.name.decodedName.toString
           val ownerExpr = buildOwner(sym.owner)
           q"""_root_.zio.blocks.typeid.TypeRepr.Ref(
             _root_.zio.blocks.typeid.DynamicTypeId(
@@ -161,7 +159,6 @@ object TypeIdMacros {
             _root_.scala.Nil
           )"""
       }
-    }
 
     // Build TypeId for ZIO Prelude newtypes
     def buildZioPreludeTypeId(t: Type): Tree = {
@@ -173,7 +170,7 @@ object TypeIdMacros {
             case SingleType(_, termSym) if termSym.isModule =>
               // The termSym is the companion object (e.g., Name$)
               val newtypeName = termSym.name.decodedName.toString.stripSuffix("$")
-              val ownerExpr = buildOwner(termSym.owner)
+              val ownerExpr   = buildOwner(termSym.owner)
               q"""_root_.zio.blocks.typeid.TypeId[$t](
                 _root_.zio.blocks.typeid.DynamicTypeId(
                   $ownerExpr,
@@ -187,8 +184,8 @@ object TypeIdMacros {
             case _ =>
               // Fallback: use typeSymbol of the prefix
               val companionSym = compTpe.typeSymbol
-              val newtypeName = companionSym.name.decodedName.toString.stripSuffix("$")
-              val ownerExpr = buildOwner(companionSym.owner)
+              val newtypeName  = companionSym.name.decodedName.toString.stripSuffix("$")
+              val ownerExpr    = buildOwner(companionSym.owner)
               q"""_root_.zio.blocks.typeid.TypeId[$t](
                 _root_.zio.blocks.typeid.DynamicTypeId(
                   $ownerExpr,
@@ -208,13 +205,13 @@ object TypeIdMacros {
     // Build TypeId for regular types
     def buildRegularTypeId(t: Type): Tree = {
       // Dealias to get the canonical type
-      val effectiveTpe = t.dealias
-      val typeSymbol = effectiveTpe.typeSymbol
-      val name = typeSymbol.name.decodedName.toString
-      val ownerExpr = buildOwner(typeSymbol.owner)
+      val effectiveTpe   = t.dealias
+      val typeSymbol     = effectiveTpe.typeSymbol
+      val name           = typeSymbol.name.decodedName.toString
+      val ownerExpr      = buildOwner(typeSymbol.owner)
       val typeParamsExpr = buildTypeParams(typeSymbol)
-      val defKindExpr = buildDefKind(typeSymbol)
-      
+      val defKindExpr    = buildDefKind(typeSymbol)
+
       // Extract type arguments if this is an applied type
       val argsExpr = effectiveTpe match {
         case TypeRef(_, _, args) if args.nonEmpty =>
