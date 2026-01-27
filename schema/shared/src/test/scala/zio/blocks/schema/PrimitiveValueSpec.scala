@@ -331,6 +331,41 @@ object PrimitiveValueSpec extends SchemaBaseSpec {
       test("has compatible compare and comparison operators") {
         checkComparisonOps(PrimitiveValue.UUID(new UUID(2L, 2L)), PrimitiveValue.UUID(new UUID(1L, 1L)))
       }
+    ),
+    suite("Schema roundtrip")(
+      test("Unit roundtrips through DynamicValue") {
+        val value: PrimitiveValue = PrimitiveValue.Unit
+        val dyn                   = Schema[PrimitiveValue].toDynamicValue(value)
+        val back                  = Schema[PrimitiveValue].fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(value)))
+      },
+      test("Int roundtrips") {
+        val value: PrimitiveValue = PrimitiveValue.Int(42)
+        val dyn                   = Schema[PrimitiveValue].toDynamicValue(value)
+        val back                  = Schema[PrimitiveValue].fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(value)))
+      },
+      test("String roundtrips") {
+        val value: PrimitiveValue = PrimitiveValue.String("hello")
+        val dyn                   = Schema[PrimitiveValue].toDynamicValue(value)
+        val back                  = Schema[PrimitiveValue].fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(value)))
+      },
+      test("Instant roundtrips") {
+        val now                   = java.time.Instant.now()
+        val value: PrimitiveValue = PrimitiveValue.Instant(now)
+        val dyn                   = Schema[PrimitiveValue].toDynamicValue(value)
+        val back                  = Schema[PrimitiveValue].fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(value)))
+      },
+      test("UUID roundtrips") {
+        // Use fixed UUID instead of randomUUID() for Scala.js compatibility (no SecureRandom)
+        val uuid                  = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val value: PrimitiveValue = PrimitiveValue.UUID(uuid)
+        val dyn                   = Schema[PrimitiveValue].toDynamicValue(value)
+        val back                  = Schema[PrimitiveValue].fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(value)))
+      }
     )
   )
 

@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import scala.collection.immutable.ArraySeq
+import zio.blocks.chunk.Chunk
 
 final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil) {
   override def toString: String = {
@@ -101,6 +102,9 @@ object TypeName extends TypeNameCompanionVersionSpecific {
   def seq[A](element: TypeName[A]): TypeName[Seq[A]] =
     _seq.copy(params = Seq(element)).asInstanceOf[TypeName[Seq[A]]]
 
+  def chunk[A](element: TypeName[A]): TypeName[Chunk[A]] =
+    _chunk.copy(params = Seq(element)).asInstanceOf[TypeName[Chunk[A]]]
+
   def left[A, B](element: TypeName[A]): TypeName[Left[A, B]] =
     _left.copy(params = Seq(element)).asInstanceOf[TypeName[Left[A, B]]]
 
@@ -119,6 +123,7 @@ object TypeName extends TypeNameCompanionVersionSpecific {
   private[this] val _arraySeq   = new TypeName(Namespace.scalaCollectionImmutable, "ArraySeq")
   private[this] val _indexedSeq = new TypeName(Namespace.scalaCollectionImmutable, "IndexedSeq")
   private[this] val _seq        = new TypeName(Namespace.scalaCollectionImmutable, "Seq")
+  private[this] val _chunk      = new TypeName(Namespace.zioBlocksChunk, "Chunk")
   private[this] val _left       = new TypeName(Namespace.scalaUtil, "Left")
   private[this] val _right      = new TypeName(Namespace.scalaUtil, "Right")
   private[this] val _either     = new TypeName(Namespace.scalaUtil, "Either")
