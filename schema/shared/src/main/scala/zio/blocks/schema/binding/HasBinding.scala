@@ -11,8 +11,8 @@ trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
 
   final def primitive[A](fa: F[BindingType.Primitive, A]): Binding.Primitive[A] =
     binding(fa) match {
-      case primitive: Binding.Primitive[A] => primitive
-      case _                               => sys.error("Expected Binding.Primitive")
+      case primitive: Binding.Primitive[A] @scala.unchecked => primitive
+      case _                                                => sys.error("Expected Binding.Primitive")
     }
 
   final def updatePrimitive[A](
@@ -22,21 +22,21 @@ trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
     updateBinding(
       fa,
       {
-        case primitive: Binding.Primitive[A] => f(primitive)
-        case _                               => sys.error("Expected Binding.Primitive")
+        case primitive: Binding.Primitive[A] @scala.unchecked => f(primitive)
+        case _                                                => sys.error("Expected Binding.Primitive")
       }
     )
 
   final def record[A](fa: F[BindingType.Record, A]): Binding.Record[A] =
     binding(fa) match {
-      case record: Binding.Record[A] => record
-      case _                         => sys.error("Expected Binding.Record")
+      case record: Binding.Record[A] @scala.unchecked => record
+      case _                                          => sys.error("Expected Binding.Record")
     }
 
   final def variant[A](fa: F[BindingType.Variant, A]): Binding.Variant[A] =
     binding(fa) match {
-      case variant: Binding.Variant[A] => variant
-      case _                           => sys.error("Expected Binding.Variant")
+      case variant: Binding.Variant[A] @scala.unchecked => variant
+      case _                                            => sys.error("Expected Binding.Variant")
     }
 
   final def constructor[A](fa: F[BindingType.Record, A]): Constructor[A] = record(fa).constructor
@@ -48,8 +48,8 @@ trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
     updateBinding(
       fa,
       {
-        case record: Binding.Record[A] => record.copy(constructor = f(record.constructor))
-        case _                         => sys.error("Expected Binding.Record")
+        case record: Binding.Record[A] @scala.unchecked => record.copy(constructor = f(record.constructor))
+        case _                                          => sys.error("Expected Binding.Record")
       }
     )
 
@@ -62,8 +62,8 @@ trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
     updateBinding(
       fa,
       {
-        case record: Binding.Record[A] => record.copy(deconstructor = f(record.deconstructor))
-        case _                         => sys.error("Expected Binding.Record")
+        case record: Binding.Record[A] @scala.unchecked => record.copy(deconstructor = f(record.deconstructor))
+        case _                                          => sys.error("Expected Binding.Record")
       }
     )
 
@@ -76,8 +76,8 @@ trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
     updateBinding(
       fa,
       {
-        case variant: Binding.Variant[A] => variant.copy(discriminator = f(variant.discriminator))
-        case _                           => sys.error("Expected Binding.Variant")
+        case variant: Binding.Variant[A] @scala.unchecked => variant.copy(discriminator = f(variant.discriminator))
+        case _                                            => sys.error("Expected Binding.Variant")
       }
     )
 
@@ -87,8 +87,8 @@ trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
     updateBinding(
       fa,
       {
-        case variant: Binding.Variant[A] => variant.copy(matchers = f(variant.matchers))
-        case _                           => sys.error("Expected Binding.Variant")
+        case variant: Binding.Variant[A] @scala.unchecked => variant.copy(matchers = f(variant.matchers))
+        case _                                            => sys.error("Expected Binding.Variant")
       }
     )
 
@@ -142,7 +142,7 @@ trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
 
   final def wrapper[A, B](fa: F[BindingType.Wrapper[A, B], A]): Binding.Wrapper[A, B] =
     binding(fa) match {
-      case wrapper: Binding.Wrapper[A, B] => wrapper
-      case _                              => sys.error("Expected Binding.Wrapper")
+      case wrapper: Binding.Wrapper[A, B] @scala.unchecked => wrapper
+      case _                                               => sys.error("Expected Binding.Wrapper")
     }
 }
