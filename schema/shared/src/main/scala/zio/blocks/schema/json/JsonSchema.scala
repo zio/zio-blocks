@@ -412,7 +412,6 @@ object EvaluationResult {
 // JSON Schema Type Keyword Enumeration
 // =============================================================================
 
-
 // =============================================================================
 // JSON Schema 2020-12 ADT
 // =============================================================================
@@ -1361,7 +1360,7 @@ object JsonSchema {
     Object($ref = Some(UriReference(uri)))
 
   val nullSchema: JsonSchema = ofType(JsonSchemaType.Null)
-  val boolean: JsonSchema = ofType(JsonSchemaType.Boolean)
+  val boolean: JsonSchema    = ofType(JsonSchemaType.Boolean)
 
   // ===========================================================================
   // Parsing Helpers
