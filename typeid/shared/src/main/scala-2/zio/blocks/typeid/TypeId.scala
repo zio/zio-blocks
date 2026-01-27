@@ -8,7 +8,8 @@ import scala.language.experimental.macros
  * In Scala 2, the type parameter is simply `A` (without AnyKind bound, which is
  * Scala 3 specific).
  *
- * @tparam A The type this TypeId represents (phantom type parameter)
+ * @tparam A
+ *   The type this TypeId represents (phantom type parameter)
  */
 final case class TypeId[A](dynamic: DynamicTypeId) {
   def owner: Owner                  = dynamic.owner
@@ -19,20 +20,20 @@ final case class TypeId[A](dynamic: DynamicTypeId) {
   def args: List[TypeRepr]          = dynamic.args
   def annotations: List[Annotation] = dynamic.annotations
 
-  def fullName: String             = dynamic.fullName
-  def arity: Int                   = dynamic.arity
-  def aliasedTo: Option[TypeRepr]  = dynamic.aliasedTo
+  def fullName: String                 = dynamic.fullName
+  def arity: Int                       = dynamic.arity
+  def aliasedTo: Option[TypeRepr]      = dynamic.aliasedTo
   def representation: Option[TypeRepr] = dynamic.representation
 
-  def isClass: Boolean     = dynamic.isClass
-  def isTrait: Boolean     = dynamic.isTrait
-  def isObject: Boolean    = dynamic.isObject
-  def isEnum: Boolean      = dynamic.isEnum
-  def isAlias: Boolean     = dynamic.isAlias
-  def isOpaque: Boolean    = dynamic.isOpaque
-  def isAbstract: Boolean  = dynamic.isAbstract
-  def isSealed: Boolean    = dynamic.isSealed
-  def isCaseClass: Boolean = dynamic.isCaseClass
+  def isClass: Boolean      = dynamic.isClass
+  def isTrait: Boolean      = dynamic.isTrait
+  def isObject: Boolean     = dynamic.isObject
+  def isEnum: Boolean       = dynamic.isEnum
+  def isAlias: Boolean      = dynamic.isAlias
+  def isOpaque: Boolean     = dynamic.isOpaque
+  def isAbstract: Boolean   = dynamic.isAbstract
+  def isSealed: Boolean     = dynamic.isSealed
+  def isCaseClass: Boolean  = dynamic.isCaseClass
   def isValueClass: Boolean = dynamic.isValueClass
 
   def enumCases: List[EnumCaseInfo] = dynamic.enumCases

@@ -21,14 +21,16 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
           Owner.Term("ZIOPreludeSupportSpec")
         )
       )
-      def expectedTypeId(name: String): TypeId[Any] = TypeId(DynamicTypeId(
-        expectedOwner,
-        name,
-        Nil,
-        TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false),
-        Nil,
-        Nil
-      )).asInstanceOf[TypeId[Any]]
+      def expectedTypeId(name: String): TypeId[Any] = TypeId(
+        DynamicTypeId(
+          expectedOwner,
+          name,
+          Nil,
+          TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false),
+          Nil,
+          Nil
+        )
+      ).asInstanceOf[TypeId[Any]]
 
       assert(Planet.name.get(value))(equalTo(Name("Earth"))) &&
       assert(Planet.name_wrapped.getOption(value))(isSome(equalTo("Earth"))) &&
@@ -45,7 +47,9 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       assert(Planet.name.focus.typeId.asInstanceOf[TypeId[Any]])(equalTo(expectedTypeId("Name"))) &&
       assert(Planet.mass.focus.typeId.asInstanceOf[TypeId[Any]])(equalTo(expectedTypeId("Kilogram"))) &&
       assert(Planet.radius.focus.typeId.asInstanceOf[TypeId[Any]])(equalTo(expectedTypeId("Meter"))) &&
-      assert(TypeId(stripMetadata(Planet.distanceFromSun.focus.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]])(
+      assert(
+        TypeId(stripMetadata(Planet.distanceFromSun.focus.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]]
+      )(
         equalTo(TypeId(stripMetadata(TypeId.from[Option[Meter]]).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]])
       )
     },
