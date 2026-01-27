@@ -75,7 +75,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
   ): MigrationBuilderSyntax[A, B, H, P] = new MigrationBuilderSyntax(b)
 
   // Type-level assertion helpers
-  def assertContains[L <: TList, X](implicit ev: Contains[L, X]): Unit = ()
+  def assertContains[L <: TList, X](implicit ev: Contains[L, X]): Unit          = ()
   def assertIsSubset[A <: TList, B <: TList](implicit ev: IsSubset[A, B]): Unit = ()
 
   // ==========================================================================
