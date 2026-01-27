@@ -11,7 +11,8 @@ import zio.blocks.schema.migration.FieldExtraction._
  *   - All "removed" fields (in A but not in B) are handled
  *   - All "added" fields (in B but not in A) are provided
  *
- * Fields that exist in both A and B (unchanged fields) are automatically handled/provided.
+ * Fields that exist in both A and B (unchanged fields) are automatically
+ * handled/provided.
  *
  * Type parameters:
  *   - A: Source type
@@ -24,8 +25,8 @@ sealed trait ValidationProof[A, B, Handled <: Tuple, Provided <: Tuple]
 object ValidationProof {
 
   /**
-   * Implementation class for ValidationProof.
-   * Public because transparent inline given instances require it.
+   * Implementation class for ValidationProof. Public because transparent inline
+   * given instances require it.
    */
   final class Impl[A, B, Handled <: Tuple, Provided <: Tuple] extends ValidationProof[A, B, Handled, Provided]
 
@@ -49,15 +50,13 @@ object ValidationProof {
    *   - IsSubset[RequiredProvided, Provided] =:= true
    */
   transparent inline given derive[A, B, Handled <: Tuple, Provided <: Tuple](using
-      fnA: FieldNames[A],
-      fnB: FieldNames[B]
+    fnA: FieldNames[A],
+    fnB: FieldNames[B]
   ): ValidationProof[A, B, Handled, Provided] =
-    summonFrom {
-      case _: (IsSubset[Difference[fnA.Labels, fnB.Labels], Handled] =:= true) =>
-        summonFrom {
-          case _: (IsSubset[Difference[fnB.Labels, fnA.Labels], Provided] =:= true) =>
-            new Impl[A, B, Handled, Provided]
-        }
+    summonFrom { case _: (IsSubset[Difference[fnA.Labels, fnB.Labels], Handled] =:= true) =>
+      summonFrom { case _: (IsSubset[Difference[fnB.Labels, fnA.Labels], Provided] =:= true) =>
+        new Impl[A, B, Handled, Provided]
+      }
     }
 
   /**
@@ -76,8 +75,8 @@ object ValidationProof {
    * compile error messages when validation fails.
    */
   inline def require[A, B, Handled <: Tuple, Provided <: Tuple](using
-      fnA: FieldNames[A],
-      fnB: FieldNames[B]
+    fnA: FieldNames[A],
+    fnB: FieldNames[B]
   ): ValidationProof[A, B, Handled, Provided] = {
     summonInline[IsSubset[Difference[fnA.Labels, fnB.Labels], Handled] =:= true]
     summonInline[IsSubset[Difference[fnB.Labels, fnA.Labels], Provided] =:= true]

@@ -9,8 +9,8 @@ import zio.blocks.schema.migration.TypeLevel._
 /**
  * Tests for compile-time migration validation.
  *
- * These tests verify that the ValidationProof typeclass correctly
- * enforces migration completeness at compile time.
+ * These tests verify that the ValidationProof typeclass correctly enforces
+ * migration completeness at compile time.
  */
 object CompileTimeValidationSpec extends ZIOSpecDefault {
 
@@ -39,16 +39,16 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   case class ManySharedTarget(shared1: String, shared2: Int, shared3: Boolean, added: Long)
 
   // Schemas
-  implicit val personASchema: Schema[PersonA]               = Schema.derived
-  implicit val personBSchema: Schema[PersonB]               = Schema.derived
-  implicit val renameSourceSchema: Schema[RenameSource]     = Schema.derived
-  implicit val renameTargetSchema: Schema[RenameTarget]     = Schema.derived
-  implicit val dropSourceSchema: Schema[DropSource]         = Schema.derived
-  implicit val dropTargetSchema: Schema[DropTarget]         = Schema.derived
-  implicit val addSourceSchema: Schema[AddSource]           = Schema.derived
-  implicit val addTargetSchema: Schema[AddTarget]           = Schema.derived
-  implicit val complexSourceSchema: Schema[ComplexSource]   = Schema.derived
-  implicit val complexTargetSchema: Schema[ComplexTarget]   = Schema.derived
+  implicit val personASchema: Schema[PersonA]                   = Schema.derived
+  implicit val personBSchema: Schema[PersonB]                   = Schema.derived
+  implicit val renameSourceSchema: Schema[RenameSource]         = Schema.derived
+  implicit val renameTargetSchema: Schema[RenameTarget]         = Schema.derived
+  implicit val dropSourceSchema: Schema[DropSource]             = Schema.derived
+  implicit val dropTargetSchema: Schema[DropTarget]             = Schema.derived
+  implicit val addSourceSchema: Schema[AddSource]               = Schema.derived
+  implicit val addTargetSchema: Schema[AddTarget]               = Schema.derived
+  implicit val complexSourceSchema: Schema[ComplexSource]       = Schema.derived
+  implicit val complexTargetSchema: Schema[ComplexTarget]       = Schema.derived
   implicit val manySharedSourceSchema: Schema[ManySharedSource] = Schema.derived
   implicit val manySharedTargetSchema: Schema[ManySharedTarget] = Schema.derived
 
@@ -219,10 +219,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         val migration = MigrationBuilder
           .newBuilder[ComplexSource, ComplexTarget]
-          .renameField(_.a, _.x)          // handles a, provides x
-          .renameField(_.c, _.y)          // handles c, provides y
-          .dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))  // handles d
-          .addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))        // provides e
+          .renameField(_.a, _.x)                                                        // handles a, provides x
+          .renameField(_.c, _.y)                                                        // handles c, provides y
+          .dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double)) // handles d
+          .addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))       // provides e
           .buildChecked
 
         val source = ComplexSource("hello", 42, true, 3.14)
@@ -303,7 +303,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       test("buildPartial succeeds for incomplete migration") {
         val migration = MigrationBuilder
           .newBuilder[ComplexSource, ComplexTarget]
-          .renameField(_.a, _.x)  // Only partial migration
+          .renameField(_.a, _.x) // Only partial migration
           .buildPartial
 
         assertTrue(migration != null)
@@ -363,7 +363,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         case class EmptySrc()
         case class NonEmptyTgt(field: String)
 
-        implicit val emptySrcSchema: Schema[EmptySrc]     = Schema.derived
+        implicit val emptySrcSchema: Schema[EmptySrc]       = Schema.derived
         implicit val nonEmptyTgtSchema: Schema[NonEmptyTgt] = Schema.derived
 
         // Only need to provide "field", nothing to handle

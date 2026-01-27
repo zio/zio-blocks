@@ -3,14 +3,15 @@ package zio.blocks.schema.migration
 import scala.annotation.nowarn
 
 /**
- * Type-level operations on type-level lists for compile-time migration validation (Scala 2).
+ * Type-level operations on type-level lists for compile-time migration
+ * validation (Scala 2).
  *
  * In Scala 3, these operations use match types on Tuples. In Scala 2, we use:
- * - Custom TList type (TNil, TCons) instead of Tuple
- * - Implicit resolution instead of match types
+ *   - Custom TList type (TNil, TCons) instead of Tuple
+ *   - Implicit resolution instead of match types
  *
- * The key insight: implicit existence = proof. If an implicit can be found,
- * the type-level proposition is true. If not, compilation fails.
+ * The key insight: implicit existence = proof. If an implicit can be found, the
+ * type-level proposition is true. If not, compilation fails.
  */
 object TypeLevel {
 
@@ -35,12 +36,13 @@ object TypeLevel {
   // ============================================================================
 
   /**
-   * Type-level evidence that list L contains element X.
-   * An implicit instance exists iff X is in L.
+   * Type-level evidence that list L contains element X. An implicit instance
+   * exists iff X is in L.
    */
   sealed trait Contains[L <: TList, X]
 
   object Contains extends ContainsLowPriority {
+
     /** Base case: X is at the head of the list */
     implicit def containsHead[X, T <: TList]: Contains[X :: T, X] =
       instance.asInstanceOf[Contains[X :: T, X]]
@@ -59,12 +61,13 @@ object TypeLevel {
   // ============================================================================
 
   /**
-   * Type-level evidence that list L does NOT contain element X.
-   * Used internally for Difference computation.
+   * Type-level evidence that list L does NOT contain element X. Used internally
+   * for Difference computation.
    */
   sealed trait NotContains[L <: TList, X]
 
   object NotContains extends NotContainsLowPriority {
+
     /** Base case: empty list contains nothing */
     implicit def notContainsNil[X]: NotContains[TNil, X] =
       instance.asInstanceOf[NotContains[TNil, X]]
@@ -75,11 +78,11 @@ object TypeLevel {
 
     /**
      * Inductive case: H :: T does not contain X if:
-     * - H is not X (ensured by implicit not found for H =:= X)
-     * - T does not contain X
+     *   - H is not X (ensured by implicit not found for H =:= X)
+     *   - T does not contain X
      *
-     * We use implicit ambiguity to ensure H != X:
-     * If H =:= X, the ambiguous implicit below will conflict.
+     * We use implicit ambiguity to ensure H != X: If H =:= X, the ambiguous
+     * implicit below will conflict.
      */
     implicit def notContainsCons[H, T <: TList, X](implicit
       ev: NotContains[T, X],
@@ -93,20 +96,22 @@ object TypeLevel {
   // ============================================================================
 
   /**
-   * Evidence that types A and B are NOT equal.
-   * Uses the "ambiguous implicit" trick.
+   * Evidence that types A and B are NOT equal. Uses the "ambiguous implicit"
+   * trick.
    */
   sealed trait =:!=[A, B]
 
   object =:!= extends NeqLowPriority {
+
     /** Ambiguous implicit when A =:= B - causes implicit search to fail */
     implicit def neqAmbig1[A]: =:!=[A, A] = sys.error("unreachable")
     implicit def neqAmbig2[A]: =:!=[A, A] = sys.error("unreachable")
   }
 
   trait NeqLowPriority {
+
     /** Default case: A != B */
-    implicit def neq[A, B]: A =:!= B = instance.asInstanceOf[A =:!= B]
+    implicit def neq[A, B]: A =:!= B     = instance.asInstanceOf[A =:!= B]
     protected val instance: Any =:!= Any = new =:!=[Any, Any] {}
   }
 
@@ -115,12 +120,13 @@ object TypeLevel {
   // ============================================================================
 
   /**
-   * Type-level evidence that all elements of A are contained in B (A ⊆ B).
-   * This is the key typeclass for ValidationProof.
+   * Type-level evidence that all elements of A are contained in B (A ⊆ B). This
+   * is the key typeclass for ValidationProof.
    */
   sealed trait IsSubset[A <: TList, B <: TList]
 
   object IsSubset extends IsSubsetLowPriority {
+
     /** Base case: empty set is subset of everything */
     implicit def subsetNil[B <: TList]: IsSubset[TNil, B] =
       instance.asInstanceOf[IsSubset[TNil, B]]
@@ -145,8 +151,8 @@ object TypeLevel {
   // ============================================================================
 
   /**
-   * Appends element X to the end of list L, producing Out.
-   * Used by builder methods to track fields.
+   * Appends element X to the end of list L, producing Out. Used by builder
+   * methods to track fields.
    */
   sealed trait Append[L <: TList, X] {
     type Out <: TList
@@ -174,8 +180,8 @@ object TypeLevel {
   // ============================================================================
 
   /**
-   * Prepends element X to the front of list L.
-   * This is O(1) at the type level, unlike Append which is O(n).
+   * Prepends element X to the front of list L. This is O(1) at the type level,
+   * unlike Append which is O(n).
    */
   sealed trait Prepend[X, L <: TList] {
     type Out <: TList
@@ -288,6 +294,7 @@ object TypeLevel {
   }
 
   trait UnionLowPriority extends UnionLowPriority2 {
+
     /** Case: H from B is already in A, skip it */
     @nowarn("msg=never used")
     implicit def unionConsSkip[A <: TList, H, T <: TList, UTO <: TList](implicit
@@ -314,8 +321,8 @@ object TypeLevel {
   // ============================================================================
 
   /**
-   * Computes the size of a type-level list.
-   * Uses value-level Int with type refinement.
+   * Computes the size of a type-level list. Uses value-level Int with type
+   * refinement.
    */
   sealed trait Size[L <: TList] {
     type N <: Int
@@ -342,7 +349,8 @@ object TypeLevel {
   // ============================================================================
 
   /**
-   * Evidence that two type-level lists contain the same elements (order-independent).
+   * Evidence that two type-level lists contain the same elements
+   * (order-independent).
    */
   sealed trait TListEquals[A <: TList, B <: TList]
 

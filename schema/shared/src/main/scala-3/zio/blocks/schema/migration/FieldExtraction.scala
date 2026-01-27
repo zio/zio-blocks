@@ -15,8 +15,9 @@ import scala.quoted.*
 object FieldExtraction {
 
   /**
-   * Typeclass for extracting field names from a type at compile time.
-   * The Labels type member contains the field names as a tuple of string literal types.
+   * Typeclass for extracting field names from a type at compile time. The
+   * Labels type member contains the field names as a tuple of string literal
+   * types.
    */
   sealed trait FieldNames[A] {
     type Labels <: Tuple
@@ -25,16 +26,16 @@ object FieldExtraction {
   object FieldNames {
 
     /**
-     * Concrete implementation of FieldNames with the Labels type member.
-     * Public because it's used in transparent inline given.
+     * Concrete implementation of FieldNames with the Labels type member. Public
+     * because it's used in transparent inline given.
      */
     class Impl[A, L <: Tuple] extends FieldNames[A] {
       type Labels = L
     }
 
     /**
-     * Given instance that extracts field names from any type with a ProductOf Mirror.
-     * This includes case classes, tuples, and other product types.
+     * Given instance that extracts field names from any type with a ProductOf
+     * Mirror. This includes case classes, tuples, and other product types.
      */
     transparent inline given derived[A](using m: Mirror.ProductOf[A]): FieldNames[A] =
       new Impl[A, m.MirroredElemLabels]
@@ -76,8 +77,8 @@ object FieldExtraction {
     ${ extractFieldPathImpl[A, B]('selector) }
 
   /**
-   * Gets the field names of a type at runtime as a tuple of strings.
-   * This is useful when you need the actual values rather than just the types.
+   * Gets the field names of a type at runtime as a tuple of strings. This is
+   * useful when you need the actual values rather than just the types.
    *
    * {{{
    * case class Person(name: String, age: Int)
@@ -122,7 +123,7 @@ object FieldExtraction {
     def toPathBody(t: Term): Term = t match {
       case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
       case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
-      case _ =>
+      case _                                               =>
         report.errorAndAbort(s"Expected a lambda expression, got '${t.show}'", t.pos)
     }
 
