@@ -28,6 +28,11 @@ object JsonSchemaSpec extends SchemaBaseSpec {
     implicit val schema: Schema[OptionalField] = Schema.derived[OptionalField]
   }
 
+  case class RecursiveNode(value: Int, next: Option[RecursiveNode])
+  object RecursiveNode {
+    implicit val schema: Schema[RecursiveNode] = Schema.derived[RecursiveNode]
+  }
+
   def spec = suite("JsonSchemaSpec")(
     test("derive primitive string") {
       val schema     = Schema[String]
@@ -38,6 +43,16 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       val schema     = Schema[Int]
       val jsonSchema = schema.toJsonSchema
       assertTrue(jsonSchema.asInstanceOf[ObjectSchema].schemaType == Some(List(JsonType.Number)))
+    },
+    test("derive primitive double") {
+      val schema     = Schema[Double]
+      val jsonSchema = schema.toJsonSchema
+      assertTrue(jsonSchema.asInstanceOf[ObjectSchema].schemaType == Some(List(JsonType.Number)))
+    },
+    test("derive primitive unit") {
+      val schema     = Schema[Unit]
+      val jsonSchema = schema.toJsonSchema
+      assertTrue(jsonSchema.asInstanceOf[ObjectSchema].schemaType == Some(List(JsonType.Null)))
     },
     test("derive boolean") {
       val schema     = Schema[Boolean]
@@ -105,6 +120,15 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       assertTrue(
         obj.schemaType == Some(List(JsonType.Object)),
         obj.properties.exists(_.contains("name"))
+      )
+    },
+    test("derive recursive type") {
+      val schema     = Schema[RecursiveNode]
+      val jsonSchema = schema.toJsonSchema
+      val obj        = jsonSchema.asInstanceOf[ObjectSchema]
+      assertTrue(
+        obj.schemaType == Some(List(JsonType.Object)),
+        obj.properties.exists(_.contains("next"))
       )
     }
   )
