@@ -5,8 +5,8 @@ import scala.compiletime.ops.int.+
 /**
  * Type-level operations on Tuples for compile-time migration validation.
  *
- * These match types enable tracking handled and provided fields at the type level,
- * allowing the compiler to verify migration completeness.
+ * These match types enable tracking handled and provided fields at the type
+ * level, allowing the compiler to verify migration completeness.
  */
 object TypeLevel {
 
@@ -36,14 +36,16 @@ object TypeLevel {
    */
   type IsSubset[A <: Tuple, B <: Tuple] <: Boolean = A match {
     case EmptyTuple => true
-    case h *: tail  => Contains[B, h] match {
-      case true  => IsSubset[tail, B]
-      case false => false
-    }
+    case h *: tail  =>
+      Contains[B, h] match {
+        case true  => IsSubset[tail, B]
+        case false => false
+      }
   }
 
   /**
-   * Combine two tuples, keeping all elements from A and adding elements from B not in A.
+   * Combine two tuples, keeping all elements from A and adding elements from B
+   * not in A.
    *
    * {{{
    * Union[("a", "b"), ("b", "c")] produces a tuple containing "a", "b", "c"
@@ -52,10 +54,11 @@ object TypeLevel {
    */
   type Union[A <: Tuple, B <: Tuple] <: Tuple = B match {
     case EmptyTuple => A
-    case h *: tail => Contains[A, h] match {
-      case true  => Union[A, tail]
-      case false => Union[Tuple.Append[A, h], tail]
-    }
+    case h *: tail  =>
+      Contains[A, h] match {
+        case true  => Union[A, tail]
+        case false => Union[Tuple.Append[A, h], tail]
+      }
   }
 
   /**
@@ -69,10 +72,11 @@ object TypeLevel {
    */
   type Difference[A <: Tuple, B <: Tuple] <: Tuple = A match {
     case EmptyTuple => EmptyTuple
-    case h *: tail => Contains[B, h] match {
-      case true  => Difference[tail, B]
-      case false => h *: Difference[tail, B]
-    }
+    case h *: tail  =>
+      Contains[B, h] match {
+        case true  => Difference[tail, B]
+        case false => h *: Difference[tail, B]
+      }
   }
 
   /**
@@ -86,15 +90,16 @@ object TypeLevel {
    */
   type Intersect[A <: Tuple, B <: Tuple] <: Tuple = A match {
     case EmptyTuple => EmptyTuple
-    case h *: tail => Contains[B, h] match {
-      case true  => h *: Intersect[tail, B]
-      case false => Intersect[tail, B]
-    }
+    case h *: tail  =>
+      Contains[B, h] match {
+        case true  => h *: Intersect[tail, B]
+        case false => Intersect[tail, B]
+      }
   }
 
   /**
-   * Type-level evidence that A is a subset of B.
-   * Used for compile-time validation proofs.
+   * Type-level evidence that A is a subset of B. Used for compile-time
+   * validation proofs.
    */
   sealed trait SubsetEvidence[A <: Tuple, B <: Tuple]
 
@@ -102,14 +107,14 @@ object TypeLevel {
     given emptySubset[B <: Tuple]: SubsetEvidence[EmptyTuple, B] = new SubsetEvidence[EmptyTuple, B] {}
 
     given inductiveSubset[H, T <: Tuple, B <: Tuple](using
-        ev1: Contains[B, H] =:= true,
-        ev2: SubsetEvidence[T, B]
+      ev1: Contains[B, H] =:= true,
+      ev2: SubsetEvidence[T, B]
     ): SubsetEvidence[H *: T, B] = new SubsetEvidence[H *: T, B] {}
   }
 
   /**
-   * Type-level equality check for tuples.
-   * Two tuples are equal if each is a subset of the other.
+   * Type-level equality check for tuples. Two tuples are equal if each is a
+   * subset of the other.
    */
   type TupleEquals[A <: Tuple, B <: Tuple] <: Boolean = (IsSubset[A, B], IsSubset[B, A]) match {
     case (true, true) => true
