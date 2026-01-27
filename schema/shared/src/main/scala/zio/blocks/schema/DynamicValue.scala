@@ -30,7 +30,7 @@ import zio.blocks.schema.patch.{DynamicPatch, Differ}
  *   [[Schema.fromDynamicValue]] for converting DynamicValue back to typed
  *   values
  * @see
- *   [[DynamicOptic]] for path-based navigation
+ *   [[zio.blocks.schema.patch.DynamicPatch]] for path-based navigation
  */
 sealed trait DynamicValue {
 
