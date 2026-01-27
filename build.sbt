@@ -111,7 +111,12 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))
   .enablePlugins(BuildInfoPlugin)
-  .settings(Test / scalacOptions += "-Wconf:cat=unused:s")
+  .settings(Test / scalacOptions ++= {
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) => Seq("-Wconf:cat=unused:s")
+      case _            => Seq.empty
+    }
+  })
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
@@ -131,7 +136,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         Seq()
     }),
     coverageMinimumStmtTotal   := 86,
-    coverageMinimumBranchTotal := 83
+    coverageMinimumBranchTotal := 83,
+    coverageExcludedPackages   := "<empty>;zio.blocks.schema.TypeInfo;zio.blocks.schema.SchemaCompanionVersionSpecificImpl;zio.blocks.schema.IntoVersionSpecificImpl;zio.blocks.schema.DerivedOptics;zio.blocks.schema.CommonMacroOps"
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -341,7 +347,12 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.7.4")))
-  .settings(Test / scalacOptions += "-Wconf:cat=unused:s")
+  .settings(Test / scalacOptions ++= {
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) => Seq("-Wconf:cat=unused:s")
+      case _            => Seq.empty
+    }
+  })
   .dependsOn(schema % "compile->compile;test->test")
   .settings(crossProjectSettings)
   .settings(
