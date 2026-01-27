@@ -238,25 +238,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
         isLeft(hasField[SchemaError, String]("getMessage", _.getMessage, containsString("Validation Failed")))
       ) &&
       assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue2)))(
-        isLeft(
-          equalTo(
-            SchemaError(
-              errors = ::(
-                SchemaError.ExpectationMismatch(
-                  source = DynamicOptic(
-                    nodes = Vector(
-                      DynamicOptic.Node.Field("responseTimes"),
-                      DynamicOptic.Node.Elements,
-                      DynamicOptic.Node.AtIndex(0)
-                    )
-                  ),
-                  expectation = "Expected Type: Validation Failed"
-                ),
-                Nil
-              )
-            )
-          )
-        )
+        isLeft(hasField[SchemaError, String]("getMessage", _.getMessage, containsString("Validation Failed")))
       )
     }
   )

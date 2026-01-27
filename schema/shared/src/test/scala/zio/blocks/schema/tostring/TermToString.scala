@@ -3,9 +3,13 @@ package zio.blocks.schema.tostring
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.typeid._
 import zio.test._
 
 object TermToString extends ZIOSpecDefault {
+
+  private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
+    TypeId(DynamicTypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil))
 
   def spec = suite("Term toString")(
     suite("Primitive Term")(
@@ -26,7 +30,7 @@ object TermToString extends ZIOSpecDefault {
             Term("x", Reflect.int[Binding]),
             Term("y", Reflect.int[Binding])
           ),
-          typeName = TypeName(Namespace(Nil), "Point"),
+          typeId = unsafeTypeId[Point]("", "Point"),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(ints = 2)
@@ -68,7 +72,7 @@ object TermToString extends ZIOSpecDefault {
           fields = Vector(
             Term("x", Reflect.int[Binding])
           ),
-          typeName = TypeName(Namespace(Nil), "Point"),
+          typeId = unsafeTypeId[Point]("", "Point"),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(ints = 1)
@@ -122,7 +126,7 @@ object TermToString extends ZIOSpecDefault {
             Term("x", Reflect.int[Binding]),
             Term("y", Reflect.int[Binding])
           ),
-          typeName = TypeName(Namespace(Nil), "Point"),
+          typeId = unsafeTypeId[Point]("", "Point"),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(ints = 2)
@@ -159,7 +163,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders term with simple wrapper") {
         val userIdReflect = Reflect.Wrapper[Binding, String, String](
           wrapped = Reflect.string[Binding],
-          typeName = TypeName(Namespace(Nil), "UserId"),
+          typeId = unsafeTypeId[String]("", "UserId"),
           wrapperPrimitiveType = None,
           wrapperBinding = Binding.Wrapper[String, String](s => Right(s), identity)
         )
@@ -172,7 +176,7 @@ object TermToString extends ZIOSpecDefault {
             Term("local", Reflect.string[Binding]),
             Term("domain", Reflect.string[Binding])
           ),
-          typeName = TypeName(Namespace(Nil), "EmailParts"),
+          typeId = unsafeTypeId[EmailParts]("", "EmailParts"),
           recordBinding = Binding.Record(
             constructor = new Constructor[EmailParts] {
               def usedRegisters                                    = RegisterOffset(objects = 2)
@@ -194,7 +198,7 @@ object TermToString extends ZIOSpecDefault {
 
         val validatedEmailReflect = Reflect.Wrapper[Binding, EmailParts, EmailParts](
           wrapped = emailPartsReflect,
-          typeName = TypeName(Namespace(Nil), "ValidatedEmail"),
+          typeId = unsafeTypeId[EmailParts]("", "ValidatedEmail"),
           wrapperPrimitiveType = None,
           wrapperBinding = Binding.Wrapper[EmailParts, EmailParts](e => Right(e), identity)
         )
@@ -280,7 +284,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders 5-level deep nested records") {
         val level5 = Reflect.Record[Binding, Point](
           fields = Vector(Term("value", Reflect.int[Binding])),
-          typeName = TypeName(Namespace(Nil), "Level5"),
+          typeId = unsafeTypeId[Point]("", "Level5"),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(ints = 1)
@@ -295,7 +299,7 @@ object TermToString extends ZIOSpecDefault {
 
         val level4 = Reflect.Record[Binding, Point](
           fields = Vector(Term("nested", level5)),
-          typeName = TypeName(Namespace(Nil), "Level4"),
+          typeId = unsafeTypeId[Point]("", "Level4"),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(objects = 1)
@@ -310,7 +314,7 @@ object TermToString extends ZIOSpecDefault {
 
         val level3 = Reflect.Record[Binding, Point](
           fields = Vector(Term("nested", level4)),
-          typeName = TypeName(Namespace(Nil), "Level3"),
+          typeId = unsafeTypeId[Point]("", "Level3"),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(objects = 1)
@@ -325,7 +329,7 @@ object TermToString extends ZIOSpecDefault {
 
         val level2 = Reflect.Record[Binding, Point](
           fields = Vector(Term("nested", level3)),
-          typeName = TypeName(Namespace(Nil), "Level2"),
+          typeId = unsafeTypeId[Point]("", "Level2"),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(objects = 1)
@@ -356,7 +360,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders term with deeply nested sequence in map in record") {
         val innerRecord = Reflect.Record[Binding, Point](
           fields = Vector(Term("x", Reflect.int[Binding])),
-          typeName = TypeName(Namespace(Nil), "InnerRecord"),
+          typeId = unsafeTypeId[Point]("", "InnerRecord"),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(ints = 1)
@@ -374,7 +378,7 @@ object TermToString extends ZIOSpecDefault {
 
         val outerRecord = Reflect.Record[Binding, Point](
           fields = Vector(Term("data", mapReflect)),
-          typeName = TypeName(Namespace(Nil), "OuterRecord"),
+          typeId = unsafeTypeId[Point]("", "OuterRecord"),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(objects = 1)
@@ -411,7 +415,7 @@ object TermToString extends ZIOSpecDefault {
               "Leaf",
               Reflect.Record[Binding, Tree](
                 fields = Vector(Term("value", Reflect.int[Binding])),
-                typeName = TypeName(Namespace(Nil), "Leaf"),
+                typeId = unsafeTypeId[Tree]("", "Leaf"),
                 recordBinding = Binding.Record(
                   constructor = new Constructor[Tree] {
                     def usedRegisters                                    = RegisterOffset(ints = 1)
@@ -434,7 +438,7 @@ object TermToString extends ZIOSpecDefault {
                   Term("left", treeReflect),
                   Term("right", treeReflect)
                 ),
-                typeName = TypeName(Namespace(Nil), "Branch"),
+                typeId = unsafeTypeId[Tree]("", "Branch"),
                 recordBinding = Binding.Record(
                   constructor = new Constructor[Tree] {
                     def usedRegisters                                    = RegisterOffset(ints = 1, objects = 2)
@@ -458,7 +462,7 @@ object TermToString extends ZIOSpecDefault {
               )
             )
           ),
-          typeName = TypeName(Namespace(Nil), "Tree"),
+          typeId = unsafeTypeId[Tree]("", "Tree"),
           variantBinding = Binding.Variant(
             discriminator = new Discriminator[Tree] {
               def discriminate(in: Tree): Int = in match {

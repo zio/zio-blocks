@@ -1,7 +1,8 @@
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.schema.{DynamicOptic, DynamicValue, Namespace, PrimitiveValue, Reflect, Schema, TypeName}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Reflect, Schema}
+import zio.blocks.typeid.TypeId
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import java.nio.ByteBuffer
@@ -1781,12 +1782,10 @@ object Json {
   // JsonBinaryCodec for Json
   // ─────────────────────────────────────────────────────────────────────────
 
-  private val ns = Namespace(List("zio", "blocks", "schema", "json", "Json"))
-
   implicit lazy val nullSchema: Schema[Null.type] = new Schema(
     reflect = new Reflect.Record[Binding, Null.type](
       fields = Vector.empty,
-      typeName = TypeName(ns, "Null"),
+      typeId = TypeId.of[Null.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Null.type](Null),
         deconstructor = new ConstantDeconstructor[Null.type]
@@ -1800,7 +1799,7 @@ object Json {
       fields = Vector(
         Schema[scala.Boolean].reflect.asTerm("value")
       ),
-      typeName = TypeName(ns, "Boolean"),
+      typeId = TypeId.of[Boolean],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Boolean] {
           def usedRegisters: RegisterOffset                             = 1
@@ -1822,7 +1821,7 @@ object Json {
       fields = Vector(
         Schema[java.lang.String].reflect.asTerm("value")
       ),
-      typeName = TypeName(ns, "Number"),
+      typeId = TypeId.of[Number],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Number] {
           def usedRegisters: RegisterOffset                            = 1
@@ -1844,7 +1843,7 @@ object Json {
       fields = Vector(
         Schema[java.lang.String].reflect.asTerm("value")
       ),
-      typeName = TypeName(ns, "String"),
+      typeId = TypeId.of[String],
       recordBinding = new Binding.Record(
         constructor = new Constructor[String] {
           def usedRegisters: RegisterOffset                            = 1
@@ -1866,7 +1865,7 @@ object Json {
       fields = Vector(
         Reflect.Deferred(() => Reflect.indexedSeq(schema.reflect)).asTerm("value")
       ),
-      typeName = TypeName(ns, "Array"),
+      typeId = TypeId.of[Array],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Array] {
           def usedRegisters: RegisterOffset                           = 1
@@ -1890,7 +1889,7 @@ object Json {
         stringReflect.asTerm("_1"),
         Reflect.Deferred(() => schema.reflect).asTerm("_2")
       ),
-      typeName = TypeName(Namespace(List("scala")), "Tuple2", List(stringReflect.typeName, schema.reflect.typeName)),
+      typeId = TypeId.of[(java.lang.String, Json)],
       recordBinding = new Binding.Record(
         constructor = new Constructor[(java.lang.String, Json)] {
           def usedRegisters: RegisterOffset                                              = 2
@@ -1914,7 +1913,7 @@ object Json {
       fields = Vector(
         Reflect.Deferred(() => Reflect.indexedSeq(tupleReflect)).asTerm("value")
       ),
-      typeName = TypeName(ns, "Object"),
+      typeId = TypeId.of[Object],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Object] {
           def usedRegisters: RegisterOffset                            = 1
@@ -1941,7 +1940,7 @@ object Json {
         arraySchema.reflect.asTerm("Array"),
         objectSchema.reflect.asTerm("Object")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "json")), "Json"),
+      typeId = TypeId.of[Json],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Json] {
           def discriminate(a: Json): Int = a match {

@@ -28,11 +28,12 @@ private[blocks] object StandardTypes {
   val double: TypeId[Double]   = make(scalaOwner, "Double", Nil, Class(isFinal = true, isValue = true), Nil)
   val char: TypeId[Char]       = make(scalaOwner, "Char", Nil, Class(isFinal = true, isValue = true), Nil)
   val string: TypeId[String]   = make(javaLang, "String", Nil, Class(isFinal = true), Nil)
+  private val scalaMath        = Owner.pkgs("scala", "math")
 
   // Big numbers
   val bigInt: TypeId[BigInt] =
-    make(scalaOwner, "math.BigInt", Nil, Class(), Nil) // simplified name, actually scala.math.BigInt
-  val bigDecimal: TypeId[BigDecimal] = make(scalaOwner, "math.BigDecimal", Nil, Class(), Nil)
+    make(scalaMath, "BigInt", Nil, Class(), Nil)
+  val bigDecimal: TypeId[BigDecimal] = make(scalaMath, "BigDecimal", Nil, Class(), Nil)
 
   // Java Time
   val dayOfWeek: TypeId[java.time.DayOfWeek]         = make(javaTime, "DayOfWeek", Nil, Enum(Nil), Nil)
@@ -84,6 +85,20 @@ private[blocks] object StandardTypes {
     "Either",
     List(tparam("A", 0, Variance.Covariant), tparam("B", 1, Variance.Covariant)),
     Trait(isSealed = true),
+    Nil
+  )
+  val LeftId: TypeId[Left[_, _]] = make(
+    scalaOwner,
+    "Left",
+    List(tparam("A", 0, Variance.Covariant), tparam("B", 1, Variance.Covariant)),
+    Class(isFinal = true),
+    Nil
+  )
+  val RightId: TypeId[Right[_, _]] = make(
+    scalaOwner,
+    "Right",
+    List(tparam("A", 0, Variance.Covariant), tparam("B", 1, Variance.Covariant)),
+    Class(isFinal = true),
     Nil
   )
   val IndexedSeqId: TypeId[IndexedSeq[_]] =

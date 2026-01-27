@@ -184,7 +184,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def transform[B](to: A => B, from: B => A): Schema[B] = new Schema(
     new Reflect.Wrapper[Binding, B, A](
       reflect,
-      reflect.typeName.asInstanceOf[TypeName[B]],
+      reflect.typeId.asInstanceOf[TypeId[B]],
       None,
       new Binding.Wrapper(a => Right(to(a)), from)
     )
@@ -210,8 +210,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
    * @return
    *   A new schema with the updated TypeName
    */
-  def withTypeName[B](implicit typeName: TypeName[B]): Schema[B] =
-    new Schema(reflect.typeName(typeName.asInstanceOf[TypeName[A]])).asInstanceOf[Schema[B]]
+  def withTypeName[B](implicit typeId: TypeId[B]): Schema[B] =
+    new Schema(reflect.typeId(typeId.asInstanceOf[TypeId[A]])).asInstanceOf[Schema[B]]
 
   /**
    * Marks this schema as an opaque type, setting both the TypeName and the
@@ -242,18 +242,18 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
    * @return
    *   A new schema with the updated TypeName and primitive type set
    */
-  def asOpaqueType[B](implicit typeName: TypeName[B]): Schema[B] =
+  def asOpaqueType[B](implicit typeId: TypeId[B]): Schema[B] =
     reflect match {
       case w: Reflect.Wrapper[Binding, A, ?] =>
         val primitiveType = Reflect.unwrapToPrimitiveTypeOption(w.wrapped)
         new Schema(
           w.copy(
-            typeName = typeName.asInstanceOf[TypeName[A]],
+            typeId = typeId.asInstanceOf[TypeId[A]],
             wrapperPrimitiveType = primitiveType.asInstanceOf[Option[PrimitiveType[A]]]
           )
         ).asInstanceOf[Schema[B]]
       case _ =>
-        new Schema(reflect.typeName(typeName.asInstanceOf[TypeName[A]])).asInstanceOf[Schema[B]]
+        new Schema(reflect.typeId(typeId.asInstanceOf[TypeId[A]])).asInstanceOf[Schema[B]]
     }
 
   override def toString: String = {

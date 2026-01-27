@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.typeid.TypeId
+
 /**
  * Printer for rendering Reflect types in SDL (Schema Definition Language)
  * format.
@@ -16,23 +18,46 @@ private[schema] object ReflectPrinter {
    *   - For java.* types: keep the full namespace (e.g., java.time.Instant)
    *   - For custom types: use just the simple name (e.g., Person, Address)
    */
-  private[schema] def sdlTypeName[A](typeName: TypeName[A]): String = {
-    val shouldKeepNamespace = typeName.namespace.packages.headOption match {
-      case Some("java") => true
-      case _            => false
+  private[schema] def sdlTypeName[A](typeId: TypeId[A]): String =
+    if (typeId.args.isEmpty) {
+      simpleName(typeId.owner, typeId.name)
+    } else {
+      simpleName(typeId.owner, typeId.name) + "[" + typeId.args.map(arg => simpleTypeReprName(arg)).mkString(", ") + "]"
     }
 
-    if (shouldKeepNamespace) {
-      // Keep full qualification for java.* types
-      typeName.toString
-    } else {
-      // Use simple name for scala.* and custom types
-      if (typeName.params.isEmpty) {
-        typeName.name
-      } else {
-        typeName.name + "[" + typeName.params.map(sdlTypeName(_)).mkString(", ") + "]"
-      }
+  /**
+   * Returns a simple name for display, keeping namespace only for java.time and
+   * java.util types.
+   */
+  private def simpleName(owner: zio.blocks.typeid.Owner, name: String): String = {
+    val segments            = owner.segments
+    val shouldKeepNamespace = segments match {
+      case zio.blocks.typeid.Owner.Package("java") :: zio.blocks.typeid.Owner.Package(pkg) :: _ =>
+        pkg == "time" || pkg == "util"
+      case _ => false
     }
+    if (shouldKeepNamespace) owner.asString + "." + name else name
+  }
+
+  /**
+   * Extracts a simple type name from a TypeRepr, suitable for SDL display. Uses
+   * just the type name without package qualification for scala/custom types.
+   */
+  private def simpleTypeReprName(repr: zio.blocks.typeid.TypeRepr): String = repr match {
+    case zio.blocks.typeid.TypeRepr.Ref(id, args) =>
+      val baseName = simpleName(id.owner, id.name)
+      if (args.isEmpty) baseName
+      else baseName + "[" + args.map(simpleTypeReprName).mkString(", ") + "]"
+    case zio.blocks.typeid.TypeRepr.AppliedType(tpe, args) =>
+      simpleTypeReprName(tpe) + "[" + args.map(simpleTypeReprName).mkString(", ") + "]"
+    case zio.blocks.typeid.TypeRepr.Union(types) =>
+      types.map(simpleTypeReprName).mkString(" | ")
+    case zio.blocks.typeid.TypeRepr.Intersection(types) =>
+      types.map(simpleTypeReprName).mkString(" & ")
+    case zio.blocks.typeid.TypeRepr.Tuple(elements) =>
+      "(" + elements.map(simpleTypeReprName).mkString(", ") + ")"
+    case zio.blocks.typeid.TypeRepr.TypeParamRef(name, _) => name
+    case other                                            => other.show
   }
 
   /**
@@ -44,10 +69,10 @@ private[schema] object ReflectPrinter {
 
   private def printRecord[F[_, _], A](record: Reflect.Record[F, A], visited: Set[AnyRef]): String =
     if (record.fields.isEmpty) {
-      s"record ${sdlTypeName(record.typeName)} {}"
+      s"record ${sdlTypeName(record.typeId)} {}"
     } else {
       val sb = new StringBuilder
-      sb.append("record ").append(sdlTypeName(record.typeName)).append(" {\n")
+      sb.append("record ").append(sdlTypeName(record.typeId)).append(" {\n")
       val newVisited = visited + record.asInstanceOf[AnyRef]
       record.fields.foreachElem { field =>
         val fieldStr = printTerm(field, indent = 2, newVisited)
@@ -66,10 +91,10 @@ private[schema] object ReflectPrinter {
 
   private def printVariant[F[_, _], A](variant: Reflect.Variant[F, A], visited: Set[AnyRef]): String =
     if (variant.cases.isEmpty) {
-      s"variant ${sdlTypeName(variant.typeName)} {}"
+      s"variant ${sdlTypeName(variant.typeId)} {}"
     } else {
       val sb = new StringBuilder
-      sb.append("variant ").append(sdlTypeName(variant.typeName)).append(" {\n")
+      sb.append("variant ").append(sdlTypeName(variant.typeId)).append(" {\n")
       val newVisited = visited + variant.asInstanceOf[AnyRef]
       variant.cases.foreachElem { case_ =>
         val caseStr = printVariantCase(case_, indent = 2, newVisited)
@@ -91,12 +116,12 @@ private[schema] object ReflectPrinter {
     val elementStr = printReflect(seq.element, indent = 0, isInline = true, newVisited)
     if (needsMultilineForElement(seq.element)) {
       val sb = new StringBuilder
-      sb.append("sequence ").append(seq.typeName.name).append("[\n")
+      sb.append("sequence ").append(seq.typeId.name).append("[\n")
       sb.append(elementStr.linesIterator.map(line => indentString(2) + line).mkString("\n"))
       sb.append("\n]")
       sb.toString
     } else {
-      s"sequence ${seq.typeName.name}[$elementStr]"
+      s"sequence ${seq.typeId.name}[$elementStr]"
     }
   }
 
@@ -114,7 +139,7 @@ private[schema] object ReflectPrinter {
 
     if (needsMultilineForElement(map.key) || needsMultilineForElement(map.value)) {
       val sb = new StringBuilder
-      sb.append("map ").append(map.typeName.name).append("[\n")
+      sb.append("map ").append(map.typeId.name).append("[\n")
       if (needsMultilineForElement(map.key)) {
         sb.append(keyStr.linesIterator.map(line => indentString(2) + line).mkString("\n"))
       } else {
@@ -129,7 +154,7 @@ private[schema] object ReflectPrinter {
       sb.append("\n]")
       sb.toString
     } else {
-      s"map ${map.typeName.name}[$keyStr, $valueStr]"
+      s"map ${map.typeId.name}[$keyStr, $valueStr]"
     }
   }
 
@@ -145,12 +170,12 @@ private[schema] object ReflectPrinter {
     val wrappedStr = printReflect(wrapper.wrapped, indent = 0, isInline = true, newVisited)
     if (needsMultilineForElement(wrapper.wrapped)) {
       val sb = new StringBuilder
-      sb.append("wrapper ").append(sdlTypeName(wrapper.typeName)).append("(\n")
+      sb.append("wrapper ").append(sdlTypeName(wrapper.typeId)).append("(\n")
       sb.append(wrappedStr.linesIterator.map(line => indentString(2) + line).mkString("\n"))
       sb.append("\n)")
       sb.toString
     } else {
-      s"wrapper ${sdlTypeName(wrapper.typeName)}($wrappedStr)"
+      s"wrapper ${sdlTypeName(wrapper.typeId)}($wrappedStr)"
     }
   }
 
@@ -228,14 +253,14 @@ private[schema] object ReflectPrinter {
   ): String =
     reflect match {
       case p: Reflect.Primitive[F, A] =>
-        sdlTypeName(p.typeName)
+        sdlTypeName(p.typeId)
 
       case d: Reflect.Deferred[F, A] =>
         // Check visited for the deferred's value, not the deferred itself
         // This allows us to detect recursion through deferred wrappers
         val deferredVisited = d.visited.get
         if (deferredVisited.containsKey(d)) {
-          s"deferred => ${sdlTypeName(d.value.typeName)}"
+          s"deferred => ${sdlTypeName(d.value.typeId)}"
         } else {
           deferredVisited.put(d, ())
           try printReflect(d.value, indent, isInline, visited)
@@ -243,11 +268,11 @@ private[schema] object ReflectPrinter {
         }
 
       case dyn: Reflect.Dynamic[F] @unchecked =>
-        sdlTypeName(dyn.typeName)
+        sdlTypeName(dyn.typeId)
 
       case r: Reflect.Record[F, A] =>
         if (visited.contains(r.asInstanceOf[AnyRef])) {
-          s"deferred => ${sdlTypeName(r.typeName)}"
+          s"deferred => ${sdlTypeName(r.typeId)}"
         } else if (isInline && !needsMultiline(r)) {
           printRecord(r, visited).replaceAll("\\n\\s*", " ").replaceAll("\\s+", " ")
         } else {
@@ -263,7 +288,7 @@ private[schema] object ReflectPrinter {
 
       case v: Reflect.Variant[F, A] =>
         if (visited.contains(v.asInstanceOf[AnyRef])) {
-          s"deferred => ${sdlTypeName(v.typeName)}"
+          s"deferred => ${sdlTypeName(v.typeId)}"
         } else if (isInline && !needsMultiline(v)) {
           printVariant(v, visited).replaceAll("\\n\\s*", " ").replaceAll("\\s+", " ")
         } else {

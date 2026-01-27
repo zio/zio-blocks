@@ -17,6 +17,27 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
         sb.append(e.message)
     }
     .toString
+
+  /**
+   * Prepends path context to all errors in this SchemaError, preserving error
+   * types
+   */
+  def prependPath(trace: List[DynamicOptic.Node]): SchemaError =
+    if (trace.isEmpty) this
+    else {
+      val prefix    = ArraySeq.from(trace.reverse)
+      val newErrors = errors.map { single =>
+        val newSource = DynamicOptic(prefix ++ single.source.nodes)
+        single match {
+          case e: SchemaError.ConversionFailed    => e.copy(source = newSource)
+          case e: SchemaError.ExpectationMismatch => e.copy(source = newSource)
+          case e: SchemaError.MissingField        => e.copy(source = newSource)
+          case e: SchemaError.DuplicatedField     => e.copy(source = newSource)
+          case e: SchemaError.UnknownCase         => e.copy(source = newSource)
+        }
+      }
+      SchemaError(new ::(newErrors.head, newErrors.tail))
+    }
 }
 
 object SchemaError {

@@ -128,14 +128,16 @@ object SchemaSpec extends SchemaBaseSpec {
       else throw new IllegalArgumentException("Expected positive value")
 
     implicit val schema: Schema[PosInt] =
-      Schema.derived.wrap[Int](i => PosInt.apply(i).left.map(SchemaError.validationFailed), _.value)
+      Schema[Int]
+        .transformOrFail(i => PosInt.apply(i).left.map(SchemaError.validationFailed), _.value)
+        .withTypeName[PosInt]
     val wrapped: Optional[PosInt, Int] = $(_.wrapped[Int])
   }
 
   case class Email(value: String)
 
   object Email extends CompanionOptics[Email] {
-    implicit val schema: Schema[Email]   = Schema.derived.wrapTotal(x => new Email(x), _.value)
+    implicit val schema: Schema[Email]   = Schema[String].transform(x => new Email(x), _.value).withTypeName[Email]
     val wrapped: Optional[Email, String] = $(_.wrapped[String])
   }
 
@@ -155,7 +157,7 @@ object SchemaSpec extends SchemaBaseSpec {
       extends TextFormat(
         "text/plain",
         new Deriver[TextCodec] {
-          override def derivePrimitive[F[_, _], A](
+          override def derivePrimitive[A](
             primitiveType: PrimitiveType[A],
             typeId: TypeId[A],
             binding: Binding[BindingType.Primitive, A],
@@ -2171,5 +2173,6 @@ object SchemaSpec extends SchemaBaseSpec {
           )
         )
       )
+    }
   )
 }

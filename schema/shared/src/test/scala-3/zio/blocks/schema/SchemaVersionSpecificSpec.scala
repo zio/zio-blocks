@@ -974,7 +974,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         case class Age(value: Int)
         val ageSchema: Schema[Age] = Schema[Int].transform(Age(_), _.value).withTypeName[Age]
         val wrapper                = ageSchema.reflect.asWrapperUnknown
-        assert(wrapper.map(_.wrapper.typeName.name))(isSome(equalTo("Age")))
+        assert(wrapper.map(_.wrapper.typeId.name))(isSome(equalTo("Age")))
       },
       test("preserves transformation behavior after setting TypeName") {
         case class Age(value: Int)
@@ -988,7 +988,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         case class Score(value: Int)
         val scoreSchema: Schema[Score] = Schema[Int].transform(Score(_), _.value).asOpaqueType[Score]
         val wrapper                    = scoreSchema.reflect.asWrapperUnknown
-        assert(wrapper.map(_.wrapper.typeName.name))(isSome(equalTo("Score"))) &&
+        assert(wrapper.map(_.wrapper.typeId.name))(isSome(equalTo("Score"))) &&
         assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Int(Validation.None))))
       },
       test("round-trips correctly with asOpaqueType") {
@@ -1000,7 +1000,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
       },
       test("falls back to withTypeName behavior when called on non-Wrapper reflect") {
         val intSchema: Schema[Int] = Schema[Int].asOpaqueType[Int]
-        assert(intSchema.reflect.typeName.name)(equalTo("Int"))
+        assert(intSchema.reflect.typeId.name)(equalTo("Int"))
       },
       test("works with Long primitive type") {
         case class LongWrapper(value: Long)

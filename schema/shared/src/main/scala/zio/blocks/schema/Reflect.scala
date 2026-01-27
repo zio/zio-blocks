@@ -6,8 +6,7 @@ import scala.collection.immutable.ArraySeq
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.typeid.StandardTypes
-import zio.blocks.typeid.TypeId
+import zio.blocks.typeid.{DynamicTypeId, Owner, StandardTypes, TypeBounds, TypeDefKind, TypeId, TypeParam, Variance}
 
 sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   protected def inner: Any
@@ -1009,7 +1008,7 @@ object Reflect {
 
     override def isDynamic: Boolean = true
 
-    override def toString: String = ReflectPrinter.sdlTypeName(typeName)
+    override def toString: String = ReflectPrinter.sdlTypeName(typeId)
   }
 
   object Dynamic {
@@ -1069,7 +1068,7 @@ object Reflect {
 
     override def isPrimitive: Boolean = true
 
-    override def toString: String = ReflectPrinter.sdlTypeName(typeName)
+    override def toString: String = ReflectPrinter.sdlTypeName(typeId)
   }
 
   object Primitive {
@@ -1105,16 +1104,10 @@ object Reflect {
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
     ): Either[SchemaError, A] =
-      (wrapped.fromDynamicValue(value) match {
-        case Right(unwrapped) =>
-          binding.wrap(unwrapped) match {
-            case Left(error) =>
-              if (binding.passthroughErrors) new Left(error)
-              else new Left(SchemaError.expectationMismatch(trace, s"Expected ${typeId.name}: ${error.getMessage}"))
-            case right => right
-          }
-        case left => left
-      }).asInstanceOf[Either[SchemaError, A]]
+      wrapped.fromDynamicValue(value, trace) match {
+        case Right(unwrapped) => binding.wrap(unwrapped)
+        case left             => left.asInstanceOf[Either[SchemaError, A]]
+      }
 
     def metadata: F[NodeBinding, A] = wrapperBinding
 
@@ -1682,19 +1675,23 @@ object Reflect {
     )
 
   private[this] def left[F[_, _], A, B](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Left[A, B]] =
-    new Record(Vector(new Term("value", element)), TypeName.left(element.typeName), F.fromBinding(Binding.Record.left))
+    new Record(
+      Vector(new Term("value", element)),
+      StandardTypes.LeftId.asInstanceOf[TypeId[Left[A, B]]],
+      F.fromBinding(Binding.Record.left)
+    )
 
   private[this] def right[F[_, _], A, B](element: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, Right[A, B]] =
     new Record(
       Vector(new Term("value", element)),
-      TypeName.right(element.typeName),
+      StandardTypes.RightId.asInstanceOf[TypeId[Right[A, B]]],
       F.fromBinding(Binding.Record.right)
     )
 
   def either[F[_, _], A, B](l: Reflect[F, A], r: Reflect[F, B])(implicit F: FromBinding[F]): Variant[F, Either[A, B]] =
     new Variant(
       Vector(new Term("Left", left[F, A, B](l)), new Term("Right", right[F, A, B](r))),
-      TypeName.either(l.typeName, r.typeName),
+      StandardTypes.EitherId.asInstanceOf[TypeId[Either[A, B]]],
       F.fromBinding(Binding.Variant.either)
     )
 
@@ -1733,8 +1730,20 @@ object Reflect {
       F.fromBinding(Binding.Seq.seq)
     )
 
+  private val ChunkTypeId: TypeId[Chunk[_]] = TypeId(
+    DynamicTypeId(
+      Owner.pkgs("zio", "blocks", "chunk"),
+      "Chunk",
+      List(TypeParam("A", 0, Variance.Covariant, TypeBounds.empty)),
+      TypeDefKind.Trait(isSealed = true),
+      Nil,
+      Nil,
+      Nil
+    )
+  )
+
   def chunk[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Chunk] =
-    new Sequence(element, TypeName.chunk(element.typeName), F.fromBinding(Binding.Seq.chunk))
+    new Sequence(element, ChunkTypeId.asInstanceOf[TypeId[Chunk[A]]], F.fromBinding(Binding.Seq.chunk))
 
   def map[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit
     F: FromBinding[F]
