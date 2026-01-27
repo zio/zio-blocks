@@ -91,7 +91,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
         )
       },
       test("null validation") {
-        val schema = JsonSchema.`null`
+        val schema = JsonSchema.nullSchema
         assertTrue(
           Json.Null.conforms(schema),
           !Json.String("null").conforms(schema),

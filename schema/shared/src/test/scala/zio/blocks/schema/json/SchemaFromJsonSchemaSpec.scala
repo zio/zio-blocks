@@ -37,7 +37,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(resultTrue.isRight, resultFalse.isRight)
       },
       test("null schema accepts null values") {
-        val jsonSchema  = JsonSchema.`null`
+        val jsonSchema  = JsonSchema.nullSchema
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
         val codec       = schemaForJs.derive(JsonFormat.deriver)
         val result      = codec.decode("null")
@@ -313,19 +313,21 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       }
     ),
     suite("Schema[Json] implicit instance")(
-      test("implicit Schema[Json] accepts any JSON") {
+      test("implicit Schema[Json] round-trips all JSON types") {
         val codec = Schema[Json].derive(JsonFormat.deriver)
 
-        val results = List(
-          codec.decode(""""string""""),
-          codec.decode("42"),
-          codec.decode("true"),
-          codec.decode("null"),
-          codec.decode("[1, 2, 3]"),
-          codec.decode("""{"key": "value"}""")
+        val values = List(
+          Json.String("string"),
+          Json.Number(42),
+          Json.Boolean(true),
+          Json.Null,
+          Json.Array(Json.Number(1), Json.Number(2), Json.Number(3)),
+          Json.Object("key" -> Json.String("value"))
         )
 
-        assertTrue(results.forall(_.isRight))
+        val results = values.map(v => codec.decode(codec.encodeToString(v)))
+
+        assertTrue(results.zip(values).forall { case (result, original) => result == Right(original) })
       },
       test("implicit Schema[Json] round-trips correctly") {
         val codec    = Schema[Json].derive(JsonFormat.deriver)

@@ -58,7 +58,7 @@ val objectSchema = JsonSchema.ofType(JsonType.Object)
 val nullSchema = JsonSchema.ofType(JsonType.Null)
 
 // Convenience aliases
-val isNull = JsonSchema.`null`
+val isNull = JsonSchema.nullSchema
 val isBoolean = JsonSchema.boolean
 ```
 

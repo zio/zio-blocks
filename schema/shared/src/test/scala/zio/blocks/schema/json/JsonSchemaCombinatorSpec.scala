@@ -8,7 +8,7 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
   private val stringSchema  = JsonSchema.string()
   private val integerSchema = JsonSchema.integer()
   private val booleanSchema = JsonSchema.boolean
-  private val nullSchema    = JsonSchema.`null`
+  private val nullSchema    = JsonSchema.nullSchema
 
   private val minLength3 = JsonSchema.string(minLength = NonNegativeInt(3))
   private val maxLength5 = JsonSchema.string(maxLength = NonNegativeInt(5))

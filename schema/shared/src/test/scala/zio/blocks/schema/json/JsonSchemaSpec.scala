@@ -477,8 +477,8 @@ object JsonSchemaSpec extends SchemaBaseSpec {
     suite("Schema[Json]")(
       test("Schema[Json] round-trips through DynamicValue") {
         val json   = Json.Object("name" -> Json.String("test"), "count" -> Json.Number(42))
-        val dv     = Schema.schemaJson.toDynamicValue(json)
-        val result = Schema.schemaJson.fromDynamicValue(dv)
+        val dv     = Json.schema.toDynamicValue(json)
+        val result = Json.schema.fromDynamicValue(dv)
         assertTrue(result == Right(json))
       }
     ),

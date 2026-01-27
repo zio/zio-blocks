@@ -105,7 +105,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("null schema round-trips") {
-        val schema    = JsonSchema.`null`
+        val schema    = JsonSchema.nullSchema
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
         assertTrue(roundtrip == Right(schema))
@@ -446,7 +446,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         val schema = JsonSchema.Object(
           allOf = Some(::(JsonSchema.string(), List(JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1)))))),
           anyOf = Some(::(JsonSchema.string(), List(JsonSchema.integer()))),
-          oneOf = Some(::(JsonSchema.boolean, List(JsonSchema.`null`))),
+          oneOf = Some(::(JsonSchema.boolean, List(JsonSchema.nullSchema))),
           not = Some(JsonSchema.array())
         )
         val json     = schema.toJson

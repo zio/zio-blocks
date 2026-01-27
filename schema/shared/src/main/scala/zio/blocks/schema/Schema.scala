@@ -375,19 +375,6 @@ object Schema extends SchemaCompanionVersionSpecific {
   private val jsonTypeName: TypeName[Json] =
     new TypeName[Json](Namespace.zioBlocksSchema, "Json")
 
-  /** Schema for Json values (no validation, accepts any Json). */
-  implicit val schemaJson: Schema[Json] = new Schema(
-    new Reflect.Wrapper[Binding, Json, DynamicValue](
-      Schema[DynamicValue].reflect,
-      jsonTypeName,
-      None,
-      new Binding.Wrapper[Json, DynamicValue](
-        wrap = dv => Right(Json.fromDynamicValue(dv)),
-        unwrap = j => j.toDynamicValue
-      )
-    )
-  )
-
   /**
    * Construct a Schema[Json] from a JsonSchema. Values are validated against
    * the JsonSchema during construction.

@@ -1430,7 +1430,7 @@ object JsonSchema {
   def refString(uri: String): JsonSchema =
     Object($ref = Some(UriReference(uri)))
 
-  val `null`: JsonSchema  = ofType(JsonSchemaType.Null)
+  val nullSchema: JsonSchema = ofType(JsonSchemaType.Null)
   val boolean: JsonSchema = ofType(JsonSchemaType.Boolean)
 
   // ===========================================================================
