@@ -621,6 +621,25 @@ sealed trait JsonSchema extends Product with Serializable {
 object JsonSchema {
 
   // ===========================================================================
+  // Type Aliases for Helper Types
+  // ===========================================================================
+
+  type NonNegativeInt = zio.blocks.schema.json.NonNegativeInt
+  val NonNegativeInt = zio.blocks.schema.json.NonNegativeInt
+
+  type PositiveNumber = zio.blocks.schema.json.PositiveNumber
+  val PositiveNumber = zio.blocks.schema.json.PositiveNumber
+
+  type RegexPattern = zio.blocks.schema.json.RegexPattern
+  val RegexPattern = zio.blocks.schema.json.RegexPattern
+
+  type UriReference = zio.blocks.schema.json.UriReference
+  val UriReference = zio.blocks.schema.json.UriReference
+
+  type Anchor = zio.blocks.schema.json.Anchor
+  val Anchor = zio.blocks.schema.json.Anchor
+
+  // ===========================================================================
   // Parsing
   // ===========================================================================
 
