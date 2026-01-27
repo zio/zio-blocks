@@ -116,58 +116,7 @@ private object SchemaCompanionVersionSpecific {
 
     val typeIdCache = new mutable.HashMap[Type, TypeId[?]]
 
-    def typeId(tpe: Type): TypeId[?] = {
-      def calculateTypeId(tpe: Type): TypeId[?] =
-        if (tpe =:= typeOf[java.lang.String]) StandardTypes.string
-        else {
-          var packages  = List.empty[String]
-          var values    = List.empty[String]
-          val tpeSymbol = tpe.typeSymbol
-          var name      = NameTransformer.decode(tpeSymbol.name.toString)
-          val comp      = companion(tpe)
-          var ownerSym  =
-            if (comp == null) tpeSymbol
-            else if (comp == NoSymbol) {
-              name += ".type"
-              tpeSymbol.asClass.module
-            } else comp
-          while ({
-            ownerSym = ownerSym.owner
-            ownerSym.owner != NoSymbol
-          }) {
-            val ownerName = NameTransformer.decode(ownerSym.name.toString)
-            if (ownerSym.isPackage || ownerSym.isPackageClass) packages = ownerName :: packages
-            else values = ownerName :: values
-          }
-
-          val owner = Owner((packages.map(Owner.Package(_)) ::: values.map(Owner.Term(_))).toList)
-
-          val tArgs = typeArgs(tpe).map(typeId)
-
-          new TypeId(DynamicTypeId(
-            owner,
-            name,
-            tArgs.zipWithIndex.map { case (arg, i) =>
-              TypeParam(arg.show, i, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty)
-            },
-            TypeDefKind.Class(),
-            Nil,
-            Nil
-          ))
-        }
-
-      typeIdCache.getOrElseUpdate(
-        tpe,
-        tpe match {
-          case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-            var tTypeId = calculateTypeId(compTpe)
-            if (tTypeId.name.endsWith(".type")) tTypeId = TypeId(tTypeId.dynamic.copy(name = tTypeId.name.stripSuffix(".type")))
-            tTypeId
-          case _ =>
-            calculateTypeId(tpe)
-        }
-      )
-    }
+    def typeId(tpe: Type): TypeId[?] = CommonMacroOps.typeId(c)(typeIdCache, tpe)
 
     def toTree(tId: TypeId[?]): Tree = {
       val segments = tId.owner.segments.map {

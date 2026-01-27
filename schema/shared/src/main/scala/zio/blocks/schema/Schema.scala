@@ -152,8 +152,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
     new Reflect.Wrapper[Binding, B, A](
       reflect,
       reflect.typeId.asInstanceOf[TypeId[B]],
-      Reflect.unwrapToPrimitiveTypeOption(reflect).asInstanceOf[Option[PrimitiveType[B]]],
-      new Binding.Wrapper(to, from, passthroughErrors = true)
+      None,
+      new Binding.Wrapper(to, from)
     )
   )
 

@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.{TypeName => SchemaTypeName}
+import zio.blocks.typeid.{DynamicTypeId, Owner, StandardTypes, TypeDefKind, TypeId, TypeParam}
 import scala.collection.mutable
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
@@ -159,4 +160,86 @@ private[schema] object CommonMacroOps {
     val params   = tpeName.params.map(toTree(c)).toList
     q"new TypeName(new Namespace($packages, $values), $name, $params)"
   }
+
+  def typeId(
+    c: blackbox.Context
+  )(typeIdCache: mutable.HashMap[c.Type, TypeId[?]], tpe: c.Type): TypeId[?] = {
+    import c.universe._
+
+    def calculateTypeId(tpe: Type): TypeId[?] =
+      if (tpe =:= typeOf[java.lang.String]) StandardTypes.string
+      else {
+        var packages  = List.empty[String]
+        var values    = List.empty[String]
+        val tpeSymbol = tpe.typeSymbol
+        var name      = NameTransformer.decode(tpeSymbol.name.toString)
+        val comp      = companion(c)(tpe)
+        var ownerSym  =
+          if (comp == null) tpeSymbol
+          else if (comp == NoSymbol) {
+            name += ".type"
+            tpeSymbol.asClass.module
+          } else comp
+        while ({
+          ownerSym = ownerSym.owner
+          ownerSym.owner != NoSymbol
+        }) {
+          val ownerName = NameTransformer.decode(ownerSym.name.toString)
+          if (ownerSym.isPackage || ownerSym.isPackageClass) packages = ownerName :: packages
+          else values = ownerName :: values
+        }
+
+        val owner = Owner((packages.map(Owner.Package(_)) ::: values.map(Owner.Term(_))).toList)
+        val tArgs = typeArgs(c)(tpe).map(ta => typeId(c)(typeIdCache, ta))
+
+        new TypeId(DynamicTypeId(
+          owner,
+          name,
+          tArgs.zipWithIndex.map { case (arg, i) =>
+            TypeParam(arg.show, i, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty)
+          },
+          TypeDefKind.Class(),
+          Nil,
+          Nil
+        ))
+      }
+
+    typeIdCache.getOrElseUpdate(
+      tpe,
+      tpe match {
+        case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
+          var tTypeId = calculateTypeId(compTpe)
+          if (tTypeId.name.endsWith(".type")) tTypeId = TypeId(tTypeId.dynamic.copy(name = tTypeId.name.stripSuffix(".type")))
+          tTypeId
+        case _ =>
+          calculateTypeId(tpe)
+      }
+    )
+  }
+
+  def typeIdToTree(c: blackbox.Context)(tid: TypeId[?]): c.Tree = {
+    import c.universe._
+
+    val dynamic = tid.dynamic
+    val ownerSegments = dynamic.owner.segments.map {
+      case Owner.Package(name) => q"_root_.zio.blocks.typeid.Owner.Package($name)"
+      case Owner.Term(name)    => q"_root_.zio.blocks.typeid.Owner.Term($name)"
+      case Owner.Type(name)    => q"_root_.zio.blocks.typeid.Owner.Type($name)"
+    }
+    val typeParams = dynamic.typeParams.map { tp =>
+      q"_root_.zio.blocks.typeid.TypeParam(${tp.name}, ${tp.index}, _root_.zio.blocks.typeid.Variance.Invariant, _root_.zio.blocks.typeid.TypeBounds.empty)"
+    }
+
+    q"""new _root_.zio.blocks.typeid.TypeId(
+      _root_.zio.blocks.typeid.DynamicTypeId(
+        _root_.zio.blocks.typeid.Owner(scala.List(..$ownerSegments)),
+        ${dynamic.name},
+        scala.List(..$typeParams),
+        _root_.zio.blocks.typeid.TypeDefKind.Class(),
+        scala.Nil,
+        scala.Nil
+      )
+    )"""
+  }
 }
+

@@ -393,8 +393,7 @@ object Binding {
     wrap: B => Either[SchemaError, A],
     unwrap: A => B,
     defaultValue: Option[() => A] = None,
-    examples: collection.immutable.Seq[A] = Nil,
-    passthroughErrors: Boolean = false
+    examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Wrapper[A, B], A] {
     def defaultValue(value: => A): Wrapper[A, B] = copy(defaultValue = new Some(() => value))
 

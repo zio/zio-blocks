@@ -8,19 +8,19 @@ import zio.blocks.typeid.{TypeId, Owner, TypeDefKind, DynamicTypeId}
 import zio.test._
 
 object NeotypeSupportSpec extends SchemaBaseSpec {
-  private def unsafeTypeId[A](ownerStr: String, name: String): zio.blocks.typeid.TypeId[A] =
-    zio.blocks.typeid.TypeId(DynamicTypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil))
+  private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
+    TypeId(DynamicTypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil))
 
-  object TypeId {
-    def option(@annotation.unused e: Any): zio.blocks.typeid.TypeId[Option[Any]] =
+  object ExpectedTypeId {
+    def option(@annotation.unused e: Any): TypeId[Option[Any]] =
       unsafeTypeId("scala", "Option")
-    def list(@annotation.unused e: Any): zio.blocks.typeid.TypeId[List[Any]] =
+    def list(@annotation.unused e: Any): TypeId[List[Any]] =
       unsafeTypeId("scala.collection.immutable", "List")
-    def vector(@annotation.unused e: Any): zio.blocks.typeid.TypeId[Vector[Any]] =
+    def vector(@annotation.unused e: Any): TypeId[Vector[Any]] =
       unsafeTypeId("scala.collection.immutable", "Vector")
-    def set(@annotation.unused e: Any): zio.blocks.typeid.TypeId[Set[Any]] =
+    def set(@annotation.unused e: Any): TypeId[Set[Any]] =
       unsafeTypeId("scala.collection.immutable", "Set")
-    def map(@annotation.unused k: Any, @annotation.unused v: Any): zio.blocks.typeid.TypeId[Map[Any, Any]] =
+    def map(@annotation.unused k: Any, @annotation.unused v: Any): TypeId[Map[Any, Any]] =
       unsafeTypeId("scala.collection.immutable", "Map")
   }
 
@@ -39,9 +39,9 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(zio.blocks.typeid.TypeId(stripMetadata(Planet.name.focus.typeId).dynamic.copy(args = Nil)))(
+      assert(TypeId(stripMetadata(Planet.name.focus.typeId).dynamic.copy(args = Nil)))(
         equalTo(
-          zio.blocks.typeid.TypeId(
+          TypeId(
             DynamicTypeId(
               Owner(
                 List(
@@ -60,9 +60,9 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
           )
         )
       ) &&
-      assert(zio.blocks.typeid.TypeId(stripMetadata(Planet.mass.focus.typeId).dynamic.copy(args = Nil)))(
+      assert(TypeId(stripMetadata(Planet.mass.focus.typeId).dynamic.copy(args = Nil)))(
         equalTo(
-          zio.blocks.typeid.TypeId(
+          TypeId(
             DynamicTypeId(
               Owner(
                 List(
@@ -81,9 +81,9 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
           )
         )
       ) &&
-      assert(zio.blocks.typeid.TypeId(stripMetadata(Planet.radius.focus.typeId).dynamic.copy(args = Nil)))(
+      assert(TypeId(stripMetadata(Planet.radius.focus.typeId).dynamic.copy(args = Nil)))(
         equalTo(
-          zio.blocks.typeid.TypeId(
+          TypeId(
             DynamicTypeId(
               Owner(
                 List(
@@ -103,12 +103,11 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
         )
       ) &&
       assert(
-        zio.blocks.typeid
-          .TypeId(stripMetadata(Planet.distanceFromSun.focus.typeId).dynamic.copy(args = Nil))
+        TypeId(stripMetadata(Planet.distanceFromSun.focus.typeId).dynamic.copy(args = Nil))
           .asInstanceOf[TypeId[Any]]
       )(
         equalTo(
-          TypeId.option(null)
+          ExpectedTypeId.option(null)
         )
       ) &&
       roundTrip[Planet](value, """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""") &&
@@ -159,32 +158,28 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(
-        zio.blocks.typeid
-          .TypeId(stripMetadata(schema1.reflect.typeId).dynamic.copy(args = Nil))
+        TypeId(stripMetadata(schema1.reflect.typeId).dynamic.copy(args = Nil))
           .asInstanceOf[TypeId[Any]]
       )(
-        equalTo(TypeId.option(null))
+        equalTo(ExpectedTypeId.option(null))
       ) &&
       assert(
-        zio.blocks.typeid
-          .TypeId(stripMetadata(schema2.reflect.typeId).dynamic.copy(args = Nil))
+        TypeId(stripMetadata(schema2.reflect.typeId).dynamic.copy(args = Nil))
           .asInstanceOf[TypeId[Any]]
       )(
-        equalTo(TypeId.option(null))
+        equalTo(ExpectedTypeId.option(null))
       ) &&
       assert(
-        zio.blocks.typeid
-          .TypeId(stripMetadata(schema3.reflect.typeId).dynamic.copy(args = Nil))
+        TypeId(stripMetadata(schema3.reflect.typeId).dynamic.copy(args = Nil))
           .asInstanceOf[TypeId[Any]]
       )(
-        equalTo(TypeId.option(null))
+        equalTo(ExpectedTypeId.option(null))
       ) &&
       assert(
-        zio.blocks.typeid
-          .TypeId(stripMetadata(schema4.reflect.typeId).dynamic.copy(args = Nil))
+        TypeId(stripMetadata(schema4.reflect.typeId).dynamic.copy(args = Nil))
           .asInstanceOf[TypeId[Any]]
       )(
-        equalTo(TypeId.option(null))
+        equalTo(ExpectedTypeId.option(null))
       )
     },
     test("derive schemas for collections with newtypes and subtypes") {
@@ -201,32 +196,28 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(
-        zio.blocks.typeid
-          .TypeId(stripMetadata(schema1.reflect.typeId).dynamic.copy(args = Nil))
+        TypeId(stripMetadata(schema1.reflect.typeId).dynamic.copy(args = Nil))
           .asInstanceOf[TypeId[Any]]
       )(
-        equalTo(TypeId.list(null))
+        equalTo(ExpectedTypeId.list(null))
       ) &&
       assert(
-        zio.blocks.typeid
-          .TypeId(stripMetadata(schema2.reflect.typeId).dynamic.copy(args = Nil))
+        TypeId(stripMetadata(schema2.reflect.typeId).dynamic.copy(args = Nil))
           .asInstanceOf[TypeId[Any]]
       )(
-        equalTo(TypeId.vector(null))
+        equalTo(ExpectedTypeId.vector(null))
       ) &&
       assert(
-        zio.blocks.typeid
-          .TypeId(stripMetadata(schema3.reflect.typeId).dynamic.copy(args = Nil))
+        TypeId(stripMetadata(schema3.reflect.typeId).dynamic.copy(args = Nil))
           .asInstanceOf[TypeId[Any]]
       )(
-        equalTo(TypeId.set(null))
+        equalTo(ExpectedTypeId.set(null))
       ) &&
       assert(
-        zio.blocks.typeid
-          .TypeId(stripMetadata(schema4.reflect.typeId).dynamic.copy(args = Nil))
+        TypeId(stripMetadata(schema4.reflect.typeId).dynamic.copy(args = Nil))
           .asInstanceOf[TypeId[Any]]
       )(
-        equalTo(TypeId.map(null, null))
+        equalTo(ExpectedTypeId.map(null, null))
       )
     },
     test("derive schemas for cases classes and collections with newtypes for primitives") {
