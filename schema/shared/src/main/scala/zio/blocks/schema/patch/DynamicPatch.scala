@@ -1663,7 +1663,7 @@ object DynamicPatch {
     import zio.blocks.schema.binding.RegisterOffset
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Append](
-        fields = Vector(Schema[Vector[DynamicValue]].reflect.asTerm("values")),
+        fields = Vector(Schema[Chunk[DynamicValue]].reflect.asTerm("values")),
         typeId = TypeId.of[SeqOp.Append],
         recordBinding = new Binding.Record(
           constructor = new Constructor[SeqOp.Append] {
