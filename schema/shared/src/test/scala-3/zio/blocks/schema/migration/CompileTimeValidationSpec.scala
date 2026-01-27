@@ -358,6 +358,84 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         assertTrue(true)
       }
     ),
+    suite("chaining styles")(
+      test("inline chaining works") {
+        val migration = MigrationBuilder
+          .newBuilder[ComplexSource, ComplexTarget]
+          .renameField(_.a, _.x)
+          .renameField(_.c, _.y)
+          .dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
+          .addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
+          .buildChecked
+
+        assertTrue(migration != null)
+      },
+      test("multi-line with val assignments works") {
+        val builder1  = MigrationBuilder.newBuilder[ComplexSource, ComplexTarget]
+        val builder2  = builder1.renameField(_.a, _.x)
+        val builder3  = builder2.renameField(_.c, _.y)
+        val builder4  = builder3.dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
+        val builder5  = builder4.addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
+        val migration = builder5.buildChecked
+
+        val source = ComplexSource("hello", 42, true, 3.14)
+        val result = migration(source)
+
+        assertTrue(result.isRight)
+      },
+      test("mixed inline and multi-line works") {
+        val builder = MigrationBuilder
+          .newBuilder[ComplexSource, ComplexTarget]
+          .renameField(_.a, _.x)
+          .renameField(_.c, _.y)
+
+        val builder2 = builder.dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
+
+        val migration = builder2
+          .addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
+          .buildChecked
+
+        assertTrue(migration != null)
+      },
+      test("multiple drops over multiple lines") {
+        case class MultiDropSrc(keep: String, drop1: Int, drop2: Boolean, drop3: Double)
+        case class MultiDropTgt(keep: String)
+
+        given Schema[MultiDropSrc] = Schema.derived
+        given Schema[MultiDropTgt] = Schema.derived
+
+        val b1        = MigrationBuilder.newBuilder[MultiDropSrc, MultiDropTgt]
+        val b2        = b1.dropField(_.drop1, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+        val b3        = b2.dropField(_.drop2, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
+        val b4        = b3.dropField(_.drop3, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
+        val migration = b4.buildChecked
+
+        val source = MultiDropSrc("keep", 1, true, 2.5)
+        val result = migration(source)
+
+        assertTrue(result.isRight) &&
+        assertTrue(result.map(_.keep) == Right("keep"))
+      },
+      test("multiple adds over multiple lines") {
+        case class MultiAddSrc(keep: String)
+        case class MultiAddTgt(keep: String, add1: Int, add2: Boolean, add3: Double)
+
+        given Schema[MultiAddSrc] = Schema.derived
+        given Schema[MultiAddTgt] = Schema.derived
+
+        val b1        = MigrationBuilder.newBuilder[MultiAddSrc, MultiAddTgt]
+        val b2        = b1.addField(_.add1, SchemaExpr.Literal[DynamicValue, Int](42, Schema.int))
+        val b3        = b2.addField(_.add2, SchemaExpr.Literal[DynamicValue, Boolean](true, Schema.boolean))
+        val b4        = b3.addField(_.add3, SchemaExpr.Literal[DynamicValue, Double](3.14, Schema.double))
+        val migration = b4.buildChecked
+
+        val source = MultiAddSrc("keep")
+        val result = migration(source)
+
+        assertTrue(result.isRight) &&
+        assertTrue(result.map(_.keep) == Right("keep"))
+      }
+    ),
     suite("edge cases")(
       test("empty source schema") {
         case class EmptySrc()
