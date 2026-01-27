@@ -6,7 +6,7 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.quoted._
 import zio.blocks.schema.{Term => SchemaTerm}
-import zio.blocks.typeid.TypeId
+import zio.blocks.typeid.{DynamicTypeId, TypeId}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.schema.CommonMacroOps
@@ -938,18 +938,20 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             val tpeId = '{
               zio.blocks.typeid
                 .TypeId[Any](
-                  owner = zio.blocks.typeid.Owner(
-                    List(
-                      zio.blocks.typeid.Owner.Package("scala"),
-                      zio.blocks.typeid.Owner.Type("NamedTuple")
-                    )
-                  ),
-                  name = "NamedTuple",
-                  typeParams = Nil,
-                  kind = zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil),
-                  parents = Nil,
-                  args = Nil,
-                  annotations = Nil
+                  zio.blocks.typeid.DynamicTypeId(
+                    owner = zio.blocks.typeid.Owner(
+                      List(
+                        zio.blocks.typeid.Owner.Package("scala"),
+                        zio.blocks.typeid.Owner.Type("NamedTuple")
+                      )
+                    ),
+                    name = "NamedTuple",
+                    typeParams = Nil,
+                    kind = zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil),
+                    parents = Nil,
+                    args = Nil,
+                    annotations = Nil
+                  )
                 )
                 .asInstanceOf[zio.blocks.typeid.TypeId[T]]
             }
@@ -1060,13 +1062,13 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             if (sym == defn.AnyClass) '{ zio.blocks.typeid.TypeRepr.AnyType }
             else if (sym == defn.NothingClass) '{ zio.blocks.typeid.TypeRepr.NothingType }
             else {
-              val id = makeSimpleTypeId(sym)
+              val id = makeDynamicTypeId(sym)
               '{ zio.blocks.typeid.TypeRepr.Ref($id, Nil) }
             }
           case AppliedType(base, args) =>
             base match {
               case tr: TypeRef =>
-                val id       = makeSimpleTypeId(tr.typeSymbol)
+                val id       = makeDynamicTypeId(tr.typeSymbol)
                 val argsExpr = Expr.ofList(args.map(makeTypeReprExpr))
                 '{ zio.blocks.typeid.TypeRepr.Ref($id, $argsExpr) }
               case _ =>
@@ -1077,13 +1079,13 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         }
       }
 
-    def makeSimpleTypeId(sym: Symbol): Expr[TypeId[?]] = {
+    def makeDynamicTypeId(sym: Symbol): Expr[DynamicTypeId] = {
       val ownerExpr = makeOwner(sym.maybeOwner)
       val nameStr   = sym.name.stripSuffix("$")
       val nameExpr  = Expr(nameStr)
       val kindExpr  = makeKind(sym)
       '{
-        TypeId(
+        DynamicTypeId(
           $ownerExpr,
           $nameExpr,
           Nil,
@@ -1102,13 +1104,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         val nameExpr  = Expr("Type")
         '{
           TypeId(
-            $ownerExpr,
-            $nameExpr,
-            Nil,
-            zio.blocks.typeid.TypeDefKind.Class(),
-            Nil,
-            Nil,
-            Nil
+            DynamicTypeId(
+              $ownerExpr,
+              $nameExpr,
+              Nil,
+              zio.blocks.typeid.TypeDefKind.Class(),
+              Nil,
+              Nil,
+              Nil
+            )
           )
         }
       case None =>
@@ -1156,13 +1160,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
         '{
           TypeId(
-            $ownerExpr,
-            $nameExpr,
-            $typeParamsExpr,
-            $kindExpr,
-            $parentsExpr,
-            $argsExpr,
-            Nil
+            DynamicTypeId(
+              $ownerExpr,
+              $nameExpr,
+              $typeParamsExpr,
+              $kindExpr,
+              $parentsExpr,
+              $argsExpr,
+              Nil
+            )
           )
         }
     }

@@ -9,10 +9,10 @@ import java.util.{Currency, UUID}
 import scala.collection.immutable.Seq
 
 object ReflectSpec extends SchemaBaseSpec {
-  import zio.blocks.typeid.{TypeId, StandardTypes, Owner, TypeDefKind}
+  import zio.blocks.typeid.{TypeId, StandardTypes, Owner, TypeDefKind, DynamicTypeId}
 
   private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
-    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
+    TypeId(DynamicTypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil))
 
   case class TestNamespace(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")
@@ -317,7 +317,7 @@ object ReflectSpec extends SchemaBaseSpec {
         )
       },
       test("gets and updates record type name") {
-        assert(stripMetadata(tuple4Reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
+        assert(TypeId(stripMetadata(tuple4Reflect.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]])(
           equalTo(
             TestTypeId[(Byte, Short, Int, Long)](
               TestNamespace.scala,
@@ -416,7 +416,7 @@ object ReflectSpec extends SchemaBaseSpec {
         assert(eitherReflect.fromDynamicValue(eitherReflect.toDynamicValue(Left(0))))(isRight(equalTo(Left(0))))
       },
       test("gets and updates variant type name") {
-        assert(stripMetadata(eitherReflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
+        assert(TypeId(stripMetadata(eitherReflect.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]])(
           equalTo(
             TestTypeId[Either[Int, Long]](
               TestNamespace(Seq("scala", "util")),
@@ -539,7 +539,7 @@ object ReflectSpec extends SchemaBaseSpec {
       },
       test("gets and updates sequence type name") {
         val sequence1 = Reflect.vector(Reflect.int[Binding])
-        assert(stripMetadata(sequence1.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
+        assert(TypeId(stripMetadata(sequence1.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]])(
           equalTo(
             TestTypeId[Vector[Int]](TestNamespace.scalaCollectionImmutable, "Vector", Seq(TestTypeId.int))
               .asInstanceOf[TypeId[Any]]
@@ -636,7 +636,7 @@ object ReflectSpec extends SchemaBaseSpec {
       },
       test("gets and updates map type name") {
         val map1 = Reflect.map(Reflect.int[Binding], Reflect.long[Binding])
-        assert(stripMetadata(map1.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
+        assert(TypeId(stripMetadata(map1.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]])(
           equalTo(
             TestTypeId[Map[Int, Long]](
               TestNamespace.scalaCollectionImmutable,

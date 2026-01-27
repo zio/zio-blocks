@@ -10,7 +10,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
   import zio.blocks.typeid._
 
   private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
-    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
+    TypeId(DynamicTypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil))
 
   case class TestNamespace(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")
@@ -47,12 +47,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
   )
 
   val iArrayTypeId = TypeId(
-    Owner(List(Owner.Package("scala"), Owner.Term("IArray$package"))),
-    "IArray",
-    Nil,
-    TypeDefKind.Class(),
-    Nil,
-    Nil
+    DynamicTypeId(
+      Owner(List(Owner.Package("scala"), Owner.Term("IArray$package"))),
+      "IArray",
+      Nil,
+      TypeDefKind.Class(),
+      Nil,
+      Nil
+    )
   )
 
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
@@ -82,7 +84,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(record.map(x => stripMetadata(x.typeId)))(
           isSome(
             equalTo(
-              TypeId(specTermOwner, "Record1", Nil, TypeDefKind.Class(), Nil, Nil)
+              TypeId(DynamicTypeId(specTermOwner, "Record1", Nil, TypeDefKind.Class(), Nil, Nil))
             )
           )
         ) &&
@@ -148,7 +150,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             Schema[Long].reflect.asTerm("_4")
           )
           assert(record.map(_.fields))(isSome(equalTo(expectedFields))) &&
-          assert(record.map(r => stripMetadata(r.typeId).copy(args = Nil)))(
+          assert(record.map(r => TypeId(stripMetadata(r.typeId).dynamic.copy(args = Nil))))(
             isSome(equalTo(unsafeTypeId[Tuple4]("scala", "Tuple4")))
           )
         }
@@ -188,7 +190,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             Schema[Long].reflect.asTerm("_4")
           )
           assert(record.map(_.fields))(isSome(equalTo(expectedFields))) &&
-          assert(record.map(r => stripMetadata(r.typeId).copy(args = Nil)))(
+          assert(record.map(r => TypeId(stripMetadata(r.typeId).dynamic.copy(args = Nil))))(
             isSome(equalTo(unsafeTypeId[GenericTuple4]("scala", "Tuple4")))
           )
         }
@@ -217,7 +219,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         )
         val record1 = schema1.reflect.asRecord.get
         assert(record1.fields)(equalTo(expectedFields1)) &&
-        assert(stripMetadata(record1.typeId).copy(args = Nil))(
+        assert(TypeId(stripMetadata(record1.typeId).dynamic.copy(args = Nil)))(
           equalTo(unsafeTypeId[(Int, String)]("scala", "Tuple2"))
         ) &&
         assert(schema1)(equalTo(schema2)) &&
@@ -234,7 +236,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           )
           val record9 = schema9.reflect.asRecord.get
           assert(record9.fields)(equalTo(expectedFields9)) &&
-          assert(stripMetadata(record9.typeId).copy(args = Nil))(
+          assert(TypeId(stripMetadata(record9.typeId).dynamic.copy(args = Nil)))(
             equalTo(unsafeTypeId[((Int, Long), (String, String))]("scala", "Tuple2"))
           )
         } &&
@@ -245,19 +247,21 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           )
           val record10 = schema10.reflect.asRecord.get
           assert(record10.fields)(equalTo(expectedFields10)) &&
-          assert(stripMetadata(record10.typeId).copy(args = Nil))(
+          assert(TypeId(stripMetadata(record10.typeId).dynamic.copy(args = Nil)))(
             equalTo(unsafeTypeId[(Int, String)]("scala", "Tuple2"))
           )
         } &&
         assert(stripMetadata(schema11.reflect.typeId))(
           equalTo(
             TypeId(
-              Owner(List(Owner.Package("scala"), Owner.Term("Tuple$package"))),
-              "EmptyTuple",
-              Nil,
-              TypeDefKind.Class(isCase = true),
-              Nil,
-              Nil
+              DynamicTypeId(
+                Owner(List(Owner.Package("scala"), Owner.Term("Tuple$package"))),
+                "EmptyTuple",
+                Nil,
+                TypeDefKind.Class(isCase = true),
+                Nil,
+                Nil
+              )
             )
           )
         ) &&
@@ -300,7 +304,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val schema = Schema[Opaque]
         assert(stripMetadata(schema.reflect.typeId))(
           equalTo(
-            TypeId(topLevelOwner, "Opaque", Nil, TypeDefKind.Class(isCase = false), Nil, Nil)
+            TypeId(DynamicTypeId(topLevelOwner, "Opaque", Nil, TypeDefKind.Class(isCase = false), Nil, Nil))
           )
         ) &&
         assert(schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
@@ -327,12 +331,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val value2            = InnerOpaque(InnerId.applyUnsafe("!!!"), InnerValue(1))
         val schema            = Schema[InnerOpaque]
         val innerOpaqueTypeId = TypeId(
-          Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))),
-          "InnerOpaque",
-          Nil,
-          TypeDefKind.Class(),
-          Nil,
-          Nil
+          DynamicTypeId(
+            Owner(List(Owner.Package("zio"), Owner.Package("blocks"), Owner.Package("schema"))),
+            "InnerOpaque",
+            Nil,
+            TypeDefKind.Class(),
+            Nil,
+            Nil
+          )
         )
         assert(stripMetadata(schema.reflect.typeId))(equalTo(innerOpaqueTypeId)) &&
         assert(schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
@@ -491,31 +497,31 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           Traversal.seqValues(
             schema9.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Double, IArray]]
           )
-        assert(stripMetadata(schema1.reflect.typeId).copy(args = Nil))(
+        assert(TypeId(stripMetadata(schema1.reflect.typeId).dynamic.copy(args = Nil)))(
           equalTo(iArrayTypeId)
         ) &&
-        assert(stripMetadata(schema2.reflect.typeId).copy(args = Nil))(
+        assert(TypeId(stripMetadata(schema2.reflect.typeId).dynamic.copy(args = Nil)))(
           equalTo(iArrayTypeId)
         ) &&
-        assert(stripMetadata(schema3.reflect.typeId).copy(args = Nil))(
+        assert(TypeId(stripMetadata(schema3.reflect.typeId).dynamic.copy(args = Nil)))(
           equalTo(iArrayTypeId)
         ) &&
-        assert(stripMetadata(schema4.reflect.typeId).copy(args = Nil))(
+        assert(TypeId(stripMetadata(schema4.reflect.typeId).dynamic.copy(args = Nil)))(
           equalTo(iArrayTypeId)
         ) &&
-        assert(stripMetadata(schema5.reflect.typeId).copy(args = Nil))(
+        assert(TypeId(stripMetadata(schema5.reflect.typeId).dynamic.copy(args = Nil)))(
           equalTo(iArrayTypeId)
         ) &&
-        assert(stripMetadata(schema6.reflect.typeId).copy(args = Nil))(
+        assert(TypeId(stripMetadata(schema6.reflect.typeId).dynamic.copy(args = Nil)))(
           equalTo(iArrayTypeId)
         ) &&
-        assert(stripMetadata(schema7.reflect.typeId).copy(args = Nil))(
+        assert(TypeId(stripMetadata(schema7.reflect.typeId).dynamic.copy(args = Nil)))(
           equalTo(iArrayTypeId)
         ) &&
-        assert(stripMetadata(schema8.reflect.typeId).copy(args = Nil))(
+        assert(TypeId(stripMetadata(schema8.reflect.typeId).dynamic.copy(args = Nil)))(
           equalTo(iArrayTypeId)
         ) &&
-        assert(stripMetadata(schema9.reflect.typeId).copy(args = Nil))(
+        assert(TypeId(stripMetadata(schema9.reflect.typeId).dynamic.copy(args = Nil)))(
           equalTo(iArrayTypeId)
         )
         &&
@@ -629,20 +635,22 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isSome(
             equalTo(
               TypeId(
-                Owner(
-                  List(
-                    Owner.Package("zio"),
-                    Owner.Package("blocks"),
-                    Owner.Package("schema"),
-                    Owner.Term("SchemaVersionSpecificSpec"),
-                    Owner.Term("spec")
-                  )
-                ),
-                "Variant1",
-                Nil,
-                TypeDefKind.Trait(),
-                Nil,
-                Nil
+                DynamicTypeId(
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("SchemaVersionSpecificSpec"),
+                      Owner.Term("spec")
+                    )
+                  ),
+                  "Variant1",
+                  Nil,
+                  TypeDefKind.Trait(),
+                  Nil,
+                  Nil
+                )
               )
             )
           )
@@ -697,19 +705,21 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isSome(
             equalTo(
               TypeId(
-                Owner(
-                  List(
-                    Owner.Package("zio"),
-                    Owner.Package("blocks"),
-                    Owner.Package("schema"),
-                    Owner.Term("SchemaVersionSpecificSpec")
-                  )
-                ),
-                "Color",
-                Nil,
-                TypeDefKind.Class(),
-                Nil,
-                Nil
+                DynamicTypeId(
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("SchemaVersionSpecificSpec")
+                    )
+                  ),
+                  "Color",
+                  Nil,
+                  TypeDefKind.Class(),
+                  Nil,
+                  Nil
+                )
               )
             )
           )
@@ -738,23 +748,25 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isRight(equalTo(FruitEnum.Banana(0.5)))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Apple", "Banana")))) &&
-        assert(variant.map(x => stripMetadata(x.typeId).copy(args = Nil)))(
+        assert(variant.map(x => TypeId(stripMetadata(x.typeId).dynamic.copy(args = Nil))))(
           isSome(
             equalTo(
               TypeId(
-                Owner(
-                  List(
-                    Owner.Package("zio"),
-                    Owner.Package("blocks"),
-                    Owner.Package("schema"),
-                    Owner.Term("SchemaVersionSpecificSpec")
-                  )
-                ),
-                "FruitEnum",
-                Nil,
-                TypeDefKind.Class(),
-                Nil,
-                Nil
+                DynamicTypeId(
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("SchemaVersionSpecificSpec")
+                    )
+                  ),
+                  "FruitEnum",
+                  Nil,
+                  TypeDefKind.Class(),
+                  Nil,
+                  Nil
+                )
               )
             )
           )
@@ -800,12 +812,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isSome(
             equalTo(
               TypeId(
-                Owner(Nil),
-                "Union",
-                Nil,
-                TypeDefKind.AbstractType,
-                Nil,
-                Nil
+                DynamicTypeId(
+                  Owner(Nil),
+                  "Union",
+                  Nil,
+                  TypeDefKind.AbstractType,
+                  Nil,
+                  Nil
+                )
               )
             )
           )
@@ -831,19 +845,21 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isSome(
             equalTo(
               TypeId(
-                Owner(
-                  List(
-                    Owner.Package("zio"),
-                    Owner.Package("blocks"),
-                    Owner.Package("schema"),
-                    Owner.Term("OpaqueTypes$package")
-                  )
-                ),
-                "Variant",
-                Nil,
-                TypeDefKind.Class(),
-                Nil,
-                Nil
+                DynamicTypeId(
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("OpaqueTypes$package")
+                    )
+                  ),
+                  "Variant",
+                  Nil,
+                  TypeDefKind.Class(),
+                  Nil,
+                  Nil
+                )
               )
             )
           )
@@ -894,10 +910,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(Seq(Modifier.config("field-key", "field-value")))
           )
         ) &&
-        assert(variant.map(v => stripMetadata(v.typeId).copy(args = Nil)))(
+        assert(variant.map(v => TypeId(stripMetadata(v.typeId).dynamic.copy(args = Nil))))(
           isSome(
             equalTo(
-              TypeId(objectOwner, "LinkedList", Nil, TypeDefKind.Class(), Nil, Nil)
+              TypeId(DynamicTypeId(objectOwner, "LinkedList", Nil, TypeDefKind.Class(), Nil, Nil))
             )
           )
         )
@@ -912,10 +928,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isRight(equalTo(HKEnum.Case2(Some("WWW"))))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case1", "Case2")))) &&
-        assert(variant.map(v => stripMetadata(v.typeId).copy(args = Nil)))(
+        assert(variant.map(v => TypeId(stripMetadata(v.typeId).dynamic.copy(args = Nil))))(
           isSome(
             equalTo(
-              TypeId(objectOwner, "HKEnum", Nil, TypeDefKind.Class(), Nil, Nil)
+              TypeId(DynamicTypeId(objectOwner, "HKEnum", Nil, TypeDefKind.Class(), Nil, Nil))
             )
           )
         )

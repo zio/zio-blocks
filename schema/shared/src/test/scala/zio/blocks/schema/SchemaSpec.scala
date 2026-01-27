@@ -20,7 +20,7 @@ object SchemaSpec extends SchemaBaseSpec {
   import zio.blocks.typeid.StandardTypes
 
   private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
-    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
+    TypeId(DynamicTypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil))
 
   case class Namespace(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")
@@ -411,7 +411,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Tuple4._3.replace(value, 5))(equalTo((1: Byte, 2: Short, 5, 4L))) &&
         assert(Tuple4._4.replace(value, 5L))(equalTo((1: Byte, 2: Short, 3, 5L))) &&
         assert(Tuple4.schema.fromDynamicValue(Tuple4.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-        assert(stripMetadata(Tuple4.schema.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
+        assert(TypeId(stripMetadata(Tuple4.schema.reflect.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]])(
           equalTo(unsafeTypeId("scala", "Tuple4").asInstanceOf[TypeId[Any]])
         ) &&
         assert(Tuple4.schema.reflect.asRecord.map(_.fields.map(_.name)))(
@@ -463,7 +463,7 @@ object SchemaSpec extends SchemaBaseSpec {
         ) &&
         assert(stripMetadata(`Record-1`.schema.reflect.typeId).asInstanceOf[TypeId[Any]])(
           equalTo(
-            TypeId(specOwner, "Record-1", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
+            TypeId(DynamicTypeId(specOwner, "Record-1", Nil, TypeDefKind.Class(), Nil, Nil)).asInstanceOf[TypeId[Any]]
           )
         ) &&
         assert(`Record-1`.schema.reflect.modifiers)(
@@ -509,9 +509,11 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(`Record-2`.schema.fromDynamicValue(`Record-2`.schema.toDynamicValue(`Record-2`[`i-8`, `i-32`](1, 2))))(
           isRight(equalTo(`Record-2`[`i-8`, `i-32`](1, 2)))
         ) &&
-        assert(stripMetadata(`Record-2`.schema.reflect.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]])(
+        assert(
+          TypeId(stripMetadata(`Record-2`.schema.reflect.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]]
+        )(
           equalTo(
-            TypeId(specOwner, "Record-2", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
+            TypeId(DynamicTypeId(specOwner, "Record-2", Nil, TypeDefKind.Class(), Nil, Nil)).asInstanceOf[TypeId[Any]]
           )
         ) &&
         assert(`Record-2`.schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
@@ -541,7 +543,7 @@ object SchemaSpec extends SchemaBaseSpec {
         ) &&
         assert(stripMetadata(Record3.schema.reflect.typeId).asInstanceOf[TypeId[Any]])(
           equalTo(
-            TypeId(specOwner, "Record3", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
+            TypeId(DynamicTypeId(specOwner, "Record3", Nil, TypeDefKind.Class(), Nil, Nil)).asInstanceOf[TypeId[Any]]
           )
         ) &&
         assert(Record3.schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
@@ -581,7 +583,7 @@ object SchemaSpec extends SchemaBaseSpec {
         )(isRight(equalTo(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4)))))) &&
         assert(stripMetadata(Record4.schema.reflect.typeId).asInstanceOf[TypeId[Any]])(
           equalTo(
-            TypeId(specOwner, "Record4", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
+            TypeId(DynamicTypeId(specOwner, "Record4", Nil, TypeDefKind.Class(), Nil, Nil)).asInstanceOf[TypeId[Any]]
           )
         ) &&
         assert(Record4.schema.reflect.asRecord.map(_.fields.size))(isSome(equalTo(2))) &&
@@ -643,7 +645,7 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Unit].reflect.asTerm("u"),
                   Schema[Seq[Unit]].reflect.asTerm("su")
                 ),
-                typeId = TypeId(specOwner, "Record5", Nil, TypeDefKind.Class(), Nil, Nil),
+                typeId = TypeId(DynamicTypeId(specOwner, "Record5", Nil, TypeDefKind.Class(), Nil, Nil)),
                 recordBinding = null
               )
             )
@@ -774,7 +776,7 @@ object SchemaSpec extends SchemaBaseSpec {
         ) &&
         assert(stripMetadata(Record7.schema.reflect.typeId).asInstanceOf[TypeId[Any]])(
           equalTo(
-            TypeId(specOwner, "Record7", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
+            TypeId(DynamicTypeId(specOwner, "Record7", Nil, TypeDefKind.Class(), Nil, Nil)).asInstanceOf[TypeId[Any]]
           )
         )
       },
@@ -787,24 +789,26 @@ object SchemaSpec extends SchemaBaseSpec {
         val value  = Record8[Option](Some(1), Some(Record8[Option](Some(2), None)))
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
-        assert(record.map(x => stripMetadata(x.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]]))(
+        assert(record.map(x => TypeId(stripMetadata(x.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
               TypeId(
-                Owner(
-                  List(
-                    Owner.Package("zio"),
-                    Owner.Package("blocks"),
-                    Owner.Package("schema"),
-                    Owner.Term("SchemaSpec"),
-                    Owner.Term("spec")
-                  )
-                ),
-                "Record8",
-                Nil,
-                TypeDefKind.Class(),
-                Nil,
-                Nil
+                DynamicTypeId(
+                  Owner(
+                    List(
+                      Owner.Package("zio"),
+                      Owner.Package("blocks"),
+                      Owner.Package("schema"),
+                      Owner.Term("SchemaSpec"),
+                      Owner.Term("spec")
+                    )
+                  ),
+                  "Record8",
+                  Nil,
+                  TypeDefKind.Class(),
+                  Nil,
+                  Nil
+                )
               ).asInstanceOf[TypeId[Any]]
             )
           )
@@ -1190,7 +1194,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(variant.map(x => stripMetadata(x.typeId).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeId(specOwner, "Variant-1", Nil, TypeDefKind.Trait(), Nil, Nil).asInstanceOf[TypeId[Any]]
+              TypeId(DynamicTypeId(specOwner, "Variant-1", Nil, TypeDefKind.Trait(), Nil, Nil))
+                .asInstanceOf[TypeId[Any]]
             )
           )
         ) &&
@@ -1240,10 +1245,11 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(Value[String]("WWW")))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("MissingValue", "NullValue", "Value")))) &&
-        assert(variant.map(x => stripMetadata(x.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]]))(
+        assert(variant.map(x => TypeId(stripMetadata(x.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeId(specOwner, "Variant-2", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
+              TypeId(DynamicTypeId(specOwner, "Variant-2", Nil, TypeDefKind.Class(), Nil, Nil))
+                .asInstanceOf[TypeId[Any]]
             )
           )
         )
@@ -1291,7 +1297,11 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A2)))(isRight(equalTo(B.A2))) &&
         assert(variant1.map(_.cases.map(_.name)))(isSome(equalTo(Vector("A1", "A2")))) &&
         assert(variant1.map(x => stripMetadata(x.typeId).asInstanceOf[TypeId[Any]]))(
-          isSome(equalTo(TypeId(schemaSpecOwner, "A", Nil, TypeDefKind.Trait(), Nil, Nil).asInstanceOf[TypeId[Any]]))
+          isSome(
+            equalTo(
+              TypeId(DynamicTypeId(schemaSpecOwner, "A", Nil, TypeDefKind.Trait(), Nil, Nil)).asInstanceOf[TypeId[Any]]
+            )
+          )
         ) &&
         assert(Level1_MultiLevel.c.getOption(Case))(isSome(equalTo(Case))) &&
         assert(Level1_MultiLevel.l1_c.getOption(Level1.Case))(isSome(equalTo(Level1.Case))) &&
@@ -1301,7 +1311,9 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(variant2.map(x => stripMetadata(x.typeId).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeId(schemaSpecOwner / Owner.Term("Level1"), "MultiLevel", Nil, TypeDefKind.Trait(), Nil, Nil)
+              TypeId(
+                DynamicTypeId(schemaSpecOwner / Owner.Term("Level1"), "MultiLevel", Nil, TypeDefKind.Trait(), Nil, Nil)
+              )
                 .asInstanceOf[TypeId[Any]]
             )
           )
@@ -1334,10 +1346,11 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(`Case-2`[Option](None)))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2")))) &&
-        assert(variant.map(x => stripMetadata(x.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]]))(
+        assert(variant.map(x => TypeId(stripMetadata(x.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeId(specOwner, "Variant-3", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
+              TypeId(DynamicTypeId(specOwner, "Variant-3", Nil, TypeDefKind.Class(), Nil, Nil))
+                .asInstanceOf[TypeId[Any]]
             )
           )
         )
@@ -1356,10 +1369,10 @@ object SchemaSpec extends SchemaBaseSpec {
         val schema  = Schema.derived[Variant4[String, Int]]
         val variant = schema.reflect.asVariant
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Error", "Fatal", "Success", "Timeout")))) &&
-        assert(variant.map(x => stripMetadata(x.typeId).copy(args = Nil).asInstanceOf[TypeId[Any]]))(
+        assert(variant.map(x => TypeId(stripMetadata(x.typeId).dynamic.copy(args = Nil)).asInstanceOf[TypeId[Any]]))(
           isSome(
             equalTo(
-              TypeId(specOwner, "Variant4", Nil, TypeDefKind.Class(), Nil, Nil).asInstanceOf[TypeId[Any]]
+              TypeId(DynamicTypeId(specOwner, "Variant4", Nil, TypeDefKind.Class(), Nil, Nil)).asInstanceOf[TypeId[Any]]
             )
           )
         ) &&

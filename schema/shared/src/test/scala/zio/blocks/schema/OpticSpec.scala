@@ -10,10 +10,10 @@ import zio.test._
 import scala.collection.immutable.ArraySeq
 
 object OpticSpec extends SchemaBaseSpec {
-  import zio.blocks.typeid.{TypeId, Owner, TypeDefKind}
+  import zio.blocks.typeid.{TypeId, Owner, TypeDefKind, DynamicTypeId}
 
   private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
-    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
+    TypeId(DynamicTypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil))
 
   case class Namespace(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")

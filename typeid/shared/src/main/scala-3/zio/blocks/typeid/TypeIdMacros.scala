@@ -4,7 +4,11 @@ import scala.quoted._
 
 object TypeIdMacros {
 
-  def fromImpl[A: Type](using Quotes): Expr[TypeId[A]] = {
+  inline def derived[A <: AnyKind]: TypeId[A] = ${ derivedImpl[A] }
+
+  def fromImpl[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = derivedImpl[A]
+
+  private def derivedImpl[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
     import quotes.reflect._
 
     def getTypeId(rootTpe: TypeRepr): Expr[TypeId[A]] = {
@@ -26,13 +30,15 @@ object TypeIdMacros {
                 val ownerExpr = makeOwner(baseSym)
                 '{
                   TypeId(
-                    $ownerExpr,
-                    "Type",
-                    Nil,
-                    TypeDefKind.Class(),
-                    Nil,
-                    Nil,
-                    Nil
+                    DynamicTypeId(
+                      $ownerExpr,
+                      "Type",
+                      Nil,
+                      TypeDefKind.Class(),
+                      Nil,
+                      Nil,
+                      Nil
+                    )
                   )
                 }
               case None =>
@@ -84,7 +90,6 @@ object TypeIdMacros {
             }
 
           case _ =>
-            // Attempt intersection? No, catch-all.
             // Fallback for refinements etc.
             makeSyntheticTypeId("Refined", Nil)
         }
@@ -123,13 +128,15 @@ object TypeIdMacros {
 
       '{
         TypeId(
-          $ownerExpr,
-          $nameExpr,
-          $typeParamsExpr,
-          $kindExpr,
-          $parentsExpr,
-          $argsExpr,
-          Nil // Annotations placeholders
+          DynamicTypeId(
+            $ownerExpr,
+            $nameExpr,
+            $typeParamsExpr,
+            $kindExpr,
+            $parentsExpr,
+            $argsExpr,
+            Nil // Annotations placeholders
+          )
         )
       }
     }
@@ -174,7 +181,7 @@ object TypeIdMacros {
             else if (sym == defn.NothingClass) '{ zio.blocks.typeid.TypeRepr.NothingType }
             else {
               // Use shallow ID!
-              val id   = makeTypeId(sym, Nil, deep = false)
+              val id   = makeDynamicTypeId(sym, Nil, deep = false)
               val args = t match {
                 case AppliedType(_, as) => as.map(makeTypeRepr)
                 case _                  => Nil
@@ -183,48 +190,60 @@ object TypeIdMacros {
             }
 
           case AppliedType(base, args) =>
-            // If base is TypeRef, handled above? No, dealias handles it?
-            // AppliedType(TypeRef(...), ...) matches TypeRef? No.
-            // Wait, AppliedType structure:
-            // AppliedType(t, args)
             makeTypeRepr(base) match {
-              // If base became a Ref, we should ideally merge types?
-              // But `TypeRepr.Ref` has args.
-              // Let's just recurse.
               case '{ zio.blocks.typeid.TypeRepr.Ref($id, $_) } =>
-                // Check if we need to replace args?
-                // Usually logic is:
                 '{ zio.blocks.typeid.TypeRepr.Ref($id, ${ Expr.ofList(args.map(makeTypeRepr)) }) }
               case other =>
                 '{ zio.blocks.typeid.TypeRepr.AppliedType($other, ${ Expr.ofList(args.map(makeTypeRepr)) }) }
             }
 
           case OrType(l, r) =>
-            '{ zio.blocks.typeid.TypeRepr.Union(List(${ makeTypeRepr(l) }, ${ makeTypeRepr(r) })) } // Flattening?
+            '{ zio.blocks.typeid.TypeRepr.Union(List(${ makeTypeRepr(l) }, ${ makeTypeRepr(r) })) }
 
           case AndType(l, r) =>
             '{ zio.blocks.typeid.TypeRepr.Intersection(List(${ makeTypeRepr(l) }, ${ makeTypeRepr(r) })) }
 
           case _ =>
-            // Fallback to Abstract/Wildcard or error?
-            // For now, simpler fallback or error?
-            // Let's dump as Wildcard with no bounds if unknown
+            // Fallback to Wildcard with no bounds if unknown
             '{ zio.blocks.typeid.TypeRepr.Wildcard(zio.blocks.typeid.TypeBounds.empty) }
         }
       }
 
-    def makeSyntheticTypeId(name: String, parents: List[TypeRepr]): Expr[TypeId[?]] = {
-      // Canonicalize: Sort parents
-      // We need to use TypeRepr.ordering, but we are in Expr world.
-      // We can sort the List[TypeRepr] before converting to Expr.
-      // But makeSyntheticTypeId takes List[TypeRepr] (the Expr helpers one defined in this file? No, param is List[TypeRepr] from strings 130/133)
-      // Wait, 130 passes `List(${makeTypeRepr(l)}, ...)` which is List[Expr[TypeRepr]].
-      // The signature in line 143 says parents: List[TypeRepr].
-      // BUT lines 130/133 construct Exprs: '{ ... List(...) }
-      // Ah, makeSyntheticTypeId is handling the Expr construction?
-      // No, lines 26/29 call makeSyntheticTypeId.
-      // Line 26: makeSyntheticTypeId("Intersection", List(l, r)) where l,r are TypeRepr (quotes.reflect).
+    // Create a DynamicTypeId expression (for use in TypeRepr.Ref)
+    def makeDynamicTypeId(sym: Symbol, args: List[TypeRepr], deep: Boolean): Expr[DynamicTypeId] = {
+      val ownerExpr = makeOwner(sym.maybeOwner)
+      val nameStr   = sym.name.stripSuffix("$")
+      val nameExpr  = Expr(nameStr)
 
+      val kindExpr = makeKind(sym)
+
+      val typeParamsExpr = if (deep) {
+        val tparams = sym.typeMembers.filter(_.isTypeParam)
+        Expr.ofList(tparams.map(makeTypeParam)).asInstanceOf[Expr[List[TypeParam]]]
+      } else {
+        Expr.ofList(Nil).asInstanceOf[Expr[List[TypeParam]]]
+      }
+
+      val parentsExpr = Expr.ofList(Nil).asInstanceOf[Expr[List[zio.blocks.typeid.TypeRepr]]]
+
+      val argsExpr = Expr
+        .ofList(args.map(t => makeTypeRepr(t).asInstanceOf[Expr[zio.blocks.typeid.TypeRepr]]))
+        .asInstanceOf[Expr[List[zio.blocks.typeid.TypeRepr]]]
+
+      '{
+        DynamicTypeId(
+          $ownerExpr,
+          $nameExpr,
+          $typeParamsExpr,
+          $kindExpr,
+          $parentsExpr,
+          $argsExpr,
+          Nil
+        )
+      }
+    }
+
+    def makeSyntheticTypeId(name: String, parents: List[TypeRepr]): Expr[TypeId[?]] = {
       val sorted = parents.sortBy(_.show)
 
       val parentsExpr = Expr
@@ -232,12 +251,14 @@ object TypeIdMacros {
         .asInstanceOf[Expr[List[zio.blocks.typeid.TypeRepr]]]
       '{
         TypeId(
-          Owner.Root,
-          ${ Expr(name) },
-          Nil,
-          TypeDefKind.AbstractType,
-          $parentsExpr,
-          Nil
+          DynamicTypeId(
+            Owner.Root,
+            ${ Expr(name) },
+            Nil,
+            TypeDefKind.AbstractType,
+            $parentsExpr,
+            Nil
+          )
         )
       }
     }

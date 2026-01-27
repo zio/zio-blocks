@@ -17,7 +17,7 @@ private[typeid] object TypeEquality {
    * a.isSubtypeOf(b) && b.isSubtypeOf(a) This means two types are equal only if
    * they are mutually subtypes of each other.
    */
-  def typeIdEquals(a: TypeId[_], b: TypeId[_]): Boolean = {
+  def dynamicTypeIdEquals(a: DynamicTypeId, b: DynamicTypeId): Boolean = {
     // Fast path: reference equality
     if (a eq b) return true
 
@@ -57,14 +57,17 @@ private[typeid] object TypeEquality {
    * NamedTuple type itself and its companion operations like Map, Zip, Empty,
    * etc.
    */
-  private def isNamedTupleType(id: TypeId[_]): Boolean =
-    id.owner.asString.contains("NamedTuple") ||
-      id.name == "NamedTuple" ||
-      id.name == "Empty" ||
-      id.name == "Map"
+  private def isNamedTupleType(id: DynamicTypeId): Boolean = {
+    val ownerStr = id.owner.asString
+    ownerStr.contains("NamedTuple") ||
+    id.name == "NamedTuple" ||
+    // Only match Empty and Map from NamedTuple companion, not other types like scala.collection.immutable.Map
+    (id.name == "Empty" && ownerStr.contains("NamedTuple")) ||
+    (id.name == "Map" && ownerStr.contains("NamedTuple"))
+  }
 
-  // Helper to check if TypeId represents NamedTuple exactly
-  private def isNamedTuple(id: TypeId[_]): Boolean =
+  // Helper to check if DynamicTypeId represents NamedTuple exactly
+  private def isNamedTuple(id: DynamicTypeId): Boolean =
     id.name == "NamedTuple" && id.owner.asString.contains("scala")
 
   /**
@@ -101,7 +104,7 @@ private[typeid] object TypeEquality {
    * Computes hash code for a TypeId. Hash code is computed on the normalized
    * (dealiased) form to ensure consistency with the equals contract.
    */
-  def typeIdHashCode(a: TypeId[_]): Int = {
+  def dynamicTypeIdHashCode(a: DynamicTypeId): Int = {
     // For consistent hashing with subtyping-based equality,
     // we hash the normalized form
     val normalized = TypeRepr.Ref(a, a.args).dealias

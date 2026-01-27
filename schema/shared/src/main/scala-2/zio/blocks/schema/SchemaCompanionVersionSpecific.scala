@@ -158,7 +158,7 @@ private object SchemaCompanionVersionSpecific {
 
           val tArgs = typeArgs(tpe).map(typeId)
 
-          new TypeId(
+          new TypeId(DynamicTypeId(
             owner,
             name,
             tArgs.zipWithIndex.map { case (arg, i) =>
@@ -167,7 +167,7 @@ private object SchemaCompanionVersionSpecific {
             TypeDefKind.Class(),
             Nil,
             Nil
-          )
+          ))
         }
 
       typeIdCache.getOrElseUpdate(
@@ -175,7 +175,7 @@ private object SchemaCompanionVersionSpecific {
         tpe match {
           case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
             var tTypeId = calculateTypeId(compTpe)
-            if (tTypeId.name.endsWith(".type")) tTypeId = tTypeId.copy(name = tTypeId.name.stripSuffix(".type"))
+            if (tTypeId.name.endsWith(".type")) tTypeId = TypeId(tTypeId.dynamic.copy(name = tTypeId.name.stripSuffix(".type")))
             tTypeId
           case _ =>
             calculateTypeId(tpe)
@@ -203,7 +203,7 @@ private object SchemaCompanionVersionSpecific {
         q"zio.blocks.typeid.TypeParam(${tp.name}, ${tp.index}, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty, $kind)"
       }
 
-      q"new zio.blocks.typeid.TypeId($ownerTree, $name, List(..$typeParams), zio.blocks.typeid.TypeDefKind.Class(), Nil, Nil)"
+      q"new zio.blocks.typeid.TypeId(zio.blocks.typeid.DynamicTypeId($ownerTree, $name, List(..$typeParams), zio.blocks.typeid.TypeDefKind.Class(), Nil, Nil))"
     }
 
     def modifiers(tpe: Type): List[Tree] = {
@@ -416,7 +416,7 @@ private object SchemaCompanionVersionSpecific {
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
-                typeId = $tpeName.copy(typeParams = List(zio.blocks.typeid.TypeParam($schema.reflect.typeId.name, 0, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty, zio.blocks.typeid.Kind.Type))),
+                typeId = new zio.blocks.typeid.TypeId($tpeName.dynamic.copy(typeParams = List(zio.blocks.typeid.TypeParam($schema.reflect.typeId.name, 0, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty, zio.blocks.typeid.Kind.Type)))),
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArrayConstructor {
                     def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -456,7 +456,7 @@ private object SchemaCompanionVersionSpecific {
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
-                typeId = $tpeName.copy(typeParams = List(zio.blocks.typeid.TypeParam($schema.reflect.typeId.name, 0, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty, zio.blocks.typeid.Kind.Type))),
+                typeId = new zio.blocks.typeid.TypeId($tpeName.dynamic.copy(typeParams = List(zio.blocks.typeid.TypeParam($schema.reflect.typeId.name, 0, zio.blocks.typeid.Variance.Invariant, zio.blocks.typeid.TypeBounds.empty, zio.blocks.typeid.Kind.Type)))),
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArraySeqConstructor {
                     def newObjectBuilder[B](sizeHint: Int): Builder[B] =

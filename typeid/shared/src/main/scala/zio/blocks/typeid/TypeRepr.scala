@@ -114,7 +114,7 @@ object TypeRepr {
   }
 
   final case class Ref(
-    id: TypeId[_],
+    id: DynamicTypeId,
     args: List[TypeRepr]
   ) extends TypeRepr
 

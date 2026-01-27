@@ -111,13 +111,15 @@ object TypeIdSchemaSpec extends ZIOSpecDefault {
       test("TypeId round-trip") {
         val codec  = deriveCodec(typeIdWildcardSchema)
         val typeId = TypeId[String](
-          owner = Owner.pkgs("java", "lang"),
-          name = "String",
-          typeParams = Nil,
-          kind = TypeDefKind.Class(isFinal = true),
-          parents = Nil,
-          args = Nil,
-          annotations = Nil
+          DynamicTypeId(
+            owner = Owner.pkgs("java", "lang"),
+            name = "String",
+            typeParams = Nil,
+            kind = TypeDefKind.Class(isFinal = true),
+            parents = Nil,
+            args = Nil,
+            annotations = Nil
+          )
         )
         // Default values and empty lists are elided
         val expectedJson =
@@ -127,15 +129,17 @@ object TypeIdSchemaSpec extends ZIOSpecDefault {
       test("TypeRepr.Ref with TypeId round-trip") {
         val typeReprCodec = deriveCodec(typeReprSchema)
         val typeId        = TypeId[Any](
-          owner = Owner.pkg("scala"),
-          name = "Int",
-          typeParams = Nil,
-          kind = TypeDefKind.Class(isFinal = true),
-          parents = Nil,
-          args = Nil,
-          annotations = Nil
+          DynamicTypeId(
+            owner = Owner.pkg("scala"),
+            name = "Int",
+            typeParams = Nil,
+            kind = TypeDefKind.Class(isFinal = true),
+            parents = Nil,
+            args = Nil,
+            annotations = Nil
+          )
         )
-        val ref = TypeRepr.Ref(typeId, Nil)
+        val ref = TypeRepr.Ref(typeId.dynamic, Nil)
         // Nested TypeId also has elided defaults
         val expectedJson =
           """{"Ref":{"id":{"owner":{"segments":[{"Package":{"name":"scala"}}]},"name":"Int","kind":{"Class":{"isFinal":true}}}}}"""

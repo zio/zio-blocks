@@ -26,7 +26,12 @@ object TypeIdSchemas {
   implicit lazy val enumCaseParamSchema: Schema[EnumCaseParam] = Schema.derived[EnumCaseParam]
   implicit lazy val enumCaseInfoSchema: Schema[EnumCaseInfo]   = Schema.derived[EnumCaseInfo]
   implicit lazy val typeDefKindSchema: Schema[TypeDefKind]     = Schema.derived[TypeDefKind]
-  implicit lazy val typeIdAnySchema: Schema[TypeId[Any]]       = Schema.derived[TypeId[Any]]
+  implicit lazy val dynamicTypeIdSchema: Schema[DynamicTypeId] = Schema.derived[DynamicTypeId]
+  implicit lazy val typeIdAnySchema: Schema[TypeId[Any]]       =
+    dynamicTypeIdSchema.transformOrFail[TypeId[Any]](
+      dynamicId => Right(new TypeId[Any](dynamicId)),
+      typeId => typeId.dynamic
+    )
 
   // Alias for TypeId[?] / TypeId[_] wildcard usage in tests
   implicit lazy val typeIdWildcardSchema: Schema[TypeId[?]] = typeIdAnySchema.asInstanceOf[Schema[TypeId[?]]]

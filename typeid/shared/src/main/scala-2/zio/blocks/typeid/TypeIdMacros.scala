@@ -23,7 +23,7 @@ object TypeIdMacros {
           makeSyntheticTypeId("Intersection", parents)
 
         case ExistentialType(_, underlying) => getTypeId(underlying)
-        case _                              =>
+        case _ =>
           c.abort(c.enclosingPosition, s"Cannot derive TypeId for $tpe. It must be a nominal type.")
       }
     }
@@ -34,7 +34,7 @@ object TypeIdMacros {
       val nameTree      = Literal(Constant(name))
 
       q"""
-          zio.blocks.typeid.TypeId(
+          zio.blocks.typeid.TypeId(zio.blocks.typeid.DynamicTypeId(
             zio.blocks.typeid.Owner.Root,
             $nameTree,
             Nil,
@@ -42,7 +42,7 @@ object TypeIdMacros {
             $parentsTree,
             Nil,
             Nil
-          )
+          ))
         """
     }
 
@@ -88,12 +88,45 @@ object TypeIdMacros {
       }
 
       q"""
-         zio.blocks.typeid.TypeId(
+         zio.blocks.typeid.TypeId(zio.blocks.typeid.DynamicTypeId(
            $ownerTree,
            $nameTree,
            $typeParamsTree,
            $kindTree,
            $parentsTree,
+           $argsTree,
+           Nil
+         ))
+       """
+    }
+
+    def makeDynamicTypeId(sym: Symbol, args: List[Type], deep: Boolean): Tree = {
+      val ownerTree = makeOwner(sym.owner)
+      val nameStr   = sym.name.decodedName.toString.stripSuffix("$")
+      val nameTree  = Literal(Constant(nameStr))
+
+      val kindTree = makeKind(sym)
+
+      val typeParamsTree = if (deep) {
+        val tparams = sym.asType.typeParams
+        val mapped  = tparams.map(makeTypeParam)
+        q"List(..$mapped)"
+      } else {
+        q"Nil"
+      }
+
+      val argsTree = {
+        val mapped = args.map(makeTypeRepr)
+        q"List(..$mapped)"
+      }
+
+      q"""
+         zio.blocks.typeid.DynamicTypeId(
+           $ownerTree,
+           $nameTree,
+           $typeParamsTree,
+           $kindTree,
+           Nil,
            $argsTree,
            Nil
          )
@@ -145,7 +178,7 @@ object TypeIdMacros {
             if (sym == definitions.AnyClass) q"zio.blocks.typeid.TypeRepr.AnyType"
             else if (sym == definitions.NothingClass) q"zio.blocks.typeid.TypeRepr.NothingType"
             else {
-              val id        = makeTypeId(sym, Nil, deep = false)
+              val id        = makeDynamicTypeId(sym, Nil, deep = false)
               val argsTrees = args.map(makeTypeRepr)
               // Use Ref with args directly
               q"zio.blocks.typeid.TypeRepr.Ref($id, List(..$argsTrees))"

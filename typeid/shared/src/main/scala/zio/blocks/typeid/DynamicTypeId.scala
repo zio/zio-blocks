@@ -1,6 +1,13 @@
 package zio.blocks.typeid
 
-final case class TypeId[A](
+/**
+ * A dynamic (untyped) representation of a type's identity.
+ *
+ * This case class contains all the data and methods for type identity
+ * operations. The typed wrapper `TypeId[A]` delegates to this class, allowing
+ * version-specific type parameter bounds (e.g., `A <: AnyKind` in Scala 3).
+ */
+final case class DynamicTypeId(
   owner: Owner,
   name: String,
   typeParams: List[TypeParam],
@@ -9,6 +16,7 @@ final case class TypeId[A](
   args: List[TypeRepr] = Nil,
   annotations: List[Annotation] = Nil
 ) {
+
   def fullName: String =
     if (owner.isRoot) name
     else s"${owner.asString}.$name"
@@ -20,12 +28,38 @@ final case class TypeId[A](
     case _                            => None
   }
 
-  def isClass: Boolean    = kind match { case _: TypeDefKind.Class => true; case _ => false }
-  def isTrait: Boolean    = kind match { case _: TypeDefKind.Trait => true; case _ => false }
-  def isObject: Boolean   = kind == TypeDefKind.Object
-  def isEnum: Boolean     = kind match { case _: TypeDefKind.Enum => true; case _ => false }
-  def isAlias: Boolean    = kind match { case _: TypeDefKind.TypeAlias => true; case _ => false }
-  def isOpaque: Boolean   = kind match { case _: TypeDefKind.OpaqueType => true; case _ => false }
+  def representation: Option[TypeRepr] = kind match {
+    case _: TypeDefKind.OpaqueType => None // Opaque type representation is internal
+    case _                         => None
+  }
+
+  def isClass: Boolean = kind match {
+    case _: TypeDefKind.Class => true
+    case _                    => false
+  }
+
+  def isTrait: Boolean = kind match {
+    case _: TypeDefKind.Trait => true
+    case _                    => false
+  }
+
+  def isObject: Boolean = kind == TypeDefKind.Object
+
+  def isEnum: Boolean = kind match {
+    case _: TypeDefKind.Enum => true
+    case _                   => false
+  }
+
+  def isAlias: Boolean = kind match {
+    case _: TypeDefKind.TypeAlias => true
+    case _                        => false
+  }
+
+  def isOpaque: Boolean = kind match {
+    case _: TypeDefKind.OpaqueType => true
+    case _                         => false
+  }
+
   def isAbstract: Boolean = kind == TypeDefKind.AbstractType
 
   def isSealed: Boolean = kind match {
@@ -49,19 +83,19 @@ final case class TypeId[A](
   }
 
   override def equals(obj: Any): Boolean = obj match {
-    case other: TypeId[_] => TypeEquality.typeIdEquals(this, other)
-    case _                => false
+    case other: DynamicTypeId => TypeEquality.dynamicTypeIdEquals(this, other)
+    case _                    => false
   }
 
-  override def hashCode(): Int = TypeEquality.typeIdHashCode(this)
+  override def hashCode(): Int = TypeEquality.dynamicTypeIdHashCode(this)
 
-  def isSubtypeOf(other: TypeId[_]): Boolean =
+  def isSubtypeOf(other: DynamicTypeId): Boolean =
     Subtyping.isSubtype(TypeRepr.Ref(this, Nil), TypeRepr.Ref(other, Nil))
 
-  def isSupertypeOf(other: TypeId[_]): Boolean =
+  def isSupertypeOf(other: DynamicTypeId): Boolean =
     Subtyping.isSubtype(TypeRepr.Ref(other, Nil), TypeRepr.Ref(this, Nil))
 
-  def isEquivalentTo(other: TypeId[_]): Boolean =
+  def isEquivalentTo(other: DynamicTypeId): Boolean =
     Subtyping.isEquivalent(TypeRepr.Ref(this, Nil), TypeRepr.Ref(other, Nil))
 
   def show: String = {
@@ -71,5 +105,3 @@ final case class TypeId[A](
 
   override def toString: String = show
 }
-
-object TypeId extends TypeIdPlatformSpecific

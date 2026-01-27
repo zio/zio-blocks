@@ -77,16 +77,16 @@ private[blocks] object Subtyping {
     case _ => false
   }
 
-  // Helper to check if TypeId represents the tuple cons operator *:
-  private def isTupleCons(id: TypeId[_]): Boolean =
+  // Helper to check if DynamicTypeId represents the tuple cons operator *:
+  private def isTupleCons(id: DynamicTypeId): Boolean =
     id.name == "*:" && id.owner.asString.startsWith("scala")
 
-  // Helper to check if TypeId represents a TupleN type
-  private def isTupleN(id: TypeId[_]): Boolean =
+  // Helper to check if DynamicTypeId represents a TupleN type
+  private def isTupleN(id: DynamicTypeId): Boolean =
     id.name.matches("Tuple\\d+") && id.owner.asString.startsWith("scala")
 
-  // Helper to check if TypeId represents Tuple1
-  private def isTuple1(id: TypeId[_]): Boolean =
+  // Helper to check if DynamicTypeId represents Tuple1
+  private def isTuple1(id: DynamicTypeId): Boolean =
     id.name == "Tuple1" && id.owner.asString.startsWith("scala")
 
   // Helper to check if a TypeRepr represents any tuple type (*: or TupleN)
@@ -164,9 +164,12 @@ private[blocks] object Subtyping {
   private def structurallyEqual(a: TypeRepr, b: TypeRepr): Boolean = (a, b) match {
     case (TypeRepr.Ref(id1, args1), TypeRepr.Ref(id2, args2)) =>
       // Compare TypeIds by nominal identity (owner + name), not by custom equals
+      // Combine id.args with Ref args for full comparison
+      val fullArgs1 = id1.args ++ args1
+      val fullArgs2 = id2.args ++ args2
       typeIdNominallyEqual(id1, id2) &&
-      args1.size == args2.size &&
-      args1.zip(args2).forall { case (a1, a2) => structurallyEqual(a1, a2) }
+      fullArgs1.size == fullArgs2.size &&
+      fullArgs1.zip(fullArgs2).forall { case (a1, a2) => structurallyEqual(a1, a2) }
 
     case (TypeRepr.AppliedType(t1, a1), TypeRepr.AppliedType(t2, a2)) =>
       structurallyEqual(t1, t2) &&
@@ -222,10 +225,10 @@ private[blocks] object Subtyping {
   }
 
   /**
-   * Nominal equality check for TypeIds (compares owner and name only). Does not
-   * use TypeId.equals to avoid infinite recursion.
+   * Nominal equality check for DynamicTypeIds (compares owner and name only).
+   * Does not use DynamicTypeId.equals to avoid infinite recursion.
    */
-  private def typeIdNominallyEqual(a: TypeId[_], b: TypeId[_]): Boolean =
+  private def typeIdNominallyEqual(a: DynamicTypeId, b: DynamicTypeId): Boolean =
     a.owner == b.owner && a.name == b.name
 
   /**

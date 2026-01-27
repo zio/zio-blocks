@@ -14,10 +14,10 @@ import java.util.{Currency, UUID}
 import scala.collection.immutable.{ArraySeq, Seq}
 
 object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
-  import zio.blocks.typeid.{TypeId, StandardTypes, Owner, TypeDefKind}
+  import zio.blocks.typeid.{TypeId, StandardTypes, Owner, TypeDefKind, DynamicTypeId}
 
   private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
-    TypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil)
+    TypeId(DynamicTypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil))
 
   case class TestNs(parts: Seq[String], sub: Seq[String] = Nil) {
     def toDotted: String = (parts ++ sub).mkString(".")
