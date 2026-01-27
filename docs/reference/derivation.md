@@ -419,9 +419,9 @@ trait Deriver[TC[_]] {
 
 ### Example: Pretty Printer
 
-Here's a simple example of a custom deriver that generates pretty-printed string representations:
+Here's a simple example of a custom deriver that generates pretty-printed string representations. The implementation is intentionally simplified pseudo-code; for real implementations, see the existing format derivers (for example, JSON and Avro).
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.derive._
 import zio.blocks.schema.binding._
@@ -455,15 +455,8 @@ object PrettyPrinter {
       modifiers: Seq[Modifier.Reflect]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[PrettyPrinter[A]] = Lazy {
       new PrettyPrinter[A] {
-        def print(value: A): String = {
-          val deconstructor = binding.deconstructor
-          val fieldValues = fields.map { field =>
-            val fieldValue = deconstructor.projectDynamic(value, field.label)
-            val printer = D.instance(field.reflect).value
-            s"${field.label} = ${printer.print(fieldValue.asInstanceOf[field.A])}"
-          }
-          s"${typeName.shortName}(${fieldValues.mkString(", ")})"
-        }
+        def print(value: A): String =
+          s"${typeName.shortName}(${fields.map(_.label).mkString(", ")})" // pseudo-code
       }
     }
     
@@ -475,14 +468,8 @@ object PrettyPrinter {
       modifiers: Seq[Modifier.Reflect]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[PrettyPrinter[A]] = Lazy {
       new PrettyPrinter[A] {
-        def print(value: A): String = {
-          val deconstructor = binding.deconstructor
-          val caseIndex = deconstructor.indexOf(value)
-          val selectedCase = cases(caseIndex)
-          val caseValue = deconstructor.projectDynamic(value, caseIndex)
-          val printer = D.instance(selectedCase.reflect).value
-          printer.print(caseValue.asInstanceOf[selectedCase.A])
-        }
+        def print(value: A): String =
+          s"${typeName.shortName}(/* case-specific value */)" // pseudo-code
       }
     }
     
@@ -494,11 +481,7 @@ object PrettyPrinter {
       modifiers: Seq[Modifier.Reflect]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[PrettyPrinter[C[A]]] = Lazy {
       new PrettyPrinter[C[A]] {
-        def print(value: C[A]): String = {
-          val printer = D.instance(element).value
-          val elements = binding.deconstructor.toChunk(value)
-          s"[${elements.map(printer.print).mkString(", ")}]"
-        }
+        def print(value: C[A]): String = "[/* sequence elements */]" // pseudo-code
       }
     }
     
@@ -511,15 +494,7 @@ object PrettyPrinter {
       modifiers: Seq[Modifier.Reflect]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[PrettyPrinter[M[K, V]]] = Lazy {
       new PrettyPrinter[M[K, V]] {
-        def print(value: M[K, V]): String = {
-          val keyPrinter = D.instance(key).value
-          val valuePrinter = D.instance(value).value
-          val entries = binding.deconstructor.toChunk(value)
-          val entryStrings = entries.map { case (k, v) =>
-            s"${keyPrinter.print(k)} -> ${valuePrinter.print(v)}"
-          }
-          s"{${entryStrings.mkString(", ")}}"
-        }
+        def print(value: M[K, V]): String = "{/* map entries */}" // pseudo-code
       }
     }
     
@@ -542,11 +517,7 @@ object PrettyPrinter {
       modifiers: Seq[Modifier.Reflect]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[PrettyPrinter[A]] = Lazy {
       new PrettyPrinter[A] {
-        def print(value: A): String = {
-          val unwrapped = binding.deconstructor.unwrap(value)
-          val printer = D.instance(wrapped).value
-          printer.print(unwrapped)
-        }
+        def print(value: A): String = "/* wrapper value */" // pseudo-code
       }
     }
   }
