@@ -628,6 +628,8 @@ object ThriftFormat
                   encode(k, protocol)
                   encode(v, protocol)
                 }
+              case DynamicValue.Null =>
+                ThriftBinaryCodec.unitCodec.encode((), protocol)
             }
         }
       }

@@ -669,7 +669,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
           }
         } else
           b match {
-            case 0xc0                                                  => in.readNil(); DynamicValue.Primitive(PrimitiveValue.Unit)
+            case 0xc0                                                  => in.readNil(); DynamicValue.Null
             case 0xc2                                                  => DynamicValue.Primitive(PrimitiveValue.Boolean(in.readBoolean()))
             case 0xc3                                                  => DynamicValue.Primitive(PrimitiveValue.Boolean(in.readBoolean()))
             case 0xca                                                  => DynamicValue.Primitive(PrimitiveValue.Float(in.readFloatValue()))
@@ -716,10 +716,12 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
             encodeDynamic(v, out)
             i += 1
           }
+        case DynamicValue.Null =>
+          out.writeNil()
       }
 
       private def encodePrimitive(p: PrimitiveValue, out: MessagePackWriter): Unit = p match {
-        case _: PrimitiveValue.Unit.type      => unitCodec.encodeValue((), out)
+        case _: PrimitiveValue.Unit.type      => out.writeMapHeader(0)
         case v: PrimitiveValue.Boolean        => booleanCodec.encodeValue(v.value, out)
         case v: PrimitiveValue.Byte           => byteCodec.encodeValue(v.value, out)
         case v: PrimitiveValue.Short          => shortCodec.encodeValue(v.value, out)

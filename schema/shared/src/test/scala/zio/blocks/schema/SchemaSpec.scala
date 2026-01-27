@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.Chunk
+import zio.blocks.chunk.{Chunk => BlocksChunk}
 import zio.blocks.schema.DynamicOptic.Node.{AtIndex, AtMapKey, Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{ExpectationMismatch, MissingField}
@@ -1371,6 +1372,32 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(encodeToString { out =>
           Schema[List[Int]].encode(ToStringFormat)(out)(List(1, 2, 3))
         })(equalTo("List(1, 2, 3)"))
+      },
+      test("Chunk roundtrips through DynamicValue") {
+        val intChunk    = BlocksChunk(1, 2, 3)
+        val stringChunk = BlocksChunk("a", "b", "c")
+        val boolChunk   = BlocksChunk(true, false, true)
+        val doubleChunk = BlocksChunk(1.0, 2.0, 3.0)
+        val longChunk   = BlocksChunk(1L, 2L, 3L)
+        val emptyChunk  = BlocksChunk.empty[Int]
+        assert(Schema[BlocksChunk[Int]].fromDynamicValue(Schema[BlocksChunk[Int]].toDynamicValue(intChunk)))(
+          isRight(equalTo(intChunk))
+        ) &&
+        assert(Schema[BlocksChunk[String]].fromDynamicValue(Schema[BlocksChunk[String]].toDynamicValue(stringChunk)))(
+          isRight(equalTo(stringChunk))
+        ) &&
+        assert(Schema[BlocksChunk[Boolean]].fromDynamicValue(Schema[BlocksChunk[Boolean]].toDynamicValue(boolChunk)))(
+          isRight(equalTo(boolChunk))
+        ) &&
+        assert(Schema[BlocksChunk[Double]].fromDynamicValue(Schema[BlocksChunk[Double]].toDynamicValue(doubleChunk)))(
+          isRight(equalTo(doubleChunk))
+        ) &&
+        assert(Schema[BlocksChunk[Long]].fromDynamicValue(Schema[BlocksChunk[Long]].toDynamicValue(longChunk)))(
+          isRight(equalTo(longChunk))
+        ) &&
+        assert(Schema[BlocksChunk[Int]].fromDynamicValue(Schema[BlocksChunk[Int]].toDynamicValue(emptyChunk)))(
+          isRight(equalTo(emptyChunk))
+        )
       }
     ),
     suite("Reflect.Map")(

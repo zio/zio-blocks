@@ -1,7 +1,9 @@
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, Namespace, PrimitiveValue, Reflect, Schema, TypeName}
+import zio.blocks.schema.binding._
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import java.nio.ByteBuffer
 import scala.util.control.NonFatal
 
@@ -771,11 +773,13 @@ object Json {
 
   /** Converts a DynamicValue to a Json value. */
   def fromDynamicValue(dv: DynamicValue): Json = dv match {
-    case v: DynamicValue.Primitive => fromPrimitiveValue(v.value)
-    case v: DynamicValue.Record    => new Object(Chunk.from(v.fields.map { case (k, v) => (k, fromDynamicValue(v)) }))
-    case v: DynamicValue.Variant   => new Object(Chunk((v.caseName, fromDynamicValue(v.value))))
-    case v: DynamicValue.Sequence  => new Array(Chunk.from(v.elements.map(fromDynamicValue)))
-    case v: DynamicValue.Map       =>
+    case DynamicValue.Null                     => Null
+    case v: DynamicValue.Primitive             => fromPrimitiveValue(v.value)
+    case v: DynamicValue.Record                => new Object(Chunk.from(v.fields.map { case (k, v) => (k, fromDynamicValue(v)) }))
+    case DynamicValue.Variant(caseName, value) =>
+      new Object(Chunk((caseName, fromDynamicValue(value))))
+    case v: DynamicValue.Sequence => new Array(Chunk.from(v.elements.map(fromDynamicValue)))
+    case v: DynamicValue.Map      =>
       val entries = v.entries
       // For maps with string keys, convert to object; otherwise use array of pairs
       val allStringKeys = entries.forall {
@@ -794,7 +798,7 @@ object Json {
   }
 
   private def fromPrimitiveValue(pv: PrimitiveValue): Json = pv match {
-    case PrimitiveValue.Unit              => Null
+    case PrimitiveValue.Unit              => Object.empty
     case v: PrimitiveValue.Boolean        => Boolean(v.value)
     case v: PrimitiveValue.Byte           => new Number(v.value.toString)
     case v: PrimitiveValue.Short          => new Number(v.value.toString)
@@ -827,6 +831,7 @@ object Json {
   }
 
   private def toDynamicValue(json: Json): DynamicValue = json match {
+    case Null          => DynamicValue.Null
     case str: String   => new DynamicValue.Primitive(new PrimitiveValue.String(str.value))
     case bool: Boolean => new DynamicValue.Primitive(new PrimitiveValue.Boolean(bool.value))
     case num: Number   =>
@@ -843,7 +848,6 @@ object Json {
       new DynamicValue.Record(
         obj.value.toVector.map { case (k, v) => (k, toDynamicValue(v)) }
       )
-    case _ => new DynamicValue.Primitive(PrimitiveValue.Unit)
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1776,6 +1780,221 @@ object Json {
   // ─────────────────────────────────────────────────────────────────────────
   // JsonBinaryCodec for Json
   // ─────────────────────────────────────────────────────────────────────────
+
+  private val ns = Namespace(List("zio", "blocks", "schema", "json", "Json"))
+
+  implicit lazy val nullSchema: Schema[Null.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Null.type](
+      fields = Vector.empty,
+      typeName = TypeName(ns, "Null"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Null.type](Null),
+        deconstructor = new ConstantDeconstructor[Null.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  implicit lazy val booleanSchema: Schema[Boolean] = new Schema(
+    reflect = new Reflect.Record[Binding, Boolean](
+      fields = Vector(
+        Schema[scala.Boolean].reflect.asTerm("value")
+      ),
+      typeName = TypeName(ns, "Boolean"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Boolean] {
+          def usedRegisters: RegisterOffset                             = 1
+          def construct(in: Registers, offset: RegisterOffset): Boolean =
+            Boolean(in.getBoolean(offset + 0))
+        },
+        deconstructor = new Deconstructor[Boolean] {
+          def usedRegisters: RegisterOffset                                          = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Boolean): Unit =
+            out.setBoolean(offset + 0, in.value)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  implicit lazy val numberSchema: Schema[Number] = new Schema(
+    reflect = new Reflect.Record[Binding, Number](
+      fields = Vector(
+        Schema[java.lang.String].reflect.asTerm("value")
+      ),
+      typeName = TypeName(ns, "Number"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Number] {
+          def usedRegisters: RegisterOffset                            = 1
+          def construct(in: Registers, offset: RegisterOffset): Number =
+            new Number(in.getObject(offset + 0).asInstanceOf[java.lang.String])
+        },
+        deconstructor = new Deconstructor[Number] {
+          def usedRegisters: RegisterOffset                                         = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Number): Unit =
+            out.setObject(offset + 0, in.value)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  implicit lazy val stringSchema: Schema[String] = new Schema(
+    reflect = new Reflect.Record[Binding, String](
+      fields = Vector(
+        Schema[java.lang.String].reflect.asTerm("value")
+      ),
+      typeName = TypeName(ns, "String"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[String] {
+          def usedRegisters: RegisterOffset                            = 1
+          def construct(in: Registers, offset: RegisterOffset): String =
+            new String(in.getObject(offset + 0).asInstanceOf[java.lang.String])
+        },
+        deconstructor = new Deconstructor[String] {
+          def usedRegisters: RegisterOffset                                         = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: String): Unit =
+            out.setObject(offset + 0, in.value)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  implicit lazy val arraySchema: Schema[Array] = new Schema(
+    reflect = new Reflect.Record[Binding, Array](
+      fields = Vector(
+        Reflect.Deferred(() => Reflect.indexedSeq(schema.reflect)).asTerm("value")
+      ),
+      typeName = TypeName(ns, "Array"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Array] {
+          def usedRegisters: RegisterOffset                           = 1
+          def construct(in: Registers, offset: RegisterOffset): Array =
+            new Array(Chunk.from(in.getObject(offset + 0).asInstanceOf[IndexedSeq[Json]]))
+        },
+        deconstructor = new Deconstructor[Array] {
+          def usedRegisters: RegisterOffset                                        = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Array): Unit =
+            out.setObject(offset + 0, in.value)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  private lazy val tupleReflect: Reflect[Binding, (java.lang.String, Json)] = {
+    val stringReflect = Reflect.string[Binding]
+    new Reflect.Record[Binding, (java.lang.String, Json)](
+      fields = Vector(
+        stringReflect.asTerm("_1"),
+        Reflect.Deferred(() => schema.reflect).asTerm("_2")
+      ),
+      typeName = TypeName(Namespace(List("scala")), "Tuple2", List(stringReflect.typeName, schema.reflect.typeName)),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[(java.lang.String, Json)] {
+          def usedRegisters: RegisterOffset                                              = 2
+          def construct(in: Registers, offset: RegisterOffset): (java.lang.String, Json) =
+            (in.getObject(offset + 0).asInstanceOf[java.lang.String], in.getObject(offset + 1).asInstanceOf[Json])
+        },
+        deconstructor = new Deconstructor[(java.lang.String, Json)] {
+          def usedRegisters: RegisterOffset                                                           = 2
+          def deconstruct(out: Registers, offset: RegisterOffset, in: (java.lang.String, Json)): Unit = {
+            out.setObject(offset + 0, in._1)
+            out.setObject(offset + 1, in._2)
+          }
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  }
+
+  implicit lazy val objectSchema: Schema[Object] = new Schema(
+    reflect = new Reflect.Record[Binding, Object](
+      fields = Vector(
+        Reflect.Deferred(() => Reflect.indexedSeq(tupleReflect)).asTerm("value")
+      ),
+      typeName = TypeName(ns, "Object"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Object] {
+          def usedRegisters: RegisterOffset                            = 1
+          def construct(in: Registers, offset: RegisterOffset): Object =
+            new Object(Chunk.from(in.getObject(offset + 0).asInstanceOf[IndexedSeq[(java.lang.String, Json)]]))
+        },
+        deconstructor = new Deconstructor[Object] {
+          def usedRegisters: RegisterOffset                                         = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Object): Unit =
+            out.setObject(offset + 0, in.value)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  implicit lazy val schema: Schema[Json] = new Schema(
+    reflect = new Reflect.Variant[Binding, Json](
+      cases = Vector(
+        nullSchema.reflect.asTerm("Null"),
+        booleanSchema.reflect.asTerm("Boolean"),
+        numberSchema.reflect.asTerm("Number"),
+        stringSchema.reflect.asTerm("String"),
+        arraySchema.reflect.asTerm("Array"),
+        objectSchema.reflect.asTerm("Object")
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema", "json")), "Json"),
+      variantBinding = new Binding.Variant(
+        discriminator = new Discriminator[Json] {
+          def discriminate(a: Json): Int = a match {
+            case _: Null.type => 0
+            case _: Boolean   => 1
+            case _: Number    => 2
+            case _: String    => 3
+            case _: Array     => 4
+            case _: Object    => 5
+          }
+        },
+        matchers = Matchers(
+          new Matcher[Null.type] {
+            def downcastOrNull(a: Any): Null.type = a match {
+              case x: Null.type => x
+              case _            => null.asInstanceOf[Null.type]
+            }
+          },
+          new Matcher[Boolean] {
+            def downcastOrNull(a: Any): Boolean = a match {
+              case x: Boolean => x
+              case _          => null.asInstanceOf[Boolean]
+            }
+          },
+          new Matcher[Number] {
+            def downcastOrNull(a: Any): Number = a match {
+              case x: Number => x
+              case _         => null.asInstanceOf[Number]
+            }
+          },
+          new Matcher[String] {
+            def downcastOrNull(a: Any): String = a match {
+              case x: String => x
+              case _         => null.asInstanceOf[String]
+            }
+          },
+          new Matcher[Array] {
+            def downcastOrNull(a: Any): Array = a match {
+              case x: Array => x
+              case _        => null.asInstanceOf[Array]
+            }
+          },
+          new Matcher[Object] {
+            def downcastOrNull(a: Any): Object = a match {
+              case x: Object => x
+              case _         => null.asInstanceOf[Object]
+            }
+          }
+        )
+      ),
+      modifiers = Vector.empty
+    )
+  )
 
   implicit val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json]() {
     override def decodeValue(in: JsonReader, default: Json): Json = {
