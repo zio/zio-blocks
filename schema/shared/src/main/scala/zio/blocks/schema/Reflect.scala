@@ -307,7 +307,9 @@ object Reflect {
     typeId: TypeId[A],
     recordBinding: F[BindingType.Record, A],
     doc: Doc = Doc.Empty,
-    modifiers: Seq[Modifier.Reflect] = Nil
+    modifiers: Seq[Modifier.Reflect] = Nil,
+    storedDefaultValue: Option[DynamicValue] = None,
+    storedExamples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Reflect[F, A] { self =>
     private[this] val fieldValues      = fields.map(_.value).toArray
     private[this] val fieldIndexByName = new StringToIntMap(fields.length) {
@@ -325,15 +327,17 @@ object Reflect {
 
     def doc(value: Doc): Record[F, A] = copy(doc = value)
 
-    def getDefaultValue(implicit F: HasBinding[F]): Option[A] = F.binding(recordBinding).defaultValue.map(_())
+    def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
+      storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Record[F, A] =
-      copy(recordBinding = F.updateBinding(recordBinding, _.defaultValue(value)))
+      copy(storedDefaultValue = Some(toDynamicValue(value)))
 
-    def examples(implicit F: HasBinding[F]): Seq[A] = binding.examples
+    def examples(implicit F: HasBinding[F]): Seq[A] =
+      storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Record[F, A] =
-      copy(recordBinding = F.updateBinding(recordBinding, _.examples(value, values: _*)))
+      copy(storedExamples = (value +: values).map(toDynamicValue))
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Record, A] = F.binding(recordBinding)
 
@@ -524,7 +528,9 @@ object Reflect {
     typeId: TypeId[A],
     variantBinding: F[BindingType.Variant, A],
     doc: Doc = Doc.Empty,
-    modifiers: Seq[Modifier.Reflect] = Nil
+    modifiers: Seq[Modifier.Reflect] = Nil,
+    storedDefaultValue: Option[DynamicValue] = None,
+    storedExamples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Reflect[F, A] {
     private[this] val caseIndexByName = new StringToIntMap(cases.length) {
       cases.foreach {
@@ -541,15 +547,17 @@ object Reflect {
 
     def doc(value: Doc): Variant[F, A] = copy(doc = value)
 
-    def getDefaultValue(implicit F: HasBinding[F]): Option[A] = F.binding(variantBinding).defaultValue.map(_())
+    def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
+      storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Variant[F, A] =
-      copy(variantBinding = F.updateBinding(variantBinding, _.defaultValue(value)))
+      copy(storedDefaultValue = Some(toDynamicValue(value)))
 
-    def examples(implicit F: HasBinding[F]): Seq[A] = binding.examples
+    def examples(implicit F: HasBinding[F]): Seq[A] =
+      storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Variant[F, A] =
-      copy(variantBinding = F.updateBinding(variantBinding, _.examples(value, values: _*)))
+      copy(storedExamples = (value +: values).map(toDynamicValue))
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Variant, A] = F.binding(variantBinding)
 
@@ -634,7 +642,9 @@ object Reflect {
     typeId: TypeId[C[A]],
     seqBinding: F[BindingType.Seq[C], C[A]],
     doc: Doc = Doc.Empty,
-    modifiers: Seq[Modifier.Reflect] = Nil
+    modifiers: Seq[Modifier.Reflect] = Nil,
+    storedDefaultValue: Option[DynamicValue] = None,
+    storedExamples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Reflect[F, C[A]] { self =>
     require(element ne null)
 
@@ -646,15 +656,17 @@ object Reflect {
 
     def doc(value: Doc): Sequence[F, A, C] = copy(doc = value)
 
-    def getDefaultValue(implicit F: HasBinding[F]): Option[C[A]] = F.binding(seqBinding).defaultValue.map(_())
+    def getDefaultValue(implicit F: HasBinding[F]): Option[C[A]] =
+      storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def defaultValue(value: => C[A])(implicit F: HasBinding[F]): Sequence[F, A, C] =
-      copy(seqBinding = F.updateBinding(seqBinding, _.defaultValue(value)))
+      copy(storedDefaultValue = Some(toDynamicValue(value)))
 
-    def examples(implicit F: HasBinding[F]): Seq[C[A]] = binding.examples
+    def examples(implicit F: HasBinding[F]): Seq[C[A]] =
+      storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def examples(value: C[A], values: C[A]*)(implicit F: HasBinding[F]): Sequence[F, A, C] =
-      copy(seqBinding = F.updateBinding(seqBinding, _.examples(value, values: _*)))
+      copy(storedExamples = (value +: values).map(toDynamicValue))
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
@@ -847,7 +859,9 @@ object Reflect {
     typeId: TypeId[M[K, V]],
     mapBinding: F[BindingType.Map[M], M[K, V]],
     doc: Doc = Doc.Empty,
-    modifiers: Seq[Modifier.Reflect] = Nil
+    modifiers: Seq[Modifier.Reflect] = Nil,
+    storedDefaultValue: Option[DynamicValue] = None,
+    storedExamples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Reflect[F, M[K, V]] { self =>
     require((key ne null) && (value ne null))
 
@@ -859,15 +873,17 @@ object Reflect {
 
     def doc(value: Doc): Map[F, K, V, M] = copy(doc = value)
 
-    def getDefaultValue(implicit F: HasBinding[F]): Option[M[K, V]] = F.binding(mapBinding).defaultValue.map(_())
+    def getDefaultValue(implicit F: HasBinding[F]): Option[M[K, V]] =
+      storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def defaultValue(value: => M[K, V])(implicit F: HasBinding[F]): Map[F, K, V, M] =
-      copy(mapBinding = F.updateBinding(mapBinding, _.defaultValue(value)))
+      copy(storedDefaultValue = Some(toDynamicValue(value)))
 
-    def examples(implicit F: HasBinding[F]): Seq[M[K, V]] = binding.examples
+    def examples(implicit F: HasBinding[F]): Seq[M[K, V]] =
+      storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def examples(value: M[K, V], values: M[K, V]*)(implicit F: HasBinding[F]): Map[F, K, V, M] =
-      copy(mapBinding = F.updateBinding(mapBinding, _.examples(value, values: _*)))
+      copy(storedExamples = (value +: values).map(toDynamicValue))
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
@@ -962,7 +978,9 @@ object Reflect {
     dynamicBinding: F[BindingType.Dynamic, DynamicValue],
     typeId: TypeId[DynamicValue] = Dynamic.dynamicValueTypeId,
     doc: Doc = Doc.Empty,
-    modifiers: Seq[Modifier.Reflect] = Nil
+    modifiers: Seq[Modifier.Reflect] = Nil,
+    storedDefaultValue: Option[DynamicValue] = None,
+    storedExamples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Reflect[F, DynamicValue] {
     protected def inner: Any = (modifiers, doc)
 
@@ -972,16 +990,15 @@ object Reflect {
 
     def doc(value: Doc): Dynamic[F] = copy(doc = value)
 
-    def getDefaultValue(implicit F: HasBinding[F]): Option[DynamicValue] =
-      F.binding(dynamicBinding).defaultValue.map(_())
+    def getDefaultValue(implicit F: HasBinding[F]): Option[DynamicValue] = storedDefaultValue
 
     def defaultValue(value: => DynamicValue)(implicit F: HasBinding[F]): Dynamic[F] =
-      copy(dynamicBinding = F.updateBinding(dynamicBinding, _.defaultValue(value)))
+      copy(storedDefaultValue = Some(value))
 
-    def examples(implicit F: HasBinding[F]): Seq[DynamicValue] = binding.examples
+    def examples(implicit F: HasBinding[F]): Seq[DynamicValue] = storedExamples
 
     def examples(value: DynamicValue, values: DynamicValue*)(implicit F: HasBinding[F]): Dynamic[F] =
-      copy(dynamicBinding = F.updateBinding(dynamicBinding, _.examples(value, values: _*)))
+      copy(storedExamples = value +: values)
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
@@ -1022,7 +1039,9 @@ object Reflect {
     typeId: TypeId[A],
     primitiveBinding: F[BindingType.Primitive, A],
     doc: Doc = Doc.Empty,
-    modifiers: Seq[Modifier.Reflect] = Nil
+    modifiers: Seq[Modifier.Reflect] = Nil,
+    storedDefaultValue: Option[DynamicValue] = None,
+    storedExamples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (primitiveType, typeId, doc, modifiers)
 
@@ -1032,15 +1051,17 @@ object Reflect {
 
     def doc(value: Doc): Primitive[F, A] = copy(doc = value)
 
-    def getDefaultValue(implicit F: HasBinding[F]): Option[A] = F.binding(primitiveBinding).defaultValue.map(_())
+    def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
+      storedDefaultValue.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Primitive[F, A] =
-      copy(primitiveBinding = F.updateBinding(primitiveBinding, _.defaultValue(value)))
+      copy(storedDefaultValue = Some(primitiveType.toDynamicValue(value)))
 
-    def examples(implicit F: HasBinding[F]): Seq[A] = binding.examples
+    def examples(implicit F: HasBinding[F]): Seq[A] =
+      storedExamples.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
 
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Primitive[F, A] =
-      copy(primitiveBinding = F.updateBinding(primitiveBinding, _.examples(value, values: _*)))
+      copy(storedExamples = (value +: values).map(primitiveType.toDynamicValue))
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
@@ -1081,7 +1102,9 @@ object Reflect {
     wrapperPrimitiveType: Option[PrimitiveType[A]],
     wrapperBinding: F[BindingType.Wrapper[A, B], A],
     doc: Doc = Doc.Empty,
-    modifiers: Seq[Modifier.Reflect] = Nil
+    modifiers: Seq[Modifier.Reflect] = Nil,
+    storedDefaultValue: Option[DynamicValue] = None,
+    storedExamples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (wrapped, typeId, wrapperPrimitiveType, doc, modifiers)
 
@@ -1091,15 +1114,17 @@ object Reflect {
 
     def doc(value: Doc): Wrapper[F, A, B] = copy(doc = value)
 
-    def getDefaultValue(implicit F: HasBinding[F]): Option[A] = F.wrapper(wrapperBinding).defaultValue.map(_())
+    def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
+      storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Wrapper[F, A, B] =
-      copy(wrapperBinding = F.updateBinding(wrapperBinding, _.defaultValue(value)))
+      copy(storedDefaultValue = Some(toDynamicValue(value)))
 
-    def examples(implicit F: HasBinding[F]): Seq[A] = binding.examples
+    def examples(implicit F: HasBinding[F]): Seq[A] =
+      storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Wrapper[F, A, B] =
-      copy(wrapperBinding = F.updateBinding(wrapperBinding, _.examples(value, values: _*)))
+      copy(storedExamples = (value +: values).map(toDynamicValue))
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
@@ -1151,7 +1176,11 @@ object Reflect {
     }
   }
 
-  case class Deferred[F[_, _], A](_value: () => Reflect[F, A]) extends Reflect[F, A] { self =>
+  case class Deferred[F[_, _], A](
+    _value: () => Reflect[F, A],
+    private val deferredDefaultValue: Option[() => A] = None,
+    private val deferredExamples: collection.immutable.Seq[() => A] = Nil
+  ) extends Reflect[F, A] { self =>
     protected def inner: Any = value.inner
 
     final lazy val value: Reflect[F, A] = _value()
@@ -1162,15 +1191,18 @@ object Reflect {
 
     def doc(value: Doc): Deferred[F, A] = copy(_value = () => _value().doc(value))
 
-    def getDefaultValue(implicit F: HasBinding[F]): Option[A] = value.getDefaultValue
+    def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
+      deferredDefaultValue.map(_()).orElse(value.getDefaultValue)
 
-    def defaultValue(value: => A)(implicit F: HasBinding[F]): Deferred[F, A] =
-      copy(_value = () => _value().defaultValue(value)(F))
+    def defaultValue(dv: => A)(implicit F: HasBinding[F]): Deferred[F, A] =
+      copy(deferredDefaultValue = Some(() => dv))
 
-    def examples(implicit F: HasBinding[F]): Seq[A] = value.examples
+    def examples(implicit F: HasBinding[F]): Seq[A] =
+      if (deferredExamples.nonEmpty) deferredExamples.map(_())
+      else value.examples
 
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Deferred[F, A] =
-      copy(_value = () => _value().examples(value, values: _*))
+      copy(deferredExamples = ((() => value) +: values.map(v => () => v)))
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
@@ -1196,7 +1228,7 @@ object Reflect {
         val cached = c.get(key)
         if (cached ne null) cached.asInstanceOf[Reflect[G, A]]
         else {
-          val result = Deferred(() => value.transform(path, f).force)
+          val result = Deferred(() => value.transform(path, f).force, deferredDefaultValue, deferredExamples)
           c.put(key, result)
           result
         }

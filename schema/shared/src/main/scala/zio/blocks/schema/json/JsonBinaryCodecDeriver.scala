@@ -2049,16 +2049,7 @@ class JsonBinaryCodecDeriver private[json] (
 
   private[this] def defaultValue[F[_, _], A](fieldReflect: Reflect[F, A]): Option[() => ?] =
     if (requireDefaultValueFields) None
-    else
-      {
-        if (fieldReflect.isPrimitive) fieldReflect.asPrimitive.get.primitiveBinding
-        else if (fieldReflect.isRecord) fieldReflect.asRecord.get.recordBinding
-        else if (fieldReflect.isVariant) fieldReflect.asVariant.get.variantBinding
-        else if (fieldReflect.isSequence) fieldReflect.asSequenceUnknown.get.sequence.seqBinding
-        else if (fieldReflect.isMap) fieldReflect.asMapUnknown.get.map.mapBinding
-        else if (fieldReflect.isWrapper) fieldReflect.asWrapperUnknown.get.wrapper.wrapperBinding
-        else fieldReflect.asDynamic.get.dynamicBinding
-      }.asInstanceOf[BindingInstance[TC, ?, A]].binding.defaultValue
+    else fieldReflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue.map(v => () => v)
 
   private[this] def discriminator[F[_, _], A](caseReflect: Reflect[F, A]): Discriminator[?] =
     caseReflect.asVariant.get.variantBinding

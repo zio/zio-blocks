@@ -10,7 +10,9 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     typeId: TypeId[A],
     metadata: F[BindingType.Record, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    storedDefaultValue: Option[DynamicValue],
+    storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Record[G, A]]
 
   def transformVariant[A](
@@ -19,7 +21,9 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     typeId: TypeId[A],
     metadata: F[BindingType.Variant, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    storedDefaultValue: Option[DynamicValue],
+    storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Variant[G, A]]
 
   def transformSequence[A, C[_]](
@@ -28,7 +32,9 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     typeId: TypeId[C[A]],
     metadata: F[BindingType.Seq[C], C[A]],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    storedDefaultValue: Option[DynamicValue],
+    storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Sequence[G, A, C]]
 
   def transformMap[Key, Value, M[_, _]](
@@ -38,7 +44,9 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     typeId: TypeId[M[Key, Value]],
     metadata: F[BindingType.Map[M], M[Key, Value]],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    storedDefaultValue: Option[DynamicValue],
+    storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Map[G, Key, Value, M]]
 
   def transformDynamic(
@@ -46,7 +54,9 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     typeId: TypeId[DynamicValue],
     metadata: F[BindingType.Dynamic, DynamicValue],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    storedDefaultValue: Option[DynamicValue],
+    storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Dynamic[G]]
 
   def transformPrimitive[A](
@@ -55,7 +65,9 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     typeId: TypeId[A],
     metadata: F[BindingType.Primitive, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    storedDefaultValue: Option[DynamicValue],
+    storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Primitive[G, A]]
 
   def transformWrapper[A, B](
@@ -65,7 +77,9 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     wrapperPrimitiveType: Option[PrimitiveType[A]],
     metadata: F[BindingType.Wrapper[A, B], A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    storedDefaultValue: Option[DynamicValue],
+    storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Wrapper[G, A, B]]
 }
 
@@ -79,7 +93,9 @@ object ReflectTransformer {
       typeId: TypeId[A],
       metadata: F[BindingType.Record, A],
       doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
+      modifiers: Seq[Modifier.Reflect],
+      storedDefaultValue: Option[DynamicValue],
+      storedExamples: collection.immutable.Seq[DynamicValue]
     ): Lazy[Reflect.Record[G, A]] =
       for {
         binding <- transformMetadata(metadata)
@@ -91,7 +107,9 @@ object ReflectTransformer {
       typeId: TypeId[A],
       metadata: F[BindingType.Variant, A],
       doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
+      modifiers: Seq[Modifier.Reflect],
+      storedDefaultValue: Option[DynamicValue],
+      storedExamples: collection.immutable.Seq[DynamicValue]
     ): Lazy[Reflect.Variant[G, A]] =
       for {
         binding <- transformMetadata(metadata)
@@ -103,7 +121,9 @@ object ReflectTransformer {
       typeId: TypeId[C[A]],
       metadata: F[BindingType.Seq[C], C[A]],
       doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
+      modifiers: Seq[Modifier.Reflect],
+      storedDefaultValue: Option[DynamicValue],
+      storedExamples: collection.immutable.Seq[DynamicValue]
     ): Lazy[Reflect.Sequence[G, A, C]] =
       for {
         binding <- transformMetadata(metadata)
@@ -116,7 +136,9 @@ object ReflectTransformer {
       typeId: TypeId[M[Key, Value]],
       metadata: F[BindingType.Map[M], M[Key, Value]],
       doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
+      modifiers: Seq[Modifier.Reflect],
+      storedDefaultValue: Option[DynamicValue],
+      storedExamples: collection.immutable.Seq[DynamicValue]
     ): Lazy[Reflect.Map[G, Key, Value, M]] =
       for {
         binding <- transformMetadata(metadata)
@@ -127,7 +149,9 @@ object ReflectTransformer {
       typeId: TypeId[DynamicValue],
       metadata: F[BindingType.Dynamic, DynamicValue],
       doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
+      modifiers: Seq[Modifier.Reflect],
+      storedDefaultValue: Option[DynamicValue],
+      storedExamples: collection.immutable.Seq[DynamicValue]
     ): Lazy[Reflect.Dynamic[G]] =
       for {
         binding <- transformMetadata(metadata)
@@ -139,7 +163,9 @@ object ReflectTransformer {
       typeId: TypeId[A],
       metadata: F[BindingType.Primitive, A],
       doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
+      modifiers: Seq[Modifier.Reflect],
+      storedDefaultValue: Option[DynamicValue],
+      storedExamples: collection.immutable.Seq[DynamicValue]
     ): Lazy[Reflect.Primitive[G, A]] =
       for {
         binding <- transformMetadata(metadata)
@@ -152,7 +178,9 @@ object ReflectTransformer {
       wrapperPrimitiveType: Option[PrimitiveType[A]],
       metadata: F[BindingType.Wrapper[A, B], A],
       doc: Doc,
-      modifiers: Seq[Modifier.Reflect]
+      modifiers: Seq[Modifier.Reflect],
+      storedDefaultValue: Option[DynamicValue],
+      storedExamples: collection.immutable.Seq[DynamicValue]
     ): Lazy[Reflect.Wrapper[G, A, B]] =
       for {
         binding <- transformMetadata(metadata)

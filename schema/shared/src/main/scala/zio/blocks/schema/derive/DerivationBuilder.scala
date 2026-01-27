@@ -122,7 +122,9 @@ final case class DerivationBuilder[TC[_], A](
             typeId: TypeId[A0],
             metadata: F[BindingType.Record, A0],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            storedDefaultValue: Option[DynamicValue],
+            storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Record[G, A0]] = Lazy {
             val instance = getCustomInstance[A0](path, typeId).getOrElse {
               val modifiersToPrepend = combineModifiers(path, typeId)
@@ -155,7 +157,9 @@ final case class DerivationBuilder[TC[_], A](
             typeId: TypeId[A0],
             metadata: F[BindingType.Variant, A0],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            storedDefaultValue: Option[DynamicValue],
+            storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Variant[G, A0]] = Lazy {
             val instance = getCustomInstance[A0](path, typeId).getOrElse {
               val modifiersToAdd = combineModifiers(path, typeId)
@@ -191,7 +195,9 @@ final case class DerivationBuilder[TC[_], A](
             typeId: TypeId[C[A0]],
             metadata: F[BindingType.Seq[C], C[A0]],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            storedDefaultValue: Option[DynamicValue],
+            storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Sequence[G, A0, C]] = Lazy {
             val instance = getCustomInstance[C[A0]](path, typeId).getOrElse(
               deriver
@@ -207,7 +213,9 @@ final case class DerivationBuilder[TC[_], A](
             typeId: TypeId[M[Key, Value]],
             metadata: F[BindingType.Map[M], M[Key, Value]],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            storedDefaultValue: Option[DynamicValue],
+            storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Map[G, Key, Value, M]] = Lazy {
             val instance = getCustomInstance[M[Key, Value]](path, typeId).getOrElse(
               deriver
@@ -221,7 +229,9 @@ final case class DerivationBuilder[TC[_], A](
             typeId: TypeId[DynamicValue],
             metadata: F[BindingType.Dynamic, DynamicValue],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            storedDefaultValue: Option[DynamicValue],
+            storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Dynamic[G]] = Lazy {
             val instance = getCustomInstance[DynamicValue](path, typeId)
               .getOrElse(deriver.deriveDynamic[G](metadata, doc, prependCombinedModifiers(modifiers, path, typeId)))
@@ -234,7 +244,9 @@ final case class DerivationBuilder[TC[_], A](
             typeId: TypeId[A0],
             metadata: F[BindingType.Primitive, A0],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            storedDefaultValue: Option[DynamicValue],
+            storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Primitive[G, A0]] = Lazy {
             val instance = getCustomInstance[A0](path, typeId).getOrElse(
               deriver
@@ -256,7 +268,9 @@ final case class DerivationBuilder[TC[_], A](
             wrapperPrimitiveType: Option[PrimitiveType[A0]],
             metadata: F[BindingType.Wrapper[A0, B], A0],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            storedDefaultValue: Option[DynamicValue],
+            storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Wrapper[G, A0, B]] = Lazy {
             val instance = getCustomInstance[A0](path, typeId)
               .getOrElse(
@@ -275,7 +289,9 @@ final case class DerivationBuilder[TC[_], A](
               wrapperPrimitiveType,
               new BindingInstance(metadata, instance),
               doc,
-              modifiers
+              modifiers,
+              storedDefaultValue,
+              storedExamples
             )
           }
         }

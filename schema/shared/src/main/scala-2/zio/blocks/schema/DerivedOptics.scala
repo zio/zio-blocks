@@ -186,11 +186,7 @@ object DerivedOptics {
           val b = wrapper.binding.unwrap(value)
           writer(registers, offset, b)
         }
-      },
-      defaultValue = wrapper.wrapped.binding.defaultValue.map(b =>
-        () => wrapper.binding.wrap(b()).getOrElse(throw new RuntimeException("Default value invalid"))
-      ),
-      examples = Nil
+      }
     )
 
     Reflect.Record(

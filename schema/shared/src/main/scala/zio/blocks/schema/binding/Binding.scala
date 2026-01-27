@@ -1,5 +1,7 @@
 package zio.blocks.schema.binding
 
+import scala.annotation.unchecked.uncheckedVariance
+
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -15,33 +17,10 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
  * the reflection type `Int` that has a record binding (and therefore, both a
  * constructor and a deconstructor).
  */
-sealed trait Binding[T, A] {
-
-  /**
-   * An optional generator for a default value for the type `A`.
-   */
-  def defaultValue: Option[() => A]
-
-  def defaultValue(value: => A): Binding[T, A]
-
-  /**
-   * A user-defined list of example values for the type `A`, to be used for
-   * testing and documentation.
-   */
-  def examples: Seq[A]
-
-  def examples(value: A, values: A*): Binding[T, A]
-}
+sealed trait Binding[T, +A]
 
 object Binding {
-  final case class Primitive[A](
-    defaultValue: Option[() => A] = None,
-    examples: collection.immutable.Seq[A] = Nil
-  ) extends Binding[BindingType.Primitive, A] {
-    def defaultValue(value: => A): Primitive[A] = copy(defaultValue = new Some(() => value))
-
-    def examples(value: A, values: A*): Primitive[A] = copy(examples = value :: values.toList)
-  }
+  final case class Primitive[A]() extends Binding[BindingType.Primitive, A]
 
   object Primitive {
     val unit: Primitive[Unit] = new Primitive[Unit]()
@@ -107,14 +86,8 @@ object Binding {
 
   final case class Record[A](
     constructor: Constructor[A],
-    deconstructor: Deconstructor[A],
-    defaultValue: Option[() => A] = None,
-    examples: collection.immutable.Seq[A] = Nil
-  ) extends Binding[BindingType.Record, A] {
-    def defaultValue(value: => A): Record[A] = copy(defaultValue = new Some(() => value))
-
-    def examples(value: A, values: A*): Record[A] = copy(examples = value :: values.toList)
-  }
+    deconstructor: Deconstructor[A]
+  ) extends Binding[BindingType.Record, A]
 
   object Record {
     def some[A <: AnyRef]: Record[Some[A]] = new Record(
@@ -294,14 +267,8 @@ object Binding {
 
   final case class Variant[A](
     discriminator: Discriminator[A],
-    matchers: Matchers[A],
-    defaultValue: Option[() => A] = None,
-    examples: collection.immutable.Seq[A] = Nil
-  ) extends Binding[BindingType.Variant, A] {
-    def defaultValue(value: => A): Variant[A] = copy(defaultValue = new Some(() => value))
-
-    def examples(value: A, values: A*): Variant[A] = copy(examples = value :: values.toList)
-  }
+    matchers: Matchers[A]
+  ) extends Binding[BindingType.Variant, A]
 
   object Variant {
     def option[A]: Variant[Option[A]] = new Variant(
@@ -347,16 +314,10 @@ object Binding {
     )
   }
 
-  final case class Seq[C[_], A](
+  final case class Seq[C[_], +A](
     constructor: SeqConstructor[C],
-    deconstructor: SeqDeconstructor[C],
-    defaultValue: Option[() => C[A]] = None,
-    examples: collection.immutable.Seq[C[A]] = Nil
-  ) extends Binding[BindingType.Seq[C], C[A]] {
-    def defaultValue(value: => C[A]): Seq[C, A] = copy(defaultValue = new Some(() => value))
-
-    def examples(value: C[A], values: C[A]*): Seq[C, A] = copy(examples = value :: values.toList)
-  }
+    deconstructor: SeqDeconstructor[C]
+  ) extends Binding[BindingType.Seq[C], C[A @uncheckedVariance]]
 
   object Seq {
     def set[A]: Seq[Set, A] = new Seq(SeqConstructor.setConstructor, SeqDeconstructor.setDeconstructor)
@@ -374,16 +335,10 @@ object Binding {
     def chunk[A]: Seq[Chunk, A] = new Seq(SeqConstructor.chunkConstructor, SeqDeconstructor.chunkDeconstructor)
   }
 
-  final case class Map[M[_, _], K, V](
+  final case class Map[M[_, _], +K, +V](
     constructor: MapConstructor[M],
-    deconstructor: MapDeconstructor[M],
-    defaultValue: Option[() => M[K, V]] = None,
-    examples: collection.immutable.Seq[M[K, V]] = Nil
-  ) extends Binding[BindingType.Map[M], M[K, V]] {
-    def defaultValue(value: => M[K, V]): Map[M, K, V] = copy(defaultValue = new Some(() => value))
-
-    def examples(value: M[K, V], values: M[K, V]*): Map[M, K, V] = copy(examples = value :: values.toList)
-  }
+    deconstructor: MapDeconstructor[M]
+  ) extends Binding[BindingType.Map[M], M[K @uncheckedVariance, V @uncheckedVariance]]
 
   object Map {
     def map[K, V]: Map[Predef.Map, K, V] = new Map(MapConstructor.map, MapDeconstructor.map)
@@ -401,14 +356,7 @@ object Binding {
     def examples(value: A, values: A*): Wrapper[A, B] = copy(examples = value :: values.toList)
   }
 
-  final case class Dynamic(
-    defaultValue: Option[() => DynamicValue] = None,
-    examples: collection.immutable.Seq[DynamicValue] = Nil
-  ) extends Binding[BindingType.Dynamic, DynamicValue] {
-    def defaultValue(value: => DynamicValue): Dynamic = copy(defaultValue = new Some(() => value))
-
-    def examples(value: DynamicValue, values: DynamicValue*): Dynamic = copy(examples = value :: values.toList)
-  }
+  final case class Dynamic() extends Binding[BindingType.Dynamic, DynamicValue]
 
   implicit val bindingHasBinding: HasBinding[Binding] = new HasBinding[Binding] {
     def binding[T, A](fa: Binding[T, A]): Binding[T, A] = fa

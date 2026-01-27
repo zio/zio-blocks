@@ -306,11 +306,9 @@ private object SchemaCompanionVersionSpecific {
         fieldInfo.defaultValue match {
           case Some(dv) =>
             if (ms eq Nil) {
-              if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name)"
-              else q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name)"
-            } else if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name).copy(modifiers = $ms)"
-            else {
-              q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name).copy(modifiers = $ms)"
+              q"new Reflect.Deferred(() => $schema.reflect).defaultValue($dv).asTerm[$sTpe]($name)"
+            } else {
+              q"new Reflect.Deferred(() => $schema.reflect).defaultValue($dv).asTerm[$sTpe]($name).copy(modifiers = $ms)"
             }
           case _ =>
             if (ms eq Nil) {

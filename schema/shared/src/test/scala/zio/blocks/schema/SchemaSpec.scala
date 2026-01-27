@@ -1678,8 +1678,16 @@ object SchemaSpec extends SchemaBaseSpec {
           typeId = TestTypeId.map(TestTypeId.int, TestTypeId.long).asInstanceOf[TypeId[Map[Int, Long]]],
           mapBinding = Binding.Map[Map, Int, Long](
             constructor = MapConstructor.map,
-            deconstructor = MapDeconstructor.map,
-            examples = Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil
+            deconstructor = MapDeconstructor.map
+          ),
+          storedExamples = Seq(
+            DynamicValue.Map(
+              zio.blocks.chunk.Chunk(
+                (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Long(1L))),
+                (DynamicValue.Primitive(PrimitiveValue.Int(2)), DynamicValue.Primitive(PrimitiveValue.Long(2L))),
+                (DynamicValue.Primitive(PrimitiveValue.Int(3)), DynamicValue.Primitive(PrimitiveValue.Long(3L)))
+              )
+            )
           )
         )
         assert(Schema(map1).examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)) &&

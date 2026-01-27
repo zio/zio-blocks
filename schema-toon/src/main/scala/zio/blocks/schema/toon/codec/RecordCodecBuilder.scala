@@ -34,16 +34,7 @@ private[toon] final class RecordCodecBuilder(
 
   private def defaultValue[F[_, _], A](fieldReflect: Reflect[F, A]): Option[() => Any] =
     if (requireDefaultValueFields) None
-    else
-      {
-        if (fieldReflect.isPrimitive) fieldReflect.asPrimitive.get.primitiveBinding
-        else if (fieldReflect.isRecord) fieldReflect.asRecord.get.recordBinding
-        else if (fieldReflect.isVariant) fieldReflect.asVariant.get.variantBinding
-        else if (fieldReflect.isSequence) fieldReflect.asSequenceUnknown.get.sequence.seqBinding
-        else if (fieldReflect.isMap) fieldReflect.asMapUnknown.get.map.mapBinding
-        else if (fieldReflect.isWrapper) fieldReflect.asWrapperUnknown.get.wrapper.wrapperBinding
-        else fieldReflect.asDynamic.get.dynamicBinding
-      }.asInstanceOf[BindingInstance[ToonBinaryCodec, _, A]].binding.defaultValue
+    else fieldReflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue.map(v => () => v)
 
   private def stripQuotes(s: String, from: Int, to: Int): String =
     if (to - from >= 2 && s.charAt(from) == '"' && s.charAt(to - 1) == '"') s.substring(from + 1, to - 1)
