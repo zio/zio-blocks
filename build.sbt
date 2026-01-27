@@ -95,7 +95,9 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
-    )
+    ),
+    coverageMinimumStmtTotal   := 89,
+    coverageMinimumBranchTotal := 84
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)

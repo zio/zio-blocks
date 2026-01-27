@@ -86,7 +86,97 @@ object PatchSpec extends SchemaBaseSpec {
       assert(patch(person1))(equalTo(parson2)) &&
       assert(patch.applyOption(person1))(isSome(equalTo(parson2))) &&
       assert(patch.apply(person1, PatchMode.Strict))(isRight(equalTo(parson2)))
-    }
+    },
+    suite("PatchMode.Lenient")(
+      test("lenient mode ignores missing fields") {
+        val person1 = Person(12345678901L, "John", "123 Main St", Nil)
+        val patch   = Patch.replace(Person.payPalPaymentMethods, PayPal("new@email.com"))
+        val result  = patch.apply(person1, PatchMode.Lenient)
+        assertTrue(result.isRight)
+      },
+      test("lenient mode ignores non-matching cases") {
+        val creditCard = CreditCard(1234567812345678L, YearMonth.parse("2030-12"), 123, "John")
+        val patch      = Patch.replace(PaymentMethod.payPal, PayPal("new@email.com"))
+        val result     = patch.apply(creditCard, PatchMode.Lenient)
+        assertTrue(result == Right(creditCard))
+      }
+    ),
+    suite("Patch toString")(
+      test("empty patch toString") {
+        val patch = Patch.replace(Person.name, "Test") ++ Patch.replace(Person.name, "Test")
+        assertTrue(patch.toString.nonEmpty)
+      },
+      test("replace patch toString contains field info") {
+        val patch = Patch.replace(Person.name, "NewName")
+        assertTrue(patch.toString.nonEmpty)
+      }
+    ),
+    suite("Patch with nested structures")(
+      test("replace nested field in variant") {
+        val payment = PayPal("old@email.com")
+        val patch   = Patch.replace(PaymentMethod.payPalEmail, "new@email.com")
+        val result  = patch(payment)
+        assertTrue(result == PayPal("new@email.com"))
+      },
+      test("replace field in bank transfer") {
+        val bankTransfer = BankTransfer("12345", "SWIFT123", "John Doe")
+        val patch        = Patch.replace(PaymentMethod.bankTransfer, BankTransfer("67890", "SWIFT456", "Jane Doe"))
+        val result       = patch(bankTransfer)
+        assertTrue(result == BankTransfer("67890", "SWIFT456", "Jane Doe"))
+      }
+    ),
+    suite("Patch with sequences")(
+      test("replace all elements in sequence") {
+        val person = Person(
+          1L,
+          "Test",
+          "Addr",
+          List(PayPal("a@b.com"), PayPal("c@d.com"))
+        )
+        val patch  = Patch.replace(Person.payPalPaymentMethods, PayPal("new@email.com"))
+        val result = patch(person)
+        assertTrue(
+          result.paymentMethods == List(PayPal("new@email.com"), PayPal("new@email.com"))
+        )
+      },
+      test("patch preserves non-matching elements in sequence") {
+        val person = Person(
+          1L,
+          "Test",
+          "Addr",
+          List(
+            PayPal("a@b.com"),
+            CreditCard(1234L, YearMonth.parse("2030-01"), 123, "Test")
+          )
+        )
+        val patch  = Patch.replace(Person.payPalPaymentMethods, PayPal("new@email.com"))
+        val result = patch(person)
+        assertTrue(
+          result.paymentMethods.head == PayPal("new@email.com"),
+          result.paymentMethods(1).isInstanceOf[CreditCard]
+        )
+      }
+    ),
+    suite("Patch composition")(
+      test("empty patch acts as identity") {
+        val person        = Person(1L, "Test", "Addr", Nil)
+        val patch         = Patch.replace(Person.name, "Test")
+        val combinedPatch = patch ++ Patch.replace(Person.name, "Test")
+        assertTrue(combinedPatch(person).name == "Test")
+      },
+      test("multiple field patches compose correctly") {
+        val person = Person(1L, "Old", "OldAddr", Nil)
+        val patch  = Patch.replace(Person.name, "New") ++
+          Patch.replace(Person.address, "NewAddr") ++
+          Patch.replace(Person.id, 2L)
+        val result = patch(person)
+        assertTrue(
+          result.name == "New",
+          result.address == "NewAddr",
+          result.id == 2L
+        )
+      }
+    )
   )
 
   private[this] def hasError(message: String): Assertion[SchemaError] =

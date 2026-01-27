@@ -217,7 +217,318 @@ object DynamicOpticSpec extends SchemaBaseSpec {
         equalTo("[0,1,2]{\"X\", \"Y\", \"Z\"}")
       ) &&
       assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo("[*]{*:}{*}.~"))
-    }
+    },
+    suite("toScalaString method")(
+      test("toScalaString uses Scala-style syntax for fields") {
+        val optic = DynamicOptic.root.field("name").field("value")
+        assertTrue(optic.toScalaString == ".name.value")
+      },
+      test("toScalaString uses when[Case] syntax for cases") {
+        val optic = DynamicOptic.root.caseOf("Person").field("name")
+        assertTrue(optic.toScalaString == ".when[Person].name")
+      },
+      test("toScalaString uses at(index) syntax for indices") {
+        val optic = DynamicOptic.root.at(0).at(5)
+        assertTrue(optic.toScalaString == ".at(0).at(5)")
+      },
+      test("toScalaString uses atIndices syntax for multiple indices") {
+        val optic = DynamicOptic.root.atIndices(0, 1, 2)
+        assertTrue(optic.toScalaString == ".atIndices(0, 1, 2)")
+      },
+      test("toScalaString uses atKey syntax for map keys") {
+        val optic = DynamicOptic.root.atKey("myKey")
+        assertTrue(optic.toScalaString.contains(".atKey("))
+      },
+      test("toScalaString uses atKeys syntax for multiple map keys") {
+        val optic = DynamicOptic.root.atKeys("a", "b", "c")
+        assertTrue(optic.toScalaString.contains(".atKeys("))
+      },
+      test("toScalaString uses .each for elements") {
+        assertTrue(DynamicOptic.elements.toScalaString == ".each")
+      },
+      test("toScalaString uses .eachKey for mapKeys") {
+        assertTrue(DynamicOptic.mapKeys.toScalaString == ".eachKey")
+      },
+      test("toScalaString uses .eachValue for mapValues") {
+        assertTrue(DynamicOptic.mapValues.toScalaString == ".eachValue")
+      },
+      test("toScalaString uses .wrapped for wrapped") {
+        assertTrue(DynamicOptic.wrapped.toScalaString == ".wrapped")
+      },
+      test("toScalaString returns . for root") {
+        assertTrue(DynamicOptic.root.toScalaString == ".")
+      },
+      test("complex path toScalaString") {
+        val optic = DynamicOptic.root
+          .caseOf("Person")
+          .field("addresses")
+          .elements
+          .field("city")
+        assertTrue(optic.toScalaString == ".when[Person].addresses.each.city")
+      }
+    ),
+    suite("DynamicOptic schema serialization")(
+      test("DynamicOptic can be serialized to DynamicValue and back") {
+        val optic    = DynamicOptic.root.field("name").at(0).caseOf("Test")
+        val dynamic  = Schema[DynamicOptic].toDynamicValue(optic)
+        val restored = Schema[DynamicOptic].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(optic))
+      },
+      test("DynamicOptic.Node.Field serialization round-trip") {
+        val node     = DynamicOptic.Node.Field("testField")
+        val dynamic  = Schema[DynamicOptic.Node].toDynamicValue(node)
+        val restored = Schema[DynamicOptic.Node].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(node))
+      },
+      test("DynamicOptic.Node.Case serialization round-trip") {
+        val node     = DynamicOptic.Node.Case("TestCase")
+        val dynamic  = Schema[DynamicOptic.Node].toDynamicValue(node)
+        val restored = Schema[DynamicOptic.Node].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(node))
+      },
+      test("DynamicOptic.Node.AtIndex serialization round-trip") {
+        val node     = DynamicOptic.Node.AtIndex(42)
+        val dynamic  = Schema[DynamicOptic.Node].toDynamicValue(node)
+        val restored = Schema[DynamicOptic.Node].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(node))
+      },
+      test("DynamicOptic.Node.AtMapKey serialization round-trip") {
+        val key      = Schema[String].toDynamicValue("mapKey")
+        val node     = DynamicOptic.Node.AtMapKey(key)
+        val dynamic  = Schema[DynamicOptic.Node].toDynamicValue(node)
+        val restored = Schema[DynamicOptic.Node].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(node))
+      },
+      test("DynamicOptic.Node.AtIndices serialization round-trip") {
+        val node     = DynamicOptic.Node.AtIndices(Seq(1, 2, 3))
+        val dynamic  = Schema[DynamicOptic.Node].toDynamicValue(node)
+        val restored = Schema[DynamicOptic.Node].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(node))
+      },
+      test("DynamicOptic.Node.AtMapKeys serialization round-trip") {
+        val keys     = Seq("x", "y").map(Schema[String].toDynamicValue)
+        val node     = DynamicOptic.Node.AtMapKeys(keys)
+        val dynamic  = Schema[DynamicOptic.Node].toDynamicValue(node)
+        val restored = Schema[DynamicOptic.Node].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(node))
+      },
+      test("DynamicOptic.Node.Elements serialization round-trip") {
+        val node     = DynamicOptic.Node.Elements
+        val dynamic  = Schema[DynamicOptic.Node].toDynamicValue(node)
+        val restored = Schema[DynamicOptic.Node].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(node))
+      },
+      test("DynamicOptic.Node.MapKeys serialization round-trip") {
+        val node     = DynamicOptic.Node.MapKeys
+        val dynamic  = Schema[DynamicOptic.Node].toDynamicValue(node)
+        val restored = Schema[DynamicOptic.Node].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(node))
+      },
+      test("DynamicOptic.Node.MapValues serialization round-trip") {
+        val node     = DynamicOptic.Node.MapValues
+        val dynamic  = Schema[DynamicOptic.Node].toDynamicValue(node)
+        val restored = Schema[DynamicOptic.Node].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(node))
+      },
+      test("DynamicOptic.Node.Wrapped serialization round-trip") {
+        val node     = DynamicOptic.Node.Wrapped
+        val dynamic  = Schema[DynamicOptic.Node].toDynamicValue(node)
+        val restored = Schema[DynamicOptic.Node].fromDynamicValue(dynamic)
+        assertTrue(restored == Right(node))
+      }
+    ),
+    suite("special character rendering in keys")(
+      test("renders string keys with special characters correctly") {
+        val optic = DynamicOptic.root.atKey("key\nwith\nnewlines")
+        assertTrue(optic.toString.contains("\\n"))
+      },
+      test("renders string keys with tabs correctly") {
+        val optic = DynamicOptic.root.atKey("key\twith\ttabs")
+        assertTrue(optic.toString.contains("\\t"))
+      },
+      test("renders string keys with backslashes correctly") {
+        val optic = DynamicOptic.root.atKey("key\\with\\backslash")
+        assertTrue(optic.toString.contains("\\\\"))
+      },
+      test("renders string keys with quotes correctly") {
+        val optic = DynamicOptic.root.atKey("key\"with\"quotes")
+        assertTrue(optic.toString.contains("\\\""))
+      },
+      test("renders integer keys") {
+        val intKey = Schema[Int].toDynamicValue(42)
+        val optic  = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(intKey)))
+        assertTrue(optic.toString.contains("42"))
+      },
+      test("renders long keys") {
+        val longKey = Schema[Long].toDynamicValue(123456789L)
+        val optic   = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(longKey)))
+        assertTrue(optic.toString.contains("123456789"))
+      },
+      test("renders float keys") {
+        val floatKey = Schema[Float].toDynamicValue(3.14f)
+        val optic    = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(floatKey)))
+        assertTrue(optic.toString.contains("3.14"))
+      },
+      test("renders double keys") {
+        val doubleKey = Schema[Double].toDynamicValue(2.718)
+        val optic     = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(doubleKey)))
+        assertTrue(optic.toString.contains("2.718"))
+      },
+      test("renders boolean keys") {
+        val boolKey = Schema[Boolean].toDynamicValue(true)
+        val optic   = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(boolKey)))
+        assertTrue(optic.toString.contains("true"))
+      }
+    ),
+    suite("Node schema comprehensive tests")(
+      test("Field roundtrip with various names") {
+        val names   = List("simple", "with_underscore", "CamelCase", "a", "x123", "_private")
+        val results = names.map { name =>
+          val node     = DynamicOptic.Node.Field(name)
+          val dv       = Schema[DynamicOptic.Node].toDynamicValue(node)
+          val restored = Schema[DynamicOptic.Node].fromDynamicValue(dv)
+          restored == Right(node)
+        }
+        assertTrue(results.forall(identity))
+      },
+      test("Case roundtrip with various names") {
+        val names   = List("Some", "None", "Left", "Right", "Person", "A")
+        val results = names.map { name =>
+          val node     = DynamicOptic.Node.Case(name)
+          val dv       = Schema[DynamicOptic.Node].toDynamicValue(node)
+          val restored = Schema[DynamicOptic.Node].fromDynamicValue(dv)
+          restored == Right(node)
+        }
+        assertTrue(results.forall(identity))
+      },
+      test("AtIndex roundtrip with edge values") {
+        val indices = List(0, 1, 10, 100, Int.MaxValue)
+        val results = indices.map { idx =>
+          val node     = DynamicOptic.Node.AtIndex(idx)
+          val dv       = Schema[DynamicOptic.Node].toDynamicValue(node)
+          val restored = Schema[DynamicOptic.Node].fromDynamicValue(dv)
+          restored == Right(node)
+        }
+        assertTrue(results.forall(identity))
+      },
+      test("AtIndices roundtrip with various sequences") {
+        val cases = List(
+          Seq(0),
+          Seq(0, 1),
+          Seq(0, 1, 2, 3, 4),
+          Seq(10, 20, 30)
+        )
+        val results = cases.map { indices =>
+          val node     = DynamicOptic.Node.AtIndices(indices)
+          val dv       = Schema[DynamicOptic.Node].toDynamicValue(node)
+          val restored = Schema[DynamicOptic.Node].fromDynamicValue(dv)
+          restored == Right(node)
+        }
+        assertTrue(results.forall(identity))
+      },
+      test("AtMapKey roundtrip with various primitives") {
+        val keys = List(
+          DynamicValue.Primitive(PrimitiveValue.String("key")),
+          DynamicValue.Primitive(PrimitiveValue.Int(42)),
+          DynamicValue.Primitive(PrimitiveValue.Long(123L)),
+          DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+          DynamicValue.Primitive(PrimitiveValue.Char('x'))
+        )
+        val results = keys.map { key =>
+          val node     = DynamicOptic.Node.AtMapKey(key)
+          val dv       = Schema[DynamicOptic.Node].toDynamicValue(node)
+          val restored = Schema[DynamicOptic.Node].fromDynamicValue(dv)
+          restored == Right(node)
+        }
+        assertTrue(results.forall(identity))
+      },
+      test("AtMapKeys roundtrip with multiple keys") {
+        val keyVectors = List(
+          Vector(DynamicValue.Primitive(PrimitiveValue.String("a"))),
+          Vector(
+            DynamicValue.Primitive(PrimitiveValue.String("a")),
+            DynamicValue.Primitive(PrimitiveValue.String("b"))
+          ),
+          Vector(
+            DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            DynamicValue.Primitive(PrimitiveValue.Int(3))
+          )
+        )
+        val results = keyVectors.map { keys =>
+          val node     = DynamicOptic.Node.AtMapKeys(keys)
+          val dv       = Schema[DynamicOptic.Node].toDynamicValue(node)
+          val restored = Schema[DynamicOptic.Node].fromDynamicValue(dv)
+          restored == Right(node)
+        }
+        assertTrue(results.forall(identity))
+      },
+      test("Singleton nodes roundtrip") {
+        val nodes = List(
+          DynamicOptic.Node.Elements,
+          DynamicOptic.Node.MapKeys,
+          DynamicOptic.Node.MapValues,
+          DynamicOptic.Node.Wrapped
+        )
+        val results = nodes.map { node =>
+          val dv       = Schema[DynamicOptic.Node].toDynamicValue(node)
+          val restored = Schema[DynamicOptic.Node].fromDynamicValue(dv)
+          restored == Right(node)
+        }
+        assertTrue(results.forall(identity))
+      },
+      test("DynamicOptic roundtrip with complex path") {
+        val optic = DynamicOptic.root
+          .field("user")
+          .caseOf("Admin")
+          .field("permissions")
+          .at(0)
+          .field("name")
+        val dv       = Schema[DynamicOptic].toDynamicValue(optic)
+        val restored = Schema[DynamicOptic].fromDynamicValue(dv)
+        assertTrue(restored == Right(optic))
+      },
+      test("DynamicOptic roundtrip with all node types") {
+        val optic = DynamicOptic.root
+          .field("data")
+          .caseOf("Container")
+          .at(0)
+          .atKey("item")
+          .elements
+          .mapKeys
+          .mapValues
+          .wrapped
+        val dv       = Schema[DynamicOptic].toDynamicValue(optic)
+        val restored = Schema[DynamicOptic].fromDynamicValue(dv)
+        assertTrue(restored == Right(optic))
+      },
+      test("DynamicOptic roundtrip with atIndices and atKeys") {
+        val optic = DynamicOptic.root
+          .atIndices(0, 1, 2)
+          .atKeys("a", "b", "c")
+        val dv       = Schema[DynamicOptic].toDynamicValue(optic)
+        val restored = Schema[DynamicOptic].fromDynamicValue(dv)
+        assertTrue(restored == Right(optic))
+      },
+      test("Node equality across serialization") {
+        val node1 = DynamicOptic.Node.Field("test")
+        val node2 = DynamicOptic.Node.Field("test")
+        val dv1   = Schema[DynamicOptic.Node].toDynamicValue(node1)
+        val dv2   = Schema[DynamicOptic.Node].toDynamicValue(node2)
+        assertTrue(dv1 == dv2)
+      },
+      test("Different nodes produce different DynamicValues") {
+        val nodes = List(
+          DynamicOptic.Node.Field("a"),
+          DynamicOptic.Node.Case("a"),
+          DynamicOptic.Node.AtIndex(0),
+          DynamicOptic.Node.Elements
+        )
+        val dvs          = nodes.map(Schema[DynamicOptic.Node].toDynamicValue)
+        val allDifferent = dvs.combinations(2).forall { case a :: b :: Nil => a != b; case _ => true }
+        assertTrue(allDifferent)
+      }
+    )
   )
 
   sealed trait A
