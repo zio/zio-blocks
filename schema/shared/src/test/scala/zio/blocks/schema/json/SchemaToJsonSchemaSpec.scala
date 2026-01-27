@@ -97,6 +97,48 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
           schema.conforms(Json.String("Blue"))
         )
       }
+    ),
+    suite("Primitive type constraints")(
+      test("Byte schema includes min/max constraints") {
+        val schema = Schema[Byte].toJsonSchema
+        val json   = schema.toJson
+        val hasMin = json.get("minimum").isSuccess
+        val hasMax = json.get("maximum").isSuccess
+        assertTrue(hasMin, hasMax)
+      },
+      test("Short schema includes min/max constraints") {
+        val schema = Schema[Short].toJsonSchema
+        val json   = schema.toJson
+        val hasMin = json.get("minimum").isSuccess
+        val hasMax = json.get("maximum").isSuccess
+        assertTrue(hasMin, hasMax)
+      },
+      test("Char schema includes length constraints") {
+        val schema    = Schema[Char].toJsonSchema
+        val json      = schema.toJson
+        val hasMinLen = json.get("minLength").isSuccess
+        val hasMaxLen = json.get("maxLength").isSuccess
+        assertTrue(hasMinLen, hasMaxLen)
+      }
+    ),
+    suite("Error messages")(
+      test("type mismatch error includes path information") {
+        val schema  = Schema[Person].toJsonSchema
+        val invalid = Json.Object("name" -> Json.Number(123), "age" -> Json.Number(30))
+        val error   = schema.check(invalid)
+        assertTrue(
+          error.isDefined,
+          error.exists(_.message.contains("at:"))
+        )
+      },
+      test("error message describes the type mismatch") {
+        val schema  = Schema[Person].toJsonSchema
+        val invalid = Json.Object("name" -> Json.Number(123), "age" -> Json.Number(30))
+        val error   = schema.check(invalid)
+        assertTrue(
+          error.exists(_.message.contains("Expected type"))
+        )
+      }
     )
   )
 }
