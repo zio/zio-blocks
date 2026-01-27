@@ -514,6 +514,9 @@ object TypeId {
   implicit val arraySeq: TypeId[scala.collection.immutable.ArraySeq[_]] =
     nominal[scala.collection.immutable.ArraySeq[_]]("ArraySeq", Owner.scalaCollectionImmutable, List(TypeParam.A))
 
+  implicit val chunk: TypeId[zio.blocks.chunk.Chunk[_]] =
+    nominal[zio.blocks.chunk.Chunk[_]]("Chunk", Owner.zioBlocksChunk, List(TypeParam.A))
+
   implicit val dayOfWeek: TypeId[java.time.DayOfWeek]         = nominal[java.time.DayOfWeek]("DayOfWeek", Owner.javaTime)
   implicit val duration: TypeId[java.time.Duration]           = nominal[java.time.Duration]("Duration", Owner.javaTime)
   implicit val instant: TypeId[java.time.Instant]             = nominal[java.time.Instant]("Instant", Owner.javaTime)
@@ -542,9 +545,10 @@ object TypeId {
     val scalaUtil: zio.blocks.typeid.Owner                = zio.blocks.typeid.Owner.fromPackagePath("scala.util")
     val scalaCollectionImmutable: zio.blocks.typeid.Owner =
       zio.blocks.typeid.Owner.fromPackagePath("scala.collection.immutable")
-    val javaLang: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
-    val javaTime: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.time")
-    val javaUtil: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("java.util")
-    val javaIo: zio.blocks.typeid.Owner   = zio.blocks.typeid.Owner.fromPackagePath("java.io")
+    val javaLang: zio.blocks.typeid.Owner       = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
+    val javaTime: zio.blocks.typeid.Owner       = zio.blocks.typeid.Owner.fromPackagePath("java.time")
+    val javaUtil: zio.blocks.typeid.Owner       = zio.blocks.typeid.Owner.fromPackagePath("java.util")
+    val javaIo: zio.blocks.typeid.Owner         = zio.blocks.typeid.Owner.fromPackagePath("java.io")
+    val zioBlocksChunk: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("zio.blocks.chunk")
   }
 }

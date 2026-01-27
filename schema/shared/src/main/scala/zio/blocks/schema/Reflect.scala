@@ -5,6 +5,7 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
 import zio.blocks.chunk.Chunk
+import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
@@ -135,7 +136,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     val variant = asVariant.get
     val tid     = typeId
     val cases   = variant.cases
-    tid.owner == zio.blocks.typeid.Owner.fromPackagePath("scala") && tid.name == "Option" &&
+    tid.owner == Owner.fromPackagePath("scala") && tid.name == "Option" &&
     cases.length == 2 && cases(1).name == "Some"
   }
 
@@ -163,9 +164,9 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]]
 
-  def typeId: zio.blocks.typeid.TypeId[A]
+  def typeId: TypeId[A]
 
-  def typeId(value: zio.blocks.typeid.TypeId[A]): Reflect[F, A]
+  def typeId(value: TypeId[A]): Reflect[F, A]
 
   def updated[B](optic: Optic[A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
@@ -312,7 +313,7 @@ object Reflect {
 
   case class Record[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     recordBinding: F[BindingType.Record, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
@@ -460,7 +461,7 @@ record <-
       registers.asInstanceOf[ArraySeq[Register[Any]]].unsafeArray.asInstanceOf[Array[Register[Any]]]
     )
 
-    def typeId(value: zio.blocks.typeid.TypeId[A]): Record[F, A] = copy(typeId = value)
+    def typeId(value: TypeId[A]): Record[F, A] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
 
@@ -534,7 +535,7 @@ record <-
 
   case class Variant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ? <: A]],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     variantBinding: F[BindingType.Variant, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
@@ -632,7 +633,7 @@ variant <-
           f.transformVariant(path, cases, typeId, variantBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield variant
 
-    def typeId(value: zio.blocks.typeid.TypeId[A]): Variant[F, A] = copy(typeId = value)
+    def typeId(value: TypeId[A]): Variant[F, A] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
 
@@ -649,7 +650,7 @@ variant <-
 
   case class Sequence[F[_, _], A, C[_]](
     element: Reflect[F, A],
-    typeId: zio.blocks.typeid.TypeId[C[A]],
+    typeId: TypeId[C[A]],
     seqBinding: F[BindingType.Seq[C], C[A]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
@@ -834,7 +835,7 @@ sequence <-
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
-    def typeId(value: zio.blocks.typeid.TypeId[C[A]]): Sequence[F, A, C] = copy(typeId = value)
+    def typeId(value: TypeId[C[A]]): Sequence[F, A, C] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
 
@@ -865,7 +866,7 @@ sequence <-
   case class Map[F[_, _], K, V, M[_, _]](
     key: Reflect[F, K],
     value: Reflect[F, V],
-    typeId: zio.blocks.typeid.TypeId[M[K, V]],
+    typeId: TypeId[M[K, V]],
     mapBinding: F[BindingType.Map[M], M[K, V]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
@@ -955,7 +956,7 @@ map   <-
           f.transformMap(path, key, value, typeId, mapBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield map
 
-    def typeId(value: zio.blocks.typeid.TypeId[M[K, V]]): Map[F, K, V, M] = copy(typeId = value)
+    def typeId(value: TypeId[M[K, V]]): Map[F, K, V, M] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Map[M] = new Reflect.Type.Map
 
@@ -986,7 +987,7 @@ map   <-
 
   case class Dynamic[F[_, _]](
     dynamicBinding: F[BindingType.Dynamic, DynamicValue],
-    typeId: zio.blocks.typeid.TypeId[DynamicValue] = zio.blocks.typeid.TypeId.of[DynamicValue],
+    typeId: TypeId[DynamicValue] = TypeId.of[DynamicValue],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
     storedDefaultValue: Option[DynamicValue] = None,
@@ -1028,7 +1029,7 @@ dynamic <-
           f.transformDynamic(path, typeId, dynamicBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield dynamic
 
-    def typeId(value: zio.blocks.typeid.TypeId[DynamicValue]): Dynamic[F] = copy(typeId = value)
+    def typeId(value: TypeId[DynamicValue]): Dynamic[F] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
 
@@ -1045,7 +1046,7 @@ dynamic <-
 
   case class Primitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     primitiveBinding: F[BindingType.Primitive, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
@@ -1099,7 +1100,7 @@ primitive <- f.transformPrimitive(
                      )
       } yield primitive
 
-    def typeId(value: zio.blocks.typeid.TypeId[A]): Primitive[F, A] = copy(typeId = value)
+    def typeId(value: TypeId[A]): Primitive[F, A] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
 
@@ -1116,7 +1117,7 @@ primitive <- f.transformPrimitive(
 
   case class Wrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     wrapperPrimitiveType: Option[PrimitiveType[A]],
     wrapperBinding: F[BindingType.Wrapper[A, B], A],
     doc: Doc = Doc.Empty,
@@ -1178,7 +1179,7 @@ wrapper <- f.transformWrapper(
                    )
       } yield wrapper
 
-    def typeId(value: zio.blocks.typeid.TypeId[A]): Wrapper[F, A, B] = copy(typeId = value)
+    def typeId(value: TypeId[A]): Wrapper[F, A, B] = copy(typeId = value)
 
     override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = new Some(new Reflect.Wrapper.Unknown[F] {
       def wrapper: Reflect.Wrapper[F, Wrapping, Wrapped] = self.asInstanceOf[Reflect.Wrapper[F, Wrapping, Wrapped]]
@@ -1204,7 +1205,7 @@ wrapper <- f.transformWrapper(
 
 case class Deferred[F[_, _], A](
     _value: () => Reflect[F, A],
-    _typeId: Option[zio.blocks.typeid.TypeId[A]] = None,
+    _typeId: Option[TypeId[A]] = None,
     private val deferredDefaultValue: Option[() => A] = None,
     private val deferredExamples: collection.immutable.Seq[() => A] = Nil
   ) extends Reflect[F, A] { self =>
@@ -1261,11 +1262,11 @@ case class Deferred[F[_, _], A](
         }
       }
 
-    def typeId: zio.blocks.typeid.TypeId[A] = _typeId.getOrElse {
+    def typeId: TypeId[A] = _typeId.getOrElse {
       val v = visited.get
       if (v.containsKey(this)) {
         // Cycle detected - create a placeholder TypeId to break recursion
-        zio.blocks.typeid.TypeId.nominal[A]("<deferred-cycle>", zio.blocks.typeid.Owner.Root)
+        TypeId.nominal[A]("<deferred-cycle>", Owner.Root)
       } else {
         v.put(this, ())
         try value.typeId
@@ -1273,7 +1274,7 @@ case class Deferred[F[_, _], A](
       }
     }
 
-    def typeId(newTypeId: zio.blocks.typeid.TypeId[A]): Deferred[F, A] = copy(_typeId = Some(newTypeId))
+    def typeId(newTypeId: TypeId[A]): Deferred[F, A] = copy(_typeId = Some(newTypeId))
 
     override def hashCode: Int = {
       val v = visited.get
@@ -1589,9 +1590,9 @@ case class Deferred[F[_, _], A](
   private[this] def some[F[_, _], A <: AnyRef](
     element: Reflect[F, A]
   )(implicit F: FromBinding[F]): Record[F, Some[A]] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[Some[A]](
-      zio.blocks.typeid.TypeId.some,
-      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    val typeId = TypeId.applied[Some[A]](
+      TypeId.some,
+      TypeRepr.Ref(element.typeId)
     )
     new Record(
       Vector(new Term("value", element)),
@@ -1605,42 +1606,42 @@ case class Deferred[F[_, _], A](
   )(implicit F: FromBinding[F]): Record[F, Some[Double]] =
     new Record(
       Vector(new Term("value", element)),
-      zio.blocks.typeid.TypeId.of[Some[Double]],
+      TypeId.of[Some[Double]],
       F.fromBinding(Binding.Record.someDouble)
     )
 
   private[this] def someLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Record[F, Some[Long]] =
     new Record(
       Vector(new Term("value", element)),
-      zio.blocks.typeid.TypeId.of[Some[Long]],
+      TypeId.of[Some[Long]],
       F.fromBinding(Binding.Record.someLong)
     )
 
   private[this] def someFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Record[F, Some[Float]] =
     new Record(
       Vector(new Term("value", element)),
-      zio.blocks.typeid.TypeId.of[Some[Float]],
+      TypeId.of[Some[Float]],
       F.fromBinding(Binding.Record.someFloat)
     )
 
   private[this] def someInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Record[F, Some[Int]] =
     new Record(
       Vector(new Term("value", element)),
-      zio.blocks.typeid.TypeId.of[Some[Int]],
+      TypeId.of[Some[Int]],
       F.fromBinding(Binding.Record.someInt)
     )
 
   private[this] def someChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Record[F, Some[Char]] =
     new Record(
       Vector(new Term("value", element)),
-      zio.blocks.typeid.TypeId.of[Some[Char]],
+      TypeId.of[Some[Char]],
       F.fromBinding(Binding.Record.someChar)
     )
 
   private[this] def someShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Record[F, Some[Short]] =
     new Record(
       Vector(new Term("value", element)),
-      zio.blocks.typeid.TypeId.of[Some[Short]],
+      TypeId.of[Some[Short]],
       F.fromBinding(Binding.Record.someShort)
     )
 
@@ -1649,31 +1650,31 @@ case class Deferred[F[_, _], A](
   )(implicit F: FromBinding[F]): Record[F, Some[Boolean]] =
     new Record(
       Vector(new Term("value", element)),
-      zio.blocks.typeid.TypeId.of[Some[Boolean]],
+      TypeId.of[Some[Boolean]],
       F.fromBinding(Binding.Record.someBoolean)
     )
 
   private[this] def someByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Record[F, Some[Byte]] =
     new Record(
       Vector(new Term("value", element)),
-      zio.blocks.typeid.TypeId.of[Some[Byte]],
+      TypeId.of[Some[Byte]],
       F.fromBinding(Binding.Record.someByte)
     )
 
   private[this] def someUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Record[F, Some[Unit]] =
     new Record(
       Vector(new Term("value", element)),
-      zio.blocks.typeid.TypeId.of[Some[Unit]],
+      TypeId.of[Some[Unit]],
       F.fromBinding(Binding.Record.someUnit)
     )
 
   private[this] def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
-    new Record(Vector(), zio.blocks.typeid.TypeId.none, F.fromBinding(Binding.Record.none))
+    new Record(Vector(), TypeId.none, F.fromBinding(Binding.Record.none))
 
   def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[Option[A]](
-      zio.blocks.typeid.TypeId.option,
-      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    val typeId = TypeId.applied[Option[A]](
+      TypeId.option,
+      TypeRepr.Ref(element.typeId)
     )
     new Variant(
       Vector(new Term("None", none), new Term("Some", some(element))),
@@ -1685,78 +1686,78 @@ case class Deferred[F[_, _], A](
   def optionDouble[F[_, _]](element: Reflect[F, Double])(implicit F: FromBinding[F]): Variant[F, Option[Double]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someDouble(element))),
-      zio.blocks.typeid.TypeId.of[Option[Double]],
+      TypeId.of[Option[Double]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Variant[F, Option[Long]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someLong(element))),
-      zio.blocks.typeid.TypeId.of[Option[Long]],
+      TypeId.of[Option[Long]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Variant[F, Option[Float]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someFloat(element))),
-      zio.blocks.typeid.TypeId.of[Option[Float]],
+      TypeId.of[Option[Float]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Variant[F, Option[Int]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someInt(element))),
-      zio.blocks.typeid.TypeId.of[Option[Int]],
+      TypeId.of[Option[Int]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Variant[F, Option[Char]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someChar(element))),
-      zio.blocks.typeid.TypeId.of[Option[Char]],
+      TypeId.of[Option[Char]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Variant[F, Option[Short]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someShort(element))),
-      zio.blocks.typeid.TypeId.of[Option[Short]],
+      TypeId.of[Option[Short]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionBoolean[F[_, _]](element: Reflect[F, Boolean])(implicit F: FromBinding[F]): Variant[F, Option[Boolean]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someBoolean(element))),
-      zio.blocks.typeid.TypeId.of[Option[Boolean]],
+      TypeId.of[Option[Boolean]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Variant[F, Option[Byte]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someByte(element))),
-      zio.blocks.typeid.TypeId.of[Option[Byte]],
+      TypeId.of[Option[Byte]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Variant[F, Option[Unit]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someUnit(element))),
-      zio.blocks.typeid.TypeId.of[Option[Unit]],
+      TypeId.of[Option[Unit]],
       F.fromBinding(Binding.Variant.option)
     )
 
   private[this] def left[F[_, _], A, B](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Left[A, B]] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[Left[A, B]](
-      zio.blocks.typeid.TypeId.nominal[Left[?, ?]]("Left", zio.blocks.typeid.Owner.fromPackagePath("scala.util")),
-      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    val typeId = TypeId.applied[Left[A, B]](
+      TypeId.nominal[Left[?, ?]]("Left", Owner.fromPackagePath("scala.util")),
+      TypeRepr.Ref(element.typeId)
     )
     new Record(Vector(new Term("value", element)), typeId, F.fromBinding(Binding.Record.left))
   }
 
   private[this] def right[F[_, _], A, B](element: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, Right[A, B]] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[Right[A, B]](
-      zio.blocks.typeid.TypeId.nominal[Right[?, ?]]("Right", zio.blocks.typeid.Owner.fromPackagePath("scala.util")),
-      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    val typeId = TypeId.applied[Right[A, B]](
+      TypeId.nominal[Right[?, ?]]("Right", Owner.fromPackagePath("scala.util")),
+      TypeRepr.Ref(element.typeId)
     )
     new Record(Vector(new Term("value", element)), typeId, F.fromBinding(Binding.Record.right))
   }
@@ -1765,10 +1766,10 @@ case class Deferred[F[_, _], A](
     l: Reflect[F, A],
     r: Reflect[F, B]
   )(implicit F: FromBinding[F]): Variant[F, Either[A, B]] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[Either[A, B]](
-      zio.blocks.typeid.TypeId.either,
-      zio.blocks.typeid.TypeRepr.Ref(l.typeId),
-      zio.blocks.typeid.TypeRepr.Ref(r.typeId)
+    val typeId = TypeId.applied[Either[A, B]](
+      TypeId.either,
+      TypeRepr.Ref(l.typeId),
+      TypeRepr.Ref(r.typeId)
     )
     new Variant(
       Vector(new Term("Left", left[F, A, B](l)), new Term("Right", right[F, A, B](r))),
@@ -1778,55 +1779,60 @@ case class Deferred[F[_, _], A](
   }
 
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[Set[A]](
-      zio.blocks.typeid.TypeId.set,
-      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    val typeId = TypeId.applied[Set[A]](
+      TypeId.set,
+      TypeRepr.Ref(element.typeId)
     )
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.set))
   }
 
   def list[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, List] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[List[A]](
-      zio.blocks.typeid.TypeId.list,
-      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    val typeId = TypeId.applied[List[A]](
+      TypeId.list,
+      TypeRepr.Ref(element.typeId)
     )
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.list))
   }
 
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Vector] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[Vector[A]](
-      zio.blocks.typeid.TypeId.vector,
-      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    val typeId = TypeId.applied[Vector[A]](
+      TypeId.vector,
+      TypeRepr.Ref(element.typeId)
     )
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.vector))
   }
 
   def indexedSeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, IndexedSeq] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[IndexedSeq[A]](
-      zio.blocks.typeid.TypeId.indexedSeq,
-      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    val typeId = TypeId.applied[IndexedSeq[A]](
+      TypeId.indexedSeq,
+      TypeRepr.Ref(element.typeId)
     )
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.indexedSeq))
   }
 
   def seq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Seq] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[Seq[A]](
-      zio.blocks.typeid.TypeId.seq,
-      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    val typeId = TypeId.applied[Seq[A]](
+      TypeId.seq,
+      TypeRepr.Ref(element.typeId)
     )
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.seq))
   }
 
-  def chunk[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Chunk] =
-    new Sequence(element, TypeName.chunk(element.typeName), F.fromBinding(Binding.Seq.chunk))
+  def chunk[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Chunk] = {
+    val typeId = TypeId.applied[Chunk[A]](
+      TypeId.chunk,
+      TypeRepr.Ref(element.typeId)
+    )
+    new Sequence(element, typeId, F.fromBinding(Binding.Seq.chunk))
+  }
 
   def map[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit
     F: FromBinding[F]
   ): Map[F, K, V, collection.immutable.Map] = {
-    val typeId = zio.blocks.typeid.TypeId.applied[collection.immutable.Map[K, V]](
-      zio.blocks.typeid.TypeId.map,
-      zio.blocks.typeid.TypeRepr.Ref(key.typeId),
-      zio.blocks.typeid.TypeRepr.Ref(value.typeId)
+    val typeId = TypeId.applied[collection.immutable.Map[K, V]](
+      TypeId.map,
+      TypeRepr.Ref(key.typeId),
+      TypeRepr.Ref(value.typeId)
     )
     new Map(key, value, typeId, F.fromBinding(Binding.Map.map))
   }
@@ -1835,8 +1841,7 @@ case class Deferred[F[_, _], A](
     object List {
       def unapply[F[_, _], A](reflect: Reflect[F, List[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x
-              if x.sequence.typeId.name == "List" && x.sequence.typeId.owner == zio.blocks.typeid.TypeId.list.owner =>
+          case x if x.sequence.typeId.name == "List" && x.sequence.typeId.owner == TypeId.list.owner =>
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
@@ -1844,8 +1849,7 @@ case class Deferred[F[_, _], A](
     object Vector {
       def unapply[F[_, _], A](reflect: Reflect[F, Vector[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x
-              if x.sequence.typeId.name == "Vector" && x.sequence.typeId.owner == zio.blocks.typeid.TypeId.vector.owner =>
+          case x if x.sequence.typeId.name == "Vector" && x.sequence.typeId.owner == TypeId.vector.owner =>
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
@@ -1853,7 +1857,7 @@ case class Deferred[F[_, _], A](
     object Set {
       def unapply[F[_, _], A](reflect: Reflect[F, Set[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeId.name == "Set" && x.sequence.typeId.owner == zio.blocks.typeid.TypeId.set.owner =>
+          case x if x.sequence.typeId.name == "Set" && x.sequence.typeId.owner == TypeId.set.owner =>
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }

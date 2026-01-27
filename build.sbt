@@ -76,6 +76,7 @@ lazy val root = project
 
 lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
+  .dependsOn(chunk)
   .settings(stdSettings("zio-blocks-typeid"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.typeid"))

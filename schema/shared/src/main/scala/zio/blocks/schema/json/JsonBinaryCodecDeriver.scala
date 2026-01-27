@@ -9,7 +9,7 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.SeqDeconstructor.SpecializedIndexed
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
-import zio.blocks.typeid.Owner
+import zio.blocks.typeid.{Owner, TypeId}
 import scala.annotation.{switch, tailrec}
 import scala.util.control.NonFatal
 
@@ -266,7 +266,7 @@ class JsonBinaryCodecDeriver private[json] (
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     binding: Binding[BindingType.Primitive, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -277,7 +277,7 @@ class JsonBinaryCodecDeriver private[json] (
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     binding: Binding[BindingType.Record, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -297,7 +297,7 @@ class JsonBinaryCodecDeriver private[json] (
 
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -317,7 +317,7 @@ class JsonBinaryCodecDeriver private[json] (
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
-    typeId: zio.blocks.typeid.TypeId[C[A]],
+    typeId: TypeId[C[A]],
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -332,7 +332,7 @@ class JsonBinaryCodecDeriver private[json] (
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
     value: Reflect[F, V],
-    typeId: zio.blocks.typeid.TypeId[M[K, V]],
+    typeId: TypeId[M[K, V]],
     binding: Binding[BindingType.Map[M], M[K, V]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -358,11 +358,11 @@ class JsonBinaryCodecDeriver private[json] (
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[DynamicValue]] =
-    Lazy(deriveCodec(new Reflect.Dynamic(binding, zio.blocks.typeid.TypeId.of[DynamicValue], doc, modifiers)))
+    Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)))
 
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     wrapperPrimitiveType: Option[PrimitiveType[A]],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
@@ -396,8 +396,8 @@ class JsonBinaryCodecDeriver private[json] (
   type TC[_]
 
   private[this] val recursiveRecordCache =
-    new ThreadLocal[java.util.HashMap[zio.blocks.typeid.TypeId[?], Array[FieldInfo]]] {
-      override def initialValue: java.util.HashMap[zio.blocks.typeid.TypeId[?], Array[FieldInfo]] =
+    new ThreadLocal[java.util.HashMap[TypeId[?], Array[FieldInfo]]] {
+      override def initialValue: java.util.HashMap[TypeId[?], Array[FieldInfo]] =
         new java.util.HashMap
     }
   private[this] val discriminatorFields = new ThreadLocal[List[DiscriminatorFieldInfo]] {

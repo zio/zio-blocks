@@ -1,12 +1,13 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.TypeId
 
 trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformRecord[A](
     path: DynamicOptic,
     fields: IndexedSeq[Term[G, A, ?]],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     metadata: F[BindingType.Record, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -17,7 +18,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformVariant[A](
     path: DynamicOptic,
     cases: IndexedSeq[Term[G, A, ? <: A]],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     metadata: F[BindingType.Variant, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -28,7 +29,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformSequence[A, C[_]](
     path: DynamicOptic,
     element: Reflect[G, A],
-    typeId: zio.blocks.typeid.TypeId[C[A]],
+    typeId: TypeId[C[A]],
     metadata: F[BindingType.Seq[C], C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -40,7 +41,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     path: DynamicOptic,
     key: Reflect[G, Key],
     value: Reflect[G, Value],
-    typeId: zio.blocks.typeid.TypeId[M[Key, Value]],
+    typeId: TypeId[M[Key, Value]],
     metadata: F[BindingType.Map[M], M[Key, Value]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -50,7 +51,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
 
   def transformDynamic(
     path: DynamicOptic,
-    typeId: zio.blocks.typeid.TypeId[DynamicValue],
+    typeId: TypeId[DynamicValue],
     metadata: F[BindingType.Dynamic, DynamicValue],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -61,7 +62,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformPrimitive[A](
     path: DynamicOptic,
     primitiveType: PrimitiveType[A],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     metadata: F[BindingType.Primitive, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -72,7 +73,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformWrapper[A, B](
     path: DynamicOptic,
     wrapped: Reflect[G, B],
-    typeId: zio.blocks.typeid.TypeId[A],
+    typeId: TypeId[A],
     wrapperPrimitiveType: Option[PrimitiveType[A]],
     metadata: F[BindingType.Wrapper[A, B], A],
     doc: Doc,
@@ -89,7 +90,7 @@ object ReflectTransformer {
     def transformRecord[A](
       path: DynamicOptic,
       fields: IndexedSeq[Term[G, A, ?]],
-      typeId: zio.blocks.typeid.TypeId[A],
+      typeId: TypeId[A],
       metadata: F[BindingType.Record, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
@@ -103,7 +104,7 @@ object ReflectTransformer {
     def transformVariant[A](
       path: DynamicOptic,
       cases: IndexedSeq[Term[G, A, ? <: A]],
-      typeId: zio.blocks.typeid.TypeId[A],
+      typeId: TypeId[A],
       metadata: F[BindingType.Variant, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
@@ -117,7 +118,7 @@ object ReflectTransformer {
     def transformSequence[A, C[_]](
       path: DynamicOptic,
       element: Reflect[G, A],
-      typeId: zio.blocks.typeid.TypeId[C[A]],
+      typeId: TypeId[C[A]],
       metadata: F[BindingType.Seq[C], C[A]],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
@@ -132,7 +133,7 @@ object ReflectTransformer {
       path: DynamicOptic,
       key: Reflect[G, Key],
       value: Reflect[G, Value],
-      typeId: zio.blocks.typeid.TypeId[M[Key, Value]],
+      typeId: TypeId[M[Key, Value]],
       metadata: F[BindingType.Map[M], M[Key, Value]],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
@@ -145,7 +146,7 @@ object ReflectTransformer {
 
     def transformDynamic(
       path: DynamicOptic,
-      typeId: zio.blocks.typeid.TypeId[DynamicValue],
+      typeId: TypeId[DynamicValue],
       metadata: F[BindingType.Dynamic, DynamicValue],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
@@ -159,7 +160,7 @@ object ReflectTransformer {
     def transformPrimitive[A](
       path: DynamicOptic,
       primitiveType: PrimitiveType[A],
-      typeId: zio.blocks.typeid.TypeId[A],
+      typeId: TypeId[A],
       metadata: F[BindingType.Primitive, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
@@ -181,7 +182,7 @@ object ReflectTransformer {
     def transformWrapper[A, B](
       path: DynamicOptic,
       wrapped: Reflect[G, B],
-      typeId: zio.blocks.typeid.TypeId[A],
+      typeId: TypeId[A],
       wrapperPrimitiveType: Option[PrimitiveType[A]],
       metadata: F[BindingType.Wrapper[A, B], A],
       doc: Doc,

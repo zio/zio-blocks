@@ -2,6 +2,7 @@ package zio.blocks.schema.derive
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, BindingType}
+import zio.blocks.typeid.TypeId
 
 /**
  * A `DerivationBuilder` is capable of deriving a type class instance for any
@@ -28,10 +29,10 @@ final case class DerivationBuilder[TC[_], A](
   def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByOptic(optic.toDynamic, Lazy(instance)))
 
-  def instance[B](typeId: zio.blocks.typeid.TypeId[B], instance: => TC[B]): DerivationBuilder[TC, A] =
+  def instance[B](typeId: TypeId[B], instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByType(typeId, Lazy(instance)))
 
-  def modifier[B](typeId: zio.blocks.typeid.TypeId[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] =
+  def modifier[B](typeId: TypeId[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] =
     copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByType(typeId, modifier))
 
   def modifier[B](optic: Optic[A, B], modifier: Modifier): DerivationBuilder[TC, A] = modifier match {
@@ -66,7 +67,7 @@ final case class DerivationBuilder[TC[_], A](
         case (acc, _) => acc
       }
     val modifierReflectByTypeMap =
-      allModifierOverrides.foldLeft[Map[zio.blocks.typeid.TypeId[?], Vector[Modifier.Reflect]]](Map.empty) {
+      allModifierOverrides.foldLeft[Map[TypeId[?], Vector[Modifier.Reflect]]](Map.empty) {
         case (acc, ModifierReflectOverrideByType(typeId, modifier)) =>
           acc.updated(typeId, acc.getOrElse(typeId, Vector.empty).appended(modifier))
         case (acc, _) => acc
@@ -78,7 +79,7 @@ final case class DerivationBuilder[TC[_], A](
         case (acc, _) => acc
       }
     val modifierTermByTypeMap =
-      allModifierOverrides.foldLeft[Map[zio.blocks.typeid.TypeId[?], Vector[(String, Modifier.Term)]]](Map.empty) {
+      allModifierOverrides.foldLeft[Map[TypeId[?], Vector[(String, Modifier.Term)]]](Map.empty) {
         case (acc, ModifierTermOverrideByType(typeId, termName, modifier)) =>
           acc.updated(typeId, acc.getOrElse(typeId, Vector.empty).appended((termName, modifier)))
         case (acc, _) => acc
@@ -87,7 +88,7 @@ final case class DerivationBuilder[TC[_], A](
     def prependCombinedModifiers[A0](
       modifiers: Seq[Modifier.Reflect],
       path: DynamicOptic,
-      typeId: zio.blocks.typeid.TypeId[A0]
+      typeId: TypeId[A0]
     ) =
       (modifierReflectByOpticMap.get(path), modifierReflectByTypeMap.get(typeId)) match {
         case (Some(modifiers1), Some(modifiers2)) => (modifiers1 ++ modifiers2) ++ modifiers
@@ -96,7 +97,7 @@ final case class DerivationBuilder[TC[_], A](
         case _                                    => modifiers
       }
 
-    def combineModifiers[A0](path: DynamicOptic, typeId: zio.blocks.typeid.TypeId[A0]) =
+    def combineModifiers[A0](path: DynamicOptic, typeId: TypeId[A0]) =
       (modifierTermByOpticMap.get(path), modifierTermByTypeMap.get(typeId)) match {
         case (Some(modifiers1), Some(modifiers2)) => modifiers1 ++ modifiers2
         case (Some(modifiers1), _)                => modifiers1
@@ -104,10 +105,10 @@ final case class DerivationBuilder[TC[_], A](
         case _                                    => Seq.empty
       }
 
-    def getCustomInstance[A0](path: DynamicOptic, typeId: zio.blocks.typeid.TypeId[A0]): Option[Lazy[TC[A0]]] =
+    def getCustomInstance[A0](path: DynamicOptic, typeId: TypeId[A0]): Option[Lazy[TC[A0]]] =
       instanceByOpticMap
         .get(path)
-        .orElse(instanceByTypeMap.get(typeId.asInstanceOf[zio.blocks.typeid.TypeId[Any]]))
+        .orElse(instanceByTypeMap.get(typeId.asInstanceOf[TypeId[Any]]))
         .map(_.asInstanceOf[Lazy[TC[A0]]])
 
     type F[T, A0] = Binding[T, A0]
@@ -120,7 +121,7 @@ final case class DerivationBuilder[TC[_], A](
           override def transformRecord[A0](
             path: DynamicOptic,
             fields: IndexedSeq[Term[G, A0, ?]],
-            typeId: zio.blocks.typeid.TypeId[A0],
+            typeId: TypeId[A0],
             metadata: F[BindingType.Record, A0],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect],
@@ -163,7 +164,7 @@ new Reflect.Record(
           override def transformVariant[A0](
             path: DynamicOptic,
             cases: IndexedSeq[Term[G, A0, ? <: A0]],
-            typeId: zio.blocks.typeid.TypeId[A0],
+            typeId: TypeId[A0],
             metadata: F[BindingType.Variant, A0],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect],
@@ -209,7 +210,7 @@ new Reflect.Variant(
           override def transformSequence[A0, C[_]](
             path: DynamicOptic,
             element: Reflect[G, A0],
-            typeId: zio.blocks.typeid.TypeId[C[A0]],
+            typeId: TypeId[C[A0]],
             metadata: F[BindingType.Seq[C], C[A0]],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect],
@@ -235,7 +236,7 @@ new Reflect.Sequence(
             path: DynamicOptic,
             key: Reflect[G, Key],
             value: Reflect[G, Value],
-            typeId: zio.blocks.typeid.TypeId[M[Key, Value]],
+            typeId: TypeId[M[Key, Value]],
             metadata: F[BindingType.Map[M], M[Key, Value]],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect],
@@ -260,14 +261,14 @@ new Reflect.Map(
 
           override def transformDynamic(
             path: DynamicOptic,
-            typeId: zio.blocks.typeid.TypeId[DynamicValue],
+            typeId: TypeId[DynamicValue],
             metadata: F[BindingType.Dynamic, DynamicValue],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect],
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Dynamic[G]] = Lazy {
-val instance = getCustomInstance[DynamicValue](path, zio.blocks.typeid.TypeId.of[DynamicValue])
+val instance = getCustomInstance[DynamicValue](path, TypeId.of[DynamicValue])
               .getOrElse(deriver.deriveDynamic[G](metadata, doc, prependCombinedModifiers(modifiers, path, typeId)))
             new Reflect.Dynamic(
               new BindingInstance(metadata, instance),
@@ -282,7 +283,7 @@ val instance = getCustomInstance[DynamicValue](path, zio.blocks.typeid.TypeId.of
           override def transformPrimitive[A0](
             path: DynamicOptic,
             primitiveType: PrimitiveType[A0],
-            typeId: zio.blocks.typeid.TypeId[A0],
+            typeId: TypeId[A0],
             metadata: F[BindingType.Primitive, A0],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect],
@@ -313,7 +314,7 @@ new Reflect.Primitive(
           override def transformWrapper[A0, B](
             path: DynamicOptic,
             wrapped: Reflect[G, B],
-            typeId: zio.blocks.typeid.TypeId[A0],
+            typeId: TypeId[A0],
             wrapperPrimitiveType: Option[PrimitiveType[A0]],
             metadata: F[BindingType.Wrapper[A0, B], A0],
             doc: Doc,
