@@ -212,7 +212,7 @@ lazy val `schema-avro` = project
         )
     }),
     coverageMinimumStmtTotal   := 94,
-    coverageMinimumBranchTotal := 86
+    coverageMinimumBranchTotal := 87
   )
 
 lazy val `schema-thrift` = project
