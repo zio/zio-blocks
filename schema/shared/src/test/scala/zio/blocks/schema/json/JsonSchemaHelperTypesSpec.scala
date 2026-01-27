@@ -461,6 +461,28 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
           !schema.conforms(Json.Object("credit_card" -> Json.String("1234")))
         )
       }
+    ),
+    suite("JsonSchema toString")(
+      test("toString produces formatted JSON") {
+        val schema = JsonSchema.string(minLength = Some(NonNegativeInt.one))
+        val str    = schema.toString
+        assertTrue(
+          str.contains("\"type\""),
+          str.contains("\"string\""),
+          str.contains("\"minLength\"")
+        )
+      },
+      test("toString matches toJson.print with indentation") {
+        val schema   = JsonSchema.string()
+        val expected = schema.toJson.print(WriterConfig.withIndentionStep(2))
+        assertTrue(schema.toString == expected)
+      },
+      test("True.toString returns true") {
+        assertTrue(JsonSchema.True.toString == "true")
+      },
+      test("False.toString returns false") {
+        assertTrue(JsonSchema.False.toString == "false")
+      }
     )
   )
 }

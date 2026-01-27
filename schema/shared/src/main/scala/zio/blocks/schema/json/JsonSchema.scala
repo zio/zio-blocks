@@ -428,6 +428,8 @@ object EvaluationResult {
  */
 sealed trait JsonSchema extends Product with Serializable {
 
+  override def toString: String = toJson.print(WriterConfig.withIndentionStep(2))
+
   /** Serialize this schema to its canonical JSON representation. */
   def toJson: Json
 
