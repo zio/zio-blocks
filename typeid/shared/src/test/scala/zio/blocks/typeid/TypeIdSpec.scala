@@ -323,6 +323,128 @@ object TypeIdSpec extends ZIOSpecDefault {
         assertTrue(treeId.hashCode == TypeId.of[Tree[Int]].hashCode) &&
         assertTrue(treeId == TypeId.of[Tree[Int]])
       }
+    ),
+
+    // ========== TypeId Wrapper Coverage ==========
+    suite("TypeId Wrapper Method Coverage")(
+      test("isSupertypeOf returns correct result") {
+        val anyId = TypeId.of[Any]
+        val intId = TypeId.of[Int]
+        assertTrue(anyId.isSupertypeOf(intId))
+      },
+      test("isEquivalentTo returns true for same type") {
+        val id1 = TypeId.of[String]
+        val id2 = TypeId.of[String]
+        assertTrue(id1.isEquivalentTo(id2))
+      },
+      test("isEquivalentTo returns false for different types") {
+        val strId = TypeId.of[String]
+        val intId = TypeId.of[Int]
+        assertTrue(!strId.isEquivalentTo(intId))
+      },
+      test("toString delegates to dynamic") {
+        val id = TypeId.of[String]
+        assertTrue(id.toString.nonEmpty)
+      },
+      test("equals returns false for non-TypeId") {
+        val id = TypeId.of[String]
+        assertTrue(!id.equals("not a TypeId"))
+      },
+      test("equals returns false for null") {
+        val id = TypeId.of[String]
+        assertTrue(!id.equals(null))
+      },
+      test("show exports correctly") {
+        val id = TypeId.of[String]
+        assertTrue(id.show == "java.lang.String")
+      },
+      test("owner exports correctly") {
+        val id = TypeId.of[String]
+        assertTrue(id.owner.asString.contains("java.lang"))
+      },
+      test("name exports correctly") {
+        val id = TypeId.of[String]
+        assertTrue(id.name == "String")
+      },
+      test("annotations available") {
+        val id = TypeId.of[String]
+        assertTrue(id.annotations != null)
+      },
+      test("isEnum returns correct value") {
+        val id = TypeId.of[String]
+        assertTrue(!id.isEnum)
+      },
+      test("isAlias returns correct value for alias") {
+        type MyString = String
+        val id = TypeId.of[MyString]
+        assertTrue(!id.isAlias) // expanded at compile time
+      },
+      test("isOpaque returns false for regular type") {
+        val id = TypeId.of[String]
+        assertTrue(!id.isOpaque)
+      },
+      test("isAbstract returns correct value") {
+        val id = TypeId.of[String]
+        assertTrue(!id.isAbstract)
+      },
+      test("isSealed is accessible") {
+        val id = TypeId.of[String]
+        assertTrue(!id.isSealed) // String is not sealed
+      },
+      test("isCaseClass returns true for case class") {
+        val id = TypeId.of[Some[Int]]
+        assertTrue(id.isCaseClass)
+      },
+      test("isValueClass returns correct value") {
+        val id = TypeId.of[String]
+        assertTrue(!id.isValueClass)
+      },
+      test("enumCases returns empty for non-enum") {
+        val id = TypeId.of[String]
+        assertTrue(id.enumCases.isEmpty)
+      },
+      test("aliasedTo returns None for non-alias") {
+        val id = TypeId.of[String]
+        assertTrue(id.aliasedTo.isEmpty)
+      },
+      test("representation returns None for regular class") {
+        val id = TypeId.of[String]
+        assertTrue(id.representation.isEmpty)
+      },
+      test("kind is accessible") {
+        val id = TypeId.of[String]
+        assertTrue(id.kind != null) // kind is accessible
+      },
+      test("parents is accessible") {
+        val id = TypeId.of[String]
+        assertTrue(id.parents != null)
+      },
+      test("args is accessible") {
+        val id = TypeId.of[List[Int]]
+        assertTrue(id.args.nonEmpty)
+      },
+      test("isObject returns correct value") {
+        val id = TypeId.of[String]
+        assertTrue(!id.isObject)
+      },
+      test("typeParams is accessible") {
+        val id = TypeId.of[List[Int]]
+        assertTrue(id.typeParams.nonEmpty)
+      }
+    ),
+
+    // ========== TypeId Factory Coverage ==========
+    suite("TypeId Factory Coverage")(
+      test("TypeId.from is equivalent to TypeId.of") {
+        val id1 = TypeId.of[String]
+        val id2 = TypeId.from[String]
+        assertTrue(id1 == id2)
+      },
+      test("given TypeId works") {
+        def useTypeId[A](using id: TypeId[A]): String = id.fullName
+        val name = useTypeId[String]
+        assertTrue(name == "java.lang.String")
+      }
     )
   )
 }

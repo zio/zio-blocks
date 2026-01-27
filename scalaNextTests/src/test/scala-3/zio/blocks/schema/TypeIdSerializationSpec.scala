@@ -41,7 +41,7 @@ object TypeIdSerializationSpec extends ZIOSpecDefault {
     ),
     suite("TypeRepr Round-Trip")(
       test("simple TypeRepr round-trip") {
-        val typeRepr = TypeRepr.Ref(TypeId.of[Int], Nil)
+        val typeRepr = TypeRepr.Ref(TypeId.of[Int].dynamic, Nil)
         val schema   = typeReprSchema
         val dynamic  = schema.toDynamicValue(typeRepr)
         val result   = schema.fromDynamicValue(dynamic)
@@ -50,8 +50,8 @@ object TypeIdSerializationSpec extends ZIOSpecDefault {
       test("Union TypeRepr round-trip") {
         val typeRepr = TypeRepr.Union(
           List(
-            TypeRepr.Ref(TypeId.of[Int], Nil),
-            TypeRepr.Ref(TypeId.of[String], Nil)
+            TypeRepr.Ref(TypeId.of[Int].dynamic, Nil),
+            TypeRepr.Ref(TypeId.of[String].dynamic, Nil)
           )
         )
         val schema  = typeReprSchema
