@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
+
 /**
  * A sealed trait representing the type of a DynamicValue.
  *
@@ -10,7 +12,7 @@ package zio.blocks.schema
  *   - `Type`: The corresponding [[DynamicValue]] subtype (e.g.,
  *     `DynamicValue.Record`)
  *   - `Unwrap`: The underlying Scala type of the value (e.g.,
- *     `Vector[(String, DynamicValue)]`)
+ *     `Chunk[(String, DynamicValue)]`)
  */
 sealed trait DynamicValueType extends (DynamicValue => Boolean) {
 
@@ -42,7 +44,7 @@ object DynamicValueType {
 
   case object Record extends DynamicValueType {
     override final type Type   = DynamicValue.Record
-    override final type Unwrap = Vector[(String, DynamicValue)]
+    override final type Unwrap = Chunk[(String, DynamicValue)]
     val typeIndex = 1
   }
 
@@ -54,13 +56,13 @@ object DynamicValueType {
 
   case object Sequence extends DynamicValueType {
     override final type Type   = DynamicValue.Sequence
-    override final type Unwrap = Vector[DynamicValue]
+    override final type Unwrap = Chunk[DynamicValue]
     val typeIndex = 3
   }
 
   case object Map extends DynamicValueType {
     override final type Type   = DynamicValue.Map
-    override final type Unwrap = Vector[(DynamicValue, DynamicValue)]
+    override final type Unwrap = Chunk[(DynamicValue, DynamicValue)]
     val typeIndex = 4
   }
 

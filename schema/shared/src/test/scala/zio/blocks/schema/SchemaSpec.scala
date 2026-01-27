@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-import zio.Chunk
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.DynamicOptic.Node.{AtIndex, AtMapKey, Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{ExpectationMismatch, MissingField}
@@ -113,7 +113,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Record.schema.fromDynamicValue(
             DynamicValue.Record(
-              Vector(
+              Chunk(
                 ("i", DynamicValue.Primitive(PrimitiveValue.Long(1000))),
                 ("i", DynamicValue.Primitive(PrimitiveValue.Int(2000)))
               )
@@ -842,7 +842,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Variant.schema.fromDynamicValue(
             DynamicValue
-              .Variant("Case2", DynamicValue.Record(Vector(("s", DynamicValue.Primitive(PrimitiveValue.Int(1))))))
+              .Variant("Case2", DynamicValue.Record(Chunk(("s", DynamicValue.Primitive(PrimitiveValue.Int(1))))))
           )
         )(
           isLeft(hasError("Expected String at: .when[Case2].s"))
@@ -1290,7 +1290,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Schema[List[Boolean]].fromDynamicValue(
             DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 DynamicValue.Primitive(PrimitiveValue.Int(1)),
                 DynamicValue.Primitive(PrimitiveValue.Int(1))
               )
@@ -1299,46 +1299,46 @@ object SchemaSpec extends SchemaBaseSpec {
         )(isLeft(hasError("Expected Boolean at: .each.at(0)\nExpected Boolean at: .each.at(1)"))) &&
         assert(
           Schema[List[Byte]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Byte at: .each.at(0)"))) &&
         assert(
           Schema[List[Char]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Char at: .each.at(0)"))) &&
         assert(
           Schema[List[Short]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Short at: .each.at(0)"))) &&
         assert(
           Schema[List[Int]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Long(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Long(1))))
           )
         )(isLeft(hasError("Expected Int at: .each.at(0)"))) &&
         assert(
           Schema[List[Float]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Float at: .each.at(0)"))) &&
         assert(
           Schema[List[Long]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Long at: .each.at(0)"))) &&
         assert(
           Schema[List[Double]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Double at: .each.at(0)"))) &&
         assert(
           Schema[List[String]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected String at: .each.at(0)"))) &&
         assert(
-          Schema[List[Record]].fromDynamicValue(DynamicValue.Sequence(Vector(DynamicValue.Record(Vector.empty))))
+          Schema[List[Record]].fromDynamicValue(DynamicValue.Sequence(Chunk(DynamicValue.Record(Chunk.empty))))
         )(
           isLeft(
             equalTo(
@@ -1449,7 +1449,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(
             DynamicValue.Map(
-              Vector(
+              Chunk(
                 (DynamicValue.Primitive(PrimitiveValue.Long(1)), DynamicValue.Primitive(PrimitiveValue.Int(1)))
               )
             )
@@ -1458,7 +1458,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(
             DynamicValue.Map(
-              Vector(
+              Chunk(
                 (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
                 (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1)))
               )

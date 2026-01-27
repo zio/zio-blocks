@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
@@ -406,7 +407,7 @@ object Reflect {
       val deconstructor = this.deconstructor
       val registers     = Registers(deconstructor.usedRegisters)
       deconstructor.deconstruct(registers, 0, value)
-      val fields = Vector.newBuilder[(String, DynamicValue)]
+      val fields = ChunkBuilder.make[(String, DynamicValue)]()
       val len    = this.registers.length
       var idx    = 0
       while (idx < len) {
@@ -786,7 +787,7 @@ object Reflect {
 
     def toDynamicValue(value: C[A])(implicit F: HasBinding[F]): DynamicValue = {
       val iterator = seqDeconstructor.deconstruct(value)
-      val builder  = Vector.newBuilder[DynamicValue]
+      val builder  = ChunkBuilder.make[DynamicValue]()
       while (iterator.hasNext) builder.addOne(element.toDynamicValue(iterator.next()))
       new DynamicValue.Sequence(builder.result())
     }
@@ -900,7 +901,7 @@ object Reflect {
     def toDynamicValue(value: M[K, V])(implicit F: HasBinding[F]): DynamicValue = {
       val deconstructor = mapDeconstructor
       val it            = deconstructor.deconstruct(value)
-      val builder       = Vector.newBuilder[(DynamicValue, DynamicValue)]
+      val builder       = ChunkBuilder.make[(DynamicValue, DynamicValue)]()
       while (it.hasNext) {
         val next = it.next()
         builder.addOne(

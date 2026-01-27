@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.DynamicOptic.Node._
 import zio.blocks.schema.OpticCheck._
 import zio.ZIO
@@ -95,13 +96,13 @@ object OpticSpec extends SchemaBaseSpec {
         )
       },
       test("toDynamic") {
-        assert(Box1.l.toDynamic)(equalTo(DynamicOptic(Vector(Field("l"))))) &&
-        assert(Box2.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(Field("r1"), Field("b"))))) &&
-        assert(Record1.b.toDynamic)(equalTo(DynamicOptic(Vector(Field("b"))))) &&
-        assert(Record2.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(Field("r1"), Field("b"))))) &&
-        assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(Field("v1"))))) &&
-        assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(Field("v1"))))) &&
-        assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(Field("v1")))))
+        assert(Box1.l.toDynamic)(equalTo(DynamicOptic(Chunk(Field("l"))))) &&
+        assert(Box2.r1_b.toDynamic)(equalTo(DynamicOptic(Chunk(Field("r1"), Field("b"))))) &&
+        assert(Record1.b.toDynamic)(equalTo(DynamicOptic(Chunk(Field("b"))))) &&
+        assert(Record2.r1_b.toDynamic)(equalTo(DynamicOptic(Chunk(Field("r1"), Field("b"))))) &&
+        assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Chunk(Field("v1"))))) &&
+        assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Chunk(Field("v1"))))) &&
+        assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Chunk(Field("v1")))))
       },
       test("checks prerequisites for creation") {
         ZIO.attempt(Lens(null, Case1.d)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
@@ -238,8 +239,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -261,8 +262,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -273,13 +274,13 @@ object OpticSpec extends SchemaBaseSpec {
         )
       },
       test("toDynamic") {
-        assert(Variant1.c1.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case1"))))) &&
-        assert(Variant1.c2.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"))))) &&
-        assert(Variant1.v2.toDynamic)(equalTo(DynamicOptic(Vector(Case("Variant2"))))) &&
-        assert(Variant1.v2_c3.toDynamic)(equalTo(DynamicOptic(Vector(Case("Variant2"), Case("Case3"))))) &&
-        assert(Variant1.v2_c4.toDynamic)(equalTo(DynamicOptic(Vector(Case("Variant2"), Case("Case4"))))) &&
+        assert(Variant1.c1.toDynamic)(equalTo(DynamicOptic(Chunk(Case("Case1"))))) &&
+        assert(Variant1.c2.toDynamic)(equalTo(DynamicOptic(Chunk(Case("Case2"))))) &&
+        assert(Variant1.v2.toDynamic)(equalTo(DynamicOptic(Chunk(Case("Variant2"))))) &&
+        assert(Variant1.v2_c3.toDynamic)(equalTo(DynamicOptic(Chunk(Case("Variant2"), Case("Case3"))))) &&
+        assert(Variant1.v2_c4.toDynamic)(equalTo(DynamicOptic(Chunk(Case("Variant2"), Case("Case4"))))) &&
         assert(Variant1.v2_v3_c5_left.toDynamic)(
-          equalTo(DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))))
+          equalTo(DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"), Case("Case5"))))
         )
       },
       test("checks prerequisites for creation") {
@@ -463,8 +464,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case1"))),
                     actualValue = Case2(Record3(null, null, null))
                   ),
                   Nil
@@ -481,8 +482,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case2",
                     actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Case2"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    full = DynamicOptic(Chunk(Case("Case2"))),
+                    prefix = DynamicOptic(Chunk(Case("Case2"))),
                     actualValue = Case1(0.1)
                   ),
                   Nil
@@ -499,8 +500,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant2",
                     actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Variant2"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"))),
                     actualValue = Case1(0.1)
                   ),
                   Nil
@@ -517,8 +518,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant2",
                     actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Case3"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"), Case("Case3"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"))),
                     actualValue = Case1(0.1)
                   ),
                   Nil
@@ -535,8 +536,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(List(Record3(null, null, null)))
                   ),
                   Nil
@@ -553,8 +554,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case4",
                     actualCase = "Case3",
-                    full = DynamicOptic(Vector(Case("Case4"))),
-                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    full = DynamicOptic(Chunk(Case("Case4"))),
+                    prefix = DynamicOptic(Chunk(Case("Case4"))),
                     actualValue = Case3(Case1(0.1))
                   ),
                   Nil
@@ -571,8 +572,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case5",
                     actualCase = "Case6",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"), Case("Case5"))),
                     actualValue = Case6(null)
                   ),
                   Nil
@@ -589,8 +590,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case5",
                     actualCase = "Case6",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"), Case("Case5"))),
                     actualValue = Case6(null)
                   ),
                   Nil
@@ -705,8 +706,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case1"))),
                     actualValue = Case2(null)
                   ),
                   Nil
@@ -723,8 +724,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case2",
                     actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Case2"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    full = DynamicOptic(Chunk(Case("Case2"))),
+                    prefix = DynamicOptic(Chunk(Case("Case2"))),
                     actualValue = Case1(0.1)
                   ),
                   Nil
@@ -741,8 +742,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant2",
                     actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Variant2"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"))),
                     actualValue = Case2(null)
                   ),
                   Nil
@@ -759,8 +760,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant2",
                     actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Case3"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"), Case("Case3"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"))),
                     actualValue = Case1(0.1)
                   ),
                   Nil
@@ -777,8 +778,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(List(Record3(null, null, null)))
                   ),
                   Nil
@@ -795,8 +796,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case4",
                     actualCase = "Case3",
-                    full = DynamicOptic(Vector(Case("Case4"))),
-                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    full = DynamicOptic(Chunk(Case("Case4"))),
+                    prefix = DynamicOptic(Chunk(Case("Case4"))),
                     actualValue = Case3(Case1(0.1))
                   ),
                   Nil
@@ -813,8 +814,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -831,8 +832,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -939,8 +940,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case1"))),
                     actualValue = Case2(null)
                   ),
                   Nil
@@ -957,8 +958,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case2",
                     actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Case2"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    full = DynamicOptic(Chunk(Case("Case2"))),
+                    prefix = DynamicOptic(Chunk(Case("Case2"))),
                     actualValue = Case1(0.1)
                   ),
                   Nil
@@ -975,8 +976,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant2",
                     actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Variant2"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"))),
                     actualValue = Case2(null)
                   ),
                   Nil
@@ -993,8 +994,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant2",
                     actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Case3"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"), Case("Case3"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"))),
                     actualValue = Case1(0.1)
                   ),
                   Nil
@@ -1011,8 +1012,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(List(Record3(null, null, null)))
                   ),
                   Nil
@@ -1029,8 +1030,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case4",
                     actualCase = "Case3",
-                    full = DynamicOptic(Vector(Case("Case4"))),
-                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    full = DynamicOptic(Chunk(Case("Case4"))),
+                    prefix = DynamicOptic(Chunk(Case("Case4"))),
                     actualValue = Case3(Case1(0.1))
                   ),
                   Nil
@@ -1047,8 +1048,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1065,8 +1066,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"))),
+                    full = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Chunk(Case("Variant2"), Case("Variant3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1090,8 +1091,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1113,8 +1114,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1125,15 +1126,15 @@ object OpticSpec extends SchemaBaseSpec {
         )
       },
       test("toDynamic") {
-        assert(Wrapper.r1.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped)))) &&
-        assert(Wrapper.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped, Field("b"))))) &&
-        assert(Case5.aas.toDynamic)(equalTo(DynamicOptic(Vector(Field("as"), AtIndex(1))))) &&
+        assert(Wrapper.r1.toDynamic)(equalTo(DynamicOptic(Chunk(Wrapped)))) &&
+        assert(Wrapper.r1_b.toDynamic)(equalTo(DynamicOptic(Chunk(Wrapped, Field("b"))))) &&
+        assert(Case5.aas.toDynamic)(equalTo(DynamicOptic(Chunk(Field("as"), AtIndex(1))))) &&
         assert(Case6.akmil.toDynamic)(
-          equalTo(DynamicOptic(Vector(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))))
+          equalTo(DynamicOptic(Chunk(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))))
         ) &&
-        assert(Variant1.c1_d.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case1"), Field("d"))))) &&
-        assert(Variant1.c2_r3.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"))))) &&
-        assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1")))))
+        assert(Variant1.c1_d.toDynamic)(equalTo(DynamicOptic(Chunk(Case("Case1"), Field("d"))))) &&
+        assert(Variant1.c2_r3.toDynamic)(equalTo(DynamicOptic(Chunk(Case("Case2"), Field("r3"))))) &&
+        assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Chunk(Case("Case2"), Field("r3"), Field("r1")))))
       },
       test("checks prerequisites for creation") {
         ZIO
@@ -1499,8 +1500,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case2",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    full = DynamicOptic(Chunk(Case("Case2"), Field("r3"), Field("r1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case2"))),
                     actualValue = Case3(Case1(0.1))
                   ),
                   Nil
@@ -1517,8 +1518,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Field("r3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Field("r3"), Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1535,8 +1536,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1553,8 +1554,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant2",
                     actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Variant2"))),
                     actualValue = Case1(0.1)
                   ),
                   Nil
@@ -1571,8 +1572,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1589,8 +1590,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"))),
                     actualValue = Case2(null)
                   ),
                   Nil
@@ -1607,8 +1608,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1625,8 +1626,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1643,8 +1644,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1661,8 +1662,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1677,8 +1678,8 @@ object OpticSpec extends SchemaBaseSpec {
               OpticCheck(
                 errors = ::(
                   SequenceIndexOutOfBounds(
-                    full = DynamicOptic(Vector(Field("as"), AtIndex(1))),
-                    prefix = DynamicOptic(Vector(Field("as"), AtIndex(1))),
+                    full = DynamicOptic(Chunk(Field("as"), AtIndex(1))),
+                    prefix = DynamicOptic(Chunk(Field("as"), AtIndex(1))),
                     index = 1,
                     size = 0
                   ),
@@ -1694,8 +1695,8 @@ object OpticSpec extends SchemaBaseSpec {
               OpticCheck(
                 errors = ::(
                   MissingKey(
-                    full = DynamicOptic(Vector(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))),
-                    prefix = DynamicOptic(Vector(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))),
+                    full = DynamicOptic(Chunk(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))),
+                    prefix = DynamicOptic(Chunk(Field("mil"), AtMapKey(Schema[Int].toDynamicValue(1)))),
                     key = 1
                   ),
                   Nil
@@ -1835,8 +1836,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case2",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    full = DynamicOptic(Chunk(Case("Case2"), Field("r3"), Field("r1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case2"))),
                     actualValue = Case3(Case1(0.1))
                   ),
                   Nil
@@ -1853,8 +1854,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Field("r3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Field("r3"), Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1871,8 +1872,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1889,8 +1890,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant2",
                     actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Variant2"))),
                     actualValue = Case1(0.1)
                   ),
                   Nil
@@ -1907,8 +1908,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1925,8 +1926,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"))),
                     actualValue = Case2(null)
                   ),
                   Nil
@@ -1943,8 +1944,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1961,8 +1962,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1979,8 +1980,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -1997,8 +1998,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -2013,8 +2014,8 @@ object OpticSpec extends SchemaBaseSpec {
               OpticCheck(
                 errors = ::(
                   WrappingError(
-                    full = DynamicOptic(Vector(Wrapped)),
-                    prefix = DynamicOptic(Vector(Wrapped)),
+                    full = DynamicOptic(Chunk(Wrapped)),
+                    prefix = DynamicOptic(Chunk(Wrapped)),
                     error = SchemaError.validationFailed("Unexpected 'Wrapper' value")
                   ),
                   Nil
@@ -2191,8 +2192,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case2",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    full = DynamicOptic(Chunk(Case("Case2"), Field("r3"), Field("r1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case2"))),
                     actualValue = Case3(Case1(0.1))
                   ),
                   Nil
@@ -2209,8 +2210,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Field("r3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Field("r3"), Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -2227,8 +2228,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case2",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    full = DynamicOptic(Chunk(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case2"))),
                     actualValue = Case3(Case1(0.1))
                   ),
                   Nil
@@ -2245,8 +2246,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Variant2",
                     actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Variant2"))),
                     actualValue = Case1(0.1)
                   ),
                   Nil
@@ -2263,8 +2264,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -2281,8 +2282,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -2299,8 +2300,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -2317,8 +2318,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case3",
                     actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    full = DynamicOptic(Chunk(Case("Case3"), Field("v1"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -2335,8 +2336,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -2353,8 +2354,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case1",
                     actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
+                    full = DynamicOptic(Chunk(Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Chunk(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -2369,8 +2370,8 @@ object OpticSpec extends SchemaBaseSpec {
               OpticCheck(
                 errors = ::(
                   WrappingError(
-                    full = DynamicOptic(Vector(Wrapped)),
-                    prefix = DynamicOptic(Vector(Wrapped)),
+                    full = DynamicOptic(Chunk(Wrapped)),
+                    prefix = DynamicOptic(Chunk(Wrapped)),
                     error = SchemaError.validationFailed("Unexpected 'Wrapper' value")
                   ),
                   Nil
@@ -2451,8 +2452,8 @@ object OpticSpec extends SchemaBaseSpec {
               OpticCheck(
                 errors = ::(
                   EmptySequence(
-                    full = DynamicOptic(Vector(Field("as"), Elements)),
-                    prefix = DynamicOptic(Vector(Field("as"), Elements))
+                    full = DynamicOptic(Chunk(Field("as"), Elements)),
+                    prefix = DynamicOptic(Chunk(Field("as"), Elements))
                   ),
                   Nil
                 )
@@ -2462,11 +2463,11 @@ object OpticSpec extends SchemaBaseSpec {
         )
       },
       test("toDynamic") {
-        assert(Record2.vi.toDynamic)(equalTo(DynamicOptic(Vector(Field("vi"), Elements)))) &&
-        assert(Collections.ai.toDynamic)(equalTo(DynamicOptic(Vector(Elements)))) &&
-        assert(Collections.mkc.toDynamic)(equalTo(DynamicOptic(Vector(MapKeys)))) &&
-        assert(Collections.mvs.toDynamic)(equalTo(DynamicOptic(Vector(MapValues)))) &&
-        assert(Collections.lc1.toDynamic)(equalTo(DynamicOptic(Vector(Elements, Case("Case1")))))
+        assert(Record2.vi.toDynamic)(equalTo(DynamicOptic(Chunk(Field("vi"), Elements)))) &&
+        assert(Collections.ai.toDynamic)(equalTo(DynamicOptic(Chunk(Elements)))) &&
+        assert(Collections.mkc.toDynamic)(equalTo(DynamicOptic(Chunk(MapKeys)))) &&
+        assert(Collections.mvs.toDynamic)(equalTo(DynamicOptic(Chunk(MapValues)))) &&
+        assert(Collections.lc1.toDynamic)(equalTo(DynamicOptic(Chunk(Elements, Case("Case1")))))
       },
       test("checks prerequisites for creation") {
         ZIO
@@ -3027,10 +3028,10 @@ object OpticSpec extends SchemaBaseSpec {
                 errors = ::(
                   EmptySequence(
                     full = DynamicOptic(
-                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                      Chunk(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
                     ),
                     prefix = DynamicOptic(
-                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                      Chunk(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
                     )
                   ),
                   Nil
@@ -3048,9 +3049,9 @@ object OpticSpec extends SchemaBaseSpec {
                     expectedCase = "Case3",
                     actualCase = "Case4",
                     full = DynamicOptic(
-                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                      Chunk(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
                     ),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -3067,8 +3068,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case4",
                     actualCase = "Case3",
-                    full = DynamicOptic(Vector(Case("Case4"), Field("lr3"), Elements)),
-                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    full = DynamicOptic(Chunk(Case("Case4"), Field("lr3"), Elements)),
+                    prefix = DynamicOptic(Chunk(Case("Case4"))),
                     actualValue = Case3(Case1(0.1))
                   ),
                   Nil
@@ -3228,9 +3229,9 @@ object OpticSpec extends SchemaBaseSpec {
                     expectedCase = "Case3",
                     actualCase = "Case4",
                     full = DynamicOptic(
-                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                      Chunk(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
                     ),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    prefix = DynamicOptic(Chunk(Case("Case3"))),
                     actualValue = Case4(Nil)
                   ),
                   Nil
@@ -3247,8 +3248,8 @@ object OpticSpec extends SchemaBaseSpec {
                   UnexpectedCase(
                     expectedCase = "Case4",
                     actualCase = "Case3",
-                    full = DynamicOptic(Vector(Case("Case4"), Field("lr3"), Elements)),
-                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    full = DynamicOptic(Chunk(Case("Case4"), Field("lr3"), Elements)),
+                    prefix = DynamicOptic(Chunk(Case("Case4"))),
                     actualValue = Case3(Case1(0.1))
                   ),
                   Nil

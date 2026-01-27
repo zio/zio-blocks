@@ -1,5 +1,6 @@
 package zio.blocks.schema.tostring
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 
 import zio.test.{Spec, TestEnvironment, assertTrue}
@@ -90,12 +91,12 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
 
     suite("renders records with unquoted keys") {
       test("renders empty record") {
-        val value = DynamicValue.Record(Vector.empty)
+        val value = DynamicValue.Record(Chunk.empty)
         assertTrue(value.toString == "{}")
       } +
         test("renders simple record with one field") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
             )
           )
@@ -107,7 +108,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders record with multiple fields") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name"   -> DynamicValue.Primitive(PrimitiveValue.String("John")),
               "age"    -> DynamicValue.Primitive(PrimitiveValue.Int(30)),
               "active" -> DynamicValue.Primitive(PrimitiveValue.Boolean(true))
@@ -123,7 +124,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders record with special characters in string values") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "message" -> DynamicValue.Primitive(PrimitiveValue.String("Hello \"World\""))
             )
           )
@@ -137,12 +138,12 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
 
     suite("renders sequences") {
       test("renders empty sequence") {
-        val value = DynamicValue.Sequence(Vector.empty)
+        val value = DynamicValue.Sequence(Chunk.empty)
         assertTrue(value.toString == "[]")
       } +
         test("renders sequence with one element") {
           val value = DynamicValue.Sequence(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.Int(42))
             )
           )
@@ -150,7 +151,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders sequence with multiple elements") {
           val value = DynamicValue.Sequence(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.Int(1)),
               DynamicValue.Primitive(PrimitiveValue.Int(2)),
               DynamicValue.Primitive(PrimitiveValue.Int(3))
@@ -166,7 +167,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders sequence of strings") {
           val value = DynamicValue.Sequence(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.String("apple")),
               DynamicValue.Primitive(PrimitiveValue.String("banana")),
               DynamicValue.Primitive(PrimitiveValue.String("cherry"))
@@ -184,12 +185,12 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
 
     suite("renders maps with quoted string keys") {
       test("renders empty map") {
-        val value = DynamicValue.Map(Vector.empty)
+        val value = DynamicValue.Map(Chunk.empty)
         assertTrue(value.toString == "{}")
       } +
         test("renders map with one string key") {
           val value = DynamicValue.Map(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.String("name")) ->
                 DynamicValue.Primitive(PrimitiveValue.String("John"))
             )
@@ -202,7 +203,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders map with multiple string keys") {
           val value = DynamicValue.Map(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.String("name")) ->
                 DynamicValue.Primitive(PrimitiveValue.String("John")),
               DynamicValue.Primitive(PrimitiveValue.String("age-group")) ->
@@ -221,7 +222,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
     suite("renders maps with non-string keys") {
       test("renders map with boolean keys") {
         val value = DynamicValue.Map(
-          Vector(
+          Chunk(
             DynamicValue.Primitive(PrimitiveValue.Boolean(true)) ->
               DynamicValue.Primitive(PrimitiveValue.String("yes")),
             DynamicValue.Primitive(PrimitiveValue.Boolean(false)) ->
@@ -237,7 +238,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
       } +
         test("renders map with integer keys") {
           val value = DynamicValue.Map(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.Int(1)) ->
                 DynamicValue.Primitive(PrimitiveValue.String("one")),
               DynamicValue.Primitive(PrimitiveValue.Int(2)) ->
@@ -256,7 +257,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders map with mixed key types") {
           val value = DynamicValue.Map(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.Boolean(true)) ->
                 DynamicValue.Primitive(PrimitiveValue.String("bool")),
               DynamicValue.Primitive(PrimitiveValue.Int(42)) ->
@@ -274,12 +275,12 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
 
     suite("renders variants with @ metadata") {
       test("renders variant with empty record payload") {
-        val value = DynamicValue.Variant("None", DynamicValue.Record(Vector.empty))
+        val value = DynamicValue.Variant("None", DynamicValue.Record(Chunk.empty))
         assertTrue(value.toString == "{} @ {tag: \"None\"}")
       } +
         test("renders variant with single field payload") {
           val payload = DynamicValue.Record(
-            Vector(
+            Chunk(
               "value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
             )
           )
@@ -292,7 +293,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders variant with complex payload") {
           val payload = DynamicValue.Record(
-            Vector(
+            Chunk(
               "ccnum"  -> DynamicValue.Primitive(PrimitiveValue.Long(4111111111111111L)),
               "expiry" -> DynamicValue.Primitive(PrimitiveValue.String("12/25"))
             )
@@ -307,7 +308,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders variant for Either Left") {
           val payload = DynamicValue.Record(
-            Vector(
+            Chunk(
               "value" -> DynamicValue.Primitive(PrimitiveValue.String("error message"))
             )
           )
@@ -323,13 +324,13 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
     suite("renders nested structures") {
       test("renders nested record in record") {
         val address = DynamicValue.Record(
-          Vector(
+          Chunk(
             "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St")),
             "city"   -> DynamicValue.Primitive(PrimitiveValue.String("New York"))
           )
         )
         val person = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
             "address" -> address
           )
@@ -346,18 +347,18 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
       } +
         test("renders sequence of records") {
           val item1 = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name"  -> DynamicValue.Primitive(PrimitiveValue.String("apple")),
               "price" -> DynamicValue.Primitive(PrimitiveValue.Int(100))
             )
           )
           val item2 = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name"  -> DynamicValue.Primitive(PrimitiveValue.String("banana")),
               "price" -> DynamicValue.Primitive(PrimitiveValue.Int(80))
             )
           )
-          val value    = DynamicValue.Sequence(Vector(item1, item2))
+          val value    = DynamicValue.Sequence(Chunk(item1, item2))
           val expected =
             """[
               |  {
@@ -375,13 +376,13 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
           val paymentVariant = DynamicValue.Variant(
             "CreditCard",
             DynamicValue.Record(
-              Vector(
+              Chunk(
                 "ccnum" -> DynamicValue.Primitive(PrimitiveValue.Long(4111111111111111L))
               )
             )
           )
           val user = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
               "payment" -> paymentVariant
             )
@@ -398,14 +399,14 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         test("renders complex nested structure with multiple types") {
           val instant = java.time.Instant.ofEpochMilli(1705312800000L)
           val scores  = DynamicValue.Sequence(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.Int(95)),
               DynamicValue.Primitive(PrimitiveValue.Int(87)),
               DynamicValue.Primitive(PrimitiveValue.Int(92))
             )
           )
           val metadata = DynamicValue.Map(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.String("verified")) ->
                 DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
               DynamicValue.Primitive(PrimitiveValue.Int(1)) ->
@@ -417,13 +418,13 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
           val payment = DynamicValue.Variant(
             "CreditCard",
             DynamicValue.Record(
-              Vector(
+              Chunk(
                 "ccnum" -> DynamicValue.Primitive(PrimitiveValue.Long(4111111111111111L))
               )
             )
           )
           val user = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name"      -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
               "payment"   -> payment,
               "scores"    -> scores,
@@ -432,7 +433,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
             )
           )
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "user" -> user
             )
           )
@@ -479,7 +480,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders negative numbers") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "negInt"    -> DynamicValue.Primitive(PrimitiveValue.Int(-42)),
               "negDouble" -> DynamicValue.Primitive(PrimitiveValue.Double(-3.14))
             )
@@ -497,13 +498,13 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders deeply nested sequence") {
           val innerSeq = DynamicValue.Sequence(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.Int(1)),
               DynamicValue.Primitive(PrimitiveValue.Int(2))
             )
           )
-          val middleSeq = DynamicValue.Sequence(Vector(innerSeq))
-          val outerSeq  = DynamicValue.Sequence(Vector(middleSeq))
+          val middleSeq = DynamicValue.Sequence(Chunk(innerSeq))
+          val outerSeq  = DynamicValue.Sequence(Chunk(middleSeq))
           val expected  =
             """[
               |  [
@@ -520,12 +521,12 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
     suite("EJSON format properties") {
       test("distinguishes records from maps (unquoted vs quoted keys)") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
           )
         )
         val map = DynamicValue.Map(
-          Vector(
+          Chunk(
             DynamicValue.Primitive(PrimitiveValue.String("name")) ->
               DynamicValue.Primitive(PrimitiveValue.String("John"))
           )
@@ -544,7 +545,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
           val variant = DynamicValue.Variant(
             "Some",
             DynamicValue.Record(
-              Vector(
+              Chunk(
                 "value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
               )
             )
@@ -560,9 +561,9 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("proper indentation for nested structures") {
           val nested = DynamicValue.Record(
-            Vector(
+            Chunk(
               "outer" -> DynamicValue.Record(
-                Vector(
+                Chunk(
                   "inner" -> DynamicValue.Primitive(PrimitiveValue.String("value"))
                 )
               )
@@ -656,7 +657,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         val variant = DynamicValue.Variant(
           "Created",
           DynamicValue.Record(
-            Vector("at" -> DynamicValue.Primitive(PrimitiveValue.Instant(instant)))
+            Chunk("at" -> DynamicValue.Primitive(PrimitiveValue.Instant(instant)))
           )
         )
         val expected =
@@ -669,13 +670,13 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
           val innerVariant = DynamicValue.Variant(
             "Some",
             DynamicValue.Record(
-              Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+              Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
             )
           )
           val outerVariant = DynamicValue.Variant(
             "Right",
             DynamicValue.Record(
-              Vector("value" -> innerVariant)
+              Chunk("value" -> innerVariant)
             )
           )
           val expected =
@@ -691,7 +692,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
     suite("Field name escaping (bug-4)") {
       test("renders valid identifier field names without escaping") {
         val value = DynamicValue.Record(
-          Vector(
+          Chunk(
             "validName" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
             "name_123"  -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
             "_leading"  -> DynamicValue.Primitive(PrimitiveValue.Int(3)),
@@ -709,7 +710,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
       } +
         test("renders field names with spaces using backtick escaping") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "field name" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
             )
           )
@@ -721,7 +722,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders field names with colons using backtick escaping") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "field:name" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
             )
           )
@@ -733,7 +734,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders field names starting with digits using backtick escaping") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "123field" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
             )
           )
@@ -745,7 +746,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders field names with backticks by doubling them") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "field`name" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
             )
           )
@@ -757,7 +758,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders field names with multiple backticks") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "field`name`test" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
             )
           )
@@ -769,7 +770,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders Scala keyword field names using backtick escaping") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "type"   -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
               "class"  -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
               "def"    -> DynamicValue.Primitive(PrimitiveValue.Int(3)),
@@ -803,7 +804,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders field names with special characters") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "field-name"  -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
               "field.name"  -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
               "field@name"  -> DynamicValue.Primitive(PrimitiveValue.Int(3)),
@@ -837,7 +838,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders empty string field name with backticks") {
           val value = DynamicValue.Record(
-            Vector(
+            Chunk(
               "" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
             )
           )
@@ -849,13 +850,13 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         } +
         test("renders nested record with mixed valid and invalid field names") {
           val nested = DynamicValue.Record(
-            Vector(
+            Chunk(
               "valid"      -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
               "field name" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
             )
           )
           val outer = DynamicValue.Record(
-            Vector(
+            Chunk(
               "outer-field" -> nested
             )
           )
@@ -872,12 +873,12 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
 
     suite("Complex Real-World Scenarios") {
       test("renders payment method variant with multiple case types") {
-        val cashVariant = DynamicValue.Variant("Cash", DynamicValue.Record(Vector.empty))
+        val cashVariant = DynamicValue.Variant("Cash", DynamicValue.Record(Chunk.empty))
 
         val creditCardVariant = DynamicValue.Variant(
           "CreditCard",
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "number" -> DynamicValue.Primitive(PrimitiveValue.String("4111111111111111")),
               "expiry" -> DynamicValue.Primitive(PrimitiveValue.String("12/25")),
               "cvv"    -> DynamicValue.Primitive(PrimitiveValue.String("123"))
@@ -886,14 +887,14 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
         )
 
         val bankAccount = DynamicValue.Record(
-          Vector(
+          Chunk(
             "routing" -> DynamicValue.Primitive(PrimitiveValue.String("021000021")),
             "number"  -> DynamicValue.Primitive(PrimitiveValue.String("1234567890"))
           )
         )
         val bankTransferVariant = DynamicValue.Variant(
           "BankTransfer",
-          DynamicValue.Record(Vector("account" -> bankAccount))
+          DynamicValue.Record(Chunk("account" -> bankAccount))
         )
 
         assertTrue(
@@ -915,7 +916,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
       } +
         test("renders deeply nested structure with all types") {
           val address = DynamicValue.Record(
-            Vector(
+            Chunk(
               "street"  -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St")),
               "city"    -> DynamicValue.Primitive(PrimitiveValue.String("New York")),
               "country" -> DynamicValue.Primitive(PrimitiveValue.String("USA"))
@@ -923,24 +924,24 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
           )
 
           val orderItem = DynamicValue.Record(
-            Vector(
+            Chunk(
               "product"  -> DynamicValue.Primitive(PrimitiveValue.String("Widget")),
               "quantity" -> DynamicValue.Primitive(PrimitiveValue.Int(5)),
               "price"    -> DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("29.99")))
             )
           )
 
-          val items = DynamicValue.Sequence(Vector(orderItem))
+          val items = DynamicValue.Sequence(Chunk(orderItem))
 
           val status = DynamicValue.Variant(
             "Shipped",
             DynamicValue.Record(
-              Vector("trackingNumber" -> DynamicValue.Primitive(PrimitiveValue.String("TRACK123")))
+              Chunk("trackingNumber" -> DynamicValue.Primitive(PrimitiveValue.String("TRACK123")))
             )
           )
 
           val metadata = DynamicValue.Map(
-            Vector(
+            Chunk(
               DynamicValue.Primitive(PrimitiveValue.String("source")) ->
                 DynamicValue.Primitive(PrimitiveValue.String("web")),
               DynamicValue.Primitive(PrimitiveValue.String("priority")) ->
@@ -949,7 +950,7 @@ object DynamicValueToStringSpec extends SchemaBaseSpec {
           )
 
           val order = DynamicValue.Record(
-            Vector(
+            Chunk(
               "id"       -> DynamicValue.Primitive(PrimitiveValue.String("ORD-001")),
               "address"  -> address,
               "items"    -> items,

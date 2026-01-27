@@ -1,7 +1,9 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
+
 /**
- * A wrapper around `Either[DynamicValueError, Vector[DynamicValue]]` that
+ * A wrapper around `Either[DynamicValueError, Chunk[DynamicValue]]` that
  * provides fluent chaining for DynamicValue navigation and querying operations.
  *
  * DynamicValueSelection enables a fluent API style for navigating through
@@ -13,7 +15,7 @@ package zio.blocks.schema
  * The selection can contain zero, one, or multiple DynamicValue values,
  * supporting both single-value navigation and multi-value queries.
  */
-final case class DynamicValueSelection(either: Either[DynamicValueError, Vector[DynamicValue]]) extends AnyVal {
+final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[DynamicValue]]) extends AnyVal {
 
   // ─────────────────────────────────────────────────────────────────────────
   // Basic operations
@@ -29,10 +31,10 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Vector[
   def error: Option[DynamicValueError] = either.left.toOption
 
   /** Returns the selected values if successful, otherwise None. */
-  def values: Option[Vector[DynamicValue]] = either.toOption
+  def values: Option[Chunk[DynamicValue]] = either.toOption
 
-  /** Returns the selected values as a Vector, or an empty Vector on failure. */
-  def toVector: Vector[DynamicValue] = either.getOrElse(Vector.empty)
+  /** Returns the selected values as a Chunk, or an empty Chunk on failure. */
+  def toChunk: Chunk[DynamicValue] = either.getOrElse(Chunk.empty)
 
   /**
    * Returns the single selected value, or fails if there are 0 or more than 1
@@ -179,7 +181,7 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Vector[
     DynamicValueSelection(either.map(_.filter(p)))
 
   /** Collects values for which the partial function is defined. */
-  def collect[A](pf: PartialFunction[DynamicValue, A]): Either[DynamicValueError, Vector[A]] =
+  def collect[A](pf: PartialFunction[DynamicValue, A]): Either[DynamicValueError, Chunk[A]] =
     either.map(_.collect(pf))
 
   /** Returns this selection if successful, otherwise the alternative. */
@@ -187,7 +189,7 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Vector[
     if (isSuccess) this else alternative
 
   /** Returns this selection's values, or the default on failure. */
-  def getOrElse(default: => Vector[DynamicValue]): Vector[DynamicValue] =
+  def getOrElse(default: => Chunk[DynamicValue]): Chunk[DynamicValue] =
     either.getOrElse(default)
 
   /** Combines two selections, concatenating their values. */
@@ -430,8 +432,8 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Vector[
    * Narrows all selected values to the specified DynamicValue type. Values not
    * matching the type are silently dropped.
    */
-  def asAll(t: DynamicValueType): Either[DynamicValueError, Vector[t.Type]] =
-    either.map(_.flatMap(_.as(t).toVector))
+  def asAll(t: DynamicValueType): Either[DynamicValueError, Chunk[t.Type]] =
+    either.map(_.flatMap(_.as(t).toList))
 
   /**
    * Extracts the underlying Scala value from the single selected DynamicValue.
@@ -446,8 +448,8 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Vector[
    * Extracts the underlying Scala values from all selected DynamicValues.
    * Values not matching the type are silently dropped.
    */
-  def unwrapAll(t: DynamicValueType): Either[DynamicValueError, Vector[t.Unwrap]] =
-    either.map(_.flatMap(_.unwrap(t).toVector))
+  def unwrapAll(t: DynamicValueType): Either[DynamicValueError, Chunk[t.Unwrap]] =
+    either.map(_.flatMap(_.unwrap(t).toList))
 
   /**
    * Extracts a primitive value of type A from the single selected value. Fails
@@ -463,21 +465,21 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Vector[
    * Extracts primitive values of type A from all selected values. Values not
    * matching the type are silently dropped.
    */
-  def asPrimitiveAll[A](pt: PrimitiveType[A]): Either[DynamicValueError, Vector[A]] =
-    either.map(_.flatMap(_.asPrimitive(pt).toVector))
+  def asPrimitiveAll[A](pt: PrimitiveType[A]): Either[DynamicValueError, Chunk[A]] =
+    either.map(_.flatMap(_.asPrimitive(pt).toList))
 }
 
 object DynamicValueSelection {
 
   /** Creates a successful selection with a single value. */
-  def succeed(dv: DynamicValue): DynamicValueSelection = DynamicValueSelection(Right(Vector(dv)))
+  def succeed(dv: DynamicValue): DynamicValueSelection = DynamicValueSelection(Right(Chunk(dv)))
 
   /** Creates a successful selection with multiple values. */
-  def succeedMany(dvs: Vector[DynamicValue]): DynamicValueSelection = DynamicValueSelection(Right(dvs))
+  def succeedMany(dvs: Chunk[DynamicValue]): DynamicValueSelection = DynamicValueSelection(Right(dvs))
 
   /** Creates a failed selection with an error. */
   def fail(error: DynamicValueError): DynamicValueSelection = DynamicValueSelection(Left(error))
 
   /** An empty successful selection. */
-  val empty: DynamicValueSelection = DynamicValueSelection(Right(Vector.empty))
+  val empty: DynamicValueSelection = DynamicValueSelection(Right(Chunk.empty))
 }

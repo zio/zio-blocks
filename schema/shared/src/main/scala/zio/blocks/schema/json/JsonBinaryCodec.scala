@@ -10,7 +10,8 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.time._
 import java.util.{Currency, UUID}
 import scala.annotation.switch
-import scala.collection.immutable.{ArraySeq, VectorBuilder}
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
 /**
@@ -732,8 +733,8 @@ object JsonBinaryCodec {
   val dynamicValueCodec: JsonBinaryCodec[DynamicValue] = new JsonBinaryCodec[DynamicValue]() {
     private[this] val falseValue       = new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))
     private[this] val trueValue        = new DynamicValue.Primitive(new PrimitiveValue.Boolean(true))
-    private[this] val emptyArrayValue  = new DynamicValue.Sequence(Vector.empty)
-    private[this] val emptyObjectValue = new DynamicValue.Map(Vector.empty)
+    private[this] val emptyArrayValue  = new DynamicValue.Sequence(Chunk.empty)
+    private[this] val emptyObjectValue = new DynamicValue.Map(Chunk.empty)
 
     def decodeValue(in: JsonReader, default: DynamicValue): DynamicValue = {
       val b = in.nextToken()
@@ -759,7 +760,7 @@ object JsonBinaryCodec {
         if (in.isNextToken(']')) emptyArrayValue
         else {
           in.rollbackToken()
-          val builder = new VectorBuilder[DynamicValue]
+          val builder = ChunkBuilder.make[DynamicValue]()
           while ({
             builder.addOne(decodeValue(in, default))
             in.isNextToken(',')
@@ -771,7 +772,7 @@ object JsonBinaryCodec {
         if (in.isNextToken('}')) emptyObjectValue
         else {
           in.rollbackToken()
-          val builder = new VectorBuilder[(String, DynamicValue)]
+          val builder = ChunkBuilder.make[(String, DynamicValue)]()
           while ({
             builder.addOne((in.readKeyAsString(), decodeValue(in, default)))
             in.isNextToken(',')

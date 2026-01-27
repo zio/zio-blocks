@@ -841,10 +841,10 @@ object Json {
         if (longValue == intValue) new DynamicValue.Primitive(new PrimitiveValue.Int(intValue))
         else new DynamicValue.Primitive(new PrimitiveValue.Long(longValue))
       } else new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(bd))
-    case arr: Array  => new DynamicValue.Sequence(arr.value.toVector.map(toDynamicValue))
+    case arr: Array  => new DynamicValue.Sequence(arr.value.map(toDynamicValue))
     case obj: Object =>
       new DynamicValue.Record(
-        obj.value.toVector.map { case (k, v) => (k, toDynamicValue(v)) }
+        obj.value.map { case (k, v) => (k, toDynamicValue(v)) }
       )
   }
 
