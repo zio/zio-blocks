@@ -348,6 +348,21 @@ object ReflectSpec extends ZIOSpecDefault {
             |  }
             |}""".stripMargin
         assertTrue(level1Schema.reflect.toString == expected)
+      },
+      test("renders map with complex key type") {
+        lazy implicit val complexKeySchema: Schema[ComplexKey]                         = Schema.derived[ComplexKey]
+        lazy implicit val mapSchema: Schema[collection.immutable.Map[ComplexKey, Int]] =
+          Schema.map[ComplexKey, Int]
+
+        val expected =
+          """map Map[
+            |  record ComplexKey {
+            |    id: Int
+            |    name: String
+            |  },
+            |  Int
+            |]""".stripMargin
+        assertTrue(mapSchema.reflect.toString == expected)
       }
     ),
 
@@ -618,4 +633,6 @@ object ReflectSpec extends ZIOSpecDefault {
   case class ValidatedUser(name: String, age: Int)
   case class ValidatedUserWithEmail(name: String, age: Int, email: String)
   case class Transaction(currencyCode: String, amount: BigDecimal)
+
+  case class ComplexKey(id: Int, name: String)
 }

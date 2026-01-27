@@ -740,10 +740,15 @@ object AvroFormatSpec extends SchemaBaseSpec {
         val emailCodec = Schema[Email].derive(AvroFormat)
         val bytes      = emailCodec.encode(Email("test@gmail.com"))
         bytes(5) = 42
+        val testUuid = new UUID(123456789L, 987654321L)
         avroSchema[UserId]("\"long\"") &&
         roundTrip[UserId](UserId(1234567890123456789L), 9) &&
         avroSchema[Email]("\"string\"") &&
         roundTrip[Email](Email("john@gmail.com"), 15) &&
+        avroSchema[TransactionId](
+          "{\"type\":\"fixed\",\"name\":\"UUID\",\"namespace\":\"java.util\",\"size\":16}"
+        ) &&
+        roundTrip[TransactionId](TransactionId(testUuid), 16) &&
         decodeError[Email](bytes, "Expected Email at: .") &&
         decodeError[Email](Array[Byte](100), "Unexpected end of input at: .wrapped")
       },
@@ -1028,6 +1033,20 @@ object AvroFormatSpec extends SchemaBaseSpec {
         )
       )
     )
+  }
+
+  case class TransactionId(value: UUID)
+
+  object TransactionId {
+    implicit val schema: Schema[TransactionId] =
+      Schema[UUID]
+        .transform[TransactionId](x => new TransactionId(x), _.value)
+        .withTypeId(
+          TypeId.nominal[TransactionId](
+            "TransactionId",
+            Owner.fromPackagePath("zio.blocks.schema.avro").term("AvroFormatSpec")
+          )
+        )
   }
 
   case class Record3(userId: UserId, email: Email)
