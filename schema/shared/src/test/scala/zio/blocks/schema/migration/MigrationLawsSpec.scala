@@ -441,7 +441,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
                 // Should wrap back in Some
                 assertTrue(
                   rewrapped.isInstanceOf[DynamicValue.Variant] &&
-                    rewrapped.asInstanceOf[DynamicValue.Variant].caseName == "Some"
+                    rewrapped.asInstanceOf[DynamicValue.Variant].caseNameValue == "Some"
                 )
               case Left(_) =>
                 assertTrue(false) // Reverse failed
@@ -740,7 +740,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
                 // Will wrap in Some(Int(99)), not None
                 val variant = rewrapped.asInstanceOf[DynamicValue.Variant]
                 assertTrue(
-                  variant.caseName == "Some" // Lost the None case
+                  variant.caseNameValue == "Some" // Lost the None case
                 )
               case Left(_) =>
                 assertTrue(false) // Reverse failed

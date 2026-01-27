@@ -29,7 +29,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
    * @return
    *   A complete, validated Migration[A, B]
    */
-  def buildChecked: Migration[A, B] = macro MigrationBuilderMacrosImpl.buildCheckedImpl[A, B, Handled, Provided]
+  def build: Migration[A, B] = macro MigrationBuilderMacrosImpl.buildImpl[A, B, Handled, Provided]
 
   /**
    * Adds a field to a record with a default value using selector syntax. Adds
@@ -187,7 +187,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   import scala.reflect.macros.whitebox
 
   // ==========================================================================
-  // buildChecked macro implementation
+  // build macro implementation
   // ==========================================================================
 
   /**
@@ -201,7 +201,7 @@ private[migration] object MigrationBuilderMacrosImpl {
    *   4. Verifies removed ⊆ handled and added ⊆ provided
    *   5. Emits compile error if validation fails
    */
-  def buildCheckedImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
+  def buildImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
     c: whitebox.Context
   ): c.Tree = {
     import c.universe._

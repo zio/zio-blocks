@@ -1471,7 +1471,7 @@ object MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       // Helper to rename a variant case
       def renameVariant(variant: DynamicValue.Variant): Either[MigrationError, DynamicValue] =
-        if (variant.caseName == from) {
+        if (variant.caseNameValue == from) {
           // Rename the case
           Right(DynamicValue.Variant(to, variant.value))
         } else {
@@ -1559,7 +1559,7 @@ object MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       // Helper to transform a variant case if it matches
       def transformVariant(variant: DynamicValue.Variant): Either[MigrationError, DynamicValue] =
-        if (variant.caseName == caseName) {
+        if (variant.caseNameValue == caseName) {
           // Case matches - apply nested actions to the inner value
           // Create a DynamicMigration from the actions and apply it
           val migration = DynamicMigration(actions)
