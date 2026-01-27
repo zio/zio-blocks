@@ -3,7 +3,7 @@ package zio.blocks.schema.toon.codec
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, Registers, RegisterOffset}
 import zio.blocks.typeid.TypeId
-import zio.blocks.schema.derive.BindingInstance
+
 import zio.blocks.schema.toon._
 import zio.blocks.schema.toon.ToonCodecUtils.unescapeQuoted
 

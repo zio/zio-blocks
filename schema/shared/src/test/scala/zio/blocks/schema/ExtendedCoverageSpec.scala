@@ -407,7 +407,8 @@ object ExtendedCoverageSpec extends SchemaBaseSpec {
       assertTrue(optic.toString.length > 0)
     },
     test("toString with UUID primitive") {
-      val key   = DynamicValue.Primitive(PrimitiveValue.UUID(java.util.UUID.randomUUID()))
+      val key =
+        DynamicValue.Primitive(PrimitiveValue.UUID(java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")))
       val optic = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
       assertTrue(optic.toString.length > 0)
     },
