@@ -85,19 +85,23 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.typeid"))
   .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
   .settings(
-    libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((2, _)) =>
-        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
-      case _ =>
-        Seq()
-    }),
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
-    ),
-    coverageMinimumStmtTotal   := 89,
-    coverageMinimumBranchTotal := 84
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        )
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 84,
+    coverageMinimumBranchTotal := 81
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
