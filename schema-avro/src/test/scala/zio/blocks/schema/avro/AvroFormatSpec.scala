@@ -120,6 +120,12 @@ object AvroFormatSpec extends SchemaBaseSpec {
         ) &&
         roundTrip(java.time.Duration.ofNanos(1234567890123456789L), 9)
       },
+      test("DayOfWeek") {
+        avroSchema[java.time.DayOfWeek]("\"int\"") &&
+        roundTrip(java.time.DayOfWeek.MONDAY, 1) &&
+        roundTrip(java.time.DayOfWeek.FRIDAY, 1) &&
+        roundTrip(java.time.DayOfWeek.SUNDAY, 1)
+      },
       test("Instant") {
         avroSchema[java.time.Instant](
           "{\"type\":\"record\",\"name\":\"Instant\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"epochSecond\",\"type\":\"long\"},{\"name\":\"nano\",\"type\":\"int\"}]}"
@@ -527,6 +533,29 @@ object AvroFormatSpec extends SchemaBaseSpec {
           "Expected collection size not greater than 2147483639, got 2147483647 at: ."
         )
       },
+      test("empty collections") {
+        implicit val arrayOfUnitSchema: Schema[Array[Unit]]       = Schema.derived
+        implicit val arrayOfBooleanSchema: Schema[Array[Boolean]] = Schema.derived
+        implicit val arrayOfByteSchema: Schema[Array[Byte]]       = Schema.derived
+        implicit val arrayOfShortSchema: Schema[Array[Short]]     = Schema.derived
+        implicit val arrayOfCharSchema: Schema[Array[Char]]       = Schema.derived
+        implicit val arrayOfFloatSchema: Schema[Array[Float]]     = Schema.derived
+        implicit val arrayOfIntSchema: Schema[Array[Int]]         = Schema.derived
+        implicit val arrayOfDoubleSchema: Schema[Array[Double]]   = Schema.derived
+        implicit val arrayOfLongSchema: Schema[Array[Long]]       = Schema.derived
+        roundTrip(Array.empty[Unit], 1) &&
+        roundTrip(Array.empty[Boolean], 1) &&
+        roundTrip(Array.empty[Byte], 1) &&
+        roundTrip(Array.empty[Short], 1) &&
+        roundTrip(Array.empty[Char], 1) &&
+        roundTrip(Array.empty[Float], 1) &&
+        roundTrip(Array.empty[Int], 1) &&
+        roundTrip(Array.empty[Double], 1) &&
+        roundTrip(Array.empty[Long], 1) &&
+        roundTrip(List.empty[Int], 1) &&
+        roundTrip(Set.empty[Long], 1) &&
+        roundTrip(Vector.empty[String], 1)
+      },
       test("complex values") {
         avroSchema[List[Record1]](
           "{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Record1\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}}"
@@ -646,6 +675,12 @@ object AvroFormatSpec extends SchemaBaseSpec {
           "{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2_1\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"long\"}]}}},{\"name\":\"_2\",\"type\":\"string\"}]}}"
         ) &&
         roundTrip(Map(Map(1 -> 1L, 2 -> 2L) -> "WWW"), 12)
+      },
+      test("empty maps") {
+        roundTrip(Map.empty[String, Int], 1) &&
+        roundTrip(Map.empty[Int, Long], 1) &&
+        roundTrip(Map.empty[String, Record1], 1) &&
+        roundTrip(Map.empty[Recursive, Int], 1)
       }
     ),
     suite("variants")(
@@ -692,6 +727,50 @@ object AvroFormatSpec extends SchemaBaseSpec {
           "{\"type\":\"record\",\"name\":\"Record3\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"userId\",\"type\":\"long\"},{\"name\":\"email\",\"type\":\"string\"}]}"
         ) &&
         roundTrip[Record3](Record3(UserId(1234567890123456789L), Email("backup@gmail.com")), 26)
+      },
+      test("Unit wrapper") {
+        avroSchema[HiddenUnit]("\"null\"") &&
+        roundTrip[HiddenUnit](HiddenUnit(()), 0)
+      },
+      test("Boolean wrapper") {
+        avroSchema[WrappedBoolean]("\"boolean\"") &&
+        roundTrip[WrappedBoolean](WrappedBoolean(true), 1) &&
+        roundTrip[WrappedBoolean](WrappedBoolean(false), 1)
+      },
+      test("Byte wrapper") {
+        avroSchema[WrappedByte]("\"int\"") &&
+        roundTrip[WrappedByte](WrappedByte(42), 1) &&
+        roundTrip[WrappedByte](WrappedByte(Byte.MinValue), 2)
+      },
+      test("Short wrapper") {
+        avroSchema[WrappedShort]("\"int\"") &&
+        roundTrip[WrappedShort](WrappedShort(1234), 2) &&
+        roundTrip[WrappedShort](WrappedShort(Short.MinValue), 3)
+      },
+      test("Char wrapper") {
+        avroSchema[WrappedChar]("\"int\"") &&
+        roundTrip[WrappedChar](WrappedChar('A'), 2) &&
+        roundTrip[WrappedChar](WrappedChar(Char.MaxValue), 3)
+      },
+      test("Int wrapper") {
+        avroSchema[WrappedInt]("\"int\"") &&
+        roundTrip[WrappedInt](WrappedInt(42), 1) &&
+        roundTrip[WrappedInt](WrappedInt(Int.MinValue), 5)
+      },
+      test("Long wrapper") {
+        avroSchema[WrappedLong]("\"long\"") &&
+        roundTrip[WrappedLong](WrappedLong(123456789L), 4) &&
+        roundTrip[WrappedLong](WrappedLong(Long.MinValue), 10)
+      },
+      test("Float wrapper") {
+        avroSchema[WrappedFloat]("\"float\"") &&
+        roundTrip[WrappedFloat](WrappedFloat(3.14f), 4) &&
+        roundTrip[WrappedFloat](WrappedFloat(Float.MinValue), 4)
+      },
+      test("Double wrapper") {
+        avroSchema[WrappedDouble]("\"double\"") &&
+        roundTrip[WrappedDouble](WrappedDouble(3.14159265359), 8) &&
+        roundTrip[WrappedDouble](WrappedDouble(Double.MinValue), 8)
       }
     ),
     suite("dynamic value")(
@@ -991,5 +1070,68 @@ object AvroFormatSpec extends SchemaBaseSpec {
 
     val primitive: Lens[Dynamic, DynamicValue] = $(_.primitive)
     val map: Lens[Dynamic, DynamicValue]       = $(_.map)
+  }
+
+  case class HiddenUnit(value: Unit)
+
+  object HiddenUnit {
+    implicit val schema: Schema[HiddenUnit] =
+      Schema[Unit].transform[HiddenUnit](x => new HiddenUnit(x), _.value).withTypeName[HiddenUnit]
+  }
+
+  case class WrappedBoolean(value: Boolean)
+
+  object WrappedBoolean {
+    implicit val schema: Schema[WrappedBoolean] =
+      Schema[Boolean].transform[WrappedBoolean](x => new WrappedBoolean(x), _.value).withTypeName[WrappedBoolean]
+  }
+
+  case class WrappedByte(value: Byte)
+
+  object WrappedByte {
+    implicit val schema: Schema[WrappedByte] =
+      Schema[Byte].transform[WrappedByte](x => new WrappedByte(x), _.value).withTypeName[WrappedByte]
+  }
+
+  case class WrappedShort(value: Short)
+
+  object WrappedShort {
+    implicit val schema: Schema[WrappedShort] =
+      Schema[Short].transform[WrappedShort](x => new WrappedShort(x), _.value).withTypeName[WrappedShort]
+  }
+
+  case class WrappedChar(value: Char)
+
+  object WrappedChar {
+    implicit val schema: Schema[WrappedChar] =
+      Schema[Char].transform[WrappedChar](x => new WrappedChar(x), _.value).withTypeName[WrappedChar]
+  }
+
+  case class WrappedInt(value: Int)
+
+  object WrappedInt {
+    implicit val schema: Schema[WrappedInt] =
+      Schema[Int].transform[WrappedInt](x => new WrappedInt(x), _.value).withTypeName[WrappedInt]
+  }
+
+  case class WrappedLong(value: Long)
+
+  object WrappedLong {
+    implicit val schema: Schema[WrappedLong] =
+      Schema[Long].transform[WrappedLong](x => new WrappedLong(x), _.value).withTypeName[WrappedLong]
+  }
+
+  case class WrappedFloat(value: Float)
+
+  object WrappedFloat {
+    implicit val schema: Schema[WrappedFloat] =
+      Schema[Float].transform[WrappedFloat](x => new WrappedFloat(x), _.value).withTypeName[WrappedFloat]
+  }
+
+  case class WrappedDouble(value: Double)
+
+  object WrappedDouble {
+    implicit val schema: Schema[WrappedDouble] =
+      Schema[Double].transform[WrappedDouble](x => new WrappedDouble(x), _.value).withTypeName[WrappedDouble]
   }
 }

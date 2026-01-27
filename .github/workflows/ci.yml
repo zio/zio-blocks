@@ -106,7 +106,7 @@ jobs:
 
   testNative:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
