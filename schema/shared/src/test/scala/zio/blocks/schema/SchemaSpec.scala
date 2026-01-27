@@ -1539,7 +1539,7 @@ object SchemaSpec extends SchemaBaseSpec {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
-TypeId.int,
+            TypeId.int,
             Binding.Primitive(),
             storedExamples = Seq(1, 2, 3).map(i => DynamicValue.Primitive(PrimitiveValue.Int(i)))
           )

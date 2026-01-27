@@ -451,7 +451,7 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
       for {
         fields <- Lazy.foreach(fields)(_.transform(path, Term.Type.Record, f))
-record <-
+        record <-
           f.transformRecord(path, fields, typeId, recordBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield record
 
@@ -629,7 +629,7 @@ record <-
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
       for {
         cases   <- Lazy.foreach(cases)(_.transform(path, Term.Type.Variant, f))
-variant <-
+        variant <-
           f.transformVariant(path, cases, typeId, variantBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield variant
 
@@ -827,7 +827,7 @@ variant <-
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
       for {
         element  <- element.transform(path(DynamicOptic.elements), f)
-sequence <-
+        sequence <-
           f.transformSequence(path, element, typeId, seqBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield sequence
 
@@ -952,7 +952,7 @@ sequence <-
       for {
         key   <- key.transform(path(DynamicOptic.mapKeys), f)
         value <- value.transform(path(DynamicOptic.mapValues), f)
-map   <-
+        map   <-
           f.transformMap(path, key, value, typeId, mapBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield map
 
@@ -1025,7 +1025,7 @@ map   <-
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Dynamic[G]] =
       for {
-dynamic <-
+        dynamic <-
           f.transformDynamic(path, typeId, dynamicBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield dynamic
 
@@ -1088,7 +1088,7 @@ dynamic <-
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Primitive[G, A]] =
       for {
-primitive <- f.transformPrimitive(
+        primitive <- f.transformPrimitive(
                        path,
                        primitiveType,
                        typeId,
@@ -1166,7 +1166,7 @@ primitive <- f.transformPrimitive(
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {
         wrapped <- wrapped.transform(path, f)
-wrapper <- f.transformWrapper(
+        wrapper <- f.transformWrapper(
                      path,
                      wrapped,
                      typeId,
@@ -1203,7 +1203,7 @@ wrapper <- f.transformWrapper(
     }
   }
 
-case class Deferred[F[_, _], A](
+  case class Deferred[F[_, _], A](
     _value: () => Reflect[F, A],
     _typeId: Option[TypeId[A]] = None,
     private val deferredDefaultValue: Option[() => A] = None,
@@ -1256,7 +1256,7 @@ case class Deferred[F[_, _], A](
         val cached = c.get(key)
         if (cached ne null) cached.asInstanceOf[Reflect[G, A]]
         else {
-          val result = Deferred(() => value.transform(path, f).force, deferredDefaultValue, deferredExamples)
+          val result = Deferred(() => value.transform(path, f).force, _typeId, deferredDefaultValue, deferredExamples)
           c.put(key, result)
           result
         }

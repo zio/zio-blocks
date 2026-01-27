@@ -200,7 +200,7 @@ object ReflectSpec extends SchemaBaseSpec {
       test("gets and updates primitive examples") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-primitiveBinding = Binding.Primitive[Long](),
+          primitiveBinding = Binding.Primitive[Long](),
           typeId = TypeId.long,
           doc = Doc("Long (positive)"),
           storedExamples = Seq(1L, 2L, 3L).map(l => DynamicValue.Primitive(PrimitiveValue.Long(l)))

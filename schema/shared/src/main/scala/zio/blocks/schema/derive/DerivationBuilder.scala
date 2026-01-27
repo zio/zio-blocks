@@ -150,7 +150,7 @@ final case class DerivationBuilder[TC[_], A](
                   prependCombinedModifiers(modifiers, path, typeId)
                 )
             }
-new Reflect.Record(
+            new Reflect.Record(
               fields,
               typeId,
               new BindingInstance(metadata, instance),
@@ -196,7 +196,7 @@ new Reflect.Record(
                   prependCombinedModifiers(modifiers, path, typeId)
                 )
             }
-new Reflect.Variant(
+            new Reflect.Variant(
               cases,
               typeId,
               new BindingInstance(metadata, instance),
@@ -221,7 +221,7 @@ new Reflect.Variant(
               deriver
                 .deriveSequence(element, typeId, metadata, doc, prependCombinedModifiers(modifiers, path, typeId))
             )
-new Reflect.Sequence(
+            new Reflect.Sequence(
               element,
               typeId,
               new BindingInstance(metadata, instance),
@@ -247,7 +247,7 @@ new Reflect.Sequence(
               deriver
                 .deriveMap(key, value, typeId, metadata, doc, prependCombinedModifiers(modifiers, path, typeId))
             )
-new Reflect.Map(
+            new Reflect.Map(
               key,
               value,
               typeId,
@@ -268,7 +268,7 @@ new Reflect.Map(
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Dynamic[G]] = Lazy {
-val instance = getCustomInstance[DynamicValue](path, TypeId.of[DynamicValue])
+            val instance = getCustomInstance[DynamicValue](path, TypeId.of[DynamicValue])
               .getOrElse(deriver.deriveDynamic[G](metadata, doc, prependCombinedModifiers(modifiers, path, typeId)))
             new Reflect.Dynamic(
               new BindingInstance(metadata, instance),
@@ -300,7 +300,7 @@ val instance = getCustomInstance[DynamicValue](path, TypeId.of[DynamicValue])
                   prependCombinedModifiers(modifiers, path, typeId)
                 )
             )
-new Reflect.Primitive(
+            new Reflect.Primitive(
               primitiveType,
               typeId,
               new BindingInstance(metadata, instance),
