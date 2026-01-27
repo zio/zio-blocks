@@ -509,6 +509,10 @@ object TypeId {
     nominal[Map[_, _]]("Map", Owner.scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
   implicit val either: TypeId[Either[_, _]] =
     nominal[Either[_, _]]("Either", Owner.scalaUtil, List(TypeParam.A, TypeParam.B))
+  implicit val array: TypeId[Array[_]] =
+    nominal[Array[_]]("Array", Owner.scala, List(TypeParam("T", 0, Variance.Invariant)))
+  implicit val arraySeq: TypeId[scala.collection.immutable.ArraySeq[_]] =
+    nominal[scala.collection.immutable.ArraySeq[_]]("ArraySeq", Owner.scalaCollectionImmutable, List(TypeParam.A))
 
   implicit val dayOfWeek: TypeId[java.time.DayOfWeek]         = nominal[java.time.DayOfWeek]("DayOfWeek", Owner.javaTime)
   implicit val duration: TypeId[java.time.Duration]           = nominal[java.time.Duration]("Duration", Owner.javaTime)

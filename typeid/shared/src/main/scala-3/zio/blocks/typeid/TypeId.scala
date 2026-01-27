@@ -616,8 +616,13 @@ object TypeId {
   given seq: TypeId[Seq]               = nominal[Seq]("Seq", Owner.scalaCollectionImmutable, List(TypeParam.A))
   given indexedSeq: TypeId[IndexedSeq] =
     nominal[IndexedSeq]("IndexedSeq", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  given map: TypeId[Map]       = nominal[Map]("Map", Owner.scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
+  given map: TypeId[Map]       = nominal[Map]("Map", Owner.scalaCollectionImmutable, List(TypeParam.A, TypeParam.V))
   given either: TypeId[Either] = nominal[Either]("Either", Owner.scalaUtil, List(TypeParam.A, TypeParam.B))
+  given array: TypeId[Array]   = nominal[Array]("Array", Owner.scala, List(TypeParam("T", 0, Variance.Invariant)))
+  given iarray: TypeId[IArray] =
+    nominal[IArray]("IArray", Owner.scala.term("IArray$package"), List(TypeParam("T", 0, Variance.Covariant)))
+  given arraySeq: TypeId[scala.collection.immutable.ArraySeq] =
+    nominal[scala.collection.immutable.ArraySeq]("ArraySeq", Owner.scalaCollectionImmutable, List(TypeParam.A))
 
   // java.time
   given dayOfWeek: TypeId[java.time.DayOfWeek]         = nominal[java.time.DayOfWeek]("DayOfWeek", Owner.javaTime)

@@ -2141,49 +2141,51 @@ TypeId.int,
 
   def typeIdConsistencySuite: Spec[Any, Nothing] = suite("TypeId consistency between Schema and container typeArgs")(
     test("List element uses custom TypeId") {
-      val schema      = Schema[ListContainer]
-      val record      = schema.reflect.asRecord.get
-      val field       = record.fields.find(_.name == "items").get
-      val seqReflect  = field.value.asSequenceUnknown.get.sequence
-      val elementTid  = seqReflect.element.typeId
+      val schema       = Schema[ListContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val seqReflect   = field.value.asSequenceUnknown.get.sequence
+      val elementTid   = seqReflect.element.typeId
       val containerTid = seqReflect.typeId
 
-      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
       assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
     },
     test("Set element uses custom TypeId") {
-      val schema      = Schema[SetContainer]
-      val record      = schema.reflect.asRecord.get
-      val field       = record.fields.find(_.name == "items").get
-      val seqReflect  = field.value.asSequenceUnknown.get.sequence
-      val elementTid  = seqReflect.element.typeId
+      val schema       = Schema[SetContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val seqReflect   = field.value.asSequenceUnknown.get.sequence
+      val elementTid   = seqReflect.element.typeId
       val containerTid = seqReflect.typeId
 
-      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
       assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
     },
     test("Vector element uses custom TypeId") {
-      val schema      = Schema[VectorContainer]
-      val record      = schema.reflect.asRecord.get
-      val field       = record.fields.find(_.name == "items").get
-      val seqReflect  = field.value.asSequenceUnknown.get.sequence
-      val elementTid  = seqReflect.element.typeId
+      val schema       = Schema[VectorContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val seqReflect   = field.value.asSequenceUnknown.get.sequence
+      val elementTid   = seqReflect.element.typeId
       val containerTid = seqReflect.typeId
 
-      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
       assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
     },
     test("Map key and value use custom TypeIds") {
-      val schema     = Schema[MapContainer]
-      val record     = schema.reflect.asRecord.get
-      val field      = record.fields.find(_.name == "items").get
-      val mapReflect = field.value.asMapUnknown.get.map
-      val keyTid     = mapReflect.key.typeId
-      val valueTid   = mapReflect.value.typeId
+      val schema       = Schema[MapContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val mapReflect   = field.value.asMapUnknown.get.map
+      val keyTid       = mapReflect.key.typeId
+      val valueTid     = mapReflect.value.typeId
       val containerTid = mapReflect.typeId
 
-      assertTrue(keyTid == CategoryId.customTypeId) &&
-      assertTrue(valueTid == ProductId.customTypeId) &&
+      assertTrue(
+        keyTid.asInstanceOf[TypeId[Any]] == CategoryId.customTypeId.asInstanceOf[TypeId[Any]],
+        valueTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]
+      ) &&
       assertTypeArgMatches(containerTid, 0, CategoryId.customTypeId) &&
       assertTypeArgMatches(containerTid, 1, ProductId.customTypeId)
     },
@@ -2198,7 +2200,7 @@ TypeId.int,
       val elementTid   = valueField.value.typeId
       val containerTid = optReflect.typeId
 
-      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
       assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
     },
     test("Either left and right use custom TypeIds") {
@@ -2214,8 +2216,10 @@ TypeId.int,
       val rightTid      = rightRecord.fields.find(_.name == "value").get.value.typeId
       val containerTid  = eitherReflect.typeId
 
-      assertTrue(leftTid == CategoryId.customTypeId) &&
-      assertTrue(rightTid == ProductId.customTypeId) &&
+      assertTrue(
+        leftTid.asInstanceOf[TypeId[Any]] == CategoryId.customTypeId.asInstanceOf[TypeId[Any]],
+        rightTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]
+      ) &&
       assertTypeArgMatches(containerTid, 0, CategoryId.customTypeId) &&
       assertTypeArgMatches(containerTid, 1, ProductId.customTypeId)
     },
@@ -2227,7 +2231,7 @@ TypeId.int,
       val elementTid   = seqReflect.element.typeId
       val containerTid = seqReflect.typeId
 
-      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
       assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
     },
     test("ArraySeq element uses custom TypeId") {
@@ -2238,15 +2242,15 @@ TypeId.int,
       val elementTid   = seqReflect.element.typeId
       val containerTid = seqReflect.typeId
 
-      assertTrue(elementTid == ProductId.customTypeId) &&
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
       assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
     }
   )
 
   private def assertTypeArgMatches(
-    containerTypeId: TypeId[?],
+    containerTypeId: TypeId[_],
     index: Int,
-    expectedTypeId: TypeId[?]
+    expectedTypeId: TypeId[_]
   ): TestResult = {
     val typeArgs = containerTypeId.typeArgs
     if (typeArgs.size <= index) {
@@ -2254,7 +2258,7 @@ TypeId.int,
     } else {
       typeArgs(index) match {
         case zio.blocks.typeid.TypeRepr.Ref(argTypeId) =>
-          assertTrue(argTypeId == expectedTypeId.asInstanceOf[TypeId[?]])
+          assertTrue(argTypeId == expectedTypeId.asInstanceOf[TypeId[Any]])
         case _ =>
           assertTrue(false)
       }

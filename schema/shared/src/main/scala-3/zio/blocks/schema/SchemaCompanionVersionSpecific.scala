@@ -700,14 +700,21 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema   = findImplicitOrDeriveSchema[et](eTpe)
-            val classTag = summonClassTag[et]
+            val schema          = findImplicitOrDeriveSchema[et](eTpe)
+            val classTag        = summonClassTag[et]
+            val baseArrayTypeId = '{ zio.blocks.typeid.TypeId.of[Array[Any]] }
             '{
               implicit val ct: ClassTag[et] = $classTag
+              val elementReflect            = $schema.reflect
+              val baseTypeId                = $baseArrayTypeId
+              val seqTypeId                 = zio.blocks.typeid.TypeId.applied[Array[et]](
+                baseTypeId,
+                zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
+              )
               new Schema(
                 reflect = new Reflect.Sequence(
-                  element = $schema.reflect,
-                  typeId = zio.blocks.typeid.TypeId.of[Array[et]],
+                  element = elementReflect,
+                  typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArrayConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -748,14 +755,21 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema   = findImplicitOrDeriveSchema[et](eTpe)
-            val classTag = summonClassTag[et]
+            val schema           = findImplicitOrDeriveSchema[et](eTpe)
+            val classTag         = summonClassTag[et]
+            val baseIArrayTypeId = '{ zio.blocks.typeid.TypeId.of[IArray[Any]] }
             '{
               implicit val ct: ClassTag[et] = $classTag
+              val elementReflect            = $schema.reflect
+              val baseTypeId                = $baseIArrayTypeId
+              val seqTypeId                 = zio.blocks.typeid.TypeId.applied[IArray[et]](
+                baseTypeId,
+                zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
+              )
               new Schema(
                 reflect = new Reflect.Sequence(
-                  element = $schema.reflect,
-                  typeId = zio.blocks.typeid.TypeId.of[IArray[et]],
+                  element = elementReflect,
+                  typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.IArrayConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -796,14 +810,21 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema   = findImplicitOrDeriveSchema[et](eTpe)
-            val classTag = summonClassTag[et]
+            val schema             = findImplicitOrDeriveSchema[et](eTpe)
+            val classTag           = summonClassTag[et]
+            val baseArraySeqTypeId = '{ zio.blocks.typeid.TypeId.of[ArraySeq[Any]] }
             '{
               implicit val ct: ClassTag[et] = $classTag
+              val elementReflect            = $schema.reflect
+              val baseTypeId                = $baseArraySeqTypeId
+              val seqTypeId                 = zio.blocks.typeid.TypeId.applied[ArraySeq[et]](
+                baseTypeId,
+                zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
+              )
               new Schema(
                 reflect = new Reflect.Sequence(
-                  element = $schema.reflect,
-                  typeId = zio.blocks.typeid.TypeId.of[ArraySeq[et]],
+                  element = elementReflect,
+                  typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArraySeqConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =

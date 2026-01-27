@@ -1036,7 +1036,7 @@ dynamic <-
 
     override def isDynamic: Boolean = true
 
-    override def toString: String = ReflectPrinter.sdlTypeName(typeName)
+    override def toString: String = ReflectPrinter.sdlTypeName(typeId)
   }
 
   object Dynamic {
@@ -1107,7 +1107,7 @@ primitive <- f.transformPrimitive(
 
     override def isPrimitive: Boolean = true
 
-    override def toString: String = ReflectPrinter.printPrimitive(this)
+    override def toString: String = ReflectPrinter.sdlTypeName(typeId)
   }
 
   object Primitive {
@@ -1473,7 +1473,7 @@ case class Deferred[F[_, _], A](
 
     override def toString: String = {
       val v = visited.get
-      if (v.containsKey(this)) s"deferred => ${typeName}"
+      if (v.containsKey(this)) s"deferred => ${typeId}"
       else {
         v.put(this, ())
         try value.toString
@@ -1586,12 +1586,19 @@ case class Deferred[F[_, _], A](
 
   def dynamic[F[_, _]](implicit F: FromBinding[F]): Dynamic[F] = new Dynamic(F.fromBinding(Binding.Dynamic()))
 
-  private[this] def some[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Some[A]] =
+  private[this] def some[F[_, _], A <: AnyRef](
+    element: Reflect[F, A]
+  )(implicit F: FromBinding[F]): Record[F, Some[A]] = {
+    val typeId = zio.blocks.typeid.TypeId.applied[Some[A]](
+      zio.blocks.typeid.TypeId.some,
+      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    )
     new Record(
       Vector(new Term("value", element)),
-      zio.blocks.typeid.TypeId.of[Some[A]],
+      typeId,
       F.fromBinding(Binding.Record.some)
     )
+  }
 
   private[this] def someDouble[F[_, _]](
     element: Reflect[F, Double]
@@ -1663,12 +1670,17 @@ case class Deferred[F[_, _], A](
   private[this] def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
     new Record(Vector(), zio.blocks.typeid.TypeId.none, F.fromBinding(Binding.Record.none))
 
-  def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
+  def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] = {
+    val typeId = zio.blocks.typeid.TypeId.applied[Option[A]](
+      zio.blocks.typeid.TypeId.option,
+      zio.blocks.typeid.TypeRepr.Ref(element.typeId)
+    )
     new Variant(
       Vector(new Term("None", none), new Term("Some", some(element))),
-      zio.blocks.typeid.TypeId.of[Option[A]],
+      typeId,
       F.fromBinding(Binding.Variant.option)
     )
+  }
 
   def optionDouble[F[_, _]](element: Reflect[F, Double])(implicit F: FromBinding[F]): Variant[F, Option[Double]] =
     new Variant(

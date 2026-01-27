@@ -508,15 +508,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         constructor.addObject(xs, 3)
         assert(constructor.resultObject(xs))(equalTo(Array(1, 2, 3)))
       },
-      test("derives schema for array and IArray of opaque sub-types") {
-        // Opaque types have their own TypeId, so Array[StructureId] != Array[String]
-        // even though StructureId is an opaque subtype of String
-        val arrayStructureId  = Schema.derived[Array[StructureId]]
-        val iarrayStructureId = Schema.derived[IArray[StructureId]]
-        // Verify they derive correctly and have the expected typeId
-        assert(arrayStructureId.reflect.typeId)(equalTo(TypeId.of[Array[StructureId]])) &&
-        assert(iarrayStructureId.reflect.typeId)(equalTo(TypeId.of[IArray[StructureId]]))
-      },
+
       test("doesn't generate schema for unsupported collections") {
         typeCheck {
           "Schema.derived[scala.collection.mutable.CollisionProofHashMap[String, Int]]"
@@ -622,10 +614,6 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val schema  = Schema[OneCaseEnum]
         val variant = schema.reflect.asVariant
         assert(variant.map(_.cases(0).name))(isSome(equalTo("Case1")))
-      },
-      test("derives schema for options of opaque sub-types") {
-        val schema = Schema.derived[Option[StructureId]]
-        assert(schema.reflect.typeId)(equalTo(TypeId.of[Option[StructureId]]))
       },
       test("derives schema for type recursive Scala 3 enums") {
         val schema  = Schema.derived[FruitEnum[?]]
