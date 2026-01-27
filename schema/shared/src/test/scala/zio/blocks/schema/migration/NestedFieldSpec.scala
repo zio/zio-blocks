@@ -815,7 +815,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           val record      = result.toOption.get.asInstanceOf[DynamicValue.Record]
           val address     = record.fields.find(_._1 == "address").get._2.asInstanceOf[DynamicValue.Record]
           val addressType = address.fields.find(_._1 == "addressType").get._2.asInstanceOf[DynamicValue.Variant]
-          addressType.caseName == "Residential"
+          addressType.caseNameValue == "Residential"
         }
       }
     ),
