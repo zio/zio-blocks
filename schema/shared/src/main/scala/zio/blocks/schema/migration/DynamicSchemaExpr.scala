@@ -76,7 +76,12 @@ object DynamicSchemaExpr {
   }
 
   def fromSchemaExpr(expr: SchemaExpr[_, _]): DynamicSchemaExpr = expr match {
-    case lit: SchemaExpr.Literal[a, _]              => Literal(lit.schema.toDynamicValue(lit.value))
+    case lit: SchemaExpr.Literal[_, _] =>
+      // Use asInstanceOf to work around GADT skolem type issue
+      // The SchemaExpr.Literal contains both the value and its schema,
+      // so we can safely cast to access them
+      val literal = lit.asInstanceOf[SchemaExpr.Literal[Any, Any]]
+      Literal(literal.schema.toDynamicValue(literal.value))
     case SchemaExpr.Optic(optic)                    => Path(optic.toDynamic)
     case SchemaExpr.Relational(left, right, op)     => Relational(fromSchemaExpr(left), fromSchemaExpr(right), op)
     case SchemaExpr.Logical(left, right, op)        => Logical(fromSchemaExpr(left), fromSchemaExpr(right), op)
