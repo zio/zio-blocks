@@ -55,7 +55,7 @@ object MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyRecord(value, at) { fields =>
         // Pass the current record to evalDynamic so expressions like FieldAccess work
-        val recordValue = DynamicValue.Record(fields)
+        val recordValue = DynamicValue.Record(fields: _*)
         default.evalDynamic(recordValue) match {
           case Right(defaultValue) =>
             Right(fields :+ (fieldName -> defaultValue))
@@ -160,7 +160,7 @@ object MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       // Work at record level so we have context for FieldAccess in defaults
       modifyRecord(value, at) { fields =>
-        val recordValue = DynamicValue.Record(fields)
+        val recordValue = DynamicValue.Record(fields: _*)
         val fieldIdx    = fields.indexWhere(_._1 == fieldName)
         if (fieldIdx < 0) {
           // Field doesn't exist, nothing to do
@@ -212,8 +212,8 @@ object MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       val fieldPath = at.field(fieldName)
       modifyAtPath(value, fieldPath) { fieldValue =>
-        // Some is represented as Variant("Some", Record(Vector(("value", inner))))
-        val someRecord = DynamicValue.Record(Vector(("value", fieldValue)))
+        // Some is represented as Variant("Some", Record(Chunk(("value", inner))))
+        val someRecord = DynamicValue.Record(("value", fieldValue))
         Right(DynamicValue.Variant("Some", someRecord))
       }
     }
@@ -329,7 +329,7 @@ object MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Sequence(elements) =>
-          transformAll(elements, elementTransform, at).map(DynamicValue.Sequence(_))
+          transformAll(elements.toVector, elementTransform, at).map(v => DynamicValue.Sequence(v: _*))
         case other =>
           Left(MigrationError.ExpectedSequence(at, other))
       }
@@ -358,9 +358,9 @@ object MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Record(entries) =>
-          transformMapKeys(entries, keyTransform, at).map(DynamicValue.Record(_))
+          transformMapKeys(entries.toVector, keyTransform, at).map(v => DynamicValue.Record(v: _*))
         case DynamicValue.Map(entries) =>
-          transformMapKeysFullMap(entries, keyTransform, at).map(DynamicValue.Map(_))
+          transformMapKeysFullMap(entries.toVector, keyTransform, at).map(v => DynamicValue.Map(v: _*))
         case other =>
           Left(MigrationError.ExpectedMap(at, other))
       }
@@ -382,9 +382,9 @@ object MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Record(entries) =>
-          transformMapValues(entries, valueTransform, at).map(DynamicValue.Record(_))
+          transformMapValues(entries.toVector, valueTransform, at).map(v => DynamicValue.Record(v: _*))
         case DynamicValue.Map(entries) =>
-          transformMapValuesFullMap(entries, valueTransform, at).map(DynamicValue.Map(_))
+          transformMapValuesFullMap(entries.toVector, valueTransform, at).map(v => DynamicValue.Map(v: _*))
         case other =>
           Left(MigrationError.ExpectedMap(at, other))
       }
@@ -404,7 +404,7 @@ object MigrationAction {
     f: Vector[(String, DynamicValue)] => Either[MigrationError, Vector[(String, DynamicValue)]]
   ): Either[MigrationError, DynamicValue] =
     modifyAtPath(value, path) {
-      case DynamicValue.Record(fields) => f(fields).map(DynamicValue.Record(_))
+      case DynamicValue.Record(fields) => f(fields.toVector).map(v => DynamicValue.Record(v: _*))
       case other                       => Left(MigrationError.ExpectedRecord(path, other))
     }
 

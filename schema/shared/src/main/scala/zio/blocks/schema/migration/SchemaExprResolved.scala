@@ -274,7 +274,7 @@ object Resolved {
       inner.evalDynamic(input).flatMap {
         case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
           val parts = s.split(java.util.regex.Pattern.quote(separator), -1)
-          Right(DynamicValue.Sequence(parts.map(p => DynamicValue.Primitive(PrimitiveValue.String(p))).toVector))
+          Right(DynamicValue.Sequence(parts.toSeq.map(p => DynamicValue.Primitive(PrimitiveValue.String(p))): _*))
 
         case other =>
           Left(s"SplitString requires String input, got ${other.valueType}")
@@ -292,10 +292,10 @@ object Resolved {
    */
   final case class WrapSome(inner: Resolved) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] =
-      inner.evalDynamic.map(v => DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", v)))))
+      inner.evalDynamic.map(v => DynamicValue.Variant("Some", DynamicValue.Record(("value", v))))
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
-      inner.evalDynamic(input).map(v => DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", v)))))
+      inner.evalDynamic(input).map(v => DynamicValue.Variant("Some", DynamicValue.Record(("value", v))))
   }
 
   /**
@@ -371,7 +371,7 @@ object Resolved {
             expr.evalDynamic(input).map(v => acc :+ (name -> v))
           case (left, _) => left
         }
-        .map(DynamicValue.Record(_))
+        .map(v => DynamicValue.Record(v: _*))
   }
 
   /**
@@ -390,7 +390,7 @@ object Resolved {
             expr.evalDynamic(input).map(v => acc :+ v)
           case (left, _) => left
         }
-        .map(DynamicValue.Sequence(_))
+        .map(v => DynamicValue.Sequence(v: _*))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
