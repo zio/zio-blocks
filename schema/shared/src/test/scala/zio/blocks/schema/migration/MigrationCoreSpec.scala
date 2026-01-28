@@ -369,9 +369,9 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         assertTrue(
           result == Right(
             DynamicValue.Sequence(
-                dynamicString("a"),
-                dynamicString("b"),
-                dynamicString("c")
+              dynamicString("a"),
+              dynamicString("b"),
+              dynamicString("c")
             )
           )
         )
@@ -497,17 +497,17 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         assertTrue(action.apply(dynamicInt(42)).isLeft)
       },
       test("Mandate extracts value from Some") {
-        val action = MigrationAction.Mandate(DynamicOptic.root, "value", Resolved.Literal.int(0))
+        val action    = MigrationAction.Mandate(DynamicOptic.root, "value", Resolved.Literal.int(0))
         val someValue = DynamicValue.Variant("Some", DynamicValue.Record(("value", dynamicInt(42))))
-        val input  = dynamicRecord("value" -> someValue)
-        val result = action.apply(input)
+        val input     = dynamicRecord("value" -> someValue)
+        val result    = action.apply(input)
         assertTrue(result == Right(dynamicRecord("value" -> dynamicInt(42))))
       },
       test("Mandate uses default for None") {
-        val action = MigrationAction.Mandate(DynamicOptic.root, "value", Resolved.Literal.int(99))
+        val action    = MigrationAction.Mandate(DynamicOptic.root, "value", Resolved.Literal.int(99))
         val noneValue = DynamicValue.Variant("None", DynamicValue.Record())
-        val input  = dynamicRecord("value" -> noneValue)
-        val result = action.apply(input)
+        val input     = dynamicRecord("value" -> noneValue)
+        val result    = action.apply(input)
         assertTrue(result == Right(dynamicRecord("value" -> dynamicInt(99))))
       },
       test("Mandate fails on non-record") {

@@ -482,7 +482,10 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     ),
     suite("JoinStrings expression")(
       test("joins sequence elements with separator") {
-        val expr = Resolved.JoinStrings("-", Resolved.Literal(dynamicSequence(dynamicString("a"), dynamicString("b"), dynamicString("c"))))
+        val expr = Resolved.JoinStrings(
+          "-",
+          Resolved.Literal(dynamicSequence(dynamicString("a"), dynamicString("b"), dynamicString("c")))
+        )
         assertTrue(expr.evalDynamic(dynamicInt(0)) == Right(dynamicString("a-b-c")))
       },
       test("joins empty sequence to empty string") {
@@ -490,7 +493,7 @@ object TransformExpressionSpec extends SchemaBaseSpec {
         assertTrue(expr.evalDynamic(dynamicInt(0)) == Right(dynamicString("")))
       },
       test("joins non-string elements using toString") {
-        val expr = Resolved.JoinStrings(",", Resolved.Literal(dynamicSequence(dynamicInt(1), dynamicInt(2))))
+        val expr   = Resolved.JoinStrings(",", Resolved.Literal(dynamicSequence(dynamicInt(1), dynamicInt(2))))
         val result = expr.evalDynamic(dynamicInt(0))
         assertTrue(result.isRight)
       },
@@ -505,17 +508,21 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     ),
     suite("Coalesce expression")(
       test("returns first non-None value") {
-        val expr = Resolved.Coalesce(Vector(
-          Resolved.Literal(dynamicNone),
-          Resolved.Literal(dynamicSome(dynamicInt(42)))
-        ))
+        val expr = Resolved.Coalesce(
+          Vector(
+            Resolved.Literal(dynamicNone),
+            Resolved.Literal(dynamicSome(dynamicInt(42)))
+          )
+        )
         assertTrue(expr.evalDynamic == Right(dynamicSome(dynamicInt(42))))
       },
       test("fails when all alternatives are None") {
-        val expr = Resolved.Coalesce(Vector(
-          Resolved.Literal(dynamicNone),
-          Resolved.Literal(dynamicNone)
-        ))
+        val expr = Resolved.Coalesce(
+          Vector(
+            Resolved.Literal(dynamicNone),
+            Resolved.Literal(dynamicNone)
+          )
+        )
         assertTrue(expr.evalDynamic.isLeft)
       },
       test("fails when empty alternatives") {
@@ -523,18 +530,22 @@ object TransformExpressionSpec extends SchemaBaseSpec {
         assertTrue(expr.evalDynamic.isLeft)
       },
       test("coalesce with input") {
-        val expr = Resolved.Coalesce(Vector(
-          Resolved.FieldAccess("missing", Resolved.Identity),
-          Resolved.Literal.int(99)
-        ))
+        val expr = Resolved.Coalesce(
+          Vector(
+            Resolved.FieldAccess("missing", Resolved.Identity),
+            Resolved.Literal.int(99)
+          )
+        )
         val input = dynamicRecord("other" -> dynamicInt(1))
         assertTrue(expr.evalDynamic(input) == Right(dynamicInt(99)))
       },
       test("returns first successful non-failing alternative") {
-        val expr = Resolved.Coalesce(Vector(
-          Resolved.Fail("first fails"),
-          Resolved.Literal.int(42)
-        ))
+        val expr = Resolved.Coalesce(
+          Vector(
+            Resolved.Fail("first fails"),
+            Resolved.Literal.int(42)
+          )
+        )
         assertTrue(expr.evalDynamic == Right(dynamicInt(42)))
       }
     ),
@@ -594,7 +605,7 @@ object TransformExpressionSpec extends SchemaBaseSpec {
         assertTrue(expr.evalDynamic.isLeft)
       },
       test("fails with custom message") {
-        val expr = Resolved.DefaultValue.fail("custom error")
+        val expr   = Resolved.DefaultValue.fail("custom error")
         val result = expr.evalDynamic
         assertTrue(result.isLeft && result.swap.getOrElse("").contains("custom error"))
       },
@@ -605,12 +616,12 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     ),
     suite("SplitString expression")(
       test("splits string by separator") {
-        val expr = Resolved.SplitString("-", Resolved.Literal.string("a-b-c"))
+        val expr   = Resolved.SplitString("-", Resolved.Literal.string("a-b-c"))
         val result = expr.evalDynamic(dynamicInt(0))
         assertTrue(result == Right(dynamicSequence(dynamicString("a"), dynamicString("b"), dynamicString("c"))))
       },
       test("handles empty parts from consecutive separators") {
-        val expr = Resolved.SplitString(",", Resolved.Literal.string("a,,b"))
+        val expr   = Resolved.SplitString(",", Resolved.Literal.string("a,,b"))
         val result = expr.evalDynamic(dynamicInt(0))
         assertTrue(result == Right(dynamicSequence(dynamicString("a"), dynamicString(""), dynamicString("b"))))
       },
@@ -625,7 +636,7 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     ),
     suite("OpticAccess expression")(
       test("accesses value at path") {
-        val expr = Resolved.OpticAccess(DynamicOptic.root.field("name"), Resolved.Identity)
+        val expr  = Resolved.OpticAccess(DynamicOptic.root.field("name"), Resolved.Identity)
         val input = dynamicRecord("name" -> dynamicString("Alice"))
         assertTrue(expr.evalDynamic(input) == Right(dynamicString("Alice")))
       },
@@ -636,12 +647,12 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     ),
     suite("UnwrapOption expression")(
       test("extracts Some value") {
-        val expr = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0))
+        val expr  = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0))
         val input = DynamicValue.Variant("Some", dynamicInt(42))
         assertTrue(expr.evalDynamic(input) == Right(dynamicInt(42)))
       },
       test("uses fallback for None") {
-        val expr = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(99))
+        val expr  = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(99))
         val input = DynamicValue.Variant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
         assertTrue(expr.evalDynamic(input) == Right(dynamicInt(99)))
       },
