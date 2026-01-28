@@ -301,8 +301,8 @@ object MigrationPropertySpec extends SchemaBaseSpec {
     suite("Sequence operation properties")(
       test("transformElements preserves length") {
         check(Gen.int(0, 20)) { length =>
-          val elements = (0 until length).map(i => DynamicValue.Primitive(PrimitiveValue.Int(i))).toVector
-          val input    = DynamicValue.Sequence(elements)
+          val elements = (0 until length).map(i => DynamicValue.Primitive(PrimitiveValue.Int(i)))
+          val input    = DynamicValue.Sequence(elements.toSeq: _*)
           val action   = MigrationAction.TransformElements(
             DynamicOptic.root,
             Resolved.Identity,
@@ -318,8 +318,8 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       },
       test("transformElements with identity is no-op") {
         check(Gen.int(0, 10)) { length =>
-          val elements = (0 until length).map(i => DynamicValue.Primitive(PrimitiveValue.Int(i))).toVector
-          val input    = DynamicValue.Sequence(elements)
+          val elements = (0 until length).map(i => DynamicValue.Primitive(PrimitiveValue.Int(i)))
+          val input    = DynamicValue.Sequence(elements.toSeq: _*)
           val action   = MigrationAction.TransformElements(
             DynamicOptic.root,
             Resolved.Identity,

@@ -138,7 +138,7 @@ object RecordFieldMigrationSpec extends SchemaBaseSpec {
         result match {
           case Right(DynamicValue.Record(fields)) =>
             assertTrue(
-              fields.map(_._1) == Vector("a", "b", "c", "z")
+              fields.map(_._1).toVector == Vector("a", "b", "c", "z")
             )
           case _ => assertTrue(false)
         }
@@ -242,7 +242,7 @@ object RecordFieldMigrationSpec extends SchemaBaseSpec {
         val result = action.apply(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
-            assertTrue(fields.map(_._1) == Vector("a", "c", "d"))
+            assertTrue(fields.map(_._1).toVector == Vector("a", "c", "d"))
           case _ => assertTrue(false)
         }
       },
@@ -294,7 +294,7 @@ object RecordFieldMigrationSpec extends SchemaBaseSpec {
         val result = action.apply(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
-            assertTrue(fields.map(_._1) == Vector("a", "B", "c"))
+            assertTrue(fields.map(_._1).toVector == Vector("a", "B", "c"))
           case _ => assertTrue(false)
         }
       },
