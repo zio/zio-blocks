@@ -55,6 +55,7 @@ lazy val root = project
     `schema-messagepack`.native,
     `schema-thrift`,
     `schema-bson`,
+    `schema-msgpack`,
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-toon`.native,
