@@ -207,7 +207,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       case Some(method) =>
         val m          = method.asMethod
         val returnType = m.returnType.dealias
-        val errorType = returnType match {
+        val errorType  = returnType match {
           case TypeRef(_, _, List(errTpe, _)) => errTpe.dealias
           case _                              => return None
         }
@@ -324,7 +324,8 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
         q"_root_.zio.blocks.schema.binding.SeqDeconstructor.seqDeconstructor"
       )
     else if (tpe.typeConstructor =:= arrayTpe) deriveArrayBinding(tpe)
-    else if (isIterator(tpe)) fail(s"Cannot derive Binding for Iterator types: $tpe. Iterators are not round-trip serializable.")
+    else if (isIterator(tpe))
+      fail(s"Cannot derive Binding for Iterator types: $tpe. Iterators are not round-trip serializable.")
     else if (isEnumOrModuleValue(tpe)) deriveEnumOrModuleValueBinding(tpe)
     else if (isSealedTraitOrAbstractClass(tpe)) deriveSealedTraitBinding(tpe)
     else if (isNonAbstractScalaClass(tpe)) {
@@ -357,10 +358,10 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
   }
 
   private def deriveLeftBinding(tpe: Type): c.Expr[Any] = {
-    val args          = typeArgs(tpe)
-    val aTpe          = args(0)
-    val bTpe          = args(1)
-    val dealiasedA    = dealiasOnDemand(aTpe)
+    val args       = typeArgs(tpe)
+    val aTpe       = args(0)
+    val bTpe       = args(1)
+    val dealiasedA = dealiasOnDemand(aTpe)
     if (dealiasedA <:< intTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftInt[$bTpe]")
     else if (dealiasedA <:< longTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftLong[$bTpe]")
     else if (dealiasedA <:< floatTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftFloat[$bTpe]")
@@ -375,10 +376,10 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
   }
 
   private def deriveRightBinding(tpe: Type): c.Expr[Any] = {
-    val args          = typeArgs(tpe)
-    val aTpe          = args(0)
-    val bTpe          = args(1)
-    val dealiasedB    = dealiasOnDemand(bTpe)
+    val args       = typeArgs(tpe)
+    val aTpe       = args(0)
+    val bTpe       = args(1)
+    val dealiasedB = dealiasOnDemand(bTpe)
     if (dealiasedB <:< intTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightInt[$aTpe]")
     else if (dealiasedB <:< longTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightLong[$aTpe]")
     else if (dealiasedB <:< floatTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightFloat[$aTpe]")
@@ -646,7 +647,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       case class FieldInfo(name: TermName, tpe: Type, registerType: String, fieldOffset: Long)
 
       var currentOffset: Long = 0L
-      val fieldLists = paramLists.map(_.map { param =>
+      val fieldLists          = paramLists.map(_.map { param =>
         val fieldTpe     = tpe.decl(param.name).typeSignatureIn(tpe).finalResultType
         val dealiasedTpe = dealiasOnDemand(fieldTpe)
         val registerType =
@@ -668,11 +669,11 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       val usedRegistersLong = currentOffset
 
       def fieldToArg(f: FieldInfo): Tree = {
-        val fieldTpe     = f.tpe
-        val dealiasedTpe = dealiasOnDemand(fieldTpe)
-        val needsCast    = !(fieldTpe =:= dealiasedTpe)
+        val fieldTpe                 = f.tpe
+        val dealiasedTpe             = dealiasOnDemand(fieldTpe)
+        val needsCast                = !(fieldTpe =:= dealiasedTpe)
         def maybeCast(t: Tree): Tree = if (needsCast) q"$t.asInstanceOf[$fieldTpe]" else t
-        val offsetLit = Literal(Constant(f.fieldOffset))
+        val offsetLit                = Literal(Constant(f.fieldOffset))
         f.registerType match {
           case "Boolean" => maybeCast(q"in.getBoolean(offset + $offsetLit)")
           case "Byte"    => maybeCast(q"in.getByte(offset + $offsetLit)")
@@ -691,10 +692,10 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       val constructCall  = q"new $tpe(...$constructArgss)"
 
       val deconstructStatements = fields.map { f =>
-        val fieldName    = f.name
-        val fieldTpe     = f.tpe
-        val dealiasedTpe = dealiasOnDemand(fieldTpe)
-        val needsCast    = !(fieldTpe =:= dealiasedTpe)
+        val fieldName        = f.name
+        val fieldTpe         = f.tpe
+        val dealiasedTpe     = dealiasOnDemand(fieldTpe)
+        val needsCast        = !(fieldTpe =:= dealiasedTpe)
         val fieldValue: Tree =
           if (needsCast) q"in.$fieldName.asInstanceOf[$dealiasedTpe]"
           else q"in.$fieldName"

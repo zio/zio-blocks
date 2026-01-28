@@ -771,8 +771,9 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(true)))(isRight(equalTo(true))) &&
         assert(schema)(equalTo(Schema.derived[Int | Boolean | (Int, Boolean) | List[Int] | Map[Int, Long]])) &&
         assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
+        // Union types are sorted by fullName for consistent ordering across macro contexts
         assert(variant.map(_.cases.map(_.name)))(
-          isSome(equalTo(Vector("Int", "Boolean", "Tuple2", "collection.immutable.List", "collection.immutable.Map")))
+          isSome(equalTo(Vector("Boolean", "Int", "Tuple2", "collection.immutable.List", "collection.immutable.Map")))
         ) &&
         assert(variant.map(_.typeName))(
           isSome(
@@ -781,8 +782,8 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                 Namespace(Nil),
                 "|",
                 Seq(
-                  TypeName.int,
                   TypeName.boolean,
+                  TypeName.int,
                   TypeName[(Int, Boolean)](Namespace(Seq("scala")), "Tuple2", Seq(TypeName.int, TypeName.boolean)),
                   TypeName.list(TypeName.int),
                   TypeName.map(TypeName.int, TypeName.long)
@@ -805,7 +806,8 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(123))))(isRight(equalTo(Variant(123)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(true))))(isRight(equalTo(Variant(true)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant("VVV"))))(isRight(equalTo(Variant("VVV")))) &&
-        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "String", "Boolean")))) &&
+        // Union types are sorted by fullName for consistent ordering across macro contexts
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("String", "Boolean", "Int")))) &&
         assert(variant.map(_.typeName))(
           isSome(equalTo(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpaqueTypes$package")), "Variant")))
         )
@@ -832,11 +834,12 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(Unions.v2.get(value2))(equalTo("VVV")) &&
         assert(Unions.v3.get(value2))(equalTo(213)) &&
         assert(Unions.v3_s.getOption(value1))(isSome(equalTo("VVV"))) &&
+        // Union types are sorted by fullName for consistent ordering across macro contexts
         assert(record.flatMap(_.fields(1).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("Int", "String"))) // deduplicates union cases without re-ordering
+          isSome(equalTo(Seq("String", "Int"))) // deduplicates and sorts by fullName
         ) &&
         assert(record.flatMap(_.fields(2).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("Int", "Boolean", "String"))) // deduplicates union cases without re-ordering
+          isSome(equalTo(Seq("String", "Boolean", "Int"))) // deduplicates and sorts by fullName
         ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))

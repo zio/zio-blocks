@@ -9,12 +9,14 @@ object TypeNameVersionSpecificSpec extends SchemaBaseSpec {
       test("derives TypeName for union type") {
         val typeName = TypeName.derived[Int | String]
         assert(typeName.name)(equalTo("|")) &&
-        assert(typeName.params.map(_.name))(equalTo(Seq("Int", "String")))
+        // Union types are sorted by fullName for consistent ordering across macro contexts
+        assert(typeName.params.map(_.name))(equalTo(Seq("String", "Int")))
       },
       test("derives TypeName for complex union type") {
         val typeName = TypeName.derived[Int | String | Boolean]
         assert(typeName.name)(equalTo("|")) &&
-        assert(typeName.params.map(_.name))(equalTo(Seq("Int", "String", "Boolean")))
+        // Union types are sorted by fullName for consistent ordering across macro contexts
+        assert(typeName.params.map(_.name))(equalTo(Seq("String", "Boolean", "Int")))
       },
       test("derives TypeName for enum value") {
         enum Color { case Red, Green, Blue }

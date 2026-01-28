@@ -233,9 +233,6 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     if (modifiers eq Nil) '{ Nil } else Varargs(modifiers)
   }
 
-  private def summonClassTag[T: Type](using Quotes): Expr[ClassTag[T]] =
-    Expr.summon[ClassTag[T]].getOrElse(fail(s"No ClassTag available for ${TypeRepr.of[T].show}"))
-
   private val schemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
   private val schemaDefs = new mutable.ListBuffer[ValDef]
 
@@ -584,47 +581,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema   = findImplicitOrDeriveSchema[et](eTpe)
-            val classTag = summonClassTag[et]
-            val tpeName  = toExpr(typeName[Array[et]](tpe))
+            val schema  = findImplicitOrDeriveSchema[et](eTpe)
+            val tpeName = toExpr(typeName[Array[et]](tpe))
             '{
-              implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
                   typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
-                  seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.ArrayConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
-                        var buf = builder.buffer
-                        val idx = builder.size
-                        if (buf.length == idx) {
-                          val xs     = buf.asInstanceOf[Array[et]]
-                          val newLen = idx << 1
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
-                          builder.buffer = buf
-                        }
-                        buf(idx) = a
-                        builder.size = idx + 1
-                      }
-
-                      def resultObject[B](builder: ObjectBuilder[B]): Array[B] = {
-                        val buf  = builder.buffer
-                        val size = builder.size
-                        if (buf.length == size) buf
-                        else {
-                          val xs = buf.asInstanceOf[Array[et]]
-                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
-                        }
-                      }
-
-                      def emptyObject[B]: Array[B] = Array.empty[et].asInstanceOf[Array[B]]
-                    },
-                    deconstructor = SeqDeconstructor.arrayDeconstructor
-                  )
+                  seqBinding = Binding.of[Array[et]].asInstanceOf[Binding.Seq[Array, et]]
                 )
               )
             }
@@ -633,47 +597,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema   = findImplicitOrDeriveSchema[et](eTpe)
-            val classTag = summonClassTag[et]
-            val tpeName  = toExpr(typeName[IArray[et]](tpe))
+            val schema  = findImplicitOrDeriveSchema[et](eTpe)
+            val tpeName = toExpr(typeName[IArray[et]](tpe))
             '{
-              implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
                   typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
-                  seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.IArrayConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
-                        var buf = builder.buffer
-                        val idx = builder.size
-                        if (buf.length == idx) {
-                          val xs     = buf.asInstanceOf[Array[et]]
-                          val newLen = idx << 1
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
-                          builder.buffer = buf
-                        }
-                        buf(idx) = a
-                        builder.size = idx + 1
-                      }
-
-                      def resultObject[B](builder: ObjectBuilder[B]): IArray[B] = IArray.unsafeFromArray {
-                        val buf  = builder.buffer
-                        val size = builder.size
-                        if (buf.length == size) buf
-                        else {
-                          val xs = buf.asInstanceOf[Array[et]]
-                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
-                        }
-                      }
-
-                      def emptyObject[B]: IArray[B] = IArray.empty[et].asInstanceOf[IArray[B]]
-                    },
-                    deconstructor = SeqDeconstructor.iArrayDeconstructor
-                  )
+                  seqBinding = Binding.of[IArray[et]].asInstanceOf[Binding.Seq[IArray, et]]
                 )
               )
             }
@@ -682,47 +613,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema   = findImplicitOrDeriveSchema[et](eTpe)
-            val classTag = summonClassTag[et]
-            val tpeName  = toExpr(typeName[ArraySeq[et]](tpe))
+            val schema  = findImplicitOrDeriveSchema[et](eTpe)
+            val tpeName = toExpr(typeName[ArraySeq[et]](tpe))
             '{
-              implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
                   typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
-                  seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.ArraySeqConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
-                        var buf = builder.buffer
-                        val idx = builder.size
-                        if (buf.length == idx) {
-                          val xs     = buf.asInstanceOf[Array[et]]
-                          val newLen = idx << 1
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
-                          builder.buffer = buf
-                        }
-                        buf(idx) = a
-                        builder.size = idx + 1
-                      }
-
-                      def resultObject[B](builder: ObjectBuilder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
-                        val buf  = builder.buffer
-                        val size = builder.size
-                        if (buf.length == size) buf
-                        else {
-                          val xs = buf.asInstanceOf[Array[et]]
-                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
-                        }
-                      }
-
-                      def emptyObject[B]: ArraySeq[B] = ArraySeq.empty[et].asInstanceOf[ArraySeq[B]]
-                    },
-                    deconstructor = SeqDeconstructor.arraySeqDeconstructor
-                  )
+                  seqBinding = Binding.of[ArraySeq[et]].asInstanceOf[Binding.Seq[ArraySeq, et]]
                 )
               )
             }
@@ -940,71 +838,19 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
            }).asInstanceOf[Expr[SchemaTerm[Binding, T, ? <: T]]]
       }
     })
-    val matcherCases = Varargs(subtypes.map { sTpe =>
-      sTpe.asType match {
-        case '[st] =>
-          '{
-            new Matcher[st] {
-              def downcastOrNull(a: Any): st = (a: @scala.unchecked) match {
-                case x: st => x
-                case _     => null.asInstanceOf[st]
-              }
-            }
-          }.asInstanceOf[Expr[Matcher[? <: T]]]
-      }
-    })
     val tpeName = toExpr(typeName(tpe))
     '{
       new Schema(
         reflect = new Reflect.Variant[Binding, T](
           cases = Vector($cases*),
           typeName = $tpeName,
-          variantBinding = new Binding.Variant(
-            discriminator = new Discriminator {
-              def discriminate(a: T): Int = ${
-                val v = 'a
-                Match(
-                  '{ $v: @scala.unchecked }.asTerm,
-                  subtypes.map {
-                    var idx = -1
-                    sTpe =>
-                      idx += 1
-                      CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Literal(IntConstant(idx)))
-                  }
-                ).asExpr.asInstanceOf[Expr[Int]]
-              }
-            },
-            matchers = Matchers($matcherCases*)
-          ),
+          variantBinding = Binding.of[T].asInstanceOf[Binding.Variant[T]],
           doc = ${ doc(tpe) },
           modifiers = ${ modifiers(tpe) }
         )
       )
     }
   }
-
-  private def genArraysCopyOf[T: Type](tpe: TypeRepr, x: Expr[Array[T]], newLen: Expr[Int])(using
-    Quotes
-  ): Expr[Array[T]] = {
-    if (tpe =:= booleanTpe) '{ java.util.Arrays.copyOf(${ x.asInstanceOf[Expr[Array[Boolean]]] }, $newLen) }
-    else if (tpe =:= byteTpe) '{ java.util.Arrays.copyOf(${ x.asInstanceOf[Expr[Array[Byte]]] }, $newLen) }
-    else if (tpe =:= shortTpe) '{ java.util.Arrays.copyOf(${ x.asInstanceOf[Expr[Array[Short]]] }, $newLen) }
-    else if (tpe =:= intTpe) '{ java.util.Arrays.copyOf(${ x.asInstanceOf[Expr[Array[Int]]] }, $newLen) }
-    else if (tpe =:= longTpe) '{ java.util.Arrays.copyOf(${ x.asInstanceOf[Expr[Array[Long]]] }, $newLen) }
-    else if (tpe =:= floatTpe) '{ java.util.Arrays.copyOf(${ x.asInstanceOf[Expr[Array[Float]]] }, $newLen) }
-    else if (tpe =:= doubleTpe) '{ java.util.Arrays.copyOf(${ x.asInstanceOf[Expr[Array[Double]]] }, $newLen) }
-    else if (tpe =:= charTpe) '{ java.util.Arrays.copyOf(${ x.asInstanceOf[Expr[Array[Char]]] }, $newLen) }
-    else if (tpe <:< anyRefTpe) '{ java.util.Arrays.copyOf(${ x.asInstanceOf[Expr[Array[AnyRef & T]]] }, $newLen) }
-    else
-      '{
-        val x1 = ${ genNewArray[T](newLen) }
-        java.lang.System.arraycopy($x, 0, x1, 0, $newLen)
-        x1
-      }
-  }.asInstanceOf[Expr[Array[T]]]
-
-  private def genNewArray[T: Type](size: Expr[Int]): Expr[Array[T]] =
-    Apply(TypeApply(newArray, List(TypeTree.of[T])), List(size.asTerm)).asExpr.asInstanceOf[Expr[Array[T]]]
 
   private def toFullTermName(tpeName: TypeName[?]): Array[String] = {
     val packages     = tpeName.namespace.packages

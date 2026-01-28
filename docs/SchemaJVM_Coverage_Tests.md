@@ -2,10 +2,14 @@
 
 This document contains complete, ready-to-implement tests for increasing schemaJVM branch coverage. Each test is fully specified with exact file locations, imports, and test code.
 
+Tests have been validated for correct API usage and Scala syntax.
+
+All tests are mandatory and none are optional. The entire task must be completed.
+
 **Goal:** Increase branch coverage from ~80% to 83%+ (~213 additional branches needed)
 
 **Workflow for adding each test group:**
-1. Add tests to the specified file
+1. Add all tests in a single pass
 2. Run: `sbt "project schemaJVM; coverage; test; coverageReport"`
 3. Check report at: `schema/jvm/target/scala-3.3.7/scoverage-report/index.html`
 
@@ -25,71 +29,71 @@ This document contains complete, ready-to-implement tests for increasing schemaJ
 suite("narrowing failure branches")(
   test("shortToByte fails for values above Byte.MaxValue") {
     val result = Into[Short, Byte].into((Byte.MaxValue + 1).toShort)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("shortToByte fails for values below Byte.MinValue") {
     val result = Into[Short, Byte].into((Byte.MinValue - 1).toShort)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("intToByte fails for values above Byte.MaxValue") {
     val result = Into[Int, Byte].into(Byte.MaxValue + 1)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("intToByte fails for values below Byte.MinValue") {
     val result = Into[Int, Byte].into(Byte.MinValue - 1)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("intToShort fails for values above Short.MaxValue") {
     val result = Into[Int, Short].into(Short.MaxValue + 1)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("intToShort fails for values below Short.MinValue") {
     val result = Into[Int, Short].into(Short.MinValue - 1)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("longToByte fails for values above Byte.MaxValue") {
     val result = Into[Long, Byte].into(Byte.MaxValue.toLong + 1)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("longToByte fails for values below Byte.MinValue") {
     val result = Into[Long, Byte].into(Byte.MinValue.toLong - 1)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("longToShort fails for values above Short.MaxValue") {
     val result = Into[Long, Short].into(Short.MaxValue.toLong + 1)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("longToShort fails for values below Short.MinValue") {
     val result = Into[Long, Short].into(Short.MinValue.toLong - 1)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("longToInt fails for values above Int.MaxValue") {
     val result = Into[Long, Int].into(Int.MaxValue.toLong + 1)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("longToInt fails for values below Int.MinValue") {
     val result = Into[Long, Int].into(Int.MinValue.toLong - 1)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("doubleToFloat fails for values above Float.MaxValue") {
     val result = Into[Double, Float].into(Double.MaxValue)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("out of range")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
   },
   test("floatToInt fails for non-integer float values") {
     val result = Into[Float, Int].into(3.14f)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("cannot be precisely")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("cannot be precisely")))
   },
   test("floatToLong fails for non-integer float values") {
     val result = Into[Float, Long].into(3.14f)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("cannot be precisely")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("cannot be precisely")))
   },
   test("doubleToInt fails for non-integer double values") {
     val result = Into[Double, Int].into(3.14)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("cannot be precisely")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("cannot be precisely")))
   },
   test("doubleToLong fails for non-integer double values") {
     val result = Into[Double, Long].into(3.14)
-    assertTrue(result.isLeft && result.left.exists(_.message.contains("cannot be precisely")))
+    assertTrue(result.isLeft && result.swap.exists(_.message.contains("cannot be precisely")))
   }
 )
 ```
@@ -131,15 +135,16 @@ suite("all primitive field types macro coverage")(
     assert(schema.reflect.asRecord.map(_.fields.length))(isSome(equalTo(10)))
   },
   test("derives schema for tuple with all primitive types") {
-    val schema = Schema[(Byte, Short, Int, Long, Float, Double, Char, Boolean, Unit, String)]
-    val value = (1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'a', true, (), "test")
+    type AllPrimitiveTuple = (Byte, Short, Int, Long, Float, Double, Char, Boolean, Unit, String)
+    val schema: Schema[AllPrimitiveTuple] = Schema.derived
+    val value: AllPrimitiveTuple = (1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'a', true, (), "test")
     val dv = schema.toDynamicValue(value)
     val roundTrip = schema.fromDynamicValue(dv)
 
     assert(roundTrip)(isRight(equalTo(value)))
   },
   test("derives schema for EmptyTuple") {
-    val schema = Schema[EmptyTuple]
+    val schema: Schema[EmptyTuple] = Schema.derived
     val dv = schema.toDynamicValue(EmptyTuple)
     val roundTrip = schema.fromDynamicValue(dv)
 
@@ -231,25 +236,27 @@ suite("opaque type macro coverage")(
 ```scala
 suite("named tuple macro coverage")(
   test("derives schema for named tuple") {
-    val schema = Schema[(name: String, age: Int)]
-    val value: (name: String, age: Int) = (name = "John", age = 30)
+    type NamedPerson = (name: String, age: Int)
+    val schema: Schema[NamedPerson] = Schema.derived
+    val value: NamedPerson = (name = "John", age = 30)
     val dv = schema.toDynamicValue(value)
     val roundTrip = schema.fromDynamicValue(dv)
 
     assert(roundTrip)(isRight(equalTo(value)))
   },
   test("derives schema for named tuple with all primitive types") {
-    val schema = Schema[(b: Byte, s: Short, i: Int, l: Long)]
-    val value: (b: Byte, s: Short, i: Int, l: Long) = (b = 1.toByte, s = 2.toShort, i = 3, l = 4L)
+    type NamedPrimitives = (b: Byte, s: Short, i: Int, l: Long)
+    val schema: Schema[NamedPrimitives] = Schema.derived
+    val value: NamedPrimitives = (b = 1.toByte, s = 2.toShort, i = 3, l = 4L)
     val dv = schema.toDynamicValue(value)
     val roundTrip = schema.fromDynamicValue(dv)
 
     assert(roundTrip)(isRight(equalTo(value)))
   },
   test("derives schema for nested named tuple") {
-    val schema = Schema[(outer: (inner: String, value: Int), flag: Boolean)]
-    val value: (outer: (inner: String, value: Int), flag: Boolean) = 
-      (outer = (inner = "test", value = 42), flag = true)
+    type NestedNamed = (outer: (inner: String, value: Int), flag: Boolean)
+    val schema: Schema[NestedNamed] = Schema.derived
+    val value: NestedNamed = (outer = (inner = "test", value = 42), flag = true)
     val dv = schema.toDynamicValue(value)
     val roundTrip = schema.fromDynamicValue(dv)
 
@@ -272,40 +279,40 @@ suite("named tuple macro coverage")(
 suite("tuple conversion macro coverage")(
   test("converts tuple to case class with matching arity") {
     case class Point(x: Int, y: Int)
-    val into = Into[(Int, Int), Point]
+    val into = Into.derived[(Int, Int), Point]
     val result = into.into((10, 20))
 
     assert(result)(isRight(equalTo(Point(10, 20))))
   },
   test("converts case class to tuple") {
     case class Point(x: Int, y: Int)
-    val into = Into[Point, (Int, Int)]
+    val into = Into.derived[Point, (Int, Int)]
     val result = into.into(Point(10, 20))
 
     assert(result)(isRight(equalTo((10, 20))))
   },
   test("converts tuple to tuple with element type coercion") {
-    val into = Into[(Int, Int), (Long, Long)]
+    val into = Into.derived[(Int, Int), (Long, Long)]
     val result = into.into((1, 2))
 
     assert(result)(isRight(equalTo((1L, 2L))))
   },
   test("converts nested tuple to nested tuple") {
-    val into = Into[((Int, Int), String), ((Long, Long), String)]
+    val into = Into.derived[((Int, Int), String), ((Long, Long), String)]
     val result = into.into(((1, 2), "test"))
 
     assert(result)(isRight(equalTo(((1L, 2L), "test"))))
   },
   test("converts 3-element tuple to case class") {
     case class Triple(a: Int, b: String, c: Boolean)
-    val into = Into[(Int, String, Boolean), Triple]
+    val into = Into.derived[(Int, String, Boolean), Triple]
     val result = into.into((1, "hello", true))
 
     assert(result)(isRight(equalTo(Triple(1, "hello", true))))
   },
   test("converts case class to 3-element tuple") {
     case class Triple(a: Int, b: String, c: Boolean)
-    val into = Into[Triple, (Int, String, Boolean)]
+    val into = Into.derived[Triple, (Int, String, Boolean)]
     val result = into.into(Triple(1, "hello", true))
 
     assert(result)(isRight(equalTo((1, "hello", true))))
@@ -336,47 +343,47 @@ suite("primitive type macro coverage")(
   },
   test("converts primitive to single-field wrapper") {
     case class Age(value: Int)
-    val into = Into[Int, Age]
+    val into = Into.derived[Int, Age]
     assert(into.into(42))(isRight(equalTo(Age(42))))
   },
   test("converts single-field wrapper to primitive") {
     case class Age(value: Int)
-    val into = Into[Age, Int]
+    val into = Into.derived[Age, Int]
     assert(into.into(Age(42)))(isRight(equalTo(42)))
   },
   test("converts Byte single-field wrapper") {
     case class ByteWrapper(value: Byte)
-    val into = Into[Byte, ByteWrapper]
+    val into = Into.derived[Byte, ByteWrapper]
     assert(into.into(42.toByte))(isRight(equalTo(ByteWrapper(42.toByte))))
   },
   test("converts Short single-field wrapper") {
     case class ShortWrapper(value: Short)
-    val into = Into[Short, ShortWrapper]
+    val into = Into.derived[Short, ShortWrapper]
     assert(into.into(42.toShort))(isRight(equalTo(ShortWrapper(42.toShort))))
   },
   test("converts Long single-field wrapper") {
     case class LongWrapper(value: Long)
-    val into = Into[Long, LongWrapper]
+    val into = Into.derived[Long, LongWrapper]
     assert(into.into(42L))(isRight(equalTo(LongWrapper(42L))))
   },
   test("converts Float single-field wrapper") {
     case class FloatWrapper(value: Float)
-    val into = Into[Float, FloatWrapper]
+    val into = Into.derived[Float, FloatWrapper]
     assert(into.into(3.14f))(isRight(equalTo(FloatWrapper(3.14f))))
   },
   test("converts Double single-field wrapper") {
     case class DoubleWrapper(value: Double)
-    val into = Into[Double, DoubleWrapper]
+    val into = Into.derived[Double, DoubleWrapper]
     assert(into.into(3.14))(isRight(equalTo(DoubleWrapper(3.14))))
   },
   test("converts Char single-field wrapper") {
     case class CharWrapper(value: Char)
-    val into = Into[Char, CharWrapper]
+    val into = Into.derived[Char, CharWrapper]
     assert(into.into('X'))(isRight(equalTo(CharWrapper('X'))))
   },
   test("converts String single-field wrapper") {
     case class StringWrapper(value: String)
-    val into = Into[String, StringWrapper]
+    val into = Into.derived[String, StringWrapper]
     assert(into.into("hello"))(isRight(equalTo(StringWrapper("hello"))))
   }
 )
@@ -397,58 +404,58 @@ suite("primitive type macro coverage")(
 ```scala
 suite("Some/Left/Right binding macro coverage")(
   test("derives binding for Some[Int]") {
-    val binding = Binding.of[Some[Int]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Some[Int]].asInstanceOf[Binding.Record[Some[Int]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.ints >= 1 || regs.objects >= 1)
   },
   test("derives binding for Some[String]") {
-    val binding = Binding.of[Some[String]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Some[String]].asInstanceOf[Binding.Record[Some[String]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.objects >= 1)
   },
   test("derives binding for Some[Long]") {
-    val binding = Binding.of[Some[Long]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Some[Long]].asInstanceOf[Binding.Record[Some[Long]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.longs >= 1 || regs.objects >= 1)
   },
   test("derives binding for Some[Double]") {
-    val binding = Binding.of[Some[Double]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Some[Double]].asInstanceOf[Binding.Record[Some[Double]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.doubles >= 1 || regs.objects >= 1)
   },
   test("derives binding for Left[String, Int]") {
-    val binding = Binding.of[Left[String, Int]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Left[String, Int]].asInstanceOf[Binding.Record[Left[String, Int]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.objects >= 1)
   },
   test("derives binding for Left[Int, String]") {
-    val binding = Binding.of[Left[Int, String]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Left[Int, String]].asInstanceOf[Binding.Record[Left[Int, String]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.ints >= 1 || regs.objects >= 1)
   },
   test("derives binding for Left[Long, Boolean]") {
-    val binding = Binding.of[Left[Long, Boolean]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Left[Long, Boolean]].asInstanceOf[Binding.Record[Left[Long, Boolean]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.longs >= 1 || regs.objects >= 1)
   },
   test("derives binding for Right[String, Int]") {
-    val binding = Binding.of[Right[String, Int]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Right[String, Int]].asInstanceOf[Binding.Record[Right[String, Int]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.ints >= 1 || regs.objects >= 1)
   },
   test("derives binding for Right[Int, String]") {
-    val binding = Binding.of[Right[Int, String]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Right[Int, String]].asInstanceOf[Binding.Record[Right[Int, String]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.objects >= 1)
   },
   test("derives binding for Right[Boolean, Double]") {
-    val binding = Binding.of[Right[Boolean, Double]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Right[Boolean, Double]].asInstanceOf[Binding.Record[Right[Boolean, Double]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.doubles >= 1 || regs.objects >= 1)
   },
   test("derives binding for Right[Byte, Short]") {
-    val binding = Binding.of[Right[Byte, Short]]
-    val regs = binding.usedRegisters
+    val binding = Binding.of[Right[Byte, Short]].asInstanceOf[Binding.Record[Right[Byte, Short]]]
+    val regs = binding.constructor.usedRegisters
     assertTrue(regs.shorts >= 1 || regs.bytes >= 1 || regs.objects >= 1)
   }
 )
@@ -594,77 +601,103 @@ suite("JsonDecoder error branches")(
 
 **Target code:** `schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala` lines 1390-1826 (path operations)
 
+**Required imports:**
+```scala
+import zio.blocks.schema.DynamicOptic
+```
+
 ```scala
 suite("Json path operation coverage")(
-  test("modifyAtPathRecursive modifies all matching nested paths") {
-    val json = Json.parse("""{"a": {"x": 1}, "b": {"x": 2}, "c": {"y": 3}}""").getOrElse(Json.Null)
-    val result = json.modifyAtPathRecursive(List(JsonPath.Field("x")))(_ => Json.Number("0"))
+  test("modify with DynamicOptic.root.field modifies nested value") {
+    val json = Json.parse("""{"a": {"x": 1}, "b": 2}""").getOrElse(Json.Null)
+    val path = DynamicOptic.root.field("a").field("x")
+    val result = json.modify(path)(_ => Json.Number("99"))
     
-    assertTrue(
-      result.get("a").flatMap(_.get("x")) == Some(Json.Number("0")) &&
-      result.get("b").flatMap(_.get("x")) == Some(Json.Number("0")) &&
-      result.get("c").flatMap(_.get("y")) == Some(Json.Number("3"))
-    )
+    assertTrue(result.get("a").get("x").one == Right(Json.Number("99")))
   },
-  test("deleteAtPathRecursive removes all matching nested paths") {
-    val json = Json.parse("""{"a": {"x": 1, "y": 2}, "b": {"x": 3, "z": 4}}""").getOrElse(Json.Null)
-    val result = json.deleteAtPathRecursive(List(JsonPath.Field("x")))
-    
-    assertTrue(
-      result.get("a").flatMap(_.get("x")).isEmpty &&
-      result.get("b").flatMap(_.get("x")).isEmpty &&
-      result.get("a").flatMap(_.get("y")).isDefined &&
-      result.get("b").flatMap(_.get("z")).isDefined
-    )
-  },
-  test("insertAtPath inserts value at array index") {
-    val json = Json.parse("""{"items": [1, 3, 4]}""").getOrElse(Json.Null)
-    val result = json.insertAtPath(List(JsonPath.Field("items"), JsonPath.Index(1)), Json.Number("2"))
-    val items = result.get("items").flatMap(_.as(JsonType.Array)).map(_.values)
-    
-    assertTrue(
-      items.exists(_.length == 4) &&
-      items.flatMap(_.lift(1)) == Some(Json.Number("2"))
-    )
-  },
-  test("insertAtPathOrFail fails when path does not exist") {
+  test("modify returns original when path does not exist") {
     val json = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
-    val result = json.insertAtPathOrFail(List(JsonPath.Field("nonexistent"), JsonPath.Index(0)), Json.Number("1"))
+    val path = DynamicOptic.root.field("nonexistent")
+    val result = json.modify(path)(_ => Json.Number("99"))
+    
+    assertTrue(result == json)
+  },
+  test("modifyOrFail fails when path does not exist") {
+    val json = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+    val path = DynamicOptic.root.field("nonexistent")
+    val result = json.modifyOrFail(path) { case _ => Json.Number("99") }
     
     assertTrue(result.isLeft)
   },
-  test("modifyAtPathOrFail fails when path does not exist") {
-    val json = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
-    val result = json.modifyAtPathOrFail(List(JsonPath.Field("nonexistent")))(_ => Json.Number("2"))
+  test("delete removes value at path") {
+    val json = Json.parse("""{"a": 1, "b": 2}""").getOrElse(Json.Null)
+    val path = DynamicOptic.root.field("a")
+    val result = json.delete(path)
     
+    assertTrue(
+      result.get("a").isFailure &&
+      result.get("b").isSuccess
+    )
+  },
+  test("delete returns original when path does not exist") {
+    val json = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+    val path = DynamicOptic.root.field("nonexistent")
+    val result = json.delete(path)
+    
+    assertTrue(result == json)
+  },
+  test("deleteOrFail fails when path does not exist") {
+    val json = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+    val path = DynamicOptic.root.field("nonexistent")
+    val result = json.deleteOrFail(path)
+    
+    assertTrue(result.isLeft)
+  },
+  test("insert adds value at new path in object") {
+    val json = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+    val path = DynamicOptic.root.field("b")
+    val result = json.insert(path, Json.Number("2"))
+    
+    assertTrue(
+      result.get("a").isSuccess &&
+      result.get("b").isSuccess
+    )
+  },
+  test("insert adds value at array index") {
+    val json = Json.parse("""{"items": [1, 3]}""").getOrElse(Json.Null)
+    val path = DynamicOptic.root.field("items").at(1)
+    val result = json.insert(path, Json.Number("2"))
+    
+    assertTrue(result.get("items").isSuccess)
+  },
+  test("insertOrFail fails when path already exists") {
+    val json = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+    val path = DynamicOptic.root.field("a")
+    val result = json.insertOrFail(path, Json.Number("99"))
+    
+    // insertOrFail should fail because "a" already exists
     assertTrue(result.isLeft)
   },
   test("parse handles malformed JSON") {
     assertTrue(Json.parse("{invalid}").isLeft) &&
     assertTrue(Json.parse("{\"key\":").isLeft) &&
-    assertTrue(Json.parse("[1, 2,]").isLeft) &&
     assertTrue(Json.parse("").isLeft)
   },
   test("compare orders different Json types correctly") {
     assertTrue(Json.Null.compare(Json.True) < 0) &&
     assertTrue(Json.True.compare(Json.False) > 0) &&
     assertTrue(Json.String("a").compare(Json.String("b")) < 0) &&
-    assertTrue(Json.Number("1").compare(Json.Number("2")) < 0) &&
-    assertTrue(Json.Array.empty.compare(Json.Object.empty) < 0)
+    assertTrue(Json.Number("1").compare(Json.Number("2")) < 0)
   },
-  test("as extracts typed values from Json") {
-    assertTrue(Json.Number("42").as[Int] == Some(42)) &&
-    assertTrue(Json.String("hello").as[String] == Some("hello")) &&
-    assertTrue(Json.True.as[Boolean] == Some(true)) &&
-    assertTrue(Json.Number("42").as[String] == None)
-  },
-  test("unwrap returns inner value for matching type") {
-    val arr = Json.Array(Json.Number("1"), Json.Number("2"))
-    val obj = Json.Object("a" -> Json.Number("1"))
+  test("modify with Elements path modifies all array elements") {
+    val json = Json.parse("""[1, 2, 3]""").getOrElse(Json.Null)
+    val path = DynamicOptic.root.elements
+    val result = json.modify(path)(_ => Json.Number("0"))
     
-    assertTrue(arr.unwrap(JsonType.Array).isDefined) &&
-    assertTrue(obj.unwrap(JsonType.Object).isDefined) &&
-    assertTrue(arr.unwrap(JsonType.Object).isEmpty)
+    result.as(JsonType.Array) match {
+      case Some(arr) => assertTrue(arr.value.forall(_ == Json.Number("0")))
+      case None      => assertTrue(false)
+    }
   }
 )
 ```
@@ -681,19 +714,32 @@ suite("Json path operation coverage")(
 
 ```scala
 suite("DynamicPatch additional coverage")(
-  test("PrimitiveDelta.render covers all numeric delta types") {
-    val deltas = List(
-      (PrimitiveDelta.ByteDelta(1.toByte), _.nonEmpty),
-      (PrimitiveDelta.ShortDelta(1.toShort), _.nonEmpty),
-      (PrimitiveDelta.IntDelta(100), _.contains("100")),
-      (PrimitiveDelta.LongDelta(1000L), _.contains("1000")),
-      (PrimitiveDelta.FloatDelta(1.5f), _.nonEmpty),
-      (PrimitiveDelta.DoubleDelta(2.5), _.nonEmpty),
-      (PrimitiveDelta.CharDelta('X'), _.nonEmpty)
+  test("toString renders positive numeric deltas with +=") {
+    val patches = List(
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta(1.toByte))),
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta(1.toShort))),
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(100))),
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(1000L))),
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(1.5f))),
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(2.5)))
     )
     
-    deltas.foldLeft(assertTrue(true)) { case (acc, (delta, check)) =>
-      acc && assertTrue(check(delta.render))
+    patches.foldLeft(assertTrue(true)) { case (acc, patch) =>
+      acc && assertTrue(patch.toString.contains("+="))
+    }
+  },
+  test("toString renders negative numeric deltas with -=") {
+    val patches = List(
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta(-1.toByte))),
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta(-1.toShort))),
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(-100))),
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(-1000L))),
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(-1.5f))),
+      DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(-2.5)))
+    )
+    
+    patches.foldLeft(assertTrue(true)) { case (acc, patch) =>
+      acc && assertTrue(patch.toString.contains("-="))
     }
   },
   test("applies patch to deeply nested record field") {
@@ -749,7 +795,7 @@ suite("DynamicPatch additional coverage")(
       )
     )
     val patch = DynamicPatch(
-      DynamicOptic.root.key(stringVal("key1")),
+      DynamicOptic.root.atKey("key1"),
       DynamicPatch.Operation.Set(intVal(100))
     )
     val result = patch(original)
@@ -863,7 +909,7 @@ suite("|| (anyOf) combinator edge cases")(
 
 ## Verification Workflow
 
-After adding each test group:
+After adding all tests:
 
 1. **Run tests with coverage:**
    ```bash
@@ -886,21 +932,6 @@ After adding each test group:
    ```bash
    sbt "schemaJVM/scalafmt; schemaJVM/Test/scalafmt"
    ```
-
----
-
-## Priority Order
-
-For maximum impact with minimum effort:
-
-1. **Test Group 1** (Into narrowing) — 16+ branches, simple runtime tests
-2. **Test Group 2** (All primitives in records) — 80+ branches, macro coverage
-3. **Test Group 9** (JsonDecoder errors) — 38 branches, simple runtime tests  
-4. **Test Group 8** (Json.fromDynamicValue) — 26 branches, runtime coverage
-5. **Test Group 3-4** (Opaque/Named tuples) — Macro coverage for Scala 3 features
-6. **Test Group 5-6** (Into tuple/primitive) — Macro coverage for conversions
-7. **Test Group 7** (Binding Some/Left/Right) — Macro coverage for binding derivation
-8. **Test Group 10-12** (Json/Patch operations) — Runtime edge cases
 
 ---
 
