@@ -1,6 +1,7 @@
 package zio.blocks.schema.tostring
 
 import zio.blocks.schema._
+import zio.blocks.schema.binding.Binding
 import zio.test._
 
 object ReflectSpec extends ZIOSpecDefault {
@@ -338,6 +339,240 @@ object ReflectSpec extends ZIOSpecDefault {
             |  }
             |}""".stripMargin
         assertTrue(level1Schema.reflect.toString == expected)
+      }
+    ),
+
+    suite("Primitive types with validations")(
+      test("renders String with NonEmpty validation") {
+        val reflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.NonEmpty),
+          TypeName.string,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "String @NonEmpty")
+      },
+      test("renders String with Empty validation") {
+        val reflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Empty),
+          TypeName.string,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "String @Empty")
+      },
+      test("renders String with Blank validation") {
+        val reflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Blank),
+          TypeName.string,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "String @Blank")
+      },
+      test("renders String with NonBlank validation") {
+        val reflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.NonBlank),
+          TypeName.string,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "String @NonBlank")
+      },
+      test("renders String with Length validation (both bounds)") {
+        val reflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Length(Some(3), Some(50))),
+          TypeName.string,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "String @Length(min=3, max=50)")
+      },
+      test("renders String with Length validation (min only)") {
+        val reflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Length(Some(3), None)),
+          TypeName.string,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "String @Length(min=3)")
+      },
+      test("renders String with Length validation (max only)") {
+        val reflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Length(None, Some(50))),
+          TypeName.string,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "String @Length(max=50)")
+      },
+      test("renders String with Pattern validation") {
+        val reflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
+          TypeName.string,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "String @Pattern(\"^[a-z]+$\")")
+      },
+      test("renders Int with Positive validation") {
+        val reflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Positive),
+          TypeName.int,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "Int @Positive")
+      },
+      test("renders Int with Negative validation") {
+        val reflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Negative),
+          TypeName.int,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "Int @Negative")
+      },
+      test("renders Int with NonPositive validation") {
+        val reflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.NonPositive),
+          TypeName.int,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "Int @NonPositive")
+      },
+      test("renders Int with NonNegative validation") {
+        val reflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.NonNegative),
+          TypeName.int,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "Int @NonNegative")
+      },
+      test("renders Int with Range validation (both bounds)") {
+        val reflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(100))),
+          TypeName.int,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "Int @Range(min=0, max=100)")
+      },
+      test("renders Int with Range validation (min only)") {
+        val reflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Range(Some(0), None)),
+          TypeName.int,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "Int @Range(min=0)")
+      },
+      test("renders Int with Set validation") {
+        val reflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Set(Set(1, 2, 3))),
+          TypeName.int,
+          Binding.Primitive()
+        )
+        // Set iteration order may vary, so we just check it contains the expected elements
+        val str = reflect.toString
+        assertTrue(
+          str.startsWith("Int @Set(") && str.endsWith(")") &&
+            str.contains("1") && str.contains("2") && str.contains("3")
+        )
+      },
+      test("renders Long with Negative validation") {
+        val reflect = Reflect.Primitive[Binding, Long](
+          new PrimitiveType.Long(Validation.Numeric.Negative),
+          TypeName.long,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "Long @Negative")
+      },
+      test("renders Double with NonNegative validation") {
+        val reflect = Reflect.Primitive[Binding, Double](
+          new PrimitiveType.Double(Validation.Numeric.NonNegative),
+          TypeName.double,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "Double @NonNegative")
+      },
+      test("renders primitives without validation (Validation.None) unchanged") {
+        val reflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.None),
+          TypeName.int,
+          Binding.Primitive()
+        )
+        assertTrue(reflect.toString == "Int")
+      },
+      test("renders record with validated primitive fields") {
+        import zio.blocks.schema.binding._
+        import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+
+        // Create a record with validated fields: name (NonEmpty String), age (Positive Int)
+        val nameReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.NonEmpty),
+          TypeName.string,
+          Binding.Primitive()
+        )
+        val ageReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Positive),
+          TypeName.int,
+          Binding.Primitive()
+        )
+
+        val userRecord = Reflect.Record[Binding, (String, Int)](
+          fields = Vector(
+            Term("name", nameReflect),
+            Term("age", ageReflect)
+          ),
+          typeName = TypeName(Namespace(Nil), "User"),
+          recordBinding = Binding.Record(
+            constructor = new Constructor[(String, Int)] {
+              def usedRegisters                                    = RegisterOffset(ints = 1, objects = 1)
+              def construct(in: Registers, offset: RegisterOffset) =
+                (in.getObject(offset).asInstanceOf[String], in.getInt(offset))
+            },
+            deconstructor = new Deconstructor[(String, Int)] {
+              def usedRegisters                                                          = RegisterOffset(ints = 1, objects = 1)
+              def deconstruct(out: Registers, offset: RegisterOffset, in: (String, Int)) = {
+                out.setObject(offset, in._1)
+                out.setInt(offset, in._2)
+              }
+            }
+          )
+        )
+
+        val expected =
+          """record User {
+            |  name: String @NonEmpty
+            |  age: Int @Positive
+            |}""".stripMargin
+
+        assertTrue(userRecord.toString == expected)
+      },
+      test("renders sequence with validated element type") {
+        val intReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.NonNegative),
+          TypeName.int,
+          Binding.Primitive()
+        )
+
+        val listReflect = Reflect.Sequence[Binding, Int, List](
+          element = intReflect,
+          typeName = TypeName.list(TypeName.int),
+          seqBinding = Binding.Seq.list
+        )
+
+        assertTrue(listReflect.toString == "sequence List[Int @NonNegative]")
+      },
+      test("renders map with validated key and value types") {
+        val keyReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.NonEmpty),
+          TypeName.string,
+          Binding.Primitive()
+        )
+        val valueReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(100))),
+          TypeName.int,
+          Binding.Primitive()
+        )
+
+        val mapReflect = Reflect.Map[Binding, String, Int, scala.collection.immutable.Map](
+          key = keyReflect,
+          value = valueReflect,
+          typeName = TypeName.map(TypeName.string, TypeName.int),
+          mapBinding = Binding.Map.map
+        )
+
+        assertTrue(mapReflect.toString == "map Map[String @NonEmpty, Int @Range(min=0, max=100)]")
       }
     )
   )
