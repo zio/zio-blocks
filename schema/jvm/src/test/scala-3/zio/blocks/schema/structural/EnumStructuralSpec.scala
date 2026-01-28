@@ -30,7 +30,7 @@ object EnumStructuralSpec extends ZIOSpecDefault {
           import zio.blocks.schema._
           enum Color { case Red, Green, Blue }
           val schema = Schema.derived[Color]
-          val structural: Schema[{def Tag: "Blue"} | {def Tag: "Green"} | {def Tag: "Red"}] = schema.structural
+          val structural: Schema[{def Blue: {}} | {def Green: {}} | {def Red: {}}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       },
       test("parameterized enum converts to structural union type") {
@@ -43,9 +43,9 @@ object EnumStructuralSpec extends ZIOSpecDefault {
           }
           val schema = Schema.derived[Shape]
           val structural: Schema[
-            {def Tag: "Circle"; def radius: Double} |
-            {def Tag: "Rectangle"; def height: Double; def width: Double} |
-            {def Tag: "Triangle"; def base: Double; def height: Double}
+            {def Circle: {def radius: Double}} |
+            {def Rectangle: {def height: Double; def width: Double}} |
+            {def Triangle: {def base: Double; def height: Double}}
           ] = schema.structural
         """).map(result => assertTrue(result.isRight))
       },

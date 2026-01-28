@@ -32,7 +32,7 @@ object EnumToUnionSpec extends ZIOSpecDefault {
         import zio.blocks.schema._
         enum Color { case Red, Green, Blue }
         val schema = Schema.derived[Color]
-        val structural: Schema[{def Tag: "Blue"} | {def Tag: "Green"} | {def Tag: "Red"}] = schema.structural
+        val structural: Schema[{def Blue: {}} | {def Green: {}} | {def Red: {}}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },
     test("parameterized enum converts to structural union type with fields") {
@@ -44,7 +44,7 @@ object EnumToUnionSpec extends ZIOSpecDefault {
           case Triangle(base: Double, height: Double)
         }
         val schema = Schema.derived[Shape]
-        val structural: Schema[{def Tag: "Circle"; def radius: Double} | {def Tag: "Rectangle"; def height: Double; def width: Double} | {def Tag: "Triangle"; def base: Double; def height: Double}] = schema.structural
+        val structural: Schema[{def Circle: {def radius: Double}} | {def Rectangle: {def height: Double; def width: Double}} | {def Triangle: {def base: Double; def height: Double}}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },
     test("structural enum schema is a Variant") {
@@ -69,8 +69,8 @@ object EnumToUnionSpec extends ZIOSpecDefault {
       val schema     = Schema.derived[Color]
       val structural = schema.structural
 
-      val redInstance: { def Tag: "Red" } = new { def Tag: "Red" = "Red" }
-      val dynamic                         = structural.toDynamicValue(redInstance)
+      val redInstance: { def Red: {} } = new { def Red: {} = new {} }
+      val dynamic                      = structural.toDynamicValue(redInstance)
 
       assertTrue(dynamic match {
         case DynamicValue.Variant("Red", _) => true
@@ -81,9 +81,8 @@ object EnumToUnionSpec extends ZIOSpecDefault {
       val schema     = Schema.derived[Shape]
       val structural = schema.structural
 
-      val circleInstance: { def Tag: "Circle"; def radius: Double } = new {
-        def Tag: "Circle"  = "Circle"
-        def radius: Double = 5.0
+      val circleInstance: { def Circle: { def radius: Double } } = new {
+        def Circle: { def radius: Double } = new { def radius: Double = 5.0 }
       }
 
       val dynamic = structural.toDynamicValue(circleInstance)
