@@ -461,6 +461,226 @@ object TransformExpressionSpec extends SchemaBaseSpec {
         )
         assertTrue(expr.evalDynamic.isLeft)
       }
+    ),
+    suite("Head expression")(
+      test("head returns first element of non-empty sequence") {
+        val expr = Resolved.Head(Resolved.Literal(dynamicSequence(dynamicInt(1), dynamicInt(2), dynamicInt(3))))
+        assertTrue(expr.evalDynamic(dynamicInt(0)) == Right(dynamicInt(1)))
+      },
+      test("head fails on empty sequence") {
+        val expr = Resolved.Head(Resolved.Literal(dynamicSequence()))
+        assertTrue(expr.evalDynamic(dynamicInt(0)).isLeft)
+      },
+      test("head fails on non-sequence") {
+        val expr = Resolved.Head(Resolved.Identity)
+        assertTrue(expr.evalDynamic(dynamicInt(42)).isLeft)
+      },
+      test("head without input fails") {
+        val expr = Resolved.Head(Resolved.Identity)
+        assertTrue(expr.evalDynamic.isLeft)
+      }
+    ),
+    suite("JoinStrings expression")(
+      test("joins sequence elements with separator") {
+        val expr = Resolved.JoinStrings("-", Resolved.Literal(dynamicSequence(dynamicString("a"), dynamicString("b"), dynamicString("c"))))
+        assertTrue(expr.evalDynamic(dynamicInt(0)) == Right(dynamicString("a-b-c")))
+      },
+      test("joins empty sequence to empty string") {
+        val expr = Resolved.JoinStrings(",", Resolved.Literal(dynamicSequence()))
+        assertTrue(expr.evalDynamic(dynamicInt(0)) == Right(dynamicString("")))
+      },
+      test("joins non-string elements using toString") {
+        val expr = Resolved.JoinStrings(",", Resolved.Literal(dynamicSequence(dynamicInt(1), dynamicInt(2))))
+        val result = expr.evalDynamic(dynamicInt(0))
+        assertTrue(result.isRight)
+      },
+      test("join fails on non-sequence input") {
+        val expr = Resolved.JoinStrings(",", Resolved.Identity)
+        assertTrue(expr.evalDynamic(dynamicInt(42)).isLeft)
+      },
+      test("join without input fails") {
+        val expr = Resolved.JoinStrings(",", Resolved.Identity)
+        assertTrue(expr.evalDynamic.isLeft)
+      }
+    ),
+    suite("Coalesce expression")(
+      test("returns first non-None value") {
+        val expr = Resolved.Coalesce(Vector(
+          Resolved.Literal(dynamicNone),
+          Resolved.Literal(dynamicSome(dynamicInt(42)))
+        ))
+        assertTrue(expr.evalDynamic == Right(dynamicSome(dynamicInt(42))))
+      },
+      test("fails when all alternatives are None") {
+        val expr = Resolved.Coalesce(Vector(
+          Resolved.Literal(dynamicNone),
+          Resolved.Literal(dynamicNone)
+        ))
+        assertTrue(expr.evalDynamic.isLeft)
+      },
+      test("fails when empty alternatives") {
+        val expr = Resolved.Coalesce(Vector.empty)
+        assertTrue(expr.evalDynamic.isLeft)
+      },
+      test("coalesce with input") {
+        val expr = Resolved.Coalesce(Vector(
+          Resolved.FieldAccess("missing", Resolved.Identity),
+          Resolved.Literal.int(99)
+        ))
+        val input = dynamicRecord("other" -> dynamicInt(1))
+        assertTrue(expr.evalDynamic(input) == Right(dynamicInt(99)))
+      },
+      test("returns first successful non-failing alternative") {
+        val expr = Resolved.Coalesce(Vector(
+          Resolved.Fail("first fails"),
+          Resolved.Literal.int(42)
+        ))
+        assertTrue(expr.evalDynamic == Right(dynamicInt(42)))
+      }
+    ),
+    suite("GetOrElse expression")(
+      test("extracts value from Some variant") {
+        val expr = Resolved.GetOrElse(
+          Resolved.Literal(dynamicSome(dynamicInt(42))),
+          Resolved.Literal.int(0)
+        )
+        assertTrue(expr.evalDynamic == Right(dynamicInt(42)))
+      },
+      test("returns fallback for None variant") {
+        val expr = Resolved.GetOrElse(
+          Resolved.Literal(dynamicNone),
+          Resolved.Literal.int(99)
+        )
+        assertTrue(expr.evalDynamic == Right(dynamicInt(99)))
+      },
+      test("returns fallback for Null") {
+        val expr = Resolved.GetOrElse(
+          Resolved.Literal(DynamicValue.Null),
+          Resolved.Literal.int(99)
+        )
+        assertTrue(expr.evalDynamic == Right(dynamicInt(99)))
+      },
+      test("returns non-option value as-is") {
+        val expr = Resolved.GetOrElse(
+          Resolved.Literal.int(42),
+          Resolved.Literal.int(0)
+        )
+        assertTrue(expr.evalDynamic == Right(dynamicInt(42)))
+      },
+      test("returns fallback when primary fails") {
+        val expr = Resolved.GetOrElse(
+          Resolved.Fail("primary failed"),
+          Resolved.Literal.int(99)
+        )
+        assertTrue(expr.evalDynamic == Right(dynamicInt(99)))
+      },
+      test("works with input for field access") {
+        val expr = Resolved.GetOrElse(
+          Resolved.FieldAccess("value", Resolved.Identity),
+          Resolved.Literal.int(0)
+        )
+        // GetOrElse extracts the value from Some, so we expect the inner int
+        val input = dynamicRecord("value" -> dynamicSome(dynamicInt(42)))
+        assertTrue(expr.evalDynamic(input) == Right(dynamicInt(42)))
+      }
+    ),
+    suite("DefaultValue expression")(
+      test("returns value when available") {
+        val expr = Resolved.DefaultValue(Right(dynamicInt(42)))
+        assertTrue(expr.evalDynamic == Right(dynamicInt(42)))
+      },
+      test("fails when no default") {
+        val expr = Resolved.DefaultValue.noDefault
+        assertTrue(expr.evalDynamic.isLeft)
+      },
+      test("fails with custom message") {
+        val expr = Resolved.DefaultValue.fail("custom error")
+        val result = expr.evalDynamic
+        assertTrue(result.isLeft && result.swap.getOrElse("").contains("custom error"))
+      },
+      test("ignores input and returns default") {
+        val expr = Resolved.DefaultValue(Right(dynamicInt(42)))
+        assertTrue(expr.evalDynamic(dynamicString("ignored")) == Right(dynamicInt(42)))
+      }
+    ),
+    suite("SplitString expression")(
+      test("splits string by separator") {
+        val expr = Resolved.SplitString("-", Resolved.Literal.string("a-b-c"))
+        val result = expr.evalDynamic(dynamicInt(0))
+        assertTrue(result == Right(dynamicSequence(dynamicString("a"), dynamicString("b"), dynamicString("c"))))
+      },
+      test("handles empty parts from consecutive separators") {
+        val expr = Resolved.SplitString(",", Resolved.Literal.string("a,,b"))
+        val result = expr.evalDynamic(dynamicInt(0))
+        assertTrue(result == Right(dynamicSequence(dynamicString("a"), dynamicString(""), dynamicString("b"))))
+      },
+      test("fails on non-string input") {
+        val expr = Resolved.SplitString(",", Resolved.Identity)
+        assertTrue(expr.evalDynamic(dynamicInt(42)).isLeft)
+      },
+      test("without input fails") {
+        val expr = Resolved.SplitString(",", Resolved.Identity)
+        assertTrue(expr.evalDynamic.isLeft)
+      }
+    ),
+    suite("OpticAccess expression")(
+      test("accesses value at path") {
+        val expr = Resolved.OpticAccess(DynamicOptic.root.field("name"), Resolved.Identity)
+        val input = dynamicRecord("name" -> dynamicString("Alice"))
+        assertTrue(expr.evalDynamic(input) == Right(dynamicString("Alice")))
+      },
+      test("without input fails") {
+        val expr = Resolved.OpticAccess(DynamicOptic.root.field("name"), Resolved.Identity)
+        assertTrue(expr.evalDynamic.isLeft)
+      }
+    ),
+    suite("UnwrapOption expression")(
+      test("extracts Some value") {
+        val expr = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0))
+        val input = DynamicValue.Variant("Some", dynamicInt(42))
+        assertTrue(expr.evalDynamic(input) == Right(dynamicInt(42)))
+      },
+      test("uses fallback for None") {
+        val expr = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(99))
+        val input = DynamicValue.Variant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
+        assertTrue(expr.evalDynamic(input) == Right(dynamicInt(99)))
+      },
+      test("uses fallback for Null") {
+        val expr = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(99))
+        assertTrue(expr.evalDynamic(DynamicValue.Null) == Right(dynamicInt(99)))
+      },
+      test("returns non-optional value unchanged") {
+        val expr = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0))
+        assertTrue(expr.evalDynamic(dynamicInt(42)) == Right(dynamicInt(42)))
+      },
+      test("without input fails") {
+        val expr = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0))
+        assertTrue(expr.evalDynamic.isLeft)
+      }
+    ),
+    suite("WrapSome expression")(
+      test("wraps value in Some variant") {
+        val expr = Resolved.WrapSome(Resolved.Literal.int(42))
+        assertTrue(expr.evalDynamic == Right(dynamicSome(dynamicInt(42))))
+      },
+      test("wraps input using Identity") {
+        val expr = Resolved.WrapSome(Resolved.Identity)
+        assertTrue(expr.evalDynamic(dynamicString("test")) == Right(dynamicSome(dynamicString("test"))))
+      }
+    ),
+    suite("Convert edge cases")(
+      test("convert without input fails") {
+        val expr = Resolved.Convert("Int", "String", Resolved.Identity)
+        assertTrue(expr.evalDynamic.isLeft)
+      },
+      test("convert Long to String") {
+        val expr = Resolved.Convert("Long", "String", Resolved.Identity)
+        assertTrue(expr.evalDynamic(dynamicLong(123L)) == Right(dynamicString("123")))
+      },
+      test("convert Boolean to String") {
+        val expr = Resolved.Convert("Boolean", "String", Resolved.Identity)
+        assertTrue(expr.evalDynamic(dynamicBool(true)) == Right(dynamicString("true")))
+      }
     )
   )
 }

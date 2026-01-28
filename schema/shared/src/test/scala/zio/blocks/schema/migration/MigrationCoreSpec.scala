@@ -449,6 +449,334 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         val input = SimpleRecord(1, "test")
         assertTrue(migration.unsafeApply(input) == input)
       }
+    ),
+    suite("MigrationAction edge cases")(
+      test("TransformValue transforms field value") {
+        val action = MigrationAction.TransformValue(
+          DynamicOptic.root,
+          "value",
+          Resolved.Convert("Int", "String", Resolved.Identity),
+          Resolved.Convert("String", "Int", Resolved.Identity)
+        )
+        val input  = dynamicRecord("value" -> dynamicInt(42))
+        val result = action.apply(input)
+        assertTrue(result == Right(dynamicRecord("value" -> dynamicString("42"))))
+      },
+      test("TransformValue fails on non-record") {
+        val action = MigrationAction.TransformValue(
+          DynamicOptic.root,
+          "value",
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        assertTrue(action.apply(dynamicInt(42)).isLeft)
+      },
+      test("TransformValue fails when field not found") {
+        val action = MigrationAction.TransformValue(
+          DynamicOptic.root,
+          "missing",
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        val input = dynamicRecord("other" -> dynamicInt(1))
+        assertTrue(action.apply(input).isLeft)
+      },
+      test("Optionalize wraps field value in Some") {
+        val action = MigrationAction.Optionalize(DynamicOptic.root, "value")
+        val input  = dynamicRecord("value" -> dynamicInt(42))
+        val result = action.apply(input)
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val valueField = fields.find(_._1 == "value")
+            assertTrue(valueField.exists(_._2.isInstanceOf[DynamicValue.Variant]))
+          case _ => assertTrue(false)
+        }
+      },
+      test("Optionalize fails on non-record") {
+        val action = MigrationAction.Optionalize(DynamicOptic.root, "value")
+        assertTrue(action.apply(dynamicInt(42)).isLeft)
+      },
+      test("Mandate extracts value from Some") {
+        val action = MigrationAction.Mandate(DynamicOptic.root, "value", Resolved.Literal.int(0))
+        val someValue = DynamicValue.Variant("Some", DynamicValue.Record(("value", dynamicInt(42))))
+        val input  = dynamicRecord("value" -> someValue)
+        val result = action.apply(input)
+        assertTrue(result == Right(dynamicRecord("value" -> dynamicInt(42))))
+      },
+      test("Mandate uses default for None") {
+        val action = MigrationAction.Mandate(DynamicOptic.root, "value", Resolved.Literal.int(99))
+        val noneValue = DynamicValue.Variant("None", DynamicValue.Record())
+        val input  = dynamicRecord("value" -> noneValue)
+        val result = action.apply(input)
+        assertTrue(result == Right(dynamicRecord("value" -> dynamicInt(99))))
+      },
+      test("Mandate fails on non-record") {
+        val action = MigrationAction.Mandate(DynamicOptic.root, "value", Resolved.Literal.int(0))
+        assertTrue(action.apply(dynamicInt(42)).isLeft)
+      },
+      test("RenameCase renames variant case") {
+        val action = MigrationAction.RenameCase(DynamicOptic.root, "OldCase", "NewCase")
+        val input  = DynamicValue.Variant("OldCase", dynamicRecord())
+        val result = action.apply(input)
+        result match {
+          case Right(DynamicValue.Variant(name, _)) => assertTrue(name == "NewCase")
+          case _                                    => assertTrue(false)
+        }
+      },
+      test("RenameCase leaves other cases unchanged") {
+        val action = MigrationAction.RenameCase(DynamicOptic.root, "OldCase", "NewCase")
+        val input  = DynamicValue.Variant("OtherCase", dynamicRecord())
+        val result = action.apply(input)
+        result match {
+          case Right(DynamicValue.Variant(name, _)) => assertTrue(name == "OtherCase")
+          case _                                    => assertTrue(false)
+        }
+      },
+      test("RenameCase passes through non-variant unchanged") {
+        val action = MigrationAction.RenameCase(DynamicOptic.root, "OldCase", "NewCase")
+        // RenameCase passes through non-variant values unchanged
+        assertTrue(action.apply(dynamicInt(42)) == Right(dynamicInt(42)))
+      },
+      test("TransformElements transforms sequence elements") {
+        val action = MigrationAction.TransformElements(
+          DynamicOptic.root,
+          Resolved.Convert("Int", "String", Resolved.Identity),
+          Resolved.Convert("String", "Int", Resolved.Identity)
+        )
+        val input  = DynamicValue.Sequence(dynamicInt(1), dynamicInt(2))
+        val result = action.apply(input)
+        result match {
+          case Right(DynamicValue.Sequence(elements)) =>
+            assertTrue(elements.length == 2 && elements.head == dynamicString("1"))
+          case _ => assertTrue(false)
+        }
+      },
+      test("TransformElements fails on non-sequence") {
+        val action = MigrationAction.TransformElements(
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        assertTrue(action.apply(dynamicInt(42)).isLeft)
+      },
+      test("TransformElements handles empty sequence") {
+        val action = MigrationAction.TransformElements(
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        val input  = DynamicValue.Sequence()
+        val result = action.apply(input)
+        assertTrue(result == Right(DynamicValue.Sequence()))
+      },
+      test("TransformKeys transforms record keys") {
+        val action = MigrationAction.TransformKeys(
+          DynamicOptic.root,
+          Resolved.Concat(Vector(Resolved.Identity, Resolved.Literal.string("_suffix")), ""),
+          Resolved.Identity // reverse not needed for this test
+        )
+        val input  = dynamicRecord("key1" -> dynamicInt(1), "key2" -> dynamicInt(2))
+        val result = action.apply(input)
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            assertTrue(fields.exists(_._1.contains("_suffix")))
+          case _ => assertTrue(false)
+        }
+      },
+      test("TransformKeys transforms Map keys") {
+        val action = MigrationAction.TransformKeys(
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        val input  = DynamicValue.Map((dynamicString("a"), dynamicInt(1)), (dynamicString("b"), dynamicInt(2)))
+        val result = action.apply(input)
+        assertTrue(result.isRight)
+      },
+      test("TransformKeys fails on non-map") {
+        val action = MigrationAction.TransformKeys(
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        assertTrue(action.apply(dynamicInt(42)).isLeft)
+      },
+      test("TransformValues transforms record values") {
+        val action = MigrationAction.TransformValues(
+          DynamicOptic.root,
+          Resolved.Convert("Int", "String", Resolved.Identity),
+          Resolved.Convert("String", "Int", Resolved.Identity)
+        )
+        val input  = dynamicRecord("key" -> dynamicInt(42))
+        val result = action.apply(input)
+        assertTrue(result == Right(dynamicRecord("key" -> dynamicString("42"))))
+      },
+      test("TransformValues transforms Map values") {
+        val action = MigrationAction.TransformValues(
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        val input  = DynamicValue.Map((dynamicString("a"), dynamicInt(1)))
+        val result = action.apply(input)
+        assertTrue(result.isRight)
+      },
+      test("TransformValues fails on non-map") {
+        val action = MigrationAction.TransformValues(
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        assertTrue(action.apply(dynamicInt(42)).isLeft)
+      },
+      test("ChangeType converts field type") {
+        val action = MigrationAction.ChangeType(
+          DynamicOptic.root,
+          "value",
+          Resolved.Convert("Int", "String", Resolved.Identity),
+          Resolved.Convert("String", "Int", Resolved.Identity)
+        )
+        val input  = dynamicRecord("value" -> dynamicInt(42))
+        val result = action.apply(input)
+        assertTrue(result == Right(dynamicRecord("value" -> dynamicString("42"))))
+      },
+      test("ChangeType fails when field missing") {
+        val action = MigrationAction.ChangeType(
+          DynamicOptic.root,
+          "missing",
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        val input = dynamicRecord("other" -> dynamicInt(1))
+        assertTrue(action.apply(input).isLeft)
+      },
+      test("TransformCase transforms matching case contents") {
+        val action = MigrationAction.TransformCase(
+          DynamicOptic.root,
+          "TestCase",
+          Vector(MigrationAction.Rename(DynamicOptic.root, "old", "new"))
+        )
+        val input  = DynamicValue.Variant("TestCase", dynamicRecord("old" -> dynamicInt(1)))
+        val result = action.apply(input)
+        result match {
+          case Right(DynamicValue.Variant(name, DynamicValue.Record(fields))) =>
+            assertTrue(name == "TestCase" && fields.exists(_._1 == "new"))
+          case _ => assertTrue(false)
+        }
+      },
+      test("TransformCase leaves non-matching cases unchanged") {
+        val action = MigrationAction.TransformCase(
+          DynamicOptic.root,
+          "TestCase",
+          Vector(MigrationAction.Rename(DynamicOptic.root, "old", "new"))
+        )
+        val input  = DynamicValue.Variant("OtherCase", dynamicRecord("old" -> dynamicInt(1)))
+        val result = action.apply(input)
+        result match {
+          case Right(DynamicValue.Variant(name, DynamicValue.Record(fields))) =>
+            assertTrue(name == "OtherCase" && fields.exists(_._1 == "old"))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("MigrationOptimizer edge cases")(
+      test("preserves non-optimizable mixed actions") {
+        val actions = Vector(
+          MigrationAction.AddField(DynamicOptic.root, "a", Resolved.Literal.int(1)),
+          MigrationAction.Rename(DynamicOptic.root, "b", "c"),
+          MigrationAction.DropField(DynamicOptic.root, "d", Resolved.Literal.int(0))
+        )
+        val optimized = MigrationOptimizer.optimize(actions)
+        assertTrue(optimized.length == 3)
+      },
+      test("chains multiple renames: a->b->c->d becomes a->d") {
+        val actions = Vector(
+          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+          MigrationAction.Rename(DynamicOptic.root, "b", "c"),
+          MigrationAction.Rename(DynamicOptic.root, "c", "d")
+        )
+        val optimized = MigrationOptimizer.optimize(actions)
+        assertTrue(optimized.length == 1)
+        optimized.head match {
+          case MigrationAction.Rename(_, from, to) =>
+            assertTrue(from == "a" && to == "d")
+          case _ => assertTrue(false)
+        }
+      },
+      test("handles empty actions") {
+        val actions   = Vector.empty[MigrationAction]
+        val optimized = MigrationOptimizer.optimize(actions)
+        assertTrue(optimized.isEmpty)
+      },
+      test("handles single action") {
+        val actions   = Vector(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val optimized = MigrationOptimizer.optimize(actions)
+        assertTrue(optimized.length == 1)
+      }
+    ),
+    suite("DynamicMigration additional cases")(
+      test("isIdentity returns false for non-empty migration") {
+        val migration = DynamicMigration.single(
+          MigrationAction.Rename(DynamicOptic.root, "a", "b")
+        )
+        assertTrue(!migration.isIdentity)
+      },
+      test("actions property returns all actions") {
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
+          )
+        )
+        assertTrue(m.actions.length == 2)
+      },
+      test("apply propagates action errors") {
+        val migration = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root, "field", Resolved.Fail("expression error"))
+        )
+        val result = migration.apply(dynamicRecord())
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("MigrationAction reverse")(
+      test("TransformValue reverse swaps transforms") {
+        val action = MigrationAction.TransformValue(
+          DynamicOptic.root,
+          "value",
+          Resolved.Convert("Int", "String", Resolved.Identity),
+          Resolved.Convert("String", "Int", Resolved.Identity)
+        )
+        val reversed = action.reverse
+        assertTrue(reversed.isInstanceOf[MigrationAction.TransformValue])
+      },
+      test("Optionalize reverse is Mandate") {
+        val action   = MigrationAction.Optionalize(DynamicOptic.root, "value")
+        val reversed = action.reverse
+        assertTrue(reversed.isInstanceOf[MigrationAction.Mandate])
+      },
+      test("Mandate reverse is Optionalize") {
+        val action   = MigrationAction.Mandate(DynamicOptic.root, "value", Resolved.Literal.int(0))
+        val reversed = action.reverse
+        assertTrue(reversed.isInstanceOf[MigrationAction.Optionalize])
+      },
+      test("RenameCase reverse swaps names") {
+        val action   = MigrationAction.RenameCase(DynamicOptic.root, "Old", "New")
+        val reversed = action.reverse
+        reversed match {
+          case MigrationAction.RenameCase(_, from, to) =>
+            assertTrue(from == "New" && to == "Old")
+          case _ => assertTrue(false)
+        }
+      },
+      test("TransformElements reverse swaps transforms") {
+        val action = MigrationAction.TransformElements(
+          DynamicOptic.root,
+          Resolved.Convert("Int", "String", Resolved.Identity),
+          Resolved.Convert("String", "Int", Resolved.Identity)
+        )
+        val reversed = action.reverse
+        assertTrue(reversed.isInstanceOf[MigrationAction.TransformElements])
+      }
     )
   )
 }

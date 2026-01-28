@@ -316,6 +316,241 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
         )
         assertTrue(expr.evalDynamic(dynamicInt(42)) == Right(dynamicString("42")))
       }
+    ),
+    suite("Identity conversions")(
+      test("Int -> Int returns same value") {
+        assertTrue(convert("Int", "Int", dynamicInt(42)) == Right(dynamicInt(42)))
+      },
+      test("String -> String returns same value") {
+        assertTrue(convert("String", "String", dynamicString("hello")) == Right(dynamicString("hello")))
+      },
+      test("Boolean -> Boolean returns same value") {
+        assertTrue(convert("Boolean", "Boolean", dynamicBool(true)) == Right(dynamicBool(true)))
+      }
+    ),
+    suite("Narrowing conversion failures")(
+      test("Short -> Byte fails for out of range value") {
+        assertTrue(convert("Short", "Byte", dynamicShort(200)).isLeft)
+      },
+      test("Int -> Byte fails for out of range value") {
+        assertTrue(convert("Int", "Byte", dynamicInt(500)).isLeft)
+      },
+      test("Int -> Short fails for out of range value") {
+        assertTrue(convert("Int", "Short", dynamicInt(100000)).isLeft)
+      },
+      test("Long -> Byte fails for out of range value") {
+        assertTrue(convert("Long", "Byte", dynamicLong(500L)).isLeft)
+      },
+      test("Long -> Short fails for out of range value") {
+        assertTrue(convert("Long", "Short", dynamicLong(100000L)).isLeft)
+      },
+      test("Long -> Int fails for out of range value") {
+        assertTrue(convert("Long", "Int", dynamicLong(Long.MaxValue)).isLeft)
+      },
+      test("Float -> Int fails for out of range value") {
+        assertTrue(convert("Float", "Int", dynamicFloat(Float.MaxValue)).isLeft)
+      },
+      test("Double -> Int fails for out of range value") {
+        assertTrue(convert("Double", "Int", dynamicDouble(Double.MaxValue)).isLeft)
+      },
+      test("Double -> Long fails for out of range value") {
+        assertTrue(convert("Double", "Long", dynamicDouble(Double.MaxValue)).isLeft)
+      },
+      test("BigInt -> Int fails for out of range value") {
+        assertTrue(convert("BigInt", "Int", dynamicBigInt(BigInt(Long.MaxValue))).isLeft)
+      },
+      test("BigInt -> Long fails for out of range value") {
+        assertTrue(convert("BigInt", "Long", dynamicBigInt(BigInt("9223372036854775808"))).isLeft)
+      },
+      test("BigDecimal -> Int fails for out of range value") {
+        assertTrue(convert("BigDecimal", "Int", dynamicBigDecimal(BigDecimal(Long.MaxValue))).isLeft)
+      },
+      test("BigDecimal -> Long fails for out of range value") {
+        assertTrue(convert("BigDecimal", "Long", dynamicBigDecimal(BigDecimal("9223372036854775808"))).isLeft)
+      },
+      test("Int -> Char fails for negative value") {
+        assertTrue(convert("Int", "Char", dynamicInt(-1)).isLeft)
+      },
+      test("Int -> Char fails for out of range value") {
+        assertTrue(convert("Int", "Char", dynamicInt(100000)).isLeft)
+      }
+    ),
+    suite("Boolean <-> Int conversions")(
+      test("Boolean true -> Int 1") {
+        assertTrue(convert("Boolean", "Int", dynamicBool(true)) == Right(dynamicInt(1)))
+      },
+      test("Boolean false -> Int 0") {
+        assertTrue(convert("Boolean", "Int", dynamicBool(false)) == Right(dynamicInt(0)))
+      },
+      test("Int 1 -> Boolean true") {
+        assertTrue(convert("Int", "Boolean", dynamicInt(1)) == Right(dynamicBool(true)))
+      },
+      test("Int 0 -> Boolean false") {
+        assertTrue(convert("Int", "Boolean", dynamicInt(0)) == Right(dynamicBool(false)))
+      },
+      test("Non-zero Int -> Boolean true") {
+        assertTrue(convert("Int", "Boolean", dynamicInt(42)) == Right(dynamicBool(true)))
+      }
+    ),
+    suite("Byte widening conversions")(
+      test("Byte -> Float") {
+        assertTrue(convert("Byte", "Float", dynamicByte(42)) == Right(dynamicFloat(42.0f)))
+      },
+      test("Byte -> Double") {
+        assertTrue(convert("Byte", "Double", dynamicByte(42)) == Right(dynamicDouble(42.0)))
+      },
+      test("Byte -> BigInt") {
+        assertTrue(convert("Byte", "BigInt", dynamicByte(42)) == Right(dynamicBigInt(BigInt(42))))
+      },
+      test("Byte -> BigDecimal") {
+        assertTrue(convert("Byte", "BigDecimal", dynamicByte(42)) == Right(dynamicBigDecimal(BigDecimal(42))))
+      }
+    ),
+    suite("Short widening conversions")(
+      test("Short -> Float") {
+        assertTrue(convert("Short", "Float", dynamicShort(1000)) == Right(dynamicFloat(1000.0f)))
+      },
+      test("Short -> Double") {
+        assertTrue(convert("Short", "Double", dynamicShort(1000)) == Right(dynamicDouble(1000.0)))
+      },
+      test("Short -> BigInt") {
+        assertTrue(convert("Short", "BigInt", dynamicShort(1000)) == Right(dynamicBigInt(BigInt(1000))))
+      },
+      test("Short -> BigDecimal") {
+        assertTrue(convert("Short", "BigDecimal", dynamicShort(1000)) == Right(dynamicBigDecimal(BigDecimal(1000))))
+      }
+    ),
+    suite("Float/BigDecimal conversions")(
+      test("Float -> Long") {
+        assertTrue(convert("Float", "Long", dynamicFloat(42.5f)) == Right(dynamicLong(42L)))
+      },
+      test("Float -> BigDecimal") {
+        val result = convert("Float", "BigDecimal", dynamicFloat(3.14f))
+        assertTrue(result.isRight)
+      },
+      test("BigDecimal -> BigInt") {
+        assertTrue(
+          convert("BigDecimal", "BigInt", dynamicBigDecimal(BigDecimal(42))) == Right(dynamicBigInt(BigInt(42)))
+        )
+      }
+    ),
+    suite("Long widening conversions")(
+      test("Long -> BigInt") {
+        assertTrue(convert("Long", "BigInt", dynamicLong(Long.MaxValue)) == Right(dynamicBigInt(BigInt(Long.MaxValue))))
+      },
+      test("Long -> BigDecimal") {
+        assertTrue(
+          convert("Long", "BigDecimal", dynamicLong(1000000L)) == Right(dynamicBigDecimal(BigDecimal(1000000L)))
+        )
+      }
+    ),
+    suite("String parsing failures")(
+      test("String -> BigInt fails for non-numeric") {
+        assertTrue(convert("String", "BigInt", dynamicString("not a number")).isLeft)
+      },
+      test("String -> BigDecimal fails for non-numeric") {
+        assertTrue(convert("String", "BigDecimal", dynamicString("abc")).isLeft)
+      },
+      test("String -> UUID fails for invalid UUID") {
+        assertTrue(convert("String", "UUID", dynamicString("not-a-uuid")).isLeft)
+      },
+      test("String -> Instant fails for invalid format") {
+        assertTrue(convert("String", "Instant", dynamicString("not-an-instant")).isLeft)
+      },
+      test("String -> LocalDate fails for invalid format") {
+        assertTrue(convert("String", "LocalDate", dynamicString("not-a-date")).isLeft)
+      },
+      test("String -> LocalTime fails for invalid format") {
+        assertTrue(convert("String", "LocalTime", dynamicString("not-a-time")).isLeft)
+      },
+      test("String -> LocalDateTime fails for invalid format") {
+        assertTrue(convert("String", "LocalDateTime", dynamicString("not-a-datetime")).isLeft)
+      },
+      test("String -> Duration fails for invalid format") {
+        assertTrue(convert("String", "Duration", dynamicString("not-a-duration")).isLeft)
+      },
+      test("String -> Period fails for invalid format") {
+        assertTrue(convert("String", "Period", dynamicString("not-a-period")).isLeft)
+      },
+      test("String -> Year fails for invalid format") {
+        assertTrue(convert("String", "Year", dynamicString("not-a-year")).isLeft)
+      },
+      test("String -> YearMonth fails for invalid format") {
+        assertTrue(convert("String", "YearMonth", dynamicString("not-year-month")).isLeft)
+      },
+      test("String -> MonthDay fails for invalid format") {
+        assertTrue(convert("String", "MonthDay", dynamicString("not-month-day")).isLeft)
+      },
+      test("String -> DayOfWeek fails for invalid day") {
+        assertTrue(convert("String", "DayOfWeek", dynamicString("NOTADAY")).isLeft)
+      },
+      test("String -> Month fails for invalid month") {
+        assertTrue(convert("String", "Month", dynamicString("NOTAMONTH")).isLeft)
+      },
+      test("String -> ZoneId fails for invalid zone") {
+        assertTrue(convert("String", "ZoneId", dynamicString("Invalid/Zone")).isLeft)
+      },
+      test("String -> ZoneOffset fails for invalid offset") {
+        assertTrue(convert("String", "ZoneOffset", dynamicString("invalid")).isLeft)
+      },
+      test("String -> Currency fails for invalid currency") {
+        assertTrue(convert("String", "Currency", dynamicString("INVALID")).isLeft)
+      },
+      test("String -> OffsetDateTime fails for invalid format") {
+        assertTrue(convert("String", "OffsetDateTime", dynamicString("not-offset-datetime")).isLeft)
+      },
+      test("String -> OffsetTime fails for invalid format") {
+        assertTrue(convert("String", "OffsetTime", dynamicString("not-offset-time")).isLeft)
+      },
+      test("String -> ZonedDateTime fails for invalid format") {
+        assertTrue(convert("String", "ZonedDateTime", dynamicString("not-zoned-datetime")).isLeft)
+      }
+    ),
+    suite("Valid temporal conversions")(
+      test("String -> LocalDate") {
+        val result = convert("String", "LocalDate", dynamicString("2024-01-15"))
+        assertTrue(result.isRight)
+      },
+      test("String -> LocalTime") {
+        val result = convert("String", "LocalTime", dynamicString("10:30:00"))
+        assertTrue(result.isRight)
+      },
+      test("String -> LocalDateTime") {
+        val result = convert("String", "LocalDateTime", dynamicString("2024-01-15T10:30:00"))
+        assertTrue(result.isRight)
+      },
+      test("String -> Duration") {
+        val result = convert("String", "Duration", dynamicString("PT1H30M"))
+        assertTrue(result.isRight)
+      },
+      test("String -> Period") {
+        val result = convert("String", "Period", dynamicString("P1Y2M3D"))
+        assertTrue(result.isRight)
+      },
+      test("String -> Year") {
+        val result = convert("String", "Year", dynamicString("2024"))
+        assertTrue(result.isRight)
+      },
+      test("String -> YearMonth") {
+        val result = convert("String", "YearMonth", dynamicString("2024-01"))
+        assertTrue(result.isRight)
+      },
+      test("String -> MonthDay") {
+        val result = convert("String", "MonthDay", dynamicString("--01-15"))
+        assertTrue(result.isRight)
+      },
+      test("String -> DayOfWeek") {
+        val result = convert("String", "DayOfWeek", dynamicString("MONDAY"))
+        assertTrue(result.isRight)
+      },
+      test("String -> Month") {
+        val result = convert("String", "Month", dynamicString("JANUARY"))
+        assertTrue(result.isRight)
+      },
+      test("String -> Currency") {
+        val result = convert("String", "Currency", dynamicString("USD"))
+        assertTrue(result.isRight)
+      }
     )
   )
 }
