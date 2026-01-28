@@ -86,12 +86,11 @@ object Modifier {
         constructor = new Constructor[rename] {
           def usedRegisters: RegisterOffset                            = 1
           def construct(in: Registers, offset: RegisterOffset): rename =
-            rename(in.getObject(offset + 0).asInstanceOf[String])
+            new rename(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[rename] {
           def usedRegisters: RegisterOffset                                         = 1
-          def deconstruct(out: Registers, offset: RegisterOffset, in: rename): Unit =
-            out.setObject(offset + 0, in.name)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: rename): Unit = out.setObject(offset, in.name)
         }
       ),
       modifiers = Vector.empty
@@ -108,12 +107,11 @@ object Modifier {
         constructor = new Constructor[alias] {
           def usedRegisters: RegisterOffset                           = 1
           def construct(in: Registers, offset: RegisterOffset): alias =
-            alias(in.getObject(offset + 0).asInstanceOf[String])
+            new alias(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[alias] {
           def usedRegisters: RegisterOffset                                        = 1
-          def deconstruct(out: Registers, offset: RegisterOffset, in: alias): Unit =
-            out.setObject(offset + 0, in.name)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: alias): Unit = out.setObject(offset, in.name)
         }
       ),
       modifiers = Vector.empty
@@ -131,15 +129,15 @@ object Modifier {
         constructor = new Constructor[config] {
           def usedRegisters: RegisterOffset                            = 2
           def construct(in: Registers, offset: RegisterOffset): config =
-            config(
-              in.getObject(offset + 0).asInstanceOf[String],
+            new config(
+              in.getObject(offset).asInstanceOf[String],
               in.getObject(offset + 1).asInstanceOf[String]
             )
         },
         deconstructor = new Deconstructor[config] {
           def usedRegisters: RegisterOffset                                         = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: config): Unit = {
-            out.setObject(offset + 0, in.key)
+            out.setObject(offset, in.key)
             out.setObject(offset + 1, in.value)
           }
         }

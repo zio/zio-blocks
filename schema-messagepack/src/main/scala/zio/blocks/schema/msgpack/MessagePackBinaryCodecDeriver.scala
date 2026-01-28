@@ -636,7 +636,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
           val builder = zio.blocks.chunk.ChunkBuilder.make[DynamicValue]()
           var idx     = 0
           while (idx < len) {
-            builder += decodeDynamic(in)
+            builder.addOne(decodeDynamic(in))
             idx += 1
           }
           DynamicValue.Sequence(builder.result())

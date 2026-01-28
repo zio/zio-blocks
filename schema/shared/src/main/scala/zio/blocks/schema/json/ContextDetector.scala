@@ -202,12 +202,10 @@ private[schema] object ContextDetector {
           // Interpolation after a value - unusual but treat as value
           InterpolationContext.Value
       }
-
-      contexts += context
+      contexts.addOne(context)
       partIndex += 1
     }
-
-    Right(contexts.toList)
+    new Right(contexts.toList)
   }
 
   private def isWhitespace(ch: Char): Boolean = ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'

@@ -237,6 +237,7 @@ object DynamicOptic {
       reflect = new Reflect.Record[Binding, MapValues.type](
         fields = Vector.empty,
         typeId = TypeId.of[MapValues.type],
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "MapValues"),
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor[MapValues.type](MapValues),
           deconstructor = new ConstantDeconstructor[MapValues.type]
@@ -268,12 +269,11 @@ object DynamicOptic {
           constructor = new Constructor[Field] {
             def usedRegisters: RegisterOffset                           = 1
             def construct(in: Registers, offset: RegisterOffset): Field =
-              Field(in.getObject(offset + 0).asInstanceOf[String])
+              new Field(in.getObject(offset).asInstanceOf[String])
           },
           deconstructor = new Deconstructor[Field] {
             def usedRegisters: RegisterOffset                                        = 1
-            def deconstruct(out: Registers, offset: RegisterOffset, in: Field): Unit =
-              out.setObject(offset + 0, in.name)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: Field): Unit = out.setObject(offset, in.name)
           }
         ),
         modifiers = Vector.empty
@@ -290,12 +290,11 @@ object DynamicOptic {
           constructor = new Constructor[Case] {
             def usedRegisters: RegisterOffset                          = 1
             def construct(in: Registers, offset: RegisterOffset): Case =
-              Case(in.getObject(offset + 0).asInstanceOf[String])
+              new Case(in.getObject(offset).asInstanceOf[String])
           },
           deconstructor = new Deconstructor[Case] {
             def usedRegisters: RegisterOffset                                       = 1
-            def deconstruct(out: Registers, offset: RegisterOffset, in: Case): Unit =
-              out.setObject(offset + 0, in.name)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: Case): Unit = out.setObject(offset, in.name)
           }
         ),
         modifiers = Vector.empty
@@ -312,12 +311,11 @@ object DynamicOptic {
           constructor = new Constructor[AtIndex] {
             def usedRegisters: RegisterOffset                             = 1
             def construct(in: Registers, offset: RegisterOffset): AtIndex =
-              AtIndex(in.getInt(offset + 0))
+              new AtIndex(in.getInt(offset))
           },
           deconstructor = new Deconstructor[AtIndex] {
             def usedRegisters: RegisterOffset                                          = 1
-            def deconstruct(out: Registers, offset: RegisterOffset, in: AtIndex): Unit =
-              out.setInt(offset + 0, in.index)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: AtIndex): Unit = out.setInt(offset, in.index)
           }
         ),
         modifiers = Vector.empty
@@ -334,12 +332,11 @@ object DynamicOptic {
           constructor = new Constructor[AtMapKey] {
             def usedRegisters: RegisterOffset                              = 1
             def construct(in: Registers, offset: RegisterOffset): AtMapKey =
-              AtMapKey(in.getObject(offset + 0).asInstanceOf[DynamicValue])
+              new AtMapKey(in.getObject(offset).asInstanceOf[DynamicValue])
           },
           deconstructor = new Deconstructor[AtMapKey] {
             def usedRegisters: RegisterOffset                                           = 1
-            def deconstruct(out: Registers, offset: RegisterOffset, in: AtMapKey): Unit =
-              out.setObject(offset + 0, in.key)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: AtMapKey): Unit = out.setObject(offset, in.key)
           }
         ),
         modifiers = Vector.empty
@@ -356,12 +353,12 @@ object DynamicOptic {
           constructor = new Constructor[AtIndices] {
             def usedRegisters: RegisterOffset                               = 1
             def construct(in: Registers, offset: RegisterOffset): AtIndices =
-              AtIndices(in.getObject(offset + 0).asInstanceOf[Seq[Int]])
+              new AtIndices(in.getObject(offset).asInstanceOf[Seq[Int]])
           },
           deconstructor = new Deconstructor[AtIndices] {
             def usedRegisters: RegisterOffset                                            = 1
             def deconstruct(out: Registers, offset: RegisterOffset, in: AtIndices): Unit =
-              out.setObject(offset + 0, in.index)
+              out.setObject(offset, in.index)
           }
         ),
         modifiers = Vector.empty
@@ -378,12 +375,12 @@ object DynamicOptic {
           constructor = new Constructor[AtMapKeys] {
             def usedRegisters: RegisterOffset                               = 1
             def construct(in: Registers, offset: RegisterOffset): AtMapKeys =
-              AtMapKeys(in.getObject(offset + 0).asInstanceOf[Seq[DynamicValue]])
+              new AtMapKeys(in.getObject(offset).asInstanceOf[Seq[DynamicValue]])
           },
           deconstructor = new Deconstructor[AtMapKeys] {
             def usedRegisters: RegisterOffset                                            = 1
             def deconstruct(out: Registers, offset: RegisterOffset, in: AtMapKeys): Unit =
-              out.setObject(offset + 0, in.keys)
+              out.setObject(offset, in.keys)
           }
         ),
         modifiers = Vector.empty
@@ -501,12 +498,12 @@ object DynamicOptic {
         constructor = new Constructor[DynamicOptic] {
           def usedRegisters: RegisterOffset                                  = 1
           def construct(in: Registers, offset: RegisterOffset): DynamicOptic =
-            DynamicOptic(in.getObject(offset + 0).asInstanceOf[IndexedSeq[Node]])
+            new DynamicOptic(in.getObject(offset).asInstanceOf[IndexedSeq[Node]])
         },
         deconstructor = new Deconstructor[DynamicOptic] {
           def usedRegisters: RegisterOffset                                               = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: DynamicOptic): Unit =
-            out.setObject(offset + 0, in.nodes)
+            out.setObject(offset, in.nodes)
         }
       ),
       modifiers = Vector.empty
