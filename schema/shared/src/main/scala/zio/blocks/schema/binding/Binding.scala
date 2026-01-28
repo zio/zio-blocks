@@ -19,7 +19,7 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
  */
 sealed trait Binding[T, +A]
 
-object Binding {
+object Binding extends BindingCompanionVersionSpecific {
   final case class Primitive[A]() extends Binding[BindingType.Primitive, A]
 
   object Primitive {
