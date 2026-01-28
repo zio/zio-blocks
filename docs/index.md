@@ -202,3 +202,206 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.5+** with full source compatibi
 | JVM | ✅ | ✅ | ✅ |
 | Scala.js | ✅ | ✅ | ✅ |
 | Scala Native | ✅ | ✅ | ✅ |
+
+---
+
+## Schema Migration
+
+The Schema Migration module provides type-safe data migrations between schema versions. When your data model evolves, migrations let you transform data from old versions to new versions—and back again.
+
+### The Problem
+
+Schema evolution is a constant in real-world systems. Fields get added, renamed, or removed. Types change. Data structures split or merge. Without proper tooling, you end up with:
+
+- Brittle migration scripts scattered across your codebase
+- No type safety when transforming data
+- No ability to reverse migrations for rollbacks
+- Difficulty testing migration correctness
+
+### The Solution
+
+ZIO Blocks Schema Migration provides a composable, type-safe migration system that works at both the typed and dynamic levels:
+
+```scala
+import zio.blocks.schema._
+import zio.blocks.schema.migration._
+
+// Version 1 of your data model
+case class PersonV1(firstName: String, lastName: String)
+object PersonV1 {
+  implicit val schema: Schema[PersonV1] = Schema.derived
+}
+
+// Version 2 combines first and last name, adds age
+case class PersonV2(fullName: String, age: Int)
+object PersonV2 {
+  implicit val schema: Schema[PersonV2] = Schema.derived
+}
+
+// Build the migration
+val migration = MigrationBuilder[PersonV1, PersonV2]
+  .joinFields(Seq("firstName", "lastName"), "fullName", SchemaExpr.concat(" ", "firstName", "lastName"))
+  .addFieldTyped("age", 0)
+  .buildPartial
+
+// Apply it
+val person1 = PersonV1("John", "Doe")
+val result = migration(person1)  // Right(PersonV2("John Doe", 0))
+
+// Reverse it for rollbacks
+val reverseMigration = migration.reverse
+```
+
+### Key Features
+
+- **Type-Safe Migrations**: Migrations are parameterized by source and target types.
+- **15+ Action Types**: AddField, DropField, Rename, Join, Split, ChangeType, Mandate, Optionalize, RenameCase, TransformElements, and more.
+- **Reversible**: Most migrations can be reversed for rollbacks.
+- **Composable**: Chain migrations with `andThen` or `>>>`.
+- **Expression Language**: `SchemaExpr` for primitive transformations (type conversion, string operations, numeric operations).
+- **Nested Path Support**: Apply transformations at any depth in your data structure.
+- **Error Tracking**: Detailed errors with path context for debugging.
+
+### Migration Actions
+
+| Action | Description | Reversible |
+|--------|-------------|------------|
+| `AddField` | Add a new field with a default value | ✅ |
+| `DropField` | Remove an existing field | ✅ (with default) |
+| `Rename` | Rename a field | ✅ |
+| `ChangeType` | Convert field to different primitive type | ✅ (if converter reversible) |
+| `Mandate` | Convert `Option[T]` to `T` with default | ✅ |
+| `Optionalize` | Convert `T` to `Option[T]` | ❌ |
+| `Join` | Combine multiple fields into one | ✅ (if expr reversible) |
+| `Split` | Split one field into multiple | ✅ (if expr reversible) |
+| `RenameCase` | Rename a case in a sealed trait | ✅ |
+| `TransformCase` | Apply migrations within a specific case | ✅ |
+| `TransformElements` | Transform all elements in a sequence | ✅ (if expr reversible) |
+| `TransformKeys` | Transform all keys in a map | ✅ (if expr reversible) |
+| `TransformValues` | Transform all values in a map | ✅ (if expr reversible) |
+
+### SchemaExpr: The Expression Language
+
+`SchemaExpr` provides composable transformations for primitive values:
+
+```scala
+import zio.blocks.schema.migration.SchemaExpr
+
+// Type conversions
+SchemaExpr.convert(PrimitiveType.String, PrimitiveType.Int)  // "42" -> 42
+
+// String operations
+SchemaExpr.concat(" ", "firstName", "lastName")  // Combine fields
+SchemaExpr.split(" ", "first", "last")           // Split string
+SchemaExpr.StringExpr.ToUpperCase                // "hello" -> "HELLO"
+SchemaExpr.StringExpr.Trim(None)                 // Remove whitespace
+
+// Numeric operations
+SchemaExpr.add(10)       // Add to number (reversible)
+SchemaExpr.multiply(2.0) // Multiply (reversible, non-zero factor)
+
+// Option handling
+SchemaExpr.WrapOption    // T -> Some(T)
+SchemaExpr.UnwrapOption  // Some(T) -> T
+```
+
+### Working with Nested Data
+
+Migrations support operations at any path depth:
+
+```scala
+// Transform a nested field
+val migration = DynamicMigration.single(
+  MigrationAction.TransformValue(
+    DynamicOptic.root.field("address").field("city"),
+    SchemaExpr.StringExpr.ToUpperCase
+  )
+)
+
+// Add a field to a nested record
+val migration2 = MigrationBuilder[PersonWithAddress, PersonWithAddressV2]
+  .addFieldAt(DynamicOptic.root.field("address"), "country", DynamicValue.Primitive(PrimitiveValue.String("USA")))
+  .buildPartial
+```
+
+### Dynamic Migrations
+
+For cases where you don't have compile-time types (e.g., database migrations, config evolution), use `DynamicMigration`:
+
+```scala
+import zio.blocks.schema.migration.DynamicMigration
+
+// Create migration without type parameters
+val migration = DynamicMigration.compose(
+  DynamicMigration.renameField("old_name", "new_name"),
+  DynamicMigration.addField("created_at", DynamicValue.Primitive(PrimitiveValue.String("2024-01-01"))),
+  DynamicMigration.dropField("deprecated_field", Some(defaultValue))
+)
+
+// Apply to any DynamicValue
+val result = migration(dynamicValue)
+```
+
+### Migration Composition
+
+Migrations compose naturally:
+
+```scala
+// Identity laws hold
+DynamicMigration.identity ++ m == m
+m ++ DynamicMigration.identity == m
+
+// Associativity holds
+(m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)
+
+// Chain typed migrations
+val v1ToV3: Migration[V1, V3] = v1ToV2 >>> v2ToV3
+```
+
+### Error Handling
+
+Migration errors include full path context:
+
+```scala
+val error = MigrationError.missingField(
+  DynamicOptic.root.field("user").field("profile"),
+  "email"
+)
+// Error message: "Missing field 'email' at root.user.profile"
+```
+
+---
+
+## Contributing
+
+For the general guidelines, see ZIO [contributor's guide](https://zio.dev/contributor-guidelines).
+
+### Development Workflow
+
+```bash
+# Format code (both Scala versions)
+sbt "++3.3.7; fmt" && sbt "++2.13.18; fmt"
+
+# Run tests (both Scala versions)
+sbt "++3.3.7; testJVM" && sbt "++2.13.18; testJVM"
+
+# Run specific tests
+sbt "schemaJVM/testOnly zio.blocks.schema.migration.MigrationSpec"
+```
+
+See [AGENTS.md](AGENTS.md) for detailed development guidelines.
+
+## Code of Conduct
+
+See the [Code of Conduct](https://zio.dev/code-of-conduct)
+
+## Support
+
+Come chat with us on [![Badge-Discord]][Link-Discord].
+
+[Badge-Discord]: https://img.shields.io/discord/629491597070827530?logo=discord "chat on discord"
+[Link-Discord]: https://discord.gg/2ccFBr4 "Discord"
+
+## License
+
+[Apache 2.0](LICENSE)
