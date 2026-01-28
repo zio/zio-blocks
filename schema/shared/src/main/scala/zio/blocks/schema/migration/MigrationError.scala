@@ -8,5 +8,5 @@ sealed trait MigrationError {
 
 object MigrationError {
   final case class EvaluationError(path: DynamicOptic, message: String) extends MigrationError
-  final case class ValidationError(message: String) extends MigrationError
+  final case class ValidationError(message: String)                     extends MigrationError
 }
