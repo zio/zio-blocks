@@ -407,7 +407,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders String term with Length validation") {
         val primitiveReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Length(Some(5), Some(10))),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         val term = Term("name", primitiveReflect)
@@ -416,7 +416,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders String term with NonEmpty validation") {
         val primitiveReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.NonEmpty),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         val term = Term("title", primitiveReflect)
@@ -425,7 +425,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders String term with Pattern validation") {
         val primitiveReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Pattern("^[a-zA-Z]+$")),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         val term = Term("code", primitiveReflect)
@@ -434,7 +434,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders Int term with Positive validation") {
         val primitiveReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Positive),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         val term = Term("age", primitiveReflect)
@@ -443,7 +443,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders Int term with Range validation") {
         val primitiveReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Range(Some(1), Some(100))),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         val term = Term("percentage", primitiveReflect)
@@ -452,7 +452,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders Long term with NonNegative validation") {
         val primitiveReflect = Reflect.Primitive[Binding, Long](
           new PrimitiveType.Long(Validation.Numeric.NonNegative),
-          TypeName.long,
+          TypeId.long,
           Binding.Primitive()
         )
         val term = Term("count", primitiveReflect)
@@ -466,12 +466,12 @@ object TermToString extends ZIOSpecDefault {
         // Create validated primitives
         val nameReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.NonEmpty),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         val ageReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(120))),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
 
@@ -496,13 +496,13 @@ object TermToString extends ZIOSpecDefault {
       test("renders term with sequence of validated elements") {
         val intReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Positive),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
 
         val listReflect = Reflect.Sequence[Binding, Int, List](
           element = intReflect,
-          typeName = TypeName.list(TypeName.int),
+          typeId = TypeId.of[List[Int]],
           seqBinding = Binding.Seq.list
         )
 
@@ -512,19 +512,19 @@ object TermToString extends ZIOSpecDefault {
       test("renders term with map having validated keys and values") {
         val keyReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.NonBlank),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         val valueReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.NonNegative),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
 
         val mapReflect = Reflect.Map[Binding, String, Int, scala.collection.immutable.Map](
           key = keyReflect,
           value = valueReflect,
-          typeName = TypeName.map(TypeName.string, TypeName.int),
+          typeId = TypeId.of[Map[String, Int]],
           mapBinding = Binding.Map.map
         )
 
@@ -539,12 +539,12 @@ object TermToString extends ZIOSpecDefault {
         // Create validated primitives
         val codeReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Pattern("^[A-Z]{3}$")),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         val amountReflect = Reflect.Primitive[Binding, BigDecimal](
           new PrimitiveType.BigDecimal(Validation.Numeric.Positive),
-          TypeName.bigDecimal,
+          TypeId.bigDecimal,
           Binding.Primitive()
         )
 
