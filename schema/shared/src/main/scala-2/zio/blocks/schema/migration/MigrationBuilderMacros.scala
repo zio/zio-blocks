@@ -4,15 +4,16 @@ import scala.reflect.macros.whitebox
 import zio.blocks.schema.Schema
 
 /**
- * Macros for creating MigrationBuilder with compile-time field tracking (Scala 2).
+ * Macros for creating MigrationBuilder with compile-time field tracking (Scala
+ * 2).
  */
 object MigrationBuilderMacros {
 
   /**
    * Implementation of withFieldTracking macro.
    *
-   * Extracts field names from case class types A and B at compile time
-   * and creates a MigrationBuilder with those fields as HList types.
+   * Extracts field names from case class types A and B at compile time and
+   * creates a MigrationBuilder with those fields as HList types.
    */
   def withFieldTrackingImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(
     sourceSchema: c.Expr[Schema[A]],
@@ -76,7 +77,7 @@ object MigrationBuilderMacros {
       exprs.toList.map { expr =>
         expr.tree match {
           case Literal(Constant(s: String)) => s
-          case _ =>
+          case _                            =>
             c.abort(c.enclosingPosition, "withFields requires string literals")
         }
       }

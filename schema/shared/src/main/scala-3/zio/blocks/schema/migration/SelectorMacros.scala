@@ -7,8 +7,8 @@ import zio.blocks.schema.DynamicOptic
  * Macros for creating field selectors with compile-time field name extraction.
  *
  * The `select` macro is the ONLY inline part of the migration API. It extracts
- * the field name from a lambda expression like `_.fieldName` and captures it
- * as a singleton string type in the resulting FieldSelector.
+ * the field name from a lambda expression like `_.fieldName` and captures it as
+ * a singleton string type in the resulting FieldSelector.
  *
  * This enables type-level tracking of which fields have been handled during
  * migration construction, while keeping all builder methods non-inline.
@@ -24,8 +24,10 @@ object SelectorMacros {
    * // Type: FieldSelector[Person, String, "name"]
    * }}}
    *
-   * @tparam S The schema/record type to select from
-   * @return A SelectBuilder that can be applied to a field accessor lambda
+   * @tparam S
+   *   The schema/record type to select from
+   * @return
+   *   A SelectBuilder that can be applied to a field accessor lambda
    */
   inline def select[S]: SelectBuilder[S] = new SelectBuilder[S]
 
@@ -33,12 +35,16 @@ object SelectorMacros {
    * Builder class that captures the schema type and provides the apply method.
    */
   class SelectBuilder[S] {
+
     /**
      * Apply the selector to extract a field.
      *
-     * @param selector A lambda like `_.fieldName` that accesses a field
-     * @tparam F The field type
-     * @return A FieldSelector with the field name captured as a type parameter
+     * @param selector
+     *   A lambda like `_.fieldName` that accesses a field
+     * @tparam F
+     *   The field type
+     * @return
+     *   A FieldSelector with the field name captured as a type parameter
      */
     inline def apply[F](inline selector: S => F): FieldSelector[S, F, ?] =
       ${ selectImpl[S, F]('selector) }
@@ -47,8 +53,8 @@ object SelectorMacros {
   /**
    * Implementation of the select macro.
    *
-   * Extracts the field name from the selector lambda and creates a FieldSelector
-   * with the name as a singleton string type.
+   * Extracts the field name from the selector lambda and creates a
+   * FieldSelector with the name as a singleton string type.
    */
   def selectImpl[S: Type, F: Type](selector: Expr[S => F])(using Quotes): Expr[FieldSelector[S, F, ?]] = {
     import quotes.reflect.*

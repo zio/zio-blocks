@@ -7,11 +7,11 @@ import zio.test._
  * Tests for migration handling of refinement types and structural schemas.
  *
  * Covers:
- * - Sealed trait hierarchies (sum types)
- * - Recursive types
- * - Generic types
- * - Complex nested structures
- * - Type aliases and wrappers
+ *   - Sealed trait hierarchies (sum types)
+ *   - Recursive types
+ *   - Generic types
+ *   - Complex nested structures
+ *   - Type aliases and wrappers
  */
 object RefinementTypeSchemaSpec extends SchemaBaseSpec {
 
@@ -21,9 +21,9 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
 
   // Sealed trait hierarchy (ADT)
   sealed trait Shape
-  case class Circle(radius: Double) extends Shape
+  case class Circle(radius: Double)                   extends Shape
   case class Rectangle(width: Double, height: Double) extends Shape
-  case class Triangle(base: Double, height: Double) extends Shape
+  case class Triangle(base: Double, height: Double)   extends Shape
 
   // Recursive type
   case class TreeNode(value: Int, children: List[TreeNode])
@@ -81,11 +81,13 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
         val migration = DynamicMigration.single(
           MigrationAction.RenameCase(DynamicOptic.root, "Circle", "Round")
         )
-        val input = dynamicVariant("Circle", dynamicRecord("radius" -> dynamicDouble(5.0)))
+        val input  = dynamicVariant("Circle", dynamicRecord("radius" -> dynamicDouble(5.0)))
         val result = migration.apply(input)
-        assertTrue(result == Right(
-          dynamicVariant("Round", dynamicRecord("radius" -> dynamicDouble(5.0)))
-        ))
+        assertTrue(
+          result == Right(
+            dynamicVariant("Round", dynamicRecord("radius" -> dynamicDouble(5.0)))
+          )
+        )
       },
       test("transform case fields in sealed trait") {
         // Add area field to Circle
@@ -98,47 +100,63 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
             )
           )
         )
-        val input = dynamicVariant("Circle", dynamicRecord("radius" -> dynamicDouble(5.0)))
+        val input  = dynamicVariant("Circle", dynamicRecord("radius" -> dynamicDouble(5.0)))
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicVariant(
-          "Circle",
-          dynamicRecord(
-            "radius" -> dynamicDouble(5.0),
-            "area" -> dynamicDouble(0.0)
-          )
-        )))
-      },
-      test("migrate different cases independently") {
-        val migration = DynamicMigration(Vector(
-          MigrationAction.TransformCase(
-            DynamicOptic.root,
-            "Circle",
-            Vector(MigrationAction.Rename(DynamicOptic.root, "radius", "r"))
-          ),
-          MigrationAction.TransformCase(
-            DynamicOptic.root,
-            "Rectangle",
-            Vector(
-              MigrationAction.Rename(DynamicOptic.root, "width", "w"),
-              MigrationAction.Rename(DynamicOptic.root, "height", "h")
+        assertTrue(
+          result == Right(
+            dynamicVariant(
+              "Circle",
+              dynamicRecord(
+                "radius" -> dynamicDouble(5.0),
+                "area"   -> dynamicDouble(0.0)
+              )
             )
           )
-        ))
+        )
+      },
+      test("migrate different cases independently") {
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.TransformCase(
+              DynamicOptic.root,
+              "Circle",
+              Vector(MigrationAction.Rename(DynamicOptic.root, "radius", "r"))
+            ),
+            MigrationAction.TransformCase(
+              DynamicOptic.root,
+              "Rectangle",
+              Vector(
+                MigrationAction.Rename(DynamicOptic.root, "width", "w"),
+                MigrationAction.Rename(DynamicOptic.root, "height", "h")
+              )
+            )
+          )
+        )
         val circle = dynamicVariant("Circle", dynamicRecord("radius" -> dynamicDouble(5.0)))
-        val rect = dynamicVariant("Rectangle", dynamicRecord(
-          "width" -> dynamicDouble(3.0),
-          "height" -> dynamicDouble(4.0)
-        ))
+        val rect   = dynamicVariant(
+          "Rectangle",
+          dynamicRecord(
+            "width"  -> dynamicDouble(3.0),
+            "height" -> dynamicDouble(4.0)
+          )
+        )
 
-        assertTrue(migration.apply(circle) == Right(
-          dynamicVariant("Circle", dynamicRecord("r" -> dynamicDouble(5.0)))
-        ))
-        assertTrue(migration.apply(rect) == Right(
-          dynamicVariant("Rectangle", dynamicRecord(
-            "w" -> dynamicDouble(3.0),
-            "h" -> dynamicDouble(4.0)
-          ))
-        ))
+        assertTrue(
+          migration.apply(circle) == Right(
+            dynamicVariant("Circle", dynamicRecord("r" -> dynamicDouble(5.0)))
+          )
+        )
+        assertTrue(
+          migration.apply(rect) == Right(
+            dynamicVariant(
+              "Rectangle",
+              dynamicRecord(
+                "w" -> dynamicDouble(3.0),
+                "h" -> dynamicDouble(4.0)
+              )
+            )
+          )
+        )
       },
       test("unmatched case is unchanged") {
         val migration = DynamicMigration.single(
@@ -148,10 +166,13 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
             Vector(MigrationAction.AddField(DynamicOptic.root, "extra", Resolved.Literal.int(1)))
           )
         )
-        val triangle = dynamicVariant("Triangle", dynamicRecord(
-          "base" -> dynamicDouble(3.0),
-          "height" -> dynamicDouble(4.0)
-        ))
+        val triangle = dynamicVariant(
+          "Triangle",
+          dynamicRecord(
+            "base"   -> dynamicDouble(3.0),
+            "height" -> dynamicDouble(4.0)
+          )
+        )
         assertTrue(migration.apply(triangle) == Right(triangle))
       }
     ),
@@ -161,14 +182,18 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
           MigrationAction.Rename(DynamicOptic.root, "value", "data")
         )
         val leaf = dynamicRecord(
-          "value" -> dynamicInt(42),
+          "value"    -> dynamicInt(42),
           "children" -> dynamicSequence()
         )
         val result = migration.apply(leaf)
-        assertTrue(result == Right(dynamicRecord(
-          "data" -> dynamicInt(42),
-          "children" -> dynamicSequence()
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "data"     -> dynamicInt(42),
+              "children" -> dynamicSequence()
+            )
+          )
+        )
       },
       test("migrate node with children") {
         // Rename value field at root only
@@ -176,14 +201,14 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
           MigrationAction.Rename(DynamicOptic.root, "value", "data")
         )
         val node = dynamicRecord(
-          "value" -> dynamicInt(1),
+          "value"    -> dynamicInt(1),
           "children" -> dynamicSequence(
             dynamicRecord(
-              "value" -> dynamicInt(2),
+              "value"    -> dynamicInt(2),
               "children" -> dynamicSequence()
             ),
             dynamicRecord(
-              "value" -> dynamicInt(3),
+              "value"    -> dynamicInt(3),
               "children" -> dynamicSequence()
             )
           )
@@ -202,15 +227,19 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
           MigrationAction.AddField(DynamicOptic.root, "label", Resolved.Literal.string("default"))
         )
         val node = dynamicRecord(
-          "value" -> dynamicInt(1),
+          "value"    -> dynamicInt(1),
           "children" -> dynamicSequence()
         )
         val result = migration.apply(node)
-        assertTrue(result == Right(dynamicRecord(
-          "value" -> dynamicInt(1),
-          "children" -> dynamicSequence(),
-          "label" -> dynamicString("default")
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "value"    -> dynamicInt(1),
+              "children" -> dynamicSequence(),
+              "label"    -> dynamicString("default")
+            )
+          )
+        )
       }
     ),
     suite("Generic type migrations")(
@@ -247,20 +276,24 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
           MigrationAction.Rename(DynamicOptic.root.field("address"), "street", "streetAddress")
         )
         val person = dynamicRecord(
-          "name" -> dynamicString("Alice"),
+          "name"    -> dynamicString("Alice"),
           "address" -> dynamicRecord(
             "street" -> dynamicString("123 Main St"),
-            "city" -> dynamicString("Boston")
+            "city"   -> dynamicString("Boston")
           )
         )
         val result = migration.apply(person)
-        assertTrue(result == Right(dynamicRecord(
-          "name" -> dynamicString("Alice"),
-          "address" -> dynamicRecord(
-            "streetAddress" -> dynamicString("123 Main St"),
-            "city" -> dynamicString("Boston")
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "name"    -> dynamicString("Alice"),
+              "address" -> dynamicRecord(
+                "streetAddress" -> dynamicString("123 Main St"),
+                "city"          -> dynamicString("Boston")
+              )
+            )
           )
-        )))
+        )
       },
       test("migrate deeply nested field") {
         val migration = DynamicMigration.single(
@@ -308,12 +341,14 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
           MigrationAction.TransformCase(
             DynamicOptic.root.field("maybeValue"),
             "Some",
-            Vector(MigrationAction.TransformValue(
-              DynamicOptic.root,
-              "value",  // Option's value is in "value" field in ZIO Schema representation
-              Resolved.Identity,
-              Resolved.Identity
-            ))
+            Vector(
+              MigrationAction.TransformValue(
+                DynamicOptic.root,
+                "value", // Option's value is in "value" field in ZIO Schema representation
+                Resolved.Identity,
+                Resolved.Identity
+              )
+            )
           )
         )
         // This tests the structure but the actual behavior depends on implementation
@@ -339,9 +374,13 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
           MigrationAction.Optionalize(DynamicOptic.root, "requiredInt")
         )
         val input = dynamicRecord("requiredInt" -> dynamicInt(42))
-        assertTrue(migration.apply(input) == Right(dynamicRecord(
-          "requiredInt" -> dynamicSome(dynamicInt(42))
-        )))
+        assertTrue(
+          migration.apply(input) == Right(
+            dynamicRecord(
+              "requiredInt" -> dynamicSome(dynamicInt(42))
+            )
+          )
+        )
       },
       test("nested option handling") {
         val migration = DynamicMigration.single(
@@ -357,11 +396,15 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
           )
         )
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "data" -> dynamicRecord(
-            "optional" -> dynamicString("default")
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "data" -> dynamicRecord(
+                "optional" -> dynamicString("default")
+              )
+            )
           )
-        )))
+        )
       }
     ),
     suite("Complex nested ADT migrations")(
@@ -374,14 +417,18 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
           )
         )
         val input = dynamicRecord(
-          "name" -> dynamicString("myShape"),
+          "name"  -> dynamicString("myShape"),
           "shape" -> dynamicVariant("Circle", dynamicRecord("radius" -> dynamicDouble(5.0)))
         )
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "name" -> dynamicString("myShape"),
-          "shape" -> dynamicVariant("Circle", dynamicRecord("r" -> dynamicDouble(5.0)))
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "name"  -> dynamicString("myShape"),
+              "shape" -> dynamicVariant("Circle", dynamicRecord("r" -> dynamicDouble(5.0)))
+            )
+          )
+        )
       },
       test("migrate list of variants") {
         val migration = DynamicMigration.single(
@@ -394,10 +441,13 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
         val input = dynamicRecord(
           "shapes" -> dynamicSequence(
             dynamicVariant("Circle", dynamicRecord("radius" -> dynamicDouble(1.0))),
-            dynamicVariant("Rectangle", dynamicRecord(
-              "width" -> dynamicDouble(2.0),
-              "height" -> dynamicDouble(3.0)
-            ))
+            dynamicVariant(
+              "Rectangle",
+              dynamicRecord(
+                "width"  -> dynamicDouble(2.0),
+                "height" -> dynamicDouble(3.0)
+              )
+            )
           )
         )
         assertTrue(migration.apply(input) == Right(input))
@@ -408,10 +458,13 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
         val migration = DynamicMigration.single(
           MigrationAction.TransformKeys(
             DynamicOptic.root.field("metadata"),
-            Resolved.Concat(Vector(
-              Resolved.Literal.string("prefix_"),
-              Resolved.Identity
-            ), ""),
+            Resolved.Concat(
+              Vector(
+                Resolved.Literal.string("prefix_"),
+                Resolved.Identity
+              ),
+              ""
+            ),
             Resolved.Identity // Reverse not fully implemented for this test
           )
         )
@@ -440,16 +493,20 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
         val input = dynamicRecord(
           "scores" -> dynamicRecord(
             "alice" -> dynamicInt(100),
-            "bob" -> dynamicInt(95)
+            "bob"   -> dynamicInt(95)
           )
         )
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "scores" -> dynamicRecord(
-            "alice" -> dynamicString("100"),
-            "bob" -> dynamicString("95")
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "scores" -> dynamicRecord(
+                "alice" -> dynamicString("100"),
+                "bob"   -> dynamicString("95")
+              )
+            )
           )
-        )))
+        )
       }
     ),
     suite("Edge cases")(
@@ -496,12 +553,12 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
         // we test deeply nested structures that might cause issues
         def deeplyNested(depth: Int): DynamicValue =
           if (depth <= 0) dynamicRecord("leaf" -> dynamicInt(1))
-          else dynamicRecord("nested" -> deeplyNested(depth - 1))
+          else dynamicRecord("nested"          -> deeplyNested(depth - 1))
 
         val migration = DynamicMigration.single(
           MigrationAction.AddField(DynamicOptic.root, "marker", Resolved.Literal.string("marked"))
         )
-        val input = deeplyNested(10)
+        val input  = deeplyNested(10)
         val result = migration.apply(input)
         assertTrue(result.isRight)
       }

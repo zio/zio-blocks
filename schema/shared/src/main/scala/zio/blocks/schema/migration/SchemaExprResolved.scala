@@ -5,9 +5,9 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Schema}
 /**
  * A resolved, serializable expression for use in migration actions.
  *
- * Unlike [[zio.blocks.schema.SchemaExpr]] which operates on typed values and uses
- * optics with bindings, `Resolved` expressions operate on [[DynamicValue]] and are
- * fully serializable as pure data. This enables migrations to be:
+ * Unlike [[zio.blocks.schema.SchemaExpr]] which operates on typed values and
+ * uses optics with bindings, `Resolved` expressions operate on [[DynamicValue]]
+ * and are fully serializable as pure data. This enables migrations to be:
  *   - Stored in schema registries
  *   - Transmitted over the network
  *   - Applied without reflection or runtime code generation
@@ -27,15 +27,18 @@ sealed trait Resolved { self =>
   /**
    * Evaluate this expression without input.
    *
-   * Returns Left for expressions that require input (Identity, FieldAccess, etc.)
+   * Returns Left for expressions that require input (Identity, FieldAccess,
+   * etc.)
    */
   def evalDynamic: Either[String, DynamicValue]
 
   /**
    * Evaluate this expression with the given input value.
    *
-   * @param input The DynamicValue to evaluate against
-   * @return Right containing the result, or Left with an error message
+   * @param input
+   *   The DynamicValue to evaluate against
+   * @return
+   *   Right containing the result, or Left with an error message
    */
   def evalDynamic(input: DynamicValue): Either[String, DynamicValue]
 }
@@ -115,7 +118,7 @@ object Resolved {
     def evalDynamic: Either[String, DynamicValue] =
       Left("FieldAccess requires input")
 
-    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] = {
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
       // First, apply inner to the input to navigate to the correct context
       inner.evalDynamic(input).flatMap {
         case DynamicValue.Record(fields) =>
@@ -125,14 +128,13 @@ object Resolved {
         case other =>
           Left(s"Expected record for field access '$fieldName', got ${other.valueType}")
       }
-    }
   }
 
   /**
    * Access a value at a path specified by a DynamicOptic.
    *
-   * Provides full path-based navigation including nested fields,
-   * sequence elements, and variant cases.
+   * Provides full path-based navigation including nested fields, sequence
+   * elements, and variant cases.
    */
   final case class OpticAccess(path: DynamicOptic, inner: Resolved) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] =
@@ -155,8 +157,8 @@ object Resolved {
    * Use a schema's default value.
    *
    * The default value is stored as a DynamicValue at construction time,
-   * ensuring the expression remains serializable without storing the schema.
-   * If the schema has no default, evaluation will fail.
+   * ensuring the expression remains serializable without storing the schema. If
+   * the schema has no default, evaluation will fail.
    */
   final case class DefaultValue(defaultDynamic: Either[String, DynamicValue]) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] = defaultDynamic
@@ -196,8 +198,8 @@ object Resolved {
   /**
    * Convert between primitive types.
    *
-   * Type conversion is identified by string names (e.g., "Int", "Long", "String")
-   * to maintain serializability. Actual conversion is delegated to
+   * Type conversion is identified by string names (e.g., "Int", "Long",
+   * "String") to maintain serializability. Actual conversion is delegated to
    * [[PrimitiveConversions]].
    */
   final case class Convert(
@@ -221,9 +223,9 @@ object Resolved {
   /**
    * Concatenate multiple expressions into a single string.
    *
-   * Used for join operations that combine multiple fields into one.
-   * Each part is evaluated and converted to a string, then joined with
-   * the specified separator.
+   * Used for join operations that combine multiple fields into one. Each part
+   * is evaluated and converted to a string, then joined with the specified
+   * separator.
    */
   final case class Concat(parts: Vector[Resolved], separator: String) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] = {
@@ -261,8 +263,8 @@ object Resolved {
   /**
    * Split a string into multiple parts.
    *
-   * Used for split operations that divide one field into multiple fields.
-   * The result is a Sequence of Primitive strings.
+   * Used for split operations that divide one field into multiple fields. The
+   * result is a Sequence of Primitive strings.
    */
   final case class SplitString(separator: String, inner: Resolved) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] =
@@ -339,7 +341,8 @@ object Resolved {
    * Marker for non-reversible operations.
    *
    * Used in reverse migrations when the forward operation loses information
-   * that cannot be recovered. Evaluation always fails with the specified message.
+   * that cannot be recovered. Evaluation always fails with the specified
+   * message.
    */
   final case class Fail(message: String) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] = Left(message)
@@ -354,20 +357,21 @@ object Resolved {
   /**
    * Construct a record from field name-expression pairs.
    *
-   * Each field is evaluated and assembled into a Record DynamicValue.
-   * Used for complex restructuring operations.
+   * Each field is evaluated and assembled into a Record DynamicValue. Used for
+   * complex restructuring operations.
    */
   final case class Construct(fields: Vector[(String, Resolved)]) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] =
       evalDynamic(DynamicValue.Primitive(PrimitiveValue.Unit))
 
-    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] = {
-      fields.foldLeft[Either[String, Vector[(String, DynamicValue)]]](Right(Vector.empty)) {
-        case (Right(acc), (name, expr)) =>
-          expr.evalDynamic(input).map(v => acc :+ (name -> v))
-        case (left, _) => left
-      }.map(DynamicValue.Record(_))
-    }
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
+      fields
+        .foldLeft[Either[String, Vector[(String, DynamicValue)]]](Right(Vector.empty)) {
+          case (Right(acc), (name, expr)) =>
+            expr.evalDynamic(input).map(v => acc :+ (name -> v))
+          case (left, _) => left
+        }
+        .map(DynamicValue.Record(_))
   }
 
   /**
@@ -379,13 +383,14 @@ object Resolved {
     def evalDynamic: Either[String, DynamicValue] =
       evalDynamic(DynamicValue.Primitive(PrimitiveValue.Unit))
 
-    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] = {
-      elements.foldLeft[Either[String, Vector[DynamicValue]]](Right(Vector.empty)) {
-        case (Right(acc), expr) =>
-          expr.evalDynamic(input).map(v => acc :+ v)
-        case (left, _) => left
-      }.map(DynamicValue.Sequence(_))
-    }
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
+      elements
+        .foldLeft[Either[String, Vector[DynamicValue]]](Right(Vector.empty)) {
+          case (Right(acc), expr) =>
+            expr.evalDynamic(input).map(v => acc :+ v)
+          case (left, _) => left
+        }
+        .map(DynamicValue.Sequence(_))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -427,7 +432,7 @@ object Resolved {
         case DynamicValue.Sequence(elements) =>
           val strings = elements.map {
             case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-            case other => other.toString
+            case other                                            => other.toString
           }
           Right(DynamicValue.Primitive(PrimitiveValue.String(strings.mkString(separator))))
         case other =>
@@ -442,8 +447,8 @@ object Resolved {
   /**
    * Return the first successful result from a list of expressions.
    *
-   * Tries each expression in order until one succeeds.
-   * If all fail, returns the last failure message.
+   * Tries each expression in order until one succeeds. If all fail, returns the
+   * last failure message.
    */
   final case class Coalesce(alternatives: Vector[Resolved]) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] =
@@ -452,7 +457,7 @@ object Resolved {
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
       evalWithAlternatives(Some(input))
 
-    private def evalWithAlternatives(input: Option[DynamicValue]): Either[String, DynamicValue] = {
+    private def evalWithAlternatives(input: Option[DynamicValue]): Either[String, DynamicValue] =
       if (alternatives.isEmpty) {
         Left("Coalesce requires at least one alternative")
       } else {
@@ -464,11 +469,10 @@ object Resolved {
         }.find {
           // Skip None values, find first Some or non-Option value
           case Right(DynamicValue.Variant("None", _)) => false
-          case Right(_) => true
-          case Left(_) => false
+          case Right(_)                               => true
+          case Left(_)                                => false
         }.getOrElse(Left("All alternatives were None or failed"))
       }
-    }
   }
 
   /**

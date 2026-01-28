@@ -7,20 +7,19 @@ import zio.blocks.schema.Schema
 /**
  * Macros for extracting field names from Schema at compile time (Scala 2).
  *
- * These macros inspect the Schema[A] at compile time and extract field names
- * as an HList of singleton string types, enabling compile-time validation
- * of migration completeness.
+ * These macros inspect the Schema[A] at compile time and extract field names as
+ * an HList of singleton string types, enabling compile-time validation of
+ * migration completeness.
  */
 object SchemaFieldsMacros {
 
   /**
    * Derive a SchemaFields instance for type A.
    *
-   * For record types, extracts field names as an HList type.
-   * For non-record types, returns HNil.
+   * For record types, extracts field names as an HList type. For non-record
+   * types, returns HNil.
    */
-  implicit def derived[A](implicit schema: Schema[A]): SchemaFields[A] =
-    macro SchemaFieldsMacros.derivedImpl[A]
+  implicit def derived[A](implicit schema: Schema[A]): SchemaFields[A] = macro SchemaFieldsMacros.derivedImpl[A]
 
   /**
    * Create a SchemaFields from the type structure.
@@ -72,7 +71,9 @@ object SchemaFieldsMacros {
 
     if (fieldNames.isEmpty) {
       c.Expr[SchemaFields[A]](q"""
-        _root_.zio.blocks.schema.migration.SchemaFields.emptyWith[${weakTypeOf[A]}, _root_.zio.blocks.schema.migration.FieldSet.HNil]
+        _root_.zio.blocks.schema.migration.SchemaFields.emptyWith[${weakTypeOf[
+          A
+        ]}, _root_.zio.blocks.schema.migration.FieldSet.HNil]
       """)
     } else {
       // Build HList type from field names
@@ -101,14 +102,16 @@ object SchemaFieldsMacros {
     val fieldNames: List[String] = names.toList.map { expr =>
       expr.tree match {
         case Literal(Constant(s: String)) => s
-        case _ =>
+        case _                            =>
           c.abort(c.enclosingPosition, "fromNames requires string literals")
       }
     }
 
     if (fieldNames.isEmpty) {
       c.Expr[SchemaFields[A]](q"""
-        _root_.zio.blocks.schema.migration.SchemaFields.emptyWith[${weakTypeOf[A]}, _root_.zio.blocks.schema.migration.FieldSet.HNil]
+        _root_.zio.blocks.schema.migration.SchemaFields.emptyWith[${weakTypeOf[
+          A
+        ]}, _root_.zio.blocks.schema.migration.FieldSet.HNil]
       """)
     } else {
       // Build HList type from field names

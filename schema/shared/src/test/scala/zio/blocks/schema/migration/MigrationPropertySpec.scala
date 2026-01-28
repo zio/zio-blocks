@@ -8,11 +8,11 @@ import zio.test.Gen
  * Property-based tests for migrations.
  *
  * Covers:
- * - Algebraic laws
- * - Invariants
- * - Round-trip properties
- * - Composition properties
- * - Optimization properties
+ *   - Algebraic laws
+ *   - Invariants
+ *   - Round-trip properties
+ *   - Composition properties
+ *   - Optimization properties
  */
 object MigrationPropertySpec extends SchemaBaseSpec {
 
@@ -34,29 +34,29 @@ object MigrationPropertySpec extends SchemaBaseSpec {
   val genSimpleRecord: Gen[Any, DynamicValue] =
     for {
       numFields <- Gen.int(0, 5)
-      fields <- Gen.listOfN(numFields)(
-        for {
-          name <- genFieldName
-          value <- genPrimitiveValue
-        } yield (name, value)
-      )
+      fields    <- Gen.listOfN(numFields)(
+                  for {
+                    name  <- genFieldName
+                    value <- genPrimitiveValue
+                  } yield (name, value)
+                )
     } yield DynamicValue.Record(fields.distinctBy(_._1).toVector)
 
   val genRenameAction: Gen[Any, MigrationAction.Rename] =
     for {
       from <- genFieldName
-      to <- genFieldName
+      to   <- genFieldName
     } yield MigrationAction.Rename(DynamicOptic.root, from, to)
 
   val genAddFieldAction: Gen[Any, MigrationAction.AddField] =
     for {
-      name <- genFieldName
+      name  <- genFieldName
       value <- genPrimitiveValue
     } yield MigrationAction.AddField(DynamicOptic.root, name, Resolved.Literal(value))
 
   val genDropFieldAction: Gen[Any, MigrationAction.DropField] =
     for {
-      name <- genFieldName
+      name  <- genFieldName
       value <- genPrimitiveValue
     } yield MigrationAction.DropField(DynamicOptic.root, name, Resolved.Literal(value))
 
@@ -85,14 +85,14 @@ object MigrationPropertySpec extends SchemaBaseSpec {
     suite("Composition laws")(
       test("left identity: identity ++ m == m (structurally)") {
         check(genRenameAction) { action =>
-          val m = DynamicMigration.single(action)
+          val m        = DynamicMigration.single(action)
           val composed = DynamicMigration.identity ++ m
           assertTrue(composed.actions == m.actions)
         }
       },
       test("right identity: m ++ identity == m (structurally)") {
         check(genRenameAction) { action =>
-          val m = DynamicMigration.single(action)
+          val m        = DynamicMigration.single(action)
           val composed = m ++ DynamicMigration.identity
           assertTrue(composed.actions == m.actions)
         }
@@ -103,7 +103,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
           val m2 = DynamicMigration.single(a2)
           val m3 = DynamicMigration.single(a3)
 
-          val leftAssoc = (m1 ++ m2) ++ m3
+          val leftAssoc  = (m1 ++ m2) ++ m3
           val rightAssoc = m1 ++ (m2 ++ m3)
 
           assertTrue(leftAssoc.actions == rightAssoc.actions)
@@ -111,8 +111,8 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       },
       test("composition preserves action count") {
         check(genRenameAction, genRenameAction) { (a1, a2) =>
-          val m1 = DynamicMigration.single(a1)
-          val m2 = DynamicMigration.single(a2)
+          val m1       = DynamicMigration.single(a1)
+          val m2       = DynamicMigration.single(a2)
           val composed = m1 ++ m2
           assertTrue(composed.actionCount == m1.actionCount + m2.actionCount)
         }
@@ -121,7 +121,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
     suite("Reverse laws")(
       test("reverse.reverse == original (structurally)") {
         check(genRenameAction) { action =>
-          val m = DynamicMigration.single(action)
+          val m             = DynamicMigration.single(action)
           val doubleReverse = m.reverse.reverse
           assertTrue(m.actions == doubleReverse.actions)
         }
@@ -139,7 +139,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       },
       test("reverse preserves action count") {
         check(genRenameAction, genAddFieldAction) { (a1, a2) =>
-          val m = DynamicMigration(Vector(a1, a2))
+          val m        = DynamicMigration(Vector(a1, a2))
           val reversed = m.reverse
           assertTrue(reversed.actionCount == m.actionCount)
         }
@@ -148,7 +148,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
     suite("Rename properties")(
       test("rename(a,b).reverse == rename(b,a)") {
         check(genFieldName, genFieldName) { (from, to) =>
-          val action = MigrationAction.Rename(DynamicOptic.root, from, to)
+          val action   = MigrationAction.Rename(DynamicOptic.root, from, to)
           val reversed = action.reverse
           reversed match {
             case MigrationAction.Rename(_, revFrom, revTo) =>
@@ -160,7 +160,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       test("rename preserves field value") {
         check(genFieldName, genFieldName, genPrimitiveValue) { (from, to, value) =>
           val action = MigrationAction.Rename(DynamicOptic.root, from, to)
-          val input = DynamicValue.Record(Vector(from -> value))
+          val input  = DynamicValue.Record(Vector(from -> value))
           val result = action.apply(input)
           result match {
             case Right(DynamicValue.Record(fields)) =>
@@ -175,22 +175,22 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       test("addField.reverse == dropField") {
         check(genFieldName, genPrimitiveValue) { (name, value) =>
           val addAction = MigrationAction.AddField(DynamicOptic.root, name, Resolved.Literal(value))
-          val reversed = addAction.reverse
+          val reversed  = addAction.reverse
           assertTrue(reversed.isInstanceOf[MigrationAction.DropField])
         }
       },
       test("dropField.reverse == addField") {
         check(genFieldName, genPrimitiveValue) { (name, value) =>
           val dropAction = MigrationAction.DropField(DynamicOptic.root, name, Resolved.Literal(value))
-          val reversed = dropAction.reverse
+          val reversed   = dropAction.reverse
           assertTrue(reversed.isInstanceOf[MigrationAction.AddField])
         }
       },
       test("addField then dropField returns original") {
         check(genSimpleRecord, genFieldName, genPrimitiveValue) { (record, name, value) =>
-          val addAction = MigrationAction.AddField(DynamicOptic.root, name, Resolved.Literal(value))
+          val addAction  = MigrationAction.AddField(DynamicOptic.root, name, Resolved.Literal(value))
           val dropAction = MigrationAction.DropField(DynamicOptic.root, name, Resolved.Literal(value))
-          val migration = DynamicMigration(Vector(addAction, dropAction))
+          val migration  = DynamicMigration(Vector(addAction, dropAction))
 
           val result = migration.apply(record)
           assertTrue(result == Right(record))
@@ -200,25 +200,29 @@ object MigrationPropertySpec extends SchemaBaseSpec {
     suite("Optimization properties")(
       test("optimize preserves behavior for renames") {
         check(genFieldName, genFieldName, genFieldName, genPrimitiveValue) { (a, b, c, value) =>
-          val unoptimized = DynamicMigration(Vector(
-            MigrationAction.Rename(DynamicOptic.root, a, b),
-            MigrationAction.Rename(DynamicOptic.root, b, c)
-          ))
+          val unoptimized = DynamicMigration(
+            Vector(
+              MigrationAction.Rename(DynamicOptic.root, a, b),
+              MigrationAction.Rename(DynamicOptic.root, b, c)
+            )
+          )
           val optimized = unoptimized.optimize
 
-          val input = DynamicValue.Record(Vector(a -> value))
+          val input       = DynamicValue.Record(Vector(a -> value))
           val unoptResult = unoptimized.apply(input)
-          val optResult = optimized.apply(input)
+          val optResult   = optimized.apply(input)
 
           assertTrue(unoptResult == optResult)
         }
       },
       test("optimize reduces action count for consecutive renames") {
         check(genFieldName, genFieldName, genFieldName) { (a, b, c) =>
-          val migration = DynamicMigration(Vector(
-            MigrationAction.Rename(DynamicOptic.root, a, b),
-            MigrationAction.Rename(DynamicOptic.root, b, c)
-          ))
+          val migration = DynamicMigration(
+            Vector(
+              MigrationAction.Rename(DynamicOptic.root, a, b),
+              MigrationAction.Rename(DynamicOptic.root, b, c)
+            )
+          )
           val optimized = migration.optimize
           assertTrue(optimized.actionCount <= migration.actionCount)
         }
@@ -229,8 +233,8 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       },
       test("optimize is idempotent") {
         check(genRenameAction, genRenameAction) { (a1, a2) =>
-          val m = DynamicMigration(Vector(a1, a2))
-          val once = m.optimize
+          val m     = DynamicMigration(Vector(a1, a2))
+          val once  = m.optimize
           val twice = once.optimize
           assertTrue(once.actions == twice.actions)
         }
@@ -239,11 +243,13 @@ object MigrationPropertySpec extends SchemaBaseSpec {
     suite("Error handling properties")(
       test("failed action stops migration") {
         check(genSimpleRecord) { record =>
-          val migration = DynamicMigration(Vector(
-            MigrationAction.AddField(DynamicOptic.root, "good", Resolved.Literal.int(1)),
-            MigrationAction.AddField(DynamicOptic.root, "bad", Resolved.Fail("error")),
-            MigrationAction.AddField(DynamicOptic.root, "unreached", Resolved.Literal.int(3))
-          ))
+          val migration = DynamicMigration(
+            Vector(
+              MigrationAction.AddField(DynamicOptic.root, "good", Resolved.Literal.int(1)),
+              MigrationAction.AddField(DynamicOptic.root, "bad", Resolved.Fail("error")),
+              MigrationAction.AddField(DynamicOptic.root, "unreached", Resolved.Literal.int(3))
+            )
+          )
           val result = migration.apply(record)
           assertTrue(result.isLeft)
         }
@@ -260,11 +266,11 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       test("rename round-trip") {
         check(genFieldName, genFieldName, genPrimitiveValue) { (from, to, value) =>
           val forward = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, from, to))
-          val input = DynamicValue.Record(Vector(from -> value))
+          val input   = DynamicValue.Record(Vector(from -> value))
 
           val result = for {
             migrated <- forward.apply(input)
-            back <- forward.reverse.apply(migrated)
+            back     <- forward.reverse.apply(migrated)
           } yield back
 
           assertTrue(result == Right(input))
@@ -273,12 +279,12 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       test("add/drop round-trip for existing field") {
         check(genFieldName, genPrimitiveValue, genPrimitiveValue) { (name, originalValue, defaultValue) =>
           val input = DynamicValue.Record(Vector(name -> originalValue))
-          val drop = DynamicMigration.single(
+          val drop  = DynamicMigration.single(
             MigrationAction.DropField(DynamicOptic.root, name, Resolved.Literal(defaultValue))
           )
 
           val result = for {
-            dropped <- drop.apply(input)
+            dropped  <- drop.apply(input)
             restored <- drop.reverse.apply(dropped)
           } yield restored
 
@@ -296,8 +302,8 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       test("transformElements preserves length") {
         check(Gen.int(0, 20)) { length =>
           val elements = (0 until length).map(i => DynamicValue.Primitive(PrimitiveValue.Int(i))).toVector
-          val input = DynamicValue.Sequence(elements)
-          val action = MigrationAction.TransformElements(
+          val input    = DynamicValue.Sequence(elements)
+          val action   = MigrationAction.TransformElements(
             DynamicOptic.root,
             Resolved.Identity,
             Resolved.Identity
@@ -313,8 +319,8 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       test("transformElements with identity is no-op") {
         check(Gen.int(0, 10)) { length =>
           val elements = (0 until length).map(i => DynamicValue.Primitive(PrimitiveValue.Int(i))).toVector
-          val input = DynamicValue.Sequence(elements)
-          val action = MigrationAction.TransformElements(
+          val input    = DynamicValue.Sequence(elements)
+          val action   = MigrationAction.TransformElements(
             DynamicOptic.root,
             Resolved.Identity,
             Resolved.Identity
@@ -330,7 +336,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
           val action = MigrationAction.RenameCase(DynamicOptic.root, from, to)
 
           // Non-matching case should be unchanged
-          val otherInput = DynamicValue.Variant(other, value)
+          val otherInput  = DynamicValue.Variant(other, value)
           val otherResult = action.apply(otherInput)
           if (other != from) {
             assertTrue(otherResult == Right(otherInput))
@@ -341,7 +347,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       },
       test("renameCase.reverse.reverse == renameCase") {
         check(genFieldName, genFieldName) { (from, to) =>
-          val action = MigrationAction.RenameCase(DynamicOptic.root, from, to)
+          val action        = MigrationAction.RenameCase(DynamicOptic.root, from, to)
           val doubleReverse = action.reverse.reverse
           assertTrue(action == doubleReverse)
         }
@@ -355,7 +361,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       test("all migrations have descriptions") {
         check(genRenameAction) { action =>
           val migration = DynamicMigration.single(action)
-          val desc = migration.describe
+          val desc      = migration.describe
           assertTrue(desc.nonEmpty)
         }
       }

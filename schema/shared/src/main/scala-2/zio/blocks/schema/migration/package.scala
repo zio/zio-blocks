@@ -6,9 +6,11 @@ import scala.language.experimental.macros
  * Migration package provides tools for type-safe schema migrations.
  *
  * The main entry points are:
- *   - `select[S](_.field)` - Create a field selector for use with MigrationBuilder
+ *   - `select[S](_.field)` - Create a field selector for use with
+ *     MigrationBuilder
  *   - `Migration[A, B]` - A typed migration between two schema versions
- *   - `MigrationBuilder` - Builder for constructing migrations with compile-time validation
+ *   - `MigrationBuilder` - Builder for constructing migrations with
+ *     compile-time validation
  *
  * Example:
  * {{{
@@ -28,8 +30,8 @@ package object migration {
   /**
    * Create a field selector from a lambda expression.
    *
-   * The selector extracts the field name at compile time and captures it
-   * as a singleton string type, enabling type-level field tracking.
+   * The selector extracts the field name at compile time and captures it as a
+   * singleton string type, enabling type-level field tracking.
    *
    * Example:
    * {{{
@@ -37,16 +39,18 @@ package object migration {
    * // Type: FieldSelector[Person, String, "name"]
    * }}}
    *
-   * @tparam S The schema/record type to select from
-   * @return A SelectBuilder that can be applied to a field accessor lambda
+   * @tparam S
+   *   The schema/record type to select from
+   * @return
+   *   A SelectBuilder that can be applied to a field accessor lambda
    */
   def select[S]: SelectBuilder[S] = new SelectBuilder[S]
 
   /**
    * Derive a [[SchemaFields]] instance for type A.
    *
-   * This extracts field names from the schema at compile time, enabling
-   * full compile-time validation of migration completeness.
+   * This extracts field names from the schema at compile time, enabling full
+   * compile-time validation of migration completeness.
    *
    * Example:
    * {{{
@@ -56,13 +60,13 @@ package object migration {
    * // fields.fieldNames == List("name", "age")
    * }}}
    */
-  implicit def schemaFields[A](implicit schema: Schema[A]): SchemaFields[A] =
-    macro SchemaFieldsMacros.derivedImpl[A]
+  implicit def schemaFields[A](implicit schema: Schema[A]): SchemaFields[A] = macro SchemaFieldsMacros.derivedImpl[A]
 
   /**
    * Create a [[SchemaFields]] from the type structure (case class fields).
    *
-   * This extracts field names directly from the type without requiring a Schema.
+   * This extracts field names directly from the type without requiring a
+   * Schema.
    */
   def schemaFieldsFromType[A]: SchemaFields[A] = macro SchemaFieldsMacros.fromTypeImpl[A]
 }

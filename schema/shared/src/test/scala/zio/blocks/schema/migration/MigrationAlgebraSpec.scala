@@ -7,11 +7,11 @@ import zio.test._
  * Tests for migration algebraic properties.
  *
  * Covers:
- * - Identity laws
- * - Associativity
- * - Composition laws
- * - Inverse/reverse properties
- * - Commutation (when applicable)
+ *   - Identity laws
+ *   - Associativity
+ *   - Composition laws
+ *   - Inverse/reverse properties
+ *   - Commutation (when applicable)
  */
 object MigrationAlgebraSpec extends SchemaBaseSpec {
 
@@ -46,17 +46,17 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         assertTrue(!m.isIdentity)
       },
       test("left identity: identity ++ m == m") {
-        val m = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m        = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
         val composed = DynamicMigration.identity ++ m
         assertTrue(composed.actions == m.actions)
       },
       test("right identity: m ++ identity == m") {
-        val m = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m        = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
         val composed = m ++ DynamicMigration.identity
         assertTrue(composed.actions == m.actions)
       },
       test("identity leaves value unchanged") {
-        val input = dynamicRecord("x" -> dynamicInt(1), "y" -> dynamicString("hello"))
+        val input  = dynamicRecord("x" -> dynamicInt(1), "y" -> dynamicString("hello"))
         val result = DynamicMigration.identity.apply(input)
         assertTrue(result == Right(input))
       }
@@ -67,7 +67,7 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         val m2 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
         val m3 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "e", "f"))
 
-        val left = (m1 ++ m2) ++ m3
+        val left  = (m1 ++ m2) ++ m3
         val right = m1 ++ (m2 ++ m3)
 
         assertTrue(left.actions == right.actions)
@@ -77,7 +77,7 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         val m2 = DynamicMigration.single(MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1)))
         val m3 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "b", "d"))
 
-        val left = (m1 ++ m2) ++ m3
+        val left  = (m1 ++ m2) ++ m3
         val right = m1 ++ (m2 ++ m3)
 
         val input = dynamicRecord("a" -> dynamicInt(42))
@@ -89,11 +89,11 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         val m3 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
         val m4 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "d", "e"))
 
-        val left = ((m1 ++ m2) ++ m3) ++ m4
-        val right = m1 ++ (m2 ++ (m3 ++ m4))
+        val left   = ((m1 ++ m2) ++ m3) ++ m4
+        val right  = m1 ++ (m2 ++ (m3 ++ m4))
         val middle = (m1 ++ m2) ++ (m3 ++ m4)
 
-        val input = dynamicRecord("a" -> dynamicInt(1))
+        val input    = dynamicRecord("a" -> dynamicInt(1))
         val expected = dynamicRecord("e" -> dynamicInt(1))
 
         assertTrue(left.apply(input) == Right(expected))
@@ -111,12 +111,14 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         assertTrue(m.reverse.reverse.actions == m.actions)
       },
       test("complex migration reverse.reverse == original") {
-        val m = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-          MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(0)),
-          MigrationAction.DropField(DynamicOptic.root, "d", Resolved.Literal.int(0)),
-          MigrationAction.Rename(DynamicOptic.root.field("nested"), "x", "y")
-        ))
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(0)),
+            MigrationAction.DropField(DynamicOptic.root, "d", Resolved.Literal.int(0)),
+            MigrationAction.Rename(DynamicOptic.root.field("nested"), "x", "y")
+          )
+        )
         assertTrue(m.reverse.reverse.actions == m.actions)
       },
       test("reverse of composition: (m1 ++ m2).reverse == m2.reverse ++ m1.reverse") {
@@ -129,7 +131,7 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         assertTrue(composedReverse.actions == reverseComposed.actions)
       },
       test("m ++ m.reverse is round-trip identity for renames") {
-        val m = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "old", "new"))
+        val m         = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "old", "new"))
         val roundTrip = m ++ m.reverse
 
         val input = dynamicRecord("old" -> dynamicInt(42))
@@ -140,33 +142,33 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
           MigrationAction.AddField(DynamicOptic.root, "field", Resolved.Literal.int(0))
         )
         // Add then drop returns to original
-        val input = dynamicRecord("existing" -> dynamicString("value"))
-        val forward = m.apply(input)
+        val input     = dynamicRecord("existing" -> dynamicString("value"))
+        val forward   = m.apply(input)
         val roundTrip = forward.flatMap(m.reverse.apply)
         assertTrue(roundTrip == Right(input))
       }
     ),
     suite("Action-specific algebra")(
       test("Rename: rename(a,b) ++ rename(b,c) == rename(a,c) behaviorally") {
-        val m1 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
-        val m2 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "b", "c"))
+        val m1       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m2       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "b", "c"))
         val combined = m1 ++ m2
 
-        val input = dynamicRecord("a" -> dynamicInt(42))
+        val input    = dynamicRecord("a" -> dynamicInt(42))
         val expected = dynamicRecord("c" -> dynamicInt(42))
         assertTrue(combined.apply(input) == Right(expected))
       },
       test("AddField then DropField cancels (for same field)") {
-        val m1 = DynamicMigration.single(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
-        val m2 = DynamicMigration.single(MigrationAction.DropField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        val m1       = DynamicMigration.single(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        val m2       = DynamicMigration.single(MigrationAction.DropField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
         val combined = m1 ++ m2
 
         val input = dynamicRecord("existing" -> dynamicInt(1))
         assertTrue(combined.apply(input) == Right(input))
       },
       test("DropField then AddField recreates (with default)") {
-        val m1 = DynamicMigration.single(MigrationAction.DropField(DynamicOptic.root, "x", Resolved.Literal.int(99)))
-        val m2 = DynamicMigration.single(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(99)))
+        val m1       = DynamicMigration.single(MigrationAction.DropField(DynamicOptic.root, "x", Resolved.Literal.int(99)))
+        val m2       = DynamicMigration.single(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(99)))
         val combined = m1 ++ m2
 
         val input = dynamicRecord("x" -> dynamicInt(42))
@@ -182,7 +184,7 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         val order1 = m1 ++ m2
         val order2 = m2 ++ m1
 
-        val input = dynamicRecord("a" -> dynamicInt(1), "b" -> dynamicInt(2))
+        val input    = dynamicRecord("a" -> dynamicInt(1), "b" -> dynamicInt(2))
         val expected = dynamicRecord("x" -> dynamicInt(1), "y" -> dynamicInt(2))
 
         assertTrue(order1.apply(input) == Right(expected))
@@ -193,13 +195,13 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         val m1 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
         val m2 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "b", "c"))
 
-        val order1 = m1 ++ m2  // a->b->c
-        val order2 = m2 ++ m1  // (b->c, then a->b) = different result
+        val order1 = m1 ++ m2 // a->b->c
+        val order2 = m2 ++ m1 // (b->c, then a->b) = different result
 
         val input = dynamicRecord("a" -> dynamicInt(1), "b" -> dynamicInt(2))
 
-        val result1 = order1.apply(input)  // a becomes c, b stays b
-        val result2 = order2.apply(input)  // b becomes c, a becomes b
+        val result1 = order1.apply(input) // a becomes c, b stays b
+        val result2 = order2.apply(input) // b becomes c, a becomes b
 
         // They should produce different results
         assertTrue(result1 != result2)
@@ -210,8 +212,8 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         assertTrue(DynamicMigration.identity.isIdentity)
       },
       test("closed under composition") {
-        val m1 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
-        val m2 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
+        val m1       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m2       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
         val composed = m1 ++ m2
         // composed is still a DynamicMigration
         assertTrue(composed.actions.length == 2)
@@ -241,11 +243,11 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         val order2 = m2 ++ m1
 
         val input = dynamicRecord(
-          "user" -> dynamicRecord("name" -> dynamicString("Alice")),
+          "user"  -> dynamicRecord("name" -> dynamicString("Alice")),
           "order" -> dynamicRecord("id" -> dynamicInt(123))
         )
         val expected = dynamicRecord(
-          "user" -> dynamicRecord("fullName" -> dynamicString("Alice")),
+          "user"  -> dynamicRecord("fullName" -> dynamicString("Alice")),
           "order" -> dynamicRecord("orderId" -> dynamicInt(123))
         )
 
@@ -258,14 +260,14 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
         )
         val input = dynamicRecord(
           "a" -> dynamicRecord(
-            "b" -> dynamicRecord("x" -> dynamicInt(1)),
+            "b"     -> dynamicRecord("x" -> dynamicInt(1)),
             "other" -> dynamicInt(2)
           ),
           "c" -> dynamicInt(3)
         )
         val expected = dynamicRecord(
           "a" -> dynamicRecord(
-            "b" -> dynamicRecord("y" -> dynamicInt(1)),
+            "b"     -> dynamicRecord("y" -> dynamicInt(1)),
             "other" -> dynamicInt(2)
           ),
           "c" -> dynamicInt(3)
@@ -275,19 +277,23 @@ object MigrationAlgebraSpec extends SchemaBaseSpec {
     ),
     suite("Error propagation algebra")(
       test("error in first action stops execution") {
-        val m = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Fail("error")),
-          MigrationAction.Rename(DynamicOptic.root, "a", "b")
-        ))
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Fail("error")),
+            MigrationAction.Rename(DynamicOptic.root, "a", "b")
+          )
+        )
         val input = dynamicRecord("a" -> dynamicInt(1))
         assertTrue(m.apply(input).isLeft)
       },
       test("error preserves earlier successful transformations in result") {
         // Note: errors stop execution, so we don't get partial results
-        val m = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-          MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Fail("error"))
-        ))
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Fail("error"))
+          )
+        )
         val input = dynamicRecord("a" -> dynamicInt(1))
         // Even though first action would succeed, the whole migration fails
         assertTrue(m.apply(input).isLeft)

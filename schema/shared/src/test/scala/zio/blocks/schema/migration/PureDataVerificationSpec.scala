@@ -4,14 +4,15 @@ import zio.blocks.schema._
 import zio.test._
 
 /**
- * Tests verifying that migrations are pure data (no functions, closures, reflection).
+ * Tests verifying that migrations are pure data (no functions, closures,
+ * reflection).
  *
  * Covers:
- * - All types are case classes/sealed traits
- * - No closures or lambdas in migration data
- * - Full serializability verification
- * - Structural equality
- * - Pattern matching exhaustiveness
+ *   - All types are case classes/sealed traits
+ *   - No closures or lambdas in migration data
+ *   - Full serializability verification
+ *   - Structural equality
+ *   - Pattern matching exhaustiveness
  */
 object PureDataVerificationSpec extends SchemaBaseSpec {
 
@@ -40,12 +41,16 @@ object PureDataVerificationSpec extends SchemaBaseSpec {
         assertTrue(migration.isInstanceOf[Serializable])
       },
       test("DynamicMigration has structural equality") {
-        val m1 = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b")
-        ))
-        val m2 = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b")
-        ))
+        val m1 = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b")
+          )
+        )
+        val m2 = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b")
+          )
+        )
         assertTrue(m1 == m2)
         assertTrue(m1.hashCode == m2.hashCode)
       },
@@ -94,7 +99,10 @@ object PureDataVerificationSpec extends SchemaBaseSpec {
       },
       test("TransformValue is a case class") {
         val action = MigrationAction.TransformValue(
-          DynamicOptic.root, "f", Resolved.Identity, Resolved.Identity
+          DynamicOptic.root,
+          "f",
+          Resolved.Identity,
+          Resolved.Identity
         )
         assertTrue(action.isInstanceOf[Product])
       },
@@ -108,7 +116,10 @@ object PureDataVerificationSpec extends SchemaBaseSpec {
       },
       test("ChangeType is a case class") {
         val action = MigrationAction.ChangeType(
-          DynamicOptic.root, "f", Resolved.Identity, Resolved.Identity
+          DynamicOptic.root,
+          "f",
+          Resolved.Identity,
+          Resolved.Identity
         )
         assertTrue(action.isInstanceOf[Product])
       },
@@ -122,19 +133,25 @@ object PureDataVerificationSpec extends SchemaBaseSpec {
       },
       test("TransformElements is a case class") {
         val action = MigrationAction.TransformElements(
-          DynamicOptic.root, Resolved.Identity, Resolved.Identity
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Identity
         )
         assertTrue(action.isInstanceOf[Product])
       },
       test("TransformKeys is a case class") {
         val action = MigrationAction.TransformKeys(
-          DynamicOptic.root, Resolved.Identity, Resolved.Identity
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Identity
         )
         assertTrue(action.isInstanceOf[Product])
       },
       test("TransformValues is a case class") {
         val action = MigrationAction.TransformValues(
-          DynamicOptic.root, Resolved.Identity, Resolved.Identity
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Identity
         )
         assertTrue(action.isInstanceOf[Product])
       }
@@ -196,39 +213,44 @@ object PureDataVerificationSpec extends SchemaBaseSpec {
         assertTrue(true)
       },
       test("Resolved contains no function fields") {
-        val expr = Resolved.Concat(Vector(
-          Resolved.Literal.string("a"),
-          Resolved.FieldAccess("b", Resolved.Identity)
-        ), "-")
+        val expr = Resolved.Concat(
+          Vector(
+            Resolved.Literal.string("a"),
+            Resolved.FieldAccess("b", Resolved.Identity)
+          ),
+          "-"
+        )
         // Recursively verify no functions
         def verifyNoFunctions(r: Resolved): Boolean = r match {
-          case Resolved.Literal(_) => true
-          case Resolved.Identity => true
-          case Resolved.FieldAccess(_, inner) => verifyNoFunctions(inner)
-          case Resolved.Compose(outer, inner) => verifyNoFunctions(outer) && verifyNoFunctions(inner)
-          case Resolved.Convert(_, _, inner) => verifyNoFunctions(inner)
-          case Resolved.Fail(_) => true
-          case Resolved.Concat(parts, _) => parts.forall(verifyNoFunctions)
-          case Resolved.WrapSome(inner) => verifyNoFunctions(inner)
-          case Resolved.Construct(fields) => fields.forall { case (_, v) => verifyNoFunctions(v) }
+          case Resolved.Literal(_)             => true
+          case Resolved.Identity               => true
+          case Resolved.FieldAccess(_, inner)  => verifyNoFunctions(inner)
+          case Resolved.Compose(outer, inner)  => verifyNoFunctions(outer) && verifyNoFunctions(inner)
+          case Resolved.Convert(_, _, inner)   => verifyNoFunctions(inner)
+          case Resolved.Fail(_)                => true
+          case Resolved.Concat(parts, _)       => parts.forall(verifyNoFunctions)
+          case Resolved.WrapSome(inner)        => verifyNoFunctions(inner)
+          case Resolved.Construct(fields)      => fields.forall { case (_, v) => verifyNoFunctions(v) }
           case Resolved.ConstructSeq(elements) => elements.forall(verifyNoFunctions)
-          case _ => true // Other cases
+          case _                               => true // Other cases
         }
         assertTrue(verifyNoFunctions(expr))
       }
     ),
     suite("Structural reconstruction")(
       test("migration can be reconstructed from its parts") {
-        val original = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-          MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
-        ))
-        val extracted = original.actions
+        val original = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
+          )
+        )
+        val extracted     = original.actions
         val reconstructed = DynamicMigration(extracted)
         assertTrue(reconstructed == original)
       },
       test("action can be reconstructed from pattern match") {
-        val original = MigrationAction.Rename(DynamicOptic.root, "old", "new")
+        val original      = MigrationAction.Rename(DynamicOptic.root, "old", "new")
         val reconstructed = original match {
           case MigrationAction.Rename(at, from, to) =>
             MigrationAction.Rename(at, from, to)
@@ -236,7 +258,7 @@ object PureDataVerificationSpec extends SchemaBaseSpec {
         assertTrue(reconstructed == original)
       },
       test("expression can be reconstructed from pattern match") {
-        val original = Resolved.FieldAccess("field", Resolved.Convert("Int", "String", Resolved.Identity))
+        val original      = Resolved.FieldAccess("field", Resolved.Convert("Int", "String", Resolved.Identity))
         val reconstructed = original match {
           case Resolved.FieldAccess(name, inner) =>
             inner match {
@@ -300,8 +322,8 @@ object PureDataVerificationSpec extends SchemaBaseSpec {
         assertTrue(m2.actionCount == 2)
       },
       test("actions vector is immutable") {
-        val actions = Vector(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
-        val migration = DynamicMigration(actions)
+        val actions    = Vector(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val migration  = DynamicMigration(actions)
         val newActions = migration.actions :+ MigrationAction.Rename(DynamicOptic.root, "c", "d")
         // Original migration unchanged
         assertTrue(migration.actions.length == 1)

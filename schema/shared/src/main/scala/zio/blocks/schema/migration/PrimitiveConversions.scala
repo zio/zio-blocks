@@ -5,9 +5,9 @@ import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 /**
  * Pure data conversions between primitive types.
  *
- * All conversions are statically defined lookup tables - no user-provided functions.
- * This ensures migrations remain fully serializable and can be inspected, transformed,
- * or used to generate code.
+ * All conversions are statically defined lookup tables - no user-provided
+ * functions. This ensures migrations remain fully serializable and can be
+ * inspected, transformed, or used to generate code.
  *
  * Supported conversion categories:
  *   - Numeric widening (Int -> Long -> Double, etc.)
@@ -16,18 +16,23 @@ import zio.blocks.schema.{DynamicValue, PrimitiveValue}
  *   - Between BigInt/BigDecimal and regular numerics
  *   - Temporal type parsing from String
  *
- * Conversions are identified by type names (strings) rather than PrimitiveType values
- * to maintain serializability without requiring PrimitiveType instances at runtime.
+ * Conversions are identified by type names (strings) rather than PrimitiveType
+ * values to maintain serializability without requiring PrimitiveType instances
+ * at runtime.
  */
 object PrimitiveConversions {
 
   /**
    * Convert a DynamicValue between primitive types.
    *
-   * @param value The value to convert
-   * @param fromType Name of the source type (e.g., "Int", "String")
-   * @param toType Name of the target type (e.g., "Long", "Double")
-   * @return Right with converted value, or Left with error message
+   * @param value
+   *   The value to convert
+   * @param fromType
+   *   Name of the source type (e.g., "Int", "String")
+   * @param toType
+   *   Name of the target type (e.g., "Long", "Double")
+   * @return
+   *   Right with converted value, or Left with error message
    */
   def convert(
     value: DynamicValue,
@@ -194,25 +199,32 @@ object PrimitiveConversions {
       // String -> numeric types (parsing)
       // ─────────────────────────────────────────────────────────────────────
       case ("String", "Byte", DynamicValue.Primitive(PrimitiveValue.String(s))) =>
-        s.toByteOption.map(v => DynamicValue.Primitive(PrimitiveValue.Byte(v)))
+        s.toByteOption
+          .map(v => DynamicValue.Primitive(PrimitiveValue.Byte(v)))
           .toRight(s"Cannot parse '$s' as Byte")
       case ("String", "Short", DynamicValue.Primitive(PrimitiveValue.String(s))) =>
-        s.toShortOption.map(v => DynamicValue.Primitive(PrimitiveValue.Short(v)))
+        s.toShortOption
+          .map(v => DynamicValue.Primitive(PrimitiveValue.Short(v)))
           .toRight(s"Cannot parse '$s' as Short")
       case ("String", "Int", DynamicValue.Primitive(PrimitiveValue.String(s))) =>
-        s.toIntOption.map(v => DynamicValue.Primitive(PrimitiveValue.Int(v)))
+        s.toIntOption
+          .map(v => DynamicValue.Primitive(PrimitiveValue.Int(v)))
           .toRight(s"Cannot parse '$s' as Int")
       case ("String", "Long", DynamicValue.Primitive(PrimitiveValue.String(s))) =>
-        s.toLongOption.map(v => DynamicValue.Primitive(PrimitiveValue.Long(v)))
+        s.toLongOption
+          .map(v => DynamicValue.Primitive(PrimitiveValue.Long(v)))
           .toRight(s"Cannot parse '$s' as Long")
       case ("String", "Float", DynamicValue.Primitive(PrimitiveValue.String(s))) =>
-        s.toFloatOption.map(v => DynamicValue.Primitive(PrimitiveValue.Float(v)))
+        s.toFloatOption
+          .map(v => DynamicValue.Primitive(PrimitiveValue.Float(v)))
           .toRight(s"Cannot parse '$s' as Float")
       case ("String", "Double", DynamicValue.Primitive(PrimitiveValue.String(s))) =>
-        s.toDoubleOption.map(v => DynamicValue.Primitive(PrimitiveValue.Double(v)))
+        s.toDoubleOption
+          .map(v => DynamicValue.Primitive(PrimitiveValue.Double(v)))
           .toRight(s"Cannot parse '$s' as Double")
       case ("String", "Boolean", DynamicValue.Primitive(PrimitiveValue.String(s))) =>
-        s.toBooleanOption.map(v => DynamicValue.Primitive(PrimitiveValue.Boolean(v)))
+        s.toBooleanOption
+          .map(v => DynamicValue.Primitive(PrimitiveValue.Boolean(v)))
           .toRight(s"Cannot parse '$s' as Boolean")
       case ("String", "BigInt", DynamicValue.Primitive(PrimitiveValue.String(s))) =>
         try Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(s))))

@@ -7,12 +7,12 @@ import zio.test._
  * Tests for primitive type conversions.
  *
  * Covers:
- * - Numeric conversions (widening and narrowing)
- * - String conversions (to/from all primitive types)
- * - Temporal type conversions
- * - UUID conversions
- * - Error handling for invalid conversions
- * - Edge cases
+ *   - Numeric conversions (widening and narrowing)
+ *   - String conversions (to/from all primitive types)
+ *   - Temporal type conversions
+ *   - UUID conversions
+ *   - Error handling for invalid conversions
+ *   - Edge cases
  */
 object PrimitiveConversionsSpec extends SchemaBaseSpec {
 
@@ -142,7 +142,9 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
         assertTrue(convert("Int", "BigDecimal", dynamicInt(42)) == Right(dynamicBigDecimal(BigDecimal(42))))
       },
       test("BigInt -> BigDecimal") {
-        assertTrue(convert("BigInt", "BigDecimal", dynamicBigInt(BigInt(42))) == Right(dynamicBigDecimal(BigDecimal(42))))
+        assertTrue(
+          convert("BigInt", "BigDecimal", dynamicBigInt(BigInt(42))) == Right(dynamicBigDecimal(BigDecimal(42)))
+        )
       }
     ),
     suite("String to numeric conversions")(
@@ -168,12 +170,16 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
         assertTrue(convert("String", "Short", dynamicString("1000")) == Right(dynamicShort(1000)))
       },
       test("String -> BigInt") {
-        assertTrue(convert("String", "BigInt", dynamicString("123456789012345678901234567890")) ==
-          Right(dynamicBigInt(BigInt("123456789012345678901234567890"))))
+        assertTrue(
+          convert("String", "BigInt", dynamicString("123456789012345678901234567890")) ==
+            Right(dynamicBigInt(BigInt("123456789012345678901234567890")))
+        )
       },
       test("String -> BigDecimal") {
-        assertTrue(convert("String", "BigDecimal", dynamicString("123.456")) ==
-          Right(dynamicBigDecimal(BigDecimal("123.456"))))
+        assertTrue(
+          convert("String", "BigDecimal", dynamicString("123.456")) ==
+            Right(dynamicBigDecimal(BigDecimal("123.456")))
+        )
       },
       test("String -> Boolean (true)") {
         assertTrue(convert("String", "Boolean", dynamicString("true")) == Right(dynamicBool(true)))
@@ -210,7 +216,9 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
         assertTrue(convert("BigInt", "String", dynamicBigInt(BigInt("12345"))) == Right(dynamicString("12345")))
       },
       test("BigDecimal -> String") {
-        assertTrue(convert("BigDecimal", "String", dynamicBigDecimal(BigDecimal("123.45"))) == Right(dynamicString("123.45")))
+        assertTrue(
+          convert("BigDecimal", "String", dynamicBigDecimal(BigDecimal("123.45"))) == Right(dynamicString("123.45"))
+        )
       }
     ),
     suite("Char conversions")(
@@ -273,7 +281,7 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
       },
       test("String -> UUID") {
         val uuidStr = "550e8400-e29b-41d4-a716-446655440000"
-        val result = convert("String", "UUID", dynamicString(uuidStr))
+        val result  = convert("String", "UUID", dynamicString(uuidStr))
         result match {
           case Right(DynamicValue.Primitive(PrimitiveValue.UUID(uuid))) =>
             assertTrue(uuid.toString == uuidStr)
@@ -281,8 +289,8 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
         }
       },
       test("UUID -> String") {
-        val uuid = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-        val input = DynamicValue.Primitive(PrimitiveValue.UUID(uuid))
+        val uuid   = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val input  = DynamicValue.Primitive(PrimitiveValue.UUID(uuid))
         val result = convert("UUID", "String", input)
         assertTrue(result == Right(dynamicString("550e8400-e29b-41d4-a716-446655440000")))
       }

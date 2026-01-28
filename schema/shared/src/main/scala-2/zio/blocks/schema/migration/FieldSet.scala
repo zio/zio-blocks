@@ -3,12 +3,12 @@ package zio.blocks.schema.migration
 /**
  * Type-level operations for tracking field sets in migrations (Scala 2).
  *
- * In Scala 2, we use type classes with dependent types to simulate
- * type-level computation. Field sets are represented as HList-like
- * structures using :: and HNil.
+ * In Scala 2, we use type classes with dependent types to simulate type-level
+ * computation. Field sets are represented as HList-like structures using :: and
+ * HNil.
  *
- * These operations are used by [[MigrationBuilder]] to track which fields
- * have been handled during migration construction.
+ * These operations are used by [[MigrationBuilder]] to track which fields have
+ * been handled during migration construction.
  */
 object FieldSet {
 
@@ -32,10 +32,13 @@ object FieldSet {
   /**
    * Type class for removing a field name from a field set.
    *
-   * @tparam S The field set (HList of string literal types)
-   * @tparam Name The field name to remove
+   * @tparam S
+   *   The field set (HList of string literal types)
+   * @tparam Name
+   *   The field name to remove
    */
   trait Remove[S, Name] {
+
     /** The resulting field set with Name removed */
     type Out
   }
@@ -70,6 +73,7 @@ object FieldSet {
   sealed trait Contains[S, Name]
 
   object Contains {
+
     /** Found at head */
     implicit def containsHead[Name, Tail]: Contains[Name :: Tail, Name] =
       new Contains[Name :: Tail, Name] {}

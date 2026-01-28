@@ -6,8 +6,8 @@ import zio.blocks.schema.{DynamicOptic, Schema}
  * A typed, compile-time validated migration from schema A to schema B.
  *
  * Migration wraps a [[DynamicMigration]] with source and target schemas,
- * providing type-safe application and composition. The schemas are used
- * for converting typed values to/from DynamicValue.
+ * providing type-safe application and composition. The schemas are used for
+ * converting typed values to/from DynamicValue.
  *
  * Migrations are typically constructed using [[MigrationBuilder]], which
  * ensures at compile time that all fields are properly mapped:
@@ -27,11 +27,16 @@ import zio.blocks.schema.{DynamicOptic, Schema}
  * val result: Either[MigrationError, PersonV1] = migration(oldPerson)
  * }}}
  *
- * @tparam A Source type (may be a structural type for old versions)
- * @tparam B Target type (may be a structural type or concrete class)
- * @param dynamicMigration The underlying serializable migration
- * @param sourceSchema Schema for the source type
- * @param targetSchema Schema for the target type
+ * @tparam A
+ *   Source type (may be a structural type for old versions)
+ * @tparam B
+ *   Target type (may be a structural type or concrete class)
+ * @param dynamicMigration
+ *   The underlying serializable migration
+ * @param sourceSchema
+ *   Schema for the source type
+ * @param targetSchema
+ *   Schema for the target type
  */
 final case class Migration[A, B](
   dynamicMigration: DynamicMigration,
@@ -43,12 +48,14 @@ final case class Migration[A, B](
    * Apply this migration to transform a value of type A to type B.
    *
    * The transformation process:
-   * 1. Convert the input value to DynamicValue using sourceSchema
-   * 2. Apply the DynamicMigration
-   * 3. Convert the result back to type B using targetSchema
+   *   1. Convert the input value to DynamicValue using sourceSchema
+   *   2. Apply the DynamicMigration
+   *   3. Convert the result back to type B using targetSchema
    *
-   * @param value The source value to migrate
-   * @return Right with the migrated value, or Left with a MigrationError
+   * @param value
+   *   The source value to migrate
+   * @return
+   *   Right with the migrated value, or Left with a MigrationError
    */
   def apply(value: A): Either[MigrationError, B] = {
     val dynamicSource = sourceSchema.toDynamicValue(value)
@@ -64,10 +71,11 @@ final case class Migration[A, B](
   /**
    * Apply this migration, throwing an exception on failure.
    *
-   * Use `apply` for production code; this is provided for convenience
-   * in tests and scripts.
+   * Use `apply` for production code; this is provided for convenience in tests
+   * and scripts.
    *
-   * @throws MigrationError if the migration fails
+   * @throws MigrationError
+   *   if the migration fails
    */
   def unsafeApply(value: A): B =
     apply(value) match {
@@ -78,14 +86,16 @@ final case class Migration[A, B](
   /**
    * Compose this migration with another: A -> B -> C
    *
-   * The resulting migration first applies this migration,
-   * then applies the other migration to the result.
+   * The resulting migration first applies this migration, then applies the
+   * other migration to the result.
    *
    * This operation satisfies associativity:
    * `(m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)`
    *
-   * @param that The migration to apply after this one
-   * @return A composed migration from A to C
+   * @param that
+   *   The migration to apply after this one
+   * @return
+   *   A composed migration from A to C
    */
   def ++[C](that: Migration[B, C]): Migration[A, C] =
     Migration(
@@ -102,17 +112,18 @@ final case class Migration[A, B](
   /**
    * Structural reverse of this migration: B -> A
    *
-   * The reverse migration applies the reversed DynamicMigration and
-   * swaps the source and target schemas.
+   * The reverse migration applies the reversed DynamicMigration and swaps the
+   * source and target schemas.
    *
-   * Note: Runtime behavior of the reverse may differ from a true inverse
-   * if information was lost during the forward migration (e.g., dropped
-   * fields). The reverse is "best effort" - it will succeed if sufficient
-   * information exists to reconstruct the original value.
+   * Note: Runtime behavior of the reverse may differ from a true inverse if
+   * information was lost during the forward migration (e.g., dropped fields).
+   * The reverse is "best effort" - it will succeed if sufficient information
+   * exists to reconstruct the original value.
    *
    * This operation satisfies: `m.reverse.reverse == m` (structurally)
    *
-   * @return A migration that reverses this one
+   * @return
+   *   A migration that reverses this one
    */
   def reverse: Migration[B, A] =
     Migration(
@@ -134,7 +145,8 @@ final case class Migration[A, B](
   /**
    * Optimize this migration by combining or eliminating redundant actions.
    *
-   * @return An optimized migration with equivalent behavior
+   * @return
+   *   An optimized migration with equivalent behavior
    */
   def optimize: Migration[A, B] =
     Migration(dynamicMigration.optimize, sourceSchema, targetSchema)
@@ -152,8 +164,10 @@ object Migration {
    *
    * For any value v: `identity[A].apply(v) == Right(v)`
    *
-   * @param schema The schema for type A
-   * @return An identity migration for type A
+   * @param schema
+   *   The schema for type A
+   * @return
+   *   An identity migration for type A
    */
   def identity[A](implicit schema: Schema[A]): Migration[A, A] =
     Migration(DynamicMigration.identity, schema, schema)
@@ -164,10 +178,14 @@ object Migration {
    * This bypasses compile-time validation. Prefer using [[MigrationBuilder]]
    * for type-safe migration construction.
    *
-   * @param dynamicMigration The underlying migration
-   * @param sourceSchema Schema for the source type
-   * @param targetSchema Schema for the target type
-   * @return A typed Migration wrapping the DynamicMigration
+   * @param dynamicMigration
+   *   The underlying migration
+   * @param sourceSchema
+   *   Schema for the source type
+   * @param targetSchema
+   *   Schema for the target type
+   * @return
+   *   A typed Migration wrapping the DynamicMigration
    */
   def fromDynamic[A, B](
     dynamicMigration: DynamicMigration

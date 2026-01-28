@@ -7,11 +7,11 @@ import zio.test._
  * Tests for compile-time and runtime validation of migrations.
  *
  * Covers:
- * - Type safety validation
- * - Schema compatibility checks
- * - Path validation
- * - Expression type validation
- * - Action precondition validation
+ *   - Type safety validation
+ *   - Schema compatibility checks
+ *   - Path validation
+ *   - Expression type validation
+ *   - Action precondition validation
  */
 object StaticValidationSpec extends SchemaBaseSpec {
 
@@ -56,7 +56,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
     suite("Path validation at runtime")(
       test("valid path succeeds") {
         val action = MigrationAction.AddField(DynamicOptic.root, "newField", Resolved.Literal.int(1))
-        val input = dynamicRecord("existing" -> dynamicInt(1))
+        val input  = dynamicRecord("existing" -> dynamicInt(1))
         assertTrue(action.apply(input).isRight)
       },
       test("nested path to non-existent field fails") {
@@ -91,34 +91,34 @@ object StaticValidationSpec extends SchemaBaseSpec {
     suite("Record operation validation")(
       test("AddField on non-record fails") {
         val action = MigrationAction.AddField(DynamicOptic.root, "field", Resolved.Literal.int(1))
-        val input = dynamicInt(42)
+        val input  = dynamicInt(42)
         val result = action.apply(input)
         assertTrue(result.isLeft)
         result match {
           case Left(MigrationError.ExpectedRecord(_, _)) => assertTrue(true)
-          case _ => assertTrue(false)
+          case _                                         => assertTrue(false)
         }
       },
       test("DropField on non-record fails") {
         val action = MigrationAction.DropField(DynamicOptic.root, "field", Resolved.Literal.int(1))
-        val input = dynamicString("not a record")
+        val input  = dynamicString("not a record")
         assertTrue(action.apply(input).isLeft)
       },
       test("Rename on non-record fails") {
         val action = MigrationAction.Rename(DynamicOptic.root, "old", "new")
-        val input = dynamicBool(true)
+        val input  = dynamicBool(true)
         assertTrue(action.apply(input).isLeft)
       },
       test("DropField on missing field succeeds (idempotent)") {
         val action = MigrationAction.DropField(DynamicOptic.root, "missing", Resolved.Literal.int(0))
-        val input = dynamicRecord("other" -> dynamicInt(1))
+        val input  = dynamicRecord("other" -> dynamicInt(1))
         // DropField of non-existent field should succeed (no-op)
         val result = action.apply(input)
         assertTrue(result == Right(input))
       },
       test("Rename of missing field is no-op") {
         val action = MigrationAction.Rename(DynamicOptic.root, "missing", "new")
-        val input = dynamicRecord("other" -> dynamicInt(1))
+        val input  = dynamicRecord("other" -> dynamicInt(1))
         val result = action.apply(input)
         // Rename of non-existent field should succeed (no-op)
         assertTrue(result == Right(input))
@@ -131,12 +131,12 @@ object StaticValidationSpec extends SchemaBaseSpec {
           Resolved.Identity,
           Resolved.Identity
         )
-        val input = dynamicRecord("x" -> dynamicInt(1))
+        val input  = dynamicRecord("x" -> dynamicInt(1))
         val result = action.apply(input)
         assertTrue(result.isLeft)
         result match {
           case Left(MigrationError.ExpectedSequence(_, _)) => assertTrue(true)
-          case _ => assertTrue(false)
+          case _                                           => assertTrue(false)
         }
       },
       test("TransformElements on empty sequence succeeds") {
@@ -161,14 +161,14 @@ object StaticValidationSpec extends SchemaBaseSpec {
     suite("Variant operation validation")(
       test("RenameCase on non-variant is no-op") {
         val action = MigrationAction.RenameCase(DynamicOptic.root, "OldCase", "NewCase")
-        val input = dynamicRecord("x" -> dynamicInt(1))
+        val input  = dynamicRecord("x" -> dynamicInt(1))
         // Non-variant input - action is no-op
         val result = action.apply(input)
         assertTrue(result == Right(input))
       },
       test("RenameCase on different case is no-op") {
         val action = MigrationAction.RenameCase(DynamicOptic.root, "CaseA", "CaseB")
-        val input = dynamicVariant("OtherCase", dynamicInt(1))
+        val input  = dynamicVariant("OtherCase", dynamicInt(1))
         val result = action.apply(input)
         assertTrue(result == Right(input))
       },
@@ -178,7 +178,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
           "TargetCase",
           Vector(MigrationAction.AddField(DynamicOptic.root, "f", Resolved.Literal.int(1)))
         )
-        val input = dynamicVariant("OtherCase", dynamicRecord())
+        val input  = dynamicVariant("OtherCase", dynamicRecord())
         val result = action.apply(input)
         assertTrue(result == Right(input))
       },
@@ -194,17 +194,17 @@ object StaticValidationSpec extends SchemaBaseSpec {
     ),
     suite("Expression validation")(
       test("FieldAccess on missing field fails") {
-        val expr = Resolved.FieldAccess("missing", Resolved.Identity)
+        val expr  = Resolved.FieldAccess("missing", Resolved.Identity)
         val input = dynamicRecord("other" -> dynamicInt(1))
         assertTrue(expr.evalDynamic(input).isLeft)
       },
       test("FieldAccess on non-record fails") {
-        val expr = Resolved.FieldAccess("field", Resolved.Identity)
+        val expr  = Resolved.FieldAccess("field", Resolved.Identity)
         val input = dynamicInt(42)
         assertTrue(expr.evalDynamic(input).isLeft)
       },
       test("Convert with invalid input fails") {
-        val expr = Resolved.Convert("String", "Int", Resolved.Identity)
+        val expr  = Resolved.Convert("String", "Int", Resolved.Identity)
         val input = dynamicString("not a number")
         assertTrue(expr.evalDynamic(input).isLeft)
       },
@@ -240,7 +240,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
       },
       test("unsupported conversion fails") {
         // Try to convert a record to int - should fail
-        val expr = Resolved.Convert("Record", "Int", Resolved.Identity)
+        val expr  = Resolved.Convert("Record", "Int", Resolved.Identity)
         val input = dynamicRecord("x" -> dynamicInt(1))
         assertTrue(expr.evalDynamic(input).isLeft)
       }
@@ -248,7 +248,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
     suite("Optionality validation")(
       test("Mandate on Some extracts value") {
         val action = MigrationAction.Mandate(DynamicOptic.root, "opt", Resolved.Literal.int(0))
-        val input = dynamicRecord(
+        val input  = dynamicRecord(
           "opt" -> dynamicVariant("Some", dynamicInt(42))
         )
         val result = action.apply(input)
@@ -256,7 +256,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
       },
       test("Mandate on None uses default") {
         val action = MigrationAction.Mandate(DynamicOptic.root, "opt", Resolved.Literal.int(99))
-        val input = dynamicRecord(
+        val input  = dynamicRecord(
           "opt" -> dynamicVariant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
         )
         val result = action.apply(input)
@@ -264,18 +264,22 @@ object StaticValidationSpec extends SchemaBaseSpec {
       },
       test("Mandate with failing default fails on None") {
         val action = MigrationAction.Mandate(DynamicOptic.root, "opt", Resolved.Fail("no default"))
-        val input = dynamicRecord(
+        val input  = dynamicRecord(
           "opt" -> dynamicVariant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
         )
         assertTrue(action.apply(input).isLeft)
       },
       test("Optionalize wraps value in Some") {
         val action = MigrationAction.Optionalize(DynamicOptic.root, "required")
-        val input = dynamicRecord("required" -> dynamicInt(42))
+        val input  = dynamicRecord("required" -> dynamicInt(42))
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "required" -> dynamicVariant("Some", DynamicValue.Record(Vector(("value", dynamicInt(42)))))
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "required" -> dynamicVariant("Some", DynamicValue.Record(Vector(("value", dynamicInt(42)))))
+            )
+          )
+        )
       }
     ),
     suite("Typed migration validation")(
@@ -316,7 +320,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
           MigrationAction.AddField(DynamicOptic.root.field("nonexistent"), "c", Resolved.Literal.int(1))
         )
         val composed = m1 ++ m2
-        val input = dynamicRecord("a" -> dynamicInt(1))
+        val input    = dynamicRecord("a" -> dynamicInt(1))
         // First action succeeds, second fails due to missing path
         assertTrue(composed.apply(input).isLeft)
       },
@@ -328,7 +332,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
           MigrationAction.Rename(DynamicOptic.root, "a", "b")
         )
         val composed = m1 ++ m2
-        val input = dynamicRecord("a" -> dynamicInt(1))
+        val input    = dynamicRecord("a" -> dynamicInt(1))
         assertTrue(composed.apply(input).isLeft)
       }
     ),
@@ -339,7 +343,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
           "field",
           Resolved.Literal.int(42)
         )
-        val input = dynamicRecord()
+        val input  = dynamicRecord()
         val result = action.apply(input)
         assertTrue(result == Right(dynamicRecord("field" -> dynamicInt(42))))
       },
@@ -358,12 +362,16 @@ object StaticValidationSpec extends SchemaBaseSpec {
           "copy",
           Resolved.FieldAccess("original", Resolved.Identity)
         )
-        val input = dynamicRecord("original" -> dynamicInt(42))
+        val input  = dynamicRecord("original" -> dynamicInt(42))
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "original" -> dynamicInt(42),
-          "copy" -> dynamicInt(42)
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "original" -> dynamicInt(42),
+              "copy"     -> dynamicInt(42)
+            )
+          )
+        )
       },
       test("AddField with computed default from missing field fails") {
         val action = MigrationAction.AddField(
@@ -392,7 +400,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
       },
       test("ExpectedRecord includes actual type") {
         val action = MigrationAction.AddField(DynamicOptic.root, "field", Resolved.Literal.int(1))
-        val input = dynamicInt(42)
+        val input  = dynamicInt(42)
         action.apply(input) match {
           case Left(MigrationError.ExpectedRecord(_, actual)) =>
             assertTrue(actual == input)

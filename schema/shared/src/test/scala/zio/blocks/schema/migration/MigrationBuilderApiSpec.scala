@@ -7,11 +7,11 @@ import zio.test._
  * Tests for the MigrationBuilder API and method chaining.
  *
  * Covers:
- * - Builder construction
- * - Method chaining
- * - Type-safe field operations
- * - Build completion
- * - Builder state management
+ *   - Builder construction
+ *   - Method chaining
+ *   - Type-safe field operations
+ *   - Build completion
+ *   - Builder state management
  */
 object MigrationBuilderApiSpec extends SchemaBaseSpec {
 
@@ -58,65 +58,75 @@ object MigrationBuilderApiSpec extends SchemaBaseSpec {
         assertTrue(m.actions.length == 1)
       },
       test("multi-action migration via Vector") {
-        val m = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-          MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(0))
-        ))
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(0))
+          )
+        )
         assertTrue(m.actions.length == 2)
       }
     ),
     suite("Migration composition")(
       test("compose two migrations with ++") {
-        val m1 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
-        val m2 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
+        val m1       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m2       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
         val composed = m1 ++ m2
         assertTrue(composed.actions.length == 2)
       },
       test("compose identity with migration") {
-        val m = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m        = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
         val composed = DynamicMigration.identity ++ m
         assertTrue(composed.actions == m.actions)
       },
       test("compose migration with identity") {
-        val m = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m        = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
         val composed = m ++ DynamicMigration.identity
         assertTrue(composed.actions == m.actions)
       },
       test("associativity of composition") {
-        val m1 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
-        val m2 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
-        val m3 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "e", "f"))
-        val left = (m1 ++ m2) ++ m3
+        val m1    = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m2    = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
+        val m3    = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "e", "f"))
+        val left  = (m1 ++ m2) ++ m3
         val right = m1 ++ (m2 ++ m3)
         assertTrue(left.actions == right.actions)
       }
     ),
     suite("Migration application order")(
       test("actions applied in order") {
-        val m = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "first", "second"),
-          MigrationAction.Rename(DynamicOptic.root, "second", "third")
-        ))
-        val input = dynamicRecord("first" -> dynamicInt(42))
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "first", "second"),
+            MigrationAction.Rename(DynamicOptic.root, "second", "third")
+          )
+        )
+        val input  = dynamicRecord("first" -> dynamicInt(42))
         val result = m.apply(input)
         assertTrue(result == Right(dynamicRecord("third" -> dynamicInt(42))))
       },
       test("later actions see results of earlier actions") {
-        val m = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "added", Resolved.Literal.int(1)),
-          MigrationAction.Rename(DynamicOptic.root, "added", "renamed")
-        ))
-        val input = dynamicRecord("existing" -> dynamicString("value"))
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "added", Resolved.Literal.int(1)),
+            MigrationAction.Rename(DynamicOptic.root, "added", "renamed")
+          )
+        )
+        val input  = dynamicRecord("existing" -> dynamicString("value"))
         val result = m.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "existing" -> dynamicString("value"),
-          "renamed" -> dynamicInt(1)
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "existing" -> dynamicString("value"),
+              "renamed"  -> dynamicInt(1)
+            )
+          )
+        )
       }
     ),
     suite("Typed Migration construction")(
       test("create Migration with schemas") {
-        implicit val schemaV1: Schema[SimpleRecord] = Schema.derived
+        implicit val schemaV1: Schema[SimpleRecord]   = Schema.derived
         implicit val schemaV2: Schema[SimpleRecordV2] = Schema.derived
 
         val dynMigration = DynamicMigration.single(
@@ -127,20 +137,20 @@ object MigrationBuilderApiSpec extends SchemaBaseSpec {
         assertTrue(migration.targetSchema == schemaV2)
       },
       test("Migration applies to typed values") {
-        implicit val schemaV1: Schema[SimpleRecord] = Schema.derived
+        implicit val schemaV1: Schema[SimpleRecord]   = Schema.derived
         implicit val schemaV2: Schema[SimpleRecordV2] = Schema.derived
 
         val dynMigration = DynamicMigration.single(
           MigrationAction.AddField(DynamicOptic.root, "extra", Resolved.Literal.string("default"))
         )
         val migration = Migration[SimpleRecord, SimpleRecordV2](dynMigration, schemaV1, schemaV2)
-        val result = migration.apply(SimpleRecord(42))
+        val result    = migration.apply(SimpleRecord(42))
         assertTrue(result == Right(SimpleRecordV2(42, "default")))
       }
     ),
     suite("Migration reverse")(
       test("reverse returns reversed migration") {
-        val m = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m        = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
         val reversed = m.reverse
         reversed.actions.head match {
           case MigrationAction.Rename(_, from, to) =>
@@ -149,53 +159,61 @@ object MigrationBuilderApiSpec extends SchemaBaseSpec {
         }
       },
       test("reverse of composed migration") {
-        val m1 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
-        val m2 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
+        val m1       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m2       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
         val composed = m1 ++ m2
         val reversed = composed.reverse
         // Should be d->c, then b->a
         assertTrue(reversed.actions.length == 2)
         reversed.actions(0) match {
           case MigrationAction.Rename(_, "d", "c") => assertTrue(true)
-          case _ => assertTrue(false)
+          case _                                   => assertTrue(false)
         }
         reversed.actions(1) match {
           case MigrationAction.Rename(_, "b", "a") => assertTrue(true)
-          case _ => assertTrue(false)
+          case _                                   => assertTrue(false)
         }
       }
     ),
     suite("Action path composition")(
       test("root path") {
-        val path = DynamicOptic.root
+        val path   = DynamicOptic.root
         val action = MigrationAction.AddField(path, "field", Resolved.Literal.int(1))
-        val input = dynamicRecord()
+        val input  = dynamicRecord()
         val result = action.apply(input)
         assertTrue(result == Right(dynamicRecord("field" -> dynamicInt(1))))
       },
       test("single field path") {
-        val path = DynamicOptic.root.field("nested")
+        val path   = DynamicOptic.root.field("nested")
         val action = MigrationAction.AddField(path, "field", Resolved.Literal.int(1))
-        val input = dynamicRecord("nested" -> dynamicRecord())
+        val input  = dynamicRecord("nested" -> dynamicRecord())
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "nested" -> dynamicRecord("field" -> dynamicInt(1))
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "nested" -> dynamicRecord("field" -> dynamicInt(1))
+            )
+          )
+        )
       },
       test("multi-level path") {
-        val path = DynamicOptic.root.field("a").field("b")
+        val path   = DynamicOptic.root.field("a").field("b")
         val action = MigrationAction.AddField(path, "c", Resolved.Literal.int(1))
-        val input = dynamicRecord(
+        val input  = dynamicRecord(
           "a" -> dynamicRecord(
             "b" -> dynamicRecord()
           )
         )
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "a" -> dynamicRecord(
-            "b" -> dynamicRecord("c" -> dynamicInt(1))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "a" -> dynamicRecord(
+                "b" -> dynamicRecord("c" -> dynamicInt(1))
+              )
+            )
           )
-        )))
+        )
       }
     ),
     suite("Builder pattern scenarios")(
@@ -236,20 +254,26 @@ object MigrationBuilderApiSpec extends SchemaBaseSpec {
     suite("Complex migration scenarios")(
       test("full schema evolution") {
         // PersonV1 -> PersonV2: rename name->fullName, add email
-        val migration = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "name", "fullName"),
-          MigrationAction.AddField(DynamicOptic.root, "email", Resolved.Literal.string("unknown@example.com"))
-        ))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "name", "fullName"),
+            MigrationAction.AddField(DynamicOptic.root, "email", Resolved.Literal.string("unknown@example.com"))
+          )
+        )
         val input = dynamicRecord(
           "name" -> dynamicString("Alice"),
-          "age" -> dynamicInt(30)
+          "age"  -> dynamicInt(30)
         )
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "fullName" -> dynamicString("Alice"),
-          "age" -> dynamicInt(30),
-          "email" -> dynamicString("unknown@example.com")
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "fullName" -> dynamicString("Alice"),
+              "age"      -> dynamicInt(30),
+              "email"    -> dynamicString("unknown@example.com")
+            )
+          )
+        )
       },
       test("nested schema evolution") {
         // Update address within a person record
@@ -261,21 +285,25 @@ object MigrationBuilderApiSpec extends SchemaBaseSpec {
           )
         )
         val input = dynamicRecord(
-          "name" -> dynamicString("Bob"),
+          "name"    -> dynamicString("Bob"),
           "address" -> dynamicRecord(
             "street" -> dynamicString("123 Main"),
-            "city" -> dynamicString("Boston")
+            "city"   -> dynamicString("Boston")
           )
         )
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "name" -> dynamicString("Bob"),
-          "address" -> dynamicRecord(
-            "street" -> dynamicString("123 Main"),
-            "city" -> dynamicString("Boston"),
-            "zipCode" -> dynamicString("00000")
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "name"    -> dynamicString("Bob"),
+              "address" -> dynamicRecord(
+                "street"  -> dynamicString("123 Main"),
+                "city"    -> dynamicString("Boston"),
+                "zipCode" -> dynamicString("00000")
+              )
+            )
           )
-        )))
+        )
       }
     ),
     suite("Immutability guarantees")(
@@ -284,7 +312,7 @@ object MigrationBuilderApiSpec extends SchemaBaseSpec {
           MigrationAction.Rename(DynamicOptic.root, "a", "b")
         )
         val originalActions = original.actions
-        val _ = original ++ DynamicMigration.single(
+        val _               = original ++ DynamicMigration.single(
           MigrationAction.Rename(DynamicOptic.root, "c", "d")
         )
         // Original should be unchanged
@@ -296,7 +324,7 @@ object MigrationBuilderApiSpec extends SchemaBaseSpec {
           MigrationAction.Rename(DynamicOptic.root, "a", "b")
         )
         val originalActions = original.actions
-        val _ = original.reverse
+        val _               = original.reverse
         assertTrue(original.actions == originalActions)
       }
     )

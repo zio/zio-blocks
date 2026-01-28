@@ -7,11 +7,11 @@ import zio.test._
  * Tests for typed Migration[A, B] with schemas.
  *
  * Covers:
- * - Migration construction with schemas
- * - Typed apply/applyUnsafe
- * - Schema validation
- * - Typed composition
- * - Error handling with types
+ *   - Migration construction with schemas
+ *   - Typed apply/applyUnsafe
+ *   - Schema validation
+ *   - Typed composition
+ *   - Error handling with types
  */
 object TypedMigrationSpec extends SchemaBaseSpec {
 
@@ -169,7 +169,7 @@ object TypedMigrationSpec extends SchemaBaseSpec {
         )
 
         // Compose the dynamic migrations
-        val composedDyn = dyn1to2 ++ dyn2to3
+        val composedDyn       = dyn1to2 ++ dyn2to3
         val composedMigration = Migration[PersonV1, PersonV3](composedDyn, schemaV1, schemaV3)
 
         val result = composedMigration.apply(PersonV1("Alice", 30))
@@ -181,10 +181,12 @@ object TypedMigrationSpec extends SchemaBaseSpec {
         implicit val schemaV1: Schema[PersonV1] = Schema.derived
         implicit val schemaV3: Schema[PersonV3] = Schema.derived
 
-        val dynMigration = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "name", "fullName"),
-          MigrationAction.AddField(DynamicOptic.root, "email", Resolved.Literal.string("none@none.com"))
-        ))
+        val dynMigration = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "name", "fullName"),
+            MigrationAction.AddField(DynamicOptic.root, "email", Resolved.Literal.string("none@none.com"))
+          )
+        )
         val migration = Migration[PersonV1, PersonV3](dynMigration, schemaV1, schemaV3)
 
         val result = migration.apply(PersonV1("Bob", 25))
@@ -210,7 +212,7 @@ object TypedMigrationSpec extends SchemaBaseSpec {
           MigrationAction.ChangeType(
             DynamicOptic.root,
             "name",
-            Resolved.Convert("String", "Int", Resolved.Identity),  // Will fail - can't convert "Alice" to Int
+            Resolved.Convert("String", "Int", Resolved.Identity), // Will fail - can't convert "Alice" to Int
             Resolved.Convert("Int", "String", Resolved.Identity)
           )
         )
@@ -226,7 +228,7 @@ object TypedMigrationSpec extends SchemaBaseSpec {
 
         val migration = Migration[PersonV1, PersonV1](DynamicMigration.identity, schema, schema)
 
-        val input = PersonV1("Alice", 30)
+        val input  = PersonV1("Alice", 30)
         val result = migration.apply(input)
         assertTrue(result == Right(input))
       }
@@ -279,8 +281,8 @@ object TypedMigrationSpec extends SchemaBaseSpec {
         val forwardMigration = Migration[PersonV1, PersonV2](dynMigration, schemaV1, schemaV2)
         val reverseMigration = Migration[PersonV2, PersonV1](dynMigration.reverse, schemaV2, schemaV1)
 
-        val original = PersonV1("Alice", 30)
-        val migrated = forwardMigration.apply(original)
+        val original  = PersonV1("Alice", 30)
+        val migrated  = forwardMigration.apply(original)
         val roundTrip = migrated.flatMap(reverseMigration.apply)
 
         assertTrue(roundTrip == Right(original))

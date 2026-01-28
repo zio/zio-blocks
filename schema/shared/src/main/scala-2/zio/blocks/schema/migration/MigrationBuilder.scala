@@ -4,17 +4,22 @@ import scala.language.experimental.macros
 import zio.blocks.schema.{DynamicOptic, Schema}
 
 /**
- * Builder for constructing type-safe, compile-time validated migrations (Scala 2).
+ * Builder for constructing type-safe, compile-time validated migrations (Scala
+ * 2).
  *
- * CRITICAL DESIGN: All builder methods are REGULAR methods (not macros).
- * Only the `select()` macro is a macro. This ensures the builder works
- * correctly when stored in a `val`.
+ * CRITICAL DESIGN: All builder methods are REGULAR methods (not macros). Only
+ * the `select()` macro is a macro. This ensures the builder works correctly
+ * when stored in a `val`.
  *
  * Type parameters track which fields have been handled:
- * @tparam A Source type
- * @tparam B Target type
- * @tparam SrcRemaining Field names from A not yet consumed (as HList)
- * @tparam TgtRemaining Field names from B not yet provided (as HList)
+ * @tparam A
+ *   Source type
+ * @tparam B
+ *   Target type
+ * @tparam SrcRemaining
+ *   Field names from A not yet consumed (as HList)
+ * @tparam TgtRemaining
+ *   Field names from B not yet provided (as HList)
  */
 final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration] (
   private val sourceSchema: Schema[A],
@@ -40,7 +45,7 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
     remove: Remove[TgtRemaining, Name]
   ): MigrationBuilder[A, B, SrcRemaining, remove.Out] = {
     val resolvedDefault = Resolved.Literal(fieldSchema.toDynamicValue(default))
-    val action = MigrationAction.AddField(DynamicOptic.root, target.name, resolvedDefault)
+    val action          = MigrationAction.AddField(DynamicOptic.root, target.name, resolvedDefault)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
   }
 
@@ -83,7 +88,7 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
     remove: Remove[SrcRemaining, Name]
   ): MigrationBuilder[A, B, remove.Out, TgtRemaining] = {
     val resolvedDefault = Resolved.Literal(fieldSchema.toDynamicValue(defaultForReverse))
-    val action = MigrationAction.DropField(DynamicOptic.root, source.name, resolvedDefault)
+    val action          = MigrationAction.DropField(DynamicOptic.root, source.name, resolvedDefault)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
   }
 
@@ -104,7 +109,8 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
   }
 
   /**
-   * Keep a field unchanged (field exists in both schemas with same name and type).
+   * Keep a field unchanged (field exists in both schemas with same name and
+   * type).
    */
   def keepField[F, Name <: String](
     @annotation.unused field: FieldSelector[A, F, Name]
@@ -113,10 +119,9 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
     tgtEv: Contains[TgtRemaining, Name],
     srcRemove: Remove[SrcRemaining, Name],
     tgtRemove: Remove[TgtRemaining, Name]
-  ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] = {
+  ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] =
     // No action needed - field is kept as-is
     new MigrationBuilder(sourceSchema, targetSchema, actions)
-  }
 
   /**
    * Transform a field's value using a primitive conversion.
@@ -132,7 +137,7 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
     srcRemove: Remove[SrcRemaining, SrcName],
     tgtRemove: Remove[TgtRemaining, TgtName]
   ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] = {
-    val converter = Resolved.Convert(fromTypeName, toTypeName, Resolved.Identity)
+    val converter        = Resolved.Convert(fromTypeName, toTypeName, Resolved.Identity)
     val reverseConverter = Resolved.Convert(toTypeName, fromTypeName, Resolved.Identity)
 
     val renameAction = if (from.name != to.name) {
@@ -159,7 +164,7 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
     tgtRemove: Remove[TgtRemaining, TgtName]
   ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] = {
     val resolvedDefault = Resolved.Literal(fieldSchema.toDynamicValue(default))
-    val renameAction = if (source.name != target.name) {
+    val renameAction    = if (source.name != target.name) {
       Some(MigrationAction.Rename(DynamicOptic.root, source.name, target.name))
     } else None
     val mandateAction = MigrationAction.Mandate(DynamicOptic.root, target.name, resolvedDefault)
@@ -206,7 +211,8 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
   /**
    * Build the migration with full compile-time validation.
    *
-   * Only compiles when ALL source fields are consumed and ALL target fields are provided.
+   * Only compiles when ALL source fields are consumed and ALL target fields are
+   * provided.
    */
   def build(implicit
     srcEmpty: IsEmpty[SrcRemaining],
@@ -233,9 +239,9 @@ object MigrationBuilder {
   /**
    * Create a new migration builder without compile-time field tracking.
    *
-   * This creates a builder with HNil for both field sets,
-   * which means .build will always compile. Use [[withFieldTracking]]
-   * for full compile-time validation.
+   * This creates a builder with HNil for both field sets, which means .build
+   * will always compile. Use [[withFieldTracking]] for full compile-time
+   * validation.
    */
   def create[A, B](implicit
     sourceSchema: Schema[A],
@@ -250,8 +256,8 @@ object MigrationBuilder {
    * enabling full validation that all fields are handled.
    *
    * The [[build]] method will only compile when:
-   * - All source fields have been consumed (dropped, renamed, or kept)
-   * - All target fields have been provided (added, renamed, or kept)
+   *   - All source fields have been consumed (dropped, renamed, or kept)
+   *   - All target fields have been provided (added, renamed, or kept)
    *
    * Example:
    * {{{

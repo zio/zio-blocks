@@ -5,9 +5,9 @@ import zio.blocks.schema.{DynamicOptic, Schema}
 /**
  * Builder for constructing type-safe, compile-time validated migrations.
  *
- * CRITICAL DESIGN: All builder methods are REGULAR methods (not inline).
- * Only the `select()` macro is inline. This ensures the builder works
- * correctly when stored in a `val`:
+ * CRITICAL DESIGN: All builder methods are REGULAR methods (not inline). Only
+ * the `select()` macro is inline. This ensures the builder works correctly when
+ * stored in a `val`:
  *
  * {{{
  * val builder = MigrationBuilder.create[PersonV0, PersonV1]
@@ -17,10 +17,14 @@ import zio.blocks.schema.{DynamicOptic, Schema}
  * }}}
  *
  * Type parameters track which fields have been handled:
- * @tparam A Source type
- * @tparam B Target type
- * @tparam SrcRemaining Field names from A not yet consumed (as tuple of strings)
- * @tparam TgtRemaining Field names from B not yet provided (as tuple of strings)
+ * @tparam A
+ *   Source type
+ * @tparam B
+ *   Target type
+ * @tparam SrcRemaining
+ *   Field names from A not yet consumed (as tuple of strings)
+ * @tparam TgtRemaining
+ *   Field names from B not yet provided (as tuple of strings)
  */
 final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple] private[migration] (
   private val sourceSchema: Schema[A],
@@ -35,7 +39,8 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
   /**
    * Add a new field to the target schema with a default value.
    *
-   * NOT INLINE - takes a FieldSelector that already has the field name as a type parameter.
+   * NOT INLINE - takes a FieldSelector that already has the field name as a
+   * type parameter.
    */
   def addField[F, Name <: String](
     target: FieldSelector[B, F, Name],
@@ -45,7 +50,7 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
     fieldSchema: Schema[F]
   ): MigrationBuilder[A, B, SrcRemaining, FieldSet.Remove[TgtRemaining, Name]] = {
     val resolvedDefault = Resolved.Literal(fieldSchema.toDynamicValue(default))
-    val action = MigrationAction.AddField(DynamicOptic.root, target.name, resolvedDefault)
+    val action          = MigrationAction.AddField(DynamicOptic.root, target.name, resolvedDefault)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
   }
 
@@ -85,7 +90,7 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
     fieldSchema: Schema[F]
   ): MigrationBuilder[A, B, FieldSet.Remove[SrcRemaining, Name], TgtRemaining] = {
     val resolvedDefault = Resolved.Literal(fieldSchema.toDynamicValue(defaultForReverse))
-    val action = MigrationAction.DropField(DynamicOptic.root, source.name, resolvedDefault)
+    val action          = MigrationAction.DropField(DynamicOptic.root, source.name, resolvedDefault)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
   }
 
@@ -104,17 +109,17 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
   }
 
   /**
-   * Keep a field unchanged (field exists in both schemas with same name and type).
+   * Keep a field unchanged (field exists in both schemas with same name and
+   * type).
    */
   def keepField[F, Name <: String](
     @scala.annotation.unused field: FieldSelector[A, F, Name]
   )(using
     srcEv: FieldSet.Contains[SrcRemaining, Name] =:= true,
     tgtEv: FieldSet.Contains[TgtRemaining, Name] =:= true
-  ): MigrationBuilder[A, B, FieldSet.Remove[SrcRemaining, Name], FieldSet.Remove[TgtRemaining, Name]] = {
+  ): MigrationBuilder[A, B, FieldSet.Remove[SrcRemaining, Name], FieldSet.Remove[TgtRemaining, Name]] =
     // No action needed - field is kept as-is
     new MigrationBuilder(sourceSchema, targetSchema, actions)
-  }
 
   /**
    * Transform a field's value using a primitive conversion.
@@ -128,7 +133,7 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
     srcEv: FieldSet.Contains[SrcRemaining, SrcName] =:= true,
     tgtEv: FieldSet.Contains[TgtRemaining, TgtName] =:= true
   ): MigrationBuilder[A, B, FieldSet.Remove[SrcRemaining, SrcName], FieldSet.Remove[TgtRemaining, TgtName]] = {
-    val converter = Resolved.Convert(fromTypeName, toTypeName, Resolved.Identity)
+    val converter        = Resolved.Convert(fromTypeName, toTypeName, Resolved.Identity)
     val reverseConverter = Resolved.Convert(toTypeName, fromTypeName, Resolved.Identity)
 
     val renameAction = if (from.name != to.name) {
@@ -153,7 +158,7 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
     fieldSchema: Schema[F]
   ): MigrationBuilder[A, B, FieldSet.Remove[SrcRemaining, SrcName], FieldSet.Remove[TgtRemaining, TgtName]] = {
     val resolvedDefault = Resolved.Literal(fieldSchema.toDynamicValue(default))
-    val renameAction = if (source.name != target.name) {
+    val renameAction    = if (source.name != target.name) {
       Some(MigrationAction.Rename(DynamicOptic.root, source.name, target.name))
     } else None
     val mandateAction = MigrationAction.Mandate(DynamicOptic.root, target.name, resolvedDefault)
@@ -198,8 +203,8 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
   /**
    * Build the migration with full compile-time validation.
    *
-   * NOT INLINE - this is a regular method with type constraints.
-   * Only compiles when ALL source fields are consumed and ALL target fields are provided.
+   * NOT INLINE - this is a regular method with type constraints. Only compiles
+   * when ALL source fields are consumed and ALL target fields are provided.
    */
   def build(using
     srcEmpty: SrcRemaining =:= EmptyTuple,
@@ -210,8 +215,8 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
   /**
    * Build migration without completeness validation.
    *
-   * Use this for partial migrations or testing when not all fields
-   * need to be explicitly handled.
+   * Use this for partial migrations or testing when not all fields need to be
+   * explicitly handled.
    */
   def buildPartial: Migration[A, B] =
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
@@ -234,9 +239,9 @@ object MigrationBuilder {
   /**
    * Create a new migration builder without compile-time field tracking.
    *
-   * This creates a builder with EmptyTuple for both field sets,
-   * which means .build will always compile. Use [[withFieldTracking]]
-   * for full compile-time validation.
+   * This creates a builder with EmptyTuple for both field sets, which means
+   * .build will always compile. Use [[withFieldTracking]] for full compile-time
+   * validation.
    */
   def create[A, B](using
     sourceSchema: Schema[A],
@@ -247,12 +252,12 @@ object MigrationBuilder {
   /**
    * Create a new migration builder with compile-time field tracking.
    *
-   * This uses [[SchemaFields]] to extract field names from the schemas
-   * at compile time, enabling full validation that all fields are handled.
+   * This uses [[SchemaFields]] to extract field names from the schemas at
+   * compile time, enabling full validation that all fields are handled.
    *
    * The [[build]] method will only compile when:
-   * - All source fields have been consumed (dropped, renamed, or kept)
-   * - All target fields have been provided (added, renamed, or kept)
+   *   - All source fields have been consumed (dropped, renamed, or kept)
+   *   - All target fields have been provided (added, renamed, or kept)
    *
    * Example:
    * {{{
@@ -273,7 +278,8 @@ object MigrationBuilder {
     ${ withFieldTrackingImpl[A, B]('sourceSchema, 'targetSchema) }
 
   /**
-   * Implementation of withFieldTracking that extracts field names at compile time.
+   * Implementation of withFieldTracking that extracts field names at compile
+   * time.
    */
   private def withFieldTrackingImpl[A: scala.quoted.Type, B: scala.quoted.Type](
     sourceSchema: scala.quoted.Expr[Schema[A]],
@@ -344,12 +350,11 @@ object MigrationBuilder {
     def extractStrings(expr: scala.quoted.Expr[Seq[String]]): List[String] =
       expr match {
         case scala.quoted.Varargs(exprs) =>
-          exprs.toList.map {
-            case '{ $s: String } =>
-              s.asTerm match {
-                case Literal(StringConstant(str)) => str
-                case _ => report.errorAndAbort("withFields requires string literals")
-              }
+          exprs.toList.map { case '{ $s: String } =>
+            s.asTerm match {
+              case Literal(StringConstant(str)) => str
+              case _                            => report.errorAndAbort("withFields requires string literals")
+            }
           }
         case _ =>
           report.errorAndAbort("withFields requires string literals")

@@ -7,12 +7,12 @@ import zio.test._
  * Tests for collection and map migration operations.
  *
  * Covers:
- * - TransformElements: Transform each element in a sequence
- * - TransformKeys: Transform keys in a map
- * - TransformValues: Transform values in a map
- * - Empty collections
- * - Large collections
- * - Nested collections
+ *   - TransformElements: Transform each element in a sequence
+ *   - TransformKeys: Transform keys in a map
+ *   - TransformValues: Transform values in a map
+ *   - Empty collections
+ *   - Large collections
+ *   - Nested collections
  */
 object SequenceMapMigrationSpec extends SchemaBaseSpec {
 
@@ -50,7 +50,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Identity,
           Resolved.Identity
         )
-        val input = dynamicSequence(dynamicInt(1), dynamicInt(2), dynamicInt(3))
+        val input  = dynamicSequence(dynamicInt(1), dynamicInt(2), dynamicInt(3))
         val result = action.apply(input)
         assertTrue(result == Right(input))
       },
@@ -60,13 +60,17 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Convert("Int", "String", Resolved.Identity),
           Resolved.Convert("String", "Int", Resolved.Identity)
         )
-        val input = dynamicSequence(dynamicInt(1), dynamicInt(2), dynamicInt(3))
+        val input  = dynamicSequence(dynamicInt(1), dynamicInt(2), dynamicInt(3))
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicSequence(
-          dynamicString("1"),
-          dynamicString("2"),
-          dynamicString("3")
-        )))
+        assertTrue(
+          result == Right(
+            dynamicSequence(
+              dynamicString("1"),
+              dynamicString("2"),
+              dynamicString("3")
+            )
+          )
+        )
       },
       test("transforms elements with constant replacement") {
         val action = MigrationAction.TransformElements(
@@ -74,7 +78,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Literal.int(0),
           Resolved.Identity
         )
-        val input = dynamicSequence(dynamicInt(1), dynamicInt(2), dynamicInt(3))
+        val input  = dynamicSequence(dynamicInt(1), dynamicInt(2), dynamicInt(3))
         val result = action.apply(input)
         assertTrue(result == Right(dynamicSequence(dynamicInt(0), dynamicInt(0), dynamicInt(0))))
       },
@@ -84,7 +88,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Identity,
           Resolved.Identity
         )
-        val input = dynamicSequence()
+        val input  = dynamicSequence()
         val result = action.apply(input)
         assertTrue(result == Right(dynamicSequence()))
       },
@@ -94,7 +98,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Convert("Int", "Long", Resolved.Identity),
           Resolved.Convert("Long", "Int", Resolved.Identity)
         )
-        val input = dynamicSequence(dynamicInt(42))
+        val input  = dynamicSequence(dynamicInt(42))
         val result = action.apply(input)
         assertTrue(result == Right(dynamicSequence(dynamicLong(42L))))
       },
@@ -123,7 +127,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           case MigrationAction.TransformElements(_, fwd, rev) =>
             assertTrue(
               fwd.isInstanceOf[Resolved.Convert] &&
-              rev.isInstanceOf[Resolved.Convert]
+                rev.isInstanceOf[Resolved.Convert]
             )
           case _ => assertTrue(false)
         }
@@ -143,7 +147,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Identity,
           Resolved.Identity
         )
-        val input = dynamicSequence((1 to 1000).map(dynamicInt): _*)
+        val input  = dynamicSequence((1 to 1000).map(dynamicInt): _*)
         val result = action.apply(input)
         result match {
           case Right(DynamicValue.Sequence(elements)) =>
@@ -159,7 +163,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Identity,
           Resolved.Identity
         )
-        val input = dynamicRecord("a" -> dynamicInt(1), "b" -> dynamicInt(2))
+        val input  = dynamicRecord("a" -> dynamicInt(1), "b" -> dynamicInt(2))
         val result = action.apply(input)
         assertTrue(result == Right(input))
       },
@@ -169,12 +173,16 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Concat(Vector(Resolved.Identity, Resolved.Literal.string("_suffix")), ""),
           Resolved.Identity // reverse not important for this test
         )
-        val input = dynamicRecord("key1" -> dynamicInt(1), "key2" -> dynamicInt(2))
+        val input  = dynamicRecord("key1" -> dynamicInt(1), "key2" -> dynamicInt(2))
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "key1_suffix" -> dynamicInt(1),
-          "key2_suffix" -> dynamicInt(2)
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "key1_suffix" -> dynamicInt(1),
+              "key2_suffix" -> dynamicInt(2)
+            )
+          )
+        )
       },
       test("preserves values during key transform") {
         val action = MigrationAction.TransformKeys(
@@ -183,8 +191,8 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Identity
         )
         val complexValue = dynamicRecord("nested" -> dynamicInt(42))
-        val input = dynamicRecord("oldKey" -> complexValue)
-        val result = action.apply(input)
+        val input        = dynamicRecord("oldKey" -> complexValue)
+        val result       = action.apply(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
             assertTrue(fields.exists { case (_, v) => v == complexValue })
@@ -197,7 +205,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Identity,
           Resolved.Identity
         )
-        val input = dynamicRecord()
+        val input  = dynamicRecord()
         val result = action.apply(input)
         assertTrue(result == Right(dynamicRecord()))
       }
@@ -214,10 +222,14 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           dynamicInt(2) -> dynamicString("two")
         )
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicMap(
-          dynamicString("1") -> dynamicString("one"),
-          dynamicString("2") -> dynamicString("two")
-        )))
+        assertTrue(
+          result == Right(
+            dynamicMap(
+              dynamicString("1") -> dynamicString("one"),
+              dynamicString("2") -> dynamicString("two")
+            )
+          )
+        )
       },
       test("transforms empty map") {
         val action = MigrationAction.TransformKeys(
@@ -225,7 +237,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Identity,
           Resolved.Identity
         )
-        val input = dynamicMap()
+        val input  = dynamicMap()
         val result = action.apply(input)
         assertTrue(result == Right(dynamicMap()))
       }
@@ -237,12 +249,16 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Convert("Int", "String", Resolved.Identity),
           Resolved.Convert("String", "Int", Resolved.Identity)
         )
-        val input = dynamicRecord("a" -> dynamicInt(1), "b" -> dynamicInt(2))
+        val input  = dynamicRecord("a" -> dynamicInt(1), "b" -> dynamicInt(2))
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "a" -> dynamicString("1"),
-          "b" -> dynamicString("2")
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "a" -> dynamicString("1"),
+              "b" -> dynamicString("2")
+            )
+          )
+        )
       },
       test("preserves keys during value transform") {
         val action = MigrationAction.TransformValues(
@@ -250,12 +266,16 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Literal.int(0),
           Resolved.Identity
         )
-        val input = dynamicRecord("key1" -> dynamicInt(100), "key2" -> dynamicInt(200))
+        val input  = dynamicRecord("key1" -> dynamicInt(100), "key2" -> dynamicInt(200))
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "key1" -> dynamicInt(0),
-          "key2" -> dynamicInt(0)
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "key1" -> dynamicInt(0),
+              "key2" -> dynamicInt(0)
+            )
+          )
+        )
       },
       test("transforms empty record") {
         val action = MigrationAction.TransformValues(
@@ -263,7 +283,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Identity,
           Resolved.Identity
         )
-        val input = dynamicRecord()
+        val input  = dynamicRecord()
         val result = action.apply(input)
         assertTrue(result == Right(dynamicRecord()))
       }
@@ -280,10 +300,14 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           dynamicString("b") -> dynamicInt(2)
         )
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicMap(
-          dynamicString("a") -> dynamicLong(1L),
-          dynamicString("b") -> dynamicLong(2L)
-        )))
+        assertTrue(
+          result == Right(
+            dynamicMap(
+              dynamicString("a") -> dynamicLong(1L),
+              dynamicString("b") -> dynamicLong(2L)
+            )
+          )
+        )
       },
       test("transforms empty map values") {
         val action = MigrationAction.TransformValues(
@@ -291,7 +315,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Identity,
           Resolved.Identity
         )
-        val input = dynamicMap()
+        val input  = dynamicMap()
         val result = action.apply(input)
         assertTrue(result == Right(dynamicMap()))
       }
@@ -304,14 +328,18 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Convert("String", "Int", Resolved.Identity)
         )
         val input = dynamicRecord(
-          "name" -> dynamicString("test"),
+          "name"  -> dynamicString("test"),
           "items" -> dynamicSequence(dynamicInt(1), dynamicInt(2))
         )
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "name" -> dynamicString("test"),
-          "items" -> dynamicSequence(dynamicString("1"), dynamicString("2"))
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "name"  -> dynamicString("test"),
+              "items" -> dynamicSequence(dynamicString("1"), dynamicString("2"))
+            )
+          )
+        )
       },
       test("transform sequence of sequences") {
         val action = MigrationAction.TransformElements(
@@ -337,13 +365,17 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
           Resolved.Convert("Int", "Long", Resolved.Identity),
           Resolved.Convert("Long", "Int", Resolved.Identity)
         )
-        val input = dynamicSequence(dynamicInt(1), dynamicInt(2), dynamicInt(3))
+        val input  = dynamicSequence(dynamicInt(1), dynamicInt(2), dynamicInt(3))
         val result = action.apply(input)
-        assertTrue(result == Right(dynamicSequence(
-          dynamicLong(1L),
-          dynamicLong(2L),
-          dynamicLong(3L)
-        )))
+        assertTrue(
+          result == Right(
+            dynamicSequence(
+              dynamicLong(1L),
+              dynamicLong(2L),
+              dynamicLong(3L)
+            )
+          )
+        )
       }
     ),
     suite("Edge cases")(

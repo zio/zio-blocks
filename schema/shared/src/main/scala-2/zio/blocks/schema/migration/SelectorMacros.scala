@@ -7,16 +7,16 @@ import scala.reflect.macros.whitebox
  * Macros for creating field selectors with compile-time field name extraction.
  *
  * The `select` macro is the ONLY inline part of the migration API. It extracts
- * the field name from a lambda expression like `_.fieldName` and captures it
- * as a singleton string type in the resulting FieldSelector.
+ * the field name from a lambda expression like `_.fieldName` and captures it as
+ * a singleton string type in the resulting FieldSelector.
  */
 object SelectorMacros {
 
   /**
    * Implementation of the select macro for Scala 2.
    *
-   * Extracts the field name from the selector lambda and creates a FieldSelector
-   * with the name as a singleton literal type.
+   * Extracts the field name from the selector lambda and creates a
+   * FieldSelector with the name as a singleton literal type.
    */
   def selectImpl[S: c.WeakTypeTag, F: c.WeakTypeTag](c: whitebox.Context)(
     selector: c.Expr[S => F]
@@ -43,8 +43,10 @@ object SelectorMacros {
         name.decodedName.toString
 
       case other =>
-        c.abort(c.enclosingPosition,
-          s"select() requires a simple field access like _.fieldName, got: ${showRaw(other)}")
+        c.abort(
+          c.enclosingPosition,
+          s"select() requires a simple field access like _.fieldName, got: ${showRaw(other)}"
+        )
     }
 
     // Create singleton literal type for field name
@@ -69,12 +71,16 @@ object SelectorMacros {
  * }}}
  */
 class SelectBuilder[S](private val dummy: Boolean = true) extends AnyVal {
+
   /**
    * Apply the selector to extract a field.
    *
-   * @param selector A lambda like `_.fieldName` that accesses a field
-   * @tparam F The field type
-   * @return A FieldSelector with the field name captured as a type parameter
+   * @param selector
+   *   A lambda like `_.fieldName` that accesses a field
+   * @tparam F
+   *   The field type
+   * @return
+   *   A FieldSelector with the field name captured as a type parameter
    */
   def apply[F](selector: S => F): FieldSelector[S, F, _] = macro SelectorMacros.selectImpl[S, F]
 }

@@ -7,14 +7,14 @@ import zio.test._
  * Tests for Resolved expression evaluation.
  *
  * Covers:
- * - Literal expressions
- * - Identity expression
- * - Field access
- * - Composition
- * - Conditionals
- * - Collection operations
- * - Type conversions
- * - Error handling
+ *   - Literal expressions
+ *   - Identity expression
+ *   - Field access
+ *   - Composition
+ *   - Conditionals
+ *   - Collection operations
+ *   - Type conversions
+ *   - Error handling
  */
 object TransformExpressionSpec extends SchemaBaseSpec {
 
@@ -85,20 +85,20 @@ object TransformExpressionSpec extends SchemaBaseSpec {
       },
       test("Literal.dynamicValue returns provided value") {
         val value = dynamicRecord("a" -> dynamicInt(1), "b" -> dynamicInt(2))
-        val expr = Resolved.Literal(value)
+        val expr  = Resolved.Literal(value)
         assertTrue(expr.evalDynamic == Right(value))
       }
     ),
     suite("Identity expression")(
       test("Identity returns input unchanged") {
-        val expr = Resolved.Identity
+        val expr  = Resolved.Identity
         val input = dynamicInt(42)
         assertTrue(expr.evalDynamic(input) == Right(input))
       },
       test("Identity with complex value") {
-        val expr = Resolved.Identity
+        val expr  = Resolved.Identity
         val input = dynamicRecord(
-          "name" -> dynamicString("Alice"),
+          "name"  -> dynamicString("Alice"),
           "items" -> dynamicSequence(dynamicInt(1), dynamicInt(2))
         )
         assertTrue(expr.evalDynamic(input) == Right(input))
@@ -110,26 +110,24 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     ),
     suite("FieldAccess expression")(
       test("accesses field from record") {
-        val expr = Resolved.FieldAccess("name", Resolved.Identity)
+        val expr  = Resolved.FieldAccess("name", Resolved.Identity)
         val input = dynamicRecord("name" -> dynamicString("Alice"), "age" -> dynamicInt(30))
         assertTrue(expr.evalDynamic(input) == Right(dynamicString("Alice")))
       },
       test("accesses nested field with composition") {
-        val expr = Resolved.FieldAccess("city",
-          Resolved.FieldAccess("address", Resolved.Identity)
-        )
+        val expr  = Resolved.FieldAccess("city", Resolved.FieldAccess("address", Resolved.Identity))
         val input = dynamicRecord(
           "address" -> dynamicRecord("city" -> dynamicString("Boston"))
         )
         assertTrue(expr.evalDynamic(input) == Right(dynamicString("Boston")))
       },
       test("returns error for missing field") {
-        val expr = Resolved.FieldAccess("missing", Resolved.Identity)
+        val expr  = Resolved.FieldAccess("missing", Resolved.Identity)
         val input = dynamicRecord("other" -> dynamicInt(1))
         assertTrue(expr.evalDynamic(input).isLeft)
       },
       test("returns error for non-record input") {
-        val expr = Resolved.FieldAccess("field", Resolved.Identity)
+        val expr  = Resolved.FieldAccess("field", Resolved.Identity)
         val input = dynamicInt(42)
         assertTrue(expr.evalDynamic(input).isLeft)
       }
@@ -138,8 +136,8 @@ object TransformExpressionSpec extends SchemaBaseSpec {
       test("composes two expressions") {
         // outer(inner(x)) - first inner runs, then outer
         val expr = Resolved.Compose(
-          Resolved.FieldAccess("value", Resolved.Identity),  // outer
-          Resolved.FieldAccess("data", Resolved.Identity)    // inner
+          Resolved.FieldAccess("value", Resolved.Identity), // outer
+          Resolved.FieldAccess("data", Resolved.Identity)   // inner
         )
         val input = dynamicRecord(
           "data" -> dynamicRecord("value" -> dynamicInt(42))
@@ -198,36 +196,45 @@ object TransformExpressionSpec extends SchemaBaseSpec {
         val expr = Resolved.Fail("custom error message")
         expr.evalDynamic match {
           case Left(msg) => assertTrue(msg.contains("custom error message"))
-          case Right(_) => assertTrue(false)
+          case Right(_)  => assertTrue(false)
         }
       }
     ),
     suite("Concat expression")(
       test("concatenates string values") {
-        val expr = Resolved.Concat(Vector(
-          Resolved.Literal.string("Hello"),
-          Resolved.Literal.string(" "),
-          Resolved.Literal.string("World")
-        ), "")
+        val expr = Resolved.Concat(
+          Vector(
+            Resolved.Literal.string("Hello"),
+            Resolved.Literal.string(" "),
+            Resolved.Literal.string("World")
+          ),
+          ""
+        )
         assertTrue(expr.evalDynamic == Right(dynamicString("Hello World")))
       },
       test("concatenates with separator") {
-        val expr = Resolved.Concat(Vector(
-          Resolved.Literal.string("a"),
-          Resolved.Literal.string("b"),
-          Resolved.Literal.string("c")
-        ), ",")
+        val expr = Resolved.Concat(
+          Vector(
+            Resolved.Literal.string("a"),
+            Resolved.Literal.string("b"),
+            Resolved.Literal.string("c")
+          ),
+          ","
+        )
         assertTrue(expr.evalDynamic == Right(dynamicString("a,b,c")))
       },
       test("concatenates field values") {
-        val expr = Resolved.Concat(Vector(
-          Resolved.FieldAccess("first", Resolved.Identity),
-          Resolved.Literal.string(" "),
-          Resolved.FieldAccess("last", Resolved.Identity)
-        ), "")
+        val expr = Resolved.Concat(
+          Vector(
+            Resolved.FieldAccess("first", Resolved.Identity),
+            Resolved.Literal.string(" "),
+            Resolved.FieldAccess("last", Resolved.Identity)
+          ),
+          ""
+        )
         val input = dynamicRecord(
           "first" -> dynamicString("John"),
-          "last" -> dynamicString("Doe")
+          "last"  -> dynamicString("Doe")
         )
         assertTrue(expr.evalDynamic(input) == Right(dynamicString("John Doe")))
       },
@@ -242,24 +249,30 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     ),
     suite("Coalesce expression")(
       test("returns first non-None value") {
-        val expr = Resolved.Coalesce(Vector(
-          Resolved.Literal(dynamicNone),
-          Resolved.Literal(dynamicSome(dynamicInt(42)))
-        ))
+        val expr = Resolved.Coalesce(
+          Vector(
+            Resolved.Literal(dynamicNone),
+            Resolved.Literal(dynamicSome(dynamicInt(42)))
+          )
+        )
         assertTrue(expr.evalDynamic == Right(dynamicSome(dynamicInt(42))))
       },
       test("returns primary if not None") {
-        val expr = Resolved.Coalesce(Vector(
-          Resolved.Literal(dynamicSome(dynamicInt(1))),
-          Resolved.Literal(dynamicSome(dynamicInt(2)))
-        ))
+        val expr = Resolved.Coalesce(
+          Vector(
+            Resolved.Literal(dynamicSome(dynamicInt(1))),
+            Resolved.Literal(dynamicSome(dynamicInt(2)))
+          )
+        )
         assertTrue(expr.evalDynamic == Right(dynamicSome(dynamicInt(1))))
       },
       test("returns fallback if primary is None") {
-        val expr = Resolved.Coalesce(Vector(
-          Resolved.Literal(dynamicNone),
-          Resolved.Literal.int(99)
-        ))
+        val expr = Resolved.Coalesce(
+          Vector(
+            Resolved.Literal(dynamicNone),
+            Resolved.Literal.int(99)
+          )
+        )
         assertTrue(expr.evalDynamic == Right(dynamicInt(99)))
       }
     ),
@@ -296,33 +309,41 @@ object TransformExpressionSpec extends SchemaBaseSpec {
       },
       test("wraps record in Some") {
         val record = dynamicRecord("x" -> dynamicInt(1))
-        val expr = Resolved.WrapSome(Resolved.Literal(record))
+        val expr   = Resolved.WrapSome(Resolved.Literal(record))
         assertTrue(expr.evalDynamic == Right(dynamicSome(record)))
       },
       test("wraps input value in Some") {
-        val expr = Resolved.WrapSome(Resolved.Identity)
+        val expr  = Resolved.WrapSome(Resolved.Identity)
         val input = dynamicString("hello")
         assertTrue(expr.evalDynamic(input) == Right(dynamicSome(dynamicString("hello"))))
       }
     ),
     suite("Construct expression")(
       test("constructs record from field expressions") {
-        val expr = Resolved.Construct(Vector(
-          "name" -> Resolved.Literal.string("Alice"),
-          "age" -> Resolved.Literal.int(30)
-        ))
-        assertTrue(expr.evalDynamic == Right(dynamicRecord(
-          "name" -> dynamicString("Alice"),
-          "age" -> dynamicInt(30)
-        )))
+        val expr = Resolved.Construct(
+          Vector(
+            "name" -> Resolved.Literal.string("Alice"),
+            "age"  -> Resolved.Literal.int(30)
+          )
+        )
+        assertTrue(
+          expr.evalDynamic == Right(
+            dynamicRecord(
+              "name" -> dynamicString("Alice"),
+              "age"  -> dynamicInt(30)
+            )
+          )
+        )
       },
       test("constructs record using input values") {
-        val expr = Resolved.Construct(Vector(
-          "doubled" -> Resolved.Identity,
-          "constant" -> Resolved.Literal.int(100)
-        ))
+        val expr = Resolved.Construct(
+          Vector(
+            "doubled"  -> Resolved.Identity,
+            "constant" -> Resolved.Literal.int(100)
+          )
+        )
         // Note: This test shows the construct uses the input for Identity expressions
-        val input = dynamicInt(42)
+        val input  = dynamicInt(42)
         val result = expr.evalDynamic(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
@@ -337,28 +358,44 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     ),
     suite("ConstructSeq expression")(
       test("constructs sequence from elements") {
-        val expr = Resolved.ConstructSeq(Vector(
-          Resolved.Literal.int(1),
-          Resolved.Literal.int(2),
-          Resolved.Literal.int(3)
-        ))
-        assertTrue(expr.evalDynamic == Right(dynamicSequence(
-          dynamicInt(1), dynamicInt(2), dynamicInt(3)
-        )))
+        val expr = Resolved.ConstructSeq(
+          Vector(
+            Resolved.Literal.int(1),
+            Resolved.Literal.int(2),
+            Resolved.Literal.int(3)
+          )
+        )
+        assertTrue(
+          expr.evalDynamic == Right(
+            dynamicSequence(
+              dynamicInt(1),
+              dynamicInt(2),
+              dynamicInt(3)
+            )
+          )
+        )
       },
       test("constructs empty sequence") {
         val expr = Resolved.ConstructSeq(Vector.empty)
         assertTrue(expr.evalDynamic == Right(dynamicSequence()))
       },
       test("constructs heterogeneous sequence") {
-        val expr = Resolved.ConstructSeq(Vector(
-          Resolved.Literal.int(1),
-          Resolved.Literal.string("two"),
-          Resolved.Literal.boolean(true)
-        ))
-        assertTrue(expr.evalDynamic == Right(dynamicSequence(
-          dynamicInt(1), dynamicString("two"), dynamicBool(true)
-        )))
+        val expr = Resolved.ConstructSeq(
+          Vector(
+            Resolved.Literal.int(1),
+            Resolved.Literal.string("two"),
+            Resolved.Literal.boolean(true)
+          )
+        )
+        assertTrue(
+          expr.evalDynamic == Right(
+            dynamicSequence(
+              dynamicInt(1),
+              dynamicString("two"),
+              dynamicBool(true)
+            )
+          )
+        )
       }
     ),
     suite("Expression nesting")(
@@ -376,15 +413,21 @@ object TransformExpressionSpec extends SchemaBaseSpec {
         assertTrue(expr.evalDynamic(input) == Right(dynamicString("42")))
       },
       test("construct with nested field access") {
-        val expr = Resolved.Construct(Vector(
-          "extracted" -> Resolved.FieldAccess("inner", Resolved.FieldAccess("outer", Resolved.Identity))
-        ))
+        val expr = Resolved.Construct(
+          Vector(
+            "extracted" -> Resolved.FieldAccess("inner", Resolved.FieldAccess("outer", Resolved.Identity))
+          )
+        )
         val input = dynamicRecord(
           "outer" -> dynamicRecord("inner" -> dynamicInt(99))
         )
-        assertTrue(expr.evalDynamic(input) == Right(dynamicRecord(
-          "extracted" -> dynamicInt(99)
-        )))
+        assertTrue(
+          expr.evalDynamic(input) == Right(
+            dynamicRecord(
+              "extracted" -> dynamicInt(99)
+            )
+          )
+        )
       }
     ),
     suite("Error propagation")(
@@ -395,22 +438,27 @@ object TransformExpressionSpec extends SchemaBaseSpec {
         )
         expr.evalDynamic(dynamicInt(1)) match {
           case Left(msg) => assertTrue(msg.contains("inner error"))
-          case Right(_) => assertTrue(false)
+          case Right(_)  => assertTrue(false)
         }
       },
       test("construct stops on first error") {
-        val expr = Resolved.Construct(Vector(
-          "good" -> Resolved.Literal.int(1),
-          "bad" -> Resolved.Fail("field error"),
-          "unreached" -> Resolved.Literal.int(3)
-        ))
+        val expr = Resolved.Construct(
+          Vector(
+            "good"      -> Resolved.Literal.int(1),
+            "bad"       -> Resolved.Fail("field error"),
+            "unreached" -> Resolved.Literal.int(3)
+          )
+        )
         assertTrue(expr.evalDynamic.isLeft)
       },
       test("concat propagates error") {
-        val expr = Resolved.Concat(Vector(
-          Resolved.Literal.string("start"),
-          Resolved.Fail("concat error")
-        ), " ")
+        val expr = Resolved.Concat(
+          Vector(
+            Resolved.Literal.string("start"),
+            Resolved.Fail("concat error")
+          ),
+          " "
+        )
         assertTrue(expr.evalDynamic.isLeft)
       }
     )

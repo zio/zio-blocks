@@ -7,8 +7,9 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue}
 /**
  * Represents errors that occur during migration execution.
  *
- * Migration errors capture the path where the failure occurred, enabling precise
- * diagnostics like "Failed to apply TransformValue at .addresses.each.streetNumber".
+ * Migration errors capture the path where the failure occurred, enabling
+ * precise diagnostics like "Failed to apply TransformValue at
+ * .addresses.each.streetNumber".
  *
  * Each error variant provides specific context about the failure mode:
  *   - Schema mismatches (expected record but got sequence)
@@ -17,8 +18,8 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue}
  *   - Type conversion failures
  *
  * Extends Exception with NoStackTrace for efficient error handling without the
- * overhead of stack trace generation, since migration errors are expected control
- * flow rather than exceptional conditions.
+ * overhead of stack trace generation, since migration errors are expected
+ * control flow rather than exceptional conditions.
  */
 sealed trait MigrationError extends Exception with NoStackTrace {
 
@@ -50,8 +51,8 @@ object MigrationError {
   /**
    * Expected a Record but found a different type.
    *
-   * Occurs when record operations (addField, dropField, rename) are applied
-   * to non-record values like sequences or primitives.
+   * Occurs when record operations (addField, dropField, rename) are applied to
+   * non-record values like sequences or primitives.
    */
   final case class ExpectedRecord(path: DynamicOptic, actual: DynamicValue) extends MigrationError {
     def message: String = s"Expected Record but found ${actual.valueType}"
@@ -66,8 +67,8 @@ object MigrationError {
   /**
    * Expected a Sequence but found a different type.
    *
-   * Occurs when collection operations (transformElements) are applied
-   * to non-sequence values.
+   * Occurs when collection operations (transformElements) are applied to
+   * non-sequence values.
    */
   final case class ExpectedSequence(path: DynamicOptic, actual: DynamicValue) extends MigrationError {
     def message: String = s"Expected Sequence but found ${actual.valueType}"
@@ -82,8 +83,8 @@ object MigrationError {
   /**
    * Expected a Map but found a different type.
    *
-   * Occurs when map operations (transformKeys, transformValues) are applied
-   * to non-map values.
+   * Occurs when map operations (transformKeys, transformValues) are applied to
+   * non-map values.
    */
   final case class ExpectedMap(path: DynamicOptic, actual: DynamicValue) extends MigrationError {
     def message: String = s"Expected Map but found ${actual.valueType}"
@@ -98,8 +99,8 @@ object MigrationError {
   /**
    * Expected a Variant but found a different type.
    *
-   * Occurs when enum operations (renameCase, transformCase) are applied
-   * to non-variant values.
+   * Occurs when enum operations (renameCase, transformCase) are applied to
+   * non-variant values.
    */
   final case class ExpectedVariant(path: DynamicOptic, actual: DynamicValue) extends MigrationError {
     def message: String = s"Expected Variant but found ${actual.valueType}"
@@ -118,8 +119,8 @@ object MigrationError {
   /**
    * A required field was not found in a record.
    *
-   * Occurs when operations reference fields that don't exist in the source data,
-   * such as renaming or transforming a non-existent field.
+   * Occurs when operations reference fields that don't exist in the source
+   * data, such as renaming or transforming a non-existent field.
    */
   final case class FieldNotFound(path: DynamicOptic, fieldName: String) extends MigrationError {
     def message: String = s"Field '$fieldName' not found"
@@ -169,8 +170,8 @@ object MigrationError {
   /**
    * A split operation produced the wrong number of values.
    *
-   * Split operations must produce exactly the number of values expected
-   * by the target field list.
+   * Split operations must produce exactly the number of values expected by the
+   * target field list.
    */
   final case class SplitResultMismatch(
     path: DynamicOptic,
@@ -193,8 +194,8 @@ object MigrationError {
   /**
    * A primitive type conversion failed.
    *
-   * Occurs when changeFieldType operations cannot convert between the
-   * specified primitive types, such as converting "abc" to Int.
+   * Occurs when changeFieldType operations cannot convert between the specified
+   * primitive types, such as converting "abc" to Int.
    */
   final case class ConversionFailed(path: DynamicOptic, cause: String) extends MigrationError {
     def message: String = s"Type conversion failed: $cause"
@@ -220,8 +221,8 @@ object MigrationError {
   /**
    * Failed to navigate to the specified path.
    *
-   * Occurs when the path specified in a migration action does not exist
-   * in the source data structure.
+   * Occurs when the path specified in a migration action does not exist in the
+   * source data structure.
    */
   final case class PathNotFound(path: DynamicOptic) extends MigrationError {
     def message: String = "Path not found"

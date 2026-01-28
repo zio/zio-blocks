@@ -7,12 +7,12 @@ import zio.test._
  * Core tests for Migration and DynamicMigration functionality.
  *
  * Tests cover:
- * - Identity migration
- * - Migration application
- * - Migration composition
- * - Migration reversal
- * - DynamicMigration operations
- * - MigrationOptimizer
+ *   - Identity migration
+ *   - Migration application
+ *   - Migration composition
+ *   - Migration reversal
+ *   - DynamicMigration operations
+ *   - MigrationOptimizer
  */
 object MigrationCoreSpec extends SchemaBaseSpec {
 
@@ -69,7 +69,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
     suite("DynamicMigration")(
       suite("Identity")(
         test("identity migration returns input unchanged") {
-          val input = dynamicRecord("name" -> dynamicString("Alice"), "age" -> dynamicInt(30))
+          val input  = dynamicRecord("name" -> dynamicString("Alice"), "age" -> dynamicInt(30))
           val result = DynamicMigration.identity.apply(input)
           assertTrue(result == Right(input))
         },
@@ -88,13 +88,15 @@ object MigrationCoreSpec extends SchemaBaseSpec {
           val migration = DynamicMigration.single(
             MigrationAction.AddField(DynamicOptic.root, "newField", Resolved.Literal.int(42))
           )
-          val input = dynamicRecord("existing" -> dynamicString("value"))
+          val input  = dynamicRecord("existing" -> dynamicString("value"))
           val result = migration.apply(input)
           assertTrue(
-            result == Right(dynamicRecord(
-              "existing" -> dynamicString("value"),
-              "newField" -> dynamicInt(42)
-            ))
+            result == Right(
+              dynamicRecord(
+                "existing" -> dynamicString("value"),
+                "newField" -> dynamicInt(42)
+              )
+            )
           )
         },
         test("single DropField action removes field") {
@@ -102,7 +104,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
             MigrationAction.DropField(DynamicOptic.root, "toRemove", Resolved.Literal.string("default"))
           )
           val input = dynamicRecord(
-            "keep" -> dynamicString("kept"),
+            "keep"     -> dynamicString("kept"),
             "toRemove" -> dynamicString("removed")
           )
           val result = migration.apply(input)
@@ -112,7 +114,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
           val migration = DynamicMigration.single(
             MigrationAction.Rename(DynamicOptic.root, "oldName", "newName")
           )
-          val input = dynamicRecord("oldName" -> dynamicString("value"))
+          val input  = dynamicRecord("oldName" -> dynamicString("value"))
           val result = migration.apply(input)
           assertTrue(result == Right(dynamicRecord("newName" -> dynamicString("value"))))
         }
@@ -126,13 +128,15 @@ object MigrationCoreSpec extends SchemaBaseSpec {
             MigrationAction.AddField(DynamicOptic.root, "field2", Resolved.Literal.int(2))
           )
           val composed = m1 ++ m2
-          val input = dynamicRecord()
-          val result = composed.apply(input)
+          val input    = dynamicRecord()
+          val result   = composed.apply(input)
           assertTrue(
-            result == Right(dynamicRecord(
-              "field1" -> dynamicInt(1),
-              "field2" -> dynamicInt(2)
-            ))
+            result == Right(
+              dynamicRecord(
+                "field1" -> dynamicInt(1),
+                "field2" -> dynamicInt(2)
+              )
+            )
           )
         },
         test("andThen is alias for ++") {
@@ -156,9 +160,9 @@ object MigrationCoreSpec extends SchemaBaseSpec {
           val m3 = DynamicMigration.single(
             MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(3))
           )
-          val leftAssoc = (m1 ++ m2) ++ m3
+          val leftAssoc  = (m1 ++ m2) ++ m3
           val rightAssoc = m1 ++ (m2 ++ m3)
-          val input = dynamicRecord()
+          val input      = dynamicRecord()
           assertTrue(leftAssoc.apply(input) == rightAssoc.apply(input))
         },
         test("identity is left identity for ++") {
@@ -166,7 +170,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
             MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(42))
           )
           val composed = DynamicMigration.identity ++ m
-          val input = dynamicRecord()
+          val input    = dynamicRecord()
           assertTrue(composed.apply(input) == m.apply(input))
         },
         test("identity is right identity for ++") {
@@ -174,7 +178,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
             MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(42))
           )
           val composed = m ++ DynamicMigration.identity
-          val input = dynamicRecord()
+          val input    = dynamicRecord()
           assertTrue(composed.apply(input) == m.apply(input))
         }
       ),
@@ -208,41 +212,49 @@ object MigrationCoreSpec extends SchemaBaseSpec {
           }
         },
         test("reverse reverses action order") {
-          val m = DynamicMigration(Vector(
-            MigrationAction.AddField(DynamicOptic.root, "a", Resolved.Literal.int(1)),
-            MigrationAction.AddField(DynamicOptic.root, "b", Resolved.Literal.int(2)),
-            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(3))
-          ))
+          val m = DynamicMigration(
+            Vector(
+              MigrationAction.AddField(DynamicOptic.root, "a", Resolved.Literal.int(1)),
+              MigrationAction.AddField(DynamicOptic.root, "b", Resolved.Literal.int(2)),
+              MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(3))
+            )
+          )
           val reversed = m.reverse
           assertTrue(
             reversed.actions(0).asInstanceOf[MigrationAction.DropField].fieldName == "c" &&
-            reversed.actions(1).asInstanceOf[MigrationAction.DropField].fieldName == "b" &&
-            reversed.actions(2).asInstanceOf[MigrationAction.DropField].fieldName == "a"
+              reversed.actions(1).asInstanceOf[MigrationAction.DropField].fieldName == "b" &&
+              reversed.actions(2).asInstanceOf[MigrationAction.DropField].fieldName == "a"
           )
         },
         test("double reverse equals original structurally") {
-          val migration = DynamicMigration(Vector(
-            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
-          ))
+          val migration = DynamicMigration(
+            Vector(
+              MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+              MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
+            )
+          )
           val doubleReversed = migration.reverse.reverse
           assertTrue(migration.actions == doubleReversed.actions)
         }
       ),
       suite("ActionCount and Describe")(
         test("actionCount returns correct count") {
-          val m = DynamicMigration(Vector(
-            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1)),
-            MigrationAction.DropField(DynamicOptic.root, "d", Resolved.Literal.int(2))
-          ))
+          val m = DynamicMigration(
+            Vector(
+              MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+              MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1)),
+              MigrationAction.DropField(DynamicOptic.root, "d", Resolved.Literal.int(2))
+            )
+          )
           assertTrue(m.actionCount == 3)
         },
         test("describe includes all action types") {
-          val m = DynamicMigration(Vector(
-            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
-          ))
+          val m = DynamicMigration(
+            Vector(
+              MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+              MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
+            )
+          )
           val desc = m.describe
           assertTrue(desc.contains("Rename") && desc.contains("AddField"))
         }
@@ -258,7 +270,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         assertTrue(optimized.length == 1) &&
         assertTrue(optimized.head match {
           case MigrationAction.Rename(_, from, to) => from == "a" && to == "c"
-          case _ => false
+          case _                                   => false
         })
       },
       test("eliminates rename back and forth: a->b, b->a becomes empty") {
@@ -286,10 +298,12 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         assertTrue(optimized.length == 2)
       },
       test("optimize through DynamicMigration.optimize") {
-        val m = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-          MigrationAction.Rename(DynamicOptic.root, "b", "c")
-        ))
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.Rename(DynamicOptic.root, "b", "c")
+          )
+        )
         val optimized = m.optimize
         assertTrue(optimized.actionCount == 1)
       }
@@ -329,7 +343,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         assertTrue(Resolved.Identity.evalDynamic.isLeft)
       },
       test("FieldAccess extracts field from record") {
-        val expr = Resolved.FieldAccess("name", Resolved.Identity)
+        val expr  = Resolved.FieldAccess("name", Resolved.Identity)
         val input = dynamicRecord("name" -> dynamicString("Alice"), "age" -> dynamicInt(30))
         assertTrue(expr.evalDynamic(input) == Right(dynamicString("Alice")))
       },
@@ -338,7 +352,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         assertTrue(expr.evalDynamic(dynamicString("not a record")).isLeft)
       },
       test("FieldAccess on missing field fails") {
-        val expr = Resolved.FieldAccess("missing", Resolved.Identity)
+        val expr  = Resolved.FieldAccess("missing", Resolved.Identity)
         val input = dynamicRecord("name" -> dynamicString("Alice"))
         assertTrue(expr.evalDynamic(input).isLeft)
       },
@@ -350,33 +364,43 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         assertTrue(expr.evalDynamic(dynamicRecord()) == Right(dynamicString("a-b-c")))
       },
       test("SplitString splits string by separator") {
-        val expr = Resolved.SplitString("-", Resolved.Literal.string("a-b-c"))
+        val expr   = Resolved.SplitString("-", Resolved.Literal.string("a-b-c"))
         val result = expr.evalDynamic(dynamicRecord())
-        assertTrue(result == Right(DynamicValue.Sequence(Vector(
-          dynamicString("a"),
-          dynamicString("b"),
-          dynamicString("c")
-        ))))
+        assertTrue(
+          result == Right(
+            DynamicValue.Sequence(
+              Vector(
+                dynamicString("a"),
+                dynamicString("b"),
+                dynamicString("c")
+              )
+            )
+          )
+        )
       },
       test("WrapSome wraps value in Variant Some") {
         val expr = Resolved.WrapSome(Resolved.Literal.int(42))
-        assertTrue(expr.evalDynamic == Right(DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", dynamicInt(42)))))))
+        assertTrue(
+          expr.evalDynamic == Right(
+            DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", dynamicInt(42)))))
+          )
+        )
       },
       test("UnwrapOption extracts Some value") {
-        val expr = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0))
+        val expr  = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0))
         val input = DynamicValue.Variant("Some", dynamicInt(42))
         assertTrue(expr.evalDynamic(input) == Right(dynamicInt(42)))
       },
       test("UnwrapOption uses fallback for None") {
-        val expr = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0))
+        val expr  = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0))
         val input = DynamicValue.Variant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
         assertTrue(expr.evalDynamic(input) == Right(dynamicInt(0)))
       },
       test("Compose applies inner then outer") {
-        val inner = Resolved.FieldAccess("x", Resolved.Identity)
-        val outer = Resolved.Convert("Int", "String", Resolved.Identity)
+        val inner    = Resolved.FieldAccess("x", Resolved.Identity)
+        val outer    = Resolved.Convert("Int", "String", Resolved.Identity)
         val composed = Resolved.Compose(outer, inner)
-        val input = dynamicRecord("x" -> dynamicInt(42))
+        val input    = dynamicRecord("x" -> dynamicInt(42))
         assertTrue(composed.evalDynamic(input) == Right(dynamicString("42")))
       },
       test("Fail always returns error") {
@@ -407,7 +431,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
           SimpleRecord.schema
         )
         val composed = m1 ++ m2
-        val input = SimpleRecord(1, "test")
+        val input    = SimpleRecord(1, "test")
         assertTrue(composed.apply(input) == Right(input))
       },
       test("Migration.isIdentity returns true for identity migration") {

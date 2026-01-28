@@ -11,10 +11,10 @@ import zio.blocks.schema.DynamicValue
  * This design enables:
  *   - **Serialization**: Migrations can be stored in registries, transmitted
  *     over networks, or persisted to databases
- *   - **Introspection**: The migration structure can be analyzed, optimized,
- *     or transformed
- *   - **Code Generation**: Migrations can be used to generate SQL DDL/DML,
- *     data transformation scripts, or documentation
+ *   - **Introspection**: The migration structure can be analyzed, optimized, or
+ *     transformed
+ *   - **Code Generation**: Migrations can be used to generate SQL DDL/DML, data
+ *     transformation scripts, or documentation
  *   - **Offline Processing**: Migrations can be applied without runtime
  *     reflection or code generation
  *
@@ -35,19 +35,22 @@ import zio.blocks.schema.DynamicValue
  * val reversed = migration.reverse
  * }}}
  *
- * @param actions The sequence of migration actions to apply in order
+ * @param actions
+ *   The sequence of migration actions to apply in order
  */
 final case class DynamicMigration(actions: Vector[MigrationAction]) { self =>
 
   /**
    * Apply this migration to a DynamicValue.
    *
-   * Actions are applied sequentially, with the output of each action
-   * becoming the input to the next. If any action fails, the entire
-   * migration fails with that error.
+   * Actions are applied sequentially, with the output of each action becoming
+   * the input to the next. If any action fails, the entire migration fails with
+   * that error.
    *
-   * @param value The input DynamicValue to transform
-   * @return Right with the transformed value, or Left with a MigrationError
+   * @param value
+   *   The input DynamicValue to transform
+   * @return
+   *   Right with the transformed value, or Left with a MigrationError
    */
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
     var current: Either[MigrationError, DynamicValue] = Right(value)
@@ -65,14 +68,16 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) { self =>
   /**
    * Compose two migrations sequentially.
    *
-   * The resulting migration first applies this migration's actions,
-   * then the other migration's actions.
+   * The resulting migration first applies this migration's actions, then the
+   * other migration's actions.
    *
    * This operation satisfies associativity:
    * `(m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)`
    *
-   * @param that The migration to apply after this one
-   * @return A new migration that applies both in sequence
+   * @param that
+   *   The migration to apply after this one
+   * @return
+   *   A new migration that applies both in sequence
    */
   def ++(that: DynamicMigration): DynamicMigration =
     DynamicMigration(actions ++ that.actions)
@@ -85,16 +90,17 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) { self =>
   /**
    * Structural reverse of this migration.
    *
-   * Each action is reversed, and the order is reversed. This provides
-   * a migration that structurally undoes what this migration does.
+   * Each action is reversed, and the order is reversed. This provides a
+   * migration that structurally undoes what this migration does.
    *
-   * Note: The reverse migration may fail at runtime if information
-   * was lost during the forward migration (e.g., dropped fields without
-   * proper defaults for reverse).
+   * Note: The reverse migration may fail at runtime if information was lost
+   * during the forward migration (e.g., dropped fields without proper defaults
+   * for reverse).
    *
    * This operation satisfies: `m.reverse.reverse == m` (structurally)
    *
-   * @return A new migration that reverses this one
+   * @return
+   *   A new migration that reverses this one
    */
   def reverse: DynamicMigration =
     DynamicMigration(actions.reverseIterator.map(_.reverse).toVector)
@@ -115,11 +121,13 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) { self =>
    * Optimize this migration by combining or eliminating redundant actions.
    *
    * Optimizations include:
-   *   - Combining consecutive renames: Rename(a->b) + Rename(b->c) = Rename(a->c)
+   *   - Combining consecutive renames: Rename(a->b) + Rename(b->c) =
+   *     Rename(a->c)
    *   - Eliminating inverse pairs: AddField(x) + DropField(x) = identity
    *   - Removing no-op actions
    *
-   * @return An optimized migration with equivalent behavior
+   * @return
+   *   An optimized migration with equivalent behavior
    */
   def optimize: DynamicMigration =
     DynamicMigration(MigrationOptimizer.optimize(actions))
@@ -132,18 +140,19 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) { self =>
     else actions.map(describeAction).mkString("Migration:\n  ", "\n  ", "")
 
   private def describeAction(action: MigrationAction): String = action match {
-    case MigrationAction.AddField(at, name, _)         => s"AddField($name) at ${at.toString}"
-    case MigrationAction.DropField(at, name, _)        => s"DropField($name) at ${at.toString}"
-    case MigrationAction.Rename(at, from, to)          => s"Rename($from -> $to) at ${at.toString}"
-    case MigrationAction.TransformValue(at, name, _, _)=> s"TransformValue($name) at ${at.toString}"
-    case MigrationAction.Mandate(at, name, _)          => s"Mandate($name) at ${at.toString}"
-    case MigrationAction.Optionalize(at, name)         => s"Optionalize($name) at ${at.toString}"
-    case MigrationAction.ChangeType(at, name, _, _)    => s"ChangeType($name) at ${at.toString}"
-    case MigrationAction.RenameCase(at, from, to)      => s"RenameCase($from -> $to) at ${at.toString}"
-    case MigrationAction.TransformCase(at, name, acts) => s"TransformCase($name, ${acts.length} actions) at ${at.toString}"
-    case MigrationAction.TransformElements(at, _, _)   => s"TransformElements at ${at.toString}"
-    case MigrationAction.TransformKeys(at, _, _)       => s"TransformKeys at ${at.toString}"
-    case MigrationAction.TransformValues(at, _, _)     => s"TransformValues at ${at.toString}"
+    case MigrationAction.AddField(at, name, _)          => s"AddField($name) at ${at.toString}"
+    case MigrationAction.DropField(at, name, _)         => s"DropField($name) at ${at.toString}"
+    case MigrationAction.Rename(at, from, to)           => s"Rename($from -> $to) at ${at.toString}"
+    case MigrationAction.TransformValue(at, name, _, _) => s"TransformValue($name) at ${at.toString}"
+    case MigrationAction.Mandate(at, name, _)           => s"Mandate($name) at ${at.toString}"
+    case MigrationAction.Optionalize(at, name)          => s"Optionalize($name) at ${at.toString}"
+    case MigrationAction.ChangeType(at, name, _, _)     => s"ChangeType($name) at ${at.toString}"
+    case MigrationAction.RenameCase(at, from, to)       => s"RenameCase($from -> $to) at ${at.toString}"
+    case MigrationAction.TransformCase(at, name, acts)  =>
+      s"TransformCase($name, ${acts.length} actions) at ${at.toString}"
+    case MigrationAction.TransformElements(at, _, _) => s"TransformElements at ${at.toString}"
+    case MigrationAction.TransformKeys(at, _, _)     => s"TransformKeys at ${at.toString}"
+    case MigrationAction.TransformValues(at, _, _)   => s"TransformValues at ${at.toString}"
   }
 }
 
@@ -172,8 +181,8 @@ object DynamicMigration {
 /**
  * Optimizer for migration actions.
  *
- * Performs simplifications on a sequence of actions to produce
- * an equivalent but more efficient migration.
+ * Performs simplifications on a sequence of actions to produce an equivalent
+ * but more efficient migration.
  */
 object MigrationOptimizer {
 
@@ -190,10 +199,10 @@ object MigrationOptimizer {
 
     // First pass: optimize pairs
     val pairOptimized = optimizePairs(actions)
-    
+
     // Second pass: filter out single no-op actions
     val filtered = pairOptimized.filter(!isNoOp(_))
-    
+
     // Recursively optimize if we made changes
     if (filtered.length != actions.length) optimize(filtered)
     else filtered
@@ -236,15 +245,16 @@ object MigrationOptimizer {
    */
   private def isNoOp(action: MigrationAction): Boolean = action match {
     // Rename to the same name is a no-op
-    case MigrationAction.Rename(_, from, to) if from == to => true
+    case MigrationAction.Rename(_, from, to) if from == to     => true
     case MigrationAction.RenameCase(_, from, to) if from == to => true
-    case _ => false
+    case _                                                     => false
   }
 
   /**
    * Try to optimize a pair of consecutive actions.
    *
-   * @return Some(optimized) if the pair can be simplified, None otherwise
+   * @return
+   *   Some(optimized) if the pair can be simplified, None otherwise
    */
   private def optimizePair(
     a: MigrationAction,

@@ -5,8 +5,8 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
 /**
  * A single migration action operating at a specific path.
  *
- * All actions are pure data - no functions, closures, or reflection.
- * This makes migrations fully serializable and introspectable.
+ * All actions are pure data - no functions, closures, or reflection. This makes
+ * migrations fully serializable and introspectable.
  *
  * Each action defines:
  *   - `at`: The path where this action operates (using DynamicOptic)
@@ -38,10 +38,11 @@ object MigrationAction {
    * Add a new field to a record with a default value.
    *
    * The default value is stored as a [[Resolved]] expression that is evaluated
-   * at migration time. This allows defaults to be computed from other fields
-   * or to use schema-defined default values.
+   * at migration time. This allows defaults to be computed from other fields or
+   * to use schema-defined default values.
    *
-   * Reverse: [[DropField]] with the same default (to preserve round-trip capability)
+   * Reverse: [[DropField]] with the same default (to preserve round-trip
+   * capability)
    */
   final case class AddField(
     at: DynamicOptic,
@@ -115,8 +116,8 @@ object MigrationAction {
    * Transform a field's value using a pure expression.
    *
    * Both forward and reverse transforms must be provided to enable
-   * bidirectional migration. Use [[Resolved.Fail]] for the reverse
-   * if the transformation is not reversible.
+   * bidirectional migration. Use [[Resolved.Fail]] for the reverse if the
+   * transformation is not reversible.
    *
    * Reverse: [[TransformValue]] with transforms swapped
    */
@@ -141,7 +142,8 @@ object MigrationAction {
   }
 
   /**
-   * Make an optional field mandatory by unwrapping Some or using a default for None.
+   * Make an optional field mandatory by unwrapping Some or using a default for
+   * None.
    *
    * Handles Option represented as Variant("Some", value) or Variant("None", _).
    *
@@ -155,22 +157,22 @@ object MigrationAction {
 
     def reverse: MigrationAction = Optionalize(at, fieldName)
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       // Work at record level so we have context for FieldAccess in defaults
       modifyRecord(value, at) { fields =>
         val recordValue = DynamicValue.Record(fields)
-        val fieldIdx = fields.indexWhere(_._1 == fieldName)
+        val fieldIdx    = fields.indexWhere(_._1 == fieldName)
         if (fieldIdx < 0) {
           // Field doesn't exist, nothing to do
           Right(fields)
         } else {
-          val (name, fieldValue) = fields(fieldIdx)
+          val (name, fieldValue)                             = fields(fieldIdx)
           val newValue: Either[MigrationError, DynamicValue] = fieldValue match {
             // Some is represented as Variant("Some", Record(Vector(("value", inner))))
             case DynamicValue.Variant("Some", DynamicValue.Record(innerFields)) =>
               innerFields.find(_._1 == "value").map(_._2) match {
                 case scala.Some(inner) => Right(inner)
-                case scala.None => Right(fieldValue) // Malformed, pass through
+                case scala.None        => Right(fieldValue) // Malformed, pass through
               }
             case DynamicValue.Variant("Some", inner) =>
               // Fallback for simple representation
@@ -190,7 +192,6 @@ object MigrationAction {
           newValue.map(nv => fields.updated(fieldIdx, (name, nv)))
         }
       }
-    }
   }
 
   /**
@@ -221,8 +222,8 @@ object MigrationAction {
   /**
    * Change a field's primitive type using a converter.
    *
-   * Both forward and reverse converters must be provided. The converters
-   * should be [[Resolved.Convert]] expressions that specify the type conversion.
+   * Both forward and reverse converters must be provided. The converters should
+   * be [[Resolved.Convert]] expressions that specify the type conversion.
    *
    * Reverse: [[ChangeType]] with converters swapped
    */
@@ -296,10 +297,12 @@ object MigrationAction {
       modifyAtPath(value, at) {
         case DynamicValue.Variant(name, caseValue) if name == caseName =>
           // Apply nested migration to the case value
-          caseActions.foldLeft[Either[MigrationError, DynamicValue]](Right(caseValue)) {
-            case (Right(v), action) => action.apply(v)
-            case (left, _)          => left
-          }.map(DynamicValue.Variant(name, _))
+          caseActions
+            .foldLeft[Either[MigrationError, DynamicValue]](Right(caseValue)) {
+              case (Right(v), action) => action.apply(v)
+              case (left, _)          => left
+            }
+            .map(DynamicValue.Variant(name, _))
         case other => Right(other) // Different case, no change
       }
   }
@@ -339,8 +342,8 @@ object MigrationAction {
   /**
    * Transform each key in a map.
    *
-   * Maps are represented as Record with string keys, so this transforms
-   * the field names.
+   * Maps are represented as Record with string keys, so this transforms the
+   * field names.
    *
    * Reverse: [[TransformKeys]] with transforms swapped
    */
@@ -420,26 +423,27 @@ object MigrationAction {
     } else {
       // Navigate to path and apply, tracking any error from f
       var capturedError: Option[MigrationError] = None
-      val result = value.modifyOrFail(path) {
-        case v => f(v) match {
+      val result                                = value.modifyOrFail(path) { case v =>
+        f(v) match {
           case Right(result) => result
-          case Left(err) =>
+          case Left(err)     =>
             capturedError = Some(err)
             v // Return original but capture the error
         }
       }
-      
+
       // Check if f failed
       capturedError match {
         case Some(err) => Left(err)
-        case None => result match {
-          case Right(result) =>
-            val selection = value.get(path)
-            if (selection.isEmpty) Left(MigrationError.PathNotFound(path))
-            else Right(result)
-          case Left(err) =>
-            Left(MigrationError.General(path, err.message))
-        }
+        case None      =>
+          result match {
+            case Right(result) =>
+              val selection = value.get(path)
+              if (selection.isEmpty) Left(MigrationError.PathNotFound(path))
+              else Right(result)
+            case Left(err) =>
+              Left(MigrationError.General(path, err.message))
+          }
       }
     }
 
@@ -482,8 +486,8 @@ object MigrationAction {
     results.sizeHint(len)
 
     while (idx < len) {
-      val (k, v)  = entries(idx)
-      val keyDV   = DynamicValue.Primitive(PrimitiveValue.String(k))
+      val (k, v) = entries(idx)
+      val keyDV  = DynamicValue.Primitive(PrimitiveValue.String(k))
       transform.evalDynamic(keyDV) match {
         case Right(DynamicValue.Primitive(PrimitiveValue.String(newK))) =>
           results += ((newK, v))

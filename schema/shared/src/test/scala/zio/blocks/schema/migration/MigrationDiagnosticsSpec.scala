@@ -7,13 +7,13 @@ import zio.test._
  * Tests for migration diagnostics, debugging, and troubleshooting.
  *
  * Covers:
- * - Migration description and explain
- * - Action-level diagnostics
- * - Path tracing
- * - Error context and recovery suggestions
- * - Migration comparison and diff
- * - Optimization reporting
- * - Debugging aids
+ *   - Migration description and explain
+ *   - Action-level diagnostics
+ *   - Path tracing
+ *   - Error context and recovery suggestions
+ *   - Migration comparison and diff
+ *   - Optimization reporting
+ *   - Debugging aids
  */
 object MigrationDiagnosticsSpec extends SchemaBaseSpec {
 
@@ -55,11 +55,13 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         assertTrue(desc.contains("oldField") || desc.contains("newField"))
       },
       test("multi-action migration describes all actions") {
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "field1", Resolved.Literal.int(1)),
-          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-          MigrationAction.DropField(DynamicOptic.root, "field2", Resolved.Literal.int(0))
-        ))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "field1", Resolved.Literal.int(1)),
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.DropField(DynamicOptic.root, "field2", Resolved.Literal.int(0))
+          )
+        )
         val desc = migration.describe
         assertTrue(desc.contains("AddField") || desc.contains("add"))
         assertTrue(desc.contains("Rename") || desc.contains("rename"))
@@ -94,7 +96,7 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         )
         actions.foreach { action =>
           val migration = DynamicMigration.single(action)
-          val desc = migration.describe
+          val desc      = migration.describe
           assertTrue(desc.nonEmpty)
         }
         assertTrue(true)
@@ -109,20 +111,22 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         assertTrue(m.actionCount == 1)
       },
       test("composed migration has combined count") {
-        val m1 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
-        val m2 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
-        val m3 = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "e", "f"))
+        val m1       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m2       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "c", "d"))
+        val m3       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "e", "f"))
         val composed = m1 ++ m2 ++ m3
         assertTrue(composed.actionCount == 3)
       },
       test("action count reflects actual actions") {
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "a", Resolved.Literal.int(1)),
-          MigrationAction.AddField(DynamicOptic.root, "b", Resolved.Literal.int(2)),
-          MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(3)),
-          MigrationAction.AddField(DynamicOptic.root, "d", Resolved.Literal.int(4)),
-          MigrationAction.AddField(DynamicOptic.root, "e", Resolved.Literal.int(5))
-        ))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "a", Resolved.Literal.int(1)),
+            MigrationAction.AddField(DynamicOptic.root, "b", Resolved.Literal.int(2)),
+            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(3)),
+            MigrationAction.AddField(DynamicOptic.root, "d", Resolved.Literal.int(4)),
+            MigrationAction.AddField(DynamicOptic.root, "e", Resolved.Literal.int(5))
+          )
+        )
         assertTrue(migration.actionCount == 5)
       }
     ),
@@ -136,10 +140,12 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         assertTrue(!m.isIdentity)
       },
       test("optimized migration may become identity") {
-        val m = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-          MigrationAction.Rename(DynamicOptic.root, "b", "a")
-        ))
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.Rename(DynamicOptic.root, "b", "a")
+          )
+        )
         val optimized = m.optimize
         assertTrue(optimized.isIdentity)
       }
@@ -161,7 +167,7 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
       },
       test("ExpectedRecord error shows actual type") {
         val action = MigrationAction.AddField(DynamicOptic.root, "field", Resolved.Literal.int(1))
-        val input = dynamicInt(42)
+        val input  = dynamicInt(42)
         action.apply(input) match {
           case Left(MigrationError.ExpectedRecord(path, actual)) =>
             assertTrue(actual == input)
@@ -250,11 +256,13 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         assertTrue(optimized.length == 3)
       },
       test("migration.optimize returns optimized version") {
-        val migration = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-          MigrationAction.Rename(DynamicOptic.root, "b", "c"),
-          MigrationAction.Rename(DynamicOptic.root, "c", "d")
-        ))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.Rename(DynamicOptic.root, "b", "c"),
+            MigrationAction.Rename(DynamicOptic.root, "c", "d")
+          )
+        )
         val optimized = migration.optimize
         // Should combine to a single a->d rename
         assertTrue(optimized.actionCount < migration.actionCount)
@@ -275,18 +283,20 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
       },
       test("path toString is readable") {
         val path = DynamicOptic.root.field("user").field("address").field("city")
-        val str = path.toString
+        val str  = path.toString
         assertTrue(str.nonEmpty)
       }
     ),
     suite("Migration tracing")(
       test("trace successful migration steps") {
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "step1", Resolved.Literal.int(1)),
-          MigrationAction.AddField(DynamicOptic.root, "step2", Resolved.Literal.int(2)),
-          MigrationAction.AddField(DynamicOptic.root, "step3", Resolved.Literal.int(3))
-        ))
-        val input = dynamicRecord()
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "step1", Resolved.Literal.int(1)),
+            MigrationAction.AddField(DynamicOptic.root, "step2", Resolved.Literal.int(2)),
+            MigrationAction.AddField(DynamicOptic.root, "step3", Resolved.Literal.int(3))
+          )
+        )
+        val input  = dynamicRecord()
         val result = migration.apply(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
@@ -298,12 +308,14 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         }
       },
       test("trace identifies failing action") {
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "success", Resolved.Literal.int(1)),
-          MigrationAction.AddField(DynamicOptic.root, "fail", Resolved.Fail("intentional")),
-          MigrationAction.AddField(DynamicOptic.root, "unreached", Resolved.Literal.int(3))
-        ))
-        val input = dynamicRecord()
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "success", Resolved.Literal.int(1)),
+            MigrationAction.AddField(DynamicOptic.root, "fail", Resolved.Fail("intentional")),
+            MigrationAction.AddField(DynamicOptic.root, "unreached", Resolved.Literal.int(3))
+          )
+        )
+        val input  = dynamicRecord()
         val result = migration.apply(input)
         assertTrue(result.isLeft)
         result match {
@@ -315,10 +327,12 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
     ),
     suite("Reverse migration diagnostics")(
       test("reverse has same action count") {
-        val migration = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-          MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
-        ))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
+          )
+        )
         val reversed = migration.reverse
         assertTrue(reversed.actionCount == migration.actionCount)
       },
@@ -326,17 +340,19 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         val migration = DynamicMigration.single(
           MigrationAction.Rename(DynamicOptic.root, "old", "new")
         )
-        val reversed = migration.reverse
+        val reversed    = migration.reverse
         val forwardDesc = migration.describe
         val reverseDesc = reversed.describe
         // The descriptions should be different (old<->new swapped)
         assertTrue(forwardDesc != reverseDesc || forwardDesc.contains("old"))
       },
       test("reverse of reverse equals original") {
-        val migration = DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
-          MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
-        ))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
+          )
+        )
         val doubleReverse = migration.reverse.reverse
         assertTrue(doubleReverse.actions == migration.actions)
       }
@@ -352,7 +368,7 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         assertTrue(expr.evalDynamic(dynamicInt(42)) == Right(dynamicInt(42)))
       },
       test("FieldAccess error includes field name") {
-        val expr = Resolved.FieldAccess("missingField", Resolved.Identity)
+        val expr  = Resolved.FieldAccess("missingField", Resolved.Identity)
         val input = dynamicRecord("other" -> dynamicInt(1))
         expr.evalDynamic(input) match {
           case Left(msg) =>
@@ -361,7 +377,7 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         }
       },
       test("Convert error includes type info") {
-        val expr = Resolved.Convert("String", "Int", Resolved.Identity)
+        val expr  = Resolved.Convert("String", "Int", Resolved.Identity)
         val input = dynamicString("not a number")
         expr.evalDynamic(input) match {
           case Left(msg) =>
@@ -407,7 +423,7 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         val input = dynamicRecord(
           "items" -> dynamicSequence(
             dynamicString("1"),
-            dynamicString("not an int"),  // Can't parse as Int
+            dynamicString("not an int"), // Can't parse as Int
             dynamicString("3")
           )
         )

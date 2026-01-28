@@ -7,14 +7,14 @@ import zio.test._
  * Tests for edge cases and boundary conditions in migrations.
  *
  * Covers:
- * - Empty structures
- * - Large structures
- * - Special characters in names
- * - Unicode handling
- * - Numeric edge cases
- * - Deeply nested structures
- * - Very long field names
- * - Many fields
+ *   - Empty structures
+ *   - Large structures
+ *   - Special characters in names
+ *   - Unicode handling
+ *   - Numeric edge cases
+ *   - Deeply nested structures
+ *   - Very long field names
+ *   - Many fields
  */
 object MigrationBoundarySpec extends SchemaBaseSpec {
 
@@ -57,10 +57,12 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
         assertTrue(migration.apply(input) == Right(dynamicRecord("field" -> dynamicInt(1))))
       },
       test("drop all fields from record") {
-        val migration = DynamicMigration(Vector(
-          MigrationAction.DropField(DynamicOptic.root, "a", Resolved.Literal.int(0)),
-          MigrationAction.DropField(DynamicOptic.root, "b", Resolved.Literal.int(0))
-        ))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.DropField(DynamicOptic.root, "a", Resolved.Literal.int(0)),
+            MigrationAction.DropField(DynamicOptic.root, "b", Resolved.Literal.int(0))
+          )
+        )
         val input = dynamicRecord("a" -> dynamicInt(1), "b" -> dynamicInt(2))
         assertTrue(migration.apply(input) == Right(dynamicRecord()))
       },
@@ -83,8 +85,8 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
     suite("Large structures")(
       test("record with many fields") {
         val numFields = 100
-        val fields = (1 to numFields).map(i => s"field$i" -> dynamicInt(i))
-        val input = dynamicRecord(fields: _*)
+        val fields    = (1 to numFields).map(i => s"field$i" -> dynamicInt(i))
+        val input     = dynamicRecord(fields: _*)
         val migration = DynamicMigration.single(
           MigrationAction.Rename(DynamicOptic.root, "field50", "renamedField")
         )
@@ -99,9 +101,9 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
       },
       test("sequence with many elements") {
         val numElements = 1000
-        val elements = (1 to numElements).map(dynamicInt)
-        val input = dynamicSequence(elements: _*)
-        val migration = DynamicMigration.single(
+        val elements    = (1 to numElements).map(dynamicInt)
+        val input       = dynamicSequence(elements: _*)
+        val migration   = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root,
             Resolved.Identity,
@@ -117,12 +119,11 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
       },
       test("many actions in migration") {
         val numActions = 50
-        val actions = (1 to numActions).map(i =>
-          MigrationAction.AddField(DynamicOptic.root, s"field$i", Resolved.Literal.int(i))
-        )
+        val actions    =
+          (1 to numActions).map(i => MigrationAction.AddField(DynamicOptic.root, s"field$i", Resolved.Literal.int(i)))
         val migration = DynamicMigration(actions.toVector)
-        val input = dynamicRecord()
-        val result = migration.apply(input)
+        val input     = dynamicRecord()
+        val result    = migration.apply(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
             assertTrue(fields.length == numActions)
@@ -179,7 +180,7 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
         val migration = DynamicMigration.single(
           MigrationAction.AddField(DynamicOptic.root, "greeting", Resolved.Literal.string("你好世界"))
         )
-        val input = dynamicRecord()
+        val input  = dynamicRecord()
         val result = migration.apply(input)
         assertTrue(result == Right(dynamicRecord("greeting" -> dynamicString("你好世界"))))
       },
@@ -214,11 +215,13 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
         assertTrue(migration.apply(input) == Right(dynamicRecord("max" -> dynamicLong(Long.MaxValue))))
       },
       test("zero values") {
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "zeroInt", Resolved.Literal.int(0)),
-          MigrationAction.AddField(DynamicOptic.root, "zeroDouble", Resolved.Literal.double(0.0))
-        ))
-        val input = dynamicRecord()
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "zeroInt", Resolved.Literal.int(0)),
+            MigrationAction.AddField(DynamicOptic.root, "zeroDouble", Resolved.Literal.double(0.0))
+          )
+        )
+        val input  = dynamicRecord()
         val result = migration.apply(input)
         assertTrue(result.isRight)
       },
@@ -248,10 +251,10 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
       test("very deeply nested path - 10 levels") {
         def deepRecord(depth: Int): DynamicValue =
           if (depth <= 0) dynamicRecord("leaf" -> dynamicInt(42))
-          else dynamicRecord("nested" -> deepRecord(depth - 1))
+          else dynamicRecord("nested"          -> deepRecord(depth - 1))
 
         val migration = DynamicMigration.identity
-        val input = deepRecord(10)
+        val input     = deepRecord(10)
         assertTrue(migration.apply(input) == Right(input))
       },
       test("modify at deep path") {
@@ -279,7 +282,7 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
     ),
     suite("Very long field names")(
       test("field name with 100 characters") {
-        val longName = "a" * 100
+        val longName  = "a" * 100
         val migration = DynamicMigration.single(
           MigrationAction.Rename(DynamicOptic.root, longName, "short")
         )
@@ -287,11 +290,11 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
         assertTrue(migration.apply(input) == Right(dynamicRecord("short" -> dynamicInt(1))))
       },
       test("field name with 1000 characters") {
-        val longName = "field" + ("x" * 995)
+        val longName  = "field" + ("x" * 995)
         val migration = DynamicMigration.single(
           MigrationAction.AddField(DynamicOptic.root, longName, Resolved.Literal.int(1))
         )
-        val input = dynamicRecord()
+        val input  = dynamicRecord()
         val result = migration.apply(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
@@ -317,10 +320,10 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
       },
       test("very long string value") {
         val longString = "x" * 10000
-        val migration = DynamicMigration.single(
+        val migration  = DynamicMigration.single(
           MigrationAction.AddField(DynamicOptic.root, "long", Resolved.Literal.string(longString))
         )
-        val input = dynamicRecord()
+        val input  = dynamicRecord()
         val result = migration.apply(input)
         assertTrue(result == Right(dynamicRecord("long" -> dynamicString(longString))))
       },
@@ -333,7 +336,7 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
         assertTrue(migration.apply(input) == Right(dynamicRecord("multi" -> dynamicString(multiline))))
       },
       test("string with tabs") {
-        val tabbed = "col1\tcol2\tcol3"
+        val tabbed    = "col1\tcol2\tcol3"
         val migration = DynamicMigration.single(
           MigrationAction.AddField(DynamicOptic.root, "tabbed", Resolved.Literal.string(tabbed))
         )
@@ -341,7 +344,7 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
         assertTrue(migration.apply(input) == Right(dynamicRecord("tabbed" -> dynamicString(tabbed))))
       },
       test("string with null character") {
-        val withNull = "before\u0000after"
+        val withNull  = "before\u0000after"
         val migration = DynamicMigration.single(
           MigrationAction.AddField(DynamicOptic.root, "null", Resolved.Literal.string(withNull))
         )
@@ -361,7 +364,7 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
         val migration = DynamicMigration.single(
           MigrationAction.Rename(DynamicOptic.root, "field", "Field")
         )
-        val input = dynamicRecord("field" -> dynamicInt(1), "Field" -> dynamicInt(2))
+        val input  = dynamicRecord("field" -> dynamicInt(1), "Field" -> dynamicInt(2))
         val result = migration.apply(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
@@ -373,17 +376,17 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
     ),
     suite("Composition edge cases")(
       test("compose with self") {
-        val m = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m        = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
         val composed = m ++ m
-        val input = dynamicRecord("a" -> dynamicInt(1))
+        val input    = dynamicRecord("a" -> dynamicInt(1))
         // First: a->b, Second: b stays b (no 'a' to rename)
         val result = composed.apply(input)
         assertTrue(result == Right(dynamicRecord("b" -> dynamicInt(1))))
       },
       test("compose with reverse") {
-        val m = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m         = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
         val roundTrip = m ++ m.reverse
-        val input = dynamicRecord("a" -> dynamicInt(1))
+        val input     = dynamicRecord("a" -> dynamicInt(1))
         assertTrue(roundTrip.apply(input) == Right(input))
       },
       test("compose many migrations") {
@@ -391,8 +394,8 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
           DynamicMigration.single(MigrationAction.AddField(DynamicOptic.root, s"f$i", Resolved.Literal.int(i)))
         )
         val composed = migrations.foldLeft(DynamicMigration.identity)(_ ++ _)
-        val input = dynamicRecord()
-        val result = composed.apply(input)
+        val input    = dynamicRecord()
+        val result   = composed.apply(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
             assertTrue(fields.length == 100)
@@ -409,7 +412,7 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
         assertTrue(migration.apply(input) == Right(dynamicVariant("NonEmpty", dynamicInt(1))))
       },
       test("variant with very long case name") {
-        val longCase = "Case" + ("X" * 100)
+        val longCase  = "Case" + ("X" * 100)
         val migration = DynamicMigration.single(
           MigrationAction.RenameCase(DynamicOptic.root, longCase, "Short")
         )

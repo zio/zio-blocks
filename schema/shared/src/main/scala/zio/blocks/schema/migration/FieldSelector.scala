@@ -7,12 +7,15 @@ import zio.blocks.schema.DynamicOptic
  *
  * Created by the `select` macro from a selector expression like `_.fieldName`.
  * The Name type parameter captures the field name at the type level, allowing
- * builder methods to track which fields have been handled through type constraints.
+ * builder methods to track which fields have been handled through type
+ * constraints.
  *
  * This is a key component of the non-inline builder design:
  *   - The `select()` macro is the ONLY inline part of the migration API
- *   - It extracts the field name from `_.fieldName` and captures it as a singleton type
- *   - Builder methods are regular (non-inline) methods that use the Name type parameter
+ *   - It extracts the field name from `_.fieldName` and captures it as a
+ *     singleton type
+ *   - Builder methods are regular (non-inline) methods that use the Name type
+ *     parameter
  *   - This allows builders to be stored in vals without losing type tracking
  *
  * Example usage:
@@ -28,9 +31,12 @@ import zio.blocks.schema.DynamicOptic
  *   .build                              // Compiles only if all fields handled
  * }}}
  *
- * @tparam S The schema type (source or target of migration)
- * @tparam F The field type
- * @tparam Name The field name as a singleton string type (e.g., "age", "name")
+ * @tparam S
+ *   The schema type (source or target of migration)
+ * @tparam F
+ *   The field type
+ * @tparam Name
+ *   The field name as a singleton string type (e.g., "age", "name")
  */
 final class FieldSelector[S, F, Name <: String](
   val name: Name,
@@ -38,8 +44,8 @@ final class FieldSelector[S, F, Name <: String](
 ) {
 
   /**
-   * The field name as a runtime String value.
-   * Same as `name` but without the singleton type.
+   * The field name as a runtime String value. Same as `name` but without the
+   * singleton type.
    */
   def fieldName: String = name
 
@@ -61,12 +67,15 @@ object FieldSelector {
   /**
    * Create a FieldSelector with a specific name and optic.
    *
-   * This is used by the `select()` macro to construct FieldSelectors.
-   * Users should use the `select()` macro instead of calling this directly.
+   * This is used by the `select()` macro to construct FieldSelectors. Users
+   * should use the `select()` macro instead of calling this directly.
    *
-   * @param name The field name (must match the Name type parameter)
-   * @param optic The DynamicOptic for accessing this field
-   * @return A FieldSelector with the name captured as a type parameter
+   * @param name
+   *   The field name (must match the Name type parameter)
+   * @param optic
+   *   The DynamicOptic for accessing this field
+   * @return
+   *   A FieldSelector with the name captured as a type parameter
    */
   def apply[S, F, Name <: String](name: Name, optic: DynamicOptic): FieldSelector[S, F, Name] =
     new FieldSelector(name, optic)
@@ -76,8 +85,10 @@ object FieldSelector {
    *
    * Convenience constructor that creates the DynamicOptic internally.
    *
-   * @param name The field name
-   * @return A FieldSelector with a single-field optic
+   * @param name
+   *   The field name
+   * @return
+   *   A FieldSelector with a single-field optic
    */
   def field[S, F, Name <: String](name: Name): FieldSelector[S, F, Name] =
     new FieldSelector(name, DynamicOptic.root.field(name))

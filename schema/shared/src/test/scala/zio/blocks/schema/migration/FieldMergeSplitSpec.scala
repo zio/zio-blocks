@@ -7,10 +7,10 @@ import zio.test._
  * Tests for field merge and split operations.
  *
  * Covers:
- * - Merging multiple fields into one using Concat
- * - Splitting a field into multiple using SplitString
- * - Restructuring record fields
- * - Complex merge/split patterns
+ *   - Merging multiple fields into one using Concat
+ *   - Splitting a field into multiple using SplitString
+ *   - Restructuring record fields
+ *   - Complex merge/split patterns
  */
 object FieldMergeSplitSpec extends SchemaBaseSpec {
 
@@ -38,27 +38,36 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
     suite("Field merging with Concat")(
       test("merge two string fields") {
         // firstName + lastName -> fullName
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(
-            DynamicOptic.root,
-            "fullName",
-            Resolved.Concat(Vector(
-              Resolved.FieldAccess("firstName", Resolved.Identity),
-              Resolved.Literal.string(" "),
-              Resolved.FieldAccess("lastName", Resolved.Identity)
-            ), "")
-          ),
-          MigrationAction.DropField(DynamicOptic.root, "firstName", Resolved.Literal.string("")),
-          MigrationAction.DropField(DynamicOptic.root, "lastName", Resolved.Literal.string(""))
-        ))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(
+              DynamicOptic.root,
+              "fullName",
+              Resolved.Concat(
+                Vector(
+                  Resolved.FieldAccess("firstName", Resolved.Identity),
+                  Resolved.Literal.string(" "),
+                  Resolved.FieldAccess("lastName", Resolved.Identity)
+                ),
+                ""
+              )
+            ),
+            MigrationAction.DropField(DynamicOptic.root, "firstName", Resolved.Literal.string("")),
+            MigrationAction.DropField(DynamicOptic.root, "lastName", Resolved.Literal.string(""))
+          )
+        )
         val input = dynamicRecord(
           "firstName" -> dynamicString("John"),
-          "lastName" -> dynamicString("Doe")
+          "lastName"  -> dynamicString("Doe")
         )
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "fullName" -> dynamicString("John Doe")
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "fullName" -> dynamicString("John Doe")
+            )
+          )
+        )
       },
       test("merge with separator") {
         // Merge parts with comma separator
@@ -66,11 +75,14 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
           MigrationAction.AddField(
             DynamicOptic.root,
             "combined",
-            Resolved.Concat(Vector(
-              Resolved.FieldAccess("part1", Resolved.Identity),
-              Resolved.FieldAccess("part2", Resolved.Identity),
-              Resolved.FieldAccess("part3", Resolved.Identity)
-            ), ", ")
+            Resolved.Concat(
+              Vector(
+                Resolved.FieldAccess("part1", Resolved.Identity),
+                Resolved.FieldAccess("part2", Resolved.Identity),
+                Resolved.FieldAccess("part3", Resolved.Identity)
+              ),
+              ", "
+            )
           )
         )
         val input = dynamicRecord(
@@ -95,17 +107,20 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
           MigrationAction.AddField(
             DynamicOptic.root,
             "fullAddress",
-            Resolved.Concat(Vector(
-              Resolved.FieldAccess("street", Resolved.FieldAccess("address", Resolved.Identity)),
-              Resolved.Literal.string(", "),
-              Resolved.FieldAccess("city", Resolved.FieldAccess("address", Resolved.Identity))
-            ), "")
+            Resolved.Concat(
+              Vector(
+                Resolved.FieldAccess("street", Resolved.FieldAccess("address", Resolved.Identity)),
+                Resolved.Literal.string(", "),
+                Resolved.FieldAccess("city", Resolved.FieldAccess("address", Resolved.Identity))
+              ),
+              ""
+            )
           )
         )
         val input = dynamicRecord(
           "address" -> dynamicRecord(
             "street" -> dynamicString("123 Main St"),
-            "city" -> dynamicString("Boston")
+            "city"   -> dynamicString("Boston")
           )
         )
         val result = migration.apply(input)
@@ -135,10 +150,14 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
           "combined" -> dynamicString("a,b,c")
         )
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "combined" -> dynamicString("a,b,c"),
-          "parts" -> dynamicSequence(dynamicString("a"), dynamicString("b"), dynamicString("c"))
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "combined" -> dynamicString("a,b,c"),
+              "parts"    -> dynamicSequence(dynamicString("a"), dynamicString("b"), dynamicString("c"))
+            )
+          )
+        )
       },
       test("split with space delimiter") {
         val migration = DynamicMigration.single(
@@ -152,14 +171,18 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
           "sentence" -> dynamicString("hello world test")
         )
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "sentence" -> dynamicString("hello world test"),
-          "words" -> dynamicSequence(
-            dynamicString("hello"),
-            dynamicString("world"),
-            dynamicString("test")
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "sentence" -> dynamicString("hello world test"),
+              "words"    -> dynamicSequence(
+                dynamicString("hello"),
+                dynamicString("world"),
+                dynamicString("test")
+              )
+            )
           )
-        )))
+        )
       },
       test("split empty string") {
         val migration = DynamicMigration.single(
@@ -169,7 +192,7 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
             Resolved.SplitString(",", Resolved.FieldAccess("data", Resolved.Identity))
           )
         )
-        val input = dynamicRecord("data" -> dynamicString(""))
+        val input  = dynamicRecord("data" -> dynamicString(""))
         val result = migration.apply(input)
         // Splitting empty string gives sequence with single empty string
         result match {
@@ -187,71 +210,89 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
             Resolved.SplitString(",", Resolved.FieldAccess("data", Resolved.Identity))
           )
         )
-        val input = dynamicRecord("data" -> dynamicString("nocomma"))
+        val input  = dynamicRecord("data" -> dynamicString("nocomma"))
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "data" -> dynamicString("nocomma"),
-          "parts" -> dynamicSequence(dynamicString("nocomma"))
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "data"  -> dynamicString("nocomma"),
+              "parts" -> dynamicSequence(dynamicString("nocomma"))
+            )
+          )
+        )
       }
     ),
     suite("Restructuring patterns")(
       test("flatten nested record into parent") {
         // Move fields from nested record to parent
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(
-            DynamicOptic.root,
-            "street",
-            Resolved.FieldAccess("street", Resolved.FieldAccess("address", Resolved.Identity))
-          ),
-          MigrationAction.AddField(
-            DynamicOptic.root,
-            "city",
-            Resolved.FieldAccess("city", Resolved.FieldAccess("address", Resolved.Identity))
-          ),
-          MigrationAction.DropField(DynamicOptic.root, "address", Resolved.Literal(dynamicRecord()))
-        ))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(
+              DynamicOptic.root,
+              "street",
+              Resolved.FieldAccess("street", Resolved.FieldAccess("address", Resolved.Identity))
+            ),
+            MigrationAction.AddField(
+              DynamicOptic.root,
+              "city",
+              Resolved.FieldAccess("city", Resolved.FieldAccess("address", Resolved.Identity))
+            ),
+            MigrationAction.DropField(DynamicOptic.root, "address", Resolved.Literal(dynamicRecord()))
+          )
+        )
         val input = dynamicRecord(
-          "name" -> dynamicString("Alice"),
+          "name"    -> dynamicString("Alice"),
           "address" -> dynamicRecord(
             "street" -> dynamicString("123 Main"),
-            "city" -> dynamicString("Boston")
+            "city"   -> dynamicString("Boston")
           )
         )
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "name" -> dynamicString("Alice"),
-          "street" -> dynamicString("123 Main"),
-          "city" -> dynamicString("Boston")
-        )))
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "name"   -> dynamicString("Alice"),
+              "street" -> dynamicString("123 Main"),
+              "city"   -> dynamicString("Boston")
+            )
+          )
+        )
       },
       test("nest flat fields into record") {
         // Move flat fields into a nested record
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(
-            DynamicOptic.root,
-            "address",
-            Resolved.Construct(Vector(
-              "street" -> Resolved.FieldAccess("street", Resolved.Identity),
-              "city" -> Resolved.FieldAccess("city", Resolved.Identity)
-            ))
-          ),
-          MigrationAction.DropField(DynamicOptic.root, "street", Resolved.Literal.string("")),
-          MigrationAction.DropField(DynamicOptic.root, "city", Resolved.Literal.string(""))
-        ))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(
+              DynamicOptic.root,
+              "address",
+              Resolved.Construct(
+                Vector(
+                  "street" -> Resolved.FieldAccess("street", Resolved.Identity),
+                  "city"   -> Resolved.FieldAccess("city", Resolved.Identity)
+                )
+              )
+            ),
+            MigrationAction.DropField(DynamicOptic.root, "street", Resolved.Literal.string("")),
+            MigrationAction.DropField(DynamicOptic.root, "city", Resolved.Literal.string(""))
+          )
+        )
         val input = dynamicRecord(
-          "name" -> dynamicString("Alice"),
+          "name"   -> dynamicString("Alice"),
           "street" -> dynamicString("123 Main"),
-          "city" -> dynamicString("Boston")
+          "city"   -> dynamicString("Boston")
         )
         val result = migration.apply(input)
-        assertTrue(result == Right(dynamicRecord(
-          "name" -> dynamicString("Alice"),
-          "address" -> dynamicRecord(
-            "street" -> dynamicString("123 Main"),
-            "city" -> dynamicString("Boston")
+        assertTrue(
+          result == Right(
+            dynamicRecord(
+              "name"    -> dynamicString("Alice"),
+              "address" -> dynamicRecord(
+                "street" -> dynamicString("123 Main"),
+                "city"   -> dynamicString("Boston")
+              )
+            )
           )
-        )))
+        )
       },
       test("extract first element from sequence to field") {
         val migration = DynamicMigration.single(
@@ -274,7 +315,7 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
             val primary = fields.find(_._1 == "primary")
             assertTrue(primary.exists {
               case (_, DynamicValue.Primitive(PrimitiveValue.String("first"))) => true
-              case _ => false
+              case _                                                           => false
             })
           case _ => assertTrue(false)
         }
@@ -283,17 +324,19 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
     suite("Complex merge/split patterns")(
       test("split name into first and last") {
         // "John Doe" -> firstName: "John", lastName: "Doe"
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(
-            DynamicOptic.root,
-            "nameParts",
-            Resolved.SplitString(" ", Resolved.FieldAccess("fullName", Resolved.Identity))
-          ),
-          // Note: In a real scenario, we'd use array access to get parts
-          // For now, just verify the split works
-          MigrationAction.DropField(DynamicOptic.root, "fullName", Resolved.Literal.string(""))
-        ))
-        val input = dynamicRecord("fullName" -> dynamicString("John Doe"))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(
+              DynamicOptic.root,
+              "nameParts",
+              Resolved.SplitString(" ", Resolved.FieldAccess("fullName", Resolved.Identity))
+            ),
+            // Note: In a real scenario, we'd use array access to get parts
+            // For now, just verify the split works
+            MigrationAction.DropField(DynamicOptic.root, "fullName", Resolved.Literal.string(""))
+          )
+        )
+        val input  = dynamicRecord("fullName" -> dynamicString("John Doe"))
         val result = migration.apply(input)
         result match {
           case Right(DynamicValue.Record(fields)) =>
@@ -342,13 +385,16 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
           MigrationAction.AddField(
             DynamicOptic.root,
             "coordinate",
-            Resolved.Concat(Vector(
-              Resolved.Literal.string("("),
-              Resolved.Convert("Int", "String", Resolved.FieldAccess("x", Resolved.Identity)),
-              Resolved.Literal.string(", "),
-              Resolved.Convert("Int", "String", Resolved.FieldAccess("y", Resolved.Identity)),
-              Resolved.Literal.string(")")
-            ), "")
+            Resolved.Concat(
+              Vector(
+                Resolved.Literal.string("("),
+                Resolved.Convert("Int", "String", Resolved.FieldAccess("x", Resolved.Identity)),
+                Resolved.Literal.string(", "),
+                Resolved.Convert("Int", "String", Resolved.FieldAccess("y", Resolved.Identity)),
+                Resolved.Literal.string(")")
+              ),
+              ""
+            )
           )
         )
         val input = dynamicRecord(
@@ -371,26 +417,35 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
     suite("Round-trip merge and split")(
       test("merge then split recovers original (simple case)") {
         // firstName + lastName -> fullName -> split back
-        val merge = DynamicMigration(Vector(
-          MigrationAction.AddField(
-            DynamicOptic.root,
-            "fullName",
-            Resolved.Concat(Vector(
-              Resolved.FieldAccess("first", Resolved.Identity),
-              Resolved.FieldAccess("last", Resolved.Identity)
-            ), " ")
-          ),
-          MigrationAction.DropField(DynamicOptic.root, "first", Resolved.Literal.string("")),
-          MigrationAction.DropField(DynamicOptic.root, "last", Resolved.Literal.string(""))
-        ))
+        val merge = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(
+              DynamicOptic.root,
+              "fullName",
+              Resolved.Concat(
+                Vector(
+                  Resolved.FieldAccess("first", Resolved.Identity),
+                  Resolved.FieldAccess("last", Resolved.Identity)
+                ),
+                " "
+              )
+            ),
+            MigrationAction.DropField(DynamicOptic.root, "first", Resolved.Literal.string("")),
+            MigrationAction.DropField(DynamicOptic.root, "last", Resolved.Literal.string(""))
+          )
+        )
         val input = dynamicRecord(
           "first" -> dynamicString("John"),
-          "last" -> dynamicString("Doe")
+          "last"  -> dynamicString("Doe")
         )
         val merged = merge.apply(input)
-        assertTrue(merged == Right(dynamicRecord(
-          "fullName" -> dynamicString("John Doe")
-        )))
+        assertTrue(
+          merged == Right(
+            dynamicRecord(
+              "fullName" -> dynamicString("John Doe")
+            )
+          )
+        )
       },
       test("split then join recovers original") {
         val splitMigration = DynamicMigration.single(
@@ -431,13 +486,16 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
           MigrationAction.AddField(
             DynamicOptic.root,
             "combined",
-            Resolved.Concat(Vector(
-              Resolved.FieldAccess("exists", Resolved.Identity),
-              Resolved.FieldAccess("missing", Resolved.Identity)
-            ), "")
+            Resolved.Concat(
+              Vector(
+                Resolved.FieldAccess("exists", Resolved.Identity),
+                Resolved.FieldAccess("missing", Resolved.Identity)
+              ),
+              ""
+            )
           )
         )
-        val input = dynamicRecord("exists" -> dynamicString("value"))
+        val input  = dynamicRecord("exists" -> dynamicString("value"))
         val result = migration.apply(input)
         assertTrue(result.isLeft)
       },
@@ -449,7 +507,7 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
             Resolved.SplitString(",", Resolved.FieldAccess("number", Resolved.Identity))
           )
         )
-        val input = dynamicRecord("number" -> dynamicInt(42))
+        val input  = dynamicRecord("number" -> dynamicInt(42))
         val result = migration.apply(input)
         assertTrue(result.isLeft)
       },
@@ -461,7 +519,7 @@ object FieldMergeSplitSpec extends SchemaBaseSpec {
             Resolved.JoinStrings(",", Resolved.FieldAccess("notSeq", Resolved.Identity))
           )
         )
-        val input = dynamicRecord("notSeq" -> dynamicString("not a sequence"))
+        val input  = dynamicRecord("notSeq" -> dynamicString("not a sequence"))
         val result = migration.apply(input)
         assertTrue(result.isLeft)
       }
