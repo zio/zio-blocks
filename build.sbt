@@ -61,6 +61,9 @@ lazy val root = project
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-toon`.native,
+    `typeid-schema`.jvm,
+    `typeid-schema`.js,
+    `typeid-schema`.native,
     streams.jvm,
     streams.js,
     streams.native,
@@ -330,6 +333,20 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
+  )
+
+lazy val `typeid-schema` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(typeid, schema)
+  .settings(stdSettings("zio-blocks-typeid-schema"))
+  .settings(crossProjectSettings)
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     )
   )
 
