@@ -29,7 +29,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test"
 )
 addCommandAlias(
   "testJS",
@@ -100,8 +100,8 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 88,
-    coverageMinimumBranchTotal := 83,
+    coverageMinimumStmtTotal   := 90,
+    coverageMinimumBranchTotal := 88,
     coverageExcludedPackages   := "zio.blocks.typeid.TypeIdMacros"
   )
 
