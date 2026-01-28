@@ -90,6 +90,5 @@ object DynamicSchemaExpr {
     case SchemaExpr.StringConcat(left, right)       => StringConcat(fromSchemaExpr(left), fromSchemaExpr(right))
     case SchemaExpr.StringRegexMatch(regex, string) => StringRegexMatch(fromSchemaExpr(regex), fromSchemaExpr(string))
     case SchemaExpr.StringLength(string)            => StringLength(fromSchemaExpr(string))
-    case _                                          => throw new IllegalArgumentException(s"Unsupported SchemaExpr: $expr")
   }
 }
