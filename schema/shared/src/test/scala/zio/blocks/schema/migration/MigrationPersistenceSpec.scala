@@ -20,7 +20,7 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
   // ─────────────────────────────────────────────────────────────────────────
 
   def dynamicRecord(fields: (String, DynamicValue)*): DynamicValue =
-    DynamicValue.Record(fields.toVector)
+    DynamicValue.Record(fields: _*)
 
   def dynamicString(s: String): DynamicValue =
     DynamicValue.Primitive(PrimitiveValue.String(s))

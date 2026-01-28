@@ -31,7 +31,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
   // ─────────────────────────────────────────────────────────────────────────
 
   def dynamicRecord(fields: (String, DynamicValue)*): DynamicValue =
-    DynamicValue.Record(fields.toVector)
+    DynamicValue.Record(fields: _*)
 
   def dynamicString(s: String): DynamicValue =
     DynamicValue.Primitive(PrimitiveValue.String(s))
@@ -43,7 +43,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
     DynamicValue.Primitive(PrimitiveValue.Boolean(b))
 
   def dynamicSequence(elements: DynamicValue*): DynamicValue =
-    DynamicValue.Sequence(elements.toVector)
+    DynamicValue.Sequence(elements: _*)
 
   def dynamicVariant(caseName: String, value: DynamicValue): DynamicValue =
     DynamicValue.Variant(caseName, value)
@@ -276,7 +276,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
         assertTrue(
           result == Right(
             dynamicRecord(
-              "required" -> dynamicVariant("Some", DynamicValue.Record(Vector(("value", dynamicInt(42)))))
+              "required" -> dynamicVariant("Some", DynamicValue.Record(("value", dynamicInt(42))))
             )
           )
         )

@@ -20,7 +20,7 @@ object VariantMigrationSpec extends SchemaBaseSpec {
   // ─────────────────────────────────────────────────────────────────────────
 
   def dynamicRecord(fields: (String, DynamicValue)*): DynamicValue =
-    DynamicValue.Record(fields.toVector)
+    DynamicValue.Record(fields: _*)
 
   def dynamicString(s: String): DynamicValue =
     DynamicValue.Primitive(PrimitiveValue.String(s))
@@ -291,7 +291,7 @@ object VariantMigrationSpec extends SchemaBaseSpec {
         val input  = dynamicVariant("Some", dynamicRecord("value" -> dynamicInt(42)))
         val result = action.apply(input)
         // Optionalize wraps in Schema-compatible Some: Variant("Some", Record(Vector(("value", inner))))
-        val expectedSome = dynamicVariant("Some", DynamicValue.Record(Vector(("value", dynamicInt(42)))))
+        val expectedSome = dynamicVariant("Some", DynamicValue.Record(("value", dynamicInt(42))))
         assertTrue(
           result == Right(
             dynamicVariant(
@@ -330,7 +330,7 @@ object VariantMigrationSpec extends SchemaBaseSpec {
           "a" -> dynamicInt(1),
           "b" -> dynamicRecord(
             "c" -> dynamicString("nested"),
-            "d" -> DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2)))
+            "d" -> DynamicValue.Sequence(dynamicInt(1), dynamicInt(2))
           )
         )
         val input  = dynamicVariant("Complex", nestedValue)

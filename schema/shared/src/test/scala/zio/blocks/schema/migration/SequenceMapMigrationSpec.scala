@@ -21,7 +21,7 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
   // ─────────────────────────────────────────────────────────────────────────
 
   def dynamicRecord(fields: (String, DynamicValue)*): DynamicValue =
-    DynamicValue.Record(fields.toVector)
+    DynamicValue.Record(fields: _*)
 
   def dynamicString(s: String): DynamicValue =
     DynamicValue.Primitive(PrimitiveValue.String(s))
@@ -33,10 +33,10 @@ object SequenceMapMigrationSpec extends SchemaBaseSpec {
     DynamicValue.Primitive(PrimitiveValue.Long(l))
 
   def dynamicSequence(elements: DynamicValue*): DynamicValue =
-    DynamicValue.Sequence(elements.toVector)
+    DynamicValue.Sequence(elements: _*)
 
   def dynamicMap(entries: (DynamicValue, DynamicValue)*): DynamicValue =
-    DynamicValue.Map(entries.toVector)
+    DynamicValue.Map(entries: _*)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Tests

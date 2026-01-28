@@ -50,7 +50,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
   // ─────────────────────────────────────────────────────────────────────────
 
   def dynamicRecord(fields: (String, DynamicValue)*): DynamicValue =
-    DynamicValue.Record(fields.toVector)
+    DynamicValue.Record(fields: _*)
 
   def dynamicString(s: String): DynamicValue =
     DynamicValue.Primitive(PrimitiveValue.String(s))
@@ -369,11 +369,9 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         assertTrue(
           result == Right(
             DynamicValue.Sequence(
-              Vector(
                 dynamicString("a"),
                 dynamicString("b"),
                 dynamicString("c")
-              )
             )
           )
         )
@@ -382,7 +380,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
         val expr = Resolved.WrapSome(Resolved.Literal.int(42))
         assertTrue(
           expr.evalDynamic == Right(
-            DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", dynamicInt(42)))))
+            DynamicValue.Variant("Some", DynamicValue.Record(("value", dynamicInt(42))))
           )
         )
       },

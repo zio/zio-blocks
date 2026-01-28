@@ -23,7 +23,7 @@ object TransformExpressionSpec extends SchemaBaseSpec {
   // ─────────────────────────────────────────────────────────────────────────
 
   def dynamicRecord(fields: (String, DynamicValue)*): DynamicValue =
-    DynamicValue.Record(fields.toVector)
+    DynamicValue.Record(fields: _*)
 
   def dynamicString(s: String): DynamicValue =
     DynamicValue.Primitive(PrimitiveValue.String(s))
@@ -41,13 +41,13 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     DynamicValue.Primitive(PrimitiveValue.Double(d))
 
   def dynamicSequence(elements: DynamicValue*): DynamicValue =
-    DynamicValue.Sequence(elements.toVector)
+    DynamicValue.Sequence(elements: _*)
 
   def dynamicSome(value: DynamicValue): DynamicValue =
-    DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", value))))
+    DynamicValue.Variant("Some", DynamicValue.Record(("value", value)))
 
   def dynamicNone: DynamicValue =
-    DynamicValue.Variant("None", DynamicValue.Record(Vector()))
+    DynamicValue.Variant("None", DynamicValue.Record())
 
   // ─────────────────────────────────────────────────────────────────────────
   // Tests

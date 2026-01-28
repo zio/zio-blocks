@@ -20,7 +20,7 @@ object OptionalityMigrationSpec extends SchemaBaseSpec {
   // ─────────────────────────────────────────────────────────────────────────
 
   def dynamicRecord(fields: (String, DynamicValue)*): DynamicValue =
-    DynamicValue.Record(fields.toVector)
+    DynamicValue.Record(fields: _*)
 
   def dynamicString(s: String): DynamicValue =
     DynamicValue.Primitive(PrimitiveValue.String(s))
@@ -29,10 +29,10 @@ object OptionalityMigrationSpec extends SchemaBaseSpec {
     DynamicValue.Primitive(PrimitiveValue.Int(i))
 
   def dynamicSome(value: DynamicValue): DynamicValue =
-    DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", value))))
+    DynamicValue.Variant("Some", DynamicValue.Record(("value", value)))
 
   def dynamicNone: DynamicValue =
-    DynamicValue.Variant("None", DynamicValue.Record(Vector()))
+    DynamicValue.Variant("None", DynamicValue.Record())
 
   // ─────────────────────────────────────────────────────────────────────────
   // Tests
@@ -193,7 +193,7 @@ object OptionalityMigrationSpec extends SchemaBaseSpec {
       },
       test("wraps sequence in Some") {
         val action   = MigrationAction.Optionalize(DynamicOptic.root, "items")
-        val sequence = DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2)))
+        val sequence = DynamicValue.Sequence(dynamicInt(1), dynamicInt(2))
         val input    = dynamicRecord("items" -> sequence)
         val result   = action.apply(input)
         assertTrue(result == Right(dynamicRecord("items" -> dynamicSome(sequence))))

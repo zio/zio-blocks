@@ -23,7 +23,7 @@ object RecordFieldMigrationSpec extends SchemaBaseSpec {
   // ─────────────────────────────────────────────────────────────────────────
 
   def dynamicRecord(fields: (String, DynamicValue)*): DynamicValue =
-    DynamicValue.Record(fields.toVector)
+    DynamicValue.Record(fields: _*)
 
   def dynamicString(s: String): DynamicValue =
     DynamicValue.Primitive(PrimitiveValue.String(s))
@@ -155,7 +155,7 @@ object RecordFieldMigrationSpec extends SchemaBaseSpec {
       },
       test("fails on sequence input") {
         val action = MigrationAction.AddField(DynamicOptic.root, "field", Resolved.Literal.int(1))
-        val input  = DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2)))
+        val input  = DynamicValue.Sequence(dynamicInt(1), dynamicInt(2))
         assertTrue(action.apply(input).isLeft)
       }
     ),

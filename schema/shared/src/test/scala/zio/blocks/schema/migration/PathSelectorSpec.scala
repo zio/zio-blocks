@@ -22,7 +22,7 @@ object PathSelectorSpec extends SchemaBaseSpec {
   // ─────────────────────────────────────────────────────────────────────────
 
   def dynamicRecord(fields: (String, DynamicValue)*): DynamicValue =
-    DynamicValue.Record(fields.toVector)
+    DynamicValue.Record(fields: _*)
 
   def dynamicString(s: String): DynamicValue =
     DynamicValue.Primitive(PrimitiveValue.String(s))
@@ -31,13 +31,13 @@ object PathSelectorSpec extends SchemaBaseSpec {
     DynamicValue.Primitive(PrimitiveValue.Int(i))
 
   def dynamicSequence(elements: DynamicValue*): DynamicValue =
-    DynamicValue.Sequence(elements.toVector)
+    DynamicValue.Sequence(elements: _*)
 
   def dynamicVariant(caseName: String, value: DynamicValue): DynamicValue =
     DynamicValue.Variant(caseName, value)
 
   def dynamicMap(entries: (DynamicValue, DynamicValue)*): DynamicValue =
-    DynamicValue.Map(entries.toVector)
+    DynamicValue.Map(entries: _*)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Tests

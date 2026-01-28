@@ -40,7 +40,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
                     value <- genPrimitiveValue
                   } yield (name, value)
                 )
-    } yield DynamicValue.Record(fields.distinctBy(_._1).toVector)
+    } yield DynamicValue.Record(fields.distinctBy(_._1).toSeq: _*)
 
   val genRenameAction: Gen[Any, MigrationAction.Rename] =
     for {
@@ -160,7 +160,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       test("rename preserves field value") {
         check(genFieldName, genFieldName, genPrimitiveValue) { (from, to, value) =>
           val action = MigrationAction.Rename(DynamicOptic.root, from, to)
-          val input  = DynamicValue.Record(Vector(from -> value))
+          val input  = DynamicValue.Record(from -> value)
           val result = action.apply(input)
           result match {
             case Right(DynamicValue.Record(fields)) =>
@@ -208,7 +208,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
           )
           val optimized = unoptimized.optimize
 
-          val input       = DynamicValue.Record(Vector(a -> value))
+          val input       = DynamicValue.Record(a -> value)
           val unoptResult = unoptimized.apply(input)
           val optResult   = optimized.apply(input)
 
@@ -266,7 +266,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       test("rename round-trip") {
         check(genFieldName, genFieldName, genPrimitiveValue) { (from, to, value) =>
           val forward = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, from, to))
-          val input   = DynamicValue.Record(Vector(from -> value))
+          val input   = DynamicValue.Record(from -> value)
 
           val result = for {
             migrated <- forward.apply(input)
@@ -278,7 +278,7 @@ object MigrationPropertySpec extends SchemaBaseSpec {
       },
       test("add/drop round-trip for existing field") {
         check(genFieldName, genPrimitiveValue, genPrimitiveValue) { (name, originalValue, defaultValue) =>
-          val input = DynamicValue.Record(Vector(name -> originalValue))
+          val input = DynamicValue.Record(name -> originalValue)
           val drop  = DynamicMigration.single(
             MigrationAction.DropField(DynamicOptic.root, name, Resolved.Literal(defaultValue))
           )

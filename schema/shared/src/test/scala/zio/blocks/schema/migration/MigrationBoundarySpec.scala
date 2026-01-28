@@ -23,7 +23,7 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
   // ─────────────────────────────────────────────────────────────────────────
 
   def dynamicRecord(fields: (String, DynamicValue)*): DynamicValue =
-    DynamicValue.Record(fields.toVector)
+    DynamicValue.Record(fields: _*)
 
   def dynamicString(s: String): DynamicValue =
     DynamicValue.Primitive(PrimitiveValue.String(s))
@@ -38,7 +38,7 @@ object MigrationBoundarySpec extends SchemaBaseSpec {
     DynamicValue.Primitive(PrimitiveValue.Double(d))
 
   def dynamicSequence(elements: DynamicValue*): DynamicValue =
-    DynamicValue.Sequence(elements.toVector)
+    DynamicValue.Sequence(elements: _*)
 
   def dynamicVariant(caseName: String, value: DynamicValue): DynamicValue =
     DynamicValue.Variant(caseName, value)
