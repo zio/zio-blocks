@@ -365,7 +365,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, String](
             new PrimitiveType.String(Validation.String.NonEmpty),
-          TypeId.of[String],
+            TypeId.of[String],
             Binding.Primitive()
           )
         )
@@ -375,7 +375,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, String](
             new PrimitiveType.String(Validation.String.Length(Some(3), Some(50))),
-          TypeId.of[String],
+            TypeId.of[String],
             Binding.Primitive()
           )
         )
@@ -385,7 +385,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, String](
             new PrimitiveType.String(Validation.String.Length(Some(3), None)),
-          TypeId.of[String],
+            TypeId.of[String],
             Binding.Primitive()
           )
         )
@@ -395,7 +395,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, String](
             new PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
-          TypeId.of[String],
+            TypeId.of[String],
             Binding.Primitive()
           )
         )
@@ -405,7 +405,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, Int](
             new PrimitiveType.Int(Validation.Numeric.Positive),
-          TypeId.of[Int],
+            TypeId.of[Int],
             Binding.Primitive()
           )
         )
@@ -415,7 +415,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, Int](
             new PrimitiveType.Int(Validation.Numeric.NonNegative),
-          TypeId.of[Int],
+            TypeId.of[Int],
             Binding.Primitive()
           )
         )
@@ -425,7 +425,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, Int](
             new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(100))),
-          TypeId.of[Int],
+            TypeId.of[Int],
             Binding.Primitive()
           )
         )
@@ -435,7 +435,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, Long](
             new PrimitiveType.Long(Validation.Numeric.Negative),
-          TypeId.of[Long],
+            TypeId.of[Long],
             Binding.Primitive()
           )
         )
