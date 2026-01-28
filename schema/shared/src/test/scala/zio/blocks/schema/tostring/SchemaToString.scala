@@ -7,6 +7,9 @@ import zio.test._
 
 object SchemaToStringSpec extends ZIOSpecDefault {
 
+  private def unsafeTypeId[A](ownerStr: String, name: String): TypeId[A] =
+    TypeId(DynamicTypeId(Owner.parse(ownerStr), name, Nil, TypeDefKind.Class(), Nil, Nil))
+
   def spec = suite("Schema toString")(
     suite("Primitive types")(
       test("renders String") {
@@ -493,7 +496,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
 
         val listReflect = Reflect.Sequence[Binding, Int, List](
           element = intReflect,
-          typeId = TypeId.of[List[Int]],
+          typeId = unsafeTypeId("", "List"),
           seqBinding = Binding.Seq.list
         )
 
@@ -515,7 +518,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val mapReflect = Reflect.Map[Binding, String, Int, scala.collection.immutable.Map](
           key = keyReflect,
           value = valueReflect,
-          typeId = TypeId.of[scala.collection.immutable.Map[String, Int]],
+          typeId = unsafeTypeId("", "Map"),
           mapBinding = Binding.Map.map
         )
 

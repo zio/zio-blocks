@@ -505,7 +505,7 @@ object TermToString extends ZIOSpecDefault {
 
         val listReflect = Reflect.Sequence[Binding, Int, List](
           element = intReflect,
-          typeId = TypeId.of[List[Int]],
+          typeId = unsafeTypeId("", "List"),
           seqBinding = Binding.Seq.list
         )
 
@@ -527,7 +527,7 @@ object TermToString extends ZIOSpecDefault {
         val mapReflect = Reflect.Map[Binding, String, Int, scala.collection.immutable.Map](
           key = keyReflect,
           value = valueReflect,
-          typeId = TypeId.of[scala.collection.immutable.Map[String, Int]],
+          typeId = unsafeTypeId("", "Map"),
           mapBinding = Binding.Map.map
         )
 
