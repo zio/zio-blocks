@@ -404,6 +404,98 @@ object IntoVersionSpecificSpec extends SchemaBaseSpec {
           )
         }
       )
+    ),
+    suite("tuple conversion macro coverage")(
+      test("converts tuple to case class with matching arity") {
+        case class Point(x: Int, y: Int)
+        val into   = Into.derived[(Int, Int), Point]
+        val result = into.into((10, 20))
+
+        assert(result)(isRight(equalTo(Point(10, 20))))
+      },
+      test("converts case class to tuple") {
+        case class Point(x: Int, y: Int)
+        val into   = Into.derived[Point, (Int, Int)]
+        val result = into.into(Point(10, 20))
+
+        assert(result)(isRight(equalTo((10, 20))))
+      },
+      test("converts tuple to tuple with element type coercion") {
+        val into   = Into.derived[(Int, Int), (Long, Long)]
+        val result = into.into((1, 2))
+
+        assert(result)(isRight(equalTo((1L, 2L))))
+      },
+      test("converts 3-element tuple to case class") {
+        case class Triple(a: Int, b: String, c: Boolean)
+        val into   = Into.derived[(Int, String, Boolean), Triple]
+        val result = into.into((1, "hello", true))
+
+        assert(result)(isRight(equalTo(Triple(1, "hello", true))))
+      },
+      test("converts case class to 3-element tuple") {
+        case class Triple(a: Int, b: String, c: Boolean)
+        val into   = Into.derived[Triple, (Int, String, Boolean)]
+        val result = into.into(Triple(1, "hello", true))
+
+        assert(result)(isRight(equalTo((1, "hello", true))))
+      }
+    ),
+    suite("primitive type macro coverage")(
+      test("converts Boolean to Boolean") {
+        val into = Into[Boolean, Boolean]
+        assert(into.into(true))(isRight(equalTo(true))) &&
+        assert(into.into(false))(isRight(equalTo(false)))
+      },
+      test("converts Unit to Unit") {
+        val into = Into[Unit, Unit]
+        assert(into.into(()))(isRight(equalTo(())))
+      },
+      test("converts primitive to single-field wrapper") {
+        case class Age(value: Int)
+        val into = Into.derived[Int, Age]
+        assert(into.into(42))(isRight(equalTo(Age(42))))
+      },
+      test("converts single-field wrapper to primitive") {
+        case class Age(value: Int)
+        val into = Into.derived[Age, Int]
+        assert(into.into(Age(42)))(isRight(equalTo(42)))
+      },
+      test("converts Byte single-field wrapper") {
+        case class ByteWrapper(value: Byte)
+        val into = Into.derived[Byte, ByteWrapper]
+        assert(into.into(42.toByte))(isRight(equalTo(ByteWrapper(42.toByte))))
+      },
+      test("converts Short single-field wrapper") {
+        case class ShortWrapper(value: Short)
+        val into = Into.derived[Short, ShortWrapper]
+        assert(into.into(42.toShort))(isRight(equalTo(ShortWrapper(42.toShort))))
+      },
+      test("converts Long single-field wrapper") {
+        case class LongWrapper(value: Long)
+        val into = Into.derived[Long, LongWrapper]
+        assert(into.into(42L))(isRight(equalTo(LongWrapper(42L))))
+      },
+      test("converts Float single-field wrapper") {
+        case class FloatWrapper(value: Float)
+        val into = Into.derived[Float, FloatWrapper]
+        assert(into.into(3.14f))(isRight(equalTo(FloatWrapper(3.14f))))
+      },
+      test("converts Double single-field wrapper") {
+        case class DoubleWrapper(value: Double)
+        val into = Into.derived[Double, DoubleWrapper]
+        assert(into.into(3.14))(isRight(equalTo(DoubleWrapper(3.14))))
+      },
+      test("converts Char single-field wrapper") {
+        case class CharWrapper(value: Char)
+        val into = Into.derived[Char, CharWrapper]
+        assert(into.into('X'))(isRight(equalTo(CharWrapper('X'))))
+      },
+      test("converts String single-field wrapper") {
+        case class StringWrapper(value: String)
+        val into = Into.derived[String, StringWrapper]
+        assert(into.into("hello"))(isRight(equalTo(StringWrapper("hello"))))
+      }
     )
   )
 }

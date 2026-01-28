@@ -195,7 +195,10 @@ private[schema] object CommonMacroOps {
     }
 
     loop(tpe)
-    types.toList
+    // Sort by full type symbol name to ensure consistent ordering across macro
+    // contexts. The OrType tree structure can differ when types pass through
+    // quotes, so we need a stable sort key that doesn't depend on tree structure.
+    types.toList.sortBy(_.typeSymbol.fullName)
   }
 
   def directSubTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): List[q.reflect.TypeRepr] = {

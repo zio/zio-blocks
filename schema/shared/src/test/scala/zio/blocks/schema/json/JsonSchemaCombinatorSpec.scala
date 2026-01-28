@@ -367,6 +367,91 @@ object JsonSchemaCombinatorSpec extends SchemaBaseSpec {
           testCases.forall(j => lhs.conforms(j) == a.conforms(j))
         )
       }
+    ),
+    suite("withNullable edge cases")(
+      test("withNullable on True returns True") {
+        assertTrue(JsonSchema.True.withNullable == JsonSchema.True)
+      },
+      test("withNullable on False creates nullable False") {
+        val result = JsonSchema.False.withNullable
+        // False.withNullable should result in a schema that allows null
+        assertTrue(result.conforms(Json.Null))
+      },
+      test("withNullable on string schema allows null") {
+        val nullable = stringSchema.withNullable
+        assertTrue(
+          nullable.conforms(Json.String("hello")),
+          nullable.conforms(Json.Null)
+        )
+      },
+      test("withNullable is idempotent") {
+        val nullable       = stringSchema.withNullable
+        val doubleNullable = nullable.withNullable
+        assertTrue(
+          nullable.conforms(Json.Null),
+          doubleNullable.conforms(Json.Null),
+          nullable.conforms(Json.String("test")),
+          doubleNullable.conforms(Json.String("test"))
+        )
+      }
+    ),
+    suite("&& (allOf) combinator edge cases")(
+      test("&& combines when left side already has allOf") {
+        val s1       = minLength3 && maxLength5
+        val combined = s1 && stringSchema
+        assertTrue(
+          combined.conforms(Json.String("abc")),
+          !combined.conforms(Json.String("ab"))
+        )
+      },
+      test("&& combines when right side already has allOf") {
+        val s1       = minLength3 && maxLength5
+        val combined = stringSchema && s1
+        assertTrue(
+          combined.conforms(Json.String("abcd")),
+          !combined.conforms(Json.String("ab"))
+        )
+      },
+      test("&& combines when both sides have allOf") {
+        val s1       = minLength3 && maxLength5
+        val s2       = stringSchema && stringSchema
+        val combined = s1 && s2
+        assertTrue(
+          combined.conforms(Json.String("abc")),
+          !combined.conforms(Json.String("ab"))
+        )
+      }
+    ),
+    suite("|| (anyOf) combinator edge cases")(
+      test("|| combines when left side already has anyOf") {
+        val s1       = stringSchema || integerSchema
+        val combined = s1 || booleanSchema
+        assertTrue(
+          combined.conforms(Json.String("hello")),
+          combined.conforms(Json.Number(42)),
+          combined.conforms(Json.True)
+        )
+      },
+      test("|| combines when right side already has anyOf") {
+        val s1       = stringSchema || integerSchema
+        val combined = booleanSchema || s1
+        assertTrue(
+          combined.conforms(Json.String("hello")),
+          combined.conforms(Json.Number(42)),
+          combined.conforms(Json.False)
+        )
+      },
+      test("|| combines when both sides have anyOf") {
+        val s1       = stringSchema || integerSchema
+        val s2       = booleanSchema || nullSchema
+        val combined = s1 || s2
+        assertTrue(
+          combined.conforms(Json.String("hello")),
+          combined.conforms(Json.Number(42)),
+          combined.conforms(Json.True),
+          combined.conforms(Json.Null)
+        )
+      }
     )
   )
 }
