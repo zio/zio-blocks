@@ -300,7 +300,10 @@ object PrimitiveConversions {
       // ─────────────────────────────────────────────────────────────────────
       case ("String", "Currency", DynamicValue.Primitive(PrimitiveValue.String(s))) =>
         try Right(DynamicValue.Primitive(PrimitiveValue.Currency(java.util.Currency.getInstance(s))))
-        catch { case _: IllegalArgumentException => Left(s"Cannot parse '$s' as Currency") }
+        catch {
+          case _: IllegalArgumentException => Left(s"Cannot parse '$s' as Currency")
+          case _: NoSuchElementException   => Left(s"Cannot parse '$s' as Currency")
+        }
 
       // ─────────────────────────────────────────────────────────────────────
       // Char <-> Int conversions

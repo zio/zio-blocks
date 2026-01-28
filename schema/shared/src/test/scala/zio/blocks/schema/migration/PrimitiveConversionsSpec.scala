@@ -550,6 +550,149 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
       test("String -> Currency") {
         val result = convert("String", "Currency", dynamicString("USD"))
         assertTrue(result.isRight)
+      },
+      test("String -> Instant") {
+        val result = convert("String", "Instant", dynamicString("2024-01-15T10:30:00Z"))
+        assertTrue(result.isRight)
+      },
+      test("String -> OffsetDateTime") {
+        val result = convert("String", "OffsetDateTime", dynamicString("2024-01-15T10:30:00+01:00"))
+        assertTrue(result.isRight)
+      },
+      test("String -> OffsetTime") {
+        val result = convert("String", "OffsetTime", dynamicString("10:30:00+01:00"))
+        assertTrue(result.isRight)
+      },
+      test("String -> ZonedDateTime") {
+        val result = convert("String", "ZonedDateTime", dynamicString("2024-01-15T10:30:00+01:00[Europe/Paris]"))
+        assertTrue(result.isRight)
+      },
+      test("String -> ZoneId") {
+        val result = convert("String", "ZoneId", dynamicString("Europe/Paris"))
+        assertTrue(result.isRight)
+      },
+      test("String -> ZoneOffset") {
+        val result = convert("String", "ZoneOffset", dynamicString("+01:00"))
+        assertTrue(result.isRight)
+      }
+    ),
+    suite("Temporal to String conversions")(
+      test("Instant -> String") {
+        val instant = java.time.Instant.parse("2024-01-15T10:30:00Z")
+        val input   = DynamicValue.Primitive(PrimitiveValue.Instant(instant))
+        val result  = convert("Instant", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("LocalDate -> String") {
+        val ld     = java.time.LocalDate.parse("2024-01-15")
+        val input  = DynamicValue.Primitive(PrimitiveValue.LocalDate(ld))
+        val result = convert("LocalDate", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("LocalTime -> String") {
+        val lt     = java.time.LocalTime.parse("10:30:00")
+        val input  = DynamicValue.Primitive(PrimitiveValue.LocalTime(lt))
+        val result = convert("LocalTime", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("LocalDateTime -> String") {
+        val ldt    = java.time.LocalDateTime.parse("2024-01-15T10:30:00")
+        val input  = DynamicValue.Primitive(PrimitiveValue.LocalDateTime(ldt))
+        val result = convert("LocalDateTime", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("Duration -> String") {
+        val d      = java.time.Duration.parse("PT1H30M")
+        val input  = DynamicValue.Primitive(PrimitiveValue.Duration(d))
+        val result = convert("Duration", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("Period -> String") {
+        val p      = java.time.Period.parse("P1Y2M3D")
+        val input  = DynamicValue.Primitive(PrimitiveValue.Period(p))
+        val result = convert("Period", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("Year -> String") {
+        val y      = java.time.Year.parse("2024")
+        val input  = DynamicValue.Primitive(PrimitiveValue.Year(y))
+        val result = convert("Year", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("YearMonth -> String") {
+        val ym     = java.time.YearMonth.parse("2024-01")
+        val input  = DynamicValue.Primitive(PrimitiveValue.YearMonth(ym))
+        val result = convert("YearMonth", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("MonthDay -> String") {
+        val md     = java.time.MonthDay.parse("--01-15")
+        val input  = DynamicValue.Primitive(PrimitiveValue.MonthDay(md))
+        val result = convert("MonthDay", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("DayOfWeek -> String") {
+        val dow    = java.time.DayOfWeek.MONDAY
+        val input  = DynamicValue.Primitive(PrimitiveValue.DayOfWeek(dow))
+        val result = convert("DayOfWeek", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("Month -> String") {
+        val m      = java.time.Month.JANUARY
+        val input  = DynamicValue.Primitive(PrimitiveValue.Month(m))
+        val result = convert("Month", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("ZoneId -> String") {
+        val zid    = java.time.ZoneId.of("Europe/Paris")
+        val input  = DynamicValue.Primitive(PrimitiveValue.ZoneId(zid))
+        val result = convert("ZoneId", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("ZoneOffset -> String") {
+        val zo     = java.time.ZoneOffset.of("+01:00")
+        val input  = DynamicValue.Primitive(PrimitiveValue.ZoneOffset(zo))
+        val result = convert("ZoneOffset", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("OffsetDateTime -> String") {
+        val odt    = java.time.OffsetDateTime.parse("2024-01-15T10:30:00+01:00")
+        val input  = DynamicValue.Primitive(PrimitiveValue.OffsetDateTime(odt))
+        val result = convert("OffsetDateTime", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("OffsetTime -> String") {
+        val ot     = java.time.OffsetTime.parse("10:30:00+01:00")
+        val input  = DynamicValue.Primitive(PrimitiveValue.OffsetTime(ot))
+        val result = convert("OffsetTime", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("ZonedDateTime -> String") {
+        val zdt    = java.time.ZonedDateTime.parse("2024-01-15T10:30:00+01:00[Europe/Paris]")
+        val input  = DynamicValue.Primitive(PrimitiveValue.ZonedDateTime(zdt))
+        val result = convert("ZonedDateTime", "String", input)
+        assertTrue(result.isRight)
+      },
+      test("Currency -> String") {
+        val c      = java.util.Currency.getInstance("USD")
+        val input  = DynamicValue.Primitive(PrimitiveValue.Currency(c))
+        val result = convert("Currency", "String", input)
+        assertTrue(result == Right(dynamicString("USD")))
+      },
+      test("Unit -> String") {
+        val input  = DynamicValue.Primitive(PrimitiveValue.Unit)
+        val result = convert("Unit", "String", input)
+        assertTrue(result == Right(dynamicString("()")))
+      },
+      test("Byte -> String") {
+        assertTrue(convert("Byte", "String", dynamicByte(42)) == Right(dynamicString("42")))
+      },
+      test("Short -> String") {
+        assertTrue(convert("Short", "String", dynamicShort(1000)) == Right(dynamicString("1000")))
+      },
+      test("Float -> String") {
+        val result = convert("Float", "String", dynamicFloat(3.14f))
+        assertTrue(result.isRight)
       }
     )
   )

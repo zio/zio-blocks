@@ -691,6 +691,102 @@ object TransformExpressionSpec extends SchemaBaseSpec {
       test("convert Boolean to String") {
         val expr = Resolved.Convert("Boolean", "String", Resolved.Identity)
         assertTrue(expr.evalDynamic(dynamicBool(true)) == Right(dynamicString("true")))
+      },
+      test("convert with inner expression error propagates") {
+        val expr = Resolved.Convert("Int", "String", Resolved.Fail("inner error"))
+        assertTrue(expr.evalDynamic(dynamicInt(42)).isLeft)
+      },
+      test("unsupported conversion returns error") {
+        val expr = Resolved.Convert("Boolean", "Long", Resolved.Identity)
+        assertTrue(expr.evalDynamic(dynamicBool(true)).isLeft)
+      }
+    ),
+    suite("Compose expression extended")(
+      test("compose without input when inner requires input") {
+        val expr = Resolved.Compose(Resolved.Literal.int(1), Resolved.Identity)
+        assertTrue(expr.evalDynamic.isLeft)
+      },
+      test("compose two literals") {
+        val expr = Resolved.Compose(Resolved.Literal.int(1), Resolved.Literal.int(2))
+        assertTrue(expr.evalDynamic == Right(dynamicInt(1)))
+      }
+    ),
+    suite("FieldAccess extended")(
+      test("nested field access") {
+        val expr  = Resolved.FieldAccess("inner", Resolved.FieldAccess("outer", Resolved.Identity))
+        val input = dynamicRecord("outer" -> dynamicRecord("inner" -> dynamicInt(42)))
+        assertTrue(expr.evalDynamic(input) == Right(dynamicInt(42)))
+      }
+    ),
+    suite("Concat extended")(
+      test("concat with mixed types") {
+        val expr = Resolved.Concat(
+          Vector(
+            Resolved.Literal.string("value: "),
+            Resolved.Literal.int(42)
+          ),
+          ""
+        )
+        val result = expr.evalDynamic
+        assertTrue(result.isRight)
+      },
+      test("concat with input using FieldAccess") {
+        val expr = Resolved.Concat(
+          Vector(
+            Resolved.FieldAccess("first", Resolved.Identity),
+            Resolved.FieldAccess("second", Resolved.Identity)
+          ),
+          "-"
+        )
+        val input = dynamicRecord("first" -> dynamicString("a"), "second" -> dynamicString("b"))
+        assertTrue(expr.evalDynamic(input) == Right(dynamicString("a-b")))
+      }
+    ),
+    suite("Construct extended")(
+      test("construct with input-dependent fields") {
+        val expr = Resolved.Construct(
+          Vector(
+            "copied" -> Resolved.FieldAccess("source", Resolved.Identity)
+          )
+        )
+        val input = dynamicRecord("source" -> dynamicInt(42))
+        assertTrue(expr.evalDynamic(input) == Right(dynamicRecord("copied" -> dynamicInt(42))))
+      }
+    ),
+    suite("ConstructSeq extended")(
+      test("construct seq with input-dependent elements") {
+        val expr = Resolved.ConstructSeq(
+          Vector(
+            Resolved.FieldAccess("x", Resolved.Identity),
+            Resolved.FieldAccess("y", Resolved.Identity)
+          )
+        )
+        val input = dynamicRecord("x" -> dynamicInt(1), "y" -> dynamicInt(2))
+        assertTrue(expr.evalDynamic(input) == Right(dynamicSequence(dynamicInt(1), dynamicInt(2))))
+      }
+    ),
+    suite("OpticAccess extended")(
+      test("optic access with inner transformation") {
+        val expr =
+          Resolved.OpticAccess(DynamicOptic.root.field("value"), Resolved.Convert("Int", "String", Resolved.Identity))
+        val input = dynamicRecord("value" -> dynamicInt(42))
+        assertTrue(expr.evalDynamic(input) == Right(dynamicString("42")))
+      }
+    ),
+    suite("DefaultValue extended")(
+      test("fromValue creates successful default") {
+        val expr = Resolved.DefaultValue(Right(dynamicInt(100)))
+        assertTrue(expr.evalDynamic == Right(dynamicInt(100)))
+        assertTrue(expr.evalDynamic(dynamicString("ignored")) == Right(dynamicInt(100)))
+      }
+    ),
+    suite("GetOrElse extended")(
+      test("getOrElse with Some missing value field") {
+        val expr = Resolved.GetOrElse(
+          Resolved.Literal(DynamicValue.Variant("Some", dynamicRecord("other" -> dynamicInt(1)))),
+          Resolved.Literal.int(99)
+        )
+        assertTrue(expr.evalDynamic == Right(dynamicInt(99)))
       }
     )
   )
