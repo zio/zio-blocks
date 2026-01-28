@@ -286,6 +286,150 @@ object BindingOfSpec extends SchemaBaseSpec {
       test("Right[String, Int]") {
         val binding = Binding.of[Right[String, Int]]
         assertTrue(binding.isInstanceOf[Binding.Record[_]])
+      },
+      test("Left[Int, _] roundtrip") {
+        val binding   = Binding.Record.leftInt[String]
+        val original  = Left[Int, String](42)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Left[Long, _] roundtrip") {
+        val binding   = Binding.Record.leftLong[String]
+        val original  = Left[Long, String](42L)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Left[Double, _] roundtrip") {
+        val binding   = Binding.Record.leftDouble[String]
+        val original  = Left[Double, String](3.14)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Left[Float, _] roundtrip") {
+        val binding   = Binding.Record.leftFloat[String]
+        val original  = Left[Float, String](3.14f)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Left[Boolean, _] roundtrip") {
+        val binding   = Binding.Record.leftBoolean[String]
+        val original  = Left[Boolean, String](true)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Left[Byte, _] roundtrip") {
+        val binding   = Binding.Record.leftByte[String]
+        val original  = Left[Byte, String](42.toByte)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Left[Short, _] roundtrip") {
+        val binding   = Binding.Record.leftShort[String]
+        val original  = Left[Short, String](42.toShort)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Left[Char, _] roundtrip") {
+        val binding   = Binding.Record.leftChar[String]
+        val original  = Left[Char, String]('x')
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Left[Unit, _] roundtrip") {
+        val binding   = Binding.Record.leftUnit[String]
+        val original  = Left[Unit, String](())
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Right[_, Int] roundtrip") {
+        val binding   = Binding.Record.rightInt[String]
+        val original  = Right[String, Int](42)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Right[_, Long] roundtrip") {
+        val binding   = Binding.Record.rightLong[String]
+        val original  = Right[String, Long](42L)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Right[_, Double] roundtrip") {
+        val binding   = Binding.Record.rightDouble[String]
+        val original  = Right[String, Double](3.14)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Right[_, Float] roundtrip") {
+        val binding   = Binding.Record.rightFloat[String]
+        val original  = Right[String, Float](3.14f)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Right[_, Boolean] roundtrip") {
+        val binding   = Binding.Record.rightBoolean[String]
+        val original  = Right[String, Boolean](true)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Right[_, Byte] roundtrip") {
+        val binding   = Binding.Record.rightByte[String]
+        val original  = Right[String, Byte](42.toByte)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Right[_, Short] roundtrip") {
+        val binding   = Binding.Record.rightShort[String]
+        val original  = Right[String, Short](42.toShort)
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Right[_, Char] roundtrip") {
+        val binding   = Binding.Record.rightChar[String]
+        val original  = Right[String, Char]('x')
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("Right[_, Unit] roundtrip") {
+        val binding   = Binding.Record.rightUnit[String]
+        val original  = Right[String, Unit](())
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
       }
     ),
     suite("collections - concrete types")(
@@ -477,6 +621,310 @@ object BindingOfSpec extends SchemaBaseSpec {
         binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
         val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
         assertTrue(reconstructed == original)
+      }
+    ),
+    suite("Array bindings for Schema.derived delegation")(
+      test("Array[Int] binding exists") {
+        val binding = Binding.of[Array[Int]]
+        assertTrue(isSeq(binding))
+      },
+      test("Array[Int] construct empty") {
+        val binding     = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
+        val constructor = binding.constructor
+        val result      = constructor.emptyObject[Int]
+        assertTrue(result.isEmpty && result.isInstanceOf[Array[Int]])
+      },
+      test("Array[Int] construct from builder") {
+        val binding     = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Int](3)
+        constructor.addObject(builder, 1)
+        constructor.addObject(builder, 2)
+        constructor.addObject(builder, 3)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1, 2, 3))
+      },
+      test("Array[Int] deconstruct works") {
+        val binding       = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
+        val deconstructor = binding.deconstructor
+        val arr           = Array(1, 2, 3)
+        val result        = deconstructor.deconstruct(arr)
+        assertTrue(result.toList == List(1, 2, 3))
+      },
+      test("Array[String] binding") {
+        val binding     = Binding.of[Array[String]].asInstanceOf[Binding.Seq[Array, String]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[String](2)
+        constructor.addObject(builder, "hello")
+        constructor.addObject(builder, "world")
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List("hello", "world"))
+      },
+      test("Array[Double] binding") {
+        val binding     = Binding.of[Array[Double]].asInstanceOf[Binding.Seq[Array, Double]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Double](2)
+        constructor.addObject(builder, 1.5)
+        constructor.addObject(builder, 2.5)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1.5, 2.5))
+      },
+      test("Array[Boolean] binding") {
+        val binding     = Binding.of[Array[Boolean]].asInstanceOf[Binding.Seq[Array, Boolean]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Boolean](2)
+        constructor.addObject(builder, true)
+        constructor.addObject(builder, false)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(true, false))
+      },
+      test("Array[Byte] binding") {
+        val binding     = Binding.of[Array[Byte]].asInstanceOf[Binding.Seq[Array, Byte]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Byte](2)
+        constructor.addObject(builder, 1.toByte)
+        constructor.addObject(builder, 2.toByte)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1.toByte, 2.toByte))
+      },
+      test("Array[Short] binding") {
+        val binding     = Binding.of[Array[Short]].asInstanceOf[Binding.Seq[Array, Short]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Short](2)
+        constructor.addObject(builder, 1.toShort)
+        constructor.addObject(builder, 2.toShort)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1.toShort, 2.toShort))
+      },
+      test("Array[Long] binding") {
+        val binding     = Binding.of[Array[Long]].asInstanceOf[Binding.Seq[Array, Long]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Long](2)
+        constructor.addObject(builder, 1L)
+        constructor.addObject(builder, 2L)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1L, 2L))
+      },
+      test("Array[Float] binding") {
+        val binding     = Binding.of[Array[Float]].asInstanceOf[Binding.Seq[Array, Float]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Float](2)
+        constructor.addObject(builder, 1.5f)
+        constructor.addObject(builder, 2.5f)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1.5f, 2.5f))
+      },
+      test("Array[Char] binding") {
+        val binding     = Binding.of[Array[Char]].asInstanceOf[Binding.Seq[Array, Char]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Char](2)
+        constructor.addObject(builder, 'a')
+        constructor.addObject(builder, 'b')
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List('a', 'b'))
+      },
+      test("Array[Person] (case class elements)") {
+        val binding     = Binding.of[Array[Person]].asInstanceOf[Binding.Seq[Array, Person]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Person](2)
+        constructor.addObject(builder, Person("Alice", 30))
+        constructor.addObject(builder, Person("Bob", 25))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(Person("Alice", 30), Person("Bob", 25)))
+      },
+      test("Array builder grows correctly") {
+        val binding     = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Int](1)
+        (1 to 100).foreach(i => constructor.addObject(builder, i))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 100 && result.toList == (1 to 100).toList)
+      }
+    ),
+    suite("ArraySeq bindings for Schema.derived delegation")(
+      test("ArraySeq[Int] binding exists") {
+        val binding = Binding.of[ArraySeq[Int]]
+        assertTrue(isSeq(binding))
+      },
+      test("ArraySeq[Int] construct empty") {
+        val binding     = Binding.of[ArraySeq[Int]].asInstanceOf[Binding.Seq[ArraySeq, Int]]
+        val constructor = binding.constructor
+        val result      = constructor.emptyObject[Int]
+        assertTrue(result.isEmpty)
+      },
+      test("ArraySeq[Int] construct from builder") {
+        val binding     = Binding.of[ArraySeq[Int]].asInstanceOf[Binding.Seq[ArraySeq, Int]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Int](3)
+        constructor.addObject(builder, 1)
+        constructor.addObject(builder, 2)
+        constructor.addObject(builder, 3)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1, 2, 3))
+      },
+      test("ArraySeq[Int] deconstruct works") {
+        val binding       = Binding.of[ArraySeq[Int]].asInstanceOf[Binding.Seq[ArraySeq, Int]]
+        val deconstructor = binding.deconstructor
+        val arr           = ArraySeq(1, 2, 3)
+        val result        = deconstructor.deconstruct(arr)
+        assertTrue(result.toList == List(1, 2, 3))
+      },
+      test("ArraySeq[String] binding") {
+        val binding     = Binding.of[ArraySeq[String]].asInstanceOf[Binding.Seq[ArraySeq, String]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[String](2)
+        constructor.addObject(builder, "hello")
+        constructor.addObject(builder, "world")
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List("hello", "world"))
+      },
+      test("ArraySeq[Double] binding") {
+        val binding     = Binding.of[ArraySeq[Double]].asInstanceOf[Binding.Seq[ArraySeq, Double]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Double](2)
+        constructor.addObject(builder, 1.5)
+        constructor.addObject(builder, 2.5)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1.5, 2.5))
+      },
+      test("ArraySeq builder grows correctly") {
+        val binding     = Binding.of[ArraySeq[Int]].asInstanceOf[Binding.Seq[ArraySeq, Int]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Int](1)
+        (1 to 100).foreach(i => constructor.addObject(builder, i))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 100 && result.toList == (1 to 100).toList)
+      }
+    ),
+    suite("sealed trait Binding.Variant for Schema.derived delegation")(
+      test("sealed trait Binding.of creates Variant") {
+        val binding = Binding.of[Color]
+        assertTrue(binding.isInstanceOf[Binding.Variant[_]])
+      },
+      test("sealed trait discriminator indexes all subtypes") {
+        val binding = Binding.of[Color].asInstanceOf[Binding.Variant[Color]]
+        assertTrue(
+          binding.discriminator.discriminate(Red) >= 0 &&
+            binding.discriminator.discriminate(Green) >= 0 &&
+            binding.discriminator.discriminate(Blue) >= 0 &&
+            binding.discriminator.discriminate(Red) != binding.discriminator.discriminate(Green) &&
+            binding.discriminator.discriminate(Green) != binding.discriminator.discriminate(Blue)
+        )
+      },
+      test("sealed trait matchers can identify each case object") {
+        val binding    = Binding.of[Color].asInstanceOf[Binding.Variant[Color]]
+        val redIdx     = binding.discriminator.discriminate(Red)
+        val greenIdx   = binding.discriminator.discriminate(Green)
+        val blueIdx    = binding.discriminator.discriminate(Blue)
+        val redMatch   = binding.matchers(redIdx).downcastOrNull(Red)
+        val greenCheck = binding.matchers(redIdx).downcastOrNull(Green)
+        val greenMatch = binding.matchers(greenIdx).downcastOrNull(Green)
+        val blueMatch  = binding.matchers(blueIdx).downcastOrNull(Blue)
+        assertTrue(
+          redMatch == Red &&
+            greenCheck == null &&
+            greenMatch == Green &&
+            blueMatch == Blue
+        )
+      },
+      test("sealed trait with case class subtypes") {
+        val binding = Binding.of[Shape].asInstanceOf[Binding.Variant[Shape]]
+        val circle  = Circle(5.0)
+        val rect    = Rectangle(3.0, 4.0)
+        assertTrue(
+          binding.discriminator.discriminate(circle) >= 0 &&
+            binding.discriminator.discriminate(rect) >= 0 &&
+            binding.discriminator.discriminate(circle) != binding.discriminator.discriminate(rect)
+        )
+      },
+      test("sealed trait matchers identify case class subtypes") {
+        val binding     = Binding.of[Shape].asInstanceOf[Binding.Variant[Shape]]
+        val circle      = Circle(5.0)
+        val rect        = Rectangle(3.0, 4.0)
+        val circleIdx   = binding.discriminator.discriminate(circle)
+        val rectIdx     = binding.discriminator.discriminate(rect)
+        val circleMatch = binding.matchers(circleIdx).downcastOrNull(circle)
+        val rectCheck   = binding.matchers(circleIdx).downcastOrNull(rect)
+        val rectMatch   = binding.matchers(rectIdx).downcastOrNull(rect)
+        assertTrue(
+          circleMatch == circle &&
+            rectCheck == null &&
+            rectMatch == rect
+        )
+      },
+      test("matchers count equals subtypes count") {
+        val colorBinding = Binding.of[Color].asInstanceOf[Binding.Variant[Color]]
+        val shapeBinding = Binding.of[Shape].asInstanceOf[Binding.Variant[Shape]]
+        assertTrue(
+          colorBinding.matchers.matchers.length == 3 &&
+            shapeBinding.matchers.matchers.length == 2
+        )
+      },
+      test("Option binding creates Variant") {
+        val binding = Binding.of[Option[Int]]
+        assertTrue(binding.isInstanceOf[Binding.Variant[_]])
+      },
+      test("Option discriminator works") {
+        val binding = Binding.of[Option[Int]].asInstanceOf[Binding.Variant[Option[Int]]]
+        assertTrue(
+          binding.discriminator.discriminate(None) >= 0 &&
+            binding.discriminator.discriminate(Some(42)) >= 0 &&
+            binding.discriminator.discriminate(None) != binding.discriminator.discriminate(Some(42))
+        )
+      },
+      test("Either binding creates Variant") {
+        val binding = Binding.of[Either[String, Int]]
+        assertTrue(binding.isInstanceOf[Binding.Variant[_]])
+      },
+      test("Either discriminator works") {
+        val binding = Binding.of[Either[String, Int]].asInstanceOf[Binding.Variant[Either[String, Int]]]
+        assertTrue(
+          binding.discriminator.discriminate(Left("err")) >= 0 &&
+            binding.discriminator.discriminate(Right(42)) >= 0 &&
+            binding.discriminator.discriminate(Left("err")) != binding.discriminator.discriminate(Right(42))
+        )
+      }
+    ),
+    suite("nested sealed traits")(
+      test("sealed trait containing sealed trait subtypes") {
+        sealed trait Outer
+        sealed trait Inner extends Outer
+        case object A      extends Inner
+        case object B      extends Inner
+        case object C      extends Outer
+
+        val binding = Binding.of[Outer].asInstanceOf[Binding.Variant[Outer]]
+        assertTrue(
+          binding.discriminator.discriminate(A) >= 0 &&
+            binding.discriminator.discriminate(B) >= 0 &&
+            binding.discriminator.discriminate(C) >= 0
+        )
+      }
+    ),
+    suite("complex composite types")(
+      test("Array of sealed trait") {
+        val binding = Binding.of[Array[Color]]
+        assertTrue(isSeq(binding))
+      },
+      test("Array of case class with sealed trait field") {
+        case class Container(color: Color, value: Int)
+        val binding     = Binding.of[Array[Container]].asInstanceOf[Binding.Seq[Array, Container]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Container](2)
+        constructor.addObject(builder, Container(Red, 1))
+        constructor.addObject(builder, Container(Blue, 2))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(Container(Red, 1), Container(Blue, 2)))
+      },
+      test("ArraySeq of Option") {
+        val binding     = Binding.of[ArraySeq[Option[Int]]].asInstanceOf[Binding.Seq[ArraySeq, Option[Int]]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Option[Int]](3)
+        constructor.addObject(builder, Some(1))
+        constructor.addObject(builder, None)
+        constructor.addObject(builder, Some(3))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(Some(1), None, Some(3)))
       }
     )
   )

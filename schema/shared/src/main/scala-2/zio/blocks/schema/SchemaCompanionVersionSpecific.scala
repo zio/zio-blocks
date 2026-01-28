@@ -453,10 +453,7 @@ private object SchemaCompanionVersionSpecific {
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector.empty,
               typeName = $tpeName,
-              recordBinding = new Binding.Record(
-                constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
-                deconstructor = new ConstantDeconstructor[$tpe]
-              ),
+              recordBinding = Binding.of[$tpe].asInstanceOf[Binding.Record[$tpe]],
               modifiers = ${modifiers(tpe)}
             )
           )"""
@@ -469,21 +466,8 @@ private object SchemaCompanionVersionSpecific {
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
               typeName = $tpeName,
-              recordBinding = new Binding.Record(
-                constructor = new Constructor[$tpe] {
-                  def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
-
-                  def construct(in: Registers, offset: RegisterOffset): $tpe = ${classInfo.constructor}
-                },
-                deconstructor = new Deconstructor[$tpe] {
-                  def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
-
-                  def deconstruct(out: Registers, offset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
-                    ..${classInfo.deconstructor}
-                  }
-                }
-              ),
-              modifiers = ${modifiers(tpe)},
+              recordBinding = Binding.of[$tpe].asInstanceOf[Binding.Record[$tpe]],
+              modifiers = ${modifiers(tpe)}
             )
           )"""
     }
@@ -510,33 +494,12 @@ private object SchemaCompanionVersionSpecific {
           q"$schema.reflect.asTerm($caseName).copy(modifiers = $ms)"
         }
       }
-      val discrCases = subtypes.map {
-        var idx = -1
-        sTpe =>
-          idx += 1
-          cq"_: $sTpe @_root_.scala.unchecked => $idx"
-      }
-      val matcherCases = subtypes.map { sTpe =>
-        q"""new Matcher[$sTpe] {
-              def downcastOrNull(a: Any): $sTpe = a match {
-                case x: $sTpe @_root_.scala.unchecked => x
-                case _ => null.asInstanceOf[$sTpe]
-              }
-            }"""
-      }
       val tpeName = toTree(typeName(tpe))
       q"""new Schema(
             reflect = new Reflect.Variant[Binding, $tpe](
               cases = _root_.scala.Vector(..$cases),
               typeName = $tpeName,
-              variantBinding = new Binding.Variant(
-                discriminator = new Discriminator[$tpe] {
-                  def discriminate(a: $tpe): Int = a match {
-                    case ..$discrCases
-                  }
-                },
-                matchers = Matchers(..$matcherCases),
-              ),
+              variantBinding = Binding.of[$tpe].asInstanceOf[Binding.Variant[$tpe]],
               modifiers = ${modifiers(tpe)}
             )
           )"""

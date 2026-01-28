@@ -102,24 +102,8 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     case _                   => Nil
   }
 
-  private def directSubTypes(tpe: Type): List[Type] = {
-    val symbol = tpe.typeSymbol
-    if (symbol.isClass && symbol.asClass.isSealed) {
-      symbol.asClass.knownDirectSubclasses.toList.map { subSymbol =>
-        if (subSymbol.isModuleClass) subSymbol.asClass.module.typeSignature
-        else if (subSymbol.isClass) {
-          val subClass = subSymbol.asClass
-          if (subClass.typeParams.isEmpty) subClass.toType
-          else {
-            val tArgs = typeArgs(tpe)
-            if (tArgs.nonEmpty && subClass.typeParams.size == tArgs.size)
-              appliedType(subClass.toType.typeConstructor, tArgs)
-            else subClass.toType
-          }
-        } else subSymbol.typeSignature
-      }
-    } else Nil
-  }
+  private def directSubTypes(tpe: Type): List[Type] =
+    zio.blocks.schema.CommonMacroOps.directSubTypes(c)(tpe)
 
   private def isIterator(tpe: Type): Boolean = tpe <:< typeOf[Iterator[_]]
 
@@ -131,25 +115,43 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
 
   private def typeRefDealias(tpe: Type): Type = tpe.dealias
 
-  private def isZioPreludeNewtype(tpe: Type): Boolean = tpe match {
+  private def isZioPreludeNewtypeImpl(tpe: Type): Boolean = tpe match {
     case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-      compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
+      compTpe.baseClasses.exists { cls =>
+        val fullName = cls.fullName
+        fullName == "zio.prelude.Newtype" || fullName == "zio.prelude.Subtype"
+      }
     case _ => false
   }
 
-  private def zioPreludeNewtypeDealias(tpe: Type): Type = tpe match {
-    case TypeRef(compTpe, _, _) =>
-      compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
-        case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
-        case _         => fail(s"Cannot dealias zio-prelude newtype: $tpe")
-      }
-    case _ => fail(s"Cannot dealias zio-prelude newtype: $tpe")
+  private def isZioPreludeNewtype(tpe: Type): Boolean =
+    isZioPreludeNewtypeImpl(tpe) || isZioPreludeNewtypeImpl(tpe.dealias)
+
+  private def zioPreludeNewtypeDealias(tpe: Type): Type = {
+    val t = if (isZioPreludeNewtypeImpl(tpe)) tpe else tpe.dealias
+    t match {
+      case TypeRef(compTpe, _, _) =>
+        val newtypeOpt = compTpe.baseClasses.find { cls =>
+          val fullName = cls.fullName
+          fullName == "zio.prelude.Newtype" || fullName == "zio.prelude.Subtype"
+        }
+        newtypeOpt match {
+          case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
+          case _         => fail(s"Cannot dealias zio-prelude newtype: $tpe")
+        }
+      case _ => fail(s"Cannot dealias zio-prelude newtype: $tpe")
+    }
   }
 
   private def zioPreludeNewtypeCompanion(tpe: Type): Symbol = tpe match {
     case TypeRef(compTpe, _, _) => compTpe.typeSymbol.companion
     case _                      => fail(s"Cannot get companion for zio-prelude newtype: $tpe")
   }
+
+  private def dealiasOnDemand(tpe: Type): Type =
+    if (isZioPreludeNewtype(tpe)) zioPreludeNewtypeDealias(tpe)
+    else if (isTypeRef(tpe)) typeRefDealias(tpe)
+    else tpe
 
   private case class SmartConstructorInfo(
     companionSymbol: Symbol,
@@ -335,16 +337,17 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     else fail(s"Cannot derive Binding for type: ${tpe}")
 
   private def deriveSomeBinding(tpe: Type): c.Expr[Any] = {
-    val elemTpe = typeArgs(tpe).head
-    if (elemTpe =:= intTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someInt")
-    else if (elemTpe =:= longTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someLong")
-    else if (elemTpe =:= floatTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someFloat")
-    else if (elemTpe =:= doubleTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someDouble")
-    else if (elemTpe =:= booleanTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someBoolean")
-    else if (elemTpe =:= byteTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someByte")
-    else if (elemTpe =:= shortTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someShort")
-    else if (elemTpe =:= charTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someChar")
-    else if (elemTpe =:= unitTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someUnit")
+    val elemTpe       = typeArgs(tpe).head
+    val dealiasedElem = dealiasOnDemand(elemTpe)
+    if (dealiasedElem <:< intTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someInt")
+    else if (dealiasedElem <:< longTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someLong")
+    else if (dealiasedElem <:< floatTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someFloat")
+    else if (dealiasedElem <:< doubleTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someDouble")
+    else if (dealiasedElem <:< booleanTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someBoolean")
+    else if (dealiasedElem <:< byteTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someByte")
+    else if (dealiasedElem <:< shortTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someShort")
+    else if (dealiasedElem <:< charTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someChar")
+    else if (dealiasedElem <:< unitTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.someUnit")
     else c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.some[$elemTpe]")
   }
 
@@ -354,13 +357,40 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
   }
 
   private def deriveLeftBinding(tpe: Type): c.Expr[Any] = {
-    val args = typeArgs(tpe)
-    c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.left[${args(0)}, ${args(1)}]")
+    val args          = typeArgs(tpe)
+    val aTpe          = args(0)
+    val bTpe          = args(1)
+    val dealiasedA    = dealiasOnDemand(aTpe)
+    if (dealiasedA <:< intTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftInt[$bTpe]")
+    else if (dealiasedA <:< longTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftLong[$bTpe]")
+    else if (dealiasedA <:< floatTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftFloat[$bTpe]")
+    else if (dealiasedA <:< doubleTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftDouble[$bTpe]")
+    else if (dealiasedA <:< booleanTpe)
+      c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftBoolean[$bTpe]")
+    else if (dealiasedA <:< byteTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftByte[$bTpe]")
+    else if (dealiasedA <:< shortTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftShort[$bTpe]")
+    else if (dealiasedA <:< charTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftChar[$bTpe]")
+    else if (dealiasedA <:< unitTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.leftUnit[$bTpe]")
+    else c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.left[$aTpe, $bTpe]")
   }
 
   private def deriveRightBinding(tpe: Type): c.Expr[Any] = {
-    val args = typeArgs(tpe)
-    c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.right[${args(0)}, ${args(1)}]")
+    val args          = typeArgs(tpe)
+    val aTpe          = args(0)
+    val bTpe          = args(1)
+    val dealiasedB    = dealiasOnDemand(bTpe)
+    if (dealiasedB <:< intTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightInt[$aTpe]")
+    else if (dealiasedB <:< longTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightLong[$aTpe]")
+    else if (dealiasedB <:< floatTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightFloat[$aTpe]")
+    else if (dealiasedB <:< doubleTpe)
+      c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightDouble[$aTpe]")
+    else if (dealiasedB <:< booleanTpe)
+      c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightBoolean[$aTpe]")
+    else if (dealiasedB <:< byteTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightByte[$aTpe]")
+    else if (dealiasedB <:< shortTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightShort[$aTpe]")
+    else if (dealiasedB <:< charTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightChar[$aTpe]")
+    else if (dealiasedB <:< unitTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightUnit[$aTpe]")
+    else c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.right[$aTpe, $bTpe]")
   }
 
   private def deriveEitherBinding(tpe: Type): c.Expr[Any] = {
@@ -385,21 +415,22 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
   }
 
   private def deriveArrayBinding(tpe: Type): c.Expr[Any] = {
-    val elemTpe = typeArgs(tpe).head
-    c.Expr[Any](
-      q"""
-      {
-        val ct = implicitly[_root_.scala.reflect.ClassTag[$elemTpe]]
+    val elemTpe       = typeArgs(tpe).head
+    val dealiasedElem = dealiasOnDemand(elemTpe)
+
+    def primitiveArrayBinding(primTpe: Type, emptyExpr: Tree): c.Expr[Any] =
+      c.Expr[Any](
+        q"""
         new _root_.zio.blocks.schema.binding.Binding.Seq[Array, $elemTpe](
           new _root_.zio.blocks.schema.binding.SeqConstructor.ArrayConstructor {
             def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-              new Builder(new Array[Any](_root_.java.lang.Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+              new Builder(new Array[$primTpe](_root_.java.lang.Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
             def addObject[B](builder: Builder[B], a: B): Unit = {
               var buf = builder.buffer
               val idx = builder.size
               if (buf.length == idx) {
-                buf = _root_.java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[B]]
+                buf = _root_.java.util.Arrays.copyOf(buf.asInstanceOf[Array[$primTpe]], idx << 1).asInstanceOf[Array[B]]
                 builder.buffer = buf
               }
               buf(idx) = a
@@ -410,16 +441,67 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
               val buf  = builder.buffer
               val size = builder.size
               if (buf.length == size) buf
-              else _root_.java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[B]]
+              else _root_.java.util.Arrays.copyOf(buf.asInstanceOf[Array[$primTpe]], size).asInstanceOf[Array[B]]
             }
 
-            def emptyObject[B]: Array[B] = ct.newArray(0).asInstanceOf[Array[B]]
+            def emptyObject[B]: Array[B] = $emptyExpr.asInstanceOf[Array[B]]
           },
           _root_.zio.blocks.schema.binding.SeqDeconstructor.arrayDeconstructor
         )
-      }
-      """
-    )
+        """
+      )
+
+    if (dealiasedElem =:= intTpe)
+      primitiveArrayBinding(intTpe, q"Array.empty[Int]")
+    else if (dealiasedElem =:= longTpe)
+      primitiveArrayBinding(longTpe, q"Array.empty[Long]")
+    else if (dealiasedElem =:= doubleTpe)
+      primitiveArrayBinding(doubleTpe, q"Array.empty[Double]")
+    else if (dealiasedElem =:= floatTpe)
+      primitiveArrayBinding(floatTpe, q"Array.empty[Float]")
+    else if (dealiasedElem =:= booleanTpe)
+      primitiveArrayBinding(booleanTpe, q"Array.empty[Boolean]")
+    else if (dealiasedElem =:= byteTpe)
+      primitiveArrayBinding(byteTpe, q"Array.empty[Byte]")
+    else if (dealiasedElem =:= shortTpe)
+      primitiveArrayBinding(shortTpe, q"Array.empty[Short]")
+    else if (dealiasedElem =:= charTpe)
+      primitiveArrayBinding(charTpe, q"Array.empty[Char]")
+    else
+      c.Expr[Any](
+        q"""
+        {
+          val ct = implicitly[_root_.scala.reflect.ClassTag[$elemTpe]]
+          new _root_.zio.blocks.schema.binding.Binding.Seq[Array, $elemTpe](
+            new _root_.zio.blocks.schema.binding.SeqConstructor.ArrayConstructor {
+              def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                new Builder(ct.newArray(_root_.java.lang.Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+
+              def addObject[B](builder: Builder[B], a: B): Unit = {
+                var buf = builder.buffer
+                val idx = builder.size
+                if (buf.length == idx) {
+                  buf = _root_.java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[B]]
+                  builder.buffer = buf
+                }
+                buf(idx) = a
+                builder.size = idx + 1
+              }
+
+              def resultObject[B](builder: Builder[B]): Array[B] = {
+                val buf  = builder.buffer
+                val size = builder.size
+                if (buf.length == size) buf
+                else _root_.java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[B]]
+              }
+
+              def emptyObject[B]: Array[B] = ct.newArray(0).asInstanceOf[Array[B]]
+            },
+            _root_.zio.blocks.schema.binding.SeqDeconstructor.arrayDeconstructor
+          )
+        }
+        """
+      )
   }
 
   private def deriveEnumOrModuleValueBinding(tpe: Type): c.Expr[Any] = {
@@ -442,15 +524,15 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       q"""
       new _root_.zio.blocks.schema.binding.Matcher[$sTpe] {
         def downcastOrNull(a: Any): $sTpe = a match {
-          case x: $sTpe => x
-          case _        => null.asInstanceOf[$sTpe]
+          case x: $sTpe @_root_.scala.unchecked => x
+          case _                                => null.asInstanceOf[$sTpe]
         }
       }
       """
     }
 
     val discriminateCases = subtypes.zipWithIndex.map { case (sTpe, idx) =>
-      cq"_: $sTpe => $idx"
+      cq"_: $sTpe @_root_.scala.unchecked => $idx"
     }
 
     c.Expr[Any](
@@ -546,136 +628,98 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     if (paramLists.isEmpty || paramLists.forall(_.isEmpty)) {
       deriveEmptyRecordBinding(tpe)
     } else {
-      case class FieldInfo(name: TermName, tpe: Type, isPrimitive: Boolean, registerType: String)
-
-      val fieldLists = paramLists.map(_.map { param =>
-        val fieldTpe                    = tpe.decl(param.name).typeSignatureIn(tpe).finalResultType
-        val (isPrimitive, registerType) =
-          if (fieldTpe =:= booleanTpe) (true, "Boolean")
-          else if (fieldTpe =:= byteTpe) (true, "Byte")
-          else if (fieldTpe =:= shortTpe) (true, "Short")
-          else if (fieldTpe =:= intTpe) (true, "Int")
-          else if (fieldTpe =:= longTpe) (true, "Long")
-          else if (fieldTpe =:= floatTpe) (true, "Float")
-          else if (fieldTpe =:= doubleTpe) (true, "Double")
-          else if (fieldTpe =:= charTpe) (true, "Char")
-          else (false, "Object")
-        FieldInfo(param.name.toTermName, fieldTpe, isPrimitive, registerType)
-      })
-      val fields = fieldLists.flatten
-
-      val usedRegistersTree = fields.foldLeft[Tree](q"_root_.zio.blocks.schema.binding.RegisterOffset.Zero") {
-        (acc, f) =>
-          val delta = f.registerType match {
-            case "Boolean" => q"_root_.zio.blocks.schema.binding.RegisterOffset(booleans = 1)"
-            case "Byte"    => q"_root_.zio.blocks.schema.binding.RegisterOffset(bytes = 1)"
-            case "Short"   => q"_root_.zio.blocks.schema.binding.RegisterOffset(shorts = 1)"
-            case "Int"     => q"_root_.zio.blocks.schema.binding.RegisterOffset(ints = 1)"
-            case "Long"    => q"_root_.zio.blocks.schema.binding.RegisterOffset(longs = 1)"
-            case "Float"   => q"_root_.zio.blocks.schema.binding.RegisterOffset(floats = 1)"
-            case "Double"  => q"_root_.zio.blocks.schema.binding.RegisterOffset(doubles = 1)"
-            case "Char"    => q"_root_.zio.blocks.schema.binding.RegisterOffset(chars = 1)"
-            case _         => q"_root_.zio.blocks.schema.binding.RegisterOffset(objects = 1)"
-          }
-          q"_root_.zio.blocks.schema.binding.RegisterOffset.add($acc, $delta)"
+      // Compute RegisterOffset deltas at macro time using the same formula as RegisterOffset.apply
+      def offsetDelta(registerType: String): Long = registerType match {
+        case "Boolean" => 0x100000000L // booleans = 1
+        case "Byte"    => 0x100000000L // bytes = 1
+        case "Short"   => 0x200000000L // shorts = 1 (shifted by 1)
+        case "Int"     => 0x400000000L // ints = 1 (shifted by 2)
+        case "Long"    => 0x800000000L // longs = 1 (shifted by 3)
+        case "Float"   => 0x400000000L // floats = 1 (shifted by 2)
+        case "Double"  => 0x800000000L // doubles = 1 (shifted by 3)
+        case "Char"    => 0x200000000L // chars = 1 (shifted by 1)
+        case "Object"  => 1L           // objects = 1
+        case "Unit"    => 0L
+        case _         => 1L
       }
 
-      var currentOffsetTree: Tree        = q"_root_.zio.blocks.schema.binding.RegisterOffset.Zero"
+      case class FieldInfo(name: TermName, tpe: Type, registerType: String, fieldOffset: Long)
+
+      var currentOffset: Long = 0L
+      val fieldLists = paramLists.map(_.map { param =>
+        val fieldTpe     = tpe.decl(param.name).typeSignatureIn(tpe).finalResultType
+        val dealiasedTpe = dealiasOnDemand(fieldTpe)
+        val registerType =
+          if (dealiasedTpe <:< booleanTpe) "Boolean"
+          else if (dealiasedTpe <:< byteTpe) "Byte"
+          else if (dealiasedTpe <:< shortTpe) "Short"
+          else if (dealiasedTpe <:< intTpe) "Int"
+          else if (dealiasedTpe <:< longTpe) "Long"
+          else if (dealiasedTpe <:< floatTpe) "Float"
+          else if (dealiasedTpe <:< doubleTpe) "Double"
+          else if (dealiasedTpe <:< charTpe) "Char"
+          else if (dealiasedTpe <:< unitTpe) "Unit"
+          else "Object"
+        val fieldOffset = currentOffset
+        currentOffset += offsetDelta(registerType)
+        FieldInfo(param.name.toTermName, fieldTpe, registerType, fieldOffset)
+      })
+      val fields            = fieldLists.flatten
+      val usedRegistersLong = currentOffset
+
       def fieldToArg(f: FieldInfo): Tree = {
-        val offsetTree = currentOffsetTree
+        val fieldTpe     = f.tpe
+        val dealiasedTpe = dealiasOnDemand(fieldTpe)
+        val needsCast    = !(fieldTpe =:= dealiasedTpe)
+        def maybeCast(t: Tree): Tree = if (needsCast) q"$t.asInstanceOf[$fieldTpe]" else t
+        val offsetLit = Literal(Constant(f.fieldOffset))
         f.registerType match {
-          case "Boolean" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(booleans = 1))"
-            q"in.getBoolean(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree))"
-          case "Byte" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(bytes = 1))"
-            q"in.getByte(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree))"
-          case "Short" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(shorts = 1))"
-            q"in.getShort(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree))"
-          case "Int" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(ints = 1))"
-            q"in.getInt(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree))"
-          case "Long" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(longs = 1))"
-            q"in.getLong(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree))"
-          case "Float" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(floats = 1))"
-            q"in.getFloat(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree))"
-          case "Double" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(doubles = 1))"
-            q"in.getDouble(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree))"
-          case "Char" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(chars = 1))"
-            q"in.getChar(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree))"
-          case _ =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(objects = 1))"
-            q"in.getObject(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree)).asInstanceOf[${f.tpe}]"
+          case "Boolean" => maybeCast(q"in.getBoolean(offset + $offsetLit)")
+          case "Byte"    => maybeCast(q"in.getByte(offset + $offsetLit)")
+          case "Short"   => maybeCast(q"in.getShort(offset + $offsetLit)")
+          case "Int"     => maybeCast(q"in.getInt(offset + $offsetLit)")
+          case "Long"    => maybeCast(q"in.getLong(offset + $offsetLit)")
+          case "Float"   => maybeCast(q"in.getFloat(offset + $offsetLit)")
+          case "Double"  => maybeCast(q"in.getDouble(offset + $offsetLit)")
+          case "Char"    => maybeCast(q"in.getChar(offset + $offsetLit)")
+          case "Unit"    => maybeCast(q"()")
+          case _         => q"in.getObject(offset + $offsetLit).asInstanceOf[${f.tpe}]"
         }
       }
 
       val constructArgss = fieldLists.map(_.map(fieldToArg))
       val constructCall  = q"new $tpe(...$constructArgss)"
 
-      currentOffsetTree = q"_root_.zio.blocks.schema.binding.RegisterOffset.Zero"
       val deconstructStatements = fields.map { f =>
-        val offsetTree = currentOffsetTree
-        val fieldName  = f.name
-        val setter     = f.registerType match {
-          case "Boolean" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(booleans = 1))"
-            q"out.setBoolean(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree), in.$fieldName)"
-          case "Byte" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(bytes = 1))"
-            q"out.setByte(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree), in.$fieldName)"
-          case "Short" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(shorts = 1))"
-            q"out.setShort(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree), in.$fieldName)"
-          case "Int" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(ints = 1))"
-            q"out.setInt(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree), in.$fieldName)"
-          case "Long" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(longs = 1))"
-            q"out.setLong(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree), in.$fieldName)"
-          case "Float" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(floats = 1))"
-            q"out.setFloat(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree), in.$fieldName)"
-          case "Double" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(doubles = 1))"
-            q"out.setDouble(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree), in.$fieldName)"
-          case "Char" =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(chars = 1))"
-            q"out.setChar(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree), in.$fieldName)"
-          case _ =>
-            currentOffsetTree =
-              q"_root_.zio.blocks.schema.binding.RegisterOffset.add($currentOffsetTree, _root_.zio.blocks.schema.binding.RegisterOffset(objects = 1))"
-            q"out.setObject(_root_.zio.blocks.schema.binding.RegisterOffset.add(offset, $offsetTree), in.$fieldName.asInstanceOf[AnyRef])"
+        val fieldName    = f.name
+        val fieldTpe     = f.tpe
+        val dealiasedTpe = dealiasOnDemand(fieldTpe)
+        val needsCast    = !(fieldTpe =:= dealiasedTpe)
+        val fieldValue: Tree =
+          if (needsCast) q"in.$fieldName.asInstanceOf[$dealiasedTpe]"
+          else q"in.$fieldName"
+        val offsetLit = Literal(Constant(f.fieldOffset))
+        f.registerType match {
+          case "Boolean" => q"out.setBoolean(offset + $offsetLit, $fieldValue)"
+          case "Byte"    => q"out.setByte(offset + $offsetLit, $fieldValue)"
+          case "Short"   => q"out.setShort(offset + $offsetLit, $fieldValue)"
+          case "Int"     => q"out.setInt(offset + $offsetLit, $fieldValue)"
+          case "Long"    => q"out.setLong(offset + $offsetLit, $fieldValue)"
+          case "Float"   => q"out.setFloat(offset + $offsetLit, $fieldValue)"
+          case "Double"  => q"out.setDouble(offset + $offsetLit, $fieldValue)"
+          case "Char"    => q"out.setChar(offset + $offsetLit, $fieldValue)"
+          case "Unit"    => q"()"
+          case _         => q"out.setObject(offset + $offsetLit, in.$fieldName.asInstanceOf[AnyRef])"
         }
-        setter
       }
+
+      val usedRegistersLit = Literal(Constant(usedRegistersLong))
 
       c.Expr[Any](
         q"""
         new _root_.zio.blocks.schema.binding.Binding.Record[$tpe](
           constructor = new _root_.zio.blocks.schema.binding.Constructor[$tpe] {
-            def usedRegisters: _root_.zio.blocks.schema.binding.RegisterOffset.RegisterOffset = $usedRegistersTree
+            def usedRegisters: _root_.zio.blocks.schema.binding.RegisterOffset.RegisterOffset = $usedRegistersLit
 
             def construct(
               in: _root_.zio.blocks.schema.binding.Registers,
@@ -683,7 +727,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
             ): $tpe = $constructCall
           },
           deconstructor = new _root_.zio.blocks.schema.binding.Deconstructor[$tpe] {
-            def usedRegisters: _root_.zio.blocks.schema.binding.RegisterOffset.RegisterOffset = $usedRegistersTree
+            def usedRegisters: _root_.zio.blocks.schema.binding.RegisterOffset.RegisterOffset = $usedRegistersLit
 
             def deconstruct(
               out: _root_.zio.blocks.schema.binding.Registers,

@@ -263,6 +263,215 @@ object Binding extends BindingCompanionVersionSpecific {
           out.setObject(offset, in.value.asInstanceOf[AnyRef])
       }
     )
+
+    def leftInt[B]: Record[Left[Int, B]] = new Record(
+      constructor = new Constructor[Left[Int, B]] {
+        def usedRegisters: RegisterOffset                                  = RegisterOffset(ints = 1)
+        def construct(in: Registers, offset: RegisterOffset): Left[Int, B] = new Left(in.getInt(offset))
+      },
+      deconstructor = new Deconstructor[Left[Int, B]] {
+        def usedRegisters: RegisterOffset                                               = RegisterOffset(ints = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Left[Int, B]): Unit = out.setInt(offset, in.value)
+      }
+    )
+
+    def leftLong[B]: Record[Left[Long, B]] = new Record(
+      constructor = new Constructor[Left[Long, B]] {
+        def usedRegisters: RegisterOffset                                   = RegisterOffset(longs = 1)
+        def construct(in: Registers, offset: RegisterOffset): Left[Long, B] = new Left(in.getLong(offset))
+      },
+      deconstructor = new Deconstructor[Left[Long, B]] {
+        def usedRegisters: RegisterOffset                                                = RegisterOffset(longs = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Left[Long, B]): Unit = out.setLong(offset, in.value)
+      }
+    )
+
+    def leftFloat[B]: Record[Left[Float, B]] = new Record(
+      constructor = new Constructor[Left[Float, B]] {
+        def usedRegisters: RegisterOffset                                    = RegisterOffset(floats = 1)
+        def construct(in: Registers, offset: RegisterOffset): Left[Float, B] = new Left(in.getFloat(offset))
+      },
+      deconstructor = new Deconstructor[Left[Float, B]] {
+        def usedRegisters: RegisterOffset                                                 = RegisterOffset(floats = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Left[Float, B]): Unit =
+          out.setFloat(offset, in.value)
+      }
+    )
+
+    def leftDouble[B]: Record[Left[Double, B]] = new Record(
+      constructor = new Constructor[Left[Double, B]] {
+        def usedRegisters: RegisterOffset                                     = RegisterOffset(doubles = 1)
+        def construct(in: Registers, offset: RegisterOffset): Left[Double, B] = new Left(in.getDouble(offset))
+      },
+      deconstructor = new Deconstructor[Left[Double, B]] {
+        def usedRegisters: RegisterOffset                                                  = RegisterOffset(doubles = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Left[Double, B]): Unit =
+          out.setDouble(offset, in.value)
+      }
+    )
+
+    def leftBoolean[B]: Record[Left[Boolean, B]] = new Record(
+      constructor = new Constructor[Left[Boolean, B]] {
+        def usedRegisters: RegisterOffset                                      = RegisterOffset(booleans = 1)
+        def construct(in: Registers, offset: RegisterOffset): Left[Boolean, B] = new Left(in.getBoolean(offset))
+      },
+      deconstructor = new Deconstructor[Left[Boolean, B]] {
+        def usedRegisters: RegisterOffset                                                   = RegisterOffset(booleans = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Left[Boolean, B]): Unit =
+          out.setBoolean(offset, in.value)
+      }
+    )
+
+    def leftByte[B]: Record[Left[Byte, B]] = new Record(
+      constructor = new Constructor[Left[Byte, B]] {
+        def usedRegisters: RegisterOffset                                   = RegisterOffset(bytes = 1)
+        def construct(in: Registers, offset: RegisterOffset): Left[Byte, B] = new Left(in.getByte(offset))
+      },
+      deconstructor = new Deconstructor[Left[Byte, B]] {
+        def usedRegisters: RegisterOffset                                                = RegisterOffset(bytes = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Left[Byte, B]): Unit = out.setByte(offset, in.value)
+      }
+    )
+
+    def leftShort[B]: Record[Left[Short, B]] = new Record(
+      constructor = new Constructor[Left[Short, B]] {
+        def usedRegisters: RegisterOffset                                    = RegisterOffset(shorts = 1)
+        def construct(in: Registers, offset: RegisterOffset): Left[Short, B] = new Left(in.getShort(offset))
+      },
+      deconstructor = new Deconstructor[Left[Short, B]] {
+        def usedRegisters: RegisterOffset                                                 = RegisterOffset(shorts = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Left[Short, B]): Unit =
+          out.setShort(offset, in.value)
+      }
+    )
+
+    def leftChar[B]: Record[Left[Char, B]] = new Record(
+      constructor = new Constructor[Left[Char, B]] {
+        def usedRegisters: RegisterOffset                                   = RegisterOffset(chars = 1)
+        def construct(in: Registers, offset: RegisterOffset): Left[Char, B] = new Left(in.getChar(offset))
+      },
+      deconstructor = new Deconstructor[Left[Char, B]] {
+        def usedRegisters: RegisterOffset                                                = RegisterOffset(chars = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Left[Char, B]): Unit = out.setChar(offset, in.value)
+      }
+    )
+
+    def leftUnit[B]: Record[Left[Unit, B]] = new Record(
+      constructor = new Constructor[Left[Unit, B]] {
+        def usedRegisters: RegisterOffset                                   = 0L
+        def construct(in: Registers, offset: RegisterOffset): Left[Unit, B] = new Left(())
+      },
+      deconstructor = new Deconstructor[Left[Unit, B]] {
+        def usedRegisters: RegisterOffset                                                = 0L
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Left[Unit, B]): Unit = ()
+      }
+    )
+
+    def rightInt[A]: Record[Right[A, Int]] = new Record(
+      constructor = new Constructor[Right[A, Int]] {
+        def usedRegisters: RegisterOffset                                   = RegisterOffset(ints = 1)
+        def construct(in: Registers, offset: RegisterOffset): Right[A, Int] = new Right(in.getInt(offset))
+      },
+      deconstructor = new Deconstructor[Right[A, Int]] {
+        def usedRegisters: RegisterOffset                                                = RegisterOffset(ints = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Right[A, Int]): Unit = out.setInt(offset, in.value)
+      }
+    )
+
+    def rightLong[A]: Record[Right[A, Long]] = new Record(
+      constructor = new Constructor[Right[A, Long]] {
+        def usedRegisters: RegisterOffset                                    = RegisterOffset(longs = 1)
+        def construct(in: Registers, offset: RegisterOffset): Right[A, Long] = new Right(in.getLong(offset))
+      },
+      deconstructor = new Deconstructor[Right[A, Long]] {
+        def usedRegisters: RegisterOffset                                                 = RegisterOffset(longs = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Right[A, Long]): Unit =
+          out.setLong(offset, in.value)
+      }
+    )
+
+    def rightFloat[A]: Record[Right[A, Float]] = new Record(
+      constructor = new Constructor[Right[A, Float]] {
+        def usedRegisters: RegisterOffset                                     = RegisterOffset(floats = 1)
+        def construct(in: Registers, offset: RegisterOffset): Right[A, Float] = new Right(in.getFloat(offset))
+      },
+      deconstructor = new Deconstructor[Right[A, Float]] {
+        def usedRegisters: RegisterOffset                                                  = RegisterOffset(floats = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Right[A, Float]): Unit =
+          out.setFloat(offset, in.value)
+      }
+    )
+
+    def rightDouble[A]: Record[Right[A, Double]] = new Record(
+      constructor = new Constructor[Right[A, Double]] {
+        def usedRegisters: RegisterOffset                                      = RegisterOffset(doubles = 1)
+        def construct(in: Registers, offset: RegisterOffset): Right[A, Double] = new Right(in.getDouble(offset))
+      },
+      deconstructor = new Deconstructor[Right[A, Double]] {
+        def usedRegisters: RegisterOffset                                                   = RegisterOffset(doubles = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Right[A, Double]): Unit =
+          out.setDouble(offset, in.value)
+      }
+    )
+
+    def rightBoolean[A]: Record[Right[A, Boolean]] = new Record(
+      constructor = new Constructor[Right[A, Boolean]] {
+        def usedRegisters: RegisterOffset                                       = RegisterOffset(booleans = 1)
+        def construct(in: Registers, offset: RegisterOffset): Right[A, Boolean] = new Right(in.getBoolean(offset))
+      },
+      deconstructor = new Deconstructor[Right[A, Boolean]] {
+        def usedRegisters: RegisterOffset                                                    = RegisterOffset(booleans = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Right[A, Boolean]): Unit =
+          out.setBoolean(offset, in.value)
+      }
+    )
+
+    def rightByte[A]: Record[Right[A, Byte]] = new Record(
+      constructor = new Constructor[Right[A, Byte]] {
+        def usedRegisters: RegisterOffset                                    = RegisterOffset(bytes = 1)
+        def construct(in: Registers, offset: RegisterOffset): Right[A, Byte] = new Right(in.getByte(offset))
+      },
+      deconstructor = new Deconstructor[Right[A, Byte]] {
+        def usedRegisters: RegisterOffset                                                 = RegisterOffset(bytes = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Right[A, Byte]): Unit =
+          out.setByte(offset, in.value)
+      }
+    )
+
+    def rightShort[A]: Record[Right[A, Short]] = new Record(
+      constructor = new Constructor[Right[A, Short]] {
+        def usedRegisters: RegisterOffset                                     = RegisterOffset(shorts = 1)
+        def construct(in: Registers, offset: RegisterOffset): Right[A, Short] = new Right(in.getShort(offset))
+      },
+      deconstructor = new Deconstructor[Right[A, Short]] {
+        def usedRegisters: RegisterOffset                                                  = RegisterOffset(shorts = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Right[A, Short]): Unit =
+          out.setShort(offset, in.value)
+      }
+    )
+
+    def rightChar[A]: Record[Right[A, Char]] = new Record(
+      constructor = new Constructor[Right[A, Char]] {
+        def usedRegisters: RegisterOffset                                    = RegisterOffset(chars = 1)
+        def construct(in: Registers, offset: RegisterOffset): Right[A, Char] = new Right(in.getChar(offset))
+      },
+      deconstructor = new Deconstructor[Right[A, Char]] {
+        def usedRegisters: RegisterOffset                                                 = RegisterOffset(chars = 1)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Right[A, Char]): Unit =
+          out.setChar(offset, in.value)
+      }
+    )
+
+    def rightUnit[A]: Record[Right[A, Unit]] = new Record(
+      constructor = new Constructor[Right[A, Unit]] {
+        def usedRegisters: RegisterOffset                                    = 0L
+        def construct(in: Registers, offset: RegisterOffset): Right[A, Unit] = new Right(())
+      },
+      deconstructor = new Deconstructor[Right[A, Unit]] {
+        def usedRegisters: RegisterOffset                                                 = 0L
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Right[A, Unit]): Unit = ()
+      }
+    )
   }
 
   final case class Variant[A](

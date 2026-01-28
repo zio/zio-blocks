@@ -103,6 +103,85 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
       test("IArray[Double]") {
         val binding = Binding.of[IArray[Double]]
         assertTrue(isSeq(binding))
+      },
+      test("IArray[Int] construct empty") {
+        val binding     = Binding.of[IArray[Int]].asInstanceOf[Binding.Seq[IArray, Int]]
+        val constructor = binding.constructor
+        val result      = constructor.emptyObject[Int]
+        assertTrue(result.isEmpty)
+      },
+      test("IArray[Int] construct from builder") {
+        val binding     = Binding.of[IArray[Int]].asInstanceOf[Binding.Seq[IArray, Int]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Int](3)
+        constructor.addObject(builder, 1)
+        constructor.addObject(builder, 2)
+        constructor.addObject(builder, 3)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1, 2, 3))
+      },
+      test("IArray[Int] deconstruct works") {
+        val binding       = Binding.of[IArray[Int]].asInstanceOf[Binding.Seq[IArray, Int]]
+        val deconstructor = binding.deconstructor
+        val arr           = IArray(1, 2, 3)
+        val result        = deconstructor.deconstruct(arr)
+        assertTrue(result.toList == List(1, 2, 3))
+      },
+      test("IArray[String] construct from builder") {
+        val binding     = Binding.of[IArray[String]].asInstanceOf[Binding.Seq[IArray, String]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[String](2)
+        constructor.addObject(builder, "hello")
+        constructor.addObject(builder, "world")
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List("hello", "world"))
+      },
+      test("IArray[Double] construct from builder") {
+        val binding     = Binding.of[IArray[Double]].asInstanceOf[Binding.Seq[IArray, Double]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Double](2)
+        constructor.addObject(builder, 1.5)
+        constructor.addObject(builder, 2.5)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1.5, 2.5))
+      },
+      test("IArray builder grows correctly") {
+        val binding     = Binding.of[IArray[Int]].asInstanceOf[Binding.Seq[IArray, Int]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Int](1)
+        (1 to 100).foreach(i => constructor.addObject(builder, i))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 100 && result.toList == (1 to 100).toList)
+      }
+    ),
+    suite("union types")(
+      test("union type creates Variant") {
+        type IntOrString = Int | String
+        val binding = Binding.of[IntOrString]
+        assertTrue(binding.isInstanceOf[Binding.Variant[?]])
+      },
+      test("union type discriminator works") {
+        type IntOrString = Int | String
+        val binding        = Binding.of[IntOrString].asInstanceOf[Binding.Variant[IntOrString]]
+        val i: IntOrString = 42
+        val s: IntOrString = "hello"
+        assertTrue(
+          binding.discriminator.discriminate(i) >= 0 &&
+            binding.discriminator.discriminate(s) >= 0 &&
+            binding.discriminator.discriminate(i) != binding.discriminator.discriminate(s)
+        )
+      },
+      test("three-way union type") {
+        type ThreeWay = Int | String | Boolean
+        val binding     = Binding.of[ThreeWay].asInstanceOf[Binding.Variant[ThreeWay]]
+        val i: ThreeWay = 42
+        val s: ThreeWay = "hello"
+        val b: ThreeWay = true
+        assertTrue(
+          binding.discriminator.discriminate(i) != binding.discriminator.discriminate(s) &&
+            binding.discriminator.discriminate(s) != binding.discriminator.discriminate(b) &&
+            binding.matchers.matchers.length == 3
+        )
       }
     ),
     suite("smart constructor case classes")(
@@ -296,6 +375,71 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
         val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
         assertTrue(reconstructed == original)
+      }
+    ),
+    suite("higher-kinded type case classes")(
+      test("simple HKT with one field") {
+        case class SimpleHKT[F[_]](value: F[Int])
+        val binding   = Binding.of[SimpleHKT[Option]].asInstanceOf[Binding.Record[SimpleHKT[Option]]]
+        val original  = SimpleHKT[Option](Some(42))
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("HKT with two fields") {
+        case class TwoFieldHKT[F[_]](a: F[Int], b: F[String])
+        val binding   = Binding.of[TwoFieldHKT[Option]].asInstanceOf[Binding.Record[TwoFieldHKT[Option]]]
+        val original  = TwoFieldHKT[Option](Some(1), Some("hello"))
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("recursive HKT (Record8-style)") {
+        case class RecursiveHKT[F[_]](f: F[Int], fs: F[RecursiveHKT[F]])
+        val binding   = Binding.of[RecursiveHKT[Option]].asInstanceOf[Binding.Record[RecursiveHKT[Option]]]
+        val original  = RecursiveHKT[Option](Some(1), Some(RecursiveHKT[Option](Some(2), None)))
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("HKT with List type constructor") {
+        case class ListHKT[F[_]](values: F[Int])
+        val binding   = Binding.of[ListHKT[List]].asInstanceOf[Binding.Record[ListHKT[List]]]
+        val original  = ListHKT[List](List(1, 2, 3))
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("union type discrimination is consistent with Schema.derived") {
+        import zio.blocks.schema._
+        type Value = Int | Boolean | String | (Int, Boolean) | List[Int] | Unit
+
+        val schema  = Schema.derived[Value]
+        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Value]]
+        val binding = variant.variantBinding.asInstanceOf[Binding.Variant[Value]]
+
+        val caseNames = variant.cases.map(_.name).toList
+
+        val testCases: List[(Value, String)] = List(
+          (1: Value, "Int"),
+          (true: Value, "Boolean"),
+          ("hello": Value, "String"),
+          ((1, true): Value, "Tuple2"),
+          (List(1): Value, "collection.immutable.List"),
+          ((): Value, "Unit")
+        )
+
+        val results = testCases.map { case (value, expectedCaseName) =>
+          val idx      = binding.discriminator.discriminate(value)
+          val caseName = caseNames(idx)
+          (value, expectedCaseName, caseName, idx)
+        }
+
+        assertTrue(results.forall { case (_, expected, actual, _) => actual == expected })
       }
     )
   )

@@ -64,7 +64,6 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private val fromIArrayMethod      = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
   private val asInstanceOfMethod    = anyTpe.typeSymbol.declaredMethod("asInstanceOf").head
   private val productElementMethod  = tupleTpe.typeSymbol.methodMember("productElement").head
-  private lazy val toTupleMethod    = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
 
   private def fail(msg: String): Nothing = CommonMacroOps.fail(msg)
 
@@ -791,22 +790,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               reflect = new Reflect.Record[Binding, tt](
                 fields = Vector($fields*),
                 typeName = $tpeName,
-                recordBinding = new Binding.Record(
-                  constructor = new Constructor[tt] {
-                    def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
-
-                    def construct(in: Registers, offset: RegisterOffset): tt = ${
-                      typeInfo.constructor('in, 'offset)
-                    }
-                  },
-                  deconstructor = new Deconstructor[tt] {
-                    def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
-
-                    def deconstruct(out: Registers, offset: RegisterOffset, in: tt): Unit = ${
-                      typeInfo.deconstructor('out, 'offset, 'in).asExpr
-                    }
-                  }
-                )
+                recordBinding = Binding.of[tt].asInstanceOf[Binding.Record[tt]]
               )
             )
           }
@@ -861,26 +845,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               reflect = new Reflect.Record[Binding, T](
                 fields = Vector($fields*),
                 typeName = $tpeName,
-                recordBinding = new Binding.Record(
-                  constructor = new Constructor {
-                    def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
-
-                    def construct(in: Registers, offset: RegisterOffset): T = ${
-                      typeInfo.constructor('in, 'offset).asInstanceOf[Expr[T]]
-                    }
-                  },
-                  deconstructor = new Deconstructor {
-                    def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
-
-                    def deconstruct(out: Registers, offset: RegisterOffset, in: T): Unit = ${
-                      val value  = Apply(toTupleMethod.appliedToTypes(tpe.typeArgs), List('in.asTerm))
-                      val symbol = Symbol.newVal(Symbol.spliceOwner, "t", tTpe, Flags.EmptyFlags, Symbol.noSymbol)
-                      val valDef = ValDef(symbol, new Some(value))
-                      val expr   = Ref(symbol).asExpr.asInstanceOf[Expr[tt]]
-                      Block(List(valDef), typeInfo.deconstructor('out, 'offset, expr)).asExpr
-                    }
-                  }
-                )
+                recordBinding = Binding.of[T].asInstanceOf[Binding.Record[T]]
               )
             )
           }
@@ -916,15 +881,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         reflect = new Reflect.Record[Binding, T](
           fields = Vector.empty,
           typeName = $tpeName,
-          recordBinding = new Binding.Record(
-            constructor = new ConstantConstructor(${
-              Ref(
-                if (isEnumValue(tpe)) tpe.termSymbol
-                else tpe.typeSymbol.companionModule
-              ).asExpr.asInstanceOf[Expr[T]]
-            }),
-            deconstructor = new ConstantDeconstructor
-          ),
+          recordBinding = Binding.of[T].asInstanceOf[Binding.Record[T]],
           doc = ${ doc(tpe) },
           modifiers = ${ modifiers(tpe) }
         )
@@ -941,22 +898,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         reflect = new Reflect.Record[Binding, T](
           fields = Vector($fields*),
           typeName = $tpeName,
-          recordBinding = new Binding.Record(
-            constructor = new Constructor {
-              def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }
-
-              def construct(in: Registers, offset: RegisterOffset): T = ${
-                classInfo.constructor('in, 'offset)
-              }
-            },
-            deconstructor = new Deconstructor {
-              def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }
-
-              def deconstruct(out: Registers, offset: RegisterOffset, in: T): Unit = ${
-                classInfo.deconstructor('out, 'offset, 'in).asExpr
-              }
-            }
-          ),
+          recordBinding = Binding.of[T].asInstanceOf[Binding.Record[T]],
           doc = ${ doc(tpe) },
           modifiers = ${ modifiers(tpe) }
         )
