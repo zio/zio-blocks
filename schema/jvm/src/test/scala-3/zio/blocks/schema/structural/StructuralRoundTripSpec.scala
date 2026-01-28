@@ -126,7 +126,7 @@ object StructuralRoundTripSpec extends ZIOSpecDefault {
           case class Cat(name: String, indoor: Boolean) extends Animal
           case object Fish extends Animal
           val schema = Schema.derived[Animal]
-          val structural: Schema[{def Tag: "Cat"; def indoor: Boolean; def name: String} | {def Tag: "Dog"; def breed: String; def name: String} | {def Tag: "Fish"}] = schema.structural
+          val structural: Schema[{def Cat: {def indoor: Boolean; def name: String}} | {def Dog: {def breed: String; def name: String}} | {def Fish: {}}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       },
       test("Nested product converts to structural type") {

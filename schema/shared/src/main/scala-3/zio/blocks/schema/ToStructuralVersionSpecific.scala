@@ -23,6 +23,36 @@ private[schema] class ReflectiveDeconstructor[S](
   }
 }
 
+private[schema] class ReflectiveVariantCaseDeconstructor[S](
+  val usedRegisters: RegisterOffset,
+  caseName: String,
+  fieldMetadata: IndexedSeq[(String, Register[Any])]
+) extends Deconstructor[S] {
+
+  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: S): Unit = {
+    val outerClazz = in.getClass
+    // First, try to get the nested value via the case name method
+    val nested = try {
+      val caseMethod = outerClazz.getMethod(caseName)
+      caseMethod.invoke(in)
+    } catch {
+      case _: NoSuchMethodException =>
+        // Fallback: input is already the case value (nominal type)
+        in
+    }
+
+    val nestedClazz = nested.getClass
+    var idx         = 0
+    while (idx < fieldMetadata.length) {
+      val (fieldName, register) = fieldMetadata(idx)
+      val method                = nestedClazz.getMethod(fieldName)
+      val value                 = method.invoke(nested)
+      register.set(out, baseOffset, value)
+      idx += 1
+    }
+  }
+}
+
 private[schema] class ReflectiveVariantDiscriminator[S](
   caseNames: IndexedSeq[String],
   originalDiscriminator: Discriminator[?],
@@ -31,20 +61,26 @@ private[schema] class ReflectiveVariantDiscriminator[S](
 
   def discriminate(value: S): Int = {
     val clazz = value.getClass
-    try {
-      val tagMethod = clazz.getMethod("Tag")
-      val tag       = tagMethod.invoke(value).asInstanceOf[String]
-      caseNames.indexOf(tag)
-    } catch {
-      case _: NoSuchMethodException =>
-        val originalIdx = originalDiscriminator.asInstanceOf[Discriminator[S]].discriminate(value)
-        originalToSortedIndex(originalIdx)
+    // Try to find which case name method exists on the structural instance
+    val idx = caseNames.indexWhere { caseName =>
+      try {
+        clazz.getMethod(caseName)
+        true
+      } catch {
+        case _: NoSuchMethodException => false
+      }
+    }
+    if (idx >= 0) idx
+    else {
+      // Fallback to original discriminator for nominal types
+      val originalIdx = originalDiscriminator.asInstanceOf[Discriminator[S]].discriminate(value)
+      originalToSortedIndex(originalIdx)
     }
   }
 }
 
 private[schema] class ReflectiveMatcher[S](
-  expectedTag: String,
+  expectedCaseName: String,
   originalMatcher: Matcher[?]
 ) extends Matcher[S] {
 
@@ -53,9 +89,9 @@ private[schema] class ReflectiveMatcher[S](
     else {
       val clazz = any.getClass
       try {
-        val tagMethod = clazz.getMethod("Tag")
-        val tag       = tagMethod.invoke(any).asInstanceOf[String]
-        if (tag == expectedTag) any.asInstanceOf[S] else null.asInstanceOf[S]
+        val caseMethod = clazz.getMethod(expectedCaseName)
+        // The case method returns the nested structural value
+        caseMethod.invoke(any).asInstanceOf[S]
       } catch {
         case _: NoSuchMethodException =>
           originalMatcher.downcastOrNull(any).asInstanceOf[S]
@@ -258,20 +294,14 @@ private[schema] object ToStructuralMacro {
     }
   }
 
-  private def buildStructuralTypeWithTag(using
+  private def buildNestedCaseType(using
     Quotes
-  )(tagName: String, fields: List[(String, quotes.reflect.TypeRepr)]): quotes.reflect.TypeRepr = {
+  )(caseName: String, fields: List[(String, quotes.reflect.TypeRepr)]): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
 
-    val baseTpe = TypeRepr.of[AnyRef]
-
-    val tagLiteralType = ConstantType(StringConstant(tagName))
-    val withTag        = Refinement(baseTpe, "Tag", ByNameType(tagLiteralType))
-
-    fields.foldLeft(withTag) { case (parent, (fieldName, fieldTpe)) =>
-      val unpackedFieldTpe = fullyUnpackType(fieldTpe)
-      Refinement(parent, fieldName, ByNameType(unpackedFieldTpe))
-    }
+    val innerType = buildStructuralType(fields)
+    val baseTpe   = TypeRepr.of[AnyRef]
+    Refinement(baseTpe, caseName, ByNameType(innerType))
   }
 
   private def deriveForSumType[A: Type](using Quotes)(aTpe: quotes.reflect.TypeRepr): Expr[ToStructural[A]] = {
@@ -308,7 +338,7 @@ private[schema] object ToStructuralMacro {
           }
       }
 
-      buildStructuralTypeWithTag(caseName, fields)
+      buildNestedCaseType(caseName, fields)
     }
 
     val unionType = caseTypes.reduceLeft { (acc, tpe) =>
@@ -459,6 +489,7 @@ private[schema] object ToStructuralMacro {
     }
 
   private def transformVariantCase[S](case_ : Term[Binding, ?, ?]): Term[Binding, S, ? <: S] = {
+    val caseName  = case_.name
     val caseValue = case_.value match {
       case record: Reflect.Record[Binding, ?] @unchecked =>
         val binding                                            = record.recordBinding.asInstanceOf[Binding.Record[Any]]
@@ -474,7 +505,7 @@ private[schema] object ToStructuralMacro {
           typeName = record.typeName.asInstanceOf[TypeName[Any]],
           recordBinding = new Binding.Record[Any](
             constructor = binding.constructor.asInstanceOf[Constructor[Any]],
-            deconstructor = new ReflectiveDeconstructor[Any](totalRegisters, fieldMetadata)
+            deconstructor = new ReflectiveVariantCaseDeconstructor[Any](totalRegisters, caseName, fieldMetadata)
           ),
           doc = record.doc,
           modifiers = record.modifiers
@@ -482,7 +513,7 @@ private[schema] object ToStructuralMacro {
       case other => other
     }
     new Term[Binding, S, Any](
-      case_.name,
+      caseName,
       caseValue.asInstanceOf[Reflect.Bound[Any]],
       case_.doc,
       case_.modifiers
@@ -504,13 +535,16 @@ private[schema] object ToStructuralMacro {
    * Generate a normalized type name for a union case (includes Tag type
    * member).
    */
-  private def normalizeUnionCaseTypeName(tagName: String, fields: List[(String, String)]): String = {
-    val sorted     = fields.sortBy(_._1)
-    val tagPart    = s"""Tag:"$tagName""""
-    val fieldParts = sorted.map { case (name, typeName) =>
-      s"$name:${simplifyTypeName(typeName)}"
-    }
-    (tagPart :: fieldParts).mkString("{", ",", "}")
+  private def normalizeUnionCaseTypeName(caseName: String, fields: List[(String, String)]): String = {
+    val innerTypeName =
+      if (fields.isEmpty) "{}"
+      else {
+        val sorted = fields.sortBy(_._1)
+        sorted.map { case (name, typeName) =>
+          s"$name:${simplifyTypeName(typeName)}"
+        }.mkString("{", ",", "}")
+      }
+    s"{$caseName:$innerTypeName}"
   }
 
   /**
