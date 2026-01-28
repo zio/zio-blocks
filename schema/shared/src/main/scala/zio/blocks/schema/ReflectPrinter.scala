@@ -253,7 +253,7 @@ private[schema] object ReflectPrinter {
   ): String =
     reflect match {
       case p: Reflect.Primitive[F, A] =>
-        sdlTypeName(p.typeId)
+        printPrimitive(p)
 
       case d: Reflect.Deferred[F, A] =>
         // Check visited for the deferred's value, not the deferred itself
