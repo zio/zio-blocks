@@ -228,7 +228,7 @@ private[schema] object ReflectPrinter {
   ): String =
     reflect match {
       case p: Reflect.Primitive[F, A] =>
-        sdlTypeName(p.typeName)
+        printPrimitive(p)
 
       case d: Reflect.Deferred[F, A] =>
         // Check visited for the deferred's value, not the deferred itself
@@ -327,6 +327,36 @@ private[schema] object ReflectPrinter {
   }
 
   private def indentString(spaces: Int): String = " " * spaces
+
+  /**
+   * Renders a validation as a suffix string (e.g., " @Positive", " @Length(min=3,
+   * max=50)"). Returns empty string for Validation.None.
+   */
+  private def validationSuffix[A](validation: Validation[A]): String = validation match {
+    case Validation.None                    => ""
+    case Validation.Numeric.Positive        => " @Positive"
+    case Validation.Numeric.Negative        => " @Negative"
+    case Validation.Numeric.NonPositive     => " @NonPositive"
+    case Validation.Numeric.NonNegative     => " @NonNegative"
+    case Validation.Numeric.Range(min, max) =>
+      val parts = List(min.map(m => s"min=$m"), max.map(m => s"max=$m")).flatten
+      if (parts.isEmpty) "" else s" @Range(${parts.mkString(", ")})"
+    case Validation.Numeric.Set(values)     => s" @Set(${values.mkString(", ")})"
+    case Validation.String.NonEmpty         => " @NonEmpty"
+    case Validation.String.Empty            => " @Empty"
+    case Validation.String.Blank            => " @Blank"
+    case Validation.String.NonBlank         => " @NonBlank"
+    case Validation.String.Length(min, max) =>
+      val parts = List(min.map(m => s"min=$m"), max.map(m => s"max=$m")).flatten
+      if (parts.isEmpty) "" else s" @Length(${parts.mkString(", ")})"
+    case Validation.String.Pattern(regex) => s" @Pattern(\"$regex\")"
+  }
+
+  /**
+   * Prints a Primitive reflect including its validation suffix.
+   */
+  private[schema] def printPrimitive[F[_, _], A](primitive: Reflect.Primitive[F, A]): String =
+    sdlTypeName(primitive.typeName) + validationSuffix(primitive.primitiveType.validation)
 
   // Extension to make foreach work on IndexedSeq
   private implicit class IndexedSeqOps[A](seq: IndexedSeq[A]) {

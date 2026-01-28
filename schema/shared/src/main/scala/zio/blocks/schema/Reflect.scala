@@ -1091,7 +1091,7 @@ object Reflect {
 
     override def isPrimitive: Boolean = true
 
-    override def toString: String = ReflectPrinter.sdlTypeName(typeName)
+    override def toString: String = ReflectPrinter.printPrimitive(this)
   }
 
   object Primitive {

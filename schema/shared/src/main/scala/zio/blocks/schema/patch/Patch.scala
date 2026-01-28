@@ -586,7 +586,7 @@ object Patch {
   def replace[S, A <: S](prism: Prism[S, A], a: A): Patch[S] =
     set(prism, a)
 
-  // Type aliases for backward compatibility and convenience
+  // Type aliases for convenience
   type DurationDummy = DynamicPatch.DurationDummy
   val DurationDummy = DynamicPatch.DurationDummy
 
