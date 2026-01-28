@@ -493,10 +493,11 @@ object ReflectSpec extends ZIOSpecDefault {
         assertTrue(reflect.toString == "Int")
       },
       test("renders record with validated primitive fields") {
-        import zio.blocks.schema.binding._
-        import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+        // Derive schema to get proper binding, then replace fields with validated versions
+        lazy implicit val schema: Schema[ValidatedUser] = Schema.derived[ValidatedUser]
+        val derivedRecord                               = schema.reflect.asRecord.get
 
-        // Create a record with validated fields: name (NonEmpty String), age (Positive Int)
+        // Create validated primitives
         val nameReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.NonEmpty),
           TypeName.string,
@@ -508,35 +509,21 @@ object ReflectSpec extends ZIOSpecDefault {
           Binding.Primitive()
         )
 
-        val userRecord = Reflect.Record[Binding, (String, Int)](
+        // Create new record with validated fields, reusing derived binding
+        val validatedRecord = derivedRecord.copy(
           fields = Vector(
-            Term("name", nameReflect),
-            Term("age", ageReflect)
-          ),
-          typeName = TypeName(Namespace(Nil), "User"),
-          recordBinding = Binding.Record(
-            constructor = new Constructor[(String, Int)] {
-              def usedRegisters                                    = RegisterOffset(ints = 1, objects = 1)
-              def construct(in: Registers, offset: RegisterOffset) =
-                (in.getObject(offset).asInstanceOf[String], in.getInt(offset))
-            },
-            deconstructor = new Deconstructor[(String, Int)] {
-              def usedRegisters                                                          = RegisterOffset(ints = 1, objects = 1)
-              def deconstruct(out: Registers, offset: RegisterOffset, in: (String, Int)) = {
-                out.setObject(offset, in._1)
-                out.setInt(offset, in._2)
-              }
-            }
+            Term[Binding, ValidatedUser, String]("name", nameReflect),
+            Term[Binding, ValidatedUser, Int]("age", ageReflect)
           )
         )
 
         val expected =
-          """record User {
+          """record ValidatedUser {
             |  name: String @NonEmpty
             |  age: Int @Positive
             |}""".stripMargin
 
-        assertTrue(userRecord.toString == expected)
+        assertTrue(validatedRecord.toString == expected)
       },
       test("renders sequence with validated element type") {
         val intReflect = Reflect.Primitive[Binding, Int](
@@ -617,4 +604,9 @@ object ReflectSpec extends ZIOSpecDefault {
   case class Level3(value: Int)
   case class Level2(nested: Level3)
   case class Level1(nested: Level2)
+
+  // For validation tests
+  case class ValidatedUser(name: String, age: Int)
+  case class ValidatedUserWithEmail(name: String, age: Int, email: String)
+  case class Transaction(currencyCode: String, amount: BigDecimal)
 }

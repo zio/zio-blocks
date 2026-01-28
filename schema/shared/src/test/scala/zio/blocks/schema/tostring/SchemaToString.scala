@@ -441,10 +441,11 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         assertTrue(schema.toString == "Schema {\n  Long @Negative\n}")
       },
       test("renders record schema with validated primitive fields") {
-        import zio.blocks.schema.binding._
-        import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+        // Derive schema to get proper binding, then replace fields with validated versions
+        lazy implicit val baseSchema: Schema[ValidatedUserWithEmail] = Schema.derived[ValidatedUserWithEmail]
+        val derivedRecord                                            = baseSchema.reflect.asRecord.get
 
-        // Create a User record with validated fields
+        // Create validated primitives
         val nameReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Length(Some(1), Some(100))),
           TypeName.string,
@@ -461,38 +462,19 @@ object SchemaToStringSpec extends ZIOSpecDefault {
           Binding.Primitive()
         )
 
-        val userRecord = Reflect.Record[Binding, (String, Int, String)](
+        // Create new record with validated fields, reusing derived binding
+        val validatedRecord = derivedRecord.copy(
           fields = Vector(
-            Term("name", nameReflect),
-            Term("age", ageReflect),
-            Term("email", emailReflect)
-          ),
-          typeName = TypeName(Namespace(Nil), "User"),
-          recordBinding = Binding.Record(
-            constructor = new Constructor[(String, Int, String)] {
-              def usedRegisters                                    = RegisterOffset(ints = 1, objects = 2)
-              def construct(in: Registers, offset: RegisterOffset) =
-                (
-                  in.getObject(offset).asInstanceOf[String],
-                  in.getInt(offset),
-                  in.getObject(offset + RegisterOffset(objects = 1)).asInstanceOf[String]
-                )
-            },
-            deconstructor = new Deconstructor[(String, Int, String)] {
-              def usedRegisters                                                                  = RegisterOffset(ints = 1, objects = 2)
-              def deconstruct(out: Registers, offset: RegisterOffset, in: (String, Int, String)) = {
-                out.setObject(offset, in._1)
-                out.setInt(offset, in._2)
-                out.setObject(offset + RegisterOffset(objects = 1), in._3)
-              }
-            }
+            Term[Binding, ValidatedUserWithEmail, String]("name", nameReflect),
+            Term[Binding, ValidatedUserWithEmail, Int]("age", ageReflect),
+            Term[Binding, ValidatedUserWithEmail, String]("email", emailReflect)
           )
         )
 
-        val schema   = new Schema(userRecord)
+        val schema   = new Schema(validatedRecord)
         val expected =
           """Schema {
-            |  record User {
+            |  record ValidatedUserWithEmail {
             |    name: String @Length(min=1, max=100)
             |    age: Int @Range(min=0, max=150)
             |    email: String @Pattern("^[^@]+@[^@]+$")
@@ -582,4 +564,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
   case class CreditCardTest(number: String, expiry: String, cvv: String) extends PaymentMethodTest
   case class BankTransferTest(account: BankAccountTest)                  extends PaymentMethodTest
   case class BankAccountTest(routing: String, number: String)
+
+  // For validation tests
+  case class ValidatedUserWithEmail(name: String, age: Int, email: String)
 }

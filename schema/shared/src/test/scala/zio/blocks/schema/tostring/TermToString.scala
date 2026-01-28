@@ -458,7 +458,11 @@ object TermToString extends ZIOSpecDefault {
         assertTrue(term.toString == "count: Long @NonNegative")
       },
       test("renders term with record containing validated fields") {
-        // Create a record with validated fields
+        // Derive schema to get proper binding, then replace fields with validated versions
+        lazy implicit val schema: Schema[ValidatedPerson] = Schema.derived[ValidatedPerson]
+        val derivedRecord                                 = schema.reflect.asRecord.get
+
+        // Create validated primitives
         val nameReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.NonEmpty),
           TypeName.string,
@@ -470,28 +474,18 @@ object TermToString extends ZIOSpecDefault {
           Binding.Primitive()
         )
 
-        val personRecord = Reflect.Record[Binding, Point](
+        // Create new record with validated fields, reusing derived binding
+        val validatedRecord = derivedRecord.copy(
           fields = Vector(
-            Term("name", nameReflect),
-            Term("age", ageReflect)
-          ),
-          typeName = TypeName(Namespace(Nil), "Person"),
-          recordBinding = Binding.Record(
-            constructor = new Constructor[Point] {
-              def usedRegisters                                    = RegisterOffset(ints = 1, objects = 1)
-              def construct(in: Registers, offset: RegisterOffset) = Point(in.getInt(offset), 0)
-            },
-            deconstructor = new Deconstructor[Point] {
-              def usedRegisters                                                  = RegisterOffset(ints = 1, objects = 1)
-              def deconstruct(out: Registers, offset: RegisterOffset, in: Point) = out.setInt(offset, in.x)
-            }
+            Term[Binding, ValidatedPerson, String]("name", nameReflect),
+            Term[Binding, ValidatedPerson, Int]("age", ageReflect)
           )
         )
 
-        val term = Term("person", personRecord)
+        val term = Term("person", validatedRecord)
 
         val expected =
-          """person: record Person {
+          """person: record ValidatedPerson {
             |  name: String @NonEmpty
             |  age: Int @Range(min=0, max=120)
             |}""".stripMargin
@@ -537,6 +531,11 @@ object TermToString extends ZIOSpecDefault {
         assertTrue(term.toString == "scores: map Map[String @NonBlank, Int @NonNegative]")
       },
       test("renders term with nested record containing validated fields inside sequence") {
+        // Derive schema to get proper binding
+        lazy implicit val transactionSchema: Schema[Transaction] = Schema.derived[Transaction]
+        val derivedRecord                                        = transactionSchema.reflect.asRecord.get
+
+        // Create validated primitives
         val codeReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Pattern("^[A-Z]{3}$")),
           TypeName.string,
@@ -548,35 +547,20 @@ object TermToString extends ZIOSpecDefault {
           Binding.Primitive()
         )
 
-        val transactionRecord = Reflect.Record[Binding, Point](
+        // Create new record with validated fields
+        val validatedRecord = derivedRecord.copy(
           fields = Vector(
-            Term("currencyCode", codeReflect),
-            Term("amount", amountReflect)
-          ),
-          typeName = TypeName(Namespace(Nil), "Transaction"),
-          recordBinding = Binding.Record(
-            constructor = new Constructor[Point] {
-              def usedRegisters                                    = RegisterOffset(objects = 2)
-              def construct(in: Registers, offset: RegisterOffset) = Point(0, 0)
-            },
-            deconstructor = new Deconstructor[Point] {
-              def usedRegisters                                                  = RegisterOffset(objects = 2)
-              def deconstruct(out: Registers, offset: RegisterOffset, in: Point) = ()
-            }
+            Term[Binding, Transaction, String]("currencyCode", codeReflect),
+            Term[Binding, Transaction, BigDecimal]("amount", amountReflect)
           )
         )
 
-        val listReflect = Reflect.Sequence[Binding, Point, List](
-          element = transactionRecord,
-          typeName = TypeName(
-            Namespace("scala" :: "collection" :: "immutable" :: Nil),
-            "List",
-            Vector(TypeName(Namespace(Nil), "Transaction"))
-          ),
-          seqBinding = Binding.Seq.list.asInstanceOf[Binding.Seq[List, Point]]
-        )
+        // Create sequence of validated records
+        lazy implicit val listSchema: Schema[List[Transaction]] = Schema.list[Transaction]
+        val derivedList                                         = listSchema.reflect.asSequence.get
+        val validatedList                                       = derivedList.copy(element = validatedRecord)
 
-        val term = Term("transactions", listReflect)
+        val term = Term("transactions", validatedList)
 
         val expected =
           """transactions: sequence List[
@@ -692,6 +676,10 @@ object TermToString extends ZIOSpecDefault {
 
   case class Point(x: Int, y: Int)
   case class EmailParts(local: String, domain: String)
+
+  // For validation tests
+  case class ValidatedPerson(name: String, age: Int)
+  case class Transaction(currencyCode: String, amount: BigDecimal)
 
   sealed trait Tree
   case class Leaf(value: Int)                            extends Tree
