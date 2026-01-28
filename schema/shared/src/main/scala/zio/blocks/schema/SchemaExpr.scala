@@ -60,7 +60,7 @@ object SchemaExpr {
     def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = dynamicResult
 
     private[this] val result        = new Right(value :: Nil)
-    private[this] val dynamicResult = new Right(schema.toDynamicValue(value.asInstanceOf[schema.type#A]) :: Nil)
+    private[this] val dynamicResult = new Right(schema.toDynamicValue(value) :: Nil)
   }
 
   final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {
