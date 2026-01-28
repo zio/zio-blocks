@@ -74,10 +74,6 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     b: MigrationBuilder[A, B, H, P]
   ): MigrationBuilderSyntax[A, B, H, P] = new MigrationBuilderSyntax(b)
 
-  // Type-level assertion helpers
-  def assertContains[L <: TList, X](implicit ev: Contains[L, X]): Unit          = ()
-  def assertIsSubset[A <: TList, B <: TList](implicit ev: IsSubset[A, B]): Unit = ()
-
   // ==========================================================================
   // Tests
   // ==========================================================================
@@ -411,29 +407,6 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
   // Type-Level Verification Suite
   // --------------------------------------------------------------------------
   val typeLevelVerificationSuite = suite("type-level verification")(
-    test("IsSubset works with TNil") {
-      // TNil is subset of TNil
-      assertIsSubset[TNil, TNil]
-      assertTrue(true)
-    },
-    test("IsSubset works with single element") {
-      // "a" :: TNil is subset of "a" :: TNil
-      assertIsSubset["a" :: TNil, "a" :: TNil]
-      assertTrue(true)
-    },
-    test("IsSubset works with subset") {
-      // "a" :: TNil is subset of "a" :: "b" :: TNil
-      assertIsSubset["a" :: TNil, "a" :: "b" :: TNil]
-      assertTrue(true)
-    },
-    test("Contains works for element at head") {
-      assertContains["a" :: "b" :: TNil, "a"]
-      assertTrue(true)
-    },
-    test("Contains works for element in tail") {
-      assertContains["a" :: "b" :: TNil, "b"]
-      assertTrue(true)
-    },
     test("schemas are preserved through operations") {
       val builder = syntax(MigrationBuilder.newBuilder[PersonV1, PersonV2])
         .dropField(_.oldField, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))

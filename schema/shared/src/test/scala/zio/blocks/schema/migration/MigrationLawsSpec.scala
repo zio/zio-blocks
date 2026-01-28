@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 
@@ -382,7 +383,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       },
       test("addField reverse is dropField - semantic roundtrip loses added field") {
         val original = DynamicValue.Record(
-          Vector(
+          Chunk(
             "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "lastName"  -> DynamicValue.Primitive(PrimitiveValue.String("Doe")),
             "age"       -> DynamicValue.Primitive(PrimitiveValue.Int(30))
@@ -418,7 +419,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         val someValue = DynamicValue.Variant(
           "Some",
           DynamicValue.Record(
-            Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+            Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
           )
         )
 
@@ -455,7 +456,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
     suite("Error Path Tracking")(
       test("error includes path for missing field") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "age"       -> DynamicValue.Primitive(PrimitiveValue.Int(30))
           )
@@ -482,9 +483,9 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       },
       test("error includes path for nested field errors") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "address" -> DynamicValue.Record(
-              Vector(
+              Chunk(
                 "street" -> DynamicValue.Primitive(PrimitiveValue.String("Main St")),
                 "city"   -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
               )
@@ -517,7 +518,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       },
       test("error includes path for type mismatch") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "age" -> DynamicValue.Primitive(PrimitiveValue.String("not a number"))
           )
         )
@@ -565,7 +566,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
     suite("Semantic Inverse Failures - Lossy Transformations")(
       test("split/join loses information - cannot recover exact split") {
         val original = DynamicValue.Record(
-          Vector(
+          Chunk(
             "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Q. Doe"))
           )
         )
@@ -599,7 +600,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       },
       test("type conversion loses precision - DoubleToInt") {
         val original = DynamicValue.Record(
-          Vector(
+          Chunk(
             "value" -> DynamicValue.Primitive(PrimitiveValue.Double(42.7))
           )
         )
@@ -632,7 +633,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       },
       test("dropField loses original value") {
         val original = DynamicValue.Record(
-          Vector(
+          Chunk(
             "firstName"  -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "lastName"   -> DynamicValue.Primitive(PrimitiveValue.String("Doe")),
             "middleName" -> DynamicValue.Primitive(PrimitiveValue.String("Q."))
@@ -666,7 +667,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       },
       test("string transformation loses information - uppercase") {
         val original = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe"))
           )
         )
@@ -718,7 +719,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       test("mandate with None loses the None case") {
         val noneValue = DynamicValue.Variant(
           "None",
-          DynamicValue.Record(Vector.empty)
+          DynamicValue.Record(Chunk.empty)
         )
 
         val mandateMigration = DynamicMigration(
@@ -812,7 +813,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         // Edge case: what if we had multiple consecutive spaces?
         // This tests a different kind of lossiness where spacing is normalized
         val original = DynamicValue.Record(
-          Vector(
+          Chunk(
             "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "lastName"  -> DynamicValue.Primitive(PrimitiveValue.String("Doe")),
             "age"       -> DynamicValue.Primitive(PrimitiveValue.Int(30))

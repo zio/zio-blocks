@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 
@@ -11,7 +12,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         // Create a DynamicValue representing Some(42)
         val someValue = DynamicValue.Variant(
           "Some",
-          DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))))
+          DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))))
         )
 
         val action = MigrationAction.Mandate(
@@ -29,7 +30,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         // Create a DynamicValue representing None
         val noneValue = DynamicValue.Variant(
           "None",
-          DynamicValue.Record(Vector.empty)
+          DynamicValue.Record(Chunk.empty)
         )
 
         val action = MigrationAction.Mandate(
@@ -45,11 +46,11 @@ object OptionalFieldSpec extends ZIOSpecDefault {
       },
       test("unwraps Some in a record field") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
             "age"  -> DynamicValue.Variant(
               "Some",
-              DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(30))))
+              DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(30))))
             )
           )
         )
@@ -64,7 +65,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         assertTrue(
           result.isRight &&
             result.toOption.get == DynamicValue.Record(
-              Vector(
+              Chunk(
                 "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
                 "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
               )
@@ -73,9 +74,9 @@ object OptionalFieldSpec extends ZIOSpecDefault {
       },
       test("uses default for None in a record field") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
-            "age"  -> DynamicValue.Variant("None", DynamicValue.Record(Vector.empty))
+            "age"  -> DynamicValue.Variant("None", DynamicValue.Record(Chunk.empty))
           )
         )
 
@@ -89,7 +90,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         assertTrue(
           result.isRight &&
             result.toOption.get == DynamicValue.Record(
-              Vector(
+              Chunk(
                 "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
                 "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(18))
               )
@@ -124,14 +125,14 @@ object OptionalFieldSpec extends ZIOSpecDefault {
           result == Right(
             DynamicValue.Variant(
               "Some",
-              DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))))
+              DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))))
             )
           )
         )
       },
       test("wraps value in record field") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
             "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
           )
@@ -147,11 +148,11 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         assertTrue(
           result.isRight &&
             result.toOption.get == DynamicValue.Record(
-              Vector(
+              Chunk(
                 "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
                 "age"  -> DynamicValue.Variant(
                   "Some",
-                  DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(30))))
+                  DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(30))))
                 )
               )
             )
@@ -159,7 +160,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
       },
       test("wraps complex value (record) in Some") {
         val complexValue = DynamicValue.Record(
-          Vector(
+          Chunk(
             "street" -> DynamicValue.Primitive(PrimitiveValue.String("Main St")),
             "number" -> DynamicValue.Primitive(PrimitiveValue.Int(123))
           )
@@ -176,7 +177,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
           result == Right(
             DynamicValue.Variant(
               "Some",
-              DynamicValue.Record(Vector("value" -> complexValue))
+              DynamicValue.Record(Chunk("value" -> complexValue))
             )
           )
         )
@@ -226,10 +227,10 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         )
 
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "age" -> DynamicValue
-              .Variant("Some", DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(25))))),
-            "score" -> DynamicValue.Variant("None", DynamicValue.Record(Vector.empty))
+              .Variant("Some", DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(25))))),
+            "score" -> DynamicValue.Variant("None", DynamicValue.Record(Chunk.empty))
           )
         )
 
@@ -238,7 +239,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         assertTrue(
           result.isRight &&
             result.toOption.get == DynamicValue.Record(
-              Vector(
+              Chunk(
                 "age"   -> DynamicValue.Primitive(PrimitiveValue.Int(25)),
                 "score" -> DynamicValue.Primitive(PrimitiveValue.Int(100))
               )
@@ -258,7 +259,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         )
 
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "age"   -> DynamicValue.Primitive(PrimitiveValue.Int(25)),
             "score" -> DynamicValue.Primitive(PrimitiveValue.Int(100))
           )
@@ -269,14 +270,14 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         assertTrue(
           result.isRight &&
             result.toOption.get == DynamicValue.Record(
-              Vector(
+              Chunk(
                 "age" -> DynamicValue.Variant(
                   "Some",
-                  DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(25))))
+                  DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(25))))
                 ),
                 "score" -> DynamicValue.Variant(
                   "Some",
-                  DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(100))))
+                  DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(100))))
                 )
               )
             )
@@ -295,7 +296,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         )
 
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
           )
         )

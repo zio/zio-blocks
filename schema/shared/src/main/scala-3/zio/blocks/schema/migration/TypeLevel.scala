@@ -1,12 +1,13 @@
 package zio.blocks.schema.migration
 
-import scala.compiletime.ops.int.+
-
 /**
  * Type-level operations on Tuples for compile-time migration validation.
  *
  * These match types enable tracking handled and provided fields at the type
  * level, allowing the compiler to verify migration completeness.
+ *
+ * Note: Additional type-level operations (Union, Intersect, TupleEquals, Size)
+ * could be implemented using match types if needed for advanced use cases.
  */
 object TypeLevel {
 
@@ -44,24 +45,6 @@ object TypeLevel {
   }
 
   /**
-   * Combine two tuples, keeping all elements from A and adding elements from B
-   * not in A.
-   *
-   * {{{
-   * Union[("a", "b"), ("b", "c")] produces a tuple containing "a", "b", "c"
-   * Union[EmptyTuple, ("a")] =:= ("a")
-   * }}}
-   */
-  type Union[A <: Tuple, B <: Tuple] <: Tuple = B match {
-    case EmptyTuple => A
-    case h *: tail  =>
-      Contains[A, h] match {
-        case true  => Union[A, tail]
-        case false => Union[Tuple.Append[A, h], tail]
-      }
-  }
-
-  /**
    * Elements in A that are not in B.
    *
    * {{{
@@ -80,24 +63,6 @@ object TypeLevel {
   }
 
   /**
-   * Elements present in both A and B.
-   *
-   * {{{
-   * Intersect[("a", "b"), ("b", "c")] =:= ("b" *: EmptyTuple)
-   * Intersect[("a"), ("b")] =:= EmptyTuple
-   * Intersect[("a", "b"), ("a", "b")] =:= ("a", "b")
-   * }}}
-   */
-  type Intersect[A <: Tuple, B <: Tuple] <: Tuple = A match {
-    case EmptyTuple => EmptyTuple
-    case h *: tail  =>
-      Contains[B, h] match {
-        case true  => h *: Intersect[tail, B]
-        case false => Intersect[tail, B]
-      }
-  }
-
-  /**
    * Type-level evidence that A is a subset of B. Used for compile-time
    * validation proofs.
    */
@@ -110,22 +75,5 @@ object TypeLevel {
       ev1: Contains[B, H] =:= true,
       ev2: SubsetEvidence[T, B]
     ): SubsetEvidence[H *: T, B] = new SubsetEvidence[H *: T, B] {}
-  }
-
-  /**
-   * Type-level equality check for tuples. Two tuples are equal if each is a
-   * subset of the other.
-   */
-  type TupleEquals[A <: Tuple, B <: Tuple] <: Boolean = (IsSubset[A, B], IsSubset[B, A]) match {
-    case (true, true) => true
-    case _            => false
-  }
-
-  /**
-   * Size of a tuple at the type level.
-   */
-  type Size[T <: Tuple] <: Int = T match {
-    case EmptyTuple => 0
-    case _ *: tail  => +[Size[tail], 1]
   }
 }

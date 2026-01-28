@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 
@@ -284,11 +285,11 @@ object NestedFieldSpec extends ZIOSpecDefault {
         // Change _.address.zip from String to Int (if it's numeric)
         // For this test, we'll use a dynamic value with zip as string "10001"
         val personDynamic = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
             "age"     -> DynamicValue.Primitive(PrimitiveValue.Int(30)),
             "address" -> DynamicValue.Record(
-              Vector(
+              Chunk(
                 "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St")),
                 "city"   -> DynamicValue.Primitive(PrimitiveValue.String("NYC")),
                 "zip"    -> DynamicValue.Primitive(PrimitiveValue.String("10001"))
@@ -309,11 +310,11 @@ object NestedFieldSpec extends ZIOSpecDefault {
         val result = migration(personDynamic)
 
         val expected = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
             "age"     -> DynamicValue.Primitive(PrimitiveValue.Int(30)),
             "address" -> DynamicValue.Record(
-              Vector(
+              Chunk(
                 "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St")),
                 "city"   -> DynamicValue.Primitive(PrimitiveValue.String("NYC")),
                 "zip"    -> DynamicValue.Primitive(PrimitiveValue.Int(10001))
@@ -326,13 +327,13 @@ object NestedFieldSpec extends ZIOSpecDefault {
       },
       test("3-level: change type of deeply nested field") {
         val employeeDynamic = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
             "company" -> DynamicValue.Record(
-              Vector(
+              Chunk(
                 "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Acme Inc")),
                 "address" -> DynamicValue.Record(
-                  Vector(
+                  Chunk(
                     "street" -> DynamicValue.Primitive(PrimitiveValue.String("456 Oak Ave")),
                     "city"   -> DynamicValue.Primitive(PrimitiveValue.String("LA")),
                     "zip"    -> DynamicValue.Primitive(PrimitiveValue.String("90001"))
@@ -355,13 +356,13 @@ object NestedFieldSpec extends ZIOSpecDefault {
         val result = migration(employeeDynamic)
 
         val expected = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
             "company" -> DynamicValue.Record(
-              Vector(
+              Chunk(
                 "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Acme Inc")),
                 "address" -> DynamicValue.Record(
-                  Vector(
+                  Chunk(
                     "street" -> DynamicValue.Primitive(PrimitiveValue.String("456 Oak Ave")),
                     "city"   -> DynamicValue.Primitive(PrimitiveValue.String("LA")),
                     "zip"    -> DynamicValue.Primitive(PrimitiveValue.Int(90001))
@@ -477,7 +478,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
             .get
             ._2 == DynamicValue.Variant(
             "Some",
-            DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.String("10001"))))
+            DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.String("10001"))))
           )
         )
       },
@@ -515,7 +516,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
             .get
             ._2 == DynamicValue.Variant(
             "Some",
-            DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.String("90001"))))
+            DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.String("90001"))))
           )
         )
       }
@@ -614,11 +615,11 @@ object NestedFieldSpec extends ZIOSpecDefault {
       test("2-level: split nested field") {
         // Split _.address.fullAddress -> _.address.street + _.address.city
         val personDynamic = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
             "age"     -> DynamicValue.Primitive(PrimitiveValue.Int(30)),
             "address" -> DynamicValue.Record(
-              Vector(
+              Chunk(
                 "fullAddress" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St, NYC")),
                 "zip"         -> DynamicValue.Primitive(PrimitiveValue.String("10001"))
               )
@@ -656,13 +657,13 @@ object NestedFieldSpec extends ZIOSpecDefault {
       },
       test("3-level: split deeply nested field") {
         val employeeDynamic = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
             "company" -> DynamicValue.Record(
-              Vector(
+              Chunk(
                 "name"    -> DynamicValue.Primitive(PrimitiveValue.String("Acme Inc")),
                 "address" -> DynamicValue.Record(
-                  Vector(
+                  Chunk(
                     "fullAddress" -> DynamicValue.Primitive(PrimitiveValue.String("456 Oak Ave, LA")),
                     "zip"         -> DynamicValue.Primitive(PrimitiveValue.String("90001"))
                   )
@@ -937,7 +938,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
       test("error: missing intermediate record") {
         // Try to access _.missingAddress.street
         val personDynamic = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
             "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
             // No address field

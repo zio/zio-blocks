@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 
@@ -16,7 +17,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("AddField / DropField")(
         test("AddField → DropField → round-trip preserves original") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
             )
           )
@@ -35,7 +36,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
         },
         test("DropField → AddField → round-trip preserves original") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
               "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
             )
@@ -57,7 +58,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("Rename")(
         test("Rename → Rename → round-trip preserves original") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
             )
           )
@@ -78,7 +79,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("ChangeType")(
         test("Int → String → Int round-trip preserves value") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "age" -> DynamicValue.Primitive(PrimitiveValue.Int(25))
             )
           )
@@ -99,10 +100,10 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("Mandate / Optionalize")(
         test("Mandate(Some) → Optionalize → round-trip preserves original") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "age" -> DynamicValue.Variant(
                 "Some",
-                DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(25))))
+                DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(25))))
               )
             )
           )
@@ -121,7 +122,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
         },
         test("Optionalize → Mandate → round-trip preserves original") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "age" -> DynamicValue.Primitive(PrimitiveValue.Int(25))
             )
           )
@@ -143,7 +144,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
         test("RenameCase → RenameCase → round-trip preserves original") {
           val original = DynamicValue.Variant(
             "PayPal",
-            DynamicValue.Record(Vector("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
+            DynamicValue.Record(Chunk("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
           )
 
           val renameAction = MigrationAction.RenameCase(
@@ -165,7 +166,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
           val original = DynamicValue.Variant(
             "CreditCard",
             DynamicValue.Record(
-              Vector(
+              Chunk(
                 "number" -> DynamicValue.Primitive(PrimitiveValue.String("1234"))
               )
             )
@@ -195,7 +196,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("TransformValue - Add/Subtract")(
         test("Add → Subtract → round-trip preserves original") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "price" -> DynamicValue.Primitive(PrimitiveValue.Int(100))
             )
           )
@@ -217,14 +218,14 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           assertTrue(
             forward.toOption.get == DynamicValue.Record(
-              Vector("price" -> DynamicValue.Primitive(PrimitiveValue.Int(150)))
+              Chunk("price" -> DynamicValue.Primitive(PrimitiveValue.Int(150)))
             )
           ) &&
           assertTrue(roundTripped == original)
         },
         test("Subtract → Add → round-trip preserves original") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "balance" -> DynamicValue.Primitive(PrimitiveValue.Int(1000))
             )
           )
@@ -246,7 +247,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           assertTrue(
             forward.toOption.get == DynamicValue.Record(
-              Vector("balance" -> DynamicValue.Primitive(PrimitiveValue.Int(800)))
+              Chunk("balance" -> DynamicValue.Primitive(PrimitiveValue.Int(800)))
             )
           ) &&
           assertTrue(roundTripped == original)
@@ -255,7 +256,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("TransformValue - Multiply/Divide (requires Divide operator)")(
         test("Multiply → Divide → round-trip preserves original") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "quantity" -> DynamicValue.Primitive(PrimitiveValue.Int(10))
             )
           )
@@ -277,7 +278,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           assertTrue(
             forward.toOption.get == DynamicValue.Record(
-              Vector("quantity" -> DynamicValue.Primitive(PrimitiveValue.Int(50)))
+              Chunk("quantity" -> DynamicValue.Primitive(PrimitiveValue.Int(50)))
             )
           ) &&
           assertTrue(roundTripped == original)
@@ -286,7 +287,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("TransformValue - Boolean Not (self-inverse)")(
         test("Not → Not → round-trip preserves original") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "active" -> DynamicValue.Primitive(PrimitiveValue.Boolean(true))
             )
           )
@@ -305,7 +306,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           assertTrue(
             forward.toOption.get == DynamicValue.Record(
-              Vector("active" -> DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+              Chunk("active" -> DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
             )
           ) &&
           assertTrue(roundTripped == original)
@@ -316,7 +317,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("TransformValue - Uppercase/Lowercase")(
         test("Uppercase → Lowercase → reverses but loses original casing") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("john"))
             )
           )
@@ -334,14 +335,14 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           assertTrue(
             forward.toOption.get == DynamicValue.Record(
-              Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("JOHN")))
+              Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("JOHN")))
             )
           ) &&
           assertTrue(backward.toOption.get == original)
         },
         test("Lowercase → Uppercase → reverses but loses original casing") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("JOHN"))
             )
           )
@@ -359,14 +360,14 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           assertTrue(
             forward.toOption.get == DynamicValue.Record(
-              Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("john")))
+              Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("john")))
             )
           ) &&
           assertTrue(backward.toOption.get == original)
         },
         test("Lossy: Mixed case gets lost in round-trip") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("JoHn"))
             )
           )
@@ -385,7 +386,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
           // After round-trip: "JoHn" → "JOHN" → "john" (LOST original casing!)
           assertTrue(
             backward.toOption.get == DynamicValue.Record(
-              Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("john")))
+              Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("john")))
             )
           ) &&
           assertTrue(backward.toOption.get != original) // Demonstrates loss
@@ -396,7 +397,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("Join - String Concatenation")(
         test("Join with delimiter → Split → recovers fields") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
               "lastName"  -> DynamicValue.Primitive(PrimitiveValue.String("Doe"))
             )
@@ -423,7 +424,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           assertTrue(
             forward.toOption.get == DynamicValue.Record(
-              Vector("fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe")))
+              Chunk("fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe")))
             )
           ) &&
           assertTrue(backward.toOption.get == original)
@@ -482,9 +483,9 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("TransformElements")(
         test("Add to all elements → Subtract from all elements") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "prices" -> DynamicValue.Sequence(
-                Vector(
+                Chunk(
                   DynamicValue.Primitive(PrimitiveValue.Int(100)),
                   DynamicValue.Primitive(PrimitiveValue.Int(200)),
                   DynamicValue.Primitive(PrimitiveValue.Int(300))
@@ -513,9 +514,9 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("TransformKeys")(
         test("Uppercase keys → Lowercase keys (LOSSY)") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "metadata" -> DynamicValue.Map(
-                Vector(
+                Chunk(
                   DynamicValue.Primitive(PrimitiveValue.String("name")) ->
                     DynamicValue.Primitive(PrimitiveValue.String("John")),
                   DynamicValue.Primitive(PrimitiveValue.String("age")) ->
@@ -542,9 +543,9 @@ object MigrationReverseSpec extends ZIOSpecDefault {
       suite("TransformValues")(
         test("Add to all values → Subtract from all values") {
           val original = DynamicValue.Record(
-            Vector(
+            Chunk(
               "scores" -> DynamicValue.Map(
-                Vector(
+                Chunk(
                   DynamicValue.Primitive(PrimitiveValue.String("math")) ->
                     DynamicValue.Primitive(PrimitiveValue.Int(90)),
                   DynamicValue.Primitive(PrimitiveValue.String("english")) ->
@@ -575,7 +576,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
     suite("Complex Round-Trip Scenarios")(
       test("Multiple reversible operations compose correctly") {
         val original = DynamicValue.Record(
-          Vector(
+          Chunk(
             "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("john")),
             "age"       -> DynamicValue.Primitive(PrimitiveValue.Int(25)),
             "salary"    -> DynamicValue.Primitive(PrimitiveValue.Int(50000))

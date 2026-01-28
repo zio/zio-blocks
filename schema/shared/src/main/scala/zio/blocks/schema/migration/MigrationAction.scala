@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaExpr}
 
 /**
@@ -777,7 +778,7 @@ object MigrationAction {
       def wrapInSome(originalValue: DynamicValue): DynamicValue =
         DynamicValue.Variant(
           "Some",
-          DynamicValue.Record(Vector("value" -> originalValue))
+          DynamicValue.Record(Chunk("value" -> originalValue))
         )
 
       // Handle root-level operation vs field operation
@@ -910,7 +911,7 @@ object MigrationAction {
         }
 
         // Build temporary Record with field0, field1, etc.
-        val tempFields = sourceValues.zipWithIndex.map { case (v, idx) => s"field$idx" -> v }
+        val tempFields = Chunk.fromIterable(sourceValues.zipWithIndex.map { case (v, idx) => s"field$idx" -> v })
         val tempRecord = DynamicValue.Record(tempFields)
 
         // Evaluate combiner on temporary Record
