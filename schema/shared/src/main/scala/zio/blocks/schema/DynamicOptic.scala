@@ -237,7 +237,6 @@ object DynamicOptic {
       reflect = new Reflect.Record[Binding, MapValues.type](
         fields = Vector.empty,
         typeId = TypeId.of[MapValues.type],
-        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "MapValues"),
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor[MapValues.type](MapValues),
           deconstructor = new ConstantDeconstructor[MapValues.type]
