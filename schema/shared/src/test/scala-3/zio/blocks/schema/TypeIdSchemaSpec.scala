@@ -5,7 +5,7 @@ import zio.blocks.typeid._
 import zio.test._
 
 object TypeIdSchemaSpec extends ZIOSpecDefault {
-  import TypeIdSchemas._
+  import Schema._ // TypeId schema instances are available through Schema companion
 
   private def deriveCodec[A](implicit schema: Schema[A]): JsonBinaryCodec[A] =
     schema.derive(JsonBinaryCodecDeriver)

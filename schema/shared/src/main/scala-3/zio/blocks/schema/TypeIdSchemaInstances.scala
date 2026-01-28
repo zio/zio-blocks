@@ -8,10 +8,13 @@ import zio.blocks.typeid._
  * These enable serialization of TypeId, TypeRepr, and related types. Required
  * for round-trip serialization as per jdegoes' design.
  *
+ * Mixed into SchemaCompanionVersionSpecific so that these implicits are
+ * automatically available without explicit imports.
+ *
  * Note: These are Scala 3 only because Scala 2's macro derivation cannot handle
  * existential types like TypeId[_] in TypeRepr.Ref.
  */
-object TypeIdSchemas {
+trait TypeIdSchemaInstances {
   implicit lazy val varianceSchema: Schema[Variance]           = Schema.derived[Variance]
   implicit lazy val kindSchema: Schema[Kind]                   = Schema.derived[Kind]
   implicit lazy val ownerSegmentSchema: Schema[Owner.Segment]  = Schema.derived[Owner.Segment]
