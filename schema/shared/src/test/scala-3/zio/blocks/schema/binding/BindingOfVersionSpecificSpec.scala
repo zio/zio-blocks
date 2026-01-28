@@ -152,6 +152,157 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         (1 to 100).foreach(i => constructor.addObject(builder, i))
         val result = constructor.resultObject(builder)
         assertTrue(result.length == 100 && result.toList == (1 to 100).toList)
+      },
+      test("IArray[Boolean] binding") {
+        val binding     = Binding.of[IArray[Boolean]].asInstanceOf[Binding.Seq[IArray, Boolean]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Boolean](2)
+        constructor.addObject(builder, true)
+        constructor.addObject(builder, false)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(true, false))
+      },
+      test("IArray[Byte] binding") {
+        val binding     = Binding.of[IArray[Byte]].asInstanceOf[Binding.Seq[IArray, Byte]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Byte](2)
+        constructor.addObject(builder, 1.toByte)
+        constructor.addObject(builder, 2.toByte)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1.toByte, 2.toByte))
+      },
+      test("IArray[Short] binding") {
+        val binding     = Binding.of[IArray[Short]].asInstanceOf[Binding.Seq[IArray, Short]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Short](2)
+        constructor.addObject(builder, 1.toShort)
+        constructor.addObject(builder, 2.toShort)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1.toShort, 2.toShort))
+      },
+      test("IArray[Long] binding") {
+        val binding     = Binding.of[IArray[Long]].asInstanceOf[Binding.Seq[IArray, Long]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Long](2)
+        constructor.addObject(builder, 1L)
+        constructor.addObject(builder, 2L)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1L, 2L))
+      },
+      test("IArray[Float] binding") {
+        val binding     = Binding.of[IArray[Float]].asInstanceOf[Binding.Seq[IArray, Float]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Float](2)
+        constructor.addObject(builder, 1.5f)
+        constructor.addObject(builder, 2.5f)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(1.5f, 2.5f))
+      },
+      test("IArray[Char] binding") {
+        val binding     = Binding.of[IArray[Char]].asInstanceOf[Binding.Seq[IArray, Char]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Char](2)
+        constructor.addObject(builder, 'a')
+        constructor.addObject(builder, 'b')
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List('a', 'b'))
+      },
+      test("IArray[Boolean] resize and trim") {
+        val binding     = Binding.of[IArray[Boolean]].asInstanceOf[Binding.Seq[IArray, Boolean]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Boolean](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i % 2 == 0))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("IArray[Byte] resize and trim") {
+        val binding     = Binding.of[IArray[Byte]].asInstanceOf[Binding.Seq[IArray, Byte]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Byte](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toByte))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("IArray[Short] resize and trim") {
+        val binding     = Binding.of[IArray[Short]].asInstanceOf[Binding.Seq[IArray, Short]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Short](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toShort))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("IArray[Long] resize and trim") {
+        val binding     = Binding.of[IArray[Long]].asInstanceOf[Binding.Seq[IArray, Long]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Long](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toLong))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("IArray[Float] resize and trim") {
+        val binding     = Binding.of[IArray[Float]].asInstanceOf[Binding.Seq[IArray, Float]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Float](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toFloat))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("IArray[Char] resize and trim") {
+        val binding     = Binding.of[IArray[Char]].asInstanceOf[Binding.Seq[IArray, Char]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Char](1)
+        ('a' to 'j').foreach(c => constructor.addObject(builder, c))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("IArray[Unit] special case") {
+        val binding     = Binding.of[IArray[Unit]].asInstanceOf[Binding.Seq[IArray, Unit]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Unit](1)
+        (1 to 5).foreach(_ => constructor.addObject(builder, ()))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 5)
+      },
+      test("IArray[AnyRef subtype] resize and trim") {
+        case class Box(value: Int)
+        val binding     = Binding.of[IArray[Box]].asInstanceOf[Binding.Seq[IArray, Box]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Box](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, Box(i)))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10 && result.toList.map(_.value) == (1 to 10).toList)
+      },
+      test("IArray result returns immutable array from wrapped buffer") {
+        val binding     = Binding.of[IArray[Int]].asInstanceOf[Binding.Seq[IArray, Int]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Int](16)
+        constructor.addObject(builder, 42)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 1 && result(0) == 42)
+      },
+      test("IArray of sealed trait") {
+        val binding = Binding.of[IArray[Color]]
+        assertTrue(binding.isInstanceOf[Binding.Seq[?, ?]])
+      },
+      test("IArray of Option") {
+        val binding     = Binding.of[IArray[Option[Int]]].asInstanceOf[Binding.Seq[IArray, Option[Int]]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Option[Int]](3)
+        constructor.addObject(builder, Some(1))
+        constructor.addObject(builder, None)
+        constructor.addObject(builder, Some(3))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(Some(1), None, Some(3)))
+      },
+      test("IArray[Person] (case class elements)") {
+        case class Person(name: String, age: Int)
+        val binding     = Binding.of[IArray[Person]].asInstanceOf[Binding.Seq[IArray, Person]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Person](2)
+        constructor.addObject(builder, Person("Alice", 30))
+        constructor.addObject(builder, Person("Bob", 25))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.toList == List(Person("Alice", 30), Person("Bob", 25)))
       }
     ),
     suite("union types")(
@@ -440,6 +591,142 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         }
 
         assertTrue(results.forall { case (_, expected, actual, _) => actual == expected })
+      }
+    ),
+    suite("Binding.Variant inline creation with locally-defined sealed traits")(
+      test("sealed trait Variant has correct discriminator for all subtypes") {
+        sealed trait Animal
+        case class Dog(name: String) extends Animal
+        case class Cat(name: String) extends Animal
+        case object Fish             extends Animal
+        val binding = Binding.of[Animal].asInstanceOf[Binding.Variant[Animal]]
+        val dog     = Dog("Buddy")
+        val cat     = Cat("Whiskers")
+        val fish    = Fish
+        val dogIdx  = binding.discriminator.discriminate(dog)
+        val catIdx  = binding.discriminator.discriminate(cat)
+        val fishIdx = binding.discriminator.discriminate(fish)
+        assertTrue(
+          dogIdx >= 0 && catIdx >= 0 && fishIdx >= 0 &&
+            dogIdx != catIdx && catIdx != fishIdx && dogIdx != fishIdx
+        )
+      },
+      test("sealed trait Variant matchers correctly identify subtypes") {
+        sealed trait Vehicle
+        case class Car(model: String)  extends Vehicle
+        case class Bike(brand: String) extends Vehicle
+        case object Skateboard         extends Vehicle
+        val binding = Binding.of[Vehicle].asInstanceOf[Binding.Variant[Vehicle]]
+        val car     = Car("Tesla")
+        val bike    = Bike("Trek")
+        val carIdx  = binding.discriminator.discriminate(car)
+        val bikeIdx = binding.discriminator.discriminate(bike)
+        assertTrue(
+          binding.matchers(carIdx).downcastOrNull(car) == car &&
+            binding.matchers(carIdx).downcastOrNull(bike) == null &&
+            binding.matchers(bikeIdx).downcastOrNull(bike) == bike
+        )
+      },
+      test("sealed trait with deeply nested hierarchy") {
+        sealed trait Expr
+        sealed trait BinaryExpr        extends Expr
+        case class Add(l: Int, r: Int) extends BinaryExpr
+        case class Sub(l: Int, r: Int) extends BinaryExpr
+        case class Literal(v: Int)     extends Expr
+        val binding = Binding.of[Expr].asInstanceOf[Binding.Variant[Expr]]
+        val add     = Add(1, 2)
+        val sub     = Sub(3, 4)
+        val lit     = Literal(42)
+        assertTrue(
+          binding.discriminator.discriminate(add) >= 0 &&
+            binding.discriminator.discriminate(sub) >= 0 &&
+            binding.discriminator.discriminate(lit) >= 0
+        )
+      },
+      test("sealed trait with generic subtypes") {
+        sealed trait Container[+A]
+        case class Full[A](value: A) extends Container[A]
+        case object Empty            extends Container[Nothing]
+        val binding = Binding.of[Container[Int]].asInstanceOf[Binding.Variant[Container[Int]]]
+        val full    = Full(42)
+        val empty   = Empty
+        assertTrue(
+          binding.discriminator.discriminate(full) != binding.discriminator.discriminate(empty)
+        )
+      },
+      test("sealed trait matchers count equals number of direct subtypes") {
+        sealed trait Status
+        case object Pending   extends Status
+        case object Active    extends Status
+        case object Completed extends Status
+        case object Failed    extends Status
+        val binding = Binding.of[Status].asInstanceOf[Binding.Variant[Status]]
+        assertTrue(binding.matchers.matchers.length == 4)
+      },
+      test("sealed trait with single subtype") {
+        sealed trait Wrapper
+        case class Single(value: Int) extends Wrapper
+        val binding = Binding.of[Wrapper].asInstanceOf[Binding.Variant[Wrapper]]
+        val single  = Single(42)
+        assertTrue(
+          binding.matchers.matchers.length == 1 &&
+            binding.discriminator.discriminate(single) == 0
+        )
+      },
+      test("Option[T] Variant discriminator distinguishes None and Some") {
+        val binding = Binding.of[Option[String]].asInstanceOf[Binding.Variant[Option[String]]]
+        val noneIdx = binding.discriminator.discriminate(None)
+        val someIdx = binding.discriminator.discriminate(Some("test"))
+        assertTrue(noneIdx != someIdx && noneIdx >= 0 && someIdx >= 0)
+      },
+      test("Option[T] Variant matchers work correctly") {
+        val binding = Binding.of[Option[Int]].asInstanceOf[Binding.Variant[Option[Int]]]
+        val none    = None
+        val some    = Some(42)
+        val noneIdx = binding.discriminator.discriminate(none)
+        val someIdx = binding.discriminator.discriminate(some)
+        assertTrue(
+          binding.matchers(noneIdx).downcastOrNull(none) == none &&
+            binding.matchers(noneIdx).downcastOrNull(some) == null &&
+            binding.matchers(someIdx).downcastOrNull(some) == some
+        )
+      },
+      test("Either[A, B] Variant discriminator distinguishes Left and Right") {
+        val binding  = Binding.of[Either[String, Int]].asInstanceOf[Binding.Variant[Either[String, Int]]]
+        val leftIdx  = binding.discriminator.discriminate(Left("error"))
+        val rightIdx = binding.discriminator.discriminate(Right(42))
+        assertTrue(leftIdx != rightIdx && leftIdx >= 0 && rightIdx >= 0)
+      },
+      test("Either[A, B] Variant matchers work correctly") {
+        val binding  = Binding.of[Either[String, Int]].asInstanceOf[Binding.Variant[Either[String, Int]]]
+        val left     = Left("error")
+        val right    = Right(42)
+        val leftIdx  = binding.discriminator.discriminate(left)
+        val rightIdx = binding.discriminator.discriminate(right)
+        assertTrue(
+          binding.matchers(leftIdx).downcastOrNull(left) == left &&
+            binding.matchers(leftIdx).downcastOrNull(right) == null &&
+            binding.matchers(rightIdx).downcastOrNull(right) == right
+        )
+      },
+      test("sealed trait with mixed case objects and case classes produces correct matcher count") {
+        sealed trait MixedADT
+        case object Singleton1                 extends MixedADT
+        case object Singleton2                 extends MixedADT
+        case class WithData(x: Int)            extends MixedADT
+        case class WithMore(s: String, n: Int) extends MixedADT
+        val binding = Binding.of[MixedADT].asInstanceOf[Binding.Variant[MixedADT]]
+        val _       = (WithData(1), WithMore("a", 2))
+        assertTrue(binding.matchers.matchers.length == 4)
+      },
+      test("sealed trait discriminator returns stable indices for same values") {
+        sealed trait Token
+        case object EOF                     extends Token
+        case class Identifier(name: String) extends Token
+        val binding = Binding.of[Token].asInstanceOf[Binding.Variant[Token]]
+        val id1     = Identifier("x")
+        val id2     = Identifier("x")
+        assertTrue(binding.discriminator.discriminate(id1) == binding.discriminator.discriminate(id2))
       }
     )
   )

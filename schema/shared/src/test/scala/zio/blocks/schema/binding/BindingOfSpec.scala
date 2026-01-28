@@ -926,6 +926,247 @@ object BindingOfSpec extends SchemaBaseSpec {
         val result = constructor.resultObject(builder)
         assertTrue(result.toList == List(Some(1), None, Some(3)))
       }
+    ),
+
+    suite("Schema.derived delegation - element-type-specific Array constructor codepaths")(
+      test("Array[AnyRef subtype] uses Arrays.copyOf with AnyRef overload") {
+        case class Box(value: Int)
+        val binding     = Binding.of[Array[Box]].asInstanceOf[Binding.Seq[Array, Box]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Box](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, Box(i)))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10 && result.map(_.value).toList == (1 to 10).toList)
+      },
+      test("Array[Unit] uses arraycopy fallback path") {
+        val binding     = Binding.of[Array[Unit]].asInstanceOf[Binding.Seq[Array, Unit]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Unit](1)
+        (1 to 10).foreach(_ => constructor.addObject(builder, ()))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("Array resize triggers copyOf for Boolean") {
+        val binding     = Binding.of[Array[Boolean]].asInstanceOf[Binding.Seq[Array, Boolean]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Boolean](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i % 2 == 0))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("Array resize triggers copyOf for Byte") {
+        val binding     = Binding.of[Array[Byte]].asInstanceOf[Binding.Seq[Array, Byte]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Byte](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toByte))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("Array resize triggers copyOf for Short") {
+        val binding     = Binding.of[Array[Short]].asInstanceOf[Binding.Seq[Array, Short]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Short](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toShort))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("Array resize triggers copyOf for Int") {
+        val binding     = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Int](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("Array resize triggers copyOf for Long") {
+        val binding     = Binding.of[Array[Long]].asInstanceOf[Binding.Seq[Array, Long]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Long](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toLong))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("Array resize triggers copyOf for Float") {
+        val binding     = Binding.of[Array[Float]].asInstanceOf[Binding.Seq[Array, Float]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Float](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toFloat))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("Array resize triggers copyOf for Double") {
+        val binding     = Binding.of[Array[Double]].asInstanceOf[Binding.Seq[Array, Double]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Double](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toDouble))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("Array resize triggers copyOf for Char") {
+        val binding     = Binding.of[Array[Char]].asInstanceOf[Binding.Seq[Array, Char]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Char](1)
+        ('a' to 'j').foreach(c => constructor.addObject(builder, c))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("Array result trim for Boolean") {
+        val binding     = Binding.of[Array[Boolean]].asInstanceOf[Binding.Seq[Array, Boolean]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Boolean](16)
+        constructor.addObject(builder, true)
+        constructor.addObject(builder, false)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 2 && result.toList == List(true, false))
+      },
+      test("Array result trim for Byte") {
+        val binding     = Binding.of[Array[Byte]].asInstanceOf[Binding.Seq[Array, Byte]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Byte](16)
+        constructor.addObject(builder, 1.toByte)
+        constructor.addObject(builder, 2.toByte)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 2 && result.toList == List(1.toByte, 2.toByte))
+      },
+      test("Array result trim for Short") {
+        val binding     = Binding.of[Array[Short]].asInstanceOf[Binding.Seq[Array, Short]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Short](16)
+        constructor.addObject(builder, 1.toShort)
+        constructor.addObject(builder, 2.toShort)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 2 && result.toList == List(1.toShort, 2.toShort))
+      },
+      test("Array result trim for Int") {
+        val binding     = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Int](16)
+        constructor.addObject(builder, 1)
+        constructor.addObject(builder, 2)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 2 && result.toList == List(1, 2))
+      },
+      test("Array result trim for Long") {
+        val binding     = Binding.of[Array[Long]].asInstanceOf[Binding.Seq[Array, Long]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Long](16)
+        constructor.addObject(builder, 1L)
+        constructor.addObject(builder, 2L)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 2 && result.toList == List(1L, 2L))
+      },
+      test("Array result trim for Float") {
+        val binding     = Binding.of[Array[Float]].asInstanceOf[Binding.Seq[Array, Float]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Float](16)
+        constructor.addObject(builder, 1.5f)
+        constructor.addObject(builder, 2.5f)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 2 && result.toList == List(1.5f, 2.5f))
+      },
+      test("Array result trim for Double") {
+        val binding     = Binding.of[Array[Double]].asInstanceOf[Binding.Seq[Array, Double]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Double](16)
+        constructor.addObject(builder, 1.5)
+        constructor.addObject(builder, 2.5)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 2 && result.toList == List(1.5, 2.5))
+      },
+      test("Array result trim for Char") {
+        val binding     = Binding.of[Array[Char]].asInstanceOf[Binding.Seq[Array, Char]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Char](16)
+        constructor.addObject(builder, 'a')
+        constructor.addObject(builder, 'b')
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 2 && result.toList == List('a', 'b'))
+      },
+      test("Array result trim for AnyRef subtype") {
+        case class Box(value: Int)
+        val binding     = Binding.of[Array[Box]].asInstanceOf[Binding.Seq[Array, Box]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Box](16)
+        constructor.addObject(builder, Box(1))
+        constructor.addObject(builder, Box(2))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 2 && result.map(_.value).toList == List(1, 2))
+      }
+    ),
+    suite("Schema.derived delegation - element-type-specific ArraySeq constructor codepaths")(
+      test("ArraySeq[Boolean] resize and trim") {
+        val binding     = Binding.of[ArraySeq[Boolean]].asInstanceOf[Binding.Seq[ArraySeq, Boolean]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Boolean](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i % 2 == 0))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("ArraySeq[Byte] resize and trim") {
+        val binding     = Binding.of[ArraySeq[Byte]].asInstanceOf[Binding.Seq[ArraySeq, Byte]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Byte](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toByte))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("ArraySeq[Short] resize and trim") {
+        val binding     = Binding.of[ArraySeq[Short]].asInstanceOf[Binding.Seq[ArraySeq, Short]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Short](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toShort))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("ArraySeq[Long] resize and trim") {
+        val binding     = Binding.of[ArraySeq[Long]].asInstanceOf[Binding.Seq[ArraySeq, Long]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Long](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toLong))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("ArraySeq[Float] resize and trim") {
+        val binding     = Binding.of[ArraySeq[Float]].asInstanceOf[Binding.Seq[ArraySeq, Float]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Float](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, i.toFloat))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("ArraySeq[Char] resize and trim") {
+        val binding     = Binding.of[ArraySeq[Char]].asInstanceOf[Binding.Seq[ArraySeq, Char]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Char](1)
+        ('a' to 'j').foreach(c => constructor.addObject(builder, c))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10)
+      },
+      test("ArraySeq[Unit] special case") {
+        val binding     = Binding.of[ArraySeq[Unit]].asInstanceOf[Binding.Seq[ArraySeq, Unit]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Unit](1)
+        (1 to 5).foreach(_ => constructor.addObject(builder, ()))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 5)
+      },
+      test("ArraySeq[AnyRef subtype] resize and trim") {
+        case class Box(value: Int)
+        val binding     = Binding.of[ArraySeq[Box]].asInstanceOf[Binding.Seq[ArraySeq, Box]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Box](1)
+        (1 to 10).foreach(i => constructor.addObject(builder, Box(i)))
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 10 && result.map(_.value).toList == (1 to 10).toList)
+      },
+      test("ArraySeq result trim preserves wrapped array semantics") {
+        val binding     = Binding.of[ArraySeq[Int]].asInstanceOf[Binding.Seq[ArraySeq, Int]]
+        val constructor = binding.constructor
+        val builder     = constructor.newObjectBuilder[Int](16)
+        constructor.addObject(builder, 42)
+        val result = constructor.resultObject(builder)
+        assertTrue(result.length == 1 && result.head == 42)
+      }
     )
   )
 }
