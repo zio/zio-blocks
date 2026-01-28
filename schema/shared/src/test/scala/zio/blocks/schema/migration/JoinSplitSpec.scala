@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 
@@ -18,7 +19,7 @@ object JoinSplitSpec extends ZIOSpecDefault {
         // PersonV2: fullName
         val firstName = DynamicValue.Primitive(PrimitiveValue.String("John"))
         val lastName  = DynamicValue.Primitive(PrimitiveValue.String("Doe"))
-        val record    = DynamicValue.Record(Vector("firstName" -> firstName, "lastName" -> lastName))
+        val record    = DynamicValue.Record(Chunk("firstName" -> firstName, "lastName" -> lastName))
 
         // Create Join action: combine firstName + " " + lastName -> fullName
         val firstNameOptic = DynamicOptic.root.field("firstName")
@@ -50,7 +51,7 @@ object JoinSplitSpec extends ZIOSpecDefault {
         // Combine quantity + bonus -> totalQuantity
         val quantity = DynamicValue.Primitive(PrimitiveValue.Int(10))
         val bonus    = DynamicValue.Primitive(PrimitiveValue.Int(5))
-        val record   = DynamicValue.Record(Vector("quantity" -> quantity, "bonus" -> bonus))
+        val record   = DynamicValue.Record(Chunk("quantity" -> quantity, "bonus" -> bonus))
 
         val quantityOptic = DynamicOptic.root.field("quantity")
         val bonusOptic    = DynamicOptic.root.field("bonus")
@@ -78,7 +79,7 @@ object JoinSplitSpec extends ZIOSpecDefault {
         })
       },
       test("should fail if source field does not exist") {
-        val record = DynamicValue.Record(Vector("firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
+        val record = DynamicValue.Record(Chunk("firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
 
         val firstNameOptic = DynamicOptic.root.field("firstName")
         val lastNameOptic  = DynamicOptic.root.field("lastName") // Does not exist
@@ -112,9 +113,9 @@ object JoinSplitSpec extends ZIOSpecDefault {
       test("should fail with CrossPathJoinNotSupported when paths don't share same parent") {
         // Create a nested record with different branches:
         // { meta: { id: "123" }, data: { name: "John" } }
-        val metaRecord = DynamicValue.Record(Vector("id" -> DynamicValue.Primitive(PrimitiveValue.String("123"))))
-        val dataRecord = DynamicValue.Record(Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
-        val record     = DynamicValue.Record(Vector("meta" -> metaRecord, "data" -> dataRecord))
+        val metaRecord = DynamicValue.Record(Chunk("id" -> DynamicValue.Primitive(PrimitiveValue.String("123"))))
+        val dataRecord = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
+        val record     = DynamicValue.Record(Chunk("meta" -> metaRecord, "data" -> dataRecord))
 
         // Try to join _.meta.id + _.data.name -> _.result.combined
         // This should fail because meta.id and data.name have different parents (meta vs data)
@@ -140,12 +141,12 @@ object JoinSplitSpec extends ZIOSpecDefault {
         // { address: { street: "Main St", city: "NYC" } }
         val addressRecord =
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "street" -> DynamicValue.Primitive(PrimitiveValue.String("Main St")),
               "city"   -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
             )
           )
-        val record = DynamicValue.Record(Vector("address" -> addressRecord))
+        val record = DynamicValue.Record(Chunk("address" -> addressRecord))
 
         // Join _.address.street + _.address.city -> _.address.fullAddress
         // This should succeed because all paths share parent _.address
@@ -181,7 +182,7 @@ object JoinSplitSpec extends ZIOSpecDefault {
         // PersonV1: fullName = "John Doe"
         // PersonV2: firstName, lastName
         val fullName = DynamicValue.Primitive(PrimitiveValue.String("John Doe"))
-        val record   = DynamicValue.Record(Vector("fullName" -> fullName))
+        val record   = DynamicValue.Record(Chunk("fullName" -> fullName))
 
         // Create Split action: split fullName by " " -> [firstName, lastName]
         // Use testSplitter helper that splits "John Doe" into ["John", "Doe"]
@@ -216,7 +217,7 @@ object JoinSplitSpec extends ZIOSpecDefault {
         })
       },
       test("should fail if source field does not exist") {
-        val record = DynamicValue.Record(Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
+        val record = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
 
         val splitter = testSplitter("John Doe", " ")
 
@@ -235,7 +236,7 @@ object JoinSplitSpec extends ZIOSpecDefault {
       },
       test("should fail if splitter returns wrong number of results") {
         val fullName = DynamicValue.Primitive(PrimitiveValue.String("John"))
-        val record   = DynamicValue.Record(Vector("fullName" -> fullName))
+        val record   = DynamicValue.Record(Chunk("fullName" -> fullName))
 
         // Splitter returns only 1 value (no space to split), but we expect 2 target paths
         val splitter = testSplitter("John", " ")
@@ -271,8 +272,8 @@ object JoinSplitSpec extends ZIOSpecDefault {
         // Create a nested record:
         // { data: { fullName: "John Doe" } }
         val dataRecord =
-          DynamicValue.Record(Vector("fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe"))))
-        val record = DynamicValue.Record(Vector("data" -> dataRecord))
+          DynamicValue.Record(Chunk("fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe"))))
+        val record = DynamicValue.Record(Chunk("data" -> dataRecord))
 
         // Try to split _.data.fullName -> _.meta.firstName + _.info.lastName
         // This should fail because meta.firstName and info.lastName have different parents
@@ -297,8 +298,8 @@ object JoinSplitSpec extends ZIOSpecDefault {
         // Create a nested record:
         // { address: { fullAddress: "Main St, NYC" } }
         val addressRecord =
-          DynamicValue.Record(Vector("fullAddress" -> DynamicValue.Primitive(PrimitiveValue.String("Main St, NYC"))))
-        val record = DynamicValue.Record(Vector("address" -> addressRecord))
+          DynamicValue.Record(Chunk("fullAddress" -> DynamicValue.Primitive(PrimitiveValue.String("Main St, NYC"))))
+        val record = DynamicValue.Record(Chunk("address" -> addressRecord))
 
         // Split _.address.fullAddress -> _.address.street + _.address.city
         // This should succeed because all paths share parent _.address

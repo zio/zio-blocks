@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 import zio.test.Assertion._
@@ -299,21 +300,21 @@ object PureADTSpec extends SchemaBaseSpec {
       action match {
         case MigrationAction.AddField(at, default) =>
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "type" -> DynamicValue.Primitive(PrimitiveValue.String("AddField")),
               "at"   -> opticSchema.toDynamicValue(at)
             )
           )
         case MigrationAction.DropField(at, defaultForReverse) =>
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "type" -> DynamicValue.Primitive(PrimitiveValue.String("DropField")),
               "at"   -> opticSchema.toDynamicValue(at)
             )
           )
         case MigrationAction.Rename(at, to) =>
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "type" -> DynamicValue.Primitive(PrimitiveValue.String("Rename")),
               "at"   -> opticSchema.toDynamicValue(at),
               "to"   -> DynamicValue.Primitive(PrimitiveValue.String(to))
@@ -321,7 +322,7 @@ object PureADTSpec extends SchemaBaseSpec {
           )
         case other =>
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "type" -> DynamicValue.Primitive(PrimitiveValue.String(other.getClass.getSimpleName))
             )
           )
@@ -329,8 +330,8 @@ object PureADTSpec extends SchemaBaseSpec {
     }
 
     DynamicValue.Record(
-      Vector(
-        "actions" -> DynamicValue.Sequence(actionValues)
+      Chunk(
+        "actions" -> DynamicValue.Sequence(Chunk.fromIterable(actionValues))
       )
     )
   }

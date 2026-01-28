@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 
@@ -16,7 +17,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
       test("transforms all elements in a sequence") {
         // Test: Increment all integers in a list [1, 2, 3] -> [2, 3, 4]
         val sequence = DynamicValue.Sequence(
-          Vector(
+          Chunk(
             DynamicValue.Primitive(PrimitiveValue.Int(1)),
             DynamicValue.Primitive(PrimitiveValue.Int(2)),
             DynamicValue.Primitive(PrimitiveValue.Int(3))
@@ -39,7 +40,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         val result = action.execute(sequence)
 
         val expected = DynamicValue.Sequence(
-          Vector(
+          Chunk(
             DynamicValue.Primitive(PrimitiveValue.Int(2)),
             DynamicValue.Primitive(PrimitiveValue.Int(3)),
             DynamicValue.Primitive(PrimitiveValue.Int(4))
@@ -51,7 +52,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
       test("transforms string elements to uppercase") {
         // Test: Uppercase all strings ["hello", "world"] -> ["HELLO", "WORLD"]
         val sequence = DynamicValue.Sequence(
-          Vector(
+          Chunk(
             DynamicValue.Primitive(PrimitiveValue.String("hello")),
             DynamicValue.Primitive(PrimitiveValue.String("world"))
           )
@@ -70,7 +71,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         val result = action.execute(sequence)
 
         val expected = DynamicValue.Sequence(
-          Vector(
+          Chunk(
             DynamicValue.Primitive(PrimitiveValue.String("HELLO")),
             DynamicValue.Primitive(PrimitiveValue.String("WORLD"))
           )
@@ -79,7 +80,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         assertTrue(result == Right(expected))
       },
       test("handles empty sequence") {
-        val emptySequence = DynamicValue.Sequence(Vector.empty)
+        val emptySequence = DynamicValue.Sequence(Chunk.empty)
 
         val action = MigrationAction.TransformElements(
           at = DynamicOptic.root,
@@ -93,9 +94,9 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
       test("transforms elements in a nested field") {
         // Test: Record with a sequence field
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "numbers" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 DynamicValue.Primitive(PrimitiveValue.Int(10)),
                 DynamicValue.Primitive(PrimitiveValue.Int(20))
               )
@@ -118,9 +119,9 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         val result = action.execute(record)
 
         val expected = DynamicValue.Record(
-          Vector(
+          Chunk(
             "numbers" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 DynamicValue.Primitive(PrimitiveValue.Int(20)),
                 DynamicValue.Primitive(PrimitiveValue.Int(40))
               )
@@ -133,7 +134,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
       test("returns error if transform fails on an element") {
         // Test: Trying to access a field on a primitive will fail
         val sequence = DynamicValue.Sequence(
-          Vector(
+          Chunk(
             DynamicValue.Primitive(PrimitiveValue.Int(10)),
             DynamicValue.Primitive(PrimitiveValue.Int(5))
           )
@@ -170,7 +171,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
       test("transforms all keys in a map") {
         // Test: Uppercase all string keys in a map
         val map = DynamicValue.Map(
-          Vector(
+          Chunk(
             (
               DynamicValue.Primitive(PrimitiveValue.String("name")),
               DynamicValue.Primitive(PrimitiveValue.String("Alice"))
@@ -194,7 +195,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         val result = action.execute(map)
 
         val expected = DynamicValue.Map(
-          Vector(
+          Chunk(
             (
               DynamicValue.Primitive(PrimitiveValue.String("NAME")),
               DynamicValue.Primitive(PrimitiveValue.String("Alice"))
@@ -209,7 +210,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         assertTrue(result == Right(expected))
       },
       test("handles empty map") {
-        val emptyMap = DynamicValue.Map(Vector.empty)
+        val emptyMap = DynamicValue.Map(Chunk.empty)
 
         val action = MigrationAction.TransformKeys(
           at = DynamicOptic.root,
@@ -222,9 +223,9 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
       },
       test("transforms keys in a nested field") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "metadata" -> DynamicValue.Map(
-              Vector(
+              Chunk(
                 (
                   DynamicValue.Primitive(PrimitiveValue.String("version")),
                   DynamicValue.Primitive(PrimitiveValue.Int(1))
@@ -246,9 +247,9 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         val result = action.execute(record)
 
         val expected = DynamicValue.Record(
-          Vector(
+          Chunk(
             "metadata" -> DynamicValue.Map(
-              Vector(
+              Chunk(
                 (
                   DynamicValue.Primitive(PrimitiveValue.String("VERSION")),
                   DynamicValue.Primitive(PrimitiveValue.Int(1))
@@ -277,7 +278,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
       test("transforms all values in a map") {
         // Test: Increment all integer values in a map
         val map = DynamicValue.Map(
-          Vector(
+          Chunk(
             (
               DynamicValue.Primitive(PrimitiveValue.String("a")),
               DynamicValue.Primitive(PrimitiveValue.Int(1))
@@ -304,7 +305,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         val result = action.execute(map)
 
         val expected = DynamicValue.Map(
-          Vector(
+          Chunk(
             (
               DynamicValue.Primitive(PrimitiveValue.String("a")),
               DynamicValue.Primitive(PrimitiveValue.Int(2))
@@ -320,7 +321,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
       },
       test("transforms string values to lowercase") {
         val map = DynamicValue.Map(
-          Vector(
+          Chunk(
             (
               DynamicValue.Primitive(PrimitiveValue.String("greeting")),
               DynamicValue.Primitive(PrimitiveValue.String("HELLO"))
@@ -344,7 +345,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         val result = action.execute(map)
 
         val expected = DynamicValue.Map(
-          Vector(
+          Chunk(
             (
               DynamicValue.Primitive(PrimitiveValue.String("greeting")),
               DynamicValue.Primitive(PrimitiveValue.String("hello"))
@@ -359,7 +360,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         assertTrue(result == Right(expected))
       },
       test("handles empty map") {
-        val emptyMap = DynamicValue.Map(Vector.empty)
+        val emptyMap = DynamicValue.Map(Chunk.empty)
 
         val action = MigrationAction.TransformValues(
           at = DynamicOptic.root,
@@ -372,9 +373,9 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
       },
       test("transforms values in a nested field") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "scores" -> DynamicValue.Map(
-              Vector(
+              Chunk(
                 (
                   DynamicValue.Primitive(PrimitiveValue.String("math")),
                   DynamicValue.Primitive(PrimitiveValue.Int(85))
@@ -403,9 +404,9 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         val result = action.execute(record)
 
         val expected = DynamicValue.Record(
-          Vector(
+          Chunk(
             "scores" -> DynamicValue.Map(
-              Vector(
+              Chunk(
                 (
                   DynamicValue.Primitive(PrimitiveValue.String("math")),
                   DynamicValue.Primitive(PrimitiveValue.Int(90))
@@ -422,7 +423,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         assertTrue(result == Right(expected))
       },
       test("returns error if applied to non-map") {
-        val notAMap = DynamicValue.Sequence(Vector.empty)
+        val notAMap = DynamicValue.Sequence(Chunk.empty)
 
         val action = MigrationAction.TransformValues(
           at = DynamicOptic.root,

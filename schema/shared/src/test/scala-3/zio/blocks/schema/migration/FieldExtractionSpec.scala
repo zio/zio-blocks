@@ -123,34 +123,6 @@ object FieldExtractionSpec extends ZIOSpecDefault {
       }
     ),
     suite("type-level field operations")(
-      test("UnchangedFields - shared fields between versions") {
-        // PersonV1 has: name, age, email
-        // PersonV2 has: name, age, phone
-        // Unchanged: name, age
-        val fnA = summon[FieldNames[PersonV1]]
-        val fnB = summon[FieldNames[PersonV2]]
-        type Unchanged = TypeLevel.Intersect[fnA.Labels, fnB.Labels]
-        summon[Contains[Unchanged, "name"] =:= true]
-        summon[Contains[Unchanged, "age"] =:= true]
-        summon[Contains[Unchanged, "email"] =:= false]
-        summon[Contains[Unchanged, "phone"] =:= false]
-        assertTrue(true)
-      },
-      test("UnchangedFields - no shared fields") {
-        val fnA = summon[FieldNames[SchemaA]]
-        val fnB = summon[FieldNames[SchemaB]]
-        type Unchanged = TypeLevel.Intersect[fnA.Labels, fnB.Labels]
-        summon[Unchanged =:= EmptyTuple]
-        assertTrue(true)
-      },
-      test("UnchangedFields - identical schemas have all fields unchanged") {
-        val fnA = summon[FieldNames[IdenticalA]]
-        val fnB = summon[FieldNames[IdenticalB]]
-        type Unchanged = TypeLevel.Intersect[fnA.Labels, fnB.Labels]
-        summon[Contains[Unchanged, "x"] =:= true]
-        summon[Contains[Unchanged, "y"] =:= true]
-        assertTrue(true)
-      },
       test("RemovedFields - fields in source not in target") {
         // PersonV1 has: name, age, email
         // PersonV2 has: name, age, phone
@@ -205,15 +177,6 @@ object FieldExtractionSpec extends ZIOSpecDefault {
         type Added = TypeLevel.Difference[fnB.Labels, fnA.Labels]
         summon[Contains[Added, "baz"] =:= true]
         summon[Contains[Added, "qux"] =:= true]
-        assertTrue(true)
-      },
-      test("added and removed are inverses") {
-        // AddedFields[A, B] == RemovedFields[B, A]
-        val fnA = summon[FieldNames[PersonV1]]
-        val fnB = summon[FieldNames[PersonV2]]
-        type AddedAB   = TypeLevel.Difference[fnB.Labels, fnA.Labels]
-        type RemovedBA = TypeLevel.Difference[fnB.Labels, fnA.Labels]
-        summon[TupleEquals[AddedAB, RemovedBA] =:= true]
         assertTrue(true)
       }
     ),

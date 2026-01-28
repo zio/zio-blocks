@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 
@@ -10,7 +11,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
         // Create a variant representing PayPal case
         val paypalVariant = DynamicValue.Variant(
           "PayPal",
-          DynamicValue.Record(Vector("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
+          DynamicValue.Record(Chunk("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
         )
 
         val action = MigrationAction.RenameCase(
@@ -23,7 +24,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
 
         val expected = DynamicValue.Variant(
           "PaypalPayment",
-          DynamicValue.Record(Vector("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
+          DynamicValue.Record(Chunk("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
         )
 
         assertTrue(result == Right(expected))
@@ -31,12 +32,12 @@ object EnumOperationsSpec extends ZIOSpecDefault {
       test("rename case in nested field") {
         // Create a record with a variant field
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"          -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "paymentMethod" -> DynamicValue.Variant(
               "CreditCard",
               DynamicValue.Record(
-                Vector(
+                Chunk(
                   "number" -> DynamicValue.Primitive(PrimitiveValue.String("1234-5678-9012-3456")),
                   "cvv"    -> DynamicValue.Primitive(PrimitiveValue.Int(123))
                 )
@@ -54,12 +55,12 @@ object EnumOperationsSpec extends ZIOSpecDefault {
         val result = action.execute(record)
 
         val expected = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"          -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "paymentMethod" -> DynamicValue.Variant(
               "Card",
               DynamicValue.Record(
-                Vector(
+                Chunk(
                   "number" -> DynamicValue.Primitive(PrimitiveValue.String("1234-5678-9012-3456")),
                   "cvv"    -> DynamicValue.Primitive(PrimitiveValue.Int(123))
                 )
@@ -73,7 +74,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
       test("rename case leaves non-matching cases unchanged") {
         val paypalVariant = DynamicValue.Variant(
           "PayPal",
-          DynamicValue.Record(Vector("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
+          DynamicValue.Record(Chunk("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
         )
 
         val action = MigrationAction.RenameCase(
@@ -90,7 +91,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
       test("reverse renames back to original") {
         val variant = DynamicValue.Variant(
           "PayPal",
-          DynamicValue.Record(Vector("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
+          DynamicValue.Record(Chunk("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
         )
 
         val action = MigrationAction.RenameCase(
@@ -119,7 +120,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
       },
       test("error when field value is not a variant") {
         val record = DynamicValue.Record(
-          Vector("paymentMethod" -> DynamicValue.Primitive(PrimitiveValue.String("not a variant")))
+          Chunk("paymentMethod" -> DynamicValue.Primitive(PrimitiveValue.String("not a variant")))
         )
 
         val action = MigrationAction.RenameCase(
@@ -134,7 +135,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
       },
       test("error when field does not exist") {
         val record = DynamicValue.Record(
-          Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("John")))
+          Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("John")))
         )
 
         val action = MigrationAction.RenameCase(
@@ -154,7 +155,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
         val creditCardVariant = DynamicValue.Variant(
           "CreditCard",
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "number" -> DynamicValue.Primitive(PrimitiveValue.String("1234")),
               "cvv"    -> DynamicValue.Primitive(PrimitiveValue.Int(123))
             )
@@ -178,7 +179,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
         val expected = DynamicValue.Variant(
           "CreditCard",
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "number"     -> DynamicValue.Primitive(PrimitiveValue.String("1234")),
               "cvv"        -> DynamicValue.Primitive(PrimitiveValue.Int(123)),
               "expiryDate" -> DynamicValue.Primitive(PrimitiveValue.String("2030-12"))
@@ -190,12 +191,12 @@ object EnumOperationsSpec extends ZIOSpecDefault {
       },
       test("transform case in nested field") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"          -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "paymentMethod" -> DynamicValue.Variant(
               "CreditCard",
               DynamicValue.Record(
-                Vector(
+                Chunk(
                   "number" -> DynamicValue.Primitive(PrimitiveValue.String("1234")),
                   "cvv"    -> DynamicValue.Primitive(PrimitiveValue.Int(123))
                 )
@@ -218,12 +219,12 @@ object EnumOperationsSpec extends ZIOSpecDefault {
         val result = action.execute(record)
 
         val expected = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name"          -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "paymentMethod" -> DynamicValue.Variant(
               "CreditCard",
               DynamicValue.Record(
-                Vector(
+                Chunk(
                   "cardNumber" -> DynamicValue.Primitive(PrimitiveValue.String("1234")),
                   "cvv"        -> DynamicValue.Primitive(PrimitiveValue.Int(123))
                 )
@@ -237,7 +238,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
       test("transform case leaves non-matching cases unchanged") {
         val paypalVariant = DynamicValue.Variant(
           "PayPal",
-          DynamicValue.Record(Vector("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
+          DynamicValue.Record(Chunk("email" -> DynamicValue.Primitive(PrimitiveValue.String("test@example.com"))))
         )
 
         val action = MigrationAction.TransformCase(
@@ -260,7 +261,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
         val creditCardVariant = DynamicValue.Variant(
           "CreditCard",
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "number" -> DynamicValue.Primitive(PrimitiveValue.String("1234")),
               "cvv"    -> DynamicValue.Primitive(PrimitiveValue.Int(123))
             )
@@ -288,7 +289,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
         val expected = DynamicValue.Variant(
           "CreditCard",
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "cardNumber" -> DynamicValue.Primitive(PrimitiveValue.String("1234")),
               "expiryDate" -> DynamicValue.Primitive(PrimitiveValue.String("2030-12"))
             )
@@ -301,7 +302,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
         val creditCardVariant = DynamicValue.Variant(
           "CreditCard",
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "number" -> DynamicValue.Primitive(PrimitiveValue.String("1234")),
               "cvv"    -> DynamicValue.Primitive(PrimitiveValue.Int(123))
             )
@@ -339,7 +340,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
       },
       test("error when field value is not a variant") {
         val record = DynamicValue.Record(
-          Vector("paymentMethod" -> DynamicValue.Primitive(PrimitiveValue.String("not a variant")))
+          Chunk("paymentMethod" -> DynamicValue.Primitive(PrimitiveValue.String("not a variant")))
         )
 
         val action = MigrationAction.TransformCase(
@@ -356,7 +357,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
         val creditCardVariant = DynamicValue.Variant(
           "CreditCard",
           DynamicValue.Record(
-            Vector(
+            Chunk(
               "number" -> DynamicValue.Primitive(PrimitiveValue.String("1234"))
             )
           )
