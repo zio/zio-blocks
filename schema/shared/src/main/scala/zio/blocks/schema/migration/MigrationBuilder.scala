@@ -8,14 +8,15 @@ import zio.blocks.schema._
  * Type parameters:
  *   - A: Source schema type
  *   - B: Target schema type
- *   - Handled: Tuple of field names from A that have been handled (dropped,
- *     renamed from, etc.)
- *   - Provided: Tuple of field names for B that have been provided (added,
- *     renamed to, etc.)
+ *   - Handled: Type-level list of field names from A that have been handled
+ *     (dropped, renamed from, etc.)
+ *   - Provided: Type-level list of field names for B that have been provided
+ *     (added, renamed to, etc.)
  *
- * In Scala 3, the Handled and Provided type parameters track field names at
- * compile time, enabling compile-time validation of migration completeness. In
- * Scala 2, these are always Any (no compile-time tracking).
+ * Both Scala 2 and Scala 3 track field names at compile time, enabling
+ * compile-time validation of migration completeness. The mechanisms differ:
+ *   - Scala 3: Uses Tuple types with match types
+ *   - Scala 2: Uses TList (custom HList) with implicit resolution
  */
 final case class MigrationBuilder[A, B, Handled, Provided](
   sourceSchema: Schema[A],
