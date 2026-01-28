@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio._
+
 import zio.test._
 import zio.test.Assertion._
 import zio.blocks.schema._
