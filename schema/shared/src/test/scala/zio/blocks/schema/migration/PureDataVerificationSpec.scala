@@ -145,7 +145,6 @@ object PureDataVerificationSpec extends SchemaBaseSpec {
         assertTrue(expr.isInstanceOf[Product])
         expr match {
           case Resolved.Literal(value) => assertTrue(value == dynamicInt(42))
-          case _ => assertTrue(false)
         }
       },
       test("Identity is a case object") {
@@ -245,7 +244,6 @@ object PureDataVerificationSpec extends SchemaBaseSpec {
                 Resolved.FieldAccess(name, Resolved.Convert(from, to, innerExpr))
               case _ => original
             }
-          case _ => original
         }
         assertTrue(reconstructed == original)
       }

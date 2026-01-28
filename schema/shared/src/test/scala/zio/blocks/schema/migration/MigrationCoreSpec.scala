@@ -2,7 +2,6 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema._
 import zio.test._
-import zio.test.Assertion._
 
 /**
  * Core tests for Migration and DynamicMigration functionality.
@@ -361,7 +360,7 @@ object MigrationCoreSpec extends SchemaBaseSpec {
       },
       test("WrapSome wraps value in Variant Some") {
         val expr = Resolved.WrapSome(Resolved.Literal.int(42))
-        assertTrue(expr.evalDynamic == Right(DynamicValue.Variant("Some", dynamicInt(42))))
+        assertTrue(expr.evalDynamic == Right(DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", dynamicInt(42)))))))
       },
       test("UnwrapOption extracts Some value") {
         val expr = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0))

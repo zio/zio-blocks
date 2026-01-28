@@ -29,10 +29,10 @@ object BidirectionalMigrationSpec extends SchemaBaseSpec {
     DynamicValue.Primitive(PrimitiveValue.Int(i))
 
   def dynamicSome(value: DynamicValue): DynamicValue =
-    DynamicValue.Variant("Some", value)
+    DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", value))))
 
   def dynamicNone: DynamicValue =
-    DynamicValue.Variant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
+    DynamicValue.Variant("None", DynamicValue.Record(Vector()))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Tests

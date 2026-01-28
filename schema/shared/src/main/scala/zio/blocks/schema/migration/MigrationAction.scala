@@ -53,7 +53,9 @@ object MigrationAction {
 
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyRecord(value, at) { fields =>
-        default.evalDynamic match {
+        // Pass the current record to evalDynamic so expressions like FieldAccess work
+        val recordValue = DynamicValue.Record(fields)
+        default.evalDynamic(recordValue) match {
           case Right(defaultValue) =>
             Right(fields :+ (fieldName -> defaultValue))
           case Left(err) =>
@@ -154,20 +156,39 @@ object MigrationAction {
     def reverse: MigrationAction = Optionalize(at, fieldName)
 
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      val fieldPath = at.field(fieldName)
-      modifyAtPath(value, fieldPath) {
-        case DynamicValue.Variant("Some", inner) => Right(inner)
-        case DynamicValue.Variant("None", _)     =>
-          default.evalDynamic match {
-            case Right(d)  => Right(d)
-            case Left(err) => Left(MigrationError.ExpressionFailed(fieldPath, err))
+      // Work at record level so we have context for FieldAccess in defaults
+      modifyRecord(value, at) { fields =>
+        val recordValue = DynamicValue.Record(fields)
+        val fieldIdx = fields.indexWhere(_._1 == fieldName)
+        if (fieldIdx < 0) {
+          // Field doesn't exist, nothing to do
+          Right(fields)
+        } else {
+          val (name, fieldValue) = fields(fieldIdx)
+          val newValue: Either[MigrationError, DynamicValue] = fieldValue match {
+            // Some is represented as Variant("Some", Record(Vector(("value", inner))))
+            case DynamicValue.Variant("Some", DynamicValue.Record(innerFields)) =>
+              innerFields.find(_._1 == "value").map(_._2) match {
+                case scala.Some(inner) => Right(inner)
+                case scala.None => Right(fieldValue) // Malformed, pass through
+              }
+            case DynamicValue.Variant("Some", inner) =>
+              // Fallback for simple representation
+              Right(inner)
+            case DynamicValue.Variant("None", _) =>
+              default.evalDynamic(recordValue) match {
+                case Right(d)  => Right(d)
+                case Left(err) => Left(MigrationError.ExpressionFailed(at.field(fieldName), err))
+              }
+            case DynamicValue.Null =>
+              default.evalDynamic(recordValue) match {
+                case Right(d)  => Right(d)
+                case Left(err) => Left(MigrationError.ExpressionFailed(at.field(fieldName), err))
+              }
+            case other => Right(other) // Already non-optional, pass through
           }
-        case DynamicValue.Null =>
-          default.evalDynamic match {
-            case Right(d)  => Right(d)
-            case Left(err) => Left(MigrationError.ExpressionFailed(fieldPath, err))
-          }
-        case other => Right(other) // Already non-optional, pass through
+          newValue.map(nv => fields.updated(fieldIdx, (name, nv)))
+        }
       }
     }
   }
@@ -190,7 +211,9 @@ object MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       val fieldPath = at.field(fieldName)
       modifyAtPath(value, fieldPath) { fieldValue =>
-        Right(DynamicValue.Variant("Some", fieldValue))
+        // Some is represented as Variant("Some", Record(Vector(("value", inner))))
+        val someRecord = DynamicValue.Record(Vector(("value", fieldValue)))
+        Right(DynamicValue.Variant("Some", someRecord))
       }
     }
   }
@@ -395,25 +418,28 @@ object MigrationAction {
       // At root - apply directly
       f(value)
     } else {
-      // Navigate to path and apply
-      value.modifyOrFail(path) {
+      // Navigate to path and apply, tracking any error from f
+      var capturedError: Option[MigrationError] = None
+      val result = value.modifyOrFail(path) {
         case v => f(v) match {
           case Right(result) => result
-          case Left(_)       => v // This will be caught below
+          case Left(err) =>
+            capturedError = Some(err)
+            v // Return original but capture the error
         }
-      } match {
-        case Right(result) =>
-          // Check if f actually succeeded by re-running
-          // (modifyOrFail doesn't propagate our Either errors)
-          val selection = value.get(path)
-          if (selection.isEmpty) Left(MigrationError.PathNotFound(path))
-          else {
-            // Verify by checking that all targets were modified
-            // For simplicity, assume success if modifyOrFail succeeded
-            Right(result)
-          }
-        case Left(err) =>
-          Left(MigrationError.General(path, err.message))
+      }
+      
+      // Check if f failed
+      capturedError match {
+        case Some(err) => Left(err)
+        case None => result match {
+          case Right(result) =>
+            val selection = value.get(path)
+            if (selection.isEmpty) Left(MigrationError.PathNotFound(path))
+            else Right(result)
+          case Left(err) =>
+            Left(MigrationError.General(path, err.message))
+        }
       }
     }
 

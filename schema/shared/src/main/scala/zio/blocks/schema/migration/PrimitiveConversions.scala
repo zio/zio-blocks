@@ -291,10 +291,22 @@ object PrimitiveConversions {
         catch { case _: IllegalArgumentException => Left(s"Cannot parse '$s' as Currency") }
 
       // ─────────────────────────────────────────────────────────────────────
-      // Char -> Int (Boolean/Char -> String handled by generic (_, "String", _) above)
+      // Char <-> Int conversions
       // ─────────────────────────────────────────────────────────────────────
       case ("Char", "Int", DynamicValue.Primitive(PrimitiveValue.Char(c))) =>
         Right(DynamicValue.Primitive(PrimitiveValue.Int(c.toInt)))
+      case ("Int", "Char", DynamicValue.Primitive(PrimitiveValue.Int(i))) =>
+        if (i >= Char.MinValue.toInt && i <= Char.MaxValue.toInt)
+          Right(DynamicValue.Primitive(PrimitiveValue.Char(i.toChar)))
+        else Left(s"Value $i out of Char range")
+
+      // ─────────────────────────────────────────────────────────────────────
+      // Boolean <-> Int conversions
+      // ─────────────────────────────────────────────────────────────────────
+      case ("Boolean", "Int", DynamicValue.Primitive(PrimitiveValue.Boolean(b))) =>
+        Right(DynamicValue.Primitive(PrimitiveValue.Int(if (b) 1 else 0)))
+      case ("Int", "Boolean", DynamicValue.Primitive(PrimitiveValue.Int(i))) =>
+        Right(DynamicValue.Primitive(PrimitiveValue.Boolean(i != 0)))
 
       // ─────────────────────────────────────────────────────────────────────
       // Unsupported conversion

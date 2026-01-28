@@ -115,16 +115,17 @@ object Resolved {
     def evalDynamic: Either[String, DynamicValue] =
       Left("FieldAccess requires input")
 
-    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
-      input match {
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] = {
+      // First, apply inner to the input to navigate to the correct context
+      inner.evalDynamic(input).flatMap {
         case DynamicValue.Record(fields) =>
           fields.collectFirst { case (name, v) if name == fieldName => v }
             .toRight(s"Field '$fieldName' not found")
-            .flatMap(inner.evalDynamic)
 
-        case _ =>
-          Left(s"Expected record for field access '$fieldName', got ${input.valueType}")
+        case other =>
+          Left(s"Expected record for field access '$fieldName', got ${other.valueType}")
       }
+    }
   }
 
   /**
@@ -225,8 +226,21 @@ object Resolved {
    * the specified separator.
    */
   final case class Concat(parts: Vector[Resolved], separator: String) extends Resolved {
-    def evalDynamic: Either[String, DynamicValue] =
-      Left("Concat requires input")
+    def evalDynamic: Either[String, DynamicValue] = {
+      // Concat can work without input if all parts can evaluate without input (e.g., all literals)
+      val results = parts.foldLeft[Either[String, Vector[String]]](Right(Vector.empty)) {
+        case (Right(acc), part) =>
+          part.evalDynamic.map { value =>
+            val str = value match {
+              case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+              case other                                            => other.toString
+            }
+            acc :+ str
+          }
+        case (left, _) => left
+      }
+      results.map(strings => DynamicValue.Primitive(PrimitiveValue.String(strings.mkString(separator))))
+    }
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] = {
       val results = parts.foldLeft[Either[String, Vector[String]]](Right(Vector.empty)) {
@@ -255,14 +269,13 @@ object Resolved {
       Left("SplitString requires input")
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
-      inner.evalDynamic(input).map {
+      inner.evalDynamic(input).flatMap {
         case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
           val parts = s.split(java.util.regex.Pattern.quote(separator), -1)
-          DynamicValue.Sequence(parts.map(p => DynamicValue.Primitive(PrimitiveValue.String(p))).toVector)
+          Right(DynamicValue.Sequence(parts.map(p => DynamicValue.Primitive(PrimitiveValue.String(p))).toVector))
 
         case other =>
-          // Non-string values become single-element sequences
-          DynamicValue.Sequence(Vector(other))
+          Left(s"SplitString requires String input, got ${other.valueType}")
       }
   }
 
@@ -277,10 +290,10 @@ object Resolved {
    */
   final case class WrapSome(inner: Resolved) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] =
-      inner.evalDynamic.map(v => DynamicValue.Variant("Some", v))
+      inner.evalDynamic.map(v => DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", v)))))
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
-      inner.evalDynamic(input).map(v => DynamicValue.Variant("Some", v))
+      inner.evalDynamic(input).map(v => DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", v)))))
   }
 
   /**
@@ -332,5 +345,173 @@ object Resolved {
     def evalDynamic: Either[String, DynamicValue] = Left(message)
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] = Left(message)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Record/Sequence Construction
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Construct a record from field name-expression pairs.
+   *
+   * Each field is evaluated and assembled into a Record DynamicValue.
+   * Used for complex restructuring operations.
+   */
+  final case class Construct(fields: Vector[(String, Resolved)]) extends Resolved {
+    def evalDynamic: Either[String, DynamicValue] =
+      evalDynamic(DynamicValue.Primitive(PrimitiveValue.Unit))
+
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] = {
+      fields.foldLeft[Either[String, Vector[(String, DynamicValue)]]](Right(Vector.empty)) {
+        case (Right(acc), (name, expr)) =>
+          expr.evalDynamic(input).map(v => acc :+ (name -> v))
+        case (left, _) => left
+      }.map(DynamicValue.Record(_))
+    }
+  }
+
+  /**
+   * Construct a sequence from element expressions.
+   *
+   * Each element expression is evaluated and assembled into a Sequence.
+   */
+  final case class ConstructSeq(elements: Vector[Resolved]) extends Resolved {
+    def evalDynamic: Either[String, DynamicValue] =
+      evalDynamic(DynamicValue.Primitive(PrimitiveValue.Unit))
+
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] = {
+      elements.foldLeft[Either[String, Vector[DynamicValue]]](Right(Vector.empty)) {
+        case (Right(acc), expr) =>
+          expr.evalDynamic(input).map(v => acc :+ v)
+        case (left, _) => left
+      }.map(DynamicValue.Sequence(_))
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Sequence Operations
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Extract the first element from a sequence.
+   *
+   * Returns the first element if the sequence is non-empty, otherwise fails.
+   */
+  final case class Head(inner: Resolved) extends Resolved {
+    def evalDynamic: Either[String, DynamicValue] =
+      Left("Head requires input")
+
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
+      inner.evalDynamic(input).flatMap {
+        case DynamicValue.Sequence(elements) if elements.nonEmpty =>
+          Right(elements.head)
+        case DynamicValue.Sequence(_) =>
+          Left("Cannot get head of empty sequence")
+        case other =>
+          Left(s"Expected sequence for head operation, got ${other.valueType}")
+      }
+  }
+
+  /**
+   * Join sequence elements into a string with a separator.
+   *
+   * Evaluates the inner expression to get a sequence, then joins all elements
+   * into a single string using the specified separator.
+   */
+  final case class JoinStrings(separator: String, inner: Resolved) extends Resolved {
+    def evalDynamic: Either[String, DynamicValue] =
+      Left("JoinStrings requires input")
+
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
+      inner.evalDynamic(input).flatMap {
+        case DynamicValue.Sequence(elements) =>
+          val strings = elements.map {
+            case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+            case other => other.toString
+          }
+          Right(DynamicValue.Primitive(PrimitiveValue.String(strings.mkString(separator))))
+        case other =>
+          Left(s"Expected sequence for JoinStrings, got ${other.valueType}")
+      }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Fallback Operations
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Return the first successful result from a list of expressions.
+   *
+   * Tries each expression in order until one succeeds.
+   * If all fail, returns the last failure message.
+   */
+  final case class Coalesce(alternatives: Vector[Resolved]) extends Resolved {
+    def evalDynamic: Either[String, DynamicValue] =
+      evalWithAlternatives(None)
+
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
+      evalWithAlternatives(Some(input))
+
+    private def evalWithAlternatives(input: Option[DynamicValue]): Either[String, DynamicValue] = {
+      if (alternatives.isEmpty) {
+        Left("Coalesce requires at least one alternative")
+      } else {
+        alternatives.iterator.map { alt =>
+          input match {
+            case Some(in) => alt.evalDynamic(in)
+            case None     => alt.evalDynamic
+          }
+        }.find {
+          // Skip None values, find first Some or non-Option value
+          case Right(DynamicValue.Variant("None", _)) => false
+          case Right(_) => true
+          case Left(_) => false
+        }.getOrElse(Left("All alternatives were None or failed"))
+      }
+    }
+  }
+
+  /**
+   * Try an expression, returning a fallback value if it fails.
+   *
+   * Similar to Option.getOrElse - attempts to evaluate the primary expression,
+   * and returns the fallback if the primary fails.
+   */
+  final case class GetOrElse(primary: Resolved, fallback: Resolved) extends Resolved {
+    def evalDynamic: Either[String, DynamicValue] =
+      primary.evalDynamic match {
+        case Right(DynamicValue.Variant("Some", DynamicValue.Record(fields))) =>
+          // Extract value from Some(Record(Vector(("value", inner))))
+          fields.find(_._1 == "value").map(kv => Right(kv._2)).getOrElse(fallback.evalDynamic)
+        case Right(DynamicValue.Variant("None", _)) =>
+          // None case, use fallback
+          fallback.evalDynamic
+        case Right(DynamicValue.Null) =>
+          // Null treated as None
+          fallback.evalDynamic
+        case Right(value) =>
+          // Non-option value, return as-is
+          Right(value)
+        case Left(_) =>
+          fallback.evalDynamic
+      }
+
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
+      primary.evalDynamic(input) match {
+        case Right(DynamicValue.Variant("Some", DynamicValue.Record(fields))) =>
+          // Extract value from Some(Record(Vector(("value", inner))))
+          fields.find(_._1 == "value").map(kv => Right(kv._2)).getOrElse(fallback.evalDynamic(input))
+        case Right(DynamicValue.Variant("None", _)) =>
+          // None case, use fallback
+          fallback.evalDynamic(input)
+        case Right(DynamicValue.Null) =>
+          // Null treated as None
+          fallback.evalDynamic(input)
+        case Right(value) =>
+          // Non-option value, return as-is
+          Right(value)
+        case Left(_) =>
+          fallback.evalDynamic(input)
+      }
   }
 }

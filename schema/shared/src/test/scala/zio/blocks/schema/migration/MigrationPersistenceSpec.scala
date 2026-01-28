@@ -109,7 +109,6 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
                 assertTrue(v == 42)
               case _ => assertTrue(false)
             }
-          case _ => assertTrue(false)
         }
       },
       test("inspect Rename action") {
@@ -119,7 +118,6 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
             assertTrue(from == "oldName")
             assertTrue(to == "newName")
             assertTrue(at == DynamicOptic.root)
-          case _ => assertTrue(false)
         }
       },
       test("inspect ChangeType action") {
@@ -137,7 +135,6 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
                 assertTrue(from == "Int" && to == "String")
               case _ => assertTrue(false)
             }
-          case _ => assertTrue(false)
         }
       },
       test("inspect TransformCase action") {
@@ -149,7 +146,6 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
           case MigrationAction.TransformCase(_, caseName, actions) =>
             assertTrue(caseName == "MyCase")
             assertTrue(actions.length == 1)
-          case _ => assertTrue(false)
         }
       }
     ),
@@ -271,7 +267,6 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
           case MigrationAction.Rename(at, from, to) =>
             val rebuilt = MigrationAction.Rename(at, from, to)
             assertTrue(rebuilt == original)
-          case _ => assertTrue(false)
         }
       },
       test("rebuild Resolved expression") {
@@ -283,7 +278,6 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
           case Resolved.Concat(parts, sep) =>
             val rebuilt = Resolved.Concat(parts, sep)
             assertTrue(rebuilt == original)
-          case _ => assertTrue(false)
         }
       }
     ),
@@ -347,7 +341,6 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
           case Resolved.FieldAccess(name, inner) =>
             assertTrue(name == "myField")
             assertTrue(inner == Resolved.Identity)
-          case _ => assertTrue(false)
         }
       },
       test("Convert preserves type names") {
@@ -355,7 +348,6 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
         expr match {
           case Resolved.Convert(from, to, _) =>
             assertTrue(from == "Int" && to == "String")
-          case _ => assertTrue(false)
         }
       },
       test("Construct preserves field definitions") {
@@ -368,7 +360,6 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
             assertTrue(fields.length == 2)
             assertTrue(fields(0)._1 == "x")
             assertTrue(fields(1)._1 == "y")
-          case _ => assertTrue(false)
         }
       }
     ),

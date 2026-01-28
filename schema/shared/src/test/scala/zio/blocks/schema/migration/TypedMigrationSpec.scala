@@ -159,7 +159,6 @@ object TypedMigrationSpec extends SchemaBaseSpec {
     suite("Migration composition")(
       test("compose typed migrations") {
         implicit val schemaV1: Schema[PersonV1] = Schema.derived
-        implicit val schemaV2: Schema[PersonV2] = Schema.derived
         implicit val schemaV3: Schema[PersonV3] = Schema.derived
 
         val dyn1to2 = DynamicMigration.single(
@@ -168,9 +167,6 @@ object TypedMigrationSpec extends SchemaBaseSpec {
         val dyn2to3 = DynamicMigration.single(
           MigrationAction.AddField(DynamicOptic.root, "email", Resolved.Literal.string("default@example.com"))
         )
-
-        val migration1 = Migration[PersonV1, PersonV2](dyn1to2, schemaV1, schemaV2)
-        val migration2 = Migration[PersonV2, PersonV3](dyn2to3, schemaV2, schemaV3)
 
         // Compose the dynamic migrations
         val composedDyn = dyn1to2 ++ dyn2to3

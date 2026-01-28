@@ -133,7 +133,7 @@ object MigrationErrorSpec extends SchemaBaseSpec {
         val action = MigrationAction.AddField(DynamicOptic.root, "field", Resolved.Literal.int(1))
         val result = action.apply(dynamicString("not record"))
         result match {
-          case Left(error: MigrationError.ExpectedRecord) =>
+          case Left(_: MigrationError.ExpectedRecord) =>
             assertTrue(true)
           case Left(_) =>
             assertTrue(true) // Any error type is acceptable

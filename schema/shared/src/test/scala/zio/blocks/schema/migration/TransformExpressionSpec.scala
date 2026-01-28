@@ -44,10 +44,10 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     DynamicValue.Sequence(elements.toVector)
 
   def dynamicSome(value: DynamicValue): DynamicValue =
-    DynamicValue.Variant("Some", value)
+    DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", value))))
 
   def dynamicNone: DynamicValue =
-    DynamicValue.Variant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
+    DynamicValue.Variant("None", DynamicValue.Record(Vector()))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Tests
@@ -242,24 +242,24 @@ object TransformExpressionSpec extends SchemaBaseSpec {
     ),
     suite("Coalesce expression")(
       test("returns first non-None value") {
-        val expr = Resolved.Coalesce(
+        val expr = Resolved.Coalesce(Vector(
           Resolved.Literal(dynamicNone),
           Resolved.Literal(dynamicSome(dynamicInt(42)))
-        )
+        ))
         assertTrue(expr.evalDynamic == Right(dynamicSome(dynamicInt(42))))
       },
       test("returns primary if not None") {
-        val expr = Resolved.Coalesce(
+        val expr = Resolved.Coalesce(Vector(
           Resolved.Literal(dynamicSome(dynamicInt(1))),
           Resolved.Literal(dynamicSome(dynamicInt(2)))
-        )
+        ))
         assertTrue(expr.evalDynamic == Right(dynamicSome(dynamicInt(1))))
       },
       test("returns fallback if primary is None") {
-        val expr = Resolved.Coalesce(
+        val expr = Resolved.Coalesce(Vector(
           Resolved.Literal(dynamicNone),
           Resolved.Literal.int(99)
-        )
+        ))
         assertTrue(expr.evalDynamic == Right(dynamicInt(99)))
       }
     ),

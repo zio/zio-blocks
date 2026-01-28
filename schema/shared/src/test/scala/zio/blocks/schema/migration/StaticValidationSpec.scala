@@ -274,7 +274,7 @@ object StaticValidationSpec extends SchemaBaseSpec {
         val input = dynamicRecord("required" -> dynamicInt(42))
         val result = action.apply(input)
         assertTrue(result == Right(dynamicRecord(
-          "required" -> dynamicVariant("Some", dynamicInt(42))
+          "required" -> dynamicVariant("Some", DynamicValue.Record(Vector(("value", dynamicInt(42)))))
         )))
       }
     ),

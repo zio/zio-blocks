@@ -55,13 +55,13 @@ object PathSelectorSpec extends SchemaBaseSpec {
         val path = DynamicOptic.root
         val input = dynamicInt(1)
         val result = input.modify(path)(_ => dynamicInt(99))
-        assertTrue(result == Right(dynamicInt(99)))
+        assertTrue(result == dynamicInt(99))
       },
       test("root path set replaces value") {
         val path = DynamicOptic.root
         val input = dynamicString("old")
         val result = input.set(path, dynamicString("new"))
-        assertTrue(result == Right(dynamicString("new")))
+        assertTrue(result == dynamicString("new"))
       }
     ),
     suite("Field path")(
@@ -75,10 +75,10 @@ object PathSelectorSpec extends SchemaBaseSpec {
         val path = DynamicOptic.root.field("name")
         val input = dynamicRecord("name" -> dynamicString("Alice"), "age" -> dynamicInt(30))
         val result = input.modify(path)(_ => dynamicString("Bob"))
-        assertTrue(result == Right(dynamicRecord(
+        assertTrue(result == dynamicRecord(
           "name" -> dynamicString("Bob"),
           "age" -> dynamicInt(30)
-        )))
+        ))
       },
       test("field path returns error for missing field") {
         val path = DynamicOptic.root.field("missing")
@@ -113,13 +113,13 @@ object PathSelectorSpec extends SchemaBaseSpec {
           )
         )
         val result = input.modify(path)(_ => dynamicString("NYC"))
-        assertTrue(result == Right(dynamicRecord(
+        assertTrue(result == dynamicRecord(
           "name" -> dynamicString("Alice"),
           "address" -> dynamicRecord(
             "city" -> dynamicString("NYC"),
             "zip" -> dynamicString("02101")
           )
-        )))
+        ))
       },
       test("three-level field path") {
         val path = DynamicOptic.root.field("a").field("b").field("c")
@@ -143,13 +143,13 @@ object PathSelectorSpec extends SchemaBaseSpec {
           "d" -> dynamicInt(3)
         )
         val result = input.modify(path)(_ => dynamicInt(99))
-        assertTrue(result == Right(dynamicRecord(
+        assertTrue(result == dynamicRecord(
           "a" -> dynamicRecord(
             "b" -> dynamicInt(99),
             "c" -> dynamicInt(2)
           ),
           "d" -> dynamicInt(3)
-        )))
+        ))
       }
     ),
     suite("Element path")(
@@ -163,7 +163,7 @@ object PathSelectorSpec extends SchemaBaseSpec {
         val path = DynamicOptic.root.at(1)
         val input = dynamicSequence(dynamicInt(10), dynamicInt(20), dynamicInt(30))
         val result = input.modify(path)(_ => dynamicInt(99))
-        assertTrue(result == Right(dynamicSequence(dynamicInt(10), dynamicInt(99), dynamicInt(30))))
+        assertTrue(result == dynamicSequence(dynamicInt(10), dynamicInt(99), dynamicInt(30)))
       },
       test("element path returns error for out of bounds") {
         val path = DynamicOptic.root.at(10)
@@ -213,7 +213,7 @@ object PathSelectorSpec extends SchemaBaseSpec {
         val path = DynamicOptic.root.caseOf("Success")
         val input = dynamicVariant("Success", dynamicInt(42))
         val result = input.modify(path)(_ => dynamicInt(100))
-        assertTrue(result == Right(dynamicVariant("Success", dynamicInt(100))))
+        assertTrue(result == dynamicVariant("Success", dynamicInt(100)))
       }
     ),
     suite("Key path")(
@@ -239,10 +239,10 @@ object PathSelectorSpec extends SchemaBaseSpec {
           dynamicString("bar") -> dynamicInt(2)
         )
         val result = input.modify(path)(_ => dynamicInt(99))
-        assertTrue(result == Right(dynamicMap(
+        assertTrue(result == dynamicMap(
           dynamicString("foo") -> dynamicInt(99),
           dynamicString("bar") -> dynamicInt(2)
-        )))
+        ))
       }
     ),
     suite("Combined paths")(
@@ -376,7 +376,7 @@ object PathSelectorSpec extends SchemaBaseSpec {
       test("modify empty sequence element fails") {
         val path = DynamicOptic.root.at(0)
         val input = dynamicSequence()
-        assertTrue(input.modifyOrFail(path) { case dv => dynamicInt(1) }.isLeft)
+        assertTrue(input.modifyOrFail(path) { case _ => dynamicInt(1) }.isLeft)
       },
       test("negative index handling") {
         // Behavior depends on implementation - likely error or wrapping

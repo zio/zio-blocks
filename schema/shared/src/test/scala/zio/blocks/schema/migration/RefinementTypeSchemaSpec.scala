@@ -65,10 +65,10 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
     DynamicValue.Variant(caseName, value)
 
   def dynamicSome(value: DynamicValue): DynamicValue =
-    DynamicValue.Variant("Some", value)
+    DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", value))))
 
   def dynamicNone: DynamicValue =
-    DynamicValue.Variant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
+    DynamicValue.Variant("None", DynamicValue.Record(Vector()))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Tests
@@ -310,7 +310,7 @@ object RefinementTypeSchemaSpec extends SchemaBaseSpec {
             "Some",
             Vector(MigrationAction.TransformValue(
               DynamicOptic.root,
-              "_1",  // Option's value is typically in _1 or similar
+              "value",  // Option's value is in "value" field in ZIO Schema representation
               Resolved.Identity,
               Resolved.Identity
             ))

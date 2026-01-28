@@ -238,8 +238,8 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
         assertTrue(convert("String", "Char", dynamicString("AB")).isLeft)
       },
       test("unsupported conversion returns error") {
-        // Converting between incompatible types
-        assertTrue(convert("Boolean", "Int", dynamicBool(true)).isLeft)
+        // Converting between incompatible types (Boolean -> Double is not supported)
+        assertTrue(convert("Boolean", "Double", dynamicBool(true)).isLeft)
       }
     ),
     suite("Edge cases")(

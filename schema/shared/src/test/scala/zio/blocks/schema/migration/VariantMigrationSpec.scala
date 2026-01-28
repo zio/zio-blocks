@@ -257,8 +257,10 @@ object VariantMigrationSpec extends SchemaBaseSpec {
         )
         val input = dynamicVariant("Some", dynamicRecord("value" -> dynamicInt(42)))
         val result = action.apply(input)
+        // Optionalize wraps in Schema-compatible Some: Variant("Some", Record(Vector(("value", inner))))
+        val expectedSome = dynamicVariant("Some", DynamicValue.Record(Vector(("value", dynamicInt(42)))))
         assertTrue(result == Right(dynamicVariant("Some", dynamicRecord(
-          "value" -> dynamicVariant("Some", dynamicInt(42))
+          "value" -> expectedSome
         ))))
       }
     ),

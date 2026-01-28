@@ -186,6 +186,20 @@ object MigrationOptimizer {
    *   - Remove identity transforms
    */
   def optimize(actions: Vector[MigrationAction]): Vector[MigrationAction] = {
+    if (actions.isEmpty) return actions
+
+    // First pass: optimize pairs
+    val pairOptimized = optimizePairs(actions)
+    
+    // Second pass: filter out single no-op actions
+    val filtered = pairOptimized.filter(!isNoOp(_))
+    
+    // Recursively optimize if we made changes
+    if (filtered.length != actions.length) optimize(filtered)
+    else filtered
+  }
+
+  private def optimizePairs(actions: Vector[MigrationAction]): Vector[MigrationAction] = {
     if (actions.length < 2) return actions
 
     val result = Vector.newBuilder[MigrationAction]
@@ -215,6 +229,16 @@ object MigrationOptimizer {
     }
 
     result.result()
+  }
+
+  /**
+   * Check if an action is a no-op.
+   */
+  private def isNoOp(action: MigrationAction): Boolean = action match {
+    // Rename to the same name is a no-op
+    case MigrationAction.Rename(_, from, to) if from == to => true
+    case MigrationAction.RenameCase(_, from, to) if from == to => true
+    case _ => false
   }
 
   /**

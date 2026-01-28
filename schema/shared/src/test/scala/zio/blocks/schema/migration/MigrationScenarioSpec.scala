@@ -53,10 +53,10 @@ object MigrationScenarioSpec extends SchemaBaseSpec {
     DynamicValue.Sequence(elements.toVector)
 
   def dynamicSome(value: DynamicValue): DynamicValue =
-    DynamicValue.Variant("Some", value)
+    DynamicValue.Variant("Some", DynamicValue.Record(Vector(("value", value))))
 
   def dynamicNone: DynamicValue =
-    DynamicValue.Variant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
+    DynamicValue.Variant("None", DynamicValue.Record(Vector()))
 
   def dynamicVariant(caseName: String, value: DynamicValue): DynamicValue =
     DynamicValue.Variant(caseName, value)

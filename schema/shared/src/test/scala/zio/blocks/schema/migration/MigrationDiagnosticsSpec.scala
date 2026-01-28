@@ -95,7 +95,7 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         actions.foreach { action =>
           val migration = DynamicMigration.single(action)
           val desc = migration.describe
-          assertTrue(desc.nonEmpty, s"Description should not be empty for ${action.getClass.getSimpleName}")
+          assertTrue(desc.nonEmpty)
         }
         assertTrue(true)
       }
@@ -396,21 +396,22 @@ object MigrationDiagnosticsSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("diagnose sequence element failure") {
+        // Use String -> Int conversion which will fail on non-parseable input
         val migration = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root.field("items"),
-            Resolved.Convert("Int", "String", Resolved.Identity),
+            Resolved.Convert("String", "Int", Resolved.Identity),
             Resolved.Identity
           )
         )
         val input = dynamicRecord(
           "items" -> dynamicSequence(
-            dynamicInt(1),
-            dynamicString("not an int"), // Wrong type
-            dynamicInt(3)
+            dynamicString("1"),
+            dynamicString("not an int"),  // Can't parse as Int
+            dynamicString("3")
           )
         )
-        // Second element is already a string, so conversion should fail
+        // Second element can't be parsed as Int, so conversion should fail
         val result = migration.apply(input)
         assertTrue(result.isLeft)
       },
