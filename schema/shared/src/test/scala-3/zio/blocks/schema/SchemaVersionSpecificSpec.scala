@@ -771,8 +771,9 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(true)))(isRight(equalTo(true))) &&
         assert(schema)(equalTo(Schema.derived[Int | Boolean | (Int, Boolean) | List[Int] | Map[Int, Long]])) &&
         assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
+        // Union types are sorted by fullName for consistent ordering across macro contexts
         assert(variant.map(_.cases.map(_.name)))(
-          isSome(equalTo(Vector("Int", "Boolean", "Tuple2", "collection.immutable.List", "collection.immutable.Map")))
+          isSome(equalTo(Vector("Boolean", "Int", "Tuple2", "collection.immutable.List", "collection.immutable.Map")))
         ) &&
         assert(variant.map(_.typeName))(
           isSome(
@@ -781,8 +782,8 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
                 Namespace(Nil),
                 "|",
                 Seq(
-                  TypeName.int,
                   TypeName.boolean,
+                  TypeName.int,
                   TypeName[(Int, Boolean)](Namespace(Seq("scala")), "Tuple2", Seq(TypeName.int, TypeName.boolean)),
                   TypeName.list(TypeName.int),
                   TypeName.map(TypeName.int, TypeName.long)
@@ -805,7 +806,8 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(123))))(isRight(equalTo(Variant(123)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(true))))(isRight(equalTo(Variant(true)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant("VVV"))))(isRight(equalTo(Variant("VVV")))) &&
-        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "String", "Boolean")))) &&
+        // Union types are sorted by fullName for consistent ordering across macro contexts
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("String", "Boolean", "Int")))) &&
         assert(variant.map(_.typeName))(
           isSome(equalTo(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpaqueTypes$package")), "Variant")))
         )
@@ -832,11 +834,12 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(Unions.v2.get(value2))(equalTo("VVV")) &&
         assert(Unions.v3.get(value2))(equalTo(213)) &&
         assert(Unions.v3_s.getOption(value1))(isSome(equalTo("VVV"))) &&
+        // Union types are sorted by fullName for consistent ordering across macro contexts
         assert(record.flatMap(_.fields(1).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("Int", "String"))) // deduplicates union cases without re-ordering
+          isSome(equalTo(Seq("String", "Int"))) // deduplicates and sorts by fullName
         ) &&
         assert(record.flatMap(_.fields(2).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("Int", "Boolean", "String"))) // deduplicates union cases without re-ordering
+          isSome(equalTo(Seq("String", "Boolean", "Int"))) // deduplicates and sorts by fullName
         ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))
@@ -972,6 +975,75 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           Schema[Double].transform(DoubleWrapper(_), _.value).asOpaqueType[DoubleWrapper]
         val wrapper = schema.reflect.asWrapperUnknown
         assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Double(Validation.None))))
+      }
+    ),
+    suite("all primitive field types macro coverage")(
+      test("derives schema for record with all primitive field types") {
+        case class AllPrimitives(
+          b: Byte,
+          s: Short,
+          i: Int,
+          l: Long,
+          f: Float,
+          d: Double,
+          c: Char,
+          bool: Boolean,
+          u: Unit,
+          str: String
+        ) derives Schema
+
+        val value     = AllPrimitives(1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'a', true, (), "test")
+        val schema    = Schema[AllPrimitives]
+        val dv        = schema.toDynamicValue(value)
+        val roundTrip = schema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(value))) &&
+        assert(schema.reflect.asRecord.map(_.fields.length))(isSome(equalTo(10)))
+      },
+      test("derives schema for tuple with all primitive types") {
+        type AllPrimitiveTuple = (Byte, Short, Int, Long, Float, Double, Char, Boolean, Unit, String)
+        val schema: Schema[AllPrimitiveTuple] = Schema.derived
+        val value: AllPrimitiveTuple          = (1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'a', true, (), "test")
+        val dv                                = schema.toDynamicValue(value)
+        val roundTrip                         = schema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(value)))
+      },
+      test("derives schema for EmptyTuple") {
+        val schema: Schema[EmptyTuple] = Schema.derived
+        val dv                         = schema.toDynamicValue(EmptyTuple)
+        val roundTrip                  = schema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(EmptyTuple)))
+      }
+    ),
+    suite("opaque type schema coverage")(
+      test("opaque type schema roundtrips correctly") {
+        // Uses InnerId which is defined below with explicit Schema
+        val id        = InnerId.applyUnsafe("abc123")
+        val schema    = Schema[InnerId]
+        val dv        = schema.toDynamicValue(id)
+        val roundTrip = schema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(id)))
+      },
+      test("record with opaque type field roundtrips") {
+        // Uses InnerOpaque which has InnerId and InnerValue fields
+        val opaque    = InnerOpaque(InnerId.applyUnsafe("test"), InnerValue(42))
+        val schema    = Schema[InnerOpaque]
+        val dv        = schema.toDynamicValue(opaque)
+        val roundTrip = schema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(opaque)))
+      },
+      test("wrapper schema with transform roundtrips") {
+        case class Score(value: Int)
+        val scoreSchema: Schema[Score] = Schema[Int].transform(Score(_), _.value)
+        val score                      = Score(100)
+        val dv                         = scoreSchema.toDynamicValue(score)
+        val roundTrip                  = scoreSchema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(score)))
       }
     )
   )

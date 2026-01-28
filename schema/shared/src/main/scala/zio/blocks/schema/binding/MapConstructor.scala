@@ -17,7 +17,7 @@ trait MapConstructor[M[_, _]] {
 object MapConstructor {
   def apply[M[_, _]](implicit mc: MapConstructor[M]): MapConstructor[M] = mc
 
-  val map: MapConstructor[Map] = new MapConstructor[Map] {
+  implicit val map: MapConstructor[Map] = new MapConstructor[Map] {
     type ObjectBuilder[K, V] = scala.collection.mutable.Builder[(K, V), Map[K, V]]
 
     def newObjectBuilder[K, V](sizeHint: Int): ObjectBuilder[K, V] = Map.newBuilder[K, V]
@@ -30,4 +30,5 @@ object MapConstructor {
 
     def updated[K, V](map: Map[K, V], key: K, value: V): Map[K, V] = map.updated(key, value)
   }
+
 }
