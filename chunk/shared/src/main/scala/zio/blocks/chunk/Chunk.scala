@@ -194,6 +194,8 @@ object ChunkBuilder {
       } else array = Array.copyOf(array, Math.max(n, count))
 
     override def knownSize: SInt = count
+
+    override def toString: String = "ChunkBuilder"
   }
 
   /**
@@ -546,12 +548,8 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
           } else {
             val nrr = self.right.right ++ that
             if (nrr.concatDepth == self.concatDepth - 3) {
-              val nr = Chunk.Concat(self.right.left, nrr)
-              new Chunk.Concat(self.left, nr)
-            } else {
-              val nl = Chunk.Concat(self.left, self.right.left)
-              new Chunk.Concat(nl, nrr)
-            }
+              new Chunk.Concat(self.left, new Chunk.Concat(self.right.left, nrr))
+            } else new Chunk.Concat(new Chunk.Concat(self.left, self.right.left), nrr)
           }
         } else {
           if (that.right.concatDepth >= that.left.concatDepth) {
@@ -560,12 +558,8 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
           } else {
             val nll = self ++ that.left.left
             if (nll.concatDepth == that.concatDepth - 3) {
-              val nl = Chunk.Concat(nll, that.left.right)
-              new Chunk.Concat(nl, that.right)
-            } else {
-              val nr = Chunk.Concat(that.left.right, that.right)
-              new Chunk.Concat(nll, nr)
-            }
+              new Chunk.Concat(new Chunk.Concat(nll, that.left.right), that.right)
+            } else new Chunk.Concat(nll, new Chunk.Concat(that.left.right, that.right))
           }
         }
     }
