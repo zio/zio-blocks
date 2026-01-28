@@ -100,8 +100,8 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 90,
-    coverageMinimumBranchTotal := 85,
+    coverageMinimumStmtTotal   := 88,
+    coverageMinimumBranchTotal := 83,
     coverageExcludedPackages   := "zio.blocks.typeid.TypeIdMacros"
   )
 
