@@ -75,7 +75,7 @@ object DynamicSchemaExpr {
     case _                                                                   => None
   }
 
-  def fromSchemaExpr[A, B](expr: SchemaExpr[A, B]): DynamicSchemaExpr = expr match {
+  def fromSchemaExpr[A, B](expr: SchemaExpr[A, B]): DynamicSchemaExpr = (expr: @unchecked) match {
     case SchemaExpr.Literal(value, schema)          => Literal(schema.toDynamicValue(value))
     case SchemaExpr.Optic(optic)                    => Path(optic.toDynamic)
     case SchemaExpr.Relational(left, right, op)     => Relational(fromSchemaExpr(left), fromSchemaExpr(right), op)
