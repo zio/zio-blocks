@@ -381,7 +381,7 @@ private[schema] object ReflectPrinter {
    * Prints a Primitive reflect including its validation suffix.
    */
   private[schema] def printPrimitive[F[_, _], A](primitive: Reflect.Primitive[F, A]): String =
-    sdlTypeName(primitive.typeName) + validationSuffix(primitive.primitiveType.validation)
+    sdlTypeName(primitive.typeId) + validationSuffix(primitive.primitiveType.validation)
 
   // Extension to make foreach work on IndexedSeq
   private implicit class IndexedSeqOps[A](seq: IndexedSeq[A]) {
