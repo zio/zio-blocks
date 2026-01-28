@@ -976,6 +976,75 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val wrapper = schema.reflect.asWrapperUnknown
         assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Double(Validation.None))))
       }
+    ),
+    suite("all primitive field types macro coverage")(
+      test("derives schema for record with all primitive field types") {
+        case class AllPrimitives(
+          b: Byte,
+          s: Short,
+          i: Int,
+          l: Long,
+          f: Float,
+          d: Double,
+          c: Char,
+          bool: Boolean,
+          u: Unit,
+          str: String
+        ) derives Schema
+
+        val value     = AllPrimitives(1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'a', true, (), "test")
+        val schema    = Schema[AllPrimitives]
+        val dv        = schema.toDynamicValue(value)
+        val roundTrip = schema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(value))) &&
+        assert(schema.reflect.asRecord.map(_.fields.length))(isSome(equalTo(10)))
+      },
+      test("derives schema for tuple with all primitive types") {
+        type AllPrimitiveTuple = (Byte, Short, Int, Long, Float, Double, Char, Boolean, Unit, String)
+        val schema: Schema[AllPrimitiveTuple] = Schema.derived
+        val value: AllPrimitiveTuple          = (1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'a', true, (), "test")
+        val dv                                = schema.toDynamicValue(value)
+        val roundTrip                         = schema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(value)))
+      },
+      test("derives schema for EmptyTuple") {
+        val schema: Schema[EmptyTuple] = Schema.derived
+        val dv                         = schema.toDynamicValue(EmptyTuple)
+        val roundTrip                  = schema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(EmptyTuple)))
+      }
+    ),
+    suite("opaque type schema coverage")(
+      test("opaque type schema roundtrips correctly") {
+        // Uses InnerId which is defined below with explicit Schema
+        val id        = InnerId.applyUnsafe("abc123")
+        val schema    = Schema[InnerId]
+        val dv        = schema.toDynamicValue(id)
+        val roundTrip = schema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(id)))
+      },
+      test("record with opaque type field roundtrips") {
+        // Uses InnerOpaque which has InnerId and InnerValue fields
+        val opaque    = InnerOpaque(InnerId.applyUnsafe("test"), InnerValue(42))
+        val schema    = Schema[InnerOpaque]
+        val dv        = schema.toDynamicValue(opaque)
+        val roundTrip = schema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(opaque)))
+      },
+      test("wrapper schema with transform roundtrips") {
+        case class Score(value: Int)
+        val scoreSchema: Schema[Score] = Schema[Int].transform(Score(_), _.value)
+        val score                      = Score(100)
+        val dv                         = scoreSchema.toDynamicValue(score)
+        val roundTrip                  = scoreSchema.fromDynamicValue(dv)
+
+        assert(roundTrip)(isRight(equalTo(score)))
+      }
     )
   )
 

@@ -728,6 +728,52 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val id2     = Identifier("x")
         assertTrue(binding.discriminator.discriminate(id1) == binding.discriminator.discriminate(id2))
       }
+    ),
+    suite("Some/Left/Right binding macro coverage")(
+      test("derives binding for Some[Int]") {
+        val binding = Binding.of[Some[Int]].asInstanceOf[Binding.Record[Some[Int]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      },
+      test("derives binding for Some[String]") {
+        val binding = Binding.of[Some[String]].asInstanceOf[Binding.Record[Some[String]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      },
+      test("derives binding for Some[Long]") {
+        val binding = Binding.of[Some[Long]].asInstanceOf[Binding.Record[Some[Long]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      },
+      test("derives binding for Some[Double]") {
+        val binding = Binding.of[Some[Double]].asInstanceOf[Binding.Record[Some[Double]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      },
+      test("derives binding for Left[String, Int]") {
+        val binding = Binding.of[Left[String, Int]].asInstanceOf[Binding.Record[Left[String, Int]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      },
+      test("derives binding for Left[Int, String]") {
+        val binding = Binding.of[Left[Int, String]].asInstanceOf[Binding.Record[Left[Int, String]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      },
+      test("derives binding for Left[Long, Boolean]") {
+        val binding = Binding.of[Left[Long, Boolean]].asInstanceOf[Binding.Record[Left[Long, Boolean]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      },
+      test("derives binding for Right[String, Int]") {
+        val binding = Binding.of[Right[String, Int]].asInstanceOf[Binding.Record[Right[String, Int]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      },
+      test("derives binding for Right[Int, String]") {
+        val binding = Binding.of[Right[Int, String]].asInstanceOf[Binding.Record[Right[Int, String]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      },
+      test("derives binding for Right[Boolean, Double]") {
+        val binding = Binding.of[Right[Boolean, Double]].asInstanceOf[Binding.Record[Right[Boolean, Double]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      },
+      test("derives binding for Right[Byte, Short]") {
+        val binding = Binding.of[Right[Byte, Short]].asInstanceOf[Binding.Record[Right[Byte, Short]]]
+        assertTrue(binding.constructor.usedRegisters != 0L)
+      }
     )
   )
 }
