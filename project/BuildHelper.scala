@@ -126,7 +126,8 @@ object BuildHelper {
       ),
     coverageFailOnMinimum      := true,
     coverageMinimumStmtTotal   := 95,
-    coverageMinimumBranchTotal := 90
+    coverageMinimumBranchTotal := 90,
+    coverageExcludedFiles      := ".*scala-3.*"
   )
 
   def nativeSettings: Seq[Def.Setting[?]] = Seq(
