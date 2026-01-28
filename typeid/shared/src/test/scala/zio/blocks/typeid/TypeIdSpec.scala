@@ -441,8 +441,8 @@ object TypeIdSpec extends ZIOSpecDefault {
         assertTrue(id1 == id2)
       },
       test("given TypeId works") {
-        def useTypeId[A](using id: TypeId[A]): String = id.fullName
-        val name                                      = useTypeId[String]
+        def useTypeId[A](implicit id: TypeId[A]): String = id.fullName
+        val name                                         = useTypeId[String]
         assertTrue(name == "java.lang.String")
       }
     )
