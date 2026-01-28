@@ -429,82 +429,24 @@ private object SchemaCompanionVersionSpecific {
       } else if (isCollection(tpe)) {
         if (tpe <:< typeOf[Array[?]]) {
           val elementTpe = typeArgs(tpe).head
-          val copyOfTpe  =
-            if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
-            else elementTpe
-          val schema  = findImplicitOrDeriveSchema(elementTpe)
-          val tpeName = toTree(typeName(tpe))
+          val schema     = findImplicitOrDeriveSchema(elementTpe)
+          val tpeName    = toTree(typeName(tpe))
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
                 typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
-                seqBinding = new Binding.Seq(
-                  constructor = new SeqConstructor.ArrayConstructor {
-                    def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                      new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                    def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
-                      var buf = builder.buffer
-                      val idx = builder.size
-                      if (buf.length == idx) {
-                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
-                        builder.buffer = buf
-                      }
-                      buf(idx) = a
-                      builder.size = idx + 1
-                    }
-
-                    def resultObject[B](builder: ObjectBuilder[B]): Array[B] = {
-                      val buf  = builder.buffer
-                      val size = builder.size
-                      if (buf.length == size) buf
-                      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
-                    }
-
-                    def emptyObject[B]: Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
-                  },
-                  deconstructor = SeqDeconstructor.arrayDeconstructor
-                )
+                seqBinding = Binding.of[Array[$elementTpe]].asInstanceOf[Binding.Seq[Array, $elementTpe]]
               )
             )"""
         } else if (tpe <:< typeOf[ArraySeq[?]]) {
           val elementTpe = typeArgs(tpe).head
-          val copyOfTpe  =
-            if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
-            else elementTpe
-          val schema  = findImplicitOrDeriveSchema(elementTpe)
-          val tpeName = toTree(typeName(tpe))
+          val schema     = findImplicitOrDeriveSchema(elementTpe)
+          val tpeName    = toTree(typeName(tpe))
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
                 typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
-                seqBinding = new Binding.Seq(
-                  constructor = new SeqConstructor.ArraySeqConstructor {
-                    def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                      new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                    def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
-                      var buf = builder.buffer
-                      val idx = builder.size
-                      if (buf.length == idx) {
-                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
-                        builder.buffer = buf
-                      }
-                      buf(idx) = a
-                      builder.size = idx + 1
-                    }
-
-                    def resultObject[B](builder: ObjectBuilder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
-                      val buf  = builder.buffer
-                      val size = builder.size
-                      if (buf.length == size) buf
-                      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
-                    }
-
-                    def emptyObject[B]: ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
-                  },
-                  deconstructor = SeqDeconstructor.arraySeqDeconstructor
-                )
+                seqBinding = Binding.of[ArraySeq[$elementTpe]].asInstanceOf[Binding.Seq[ArraySeq, $elementTpe]]
               )
             )"""
         } else if (tpe <:< typeOf[List[?]]) {
@@ -720,10 +662,7 @@ private object SchemaCompanionVersionSpecific {
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector.empty,
               typeName = $tpeName,
-              recordBinding = new Binding.Record(
-                constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
-                deconstructor = new ConstantDeconstructor[$tpe]
-              ),
+              recordBinding = Binding.of[$tpe].asInstanceOf[Binding.Record[$tpe]],
               modifiers = ${modifiers(tpe)}
             )
           )"""
@@ -736,21 +675,8 @@ private object SchemaCompanionVersionSpecific {
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
               typeName = $tpeName,
-              recordBinding = new Binding.Record(
-                constructor = new Constructor[$tpe] {
-                  def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
-
-                  def construct(in: Registers, offset: RegisterOffset): $tpe = ${classInfo.constructor}
-                },
-                deconstructor = new Deconstructor[$tpe] {
-                  def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
-
-                  def deconstruct(out: Registers, offset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
-                    ..${classInfo.deconstructor}
-                  }
-                }
-              ),
-              modifiers = ${modifiers(tpe)},
+              recordBinding = Binding.of[$tpe].asInstanceOf[Binding.Record[$tpe]],
+              modifiers = ${modifiers(tpe)}
             )
           )"""
     }
@@ -777,33 +703,12 @@ private object SchemaCompanionVersionSpecific {
           q"$schema.reflect.asTerm($caseName).copy(modifiers = $ms)"
         }
       }
-      val discrCases = subtypes.map {
-        var idx = -1
-        sTpe =>
-          idx += 1
-          cq"_: $sTpe @_root_.scala.unchecked => $idx"
-      }
-      val matcherCases = subtypes.map { sTpe =>
-        q"""new Matcher[$sTpe] {
-              def downcastOrNull(a: Any): $sTpe = a match {
-                case x: $sTpe @_root_.scala.unchecked => x
-                case _ => null.asInstanceOf[$sTpe]
-              }
-            }"""
-      }
       val tpeName = toTree(typeName(tpe))
       q"""new Schema(
             reflect = new Reflect.Variant[Binding, $tpe](
               cases = _root_.scala.Vector(..$cases),
               typeName = $tpeName,
-              variantBinding = new Binding.Variant(
-                discriminator = new Discriminator[$tpe] {
-                  def discriminate(a: $tpe): Int = a match {
-                    case ..$discrCases
-                  }
-                },
-                matchers = Matchers(..$matcherCases),
-              ),
+              variantBinding = Binding.of[$tpe].asInstanceOf[Binding.Variant[$tpe]],
               modifiers = ${modifiers(tpe)}
             )
           )"""

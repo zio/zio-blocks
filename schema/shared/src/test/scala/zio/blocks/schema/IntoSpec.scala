@@ -69,6 +69,76 @@ object IntoSpec extends SchemaBaseSpec {
       narrowingValidation,
       nestedValidation,
       validationError
+    ),
+    suite("narrowing failure branches")(
+      test("shortToByte fails for values above Byte.MaxValue") {
+        val result = Into[Short, Byte].into((Byte.MaxValue + 1).toShort)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("shortToByte fails for values below Byte.MinValue") {
+        val result = Into[Short, Byte].into((Byte.MinValue - 1).toShort)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("intToByte fails for values above Byte.MaxValue") {
+        val result = Into[Int, Byte].into(Byte.MaxValue + 1)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("intToByte fails for values below Byte.MinValue") {
+        val result = Into[Int, Byte].into(Byte.MinValue - 1)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("intToShort fails for values above Short.MaxValue") {
+        val result = Into[Int, Short].into(Short.MaxValue + 1)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("intToShort fails for values below Short.MinValue") {
+        val result = Into[Int, Short].into(Short.MinValue - 1)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("longToByte fails for values above Byte.MaxValue") {
+        val result = Into[Long, Byte].into(Byte.MaxValue.toLong + 1)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("longToByte fails for values below Byte.MinValue") {
+        val result = Into[Long, Byte].into(Byte.MinValue.toLong - 1)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("longToShort fails for values above Short.MaxValue") {
+        val result = Into[Long, Short].into(Short.MaxValue.toLong + 1)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("longToShort fails for values below Short.MinValue") {
+        val result = Into[Long, Short].into(Short.MinValue.toLong - 1)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("longToInt fails for values above Int.MaxValue") {
+        val result = Into[Long, Int].into(Int.MaxValue.toLong + 1)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("longToInt fails for values below Int.MinValue") {
+        val result = Into[Long, Int].into(Int.MinValue.toLong - 1)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("doubleToFloat fails for values above Float.MaxValue") {
+        val result = Into[Double, Float].into(Double.MaxValue)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("out of range")))
+      },
+      test("floatToInt fails for non-integer float values") {
+        val result = Into[Float, Int].into(3.14f)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("cannot be precisely")))
+      },
+      test("floatToLong fails for non-integer float values") {
+        val result = Into[Float, Long].into(3.14f)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("cannot be precisely")))
+      },
+      test("doubleToInt fails for non-integer double values") {
+        val result = Into[Double, Int].into(3.14)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("cannot be precisely")))
+      },
+      test("doubleToLong fails for non-integer double values") {
+        val result = Into[Double, Long].into(3.14)
+        assertTrue(result.isLeft && result.swap.exists(_.message.contains("cannot be precisely")))
+      }
     )
   )
 

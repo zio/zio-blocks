@@ -164,7 +164,7 @@ object SeqConstructor {
     def emptyChar: C[Char] = emptyObject
   }
 
-  val setConstructor: SeqConstructor[Set] = new Boxed[Set] {
+  implicit val setConstructor: SeqConstructor[Set] = new Boxed[Set] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, Set[A]]
 
     def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = Set.newBuilder[A]
@@ -176,7 +176,7 @@ object SeqConstructor {
     def emptyObject[A]: Set[A] = Set.empty
   }
 
-  val listConstructor: SeqConstructor[List] = new Boxed[List] {
+  implicit val listConstructor: SeqConstructor[List] = new Boxed[List] {
     type ObjectBuilder[A] = scala.collection.mutable.ListBuffer[A]
 
     def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = new ListBuffer[A]
@@ -188,7 +188,7 @@ object SeqConstructor {
     def emptyObject[A]: List[A] = Nil
   }
 
-  val vectorConstructor: SeqConstructor[Vector] = new Boxed[Vector] {
+  implicit val vectorConstructor: SeqConstructor[Vector] = new Boxed[Vector] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, Vector[A]]
 
     def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = Vector.newBuilder[A]
@@ -390,7 +390,32 @@ object SeqConstructor {
     val emptyChar: ArraySeq[Char] = ArraySeq.empty
   }
 
-  val indexedSeqConstructor: SeqConstructor[IndexedSeq] = new Boxed[IndexedSeq] {
+  implicit val arraySeqConstructor: SeqConstructor[ArraySeq] = new ArraySeqConstructor {
+    def newObjectBuilder[A](sizeHint: Int): Builder[A] =
+      new Builder(new Array[Any](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0)
+
+    def addObject[A](builder: Builder[A], a: A): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def resultObject[A](builder: Builder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
+    }
+
+    def emptyObject[A]: ArraySeq[A] = ArraySeq.unsafeWrapArray(Array.empty[AnyRef]).asInstanceOf[ArraySeq[A]]
+  }
+
+  implicit val indexedSeqConstructor: SeqConstructor[IndexedSeq] = new Boxed[IndexedSeq] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, IndexedSeq[A]]
 
     def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = IndexedSeq.newBuilder[A]
@@ -402,7 +427,7 @@ object SeqConstructor {
     def emptyObject[A]: IndexedSeq[A] = Vector.empty
   }
 
-  val seqConstructor: SeqConstructor[collection.immutable.Seq] = new Boxed[collection.immutable.Seq] {
+  implicit val seqConstructor: SeqConstructor[collection.immutable.Seq] = new Boxed[collection.immutable.Seq] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, collection.immutable.Seq[A]]
 
     def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = collection.immutable.Seq.newBuilder[A]
@@ -414,7 +439,7 @@ object SeqConstructor {
     def emptyObject[A]: Seq[A] = Nil
   }
 
-  val chunkConstructor: SeqConstructor[Chunk] = new Boxed[Chunk] {
+  implicit val chunkConstructor: SeqConstructor[Chunk] = new Boxed[Chunk] {
     type ObjectBuilder[A] = ChunkBuilder[A]
 
     def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = ChunkBuilder.make[A]()

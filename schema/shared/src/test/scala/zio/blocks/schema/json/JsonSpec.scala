@@ -3,7 +3,7 @@ package zio.blocks.schema.json
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
-import zio.test.Assertion.equalTo
+import zio.test.Assertion.{equalTo, isRight}
 
 object JsonSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonSpec")(
@@ -2614,6 +2614,209 @@ object JsonSpec extends SchemaBaseSpec {
       test("parseString fails on non-string") {
         val result = JsonDecoder.uuidDecoder.decode(Json.Number(123))
         assertTrue(result.isLeft)
+      }
+    ),
+    suite("fromDynamicValue primitive coverage")(
+      test("converts all PrimitiveValue types to Json") {
+        import java.time._
+        import java.util.{Currency, UUID}
+
+        val testCases: List[(PrimitiveValue, Json => Boolean)] = List(
+          (PrimitiveValue.Unit, _ == Json.Object.empty),
+          (PrimitiveValue.Boolean(true), _ == Json.True),
+          (PrimitiveValue.Boolean(false), _ == Json.False),
+          (PrimitiveValue.Byte(42.toByte), j => j.as(JsonType.Number).exists(_.value == "42")),
+          (PrimitiveValue.Short(100.toShort), j => j.as(JsonType.Number).exists(_.value == "100")),
+          (PrimitiveValue.Int(1000), j => j.as(JsonType.Number).exists(_.value == "1000")),
+          (PrimitiveValue.Long(10000L), j => j.as(JsonType.Number).exists(_.value == "10000")),
+          (PrimitiveValue.Float(3.5f), j => j.as(JsonType.Number).isDefined),
+          (PrimitiveValue.Double(3.14159), j => j.as(JsonType.Number).isDefined),
+          (PrimitiveValue.Char('X'), j => j.as(JsonType.String).exists(_.value == "X")),
+          (PrimitiveValue.String("hello"), j => j.as(JsonType.String).exists(_.value == "hello")),
+          (PrimitiveValue.BigInt(BigInt("123456789012345678901234567890")), j => j.as(JsonType.Number).isDefined),
+          (PrimitiveValue.BigDecimal(BigDecimal("123.456789")), j => j.as(JsonType.Number).isDefined),
+          (PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY), j => j.as(JsonType.String).exists(_.value == "MONDAY")),
+          (PrimitiveValue.Month(Month.JANUARY), j => j.as(JsonType.String).exists(_.value == "JANUARY")),
+          (PrimitiveValue.Duration(Duration.ofHours(1)), j => j.as(JsonType.String).isDefined),
+          (PrimitiveValue.Instant(Instant.EPOCH), j => j.as(JsonType.String).isDefined),
+          (PrimitiveValue.LocalDate(LocalDate.of(2024, 1, 15)), j => j.as(JsonType.String).isDefined),
+          (PrimitiveValue.LocalDateTime(LocalDateTime.of(2024, 1, 15, 12, 30)), j => j.as(JsonType.String).isDefined),
+          (PrimitiveValue.LocalTime(LocalTime.of(12, 30, 45)), j => j.as(JsonType.String).isDefined),
+          (PrimitiveValue.MonthDay(MonthDay.of(1, 15)), j => j.as(JsonType.String).isDefined),
+          (
+            PrimitiveValue.OffsetDateTime(OffsetDateTime.of(2024, 1, 15, 12, 30, 0, 0, ZoneOffset.UTC)),
+            j => j.as(JsonType.String).isDefined
+          ),
+          (
+            PrimitiveValue.OffsetTime(OffsetTime.of(12, 30, 0, 0, ZoneOffset.UTC)),
+            j => j.as(JsonType.String).isDefined
+          ),
+          (PrimitiveValue.Period(Period.ofDays(30)), j => j.as(JsonType.String).isDefined),
+          (PrimitiveValue.Year(Year.of(2024)), j => j.as(JsonType.String).isDefined),
+          (PrimitiveValue.YearMonth(YearMonth.of(2024, 1)), j => j.as(JsonType.String).isDefined),
+          (PrimitiveValue.ZoneId(ZoneId.of("UTC")), j => j.as(JsonType.String).isDefined),
+          (PrimitiveValue.ZoneOffset(ZoneOffset.UTC), j => j.as(JsonType.String).isDefined),
+          (
+            PrimitiveValue.ZonedDateTime(ZonedDateTime.of(2024, 1, 15, 12, 30, 0, 0, ZoneId.of("UTC"))),
+            j => j.as(JsonType.String).isDefined
+          ),
+          (PrimitiveValue.Currency(Currency.getInstance("USD")), j => j.as(JsonType.String).exists(_.value == "USD")),
+          (
+            PrimitiveValue.UUID(UUID.fromString("12345678-1234-1234-1234-123456789012")),
+            j => j.as(JsonType.String).isDefined
+          )
+        )
+
+        testCases.foldLeft(assertTrue(true)) { case (acc, (pv, check)) =>
+          val json = Json.fromDynamicValue(DynamicValue.Primitive(pv))
+          acc && assertTrue(check(json))
+        }
+      }
+    ),
+    suite("JsonDecoder error branches")(
+      test("stringDecoder fails on non-string Json values") {
+        assertTrue(JsonDecoder[String].decode(Json.Number("42")).isLeft) &&
+        assertTrue(JsonDecoder[String].decode(Json.True).isLeft) &&
+        assertTrue(JsonDecoder[String].decode(Json.Null).isLeft) &&
+        assertTrue(JsonDecoder[String].decode(Json.Array.empty).isLeft) &&
+        assertTrue(JsonDecoder[String].decode(Json.Object.empty).isLeft)
+      },
+      test("booleanDecoder fails on non-boolean Json values") {
+        assertTrue(JsonDecoder[Boolean].decode(Json.String("true")).isLeft) &&
+        assertTrue(JsonDecoder[Boolean].decode(Json.Number("1")).isLeft) &&
+        assertTrue(JsonDecoder[Boolean].decode(Json.Null).isLeft)
+      },
+      test("intDecoder fails on non-number Json values") {
+        assertTrue(JsonDecoder[Int].decode(Json.String("42")).isLeft) &&
+        assertTrue(JsonDecoder[Int].decode(Json.True).isLeft) &&
+        assertTrue(JsonDecoder[Int].decode(Json.Null).isLeft)
+      },
+      test("intDecoder fails on non-integer number") {
+        assertTrue(JsonDecoder[Int].decode(Json.Number("3.14")).isLeft)
+      },
+      test("longDecoder fails on non-number Json values") {
+        assertTrue(JsonDecoder[Long].decode(Json.String("42")).isLeft) &&
+        assertTrue(JsonDecoder[Long].decode(Json.True).isLeft)
+      },
+      test("doubleDecoder fails on non-number Json values") {
+        assertTrue(JsonDecoder[Double].decode(Json.String("3.14")).isLeft) &&
+        assertTrue(JsonDecoder[Double].decode(Json.Null).isLeft)
+      },
+      test("floatDecoder fails on non-number Json values") {
+        assertTrue(JsonDecoder[Float].decode(Json.String("3.14")).isLeft)
+      },
+      test("byteDecoder fails on out-of-range values") {
+        assertTrue(JsonDecoder[Byte].decode(Json.Number("128")).isLeft) &&
+        assertTrue(JsonDecoder[Byte].decode(Json.Number("-129")).isLeft)
+      },
+      test("shortDecoder fails on out-of-range values") {
+        assertTrue(JsonDecoder[Short].decode(Json.Number("32768")).isLeft) &&
+        assertTrue(JsonDecoder[Short].decode(Json.Number("-32769")).isLeft)
+      },
+      test("optionDecoder handles None for null") {
+        assert(JsonDecoder[Option[Int]].decode(Json.Null))(isRight(equalTo(None)))
+      },
+      test("optionDecoder handles Some for non-null") {
+        assert(JsonDecoder[Option[Int]].decode(Json.Number("42")))(isRight(equalTo(Some(42))))
+      },
+      test("listDecoder fails on non-array") {
+        assertTrue(JsonDecoder[List[Int]].decode(Json.Object.empty).isLeft)
+      },
+      test("mapDecoder fails on non-object") {
+        assertTrue(JsonDecoder[Map[String, Int]].decode(Json.Array.empty).isLeft)
+      }
+    ),
+    suite("Json path operation coverage")(
+      test("modify with DynamicOptic.root.field modifies nested value") {
+        val json   = Json.parse("""{"a": {"x": 1}, "b": 2}""").getOrElse(Json.Null)
+        val path   = DynamicOptic.root.field("a").field("x")
+        val result = json.modify(path)(_ => Json.Number("99"))
+
+        assertTrue(result.get("a").get("x").one == Right(Json.Number("99")))
+      },
+      test("modify returns original when path does not exist") {
+        val json   = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+        val path   = DynamicOptic.root.field("nonexistent")
+        val result = json.modify(path)(_ => Json.Number("99"))
+
+        assertTrue(result == json)
+      },
+      test("modifyOrFail fails when path does not exist") {
+        val json   = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+        val path   = DynamicOptic.root.field("nonexistent")
+        val result = json.modifyOrFail(path) { case _ => Json.Number("99") }
+
+        assertTrue(result.isLeft)
+      },
+      test("delete removes value at path") {
+        val json   = Json.parse("""{"a": 1, "b": 2}""").getOrElse(Json.Null)
+        val path   = DynamicOptic.root.field("a")
+        val result = json.delete(path)
+
+        assertTrue(
+          result.get("a").isFailure &&
+            result.get("b").isSuccess
+        )
+      },
+      test("delete returns original when path does not exist") {
+        val json   = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+        val path   = DynamicOptic.root.field("nonexistent")
+        val result = json.delete(path)
+
+        assertTrue(result == json)
+      },
+      test("deleteOrFail fails when path does not exist") {
+        val json   = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+        val path   = DynamicOptic.root.field("nonexistent")
+        val result = json.deleteOrFail(path)
+
+        assertTrue(result.isLeft)
+      },
+      test("insert adds value at new path in object") {
+        val json   = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+        val path   = DynamicOptic.root.field("b")
+        val result = json.insert(path, Json.Number("2"))
+
+        assertTrue(
+          result.get("a").isSuccess &&
+            result.get("b").isSuccess
+        )
+      },
+      test("insert adds value at array index") {
+        val json   = Json.parse("""{"items": [1, 3]}""").getOrElse(Json.Null)
+        val path   = DynamicOptic.root.field("items").at(1)
+        val result = json.insert(path, Json.Number("2"))
+
+        assertTrue(result.get("items").isSuccess)
+      },
+      test("insertOrFail fails when path already exists") {
+        val json   = Json.parse("""{"a": 1}""").getOrElse(Json.Null)
+        val path   = DynamicOptic.root.field("a")
+        val result = json.insertOrFail(path, Json.Number("99"))
+
+        // insertOrFail should fail because "a" already exists
+        assertTrue(result.isLeft)
+      },
+      test("parse handles malformed JSON") {
+        assertTrue(Json.parse("{invalid}").isLeft) &&
+        assertTrue(Json.parse("{\"key\":").isLeft) &&
+        assertTrue(Json.parse("").isLeft)
+      },
+      test("compare orders different Json types correctly") {
+        assertTrue(Json.Null.compare(Json.True) < 0) &&
+        assertTrue(Json.True.compare(Json.False) > 0) &&
+        assertTrue(Json.String("a").compare(Json.String("b")) < 0) &&
+        assertTrue(Json.Number("1").compare(Json.Number("2")) < 0)
+      },
+      test("modify with Elements path modifies all array elements") {
+        val json   = Json.parse("""[1, 2, 3]""").getOrElse(Json.Null)
+        val path   = DynamicOptic.root.elements
+        val result = json.modify(path)(_ => Json.Number("0"))
+
+        result.as(JsonType.Array) match {
+          case Some(arr) => assertTrue(arr.value.forall(_ == Json.Number("0")))
+          case None      => assertTrue(false)
+        }
       }
     )
   )

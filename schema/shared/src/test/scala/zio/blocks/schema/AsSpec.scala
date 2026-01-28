@@ -6,6 +6,7 @@ import zio.test.Assertion._
 
 object AsSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("AsSpec")(
+    asApplyAndReverse,
     defaultValueInAs,
     suite("compile errors")(
       defaultValue,
@@ -26,6 +27,57 @@ object AsSpec extends SchemaBaseSpec {
       numericNarrowingRoundTrip,
       overflowDetection
     )
+  )
+
+  private val asApplyAndReverse = suite("As.apply and reverse")(
+    test("As.apply creates As from two Into instances") {
+      val intoAB: Into[Int, Long] = (a: Int) => Right(a.toLong)
+      val intoBA: Into[Long, Int] = (b: Long) =>
+        if (b >= Int.MinValue && b <= Int.MaxValue) Right(b.toInt)
+        else Left(SchemaError.validationFailed("overflow"))
+      val as = As.apply[Int, Long](intoAB, intoBA)
+      assertTrue(
+        as.into(42) == Right(42L),
+        as.from(100L) == Right(100),
+        as.from(Long.MaxValue).isLeft
+      )
+    },
+    test("As.reverse swaps directions") {
+      val intoAB: Into[Int, Long] = (a: Int) => Right(a.toLong)
+      val intoBA: Into[Long, Int] = (b: Long) =>
+        if (b >= Int.MinValue && b <= Int.MaxValue) Right(b.toInt)
+        else Left(SchemaError.validationFailed("overflow"))
+      val as      = As.apply[Int, Long](intoAB, intoBA)
+      val reverse = as.reverse
+      assertTrue(
+        reverse.into(42L) == Right(42),
+        reverse.from(100) == Right(100L)
+      )
+    },
+    test("As.apply[A, B] summons implicit As") {
+      implicit val stringIntAs: As[String, Int] = new As[String, Int] {
+        def into(input: String): Either[SchemaError, Int] =
+          try Right(input.toInt)
+          catch { case _: NumberFormatException => Left(SchemaError.validationFailed("not an int")) }
+        def from(input: Int): Either[SchemaError, String] = Right(input.toString)
+      }
+      val summoned = As[String, Int]
+      assertTrue(
+        summoned.into("42") == Right(42),
+        summoned.from(100) == Right("100")
+      )
+    },
+    test("reverseInto implicit creates Into[B, A] from As[A, B]") {
+      implicit val stringIntAs: As[String, Int] = new As[String, Int] {
+        def into(input: String): Either[SchemaError, Int] =
+          try Right(input.toInt)
+          catch { case _: NumberFormatException => Left(SchemaError.validationFailed("not an int")) }
+        def from(input: Int): Either[SchemaError, String] = Right(input.toString)
+      }
+      import As.reverseInto
+      val reverse: Into[Int, String] = reverseInto[String, Int]
+      assertTrue(reverse.into(42) == Right("42"))
+    }
   )
 
   case class ValidA(name: String, age: Int = 25)
