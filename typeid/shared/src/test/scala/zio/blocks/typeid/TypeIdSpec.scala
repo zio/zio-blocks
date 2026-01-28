@@ -317,6 +317,159 @@ object TypeIdSpec extends ZIOSpecDefault {
           TypeId.serializable.fullName == "java.io.Serializable"
         )
       }
+    ),
+    suite("TypeIdOps coverage")(
+      suite("isTypeReprSubtypeOf")(
+        test("returns false for Applied types with different type constructors") {
+          val listInt   = TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.Ref(TypeId.int)))
+          val optionInt = TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.int)))
+          assertTrue(!TypeIdOps.isTypeReprSubtypeOf(listInt, optionInt))
+        },
+        test("returns false for Applied types with different size of type args") {
+          val listInt   = TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.Ref(TypeId.int)))
+          val mapIntInt =
+            TypeRepr.Applied(TypeRepr.Ref(TypeId.map), List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.int)))
+          assertTrue(!TypeIdOps.isTypeReprSubtypeOf(listInt, mapIntInt))
+        },
+        test("returns false when typeParams size doesn't match args size") {
+          val intRef     = TypeRepr.Ref(TypeId.int)
+          val appliedInt = TypeRepr.Applied(intRef, List(TypeRepr.Ref(TypeId.string)))
+          val listString = TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.Ref(TypeId.string)))
+          assertTrue(!TypeIdOps.isTypeReprSubtypeOf(appliedInt, listString))
+        },
+        test("handles Contravariant variance correctly") {
+          val function1 = TypeId.nominal[Any => Any](
+            "Function1",
+            Owner.scala,
+            List(
+              TypeParam("T", 0, Variance.Contravariant),
+              TypeParam("R", 1, Variance.Covariant)
+            )
+          )
+          val stringToString = TypeRepr.Applied(
+            TypeRepr.Ref(function1),
+            List(TypeRepr.Ref(TypeId.string), TypeRepr.Ref(TypeId.string))
+          )
+          val intToString = TypeRepr.Applied(
+            TypeRepr.Ref(function1),
+            List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string))
+          )
+          assertTrue(!TypeIdOps.isTypeReprSubtypeOf(stringToString, intToString))
+        },
+        test("handles Invariant variance correctly") {
+          val invariantType = TypeId.nominal[Any](
+            "InvariantType",
+            Owner.Root / "test",
+            List(TypeParam("A", 0, Variance.Invariant))
+          )
+          val invariantInt    = TypeRepr.Applied(TypeRepr.Ref(invariantType), List(TypeRepr.Ref(TypeId.int)))
+          val invariantString = TypeRepr.Applied(TypeRepr.Ref(invariantType), List(TypeRepr.Ref(TypeId.string)))
+          assertTrue(!TypeIdOps.isTypeReprSubtypeOf(invariantInt, invariantString))
+        }
+      ),
+      suite("checkParents")(
+        test("handles Applied type in parents") {
+          val listInt     = TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.Ref(TypeId.int)))
+          val childTypeId = TypeId.nominal[Any](
+            "ChildType",
+            Owner.Root / "test",
+            Nil,
+            Nil,
+            TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil, bases = List(listInt))
+          )
+          assertTrue(TypeIdOps.checkParents(childTypeId.defKind.baseTypes, TypeId.list, Set.empty))
+        },
+        test("returns false for non-matching parent") {
+          val stringParent = TypeRepr.Ref(TypeId.string)
+          val childTypeId  = TypeId.nominal[Any](
+            "ChildType",
+            Owner.Root / "test",
+            Nil,
+            Nil,
+            TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil, bases = List(stringParent))
+          )
+          assertTrue(!TypeIdOps.checkParents(childTypeId.defKind.baseTypes, TypeId.int, Set.empty))
+        }
+      ),
+      suite("checkAppliedSubtyping")(
+        test("returns false for different fullNames") {
+          assertTrue(!TypeIdOps.checkAppliedSubtyping(TypeId.list, TypeId.option))
+        },
+        test("returns false for different typeArgs sizes") {
+          val listWithOneArg = TypeId.nominal[Any](
+            "SomeType",
+            Owner.Root / "test",
+            List(TypeParam.A),
+            List(TypeRepr.Ref(TypeId.int))
+          )
+          val listWithTwoArgs = TypeId.nominal[Any](
+            "SomeType",
+            Owner.Root / "test",
+            List(TypeParam.A, TypeParam.B),
+            List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string))
+          )
+          assertTrue(!TypeIdOps.checkAppliedSubtyping(listWithOneArg, listWithTwoArgs))
+        },
+        test("returns false when typeParams size doesn't match typeArgs size") {
+          val mismatchedTypeId = TypeId.nominal[Any](
+            "MismatchedType",
+            Owner.Root / "test",
+            List(TypeParam.A, TypeParam.B),
+            List(TypeRepr.Ref(TypeId.int))
+          )
+          val matchedTypeId = TypeId.nominal[Any](
+            "MismatchedType",
+            Owner.Root / "test",
+            List(TypeParam.A, TypeParam.B),
+            List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string))
+          )
+          assertTrue(!TypeIdOps.checkAppliedSubtyping(mismatchedTypeId, matchedTypeId))
+        }
+      ),
+      suite("typeReprEqual for Union and Intersection")(
+        test("Union types with same members are equal") {
+          val union1 = TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          val union2 = TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          assertTrue(TypeIdOps.typeReprEqual(union1, union2))
+        },
+        test("Union types with different members are not equal") {
+          val union1 = TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          val union2 = TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.boolean)))
+          assertTrue(!TypeIdOps.typeReprEqual(union1, union2))
+        },
+        test("Intersection types with same members are equal") {
+          val intersection1 = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          val intersection2 = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          assertTrue(TypeIdOps.typeReprEqual(intersection1, intersection2))
+        },
+        test("Intersection types with different members are not equal") {
+          val intersection1 = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          val intersection2 = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.boolean)))
+          assertTrue(!TypeIdOps.typeReprEqual(intersection1, intersection2))
+        }
+      ),
+      suite("typeReprHash for Union and Intersection")(
+        test("Union types produce hash") {
+          val union = TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          val hash  = TypeIdOps.typeReprHash(union)
+          assertTrue(hash != 0)
+        },
+        test("Intersection types produce hash") {
+          val intersection = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          val hash         = TypeIdOps.typeReprHash(intersection)
+          assertTrue(hash != 0)
+        },
+        test("Same Union types produce same hash") {
+          val union1 = TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          val union2 = TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          assertTrue(TypeIdOps.typeReprHash(union1) == TypeIdOps.typeReprHash(union2))
+        },
+        test("Same Intersection types produce same hash") {
+          val intersection1 = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          val intersection2 = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+          assertTrue(TypeIdOps.typeReprHash(intersection1) == TypeIdOps.typeReprHash(intersection2))
+        }
+      )
     )
   )
 }

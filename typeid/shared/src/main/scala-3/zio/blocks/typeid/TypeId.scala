@@ -1,7 +1,5 @@
 package zio.blocks.typeid
 
-import scala.annotation.tailrec
-
 /**
  * Represents the identity of a type or type constructor.
  *
@@ -134,35 +132,28 @@ sealed trait TypeId[A <: AnyKind] {
    *   true if this type is a subtype of other
    */
   def isSubtypeOf(other: TypeId[?]): Boolean = {
-    // A type is a subtype of itself
     if (TypeId.structurallyEqual(this, other)) return true
 
-    // Special case: Nothing is subtype of everything
     if (this.fullName == "scala.Nothing") return true
 
-    // Special case: Everything is subtype of Any
     if (other.fullName == "scala.Any") return true
 
-    // Check if this type appears in a union type (A <: A | B)
     other.aliasedTo match {
       case Some(TypeRepr.Union(members)) =>
         if (TypeId.appearsInUnion(this, members)) return true
       case _ => ()
     }
 
-    // Check if this is an intersection type that is subtype of its members (A & B <: A)
     this.aliasedTo match {
       case Some(TypeRepr.Intersection(members)) =>
         if (members.exists(m => TypeId.typeReprContains(m, other))) return true
       case _ => ()
     }
 
-    // Check applied types with variance
     if (this.isApplied && other.isApplied && this.fullName == other.fullName) {
-      return TypeId.checkAppliedSubtyping(this, other)
+      return TypeIdOps.checkAppliedSubtyping(this, other)
     }
 
-    // Check enum case -> parent enum relationship
     defKind match {
       case TypeDefKind.EnumCase(parentEnum, _, _) =>
         parentEnum match {
@@ -171,9 +162,7 @@ sealed trait TypeId[A <: AnyKind] {
           case _                                     => false
         }
       case _ =>
-        // Check if other appears in our parent types (transitive)
-        // Use defKind.baseTypes which is populated by the macro, not parents which defaults to Nil
-        TypeId.checkParents(this.defKind.baseTypes, other, Set(this.fullName))
+        TypeIdOps.checkParents(this.defKind.baseTypes, other, Set(this.fullName))
     }
   }
 
@@ -215,7 +204,7 @@ sealed trait TypeId[A <: AnyKind] {
   }
 }
 
-object TypeId {
+object TypeId extends TypeIdInstances {
 
   // Private implementation case class
   private final case class Impl[A <: AnyKind](
@@ -229,6 +218,18 @@ object TypeId {
     representation: Option[TypeRepr],
     annotations: List[Annotation]
   ) extends TypeId[A]
+
+  private[typeid] def makeImpl[A](
+    name: String,
+    owner: Owner,
+    typeParams: List[TypeParam],
+    typeArgs: List[TypeRepr],
+    defKind: TypeDefKind,
+    selfType: Option[TypeRepr],
+    aliasedTo: Option[TypeRepr],
+    representation: Option[TypeRepr],
+    annotations: List[Annotation]
+  ): TypeId[A] = Impl[A](name, owner, typeParams, typeArgs, defKind, selfType, aliasedTo, representation, annotations)
 
   // ========== Smart Constructors ==========
 
@@ -357,156 +358,15 @@ object TypeId {
 
   // ========== Normalization and Equality ==========
 
-  /**
-   * Normalizes a TypeId by following type alias chains and preserving applied
-   * type arguments. When an alias points to an Applied type (e.g., type Foo[A] =
-   * Bar[A]), the normalized result will have the underlying type with the
-   * applied type arguments resolved through the alias chain.
-   */
-  def normalize(id: TypeId[?]): TypeId[?] = normalizeWithArgs(id, id.typeArgs)
+  def normalize(id: TypeId[?]): TypeId[?] = TypeIdOps.normalize(id)
 
-  @tailrec
-  private def normalizeWithArgs(id: TypeId[?], accumulatedArgs: List[TypeRepr]): TypeId[?] = id.aliasedTo match {
-    case Some(TypeRepr.Ref(aliased)) =>
-      normalizeWithArgs(aliased, accumulatedArgs)
-    case Some(TypeRepr.Applied(TypeRepr.Ref(aliased), appliedArgs)) =>
-      val resolvedArgs = resolveTypeArgs(id.typeParams, accumulatedArgs, appliedArgs)
-      normalizeWithArgs(aliased, resolvedArgs)
-    case _ =>
-      if (accumulatedArgs == id.typeArgs) id
-      else
-        Impl(
-          id.name,
-          id.owner,
-          id.typeParams,
-          accumulatedArgs,
-          id.defKind,
-          id.selfType,
-          id.aliasedTo,
-          id.representation,
-          id.annotations
-        )
-  }
+  def structurallyEqual(a: TypeId[?], b: TypeId[?]): Boolean = TypeIdOps.structurallyEqual(a, b)
 
-  private def resolveTypeArgs(
-    aliasParams: List[TypeParam],
-    actualArgs: List[TypeRepr],
-    targetArgs: List[TypeRepr]
-  ): List[TypeRepr] =
-    if (aliasParams.isEmpty || actualArgs.isEmpty) targetArgs
-    else {
-      val paramToArg: Map[Int, TypeRepr] = aliasParams
-        .zip(actualArgs)
-        .map { case (param, arg) =>
-          param.index -> arg
-        }
-        .toMap
-      targetArgs.map(substituteTypeRepr(_, paramToArg))
-    }
+  def structuralHash(id: TypeId[?]): Int = TypeIdOps.structuralHash(id)
 
-  private def substituteTypeRepr(repr: TypeRepr, subst: Map[Int, TypeRepr]): TypeRepr = repr match {
-    case TypeRepr.ParamRef(param, _) =>
-      subst.getOrElse(param.index, repr)
-    case TypeRepr.Applied(tycon, args) =>
-      TypeRepr.Applied(substituteTypeRepr(tycon, subst), args.map(substituteTypeRepr(_, subst)))
-    case TypeRepr.Ref(id) if id.isAlias =>
-      val normId = normalize(id)
-      if (normId eq id) repr else TypeRepr.Ref(normId)
-    case _ => repr
-  }
+  // ========== Predefined TypeIds for Common Types ==========
 
-  /**
-   * Compares two TypeIds for structural equality. Type aliases are transparent:
-   * TypeId.of[Age] == TypeId.of[Int] where type Age = Int. Opaque types
-   * maintain nominal identity. Applied types with different type arguments are
-   * NOT equal (List[Int] != List[String]). Union/Intersection aliases are equal
-   * only if their member types match.
-   */
-  def structurallyEqual(a: TypeId[?], b: TypeId[?]): Boolean = {
-    val normA = normalize(a)
-    val normB = normalize(b)
-
-    if (normA.isOpaque && normB.isOpaque) {
-      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams &&
-      typeArgsEqual(normA.typeArgs, normB.typeArgs)
-    } else if (normA.isOpaque || normB.isOpaque) {
-      false
-    } else {
-      normA.fullName == normB.fullName && normA.typeParams == normB.typeParams &&
-      typeArgsEqual(normA.typeArgs, normB.typeArgs) &&
-      aliasedToEqual(normA.aliasedTo, normB.aliasedTo)
-    }
-  }
-
-  private def aliasedToEqual(a: Option[TypeRepr], b: Option[TypeRepr]): Boolean = (a, b) match {
-    case (Some(reprA), Some(reprB)) => typeReprEqual(reprA, reprB)
-    case (None, None)               => true
-    case _                          => false
-  }
-
-  private def typeArgsEqual(argsA: List[TypeRepr], argsB: List[TypeRepr]): Boolean =
-    if (argsA.size != argsB.size) false
-    else argsA.zip(argsB).forall { case (a, b) => typeReprEqual(a, b) }
-
-  private def typeReprEqual(a: TypeRepr, b: TypeRepr): Boolean = (a, b) match {
-    case (TypeRepr.Ref(idA), TypeRepr.Ref(idB)) =>
-      structurallyEqual(idA, idB)
-    case (TypeRepr.Applied(tyconA, argsA), TypeRepr.Applied(tyconB, argsB)) =>
-      typeReprEqual(tyconA, tyconB) && typeArgsEqual(argsA, argsB)
-    case (TypeRepr.ParamRef(paramA, depthA), TypeRepr.ParamRef(paramB, depthB)) =>
-      paramA.name == paramB.name && paramA.index == paramB.index && depthA == depthB
-    case (TypeRepr.Union(typesA), TypeRepr.Union(typesB)) =>
-      typeReprsEqualAsSet(typesA, typesB)
-    case (TypeRepr.Intersection(typesA), TypeRepr.Intersection(typesB)) =>
-      typeReprsEqualAsSet(typesA, typesB)
-    case _ =>
-      a == b
-  }
-
-  private def typeReprsEqualAsSet(as: List[TypeRepr], bs: List[TypeRepr]): Boolean =
-    as.size == bs.size && as.forall(a => bs.exists(b => typeReprEqual(a, b)))
-
-  /**
-   * Computes a hash code for a TypeId that is consistent with structural
-   * equality. Includes typeArgs for applied types and aliasedTo for aliases.
-   */
-  def structuralHash(id: TypeId[?]): Int = {
-    val norm = normalize(id)
-    if (norm.isOpaque) {
-      ("opaque", norm.fullName, norm.typeParams, typeArgsHash(norm.typeArgs)).hashCode()
-    } else {
-      (norm.fullName, norm.typeParams, typeArgsHash(norm.typeArgs), aliasedToHash(norm.aliasedTo)).hashCode()
-    }
-  }
-
-  private def aliasedToHash(aliasedTo: Option[TypeRepr]): Int =
-    aliasedTo.map(typeReprHash).getOrElse(0)
-
-  private def typeArgsHash(args: List[TypeRepr]): Int =
-    args.map(typeReprHash).hashCode()
-
-  private def typeReprHash(repr: TypeRepr): Int = repr match {
-    case TypeRepr.Ref(id)              => structuralHash(id)
-    case TypeRepr.Applied(tycon, args) => (typeReprHash(tycon), typeArgsHash(args)).hashCode()
-    case TypeRepr.Union(types)         => ("union", types.map(typeReprHash).toSet).hashCode()
-    case TypeRepr.Intersection(types)  => ("intersection", types.map(typeReprHash).toSet).hashCode()
-    case _                             => repr.hashCode()
-  }
-
-  // ========== Subtyping Helpers (private) ==========
-
-  private def checkParents(parents: List[TypeRepr], target: TypeId[?], visited: Set[String]): Boolean =
-    parents.exists {
-      case TypeRepr.Ref(id) =>
-        if (visited.contains(id.fullName)) false
-        else if (structurallyEqual(id, target)) true
-        else checkParents(id.defKind.baseTypes, target, visited + id.fullName)
-      case TypeRepr.Applied(TypeRepr.Ref(id), _) =>
-        if (visited.contains(id.fullName)) false
-        else if (id.fullName == target.fullName) true
-        else checkParents(id.defKind.baseTypes, target, visited + id.fullName)
-      case _ => false
-    }
+  // ========== Scala 3-only Helpers ==========
 
   private def appearsInUnion(id: TypeId[?], members: List[TypeRepr]): Boolean =
     members.exists {
@@ -520,46 +380,6 @@ object TypeId {
       case _                             => false
     }
 
-  /**
-   * Checks variance-aware subtyping for applied types. For
-   * List[Dog].isSubtypeOf(List[Animal]) to be true, requires covariance.
-   */
-  private def checkAppliedSubtyping(sub: TypeId[?], sup: TypeId[?]): Boolean = {
-    if (sub.fullName != sup.fullName) return false
-    if (sub.typeArgs.size != sup.typeArgs.size) return false
-    if (sub.typeParams.size != sub.typeArgs.size) return false
-
-    sub.typeParams.zip(sub.typeArgs.zip(sup.typeArgs)).forall { case (param, (subArg, supArg)) =>
-      param.variance match {
-        case Variance.Covariant =>
-          isTypeReprSubtypeOf(subArg, supArg)
-        case Variance.Contravariant =>
-          isTypeReprSubtypeOf(supArg, subArg)
-        case Variance.Invariant =>
-          subArg == supArg
-      }
-    }
-  }
-
-  private def isTypeReprSubtypeOf(sub: TypeRepr, sup: TypeRepr): Boolean = (sub, sup) match {
-    case (TypeRepr.Ref(subId), TypeRepr.Ref(supId)) =>
-      subId.isSubtypeOf(supId)
-    case (TypeRepr.Applied(TypeRepr.Ref(subTycon), subArgs), TypeRepr.Applied(TypeRepr.Ref(supTycon), supArgs)) =>
-      if (subTycon.fullName != supTycon.fullName) false
-      else if (subArgs.size != supArgs.size) false
-      else if (subTycon.typeParams.size != subArgs.size) false
-      else {
-        subTycon.typeParams.zip(subArgs.zip(supArgs)).forall { case (param, (subArg, supArg)) =>
-          param.variance match {
-            case Variance.Covariant     => isTypeReprSubtypeOf(subArg, supArg)
-            case Variance.Contravariant => isTypeReprSubtypeOf(supArg, subArg)
-            case Variance.Invariant     => subArg == supArg
-          }
-        }
-      }
-    case _ => sub == sup
-  }
-
   private def typeReprContains(repr: TypeRepr, target: TypeId[?]): Boolean = repr match {
     case TypeRepr.Ref(id)                      => structurallyEqual(id, target)
     case TypeRepr.Applied(TypeRepr.Ref(id), _) => id.fullName == target.fullName
@@ -570,99 +390,6 @@ object TypeId {
 
   // ========== Predefined TypeIds for Common Types ==========
 
-  // Java interfaces
-  given charSequence: TypeId[CharSequence] =
-    nominal[CharSequence]("CharSequence", Owner.javaLang, defKind = TypeDefKind.Trait(isSealed = false))
-  given comparable: TypeId[Comparable[?]] =
-    nominal[Comparable[?]]("Comparable", Owner.javaLang, List(TypeParam("T", 0, Variance.Invariant)))
-  given serializable: TypeId[java.io.Serializable] =
-    nominal[java.io.Serializable]("Serializable", Owner.javaIo, defKind = TypeDefKind.Trait(isSealed = false))
-
-  // Primitives
-  given unit: TypeId[Unit]       = nominal[Unit]("Unit", Owner.scala)
-  given boolean: TypeId[Boolean] = nominal[Boolean]("Boolean", Owner.scala)
-  given byte: TypeId[Byte]       = nominal[Byte]("Byte", Owner.scala)
-  given short: TypeId[Short]     = nominal[Short]("Short", Owner.scala)
-  given int: TypeId[Int]         = nominal[Int]("Int", Owner.scala)
-  given long: TypeId[Long]       = nominal[Long]("Long", Owner.scala)
-  given float: TypeId[Float]     = nominal[Float]("Float", Owner.scala)
-  given double: TypeId[Double]   = nominal[Double]("Double", Owner.scala)
-  given char: TypeId[Char]       = nominal[Char]("Char", Owner.scala)
-  given string: TypeId[String]   = nominal[String](
-    "String",
-    Owner.javaLang,
-    defKind = TypeDefKind.Class(
-      isFinal = true,
-      isAbstract = false,
-      isCase = false,
-      isValue = false,
-      bases = List(
-        TypeRepr.Ref(charSequence),
-        TypeRepr.Ref(comparable.asInstanceOf[TypeId[?]]),
-        TypeRepr.Ref(serializable)
-      )
-    )
-  )
-  given bigInt: TypeId[BigInt]         = nominal[BigInt]("BigInt", Owner.scala)
-  given bigDecimal: TypeId[BigDecimal] = nominal[BigDecimal]("BigDecimal", Owner.scala)
-
-  // Collections
-  given option: TypeId[Option]         = nominal[Option]("Option", Owner.scala, List(TypeParam.A))
-  given some: TypeId[Some]             = nominal[Some]("Some", Owner.scala, List(TypeParam.A))
-  given none: TypeId[None.type]        = nominal[None.type]("None", Owner.scala)
-  given list: TypeId[List]             = nominal[List]("List", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  given vector: TypeId[Vector]         = nominal[Vector]("Vector", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  given set: TypeId[Set]               = nominal[Set]("Set", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  given seq: TypeId[Seq]               = nominal[Seq]("Seq", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  given indexedSeq: TypeId[IndexedSeq] =
-    nominal[IndexedSeq]("IndexedSeq", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  given map: TypeId[Map]       = nominal[Map]("Map", Owner.scalaCollectionImmutable, List(TypeParam.A, TypeParam.V))
-  given either: TypeId[Either] = nominal[Either]("Either", Owner.scalaUtil, List(TypeParam.A, TypeParam.B))
-  given array: TypeId[Array]   = nominal[Array]("Array", Owner.scala, List(TypeParam("T", 0, Variance.Invariant)))
   given iarray: TypeId[IArray] =
     nominal[IArray]("IArray", Owner.scala.term("IArray$package"), List(TypeParam("T", 0, Variance.Covariant)))
-  given arraySeq: TypeId[scala.collection.immutable.ArraySeq] =
-    nominal[scala.collection.immutable.ArraySeq]("ArraySeq", Owner.scalaCollectionImmutable, List(TypeParam.A))
-
-  // zio.blocks.chunk
-  given chunk: TypeId[zio.blocks.chunk.Chunk] =
-    nominal[zio.blocks.chunk.Chunk]("Chunk", Owner.zioBlocksChunk, List(TypeParam.A))
-
-  // java.time
-  given dayOfWeek: TypeId[java.time.DayOfWeek]         = nominal[java.time.DayOfWeek]("DayOfWeek", Owner.javaTime)
-  given duration: TypeId[java.time.Duration]           = nominal[java.time.Duration]("Duration", Owner.javaTime)
-  given instant: TypeId[java.time.Instant]             = nominal[java.time.Instant]("Instant", Owner.javaTime)
-  given localDate: TypeId[java.time.LocalDate]         = nominal[java.time.LocalDate]("LocalDate", Owner.javaTime)
-  given localDateTime: TypeId[java.time.LocalDateTime] =
-    nominal[java.time.LocalDateTime]("LocalDateTime", Owner.javaTime)
-  given localTime: TypeId[java.time.LocalTime]           = nominal[java.time.LocalTime]("LocalTime", Owner.javaTime)
-  given month: TypeId[java.time.Month]                   = nominal[java.time.Month]("Month", Owner.javaTime)
-  given monthDay: TypeId[java.time.MonthDay]             = nominal[java.time.MonthDay]("MonthDay", Owner.javaTime)
-  given offsetDateTime: TypeId[java.time.OffsetDateTime] =
-    nominal[java.time.OffsetDateTime]("OffsetDateTime", Owner.javaTime)
-  given offsetTime: TypeId[java.time.OffsetTime]       = nominal[java.time.OffsetTime]("OffsetTime", Owner.javaTime)
-  given period: TypeId[java.time.Period]               = nominal[java.time.Period]("Period", Owner.javaTime)
-  given year: TypeId[java.time.Year]                   = nominal[java.time.Year]("Year", Owner.javaTime)
-  given yearMonth: TypeId[java.time.YearMonth]         = nominal[java.time.YearMonth]("YearMonth", Owner.javaTime)
-  given zoneId: TypeId[java.time.ZoneId]               = nominal[java.time.ZoneId]("ZoneId", Owner.javaTime)
-  given zoneOffset: TypeId[java.time.ZoneOffset]       = nominal[java.time.ZoneOffset]("ZoneOffset", Owner.javaTime)
-  given zonedDateTime: TypeId[java.time.ZonedDateTime] =
-    nominal[java.time.ZonedDateTime]("ZonedDateTime", Owner.javaTime)
-
-  // java.util
-  given currency: TypeId[java.util.Currency] = nominal[java.util.Currency]("Currency", Owner.javaUtil)
-  given uuid: TypeId[java.util.UUID]         = nominal[java.util.UUID]("UUID", Owner.javaUtil)
-
-  // Allow accessing private owner constants from within zio.blocks.typeid package
-  private[typeid] object Owner {
-    val scala: zio.blocks.typeid.Owner                    = zio.blocks.typeid.Owner.fromPackagePath("scala")
-    val scalaUtil: zio.blocks.typeid.Owner                = zio.blocks.typeid.Owner.fromPackagePath("scala.util")
-    val scalaCollectionImmutable: zio.blocks.typeid.Owner =
-      zio.blocks.typeid.Owner.fromPackagePath("scala.collection.immutable")
-    val javaLang: zio.blocks.typeid.Owner       = zio.blocks.typeid.Owner.fromPackagePath("java.lang")
-    val javaIo: zio.blocks.typeid.Owner         = zio.blocks.typeid.Owner.fromPackagePath("java.io")
-    val javaTime: zio.blocks.typeid.Owner       = zio.blocks.typeid.Owner.fromPackagePath("java.time")
-    val javaUtil: zio.blocks.typeid.Owner       = zio.blocks.typeid.Owner.fromPackagePath("java.util")
-    val zioBlocksChunk: zio.blocks.typeid.Owner = zio.blocks.typeid.Owner.fromPackagePath("zio.blocks.chunk")
-  }
 }

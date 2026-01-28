@@ -547,7 +547,7 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         println(s"stdlib Set variance: ${derived.typeParams.head.variance}")
 
         assertTrue(
-          derived.typeParams.head.variance == Variance.Covariant
+          derived.typeParams.head.variance == Variance.Invariant
         )
       },
       test("stdlib List (compiled class) has correct variance") {
