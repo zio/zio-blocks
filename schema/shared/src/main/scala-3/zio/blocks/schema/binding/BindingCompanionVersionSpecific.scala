@@ -1758,13 +1758,15 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
       .map(f => RegisterOffset.add(f.usedRegisters, fieldOffset(f.tpe)))
       .getOrElse(RegisterOffset.Zero)
     val usedRegistersExpr = Expr(totalUsedRegisters)
+    val isLargeTuple      = valueTupleTypeArgs.size > 22
 
     tTpe.asType match {
       case '[tt] =>
         val constructorExpr: Expr[(Registers, RegisterOffset) => tt] = '{ (in: Registers, offset: RegisterOffset) =>
           ${
             if (fieldInfos.isEmpty) Expr(EmptyTuple).asInstanceOf[Expr[tt]]
-            else {
+            else if (isLargeTuple) {
+              // For tuples > 22 elements, use TupleXXL.fromIArray
               val symbol      = Symbol.newVal(Symbol.spliceOwner, "xs", arrayOfAnyTpe, Flags.EmptyFlags, Symbol.noSymbol)
               val ref         = Ref(symbol)
               val update      = Select(ref, defn.Array_update)
@@ -1781,6 +1783,17 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
                 .appliedToType(tTpe)
                 .asExpr
                 .asInstanceOf[Expr[tt]]
+            } else {
+              // For tuples <= 22 elements, use direct constructor (new TupleN(...))
+              val tupleClassSymbol = tTpe.classSymbol.getOrElse(fail(s"Cannot get class symbol for tuple ${tTpe.show}"))
+              val tupleConstructor = tupleClassSymbol.primaryConstructor
+              val tupleTypeArgs    = typeArgs(tTpe)
+              val args             = fieldInfos.map { fieldInfo =>
+                tupleFieldConstructor('in, 'offset, fieldInfo)
+              }
+              val newExpr    = New(Inferred(tTpe))
+              val selectCtor = Select(newExpr, tupleConstructor).appliedToTypes(tupleTypeArgs)
+              Apply(selectCtor, args).asExpr.asInstanceOf[Expr[tt]]
             }
           }
         }
