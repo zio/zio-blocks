@@ -1,6 +1,6 @@
 package zio.blocks.typeid
 
-private[blocks] object Subtyping {
+private[typeid] object Subtyping {
 
   final case class Context(
     assumptions: Set[(TypeRepr, TypeRepr)] = Set.empty,

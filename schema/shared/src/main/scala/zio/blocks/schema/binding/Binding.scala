@@ -347,7 +347,6 @@ object Binding {
   final case class Wrapper[A, B](
     wrap: B => Either[SchemaError, A],
     unwrap: A => B,
-    passthroughErrors: Boolean = false,
     defaultValue: Option[() => A] = None,
     examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Wrapper[A, B], A] {
