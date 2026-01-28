@@ -232,21 +232,152 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
 object MigrationBuilder {
 
   /**
-   * Create a new migration builder.
+   * Create a new migration builder without compile-time field tracking.
    *
-   * The field sets are initialized based on the schemas. In a full
-   * implementation, this would use macros to extract field names from
-   * the schemas at compile time.
-   *
-   * For now, this creates a builder with EmptyTuple for both field sets,
-   * which means .build will always compile. Full field tracking requires
-   * the SchemaFields macro.
+   * This creates a builder with EmptyTuple for both field sets,
+   * which means .build will always compile. Use [[withFieldTracking]]
+   * for full compile-time validation.
    */
   def create[A, B](using
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): MigrationBuilder[A, B, EmptyTuple, EmptyTuple] =
     new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
+
+  /**
+   * Create a new migration builder with compile-time field tracking.
+   *
+   * This uses [[SchemaFields]] to extract field names from the schemas
+   * at compile time, enabling full validation that all fields are handled.
+   *
+   * The [[build]] method will only compile when:
+   * - All source fields have been consumed (dropped, renamed, or kept)
+   * - All target fields have been provided (added, renamed, or kept)
+   *
+   * Example:
+   * {{{
+   * case class PersonV0(name: String, age: Int)
+   * case class PersonV1(fullName: String, age: Int, country: String)
+   *
+   * val migration = MigrationBuilder.withFieldTracking[PersonV0, PersonV1]
+   *   .renameField(select(_.name), select(_.fullName))
+   *   .keepField(select(_.age))
+   *   .addField(select(_.country), "US")
+   *   .build  // ✅ Compiles - all fields handled
+   * }}}
+   */
+  inline def withFieldTracking[A, B](using
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): MigrationBuilder[A, B, ?, ?] =
+    ${ withFieldTrackingImpl[A, B]('sourceSchema, 'targetSchema) }
+
+  /**
+   * Implementation of withFieldTracking that extracts field names at compile time.
+   */
+  private def withFieldTrackingImpl[A: scala.quoted.Type, B: scala.quoted.Type](
+    sourceSchema: scala.quoted.Expr[Schema[A]],
+    targetSchema: scala.quoted.Expr[Schema[B]]
+  )(using quotes: scala.quoted.Quotes): scala.quoted.Expr[MigrationBuilder[A, B, ?, ?]] = {
+    import quotes.reflect.*
+
+    // Try to extract field names from case class types
+    def extractFieldNames(tpe: TypeRepr): List[String] =
+      tpe.classSymbol match {
+        case Some(cls) if cls.flags.is(Flags.Case) =>
+          cls.primaryConstructor.paramSymss.flatten
+            .filter(_.isValDef)
+            .map(_.name)
+        case _ =>
+          Nil
+      }
+
+    val srcFields = extractFieldNames(TypeRepr.of[A])
+    val tgtFields = extractFieldNames(TypeRepr.of[B])
+
+    // Build tuple types from field names
+    def buildTupleType(names: List[String]): TypeRepr =
+      names.foldRight(TypeRepr.of[EmptyTuple]) { (name, acc) =>
+        val nameType = ConstantType(StringConstant(name))
+        TypeRepr.of[*:].appliedTo(List(nameType, acc))
+      }
+
+    val srcTupleType = buildTupleType(srcFields)
+    val tgtTupleType = buildTupleType(tgtFields)
+
+    (srcTupleType.asType, tgtTupleType.asType) match {
+      case ('[s], '[t]) =>
+        '{
+          MigrationBuilder.initial[A, B, s & Tuple, t & Tuple](
+            $sourceSchema,
+            $targetSchema
+          )
+        }
+    }
+  }
+
+  /**
+   * Create a migration builder with explicit field names.
+   *
+   * Use this when you need to specify field names manually (e.g., for
+   * non-case-class types or when automatic extraction doesn't work).
+   */
+  inline def withFields[A, B](
+    inline srcFields: String*
+  )(
+    inline tgtFields: String*
+  )(using
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): MigrationBuilder[A, B, ?, ?] =
+    ${ withFieldsImpl[A, B]('srcFields, 'tgtFields, 'sourceSchema, 'targetSchema) }
+
+  private def withFieldsImpl[A: scala.quoted.Type, B: scala.quoted.Type](
+    srcFields: scala.quoted.Expr[Seq[String]],
+    tgtFields: scala.quoted.Expr[Seq[String]],
+    sourceSchema: scala.quoted.Expr[Schema[A]],
+    targetSchema: scala.quoted.Expr[Schema[B]]
+  )(using quotes: scala.quoted.Quotes): scala.quoted.Expr[MigrationBuilder[A, B, ?, ?]] = {
+    import quotes.reflect.*
+
+    // Extract string literals from varargs
+    def extractStrings(expr: scala.quoted.Expr[Seq[String]]): List[String] =
+      expr match {
+        case scala.quoted.Varargs(exprs) =>
+          exprs.toList.map {
+            case '{ $s: String } =>
+              s.asTerm match {
+                case Literal(StringConstant(str)) => str
+                case _ => report.errorAndAbort("withFields requires string literals")
+              }
+          }
+        case _ =>
+          report.errorAndAbort("withFields requires string literals")
+      }
+
+    val srcNames = extractStrings(srcFields)
+    val tgtNames = extractStrings(tgtFields)
+
+    // Build tuple types
+    def buildTupleType(names: List[String]): TypeRepr =
+      names.foldRight(TypeRepr.of[EmptyTuple]) { (name, acc) =>
+        val nameType = ConstantType(StringConstant(name))
+        TypeRepr.of[*:].appliedTo(List(nameType, acc))
+      }
+
+    val srcTupleType = buildTupleType(srcNames)
+    val tgtTupleType = buildTupleType(tgtNames)
+
+    (srcTupleType.asType, tgtTupleType.asType) match {
+      case ('[s], '[t]) =>
+        '{
+          MigrationBuilder.initial[A, B, s & Tuple, t & Tuple](
+            $sourceSchema,
+            $targetSchema
+          )
+        }
+    }
+  }
 
   /**
    * Internal constructor for creating a builder with specific field sets.

@@ -39,4 +39,28 @@ package object migration {
    * @return A SelectBuilder that can be applied to a field accessor lambda
    */
   inline def select[S]: SelectorMacros.SelectBuilder[S] = SelectorMacros.select[S]
+
+  /**
+   * Derive a [[SchemaFields]] instance for type A.
+   *
+   * This extracts field names from the schema at compile time, enabling
+   * full compile-time validation of migration completeness.
+   *
+   * Example:
+   * {{{
+   * case class Person(name: String, age: Int)
+   * val fields = schemaFields[Person]
+   * // fields.fieldNames == List("name", "age")
+   * }}}
+   */
+  inline given schemaFields[A](using schema: Schema[A]): SchemaFields[A] =
+    SchemaFieldsMacros.derived[A]
+
+  /**
+   * Create a [[SchemaFields]] from the type structure (case class fields).
+   *
+   * This extracts field names directly from the type without requiring a Schema.
+   */
+  inline def schemaFieldsFromType[A]: SchemaFields[A] =
+    SchemaFieldsMacros.fromType[A]
 }

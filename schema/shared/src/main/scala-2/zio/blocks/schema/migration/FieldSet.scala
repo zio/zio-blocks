@@ -53,7 +53,7 @@ object FieldSet {
 
     /** Removing from tail (head doesn't match) */
     implicit def removeTail[Name, Head, Tail, TailOut](implicit
-      ev: Aux[Tail, Name, TailOut]
+      @annotation.unused ev: Aux[Tail, Name, TailOut]
     ): Aux[Head :: Tail, Name, Head :: TailOut] =
       new Remove[Head :: Tail, Name] { type Out = Head :: TailOut }
   }
@@ -138,7 +138,7 @@ object FieldSet {
       new Concat[HNil, S2] { type Out = S2 }
 
     implicit def concatCons[H, T, S2, TOut](implicit
-      ev: Aux[T, S2, TOut]
+      @annotation.unused ev: Aux[T, S2, TOut]
     ): Aux[H :: T, S2, H :: TOut] =
       new Concat[H :: T, S2] { type Out = H :: TOut }
   }

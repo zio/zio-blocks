@@ -2,7 +2,6 @@ package zio.blocks.schema.migration
 
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
-import zio.blocks.schema.DynamicOptic
 
 /**
  * Macros for creating field selectors with compile-time field name extraction.

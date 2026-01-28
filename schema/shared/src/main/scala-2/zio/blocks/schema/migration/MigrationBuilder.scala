@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import scala.language.experimental.macros
 import zio.blocks.schema.{DynamicOptic, Schema}
 
 /**
@@ -106,7 +107,7 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
    * Keep a field unchanged (field exists in both schemas with same name and type).
    */
   def keepField[F, Name <: String](
-    field: FieldSelector[A, F, Name]
+    @annotation.unused field: FieldSelector[A, F, Name]
   )(implicit
     srcEv: Contains[SrcRemaining, Name],
     tgtEv: Contains[TgtRemaining, Name],
@@ -230,17 +231,55 @@ object MigrationBuilder {
   import FieldSet._
 
   /**
-   * Create a new migration builder.
+   * Create a new migration builder without compile-time field tracking.
    *
-   * For now, this creates a builder with HNil for both field sets,
-   * which means .build will always compile. Full field tracking requires
-   * the SchemaFields macro.
+   * This creates a builder with HNil for both field sets,
+   * which means .build will always compile. Use [[withFieldTracking]]
+   * for full compile-time validation.
    */
   def create[A, B](implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): MigrationBuilder[A, B, HNil, HNil] =
     new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
+
+  /**
+   * Create a new migration builder with compile-time field tracking.
+   *
+   * This macro extracts field names from case class types at compile time,
+   * enabling full validation that all fields are handled.
+   *
+   * The [[build]] method will only compile when:
+   * - All source fields have been consumed (dropped, renamed, or kept)
+   * - All target fields have been provided (added, renamed, or kept)
+   *
+   * Example:
+   * {{{
+   * case class PersonV0(name: String, age: Int)
+   * case class PersonV1(fullName: String, age: Int, country: String)
+   *
+   * val migration = MigrationBuilder.withFieldTracking[PersonV0, PersonV1]
+   *   .renameField(select(_.name), select(_.fullName))
+   *   .keepField(select(_.age))
+   *   .addField(select(_.country), "US")
+   *   .build  // ✅ Compiles - all fields handled
+   * }}}
+   */
+  def withFieldTracking[A, B](implicit
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): MigrationBuilder[A, B, _, _] = macro MigrationBuilderMacros.withFieldTrackingImpl[A, B]
+
+  /**
+   * Create a migration builder with explicit field names.
+   *
+   * Use this when you need to specify field names manually (e.g., for
+   * non-case-class types or when automatic extraction doesn't work).
+   */
+  def withFields[A, B](srcFields: String*)(tgtFields: String*)(implicit
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): MigrationBuilder[A, B, _, _] = macro MigrationBuilderMacros.withFieldsImpl[A, B]
 
   /**
    * Internal constructor for creating a builder with specific field sets.

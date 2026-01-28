@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import scala.language.experimental.macros
+
 /**
  * Migration package provides tools for type-safe schema migrations.
  *
@@ -39,4 +41,28 @@ package object migration {
    * @return A SelectBuilder that can be applied to a field accessor lambda
    */
   def select[S]: SelectBuilder[S] = new SelectBuilder[S]
+
+  /**
+   * Derive a [[SchemaFields]] instance for type A.
+   *
+   * This extracts field names from the schema at compile time, enabling
+   * full compile-time validation of migration completeness.
+   *
+   * Example:
+   * {{{
+   * case class Person(name: String, age: Int)
+   * implicit val schema: Schema[Person] = Schema.derived
+   * val fields = schemaFields[Person]
+   * // fields.fieldNames == List("name", "age")
+   * }}}
+   */
+  implicit def schemaFields[A](implicit schema: Schema[A]): SchemaFields[A] =
+    macro SchemaFieldsMacros.derivedImpl[A]
+
+  /**
+   * Create a [[SchemaFields]] from the type structure (case class fields).
+   *
+   * This extracts field names directly from the type without requiring a Schema.
+   */
+  def schemaFieldsFromType[A]: SchemaFields[A] = macro SchemaFieldsMacros.fromTypeImpl[A]
 }
