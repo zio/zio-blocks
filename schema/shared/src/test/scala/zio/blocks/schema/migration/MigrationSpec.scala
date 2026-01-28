@@ -1,6 +1,5 @@
 package zio.blocks.schema.migration
 
-
 import zio.test._
 import zio.test.Assertion._
 import zio.blocks.schema._
@@ -31,18 +30,20 @@ object MigrationSpec extends ZIOSpecDefault {
 
       val v0       = PersonV0("John")
       val expected = PersonV1("John", 0)
-
-      val result = migration(v0)
+      val result   = migration(v0)
 
       assert(result)(isRight(equalTo(expected)))
     },
-
     test("Can rename a field in a record") {
       case class OldInfo(n: String)
-      object OldInfo { implicit val schema: Schema[OldInfo] = Schema.derived }
+      object OldInfo {
+        implicit val schema: Schema[OldInfo] = Schema.derived
+      }
 
       case class NewInfo(name: String)
-      object NewInfo { implicit val schema: Schema[NewInfo] = Schema.derived }
+      object NewInfo {
+        implicit val schema: Schema[NewInfo] = Schema.derived
+      }
 
       val migration = Migration
         .newBuilder[OldInfo, NewInfo]
