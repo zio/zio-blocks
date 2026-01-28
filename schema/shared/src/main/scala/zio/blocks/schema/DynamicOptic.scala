@@ -211,7 +211,7 @@ object DynamicOptic {
     implicit lazy val elementsSchema: Schema[Elements.type] = new Schema(
       reflect = new Reflect.Record[Binding, Elements.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "Elements"),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "Elements"),
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor[Elements.type](Elements),
           deconstructor = new ConstantDeconstructor[Elements.type]
@@ -223,7 +223,7 @@ object DynamicOptic {
     implicit lazy val mapKeysSchema: Schema[MapKeys.type] = new Schema(
       reflect = new Reflect.Record[Binding, MapKeys.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "MapKeys"),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "MapKeys"),
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor[MapKeys.type](MapKeys),
           deconstructor = new ConstantDeconstructor[MapKeys.type]
@@ -235,7 +235,7 @@ object DynamicOptic {
     implicit lazy val mapValuesSchema: Schema[MapValues.type] = new Schema(
       reflect = new Reflect.Record[Binding, MapValues.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "MapValues"),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "MapValues"),
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor[MapValues.type](MapValues),
           deconstructor = new ConstantDeconstructor[MapValues.type]
@@ -247,7 +247,7 @@ object DynamicOptic {
     implicit lazy val wrappedSchema: Schema[Wrapped.type] = new Schema(
       reflect = new Reflect.Record[Binding, Wrapped.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "Wrapped"),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "Wrapped"),
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor[Wrapped.type](Wrapped),
           deconstructor = new ConstantDeconstructor[Wrapped.type]
@@ -259,20 +259,17 @@ object DynamicOptic {
     // Schemas for case classes
     implicit lazy val fieldSchema: Schema[Field] = new Schema(
       reflect = new Reflect.Record[Binding, Field](
-        fields = Vector(
-          Schema[String].reflect.asTerm("name")
-        ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "Field"),
+        fields = Vector(Schema[String].reflect.asTerm("name")),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "Field"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[Field] {
             def usedRegisters: RegisterOffset                           = 1
             def construct(in: Registers, offset: RegisterOffset): Field =
-              Field(in.getObject(offset + 0).asInstanceOf[String])
+              new Field(in.getObject(offset).asInstanceOf[String])
           },
           deconstructor = new Deconstructor[Field] {
             def usedRegisters: RegisterOffset                                        = 1
-            def deconstruct(out: Registers, offset: RegisterOffset, in: Field): Unit =
-              out.setObject(offset + 0, in.name)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: Field): Unit = out.setObject(offset, in.name)
           }
         ),
         modifiers = Vector.empty
@@ -281,20 +278,17 @@ object DynamicOptic {
 
     implicit lazy val caseSchema: Schema[Case] = new Schema(
       reflect = new Reflect.Record[Binding, Case](
-        fields = Vector(
-          Schema[String].reflect.asTerm("name")
-        ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "Case"),
+        fields = Vector(Schema[String].reflect.asTerm("name")),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "Case"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[Case] {
             def usedRegisters: RegisterOffset                          = 1
             def construct(in: Registers, offset: RegisterOffset): Case =
-              Case(in.getObject(offset + 0).asInstanceOf[String])
+              new Case(in.getObject(offset).asInstanceOf[String])
           },
           deconstructor = new Deconstructor[Case] {
             def usedRegisters: RegisterOffset                                       = 1
-            def deconstruct(out: Registers, offset: RegisterOffset, in: Case): Unit =
-              out.setObject(offset + 0, in.name)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: Case): Unit = out.setObject(offset, in.name)
           }
         ),
         modifiers = Vector.empty
@@ -303,20 +297,17 @@ object DynamicOptic {
 
     implicit lazy val atIndexSchema: Schema[AtIndex] = new Schema(
       reflect = new Reflect.Record[Binding, AtIndex](
-        fields = Vector(
-          Schema[Int].reflect.asTerm("index")
-        ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "AtIndex"),
+        fields = Vector(Schema[Int].reflect.asTerm("index")),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "AtIndex"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[AtIndex] {
             def usedRegisters: RegisterOffset                             = 1
             def construct(in: Registers, offset: RegisterOffset): AtIndex =
-              AtIndex(in.getInt(offset + 0))
+              new AtIndex(in.getInt(offset))
           },
           deconstructor = new Deconstructor[AtIndex] {
             def usedRegisters: RegisterOffset                                          = 1
-            def deconstruct(out: Registers, offset: RegisterOffset, in: AtIndex): Unit =
-              out.setInt(offset + 0, in.index)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: AtIndex): Unit = out.setInt(offset, in.index)
           }
         ),
         modifiers = Vector.empty
@@ -325,20 +316,17 @@ object DynamicOptic {
 
     implicit lazy val atMapKeySchema: Schema[AtMapKey] = new Schema(
       reflect = new Reflect.Record[Binding, AtMapKey](
-        fields = Vector(
-          Schema[DynamicValue].reflect.asTerm("key")
-        ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "AtMapKey"),
+        fields = Vector(Schema[DynamicValue].reflect.asTerm("key")),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "AtMapKey"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[AtMapKey] {
             def usedRegisters: RegisterOffset                              = 1
             def construct(in: Registers, offset: RegisterOffset): AtMapKey =
-              AtMapKey(in.getObject(offset + 0).asInstanceOf[DynamicValue])
+              new AtMapKey(in.getObject(offset).asInstanceOf[DynamicValue])
           },
           deconstructor = new Deconstructor[AtMapKey] {
             def usedRegisters: RegisterOffset                                           = 1
-            def deconstruct(out: Registers, offset: RegisterOffset, in: AtMapKey): Unit =
-              out.setObject(offset + 0, in.key)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: AtMapKey): Unit = out.setObject(offset, in.key)
           }
         ),
         modifiers = Vector.empty
@@ -347,20 +335,19 @@ object DynamicOptic {
 
     implicit lazy val atIndicesSchema: Schema[AtIndices] = new Schema(
       reflect = new Reflect.Record[Binding, AtIndices](
-        fields = Vector(
-          Schema[Seq[Int]].reflect.asTerm("index")
-        ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "IndicesSchema"),
+        fields = Vector(Schema[Seq[Int]].reflect.asTerm("index")),
+        typeName =
+          new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "IndicesSchema"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[AtIndices] {
             def usedRegisters: RegisterOffset                               = 1
             def construct(in: Registers, offset: RegisterOffset): AtIndices =
-              AtIndices(in.getObject(offset + 0).asInstanceOf[Seq[Int]])
+              new AtIndices(in.getObject(offset).asInstanceOf[Seq[Int]])
           },
           deconstructor = new Deconstructor[AtIndices] {
             def usedRegisters: RegisterOffset                                            = 1
             def deconstruct(out: Registers, offset: RegisterOffset, in: AtIndices): Unit =
-              out.setObject(offset + 0, in.index)
+              out.setObject(offset, in.index)
           }
         ),
         modifiers = Vector.empty
@@ -369,20 +356,18 @@ object DynamicOptic {
 
     implicit lazy val atMapKeysSchema: Schema[AtMapKeys] = new Schema(
       reflect = new Reflect.Record[Binding, AtMapKeys](
-        fields = Vector(
-          Schema[Seq[DynamicValue]].reflect.asTerm("keys")
-        ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "AtMapKeys"),
+        fields = Vector(Schema[Seq[DynamicValue]].reflect.asTerm("keys")),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic", "Node")), "AtMapKeys"),
         recordBinding = new Binding.Record(
           constructor = new Constructor[AtMapKeys] {
             def usedRegisters: RegisterOffset                               = 1
             def construct(in: Registers, offset: RegisterOffset): AtMapKeys =
-              AtMapKeys(in.getObject(offset + 0).asInstanceOf[Seq[DynamicValue]])
+              new AtMapKeys(in.getObject(offset).asInstanceOf[Seq[DynamicValue]])
           },
           deconstructor = new Deconstructor[AtMapKeys] {
             def usedRegisters: RegisterOffset                                            = 1
             def deconstruct(out: Registers, offset: RegisterOffset, in: AtMapKeys): Unit =
-              out.setObject(offset + 0, in.keys)
+              out.setObject(offset, in.keys)
           }
         ),
         modifiers = Vector.empty
@@ -404,7 +389,7 @@ object DynamicOptic {
           mapValuesSchema.reflect.asTerm("MapValues"),
           wrappedSchema.reflect.asTerm("Wrapped")
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "DynamicOptic")), "Node"),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "DynamicOptic")), "Node"),
         variantBinding = new Binding.Variant(
           discriminator = new Discriminator[Node] {
             def discriminate(a: Node): Int = a match {
@@ -492,20 +477,18 @@ object DynamicOptic {
   // Schema for DynamicOptic
   implicit lazy val schema: Schema[DynamicOptic] = new Schema(
     reflect = new Reflect.Record[Binding, DynamicOptic](
-      fields = Vector(
-        Schema[IndexedSeq[Node]].reflect.asTerm("nodes")
-      ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema")), "DynamicOptic"),
+      fields = Vector(Schema[IndexedSeq[Node]].reflect.asTerm("nodes")),
+      typeName = new TypeName(Namespace(List("zio", "blocks", "schema")), "DynamicOptic"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicOptic] {
           def usedRegisters: RegisterOffset                                  = 1
           def construct(in: Registers, offset: RegisterOffset): DynamicOptic =
-            DynamicOptic(in.getObject(offset + 0).asInstanceOf[IndexedSeq[Node]])
+            new DynamicOptic(in.getObject(offset).asInstanceOf[IndexedSeq[Node]])
         },
         deconstructor = new Deconstructor[DynamicOptic] {
           def usedRegisters: RegisterOffset                                               = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: DynamicOptic): Unit =
-            out.setObject(offset + 0, in.nodes)
+            out.setObject(offset, in.nodes)
         }
       ),
       modifiers = Vector.empty

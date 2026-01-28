@@ -173,9 +173,7 @@ private[schema] object Differ {
         oldIdx += 1
       }
       val deleteLen = oldIdx - deleteStart
-      if (deleteLen > 0) {
-        edits += Patch.StringOp.Delete(cursor, deleteLen)
-      }
+      if (deleteLen > 0) edits.addOne(Patch.StringOp.Delete(cursor, deleteLen))
 
       // Insert characters from the new string that appear before the next LCS character.
       val insertStart = newIdx
@@ -184,7 +182,7 @@ private[schema] object Differ {
       }
       if (newIdx > insertStart) {
         val text = newStr.substring(insertStart, newIdx)
-        edits += Patch.StringOp.Insert(cursor, text)
+        edits.addOne(Patch.StringOp.Insert(cursor, text))
         cursor += text.length
       }
 
@@ -198,15 +196,13 @@ private[schema] object Differ {
     // Delete any trailing characters left in the old string.
     if (oldIdx < oldStr.length) {
       val deleteLen = oldStr.length - oldIdx
-      edits += Patch.StringOp.Delete(cursor, deleteLen)
+      edits.addOne(Patch.StringOp.Delete(cursor, deleteLen))
     }
 
     // Insert any trailing characters from the new string.
     if (newIdx < newStr.length) {
       val text = newStr.substring(newIdx)
-      if (text.nonEmpty) {
-        edits += Patch.StringOp.Insert(cursor, text)
-      }
+      if (text.nonEmpty) edits.addOne(Patch.StringOp.Insert(cursor, text))
     }
 
     edits.result()
@@ -275,17 +271,21 @@ private[schema] object Differ {
           if (!fieldPatch.isEmpty) {
             // Prepend the field path to each operation
             for (op <- fieldPatch.ops) {
-              ops += Patch.DynamicPatchOp(
-                new DynamicOptic(DynamicOptic.Node.Field(fieldName) +: op.path.nodes),
-                op.operation
+              ops.addOne(
+                Patch.DynamicPatchOp(
+                  new DynamicOptic(DynamicOptic.Node.Field(fieldName) +: op.path.nodes),
+                  op.operation
+                )
               )
             }
           }
         case None =>
           // Field only exists in new record - set it
-          ops += Patch.DynamicPatchOp(
-            new DynamicOptic(Vector(DynamicOptic.Node.Field(fieldName))),
-            Patch.Operation.Set(newValue)
+          ops.addOne(
+            Patch.DynamicPatchOp(
+              new DynamicOptic(Vector(DynamicOptic.Node.Field(fieldName))),
+              Patch.Operation.Set(newValue)
+            )
           )
         case _ =>
         // Field unchanged - skip
@@ -356,15 +356,15 @@ private[schema] object Differ {
 
     def emitDelete(count: Int): Unit =
       if (count > 0) {
-        ops += Patch.SeqOp.Delete(cursor, count)
+        ops.addOne(Patch.SeqOp.Delete(cursor, count))
         curLength -= count
       }
 
     def emitInsert(values: Chunk[DynamicValue]): Unit =
       if (values.nonEmpty) {
         val insertionIndex = cursor
-        if (insertionIndex == curLength) ops += Patch.SeqOp.Append(values)
-        else ops += Patch.SeqOp.Insert(insertionIndex, values)
+        if (insertionIndex == curLength) ops.addOne(Patch.SeqOp.Append(values))
+        else ops.addOne(Patch.SeqOp.Insert(insertionIndex, values))
         cursor += values.length
         curLength += values.length
       }
@@ -412,7 +412,7 @@ private[schema] object Differ {
     var j = n
     while (i > 0 && j > 0) {
       if (oldElems(i - 1) == newElems(j - 1)) {
-        builder += ((i - 1, j - 1))
+        builder.addOne((i - 1, j - 1))
         i -= 1
         j -= 1
       } else if (dp(i - 1)(j) >= dp(i)(j - 1)) {
@@ -443,11 +443,11 @@ private[schema] object Differ {
           // Key exists in both but value changed - recursively diff
           val valuePatch = diff(oldValue, newValue)
           if (!valuePatch.isEmpty) {
-            ops += Patch.MapOp.Modify(key, valuePatch)
+            ops.addOne(Patch.MapOp.Modify(key, valuePatch))
           }
         case None =>
           // Key only in new map - add it
-          ops += Patch.MapOp.Add(key, newValue)
+          ops.addOne(Patch.MapOp.Add(key, newValue))
         case _ =>
         // Key unchanged - skip
       }
@@ -456,7 +456,7 @@ private[schema] object Differ {
     // Find removed keys
     for ((key, _) <- oldEntries) {
       if (!newMap.contains(key)) {
-        ops += Patch.MapOp.Remove(key)
+        ops.addOne(Patch.MapOp.Remove(key))
       }
     }
 

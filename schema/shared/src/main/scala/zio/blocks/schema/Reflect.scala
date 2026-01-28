@@ -412,8 +412,8 @@ object Reflect {
       val deconstructor = this.deconstructor
       val registers     = Registers(deconstructor.usedRegisters)
       deconstructor.deconstruct(registers, 0, value)
-      val fields = ChunkBuilder.make[(String, DynamicValue)]()
       val len    = this.registers.length
+      val fields = ChunkBuilder.make[(String, DynamicValue)](len)
       var idx    = 0
       while (idx < len) {
         val field    = this.fields(idx)
@@ -802,7 +802,7 @@ object Reflect {
 
     def toDynamicValue(value: C[A])(implicit F: HasBinding[F]): DynamicValue = {
       val iterator = seqDeconstructor.deconstruct(value)
-      val builder  = ChunkBuilder.make[DynamicValue]()
+      val builder  = ChunkBuilder.make[DynamicValue](seqDeconstructor.size(value))
       while (iterator.hasNext) builder.addOne(element.toDynamicValue(iterator.next()))
       new DynamicValue.Sequence(builder.result())
     }
@@ -921,7 +921,7 @@ object Reflect {
     def toDynamicValue(value: M[K, V])(implicit F: HasBinding[F]): DynamicValue = {
       val deconstructor = mapDeconstructor
       val it            = deconstructor.deconstruct(value)
-      val builder       = ChunkBuilder.make[(DynamicValue, DynamicValue)]()
+      val builder       = ChunkBuilder.make[(DynamicValue, DynamicValue)](deconstructor.size(value))
       while (it.hasNext) {
         val next = it.next()
         builder.addOne(

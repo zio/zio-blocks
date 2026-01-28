@@ -845,10 +845,10 @@ object ToonBinaryCodec {
           val record = ChunkBuilder.make[(String, DynamicValue)]()
           var i      = 0
           while (i < fields.length && i < values.length) {
-            record += ((fields(i), inferredToDynamicValue(in.inferType(values(i)), values(i))))
+            record.addOne((fields(i), inferredToDynamicValue(in.inferType(values(i)), values(i))))
             i += 1
           }
-          builder += DynamicValue.Record(record.result())
+          builder.addOne(DynamicValue.Record(record.result()))
           count += 1
         }
       }
@@ -861,7 +861,7 @@ object ToonBinaryCodec {
     ): Unit = {
       var i = 0
       while (i < values.length) {
-        builder += inferredToDynamicValue(in.inferType(values(i)), values(i))
+        builder.addOne(inferredToDynamicValue(in.inferType(values(i)), values(i)))
         i += 1
       }
     }
@@ -877,7 +877,7 @@ object ToonBinaryCodec {
         in.skipBlankLinesInArray(count == 0)
         if (in.hasMoreLines && in.getDepth >= startDepth && in.isListItem) {
           in.consumeListItemMarker()
-          builder += decodeValue(in, unitValue)
+          builder.addOne(decodeValue(in, unitValue))
           count += 1
         } else if (in.hasMoreLines && in.getDepth >= startDepth) count = length
       }
@@ -949,7 +949,7 @@ object ToonBinaryCodec {
         } else {
           (rawKey, decodeValue(in, unitValue))
         }
-        builder += (((fieldName, wasQuoted), value))
+        builder.addOne(((fieldName, wasQuoted), value))
         in.skipBlankLines()
       }
       val fieldsWithQuoteInfo = builder.result()
@@ -970,7 +970,7 @@ object ToonBinaryCodec {
         mergeIntoMap(in, keyMap, expandedKey, expandedValue)
       }
       val result = ChunkBuilder.make[(String, DynamicValue)]()
-      keyMap.foreach { case (k, v) => result += ((k, v)) }
+      keyMap.foreach(result.addOne)
       maybeExtractVariant(DynamicValue.Record(result.result()), in)
     }
 
@@ -1036,7 +1036,7 @@ object ToonBinaryCodec {
       existing.fields.foreach { case (k, v) => mergedMap.put(k, v) }
       incoming.fields.foreach { case (k, v) => mergeIntoMap(in, mergedMap, k, v) }
       val result = ChunkBuilder.make[(String, DynamicValue)]()
-      mergedMap.foreach { case (k, v) => result += ((k, v)) }
+      mergedMap.foreach(result.addOne)
       DynamicValue.Record(result.result())
     }
 
@@ -1086,12 +1086,12 @@ object ToonBinaryCodec {
         val c = s.charAt(i)
         if (c == '"') inQuote = !inQuote
         else if (!inQuote && c == delim.char) {
-          result += s.substring(start, i).trim
+          result.addOne(s.substring(start, i).trim)
           start = i + 1
         }
         i += 1
       }
-      if (start <= s.length) result += s.substring(start).trim
+      if (start <= s.length) result.addOne(s.substring(start).trim)
       result.toArray
     }
 
