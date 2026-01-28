@@ -10,7 +10,8 @@ import scala.quoted.*
 object MigrationMacros {
 
   /**
-   * Extract a DynamicOptic path from a selector function like _.name or _.address.street
+   * Extract a DynamicOptic path from a selector function like _.name or
+   * _.address.street
    */
   inline def selectorToOptic[S, A](inline selector: S => A): DynamicOptic =
     ${ selectorToOpticImpl[S, A]('selector) }
@@ -19,7 +20,7 @@ object MigrationMacros {
     import quotes.reflect.*
 
     def extractPath(term: Term): List[Expr[DynamicOptic.Node]] = term match {
-      case Ident(_) => Nil
+      case Ident(_)                     => Nil
       case Select(qualifier, fieldName) =>
         extractPath(qualifier) :+ '{ DynamicOptic.Node.Field(${ Expr(fieldName) }) }
       case Apply(Select(qualifier, "each"), _) =>
@@ -34,11 +35,11 @@ object MigrationMacros {
 
     selector.asTerm match {
       case Inlined(_, _, Lambda(_, body)) =>
-        val nodes = extractPath(body)
+        val nodes     = extractPath(body)
         val nodesExpr = Expr.ofSeq(nodes)
         '{ DynamicOptic(Vector($nodesExpr*)) }
       case Lambda(_, body) =>
-        val nodes = extractPath(body)
+        val nodes     = extractPath(body)
         val nodesExpr = Expr.ofSeq(nodes)
         '{ DynamicOptic(Vector($nodesExpr*)) }
       case other =>
@@ -73,8 +74,8 @@ object MigrationMacros {
 extension [A, B](builder: MigrationBuilder[A, B]) {
 
   /**
-   * Add a field using a selector for the target field.
-   * Example: .addField(_.age, 0)
+   * Add a field using a selector for the target field. Example:
+   * .addField(_.age, 0)
    */
   inline def addField[T](inline target: B => T, default: T)(using schema: Schema[T]): MigrationBuilder[A, B] = {
     val fieldName = MigrationMacros.selectorToFieldName(target)
@@ -82,8 +83,8 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
   }
 
   /**
-   * Drop a field using a selector for the source field.
-   * Example: .dropField(_.oldField)
+   * Drop a field using a selector for the source field. Example:
+   * .dropField(_.oldField)
    */
   inline def dropField[T](inline source: A => T): MigrationBuilder[A, B] = {
     val fieldName = MigrationMacros.selectorToFieldName(source)
@@ -91,27 +92,28 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
   }
 
   /**
-   * Drop a field with a default for reverse.
-   * Example: .dropField(_.oldField, defaultValue)
+   * Drop a field with a default for reverse. Example: .dropField(_.oldField,
+   * defaultValue)
    */
-  inline def dropFieldWithDefault[T](inline source: A => T, defaultForReverse: T)(using schema: Schema[T]): MigrationBuilder[A, B] = {
+  inline def dropFieldWithDefault[T](inline source: A => T, defaultForReverse: T)(using
+    schema: Schema[T]
+  ): MigrationBuilder[A, B] = {
     val fieldName = MigrationMacros.selectorToFieldName(source)
     builder.dropFieldWithDefault(fieldName, schema.toDynamicValue(defaultForReverse))
   }
 
   /**
-   * Rename a field using selectors.
-   * Example: .renameField(_.oldName, _.newName)
+   * Rename a field using selectors. Example: .renameField(_.oldName, _.newName)
    */
   inline def renameField[T1, T2](inline from: A => T1, inline to: B => T2): MigrationBuilder[A, B] = {
     val fromName = MigrationMacros.selectorToFieldName(from)
-    val toName = MigrationMacros.selectorToFieldName(to)
+    val toName   = MigrationMacros.selectorToFieldName(to)
     builder.renameField(fromName, toName)
   }
 
   /**
-   * Transform a field using a selector and expression.
-   * Example: .transformField(_.count, SchemaExpr.add(1))
+   * Transform a field using a selector and expression. Example:
+   * .transformField(_.count, SchemaExpr.add(1))
    */
   inline def transformField[T](inline selector: A => T, transform: SchemaExpr): MigrationBuilder[A, B] = {
     val fieldName = MigrationMacros.selectorToFieldName(selector)
@@ -119,38 +121,44 @@ extension [A, B](builder: MigrationBuilder[A, B]) {
   }
 
   /**
-   * Make an optional field required.
-   * Example: .mandateField(_.optionalAge, _.age, 0)
+   * Make an optional field required. Example: .mandateField(_.optionalAge,
+   * _.age, 0)
    */
-  inline def mandateField[T](inline source: A => Option[T], inline target: B => T, default: T)(using schema: Schema[T]): MigrationBuilder[A, B] = {
+  inline def mandateField[T](inline source: A => Option[T], inline target: B => T, default: T)(using
+    schema: Schema[T]
+  ): MigrationBuilder[A, B] = {
     val sourceFieldName = MigrationMacros.selectorToFieldName(source)
-    val _ = MigrationMacros.selectorToFieldName(target) // validate target field exists
+    val _               = MigrationMacros.selectorToFieldName(target) // validate target field exists
     builder.mandateFieldTyped[T](sourceFieldName, default)
   }
 
   /**
-   * Make a required field optional.
-   * Example: .optionalizeField(_.requiredName, _.optionalName)
+   * Make a required field optional. Example: .optionalizeField(_.requiredName,
+   * _.optionalName)
    */
   inline def optionalizeField[T](inline source: A => T, inline target: B => Option[T]): MigrationBuilder[A, B] = {
     val sourceFieldName = MigrationMacros.selectorToFieldName(source)
-    val _ = MigrationMacros.selectorToFieldName(target) // validate target field exists
+    val _               = MigrationMacros.selectorToFieldName(target) // validate target field exists
     builder.optionalizeField(sourceFieldName)
   }
 
   /**
-   * Change a field's type.
-   * Example: .changeFieldType(_.strAge, _.intAge, SchemaExpr.convert(String, Int))
+   * Change a field's type. Example: .changeFieldType(_.strAge, _.intAge,
+   * SchemaExpr.convert(String, Int))
    */
-  inline def changeFieldType[T1, T2](inline source: A => T1, inline target: B => T2, converter: SchemaExpr): MigrationBuilder[A, B] = {
+  inline def changeFieldType[T1, T2](
+    inline source: A => T1,
+    inline target: B => T2,
+    converter: SchemaExpr
+  ): MigrationBuilder[A, B] = {
     val sourceFieldName = MigrationMacros.selectorToFieldName(source)
-    val _ = MigrationMacros.selectorToFieldName(target) // validate target field exists
+    val _               = MigrationMacros.selectorToFieldName(target) // validate target field exists
     builder.changeFieldType(sourceFieldName, converter)
   }
 
   /**
-   * Transform elements using a selector for a collection field.
-   * Example: .transformElements(_.items, SchemaExpr.identity)
+   * Transform elements using a selector for a collection field. Example:
+   * .transformElements(_.items, SchemaExpr.identity)
    */
   inline def transformElements[T](inline selector: A => Vector[T], transform: SchemaExpr): MigrationBuilder[A, B] = {
     val optic = MigrationMacros.selectorToOptic(selector)

@@ -11,7 +11,11 @@ final case class MigrationBuilder[A, B](
   def addFieldAt(path: DynamicOptic, fieldName: String, defaultValue: DynamicValue): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.AddField(path, fieldName, defaultValue))
 
-  def dropFieldAt(path: DynamicOptic, fieldName: String, defaultForReverse: Option[DynamicValue] = None): MigrationBuilder[A, B] =
+  def dropFieldAt(
+    path: DynamicOptic,
+    fieldName: String,
+    defaultForReverse: Option[DynamicValue] = None
+  ): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.DropField(path, fieldName, defaultForReverse))
 
   def renameFieldAt(path: DynamicOptic, from: String, to: String): MigrationBuilder[A, B] =
@@ -29,16 +33,30 @@ final case class MigrationBuilder[A, B](
   def changeFieldTypeAt(path: DynamicOptic, fieldName: String, converter: SchemaExpr): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.ChangeType(path, fieldName, converter))
 
-  def joinFieldsAt(path: DynamicOptic, sources: Vector[String], target: String, joinExpr: SchemaExpr): MigrationBuilder[A, B] =
+  def joinFieldsAt(
+    path: DynamicOptic,
+    sources: Vector[String],
+    target: String,
+    joinExpr: SchemaExpr
+  ): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.Join(path, sources, target, joinExpr))
 
-  def splitFieldAt(path: DynamicOptic, source: String, targets: Vector[String], splitExpr: SchemaExpr): MigrationBuilder[A, B] =
+  def splitFieldAt(
+    path: DynamicOptic,
+    source: String,
+    targets: Vector[String],
+    splitExpr: SchemaExpr
+  ): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.Split(path, source, targets, splitExpr))
 
   def renameCaseAt(path: DynamicOptic, from: String, to: String): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.RenameCase(path, from, to))
 
-  def transformCaseAt(path: DynamicOptic, caseName: String, caseActions: Vector[MigrationAction]): MigrationBuilder[A, B] =
+  def transformCaseAt(
+    path: DynamicOptic,
+    caseName: String,
+    caseActions: Vector[MigrationAction]
+  ): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.TransformCase(path, caseName, caseActions))
 
   def renameCase(from: String, to: String): MigrationBuilder[A, B] =

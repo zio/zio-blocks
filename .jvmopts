@@ -1,8 +1,8 @@
--Xms2g
--Xmx12g
+-Xms1g
+-Xmx6g
 -Xss2m
 -XX:+UseG1GC
 -XX:+AlwaysPreTouch
--XX:InitialCodeCacheSize=512m
--XX:ReservedCodeCacheSize=512m
+-XX:InitialCodeCacheSize=256m
+-XX:ReservedCodeCacheSize=256m
 -Dfile.encoding=UTF8

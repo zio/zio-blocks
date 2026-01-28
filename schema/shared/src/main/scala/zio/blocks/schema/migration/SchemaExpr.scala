@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 
 sealed trait SchemaExpr {
@@ -42,11 +43,13 @@ object SchemaExpr {
           case Left(err)        => Left(err)
         }
       case _ =>
-        Left(MigrationError.typeMismatch(
-          zio.blocks.schema.DynamicOptic.root,
-          s"Primitive($from)",
-          value.getClass.getSimpleName
-        ))
+        Left(
+          MigrationError.typeMismatch(
+            zio.blocks.schema.DynamicOptic.root,
+            s"Primitive($from)",
+            value.getClass.getSimpleName
+          )
+        )
     }
 
     override def reverse: Option[SchemaExpr] =
@@ -71,17 +74,21 @@ object SchemaExpr {
   case object UnwrapOption extends SchemaExpr {
     override def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = value match {
       case DynamicValue.Variant("Some", inner) => Right(inner)
-      case DynamicValue.Variant("None", _) =>
-        Left(MigrationError.transformFailed(
-          zio.blocks.schema.DynamicOptic.root,
-          "Cannot unwrap None"
-        ))
+      case DynamicValue.Variant("None", _)     =>
+        Left(
+          MigrationError.transformFailed(
+            zio.blocks.schema.DynamicOptic.root,
+            "Cannot unwrap None"
+          )
+        )
       case _ =>
-        Left(MigrationError.typeMismatch(
-          zio.blocks.schema.DynamicOptic.root,
-          "Option (Variant)",
-          value.getClass.getSimpleName
-        ))
+        Left(
+          MigrationError.typeMismatch(
+            zio.blocks.schema.DynamicOptic.root,
+            "Option (Variant)",
+            value.getClass.getSimpleName
+          )
+        )
     }
 
     override def reverse: Option[SchemaExpr] = Some(WrapOption)
@@ -92,18 +99,22 @@ object SchemaExpr {
       case DynamicValue.Record(fields) =>
         fields.find(_._1 == name) match {
           case Some((_, v)) => Right(v)
-          case None =>
-            Left(MigrationError.missingField(
-              zio.blocks.schema.DynamicOptic.root,
-              name
-            ))
+          case None         =>
+            Left(
+              MigrationError.missingField(
+                zio.blocks.schema.DynamicOptic.root,
+                name
+              )
+            )
         }
       case _ =>
-        Left(MigrationError.typeMismatch(
-          zio.blocks.schema.DynamicOptic.root,
-          "Record",
-          value.getClass.getSimpleName
-        ))
+        Left(
+          MigrationError.typeMismatch(
+            zio.blocks.schema.DynamicOptic.root,
+            "Record",
+            value.getClass.getSimpleName
+          )
+        )
     }
 
     override def reverse: Option[SchemaExpr] = None
@@ -118,22 +129,26 @@ object SchemaExpr {
           val values = fields.flatMap { name =>
             recordFields.find(_._1 == name).map(_._2)
           }
-          val strings = values.collect {
-            case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+          val strings = values.collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+            s
           }
           if (strings.length != fields.length)
-            Left(MigrationError.transformFailed(
-              zio.blocks.schema.DynamicOptic.root,
-              s"Could not find all fields: $fields"
-            ))
+            Left(
+              MigrationError.transformFailed(
+                zio.blocks.schema.DynamicOptic.root,
+                s"Could not find all fields: $fields"
+              )
+            )
           else
             Right(DynamicValue.Primitive(PrimitiveValue.String(strings.mkString(separator))))
         case _ =>
-          Left(MigrationError.typeMismatch(
-            zio.blocks.schema.DynamicOptic.root,
-            "Record",
-            value.getClass.getSimpleName
-          ))
+          Left(
+            MigrationError.typeMismatch(
+              zio.blocks.schema.DynamicOptic.root,
+              "Record",
+              value.getClass.getSimpleName
+            )
+          )
       }
 
       override def reverse: Option[SchemaExpr] = Some(Split(separator, fields))
@@ -144,22 +159,26 @@ object SchemaExpr {
         case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
           val parts = s.split(java.util.regex.Pattern.quote(separator), targetFields.length).toVector
           if (parts.length != targetFields.length)
-            Left(MigrationError.transformFailed(
-              zio.blocks.schema.DynamicOptic.root,
-              s"Split result has ${parts.length} parts but expected ${targetFields.length}"
-            ))
+            Left(
+              MigrationError.transformFailed(
+                zio.blocks.schema.DynamicOptic.root,
+                s"Split result has ${parts.length} parts but expected ${targetFields.length}"
+              )
+            )
           else {
             val fields = targetFields.zip(parts).map { case (name, part) =>
               (name, DynamicValue.Primitive(PrimitiveValue.String(part)))
             }
-            Right(DynamicValue.Record(fields))
+            Right(DynamicValue.Record(Chunk.fromIterable(fields)))
           }
         case _ =>
-          Left(MigrationError.typeMismatch(
-            zio.blocks.schema.DynamicOptic.root,
-            "Primitive(String)",
-            value.getClass.getSimpleName
-          ))
+          Left(
+            MigrationError.typeMismatch(
+              zio.blocks.schema.DynamicOptic.root,
+              "Primitive(String)",
+              value.getClass.getSimpleName
+            )
+          )
       }
 
       override def reverse: Option[SchemaExpr] = Some(Concat(separator, targetFields))
@@ -170,11 +189,13 @@ object SchemaExpr {
         case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(s.toUpperCase)))
         case _ =>
-          Left(MigrationError.typeMismatch(
-            zio.blocks.schema.DynamicOptic.root,
-            "Primitive(String)",
-            value.getClass.getSimpleName
-          ))
+          Left(
+            MigrationError.typeMismatch(
+              zio.blocks.schema.DynamicOptic.root,
+              "Primitive(String)",
+              value.getClass.getSimpleName
+            )
+          )
       }
 
       override def reverse: Option[SchemaExpr] = None
@@ -185,11 +206,13 @@ object SchemaExpr {
         case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(s.toLowerCase)))
         case _ =>
-          Left(MigrationError.typeMismatch(
-            zio.blocks.schema.DynamicOptic.root,
-            "Primitive(String)",
-            value.getClass.getSimpleName
-          ))
+          Left(
+            MigrationError.typeMismatch(
+              zio.blocks.schema.DynamicOptic.root,
+              "Primitive(String)",
+              value.getClass.getSimpleName
+            )
+          )
       }
 
       override def reverse: Option[SchemaExpr] = None
@@ -204,11 +227,13 @@ object SchemaExpr {
           }
           Right(DynamicValue.Primitive(PrimitiveValue.String(trimmed)))
         case _ =>
-          Left(MigrationError.typeMismatch(
-            zio.blocks.schema.DynamicOptic.root,
-            "Primitive(String)",
-            value.getClass.getSimpleName
-          ))
+          Left(
+            MigrationError.typeMismatch(
+              zio.blocks.schema.DynamicOptic.root,
+              "Primitive(String)",
+              value.getClass.getSimpleName
+            )
+          )
       }
 
       override def reverse: Option[SchemaExpr] = None
@@ -225,11 +250,13 @@ object SchemaExpr {
         case DynamicValue.Primitive(PrimitiveValue.Long(n)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Long(n + amount)))
         case _ =>
-          Left(MigrationError.typeMismatch(
-            zio.blocks.schema.DynamicOptic.root,
-            "Primitive(Int/Long)",
-            value.getClass.getSimpleName
-          ))
+          Left(
+            MigrationError.typeMismatch(
+              zio.blocks.schema.DynamicOptic.root,
+              "Primitive(Int/Long)",
+              value.getClass.getSimpleName
+            )
+          )
       }
 
       override def reverse: Option[SchemaExpr] = Some(Add(-amount))
@@ -246,11 +273,13 @@ object SchemaExpr {
         case DynamicValue.Primitive(PrimitiveValue.Double(n)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Double(n * factor)))
         case _ =>
-          Left(MigrationError.typeMismatch(
-            zio.blocks.schema.DynamicOptic.root,
-            "Primitive(numeric)",
-            value.getClass.getSimpleName
-          ))
+          Left(
+            MigrationError.typeMismatch(
+              zio.blocks.schema.DynamicOptic.root,
+              "Primitive(numeric)",
+              value.getClass.getSimpleName
+            )
+          )
       }
 
       override def reverse: Option[SchemaExpr] =
@@ -283,23 +312,29 @@ object SchemaExpr {
     import PrimitiveType._
 
     def stringToNum(s: java.lang.String, target: PrimitiveType): Either[MigrationError, PrimitiveValue] =
-      try target match {
-        case Int     => Right(PrimitiveValue.Int(s.toInt))
-        case Long    => Right(PrimitiveValue.Long(s.toLong))
-        case Float   => Right(PrimitiveValue.Float(s.toFloat))
-        case Double  => Right(PrimitiveValue.Double(s.toDouble))
-        case Boolean => Right(PrimitiveValue.Boolean(s.toBoolean))
-        case _ =>
-          Left(MigrationError.transformFailed(
-            zio.blocks.schema.DynamicOptic.root,
-            s"Cannot convert String to $target"
-          ))
-      } catch {
+      try
+        target match {
+          case Int     => Right(PrimitiveValue.Int(s.toInt))
+          case Long    => Right(PrimitiveValue.Long(s.toLong))
+          case Float   => Right(PrimitiveValue.Float(s.toFloat))
+          case Double  => Right(PrimitiveValue.Double(s.toDouble))
+          case Boolean => Right(PrimitiveValue.Boolean(s.toBoolean))
+          case _       =>
+            Left(
+              MigrationError.transformFailed(
+                zio.blocks.schema.DynamicOptic.root,
+                s"Cannot convert String to $target"
+              )
+            )
+        }
+      catch {
         case _: NumberFormatException =>
-          Left(MigrationError.transformFailed(
-            zio.blocks.schema.DynamicOptic.root,
-            s"Cannot parse '$s' as $target"
-          ))
+          Left(
+            MigrationError.transformFailed(
+              zio.blocks.schema.DynamicOptic.root,
+              s"Cannot parse '$s' as $target"
+            )
+          )
       }
 
     (value, to) match {
@@ -317,9 +352,9 @@ object SchemaExpr {
 
       case (PrimitiveValue.String(s), target) => stringToNum(s, target)
 
-      case (PrimitiveValue.Int(n), Long)   => Right(PrimitiveValue.Long(n.toLong))
-      case (PrimitiveValue.Int(n), Double) => Right(PrimitiveValue.Double(n.toDouble))
-      case (PrimitiveValue.Int(n), Float)  => Right(PrimitiveValue.Float(n.toFloat))
+      case (PrimitiveValue.Int(n), Long)     => Right(PrimitiveValue.Long(n.toLong))
+      case (PrimitiveValue.Int(n), Double)   => Right(PrimitiveValue.Double(n.toDouble))
+      case (PrimitiveValue.Int(n), Float)    => Right(PrimitiveValue.Float(n.toFloat))
       case (PrimitiveValue.Long(n), Double)  => Right(PrimitiveValue.Double(n.toDouble))
       case (PrimitiveValue.Float(n), Double) => Right(PrimitiveValue.Double(n.toDouble))
 
@@ -328,10 +363,12 @@ object SchemaExpr {
 
       case (PrimitiveValue.Double(n), Float) => Right(PrimitiveValue.Float(n.toFloat))
 
-      case (PrimitiveValue.Double(n), Int) if n >= scala.Int.MinValue && n <= scala.Int.MaxValue && n == n.toInt.toDouble =>
+      case (PrimitiveValue.Double(n), Int)
+          if n >= scala.Int.MinValue && n <= scala.Int.MaxValue && n == n.toInt.toDouble =>
         Right(PrimitiveValue.Int(n.toInt))
 
-      case (PrimitiveValue.Double(n), Long) if n >= scala.Long.MinValue && n <= scala.Long.MaxValue && n == n.toLong.toDouble =>
+      case (PrimitiveValue.Double(n), Long)
+          if n >= scala.Long.MinValue && n <= scala.Long.MaxValue && n == n.toLong.toDouble =>
         Right(PrimitiveValue.Long(n.toLong))
 
       case (PrimitiveValue.Boolean(b), Int) => Right(PrimitiveValue.Int(if (b) 1 else 0))

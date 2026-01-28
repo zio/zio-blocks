@@ -6,8 +6,8 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
 
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
     var current: DynamicValue = value
-    var idx = 0
-    val len = actions.length
+    var idx                   = 0
+    val len                   = actions.length
 
     while (idx < len) {
       actions(idx)(current) match {
@@ -79,10 +79,12 @@ object DynamicMigration {
     single(MigrationAction.Rename(zio.blocks.schema.DynamicOptic.root, from, to))
 
   def transformField(fieldName: String, transform: SchemaExpr): DynamicMigration =
-    single(MigrationAction.TransformValue(
-      zio.blocks.schema.DynamicOptic.root.field(fieldName),
-      transform
-    ))
+    single(
+      MigrationAction.TransformValue(
+        zio.blocks.schema.DynamicOptic.root.field(fieldName),
+        transform
+      )
+    )
 
   def changeFieldType(fieldName: String, converter: SchemaExpr): DynamicMigration =
     single(MigrationAction.ChangeType(zio.blocks.schema.DynamicOptic.root, fieldName, converter))

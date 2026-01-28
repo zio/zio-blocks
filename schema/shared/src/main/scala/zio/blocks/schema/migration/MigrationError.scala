@@ -91,6 +91,6 @@ object MigrationError {
 
   final case class WrappedSchemaError(error: SchemaError) extends Single {
     override def path: DynamicOptic = error.errors.head.source
-    override def message: String = error.message
+    override def message: String    = error.message
   }
 }
