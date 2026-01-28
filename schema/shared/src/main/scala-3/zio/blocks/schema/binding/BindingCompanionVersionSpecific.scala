@@ -844,15 +844,12 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
           argExpr.asTerm
         }
 
-        val argss   = fieldLists.map(_.map(fieldToArg))
-        val newExpr = New(TypeTree.of[A])
-        val select  = Select(newExpr, constructor)
-        val base    =
-          if (tpeTypeArgs.nonEmpty) select.appliedToTypes(tpeTypeArgs)
-          else select
-        val applied = argss.foldLeft(base) { (acc, args) =>
-          Apply(acc, args)
-        }
+        val argss      = fieldLists.map(_.map(fieldToArg))
+        val newExpr    = New(Inferred(tpe))
+        val selectCtor = Select(newExpr, constructor).appliedToTypes(tpeTypeArgs)
+        val applied =
+          if (argss.isEmpty) Apply(selectCtor, Nil)
+          else argss.tail.foldLeft(Apply(selectCtor, argss.head): Term) { (acc, args) => Apply(acc, args) }
         applied.asExpr.asInstanceOf[Expr[A]]
       }
     }
