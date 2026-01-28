@@ -77,6 +77,7 @@ Now you have access to the core ZIO Blocks schema library. You can also add addi
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-json" % "0.0.1"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.1"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.1"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.1"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.1"
 ```
 
