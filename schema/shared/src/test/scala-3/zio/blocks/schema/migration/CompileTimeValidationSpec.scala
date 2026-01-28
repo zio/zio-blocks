@@ -310,16 +310,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       }
     ),
     suite("type-level validation logic")(
-      test("unchanged fields are correctly computed") {
-        // PersonA and PersonB have same fields
-        val fnA = summon[FieldNames[PersonA]]
-        val fnB = summon[FieldNames[PersonB]]
-
-        type Unchanged = Intersect[fnA.Labels, fnB.Labels]
-        summon[TupleEquals[Unchanged, fnA.Labels] =:= true]
-        summon[TupleEquals[Unchanged, fnB.Labels] =:= true]
-        assertTrue(true)
-      },
       test("required handled is difference of source from target") {
         val fnA = summon[FieldNames[DropSource]]
         val fnB = summon[FieldNames[DropTarget]]

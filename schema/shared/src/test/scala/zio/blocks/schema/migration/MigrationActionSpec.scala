@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, DynamicOptic, PrimitiveConverter, PrimitiveValue, Schema, SchemaExpr}
 import zio.test._
 
@@ -9,7 +10,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
     suite("AddField")(
       test("should add a field to a record with default value") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
           )
         )
@@ -23,7 +24,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(
           result.toOption.get == DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
               "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(0))
             )
@@ -32,7 +33,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
       },
       test("should fail if field already exists") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
           )
@@ -50,7 +51,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
     suite("DropField")(
       test("should remove a field from a record") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
           )
@@ -65,7 +66,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(
           result.toOption.get == DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
             )
           )
@@ -73,7 +74,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
       },
       test("should fail if field does not exist") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
           )
         )
@@ -90,7 +91,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
     suite("Rename")(
       test("should rename a field in a record") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "age"       -> DynamicValue.Primitive(PrimitiveValue.Int(25))
           )
@@ -105,7 +106,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(
           result.toOption.get == DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
               "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
             )
@@ -114,7 +115,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
       },
       test("should fail if source field does not exist") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "age" -> DynamicValue.Primitive(PrimitiveValue.Int(25))
           )
         )
@@ -129,7 +130,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
       },
       test("should fail if target field already exists") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "name"      -> DynamicValue.Primitive(PrimitiveValue.String("Jane"))
           )
@@ -182,7 +183,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
     suite("TransformValue")(
       test("should transform a field value using literal replacement") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "age" -> DynamicValue.Primitive(PrimitiveValue.Int(25))
           )
         )
@@ -196,7 +197,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(
           result.toOption.get == DynamicValue.Record(
-            Vector(
+            Chunk(
               "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
             )
           )
@@ -204,7 +205,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
       },
       test("should transform a field value using type conversion") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "count" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
           )
         )
@@ -221,7 +222,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(
           result.toOption.get == DynamicValue.Record(
-            Vector(
+            Chunk(
               "count" -> DynamicValue.Primitive(PrimitiveValue.Long(42L))
             )
           )
@@ -229,7 +230,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
       },
       test("should fail if field does not exist") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
           )
         )
@@ -246,7 +247,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
     suite("ChangeType")(
       test("should convert string field to int") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "age" -> DynamicValue.Primitive(PrimitiveValue.String("25"))
           )
         )
@@ -260,7 +261,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(
           result.toOption.get == DynamicValue.Record(
-            Vector(
+            Chunk(
               "age" -> DynamicValue.Primitive(PrimitiveValue.Int(25))
             )
           )
@@ -268,7 +269,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
       },
       test("should convert int field to long") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "count" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
           )
         )
@@ -282,7 +283,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(
           result.toOption.get == DynamicValue.Record(
-            Vector(
+            Chunk(
               "count" -> DynamicValue.Primitive(PrimitiveValue.Long(42L))
             )
           )
@@ -290,7 +291,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
       },
       test("should fail if conversion fails") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "age" -> DynamicValue.Primitive(PrimitiveValue.String("not-a-number"))
           )
         )
@@ -305,7 +306,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
       },
       test("should fail if field does not exist") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
           )
         )

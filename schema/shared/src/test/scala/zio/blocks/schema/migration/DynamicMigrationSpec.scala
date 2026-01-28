@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, DynamicOptic, PrimitiveValue, Schema, SchemaExpr}
 import zio.test._
 
@@ -9,7 +10,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     suite("apply")(
       test("should execute a single action") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
           )
         )
@@ -27,7 +28,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(
           result.toOption.get == DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
               "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(0))
             )
@@ -36,7 +37,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       },
       test("should execute multiple actions in sequence") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
           )
         )
@@ -58,7 +59,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(
           result.toOption.get == DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
               "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(0))
             )
@@ -67,7 +68,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       },
       test("should stop and return error on first failure") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
           )
         )
@@ -92,7 +93,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     suite("identity")(
       test("should return the value unchanged") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
           )
@@ -108,7 +109,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     suite("++")(
       test("should compose two migrations sequentially") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
           )
         )
@@ -135,7 +136,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(
           result.toOption.get == DynamicValue.Record(
-            Vector(
+            Chunk(
               "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
               "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(0))
             )
@@ -144,7 +145,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       },
       test("should be associative") {
         val record = DynamicValue.Record(
-          Vector(
+          Chunk(
             "a" -> DynamicValue.Primitive(PrimitiveValue.String("x"))
           )
         )
@@ -223,7 +224,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       },
       test("should support semantic inverse for lossless transformations") {
         val original = DynamicValue.Record(
-          Vector(
+          Chunk(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
             "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
           )
