@@ -57,7 +57,7 @@ import scala.collection.immutable.IndexedSeq
  * @param ops
  *   The sequence of patch operations
  */
-final case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) { self =>
+final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) { self =>
 
   /**
    * Applies this patch to a JSON value.
@@ -157,7 +157,7 @@ object JsonPatch {
    *   assert((p ++ JsonPatch.empty)(j, Strict) == p(j, Strict))
    *   }}}
    */
-  val empty: JsonPatch = new JsonPatch(Chunk.empty)
+  val empty: JsonPatch = new JsonPatch(Vector.empty)
 
   /**
    * Creates a patch with a single operation at the root path.
@@ -173,7 +173,7 @@ object JsonPatch {
    *   }}}
    */
   def root(op: Op): JsonPatch =
-    new JsonPatch(Chunk(new JsonPatchOp(DynamicOptic.root, op)))
+    new JsonPatch(Vector(new JsonPatchOp(DynamicOptic.root, op)))
 
   /**
    * Creates a patch with a single operation at the given path.
@@ -188,7 +188,7 @@ object JsonPatch {
    *   }}}
    */
   def apply(path: DynamicOptic, op: Op): JsonPatch =
-    new JsonPatch(Chunk(new JsonPatchOp(path, op)))
+    new JsonPatch(Vector(new JsonPatchOp(path, op)))
 
   /**
    * Computes a patch that transforms `oldJson` into `newJson`.
@@ -211,7 +211,7 @@ object JsonPatch {
    * (e.g., non-string map keys, temporal deltas, variant operations).
    */
   def fromDynamicPatch(patch: DynamicPatch): Either[SchemaError, JsonPatch] = {
-    val builder                    = Chunk.newBuilder[JsonPatchOp]
+    val builder                    = Vector.newBuilder[JsonPatchOp]
     var idx                        = 0
     var error: Option[SchemaError] = None
 
@@ -273,14 +273,14 @@ object JsonPatch {
      *
      * Used for inserting, appending, deleting, or modifying array elements.
      */
-    final case class ArrayEdit(ops: Chunk[ArrayOp]) extends Op
+    final case class ArrayEdit(ops: Vector[ArrayOp]) extends Op
 
     /**
      * Apply object edit operations.
      *
      * Used for adding, removing, or modifying object fields.
      */
-    final case class ObjectEdit(ops: Chunk[ObjectOp]) extends Op
+    final case class ObjectEdit(ops: Vector[ObjectOp]) extends Op
 
     /**
      * Apply a nested patch.
@@ -314,7 +314,7 @@ object JsonPatch {
     /**
      * Apply string edit operations.
      */
-    final case class StringEdit(ops: Chunk[StringOp]) extends PrimitiveOp
+    final case class StringEdit(ops: Vector[StringOp]) extends PrimitiveOp
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -711,7 +711,7 @@ object JsonPatch {
 
   private def applyStringEdits(
     str: java.lang.String,
-    ops: Chunk[StringOp]
+    ops: Vector[StringOp]
   ): Either[SchemaError, java.lang.String] = {
     var result                     = str
     var idx                        = 0
@@ -792,7 +792,7 @@ object JsonPatch {
 
   private def applyArrayEdit(
     json: Json,
-    ops: Chunk[ArrayOp],
+    ops: Vector[ArrayOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Json] =
@@ -805,7 +805,7 @@ object JsonPatch {
 
   private def applyArrayOps(
     elements: Chunk[Json],
-    ops: Chunk[ArrayOp],
+    ops: Vector[ArrayOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Chunk[Json]] = {
@@ -922,7 +922,7 @@ object JsonPatch {
 
   private def applyObjectEdit(
     json: Json,
-    ops: Chunk[ObjectOp],
+    ops: Vector[ObjectOp],
     mode: PatchMode
   ): Either[SchemaError, Json] =
     json match {
@@ -934,7 +934,7 @@ object JsonPatch {
 
   private def applyObjectOps(
     fields: Chunk[(java.lang.String, Json)],
-    ops: Chunk[ObjectOp],
+    ops: Vector[ObjectOp],
     mode: PatchMode
   ): Either[SchemaError, Chunk[(java.lang.String, Json)]] = {
     var result                     = fields
@@ -1253,7 +1253,7 @@ object JsonPatch {
       case DynamicPatch.PrimitiveOp.BigIntDelta(delta) =>
         new Right(PrimitiveOp.NumberDelta(BigDecimal(delta)))
       case DynamicPatch.PrimitiveOp.StringEdit(ops) =>
-        new Right(PrimitiveOp.StringEdit(Chunk.fromIterable(ops.map(dynamicStringOpToJsonStringOp))))
+        new Right(PrimitiveOp.StringEdit(ops.map(dynamicStringOpToJsonStringOp).toVector))
       case _ =>
         new Left(SchemaError.message(s"Cannot convert ${op.getClass.getSimpleName} to JSON primitive operation"))
     }
@@ -1266,8 +1266,8 @@ object JsonPatch {
       case DynamicPatch.StringOp.Modify(idx, len, text) => StringOp.Modify(idx, len, text)
     }
 
-  private def sequenceOpsToArrayOps(ops: Vector[DynamicPatch.SeqOp]): Either[SchemaError, Chunk[ArrayOp]] = {
-    val builder                    = Chunk.newBuilder[ArrayOp]
+  private def sequenceOpsToArrayOps(ops: Vector[DynamicPatch.SeqOp]): Either[SchemaError, Vector[ArrayOp]] = {
+    val builder                    = Vector.newBuilder[ArrayOp]
     var idx                        = 0
     var error: Option[SchemaError] = None
 
@@ -1297,8 +1297,8 @@ object JsonPatch {
         dynamicOperationToOp(nestedOp).map(op => ArrayOp.Modify(idx, op))
     }
 
-  private def mapOpsToObjectOps(ops: Vector[DynamicPatch.MapOp]): Either[SchemaError, Chunk[ObjectOp]] = {
-    val builder                    = Chunk.newBuilder[ObjectOp]
+  private def mapOpsToObjectOps(ops: Vector[DynamicPatch.MapOp]): Either[SchemaError, Vector[ObjectOp]] = {
+    val builder                    = Vector.newBuilder[ObjectOp]
     var idx                        = 0
     var error: Option[SchemaError] = None
 

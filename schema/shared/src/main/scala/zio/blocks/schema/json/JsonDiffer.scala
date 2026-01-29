@@ -97,13 +97,13 @@ private[json] object JsonDiffer {
   private def computeStringEdits(
     oldStr: java.lang.String,
     newStr: java.lang.String
-  ): Chunk[JsonPatch.StringOp] = {
-    if (oldStr == newStr) return Chunk.empty
-    if (oldStr.isEmpty) return Chunk(JsonPatch.StringOp.Insert(0, newStr))
-    if (newStr.isEmpty) return Chunk(JsonPatch.StringOp.Delete(0, oldStr.length))
+  ): Vector[JsonPatch.StringOp] = {
+    if (oldStr == newStr) return Vector.empty
+    if (oldStr.isEmpty) return Vector(JsonPatch.StringOp.Insert(0, newStr))
+    if (newStr.isEmpty) return Vector(JsonPatch.StringOp.Delete(0, oldStr.length))
 
     val lcs   = longestCommonSubsequence(oldStr, newStr)
-    val edits = Chunk.newBuilder[JsonPatch.StringOp]
+    val edits = Vector.newBuilder[JsonPatch.StringOp]
 
     var oldIdx = 0
     var newIdx = 0
@@ -204,17 +204,17 @@ private[json] object JsonDiffer {
     if (oldElems == newElems) {
       JsonPatch.empty
     } else if (oldElems.isEmpty) {
-      JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(newElems))))
+      JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(newElems))))
     } else if (newElems.isEmpty) {
-      JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Delete(0, oldElems.length))))
+      JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(0, oldElems.length))))
     } else {
       val arrayOps = computeArrayOps(oldElems, newElems)
       if (arrayOps.isEmpty) JsonPatch.empty
       else JsonPatch.root(JsonPatch.Op.ArrayEdit(arrayOps))
     }
 
-  private def computeArrayOps(oldElems: Chunk[Json], newElems: Chunk[Json]): Chunk[JsonPatch.ArrayOp] = {
-    val ops       = Chunk.newBuilder[JsonPatch.ArrayOp]
+  private def computeArrayOps(oldElems: Chunk[Json], newElems: Chunk[Json]): Vector[JsonPatch.ArrayOp] = {
+    val ops       = Vector.newBuilder[JsonPatch.ArrayOp]
     val matches   = longestCommonSubsequenceIndices(oldElems, newElems)
     var oldIdx    = 0
     var newIdx    = 0
@@ -305,7 +305,7 @@ private[json] object JsonDiffer {
     val oldMap = oldFields.toMap
     val newMap = newFields.toMap
 
-    val ops = Chunk.newBuilder[JsonPatch.ObjectOp]
+    val ops = Vector.newBuilder[JsonPatch.ObjectOp]
 
     // Find added and modified keys
     var i = 0

@@ -336,32 +336,32 @@ object JsonPatchSpec extends SchemaBaseSpec {
     },
     test("Strict mode fails on missing field") {
       val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
-      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Remove("nonexistent"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("nonexistent"))))
       val result = patch(json, PatchMode.Strict)
       assertTrue(result.isLeft)
     },
     test("Lenient mode skips missing field removal") {
       val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
-      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Remove("nonexistent"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("nonexistent"))))
       val result = patch(json, PatchMode.Lenient)
       assertTrue(result == new Right(json))
     },
     test("Clobber mode overwrites existing field on Add") {
       val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
-      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
       val result = patch(json, PatchMode.Clobber)
       assertTrue(result == new Right(new Json.Object(Chunk(("a", new Json.Number("2"))))))
     },
     test("Strict mode fails on out-of-bounds array delete") {
       val json   = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))
-      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Delete(10, 1))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(10, 1))))
       val result = patch(json, PatchMode.Strict)
       assertTrue(result.isLeft)
     },
     test("Clobber mode clamps out-of-bounds array insert") {
       val json  = new Json.Array(Chunk(new Json.Number("1")))
       val patch =
-        JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Insert(100, Chunk(new Json.Number("2"))))))
+        JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(100, Chunk(new Json.Number("2"))))))
       val result = patch(json, PatchMode.Clobber)
       assertTrue(result.isRight)
     }
@@ -392,14 +392,14 @@ object JsonPatchSpec extends SchemaBaseSpec {
     },
     test("ArrayEdit applies array operations") {
       val json     = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))
-      val patch    = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("3"))))))
+      val patch    = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("3"))))))
       val result   = patch(json, PatchMode.Strict)
       val expected = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
       assertTrue(result == new Right(expected))
     },
     test("ObjectEdit applies object operations") {
       val json     = new Json.Object(Chunk(("a", new Json.Number("1"))))
-      val patch    = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Add("b", new Json.Number("2")))))
+      val patch    = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("b", new Json.Number("2")))))
       val result   = patch(json, PatchMode.Strict)
       val expected = new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2"))))
       assertTrue(result == new Right(expected))
@@ -421,7 +421,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     test("Insert adds values at index") {
       val json  = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("3")))
       val patch =
-        JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Insert(1, Chunk(new Json.Number("2"))))))
+        JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(1, Chunk(new Json.Number("2"))))))
       val result   = patch(json, PatchMode.Strict)
       val expected = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
       assertTrue(result == new Right(expected))
@@ -429,7 +429,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     test("Append adds values at end") {
       val json  = new Json.Array(Chunk(new Json.Number("1")))
       val patch = JsonPatch.root(
-        JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"), new Json.Number("3")))))
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"), new Json.Number("3")))))
       )
       val result   = patch(json, PatchMode.Strict)
       val expected = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
@@ -437,7 +437,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     },
     test("Delete removes elements") {
       val json     = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
-      val patch    = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Delete(1, 1))))
+      val patch    = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(1, 1))))
       val result   = patch(json, PatchMode.Strict)
       val expected = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("3")))
       assertTrue(result == new Right(expected))
@@ -445,7 +445,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     test("Modify updates element at index") {
       val json     = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))
       val modifyOp = JsonPatch.Op.Set(new Json.Number("10"))
-      val patch    = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Modify(0, modifyOp))))
+      val patch    = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Modify(0, modifyOp))))
       val result   = patch(json, PatchMode.Strict)
       val expected = new Json.Array(Chunk(new Json.Number("10"), new Json.Number("2")))
       assertTrue(result == new Right(expected))
@@ -454,7 +454,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
       val patch = JsonPatch.root(
         JsonPatch.Op.ArrayEdit(
-          Chunk(
+          Vector(
             JsonPatch.ArrayOp.Delete(1, 1),
             JsonPatch.ArrayOp.Append(Chunk(new Json.Number("4")))
           )
@@ -473,7 +473,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
   val objectOpSuite: Spec[Any, Nothing] = suite("ObjectOp variants")(
     test("Add inserts new field") {
       val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
-      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Add("b", new Json.Number("2")))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("b", new Json.Number("2")))))
       val result = patch(json, PatchMode.Strict)
       assertTrue(result.isRight)
       result.foreach { r =>
@@ -484,7 +484,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     },
     test("Remove deletes existing field") {
       val json     = new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2"))))
-      val patch    = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Remove("a"))))
+      val patch    = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("a"))))
       val result   = patch(json, PatchMode.Strict)
       val expected = new Json.Object(Chunk(("b", new Json.Number("2"))))
       assertTrue(result == new Right(expected))
@@ -492,7 +492,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     test("Modify updates existing field") {
       val innerPatch = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
       val json       = new Json.Object(Chunk(("x", new Json.Number("10"))))
-      val patch      = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Modify("x", innerPatch))))
+      val patch      = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("x", innerPatch))))
       val result     = patch(json, PatchMode.Strict)
       val expected   = new Json.Object(Chunk(("x", new Json.Number("15"))))
       assertTrue(result == new Right(expected))
@@ -501,7 +501,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2"))))
       val patch = JsonPatch.root(
         JsonPatch.Op.ObjectEdit(
-          Chunk(
+          Vector(
             JsonPatch.ObjectOp.Remove("a"),
             JsonPatch.ObjectOp.Add("c", new Json.Number("3"))
           )
@@ -522,7 +522,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.String("hello world")
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Insert(5, " beautiful")))
+          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(5, " beautiful")))
         )
       )
       val result = patch(json, PatchMode.Strict)
@@ -532,7 +532,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.String("hello world")
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Delete(5, 6)))
+          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Delete(5, 6)))
         )
       )
       val result = patch(json, PatchMode.Strict)
@@ -542,7 +542,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.String("hello")
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Append(" world")))
+          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Append(" world")))
         )
       )
       val result = patch(json, PatchMode.Strict)
@@ -552,7 +552,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.String("hello world")
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Modify(6, 5, "there")))
+          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Modify(6, 5, "there")))
         )
       )
       val result = patch(json, PatchMode.Strict)
@@ -563,7 +563,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
           JsonPatch.PrimitiveOp.StringEdit(
-            Chunk(
+            Vector(
               JsonPatch.StringOp.Delete(1, 1),
               JsonPatch.StringOp.Append("xyz")
             )
@@ -649,7 +649,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.String("hello")
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Append(" world")))
+          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Append(" world")))
         )
       )
       val dynamic         = patch.toDynamicPatch
@@ -661,7 +661,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     test("toDynamicPatch/fromDynamicPatch roundtrip preserves semantics for ArrayEdit.Insert") {
       val json  = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))
       val patch = JsonPatch.root(
-        JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Insert(1, Chunk(new Json.Number("99")))))
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(1, Chunk(new Json.Number("99")))))
       )
       val dynamic         = patch.toDynamicPatch
       val back            = JsonPatch.fromDynamicPatch(dynamic)
@@ -671,7 +671,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     },
     test("toDynamicPatch/fromDynamicPatch roundtrip preserves semantics for ArrayEdit.Delete") {
       val json            = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
-      val patch           = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Delete(1, 1))))
+      val patch           = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(1, 1))))
       val dynamic         = patch.toDynamicPatch
       val back            = JsonPatch.fromDynamicPatch(dynamic)
       val originalResult  = patch(json, PatchMode.Strict)
@@ -681,7 +681,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     test("toDynamicPatch/fromDynamicPatch roundtrip preserves semantics for ObjectEdit.Add") {
       val json  = new Json.Object(Chunk(("a", new Json.Number("1"))))
       val patch = JsonPatch.root(
-        JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Add("b", new Json.Number("2"))))
+        JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("b", new Json.Number("2"))))
       )
       val dynamic         = patch.toDynamicPatch
       val back            = JsonPatch.fromDynamicPatch(dynamic)
@@ -691,7 +691,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     },
     test("toDynamicPatch/fromDynamicPatch roundtrip preserves semantics for ObjectEdit.Remove") {
       val json            = new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2"))))
-      val patch           = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Remove("b"))))
+      val patch           = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("b"))))
       val dynamic         = patch.toDynamicPatch
       val back            = JsonPatch.fromDynamicPatch(dynamic)
       val originalResult  = patch(json, PatchMode.Strict)
@@ -725,7 +725,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     },
     test("toDynamicPatch/fromDynamicPatch roundtrip preserves semantics for ArrayOp.Append") {
       val json            = new Json.Array(Chunk(new Json.Number("1")))
-      val patch           = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val patch           = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
       val dynamic         = patch.toDynamicPatch
       val back            = JsonPatch.fromDynamicPatch(dynamic)
       val originalResult  = patch(json, PatchMode.Strict)
@@ -736,7 +736,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.Array(Chunk(new Json.Number("10")))
       val patch = JsonPatch.root(
         JsonPatch.Op.ArrayEdit(
-          Chunk(
+          Vector(
             JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
           )
         )
@@ -752,7 +752,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val nestedPatch = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
       val patch       = JsonPatch.root(
         JsonPatch.Op.ObjectEdit(
-          Chunk(
+          Vector(
             JsonPatch.ObjectOp.Modify("count", nestedPatch)
           )
         )
@@ -935,7 +935,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.Number("42")
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Append("x")))
+          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Append("x")))
         )
       )
       val result = patch(json, PatchMode.Strict)
@@ -943,13 +943,13 @@ object JsonPatchSpec extends SchemaBaseSpec {
     },
     test("Type mismatch: array edit on object") {
       val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
-      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
       val result = patch(json, PatchMode.Strict)
       assertTrue(result.isLeft)
     },
     test("Type mismatch: object edit on array") {
       val json   = new Json.Array(Chunk(new Json.Number("1")))
-      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
       val result = patch(json, PatchMode.Strict)
       assertTrue(result.isLeft)
     },
@@ -957,7 +957,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.Array(Chunk(new Json.Number("1")))
       val patch = JsonPatch.root(
         JsonPatch.Op.ArrayEdit(
-          Chunk(
+          Vector(
             JsonPatch.ArrayOp.Modify(5, JsonPatch.Op.Set(new Json.Number("10")))
           )
         )
@@ -969,7 +969,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.String("abc")
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Insert(100, "x")))
+          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(100, "x")))
         )
       )
       val result = patch(json, PatchMode.Strict)
@@ -979,7 +979,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json  = new Json.String("abc")
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Delete(0, 100)))
+          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Delete(0, 100)))
         )
       )
       val result = patch(json, PatchMode.Strict)
@@ -1015,13 +1015,13 @@ object JsonPatchSpec extends SchemaBaseSpec {
     // Lenient mode type-mismatch tests: should return unchanged
     test("Type mismatch in Lenient mode: array edit on object returns unchanged") {
       val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
-      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
       val result = patch(json, PatchMode.Lenient)
       assertTrue(result == new Right(json))
     },
     test("Type mismatch in Lenient mode: object edit on array returns unchanged") {
       val json   = new Json.Array(Chunk(new Json.Number("1")))
-      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
       val result = patch(json, PatchMode.Lenient)
       assertTrue(result == new Right(json))
     },
@@ -1034,7 +1034,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
     test("Type mismatch in Lenient mode: string edit on number returns unchanged") {
       val json  = new Json.Number("42")
       val patch = JsonPatch.root(
-        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Insert(0, "x"))))
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(0, "x"))))
       )
       val result = patch(json, PatchMode.Lenient)
       assertTrue(result == new Right(json))
@@ -1042,13 +1042,13 @@ object JsonPatchSpec extends SchemaBaseSpec {
     // Clobber mode type-mismatch tests: should return unchanged (nothing to clobber)
     test("Type mismatch in Clobber mode: array edit on object returns unchanged") {
       val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
-      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
       val result = patch(json, PatchMode.Clobber)
       assertTrue(result == new Right(json))
     },
     test("Type mismatch in Clobber mode: object edit on array returns unchanged") {
       val json   = new Json.Array(Chunk(new Json.Number("1")))
-      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
       val result = patch(json, PatchMode.Clobber)
       assertTrue(result == new Right(json))
     }
