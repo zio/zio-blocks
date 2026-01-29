@@ -1,10 +1,11 @@
 package zio.blocks.schema.structural.common
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
 /** Tests for As integration with structural types. */
-object AsIntegrationSpec extends ZIOSpecDefault {
+object AsIntegrationSpec extends SchemaBaseSpec {
 
   case class Person(name: String, age: Int)
   type PersonStructure = { def name: String; def age: Int }

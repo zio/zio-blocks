@@ -1,10 +1,11 @@
 package zio.blocks.schema.structural.common
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
 /** Tests for tuple to structural type conversion. */
-object TuplesSpec extends ZIOSpecDefault {
+object TuplesSpec extends SchemaBaseSpec {
 
   def spec: Spec[Any, Nothing] = suite("TuplesSpec")(
     test("tuple3 has correct field names") {

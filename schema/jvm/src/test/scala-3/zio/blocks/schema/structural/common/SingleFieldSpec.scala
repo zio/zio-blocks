@@ -1,10 +1,11 @@
 package zio.blocks.schema.structural.common
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
 /** Tests for single-field product types to structural conversion. */
-object SingleFieldSpec extends ZIOSpecDefault {
+object SingleFieldSpec extends SchemaBaseSpec {
 
   case class Id(value: String)
   case class Count(n: Int)

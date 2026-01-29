@@ -1,9 +1,10 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
-object OpaqueTypeUnpackingSpec extends ZIOSpecDefault {
+object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
 
   opaque type UserId <: String = String
   object UserId {

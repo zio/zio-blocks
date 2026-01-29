@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
@@ -6,7 +7,7 @@ import zio.test._
 /**
  * Tests for sealed trait to structural union type conversion (Scala 3 only).
  */
-object UnionTypesSpec extends ZIOSpecDefault {
+object UnionTypesSpec extends SchemaBaseSpec {
 
   sealed trait Result
   object Result {

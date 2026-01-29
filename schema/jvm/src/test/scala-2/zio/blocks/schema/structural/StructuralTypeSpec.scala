@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import scala.language.reflectiveCalls
 
@@ -8,7 +9,7 @@ import zio.test._
 /**
  * Tests for Scala 2 pure structural type derivation (JVM only).
  */
-object StructuralTypeSpec extends ZIOSpecDefault {
+object StructuralTypeSpec extends SchemaBaseSpec {
 
   type PersonLike = { def name: String; def age: Int }
   type PointLike  = { def x: Int; def y: Int }
