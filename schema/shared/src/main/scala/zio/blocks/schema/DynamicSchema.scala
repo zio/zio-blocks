@@ -807,6 +807,738 @@ object DynamicSchema {
     )
   )
 
+  // ===========================================================================
+  // Validation Schemas
+  // ===========================================================================
+
+  /** Schema for [[Validation.None]]. */
+  private lazy val validationNoneSchema: Schema[Validation.None.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.None.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation")), "None"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Validation.None.type](Validation.None),
+        deconstructor = new ConstantDeconstructor[Validation.None.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.Numeric.Positive]]. */
+  private lazy val validationPositiveSchema: Schema[Validation.Numeric.Positive.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.Numeric.Positive.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "Positive"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Validation.Numeric.Positive.type](Validation.Numeric.Positive),
+        deconstructor = new ConstantDeconstructor[Validation.Numeric.Positive.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.Numeric.Negative]]. */
+  private lazy val validationNegativeSchema: Schema[Validation.Numeric.Negative.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.Numeric.Negative.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "Negative"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Validation.Numeric.Negative.type](Validation.Numeric.Negative),
+        deconstructor = new ConstantDeconstructor[Validation.Numeric.Negative.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.Numeric.NonPositive]]. */
+  private lazy val validationNonPositiveSchema: Schema[Validation.Numeric.NonPositive.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.Numeric.NonPositive.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "NonPositive"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Validation.Numeric.NonPositive.type](Validation.Numeric.NonPositive),
+        deconstructor = new ConstantDeconstructor[Validation.Numeric.NonPositive.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.Numeric.NonNegative]]. */
+  private lazy val validationNonNegativeSchema: Schema[Validation.Numeric.NonNegative.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.Numeric.NonNegative.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "NonNegative"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Validation.Numeric.NonNegative.type](Validation.Numeric.NonNegative),
+        deconstructor = new ConstantDeconstructor[Validation.Numeric.NonNegative.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.Numeric.Range]] (type-erased). */
+  private lazy val validationRangeSchema: Schema[Validation.Numeric.Range[_]] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.Numeric.Range[_]](
+      fields = Vector(
+        Schema[Option[String]].reflect.asTerm("min"),
+        Schema[Option[String]].reflect.asTerm("max")
+      ),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "Range"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Validation.Numeric.Range[_]] {
+          def usedRegisters: RegisterOffset                                                 = 2
+          def construct(in: Registers, offset: RegisterOffset): Validation.Numeric.Range[_] =
+            Validation.Numeric.Range[String](
+              in.getObject(offset).asInstanceOf[Option[String]],
+              in.getObject(offset + 1).asInstanceOf[Option[String]]
+            )
+        },
+        deconstructor = new Deconstructor[Validation.Numeric.Range[_]] {
+          def usedRegisters: RegisterOffset                                                              = 2
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Validation.Numeric.Range[_]): Unit = {
+            out.setObject(offset, in.min.map(_.toString))
+            out.setObject(offset + 1, in.max.map(_.toString))
+          }
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.Numeric.Set]] (type-erased). */
+  private lazy val validationSetSchema: Schema[Validation.Numeric.Set[_]] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.Numeric.Set[_]](
+      fields = Vector(Schema[Set[String]].reflect.asTerm("values")),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "Set"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Validation.Numeric.Set[_]] {
+          def usedRegisters: RegisterOffset                                               = 1
+          def construct(in: Registers, offset: RegisterOffset): Validation.Numeric.Set[_] =
+            Validation.Numeric.Set[String](in.getObject(offset).asInstanceOf[Set[String]])
+        },
+        deconstructor = new Deconstructor[Validation.Numeric.Set[_]] {
+          def usedRegisters: RegisterOffset                                                            = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Validation.Numeric.Set[_]): Unit =
+            out.setObject(offset, in.values.map(_.toString))
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.String.NonEmpty]]. */
+  private lazy val validationStringNonEmptySchema: Schema[Validation.String.NonEmpty.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.String.NonEmpty.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "NonEmpty"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Validation.String.NonEmpty.type](Validation.String.NonEmpty),
+        deconstructor = new ConstantDeconstructor[Validation.String.NonEmpty.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.String.Empty]]. */
+  private lazy val validationStringEmptySchema: Schema[Validation.String.Empty.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.String.Empty.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "Empty"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Validation.String.Empty.type](Validation.String.Empty),
+        deconstructor = new ConstantDeconstructor[Validation.String.Empty.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.String.Blank]]. */
+  private lazy val validationStringBlankSchema: Schema[Validation.String.Blank.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.String.Blank.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "Blank"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Validation.String.Blank.type](Validation.String.Blank),
+        deconstructor = new ConstantDeconstructor[Validation.String.Blank.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.String.NonBlank]]. */
+  private lazy val validationStringNonBlankSchema: Schema[Validation.String.NonBlank.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.String.NonBlank.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "NonBlank"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Validation.String.NonBlank.type](Validation.String.NonBlank),
+        deconstructor = new ConstantDeconstructor[Validation.String.NonBlank.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.String.Length]]. */
+  private lazy val validationStringLengthSchema: Schema[Validation.String.Length] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.String.Length](
+      fields = Vector(
+        Schema[Option[Int]].reflect.asTerm("min"),
+        Schema[Option[Int]].reflect.asTerm("max")
+      ),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "Length"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Validation.String.Length] {
+          def usedRegisters: RegisterOffset                                              = 2
+          def construct(in: Registers, offset: RegisterOffset): Validation.String.Length =
+            Validation.String.Length(
+              in.getObject(offset).asInstanceOf[Option[Int]],
+              in.getObject(offset + 1).asInstanceOf[Option[Int]]
+            )
+        },
+        deconstructor = new Deconstructor[Validation.String.Length] {
+          def usedRegisters: RegisterOffset                                                           = 2
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Validation.String.Length): Unit = {
+            out.setObject(offset, in.min)
+            out.setObject(offset + 1, in.max)
+          }
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation.String.Pattern]]. */
+  private lazy val validationStringPatternSchema: Schema[Validation.String.Pattern] = new Schema(
+    reflect = new Reflect.Record[Binding, Validation.String.Pattern](
+      fields = Vector(Schema[String].reflect.asTerm("regex")),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "Pattern"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Validation.String.Pattern] {
+          def usedRegisters: RegisterOffset                                               = 1
+          def construct(in: Registers, offset: RegisterOffset): Validation.String.Pattern =
+            Validation.String.Pattern(in.getObject(offset).asInstanceOf[String])
+        },
+        deconstructor = new Deconstructor[Validation.String.Pattern] {
+          def usedRegisters: RegisterOffset                                                            = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Validation.String.Pattern): Unit =
+            out.setObject(offset, in.regex)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Validation]] (type-erased). */
+  implicit lazy val validationSchema: Schema[Validation[_]] = new Schema(
+    reflect = new Reflect.Variant[Binding, Validation[_]](
+      cases = Vector(
+        validationNoneSchema.reflect.asTerm("None"),
+        validationPositiveSchema.reflect.asTerm("Positive"),
+        validationNegativeSchema.reflect.asTerm("Negative"),
+        validationNonPositiveSchema.reflect.asTerm("NonPositive"),
+        validationNonNegativeSchema.reflect.asTerm("NonNegative"),
+        validationRangeSchema.reflect.asTerm("Range"),
+        validationSetSchema.reflect.asTerm("Set"),
+        validationStringNonEmptySchema.reflect.asTerm("StringNonEmpty"),
+        validationStringEmptySchema.reflect.asTerm("StringEmpty"),
+        validationStringBlankSchema.reflect.asTerm("StringBlank"),
+        validationStringNonBlankSchema.reflect.asTerm("StringNonBlank"),
+        validationStringLengthSchema.reflect.asTerm("StringLength"),
+        validationStringPatternSchema.reflect.asTerm("StringPattern")
+      ),
+      typeName = new TypeName(Namespace.zioBlocksSchema, "Validation"),
+      variantBinding = new Binding.Variant(
+        discriminator = new Discriminator[Validation[_]] {
+          def discriminate(a: Validation[_]): Int = a match {
+            case Validation.None                => 0
+            case Validation.Numeric.Positive    => 1
+            case Validation.Numeric.Negative    => 2
+            case Validation.Numeric.NonPositive => 3
+            case Validation.Numeric.NonNegative => 4
+            case _: Validation.Numeric.Range[_] => 5
+            case _: Validation.Numeric.Set[_]   => 6
+            case Validation.String.NonEmpty     => 7
+            case Validation.String.Empty        => 8
+            case Validation.String.Blank        => 9
+            case Validation.String.NonBlank     => 10
+            case _: Validation.String.Length    => 11
+            case _: Validation.String.Pattern   => 12
+          }
+        },
+        matchers = Matchers(
+          new Matcher[Validation.None.type] {
+            def downcastOrNull(a: Any): Validation.None.type = a match {
+              case Validation.None => Validation.None
+              case _               => null.asInstanceOf[Validation.None.type]
+            }
+          },
+          new Matcher[Validation.Numeric.Positive.type] {
+            def downcastOrNull(a: Any): Validation.Numeric.Positive.type = a match {
+              case Validation.Numeric.Positive => Validation.Numeric.Positive
+              case _                           => null.asInstanceOf[Validation.Numeric.Positive.type]
+            }
+          },
+          new Matcher[Validation.Numeric.Negative.type] {
+            def downcastOrNull(a: Any): Validation.Numeric.Negative.type = a match {
+              case Validation.Numeric.Negative => Validation.Numeric.Negative
+              case _                           => null.asInstanceOf[Validation.Numeric.Negative.type]
+            }
+          },
+          new Matcher[Validation.Numeric.NonPositive.type] {
+            def downcastOrNull(a: Any): Validation.Numeric.NonPositive.type = a match {
+              case Validation.Numeric.NonPositive => Validation.Numeric.NonPositive
+              case _                              => null.asInstanceOf[Validation.Numeric.NonPositive.type]
+            }
+          },
+          new Matcher[Validation.Numeric.NonNegative.type] {
+            def downcastOrNull(a: Any): Validation.Numeric.NonNegative.type = a match {
+              case Validation.Numeric.NonNegative => Validation.Numeric.NonNegative
+              case _                              => null.asInstanceOf[Validation.Numeric.NonNegative.type]
+            }
+          },
+          new Matcher[Validation.Numeric.Range[_]] {
+            def downcastOrNull(a: Any): Validation.Numeric.Range[_] = a match {
+              case x: Validation.Numeric.Range[_] => x
+              case _                              => null.asInstanceOf[Validation.Numeric.Range[_]]
+            }
+          },
+          new Matcher[Validation.Numeric.Set[_]] {
+            def downcastOrNull(a: Any): Validation.Numeric.Set[_] = a match {
+              case x: Validation.Numeric.Set[_] => x
+              case _                            => null.asInstanceOf[Validation.Numeric.Set[_]]
+            }
+          },
+          new Matcher[Validation.String.NonEmpty.type] {
+            def downcastOrNull(a: Any): Validation.String.NonEmpty.type = a match {
+              case Validation.String.NonEmpty => Validation.String.NonEmpty
+              case _                          => null.asInstanceOf[Validation.String.NonEmpty.type]
+            }
+          },
+          new Matcher[Validation.String.Empty.type] {
+            def downcastOrNull(a: Any): Validation.String.Empty.type = a match {
+              case Validation.String.Empty => Validation.String.Empty
+              case _                       => null.asInstanceOf[Validation.String.Empty.type]
+            }
+          },
+          new Matcher[Validation.String.Blank.type] {
+            def downcastOrNull(a: Any): Validation.String.Blank.type = a match {
+              case Validation.String.Blank => Validation.String.Blank
+              case _                       => null.asInstanceOf[Validation.String.Blank.type]
+            }
+          },
+          new Matcher[Validation.String.NonBlank.type] {
+            def downcastOrNull(a: Any): Validation.String.NonBlank.type = a match {
+              case Validation.String.NonBlank => Validation.String.NonBlank
+              case _                          => null.asInstanceOf[Validation.String.NonBlank.type]
+            }
+          },
+          new Matcher[Validation.String.Length] {
+            def downcastOrNull(a: Any): Validation.String.Length = a match {
+              case x: Validation.String.Length => x
+              case _                           => null.asInstanceOf[Validation.String.Length]
+            }
+          },
+          new Matcher[Validation.String.Pattern] {
+            def downcastOrNull(a: Any): Validation.String.Pattern = a match {
+              case x: Validation.String.Pattern => x
+              case _                            => null.asInstanceOf[Validation.String.Pattern]
+            }
+          }
+        )
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  // ===========================================================================
+  // PrimitiveType Schemas
+  // ===========================================================================
+
+  /** Schema for [[PrimitiveType.Unit]]. */
+  private lazy val primitiveTypeUnitSchema: Schema[PrimitiveType.Unit.type] = new Schema(
+    reflect = new Reflect.Record[Binding, PrimitiveType.Unit.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveType")), "Unit"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[PrimitiveType.Unit.type](PrimitiveType.Unit),
+        deconstructor = new ConstantDeconstructor[PrimitiveType.Unit.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /**
+   * Helper to create schemas for PrimitiveType case classes with validation.
+   */
+  private def primitiveTypeWithValidationSchema[A, V](
+    name: String,
+    make: Validation[V] => A,
+    getValidation: A => Validation[V]
+  ): Schema[A] = new Schema(
+    reflect = new Reflect.Record[Binding, A](
+      fields = Vector(validationSchema.reflect.asTerm("validation")),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveType")), name),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[A] {
+          def usedRegisters: RegisterOffset                       = 1
+          def construct(in: Registers, offset: RegisterOffset): A =
+            make(in.getObject(offset).asInstanceOf[Validation[V]])
+        },
+        deconstructor = new Deconstructor[A] {
+          def usedRegisters: RegisterOffset                                    = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit =
+            out.setObject(offset, getValidation(in))
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  private lazy val primitiveTypeBooleanSchema: Schema[PrimitiveType.Boolean] =
+    primitiveTypeWithValidationSchema("Boolean", PrimitiveType.Boolean(_), _.validation)
+
+  private lazy val primitiveTypeByteSchema: Schema[PrimitiveType.Byte] =
+    primitiveTypeWithValidationSchema("Byte", PrimitiveType.Byte(_), _.validation)
+
+  private lazy val primitiveTypeShortSchema: Schema[PrimitiveType.Short] =
+    primitiveTypeWithValidationSchema("Short", PrimitiveType.Short(_), _.validation)
+
+  private lazy val primitiveTypeIntSchema: Schema[PrimitiveType.Int] =
+    primitiveTypeWithValidationSchema("Int", PrimitiveType.Int(_), _.validation)
+
+  private lazy val primitiveTypeLongSchema: Schema[PrimitiveType.Long] =
+    primitiveTypeWithValidationSchema("Long", PrimitiveType.Long(_), _.validation)
+
+  private lazy val primitiveTypeFloatSchema: Schema[PrimitiveType.Float] =
+    primitiveTypeWithValidationSchema("Float", PrimitiveType.Float(_), _.validation)
+
+  private lazy val primitiveTypeDoubleSchema: Schema[PrimitiveType.Double] =
+    primitiveTypeWithValidationSchema("Double", PrimitiveType.Double(_), _.validation)
+
+  private lazy val primitiveTypeCharSchema: Schema[PrimitiveType.Char] =
+    primitiveTypeWithValidationSchema("Char", PrimitiveType.Char(_), _.validation)
+
+  private lazy val primitiveTypeStringSchema: Schema[PrimitiveType.String] =
+    primitiveTypeWithValidationSchema("String", PrimitiveType.String(_), _.validation)
+
+  private lazy val primitiveTypeBigIntSchema: Schema[PrimitiveType.BigInt] =
+    primitiveTypeWithValidationSchema("BigInt", PrimitiveType.BigInt(_), _.validation)
+
+  private lazy val primitiveTypeBigDecimalSchema: Schema[PrimitiveType.BigDecimal] =
+    primitiveTypeWithValidationSchema("BigDecimal", PrimitiveType.BigDecimal(_), _.validation)
+
+  private lazy val primitiveTypeDayOfWeekSchema: Schema[PrimitiveType.DayOfWeek] =
+    primitiveTypeWithValidationSchema("DayOfWeek", PrimitiveType.DayOfWeek(_), _.validation)
+
+  private lazy val primitiveTypeDurationSchema: Schema[PrimitiveType.Duration] =
+    primitiveTypeWithValidationSchema("Duration", PrimitiveType.Duration(_), _.validation)
+
+  private lazy val primitiveTypeInstantSchema: Schema[PrimitiveType.Instant] =
+    primitiveTypeWithValidationSchema("Instant", PrimitiveType.Instant(_), _.validation)
+
+  private lazy val primitiveTypeLocalDateSchema: Schema[PrimitiveType.LocalDate] =
+    primitiveTypeWithValidationSchema("LocalDate", PrimitiveType.LocalDate(_), _.validation)
+
+  private lazy val primitiveTypeLocalDateTimeSchema: Schema[PrimitiveType.LocalDateTime] =
+    primitiveTypeWithValidationSchema("LocalDateTime", PrimitiveType.LocalDateTime(_), _.validation)
+
+  private lazy val primitiveTypeLocalTimeSchema: Schema[PrimitiveType.LocalTime] =
+    primitiveTypeWithValidationSchema("LocalTime", PrimitiveType.LocalTime(_), _.validation)
+
+  private lazy val primitiveTypeMonthSchema: Schema[PrimitiveType.Month] =
+    primitiveTypeWithValidationSchema("Month", PrimitiveType.Month(_), _.validation)
+
+  private lazy val primitiveTypeMonthDaySchema: Schema[PrimitiveType.MonthDay] =
+    primitiveTypeWithValidationSchema("MonthDay", PrimitiveType.MonthDay(_), _.validation)
+
+  private lazy val primitiveTypeOffsetDateTimeSchema: Schema[PrimitiveType.OffsetDateTime] =
+    primitiveTypeWithValidationSchema("OffsetDateTime", PrimitiveType.OffsetDateTime(_), _.validation)
+
+  private lazy val primitiveTypeOffsetTimeSchema: Schema[PrimitiveType.OffsetTime] =
+    primitiveTypeWithValidationSchema("OffsetTime", PrimitiveType.OffsetTime(_), _.validation)
+
+  private lazy val primitiveTypePeriodSchema: Schema[PrimitiveType.Period] =
+    primitiveTypeWithValidationSchema("Period", PrimitiveType.Period(_), _.validation)
+
+  private lazy val primitiveTypeYearSchema: Schema[PrimitiveType.Year] =
+    primitiveTypeWithValidationSchema("Year", PrimitiveType.Year(_), _.validation)
+
+  private lazy val primitiveTypeYearMonthSchema: Schema[PrimitiveType.YearMonth] =
+    primitiveTypeWithValidationSchema("YearMonth", PrimitiveType.YearMonth(_), _.validation)
+
+  private lazy val primitiveTypeZoneIdSchema: Schema[PrimitiveType.ZoneId] =
+    primitiveTypeWithValidationSchema("ZoneId", PrimitiveType.ZoneId(_), _.validation)
+
+  private lazy val primitiveTypeZoneOffsetSchema: Schema[PrimitiveType.ZoneOffset] =
+    primitiveTypeWithValidationSchema("ZoneOffset", PrimitiveType.ZoneOffset(_), _.validation)
+
+  private lazy val primitiveTypeZonedDateTimeSchema: Schema[PrimitiveType.ZonedDateTime] =
+    primitiveTypeWithValidationSchema("ZonedDateTime", PrimitiveType.ZonedDateTime(_), _.validation)
+
+  private lazy val primitiveTypeCurrencySchema: Schema[PrimitiveType.Currency] =
+    primitiveTypeWithValidationSchema("Currency", PrimitiveType.Currency(_), _.validation)
+
+  private lazy val primitiveTypeUUIDSchema: Schema[PrimitiveType.UUID] =
+    primitiveTypeWithValidationSchema("UUID", PrimitiveType.UUID(_), _.validation)
+
+  /** Schema for [[PrimitiveType]] (type-erased variant). */
+  implicit lazy val primitiveTypeSchema: Schema[PrimitiveType[_]] = new Schema(
+    reflect = new Reflect.Variant[Binding, PrimitiveType[_]](
+      cases = Vector(
+        primitiveTypeUnitSchema.reflect.asTerm("Unit"),
+        primitiveTypeBooleanSchema.reflect.asTerm("Boolean"),
+        primitiveTypeByteSchema.reflect.asTerm("Byte"),
+        primitiveTypeShortSchema.reflect.asTerm("Short"),
+        primitiveTypeIntSchema.reflect.asTerm("Int"),
+        primitiveTypeLongSchema.reflect.asTerm("Long"),
+        primitiveTypeFloatSchema.reflect.asTerm("Float"),
+        primitiveTypeDoubleSchema.reflect.asTerm("Double"),
+        primitiveTypeCharSchema.reflect.asTerm("Char"),
+        primitiveTypeStringSchema.reflect.asTerm("String"),
+        primitiveTypeBigIntSchema.reflect.asTerm("BigInt"),
+        primitiveTypeBigDecimalSchema.reflect.asTerm("BigDecimal"),
+        primitiveTypeDayOfWeekSchema.reflect.asTerm("DayOfWeek"),
+        primitiveTypeDurationSchema.reflect.asTerm("Duration"),
+        primitiveTypeInstantSchema.reflect.asTerm("Instant"),
+        primitiveTypeLocalDateSchema.reflect.asTerm("LocalDate"),
+        primitiveTypeLocalDateTimeSchema.reflect.asTerm("LocalDateTime"),
+        primitiveTypeLocalTimeSchema.reflect.asTerm("LocalTime"),
+        primitiveTypeMonthSchema.reflect.asTerm("Month"),
+        primitiveTypeMonthDaySchema.reflect.asTerm("MonthDay"),
+        primitiveTypeOffsetDateTimeSchema.reflect.asTerm("OffsetDateTime"),
+        primitiveTypeOffsetTimeSchema.reflect.asTerm("OffsetTime"),
+        primitiveTypePeriodSchema.reflect.asTerm("Period"),
+        primitiveTypeYearSchema.reflect.asTerm("Year"),
+        primitiveTypeYearMonthSchema.reflect.asTerm("YearMonth"),
+        primitiveTypeZoneIdSchema.reflect.asTerm("ZoneId"),
+        primitiveTypeZoneOffsetSchema.reflect.asTerm("ZoneOffset"),
+        primitiveTypeZonedDateTimeSchema.reflect.asTerm("ZonedDateTime"),
+        primitiveTypeCurrencySchema.reflect.asTerm("Currency"),
+        primitiveTypeUUIDSchema.reflect.asTerm("UUID")
+      ),
+      typeName = new TypeName(Namespace.zioBlocksSchema, "PrimitiveType"),
+      variantBinding = new Binding.Variant(
+        discriminator = new Discriminator[PrimitiveType[_]] {
+          def discriminate(a: PrimitiveType[_]): Int = a match {
+            case PrimitiveType.Unit              => 0
+            case _: PrimitiveType.Boolean        => 1
+            case _: PrimitiveType.Byte           => 2
+            case _: PrimitiveType.Short          => 3
+            case _: PrimitiveType.Int            => 4
+            case _: PrimitiveType.Long           => 5
+            case _: PrimitiveType.Float          => 6
+            case _: PrimitiveType.Double         => 7
+            case _: PrimitiveType.Char           => 8
+            case _: PrimitiveType.String         => 9
+            case _: PrimitiveType.BigInt         => 10
+            case _: PrimitiveType.BigDecimal     => 11
+            case _: PrimitiveType.DayOfWeek      => 12
+            case _: PrimitiveType.Duration       => 13
+            case _: PrimitiveType.Instant        => 14
+            case _: PrimitiveType.LocalDate      => 15
+            case _: PrimitiveType.LocalDateTime  => 16
+            case _: PrimitiveType.LocalTime      => 17
+            case _: PrimitiveType.Month          => 18
+            case _: PrimitiveType.MonthDay       => 19
+            case _: PrimitiveType.OffsetDateTime => 20
+            case _: PrimitiveType.OffsetTime     => 21
+            case _: PrimitiveType.Period         => 22
+            case _: PrimitiveType.Year           => 23
+            case _: PrimitiveType.YearMonth      => 24
+            case _: PrimitiveType.ZoneId         => 25
+            case _: PrimitiveType.ZoneOffset     => 26
+            case _: PrimitiveType.ZonedDateTime  => 27
+            case _: PrimitiveType.Currency       => 28
+            case _: PrimitiveType.UUID           => 29
+          }
+        },
+        matchers = Matchers(
+          new Matcher[PrimitiveType.Unit.type] {
+            def downcastOrNull(a: Any): PrimitiveType.Unit.type = a match {
+              case PrimitiveType.Unit => PrimitiveType.Unit
+              case _                  => null.asInstanceOf[PrimitiveType.Unit.type]
+            }
+          },
+          new Matcher[PrimitiveType.Boolean] {
+            def downcastOrNull(a: Any): PrimitiveType.Boolean = a match {
+              case x: PrimitiveType.Boolean => x
+              case _                        => null.asInstanceOf[PrimitiveType.Boolean]
+            }
+          },
+          new Matcher[PrimitiveType.Byte] {
+            def downcastOrNull(a: Any): PrimitiveType.Byte = a match {
+              case x: PrimitiveType.Byte => x
+              case _                     => null.asInstanceOf[PrimitiveType.Byte]
+            }
+          },
+          new Matcher[PrimitiveType.Short] {
+            def downcastOrNull(a: Any): PrimitiveType.Short = a match {
+              case x: PrimitiveType.Short => x
+              case _                      => null.asInstanceOf[PrimitiveType.Short]
+            }
+          },
+          new Matcher[PrimitiveType.Int] {
+            def downcastOrNull(a: Any): PrimitiveType.Int = a match {
+              case x: PrimitiveType.Int => x
+              case _                    => null.asInstanceOf[PrimitiveType.Int]
+            }
+          },
+          new Matcher[PrimitiveType.Long] {
+            def downcastOrNull(a: Any): PrimitiveType.Long = a match {
+              case x: PrimitiveType.Long => x
+              case _                     => null.asInstanceOf[PrimitiveType.Long]
+            }
+          },
+          new Matcher[PrimitiveType.Float] {
+            def downcastOrNull(a: Any): PrimitiveType.Float = a match {
+              case x: PrimitiveType.Float => x
+              case _                      => null.asInstanceOf[PrimitiveType.Float]
+            }
+          },
+          new Matcher[PrimitiveType.Double] {
+            def downcastOrNull(a: Any): PrimitiveType.Double = a match {
+              case x: PrimitiveType.Double => x
+              case _                       => null.asInstanceOf[PrimitiveType.Double]
+            }
+          },
+          new Matcher[PrimitiveType.Char] {
+            def downcastOrNull(a: Any): PrimitiveType.Char = a match {
+              case x: PrimitiveType.Char => x
+              case _                     => null.asInstanceOf[PrimitiveType.Char]
+            }
+          },
+          new Matcher[PrimitiveType.String] {
+            def downcastOrNull(a: Any): PrimitiveType.String = a match {
+              case x: PrimitiveType.String => x
+              case _                       => null.asInstanceOf[PrimitiveType.String]
+            }
+          },
+          new Matcher[PrimitiveType.BigInt] {
+            def downcastOrNull(a: Any): PrimitiveType.BigInt = a match {
+              case x: PrimitiveType.BigInt => x
+              case _                       => null.asInstanceOf[PrimitiveType.BigInt]
+            }
+          },
+          new Matcher[PrimitiveType.BigDecimal] {
+            def downcastOrNull(a: Any): PrimitiveType.BigDecimal = a match {
+              case x: PrimitiveType.BigDecimal => x
+              case _                           => null.asInstanceOf[PrimitiveType.BigDecimal]
+            }
+          },
+          new Matcher[PrimitiveType.DayOfWeek] {
+            def downcastOrNull(a: Any): PrimitiveType.DayOfWeek = a match {
+              case x: PrimitiveType.DayOfWeek => x
+              case _                          => null.asInstanceOf[PrimitiveType.DayOfWeek]
+            }
+          },
+          new Matcher[PrimitiveType.Duration] {
+            def downcastOrNull(a: Any): PrimitiveType.Duration = a match {
+              case x: PrimitiveType.Duration => x
+              case _                         => null.asInstanceOf[PrimitiveType.Duration]
+            }
+          },
+          new Matcher[PrimitiveType.Instant] {
+            def downcastOrNull(a: Any): PrimitiveType.Instant = a match {
+              case x: PrimitiveType.Instant => x
+              case _                        => null.asInstanceOf[PrimitiveType.Instant]
+            }
+          },
+          new Matcher[PrimitiveType.LocalDate] {
+            def downcastOrNull(a: Any): PrimitiveType.LocalDate = a match {
+              case x: PrimitiveType.LocalDate => x
+              case _                          => null.asInstanceOf[PrimitiveType.LocalDate]
+            }
+          },
+          new Matcher[PrimitiveType.LocalDateTime] {
+            def downcastOrNull(a: Any): PrimitiveType.LocalDateTime = a match {
+              case x: PrimitiveType.LocalDateTime => x
+              case _                              => null.asInstanceOf[PrimitiveType.LocalDateTime]
+            }
+          },
+          new Matcher[PrimitiveType.LocalTime] {
+            def downcastOrNull(a: Any): PrimitiveType.LocalTime = a match {
+              case x: PrimitiveType.LocalTime => x
+              case _                          => null.asInstanceOf[PrimitiveType.LocalTime]
+            }
+          },
+          new Matcher[PrimitiveType.Month] {
+            def downcastOrNull(a: Any): PrimitiveType.Month = a match {
+              case x: PrimitiveType.Month => x
+              case _                      => null.asInstanceOf[PrimitiveType.Month]
+            }
+          },
+          new Matcher[PrimitiveType.MonthDay] {
+            def downcastOrNull(a: Any): PrimitiveType.MonthDay = a match {
+              case x: PrimitiveType.MonthDay => x
+              case _                         => null.asInstanceOf[PrimitiveType.MonthDay]
+            }
+          },
+          new Matcher[PrimitiveType.OffsetDateTime] {
+            def downcastOrNull(a: Any): PrimitiveType.OffsetDateTime = a match {
+              case x: PrimitiveType.OffsetDateTime => x
+              case _                               => null.asInstanceOf[PrimitiveType.OffsetDateTime]
+            }
+          },
+          new Matcher[PrimitiveType.OffsetTime] {
+            def downcastOrNull(a: Any): PrimitiveType.OffsetTime = a match {
+              case x: PrimitiveType.OffsetTime => x
+              case _                           => null.asInstanceOf[PrimitiveType.OffsetTime]
+            }
+          },
+          new Matcher[PrimitiveType.Period] {
+            def downcastOrNull(a: Any): PrimitiveType.Period = a match {
+              case x: PrimitiveType.Period => x
+              case _                       => null.asInstanceOf[PrimitiveType.Period]
+            }
+          },
+          new Matcher[PrimitiveType.Year] {
+            def downcastOrNull(a: Any): PrimitiveType.Year = a match {
+              case x: PrimitiveType.Year => x
+              case _                     => null.asInstanceOf[PrimitiveType.Year]
+            }
+          },
+          new Matcher[PrimitiveType.YearMonth] {
+            def downcastOrNull(a: Any): PrimitiveType.YearMonth = a match {
+              case x: PrimitiveType.YearMonth => x
+              case _                          => null.asInstanceOf[PrimitiveType.YearMonth]
+            }
+          },
+          new Matcher[PrimitiveType.ZoneId] {
+            def downcastOrNull(a: Any): PrimitiveType.ZoneId = a match {
+              case x: PrimitiveType.ZoneId => x
+              case _                       => null.asInstanceOf[PrimitiveType.ZoneId]
+            }
+          },
+          new Matcher[PrimitiveType.ZoneOffset] {
+            def downcastOrNull(a: Any): PrimitiveType.ZoneOffset = a match {
+              case x: PrimitiveType.ZoneOffset => x
+              case _                           => null.asInstanceOf[PrimitiveType.ZoneOffset]
+            }
+          },
+          new Matcher[PrimitiveType.ZonedDateTime] {
+            def downcastOrNull(a: Any): PrimitiveType.ZonedDateTime = a match {
+              case x: PrimitiveType.ZonedDateTime => x
+              case _                              => null.asInstanceOf[PrimitiveType.ZonedDateTime]
+            }
+          },
+          new Matcher[PrimitiveType.Currency] {
+            def downcastOrNull(a: Any): PrimitiveType.Currency = a match {
+              case x: PrimitiveType.Currency => x
+              case _                         => null.asInstanceOf[PrimitiveType.Currency]
+            }
+          },
+          new Matcher[PrimitiveType.UUID] {
+            def downcastOrNull(a: Any): PrimitiveType.UUID = a match {
+              case x: PrimitiveType.UUID => x
+              case _                     => null.asInstanceOf[PrimitiveType.UUID]
+            }
+          }
+        )
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
   /**
    * Schema for [[DynamicSchema]].
    *

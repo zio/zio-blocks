@@ -779,6 +779,973 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         assertTrue(jsonSchema != null)
       }
     ),
+    suite("toSchema encoding")(
+      test("toSchema.toDynamicValue uses identity for encoding") {
+        val ds     = Schema[Person].toDynamicSchema
+        val schema = ds.toSchema
+        val dv     = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
+        val encoded = schema.toDynamicValue(dv)
+        assertTrue(encoded == dv)
+      }
+    ),
+    suite("type mismatch - variant and map")(
+      test("record value against variant schema fails") {
+        val ds = Schema[Color].toDynamicSchema
+        val dv = DynamicValue.Record(Chunk.empty)
+        assertTrue(ds.check(dv).isDefined)
+      },
+      test("sequence value against map schema fails") {
+        val ds = Schema[Map[String, Int]].toDynamicSchema
+        val dv = DynamicValue.Sequence(Chunk.empty)
+        assertTrue(ds.check(dv).isDefined)
+      }
+    ),
+    suite("defaultValue and examples for all Reflect types")(
+      test("Record defaultValue and getDefaultValue") {
+        val ds = Schema[Person].toDynamicSchema
+        val dv = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
+          )
+        )
+        val ds2 = ds.defaultValue(dv)
+        assertTrue(ds2.getDefaultValue.contains(dv))
+      },
+      test("Record examples sets and retrieves") {
+        val ds  = Schema[Person].toDynamicSchema
+        val dv1 = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
+          )
+        )
+        val ds2 = ds.examples(dv1)
+        assertTrue(ds2.examples.length == 1)
+      },
+      test("Variant defaultValue and getDefaultValue") {
+        val ds  = Schema[Color].toDynamicSchema
+        val dv  = DynamicValue.Variant("Red", DynamicValue.Record(Chunk.empty))
+        val ds2 = ds.defaultValue(dv)
+        assertTrue(ds2.getDefaultValue.contains(dv))
+      },
+      test("Variant examples sets and retrieves") {
+        val ds  = Schema[Color].toDynamicSchema
+        val dv1 = DynamicValue.Variant("Red", DynamicValue.Record(Chunk.empty))
+        val ds2 = ds.examples(dv1)
+        assertTrue(ds2.examples.length == 1)
+      },
+      test("Sequence defaultValue and getDefaultValue") {
+        val ds  = Schema[List[Int]].toDynamicSchema
+        val dv  = DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        val ds2 = ds.defaultValue(dv)
+        assertTrue(ds2.getDefaultValue.contains(dv))
+      },
+      test("Sequence examples sets and retrieves") {
+        val ds  = Schema[List[Int]].toDynamicSchema
+        val dv1 = DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        val ds2 = ds.examples(dv1)
+        assertTrue(ds2.examples.length == 1)
+      },
+      test("Map defaultValue and getDefaultValue") {
+        val ds = Schema[Map[String, Int]].toDynamicSchema
+        val dv = DynamicValue.Map(
+          Chunk(DynamicValue.Primitive(PrimitiveValue.String("a")) -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val ds2 = ds.defaultValue(dv)
+        assertTrue(ds2.getDefaultValue.contains(dv))
+      },
+      test("Map examples sets and retrieves") {
+        val ds  = Schema[Map[String, Int]].toDynamicSchema
+        val dv1 = DynamicValue.Map(
+          Chunk(DynamicValue.Primitive(PrimitiveValue.String("a")) -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val ds2 = ds.examples(dv1)
+        assertTrue(ds2.examples.length == 1)
+      },
+      test("Wrapper defaultValue and getDefaultValue") {
+        case class WrappedInt(value: Int)
+        object WrappedInt {
+          implicit val schema: Schema[WrappedInt] = Schema[Int].transform(WrappedInt(_), _.value)
+        }
+        val ds  = Schema[WrappedInt].toDynamicSchema
+        val dv  = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val ds2 = ds.defaultValue(dv)
+        assertTrue(ds2.getDefaultValue.contains(dv))
+      },
+      test("Wrapper examples sets and retrieves") {
+        case class WrappedInt(value: Int)
+        object WrappedInt {
+          implicit val schema: Schema[WrappedInt] = Schema[Int].transform(WrappedInt(_), _.value)
+        }
+        val ds  = Schema[WrappedInt].toDynamicSchema
+        val dv1 = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val ds2 = ds.examples(dv1)
+        assertTrue(ds2.examples.length == 1)
+      },
+      test("Dynamic getDefaultValue returns None") {
+        val ds = Schema[DynamicValue].toDynamicSchema
+        assertTrue(ds.getDefaultValue.isEmpty)
+      },
+      test("Dynamic examples returns empty") {
+        val ds = Schema[DynamicValue].toDynamicSchema
+        assertTrue(ds.examples.isEmpty)
+      },
+      test("Dynamic defaultValue is no-op") {
+        val ds  = Schema[DynamicValue].toDynamicSchema
+        val dv  = DynamicValue.Primitive(PrimitiveValue.Int(1))
+        val ds2 = ds.defaultValue(dv)
+        assertTrue(ds2.getDefaultValue.isEmpty)
+      },
+      test("Dynamic examples is no-op") {
+        val ds  = Schema[DynamicValue].toDynamicSchema
+        val dv  = DynamicValue.Primitive(PrimitiveValue.Int(1))
+        val ds2 = ds.examples(dv)
+        assertTrue(ds2.examples.isEmpty)
+      }
+    ),
+    suite("check - all primitive types")(
+      test("Unit primitive validates correctly") {
+        val ds = Schema[Unit].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Unit)).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Null).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Boolean primitive validates correctly") {
+        val ds = Schema[Boolean].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Boolean(true))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Byte primitive validates correctly") {
+        val ds = Schema[Byte].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(1))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Short primitive validates correctly") {
+        val ds = Schema[Short].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(1))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Long primitive validates correctly") {
+        val ds = Schema[Long].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(1L))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Float primitive validates correctly") {
+        val ds = Schema[Float].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Double primitive validates correctly") {
+        val ds = Schema[Double].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(1.0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Char primitive validates correctly") {
+        val ds = Schema[Char].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Char('a'))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("BigInt primitive validates correctly") {
+        val ds = Schema[BigInt].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("BigDecimal primitive validates correctly") {
+        val ds = Schema[BigDecimal].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("DayOfWeek primitive validates correctly") {
+        val ds = Schema[java.time.DayOfWeek].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.DayOfWeek(java.time.DayOfWeek.MONDAY))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Duration primitive validates correctly") {
+        val ds = Schema[java.time.Duration].toDynamicSchema
+        assertTrue(
+          ds.check(DynamicValue.Primitive(PrimitiveValue.Duration(java.time.Duration.ofSeconds(1)))).isEmpty
+        ) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Instant primitive validates correctly") {
+        val ds = Schema[java.time.Instant].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Instant(java.time.Instant.now()))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("LocalDate primitive validates correctly") {
+        val ds = Schema[java.time.LocalDate].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.LocalDate(java.time.LocalDate.now()))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("LocalDateTime primitive validates correctly") {
+        val ds = Schema[java.time.LocalDateTime].toDynamicSchema
+        assertTrue(
+          ds.check(DynamicValue.Primitive(PrimitiveValue.LocalDateTime(java.time.LocalDateTime.now()))).isEmpty
+        ) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("LocalTime primitive validates correctly") {
+        val ds = Schema[java.time.LocalTime].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.LocalTime(java.time.LocalTime.now()))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Month primitive validates correctly") {
+        val ds = Schema[java.time.Month].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Month(java.time.Month.JANUARY))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("MonthDay primitive validates correctly") {
+        val ds = Schema[java.time.MonthDay].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.MonthDay(java.time.MonthDay.of(1, 1)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("OffsetDateTime primitive validates correctly") {
+        val ds = Schema[java.time.OffsetDateTime].toDynamicSchema
+        assertTrue(
+          ds.check(DynamicValue.Primitive(PrimitiveValue.OffsetDateTime(java.time.OffsetDateTime.now()))).isEmpty
+        ) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("OffsetTime primitive validates correctly") {
+        val ds = Schema[java.time.OffsetTime].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.OffsetTime(java.time.OffsetTime.now()))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Period primitive validates correctly") {
+        val ds = Schema[java.time.Period].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Period(java.time.Period.ofDays(1)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Year primitive validates correctly") {
+        val ds = Schema[java.time.Year].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Year(java.time.Year.of(2024)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("YearMonth primitive validates correctly") {
+        val ds = Schema[java.time.YearMonth].toDynamicSchema
+        assertTrue(
+          ds.check(DynamicValue.Primitive(PrimitiveValue.YearMonth(java.time.YearMonth.of(2024, 1)))).isEmpty
+        ) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("ZoneId primitive validates correctly") {
+        val ds = Schema[java.time.ZoneId].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.ZoneId(java.time.ZoneId.of("UTC")))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("ZoneOffset primitive validates correctly") {
+        val ds = Schema[java.time.ZoneOffset].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.ZoneOffset(java.time.ZoneOffset.UTC))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("ZonedDateTime primitive validates correctly") {
+        val ds = Schema[java.time.ZonedDateTime].toDynamicSchema
+        assertTrue(
+          ds.check(DynamicValue.Primitive(PrimitiveValue.ZonedDateTime(java.time.ZonedDateTime.now()))).isEmpty
+        ) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("Currency primitive validates correctly") {
+        val ds = Schema[java.util.Currency].toDynamicSchema
+        assertTrue(
+          ds.check(DynamicValue.Primitive(PrimitiveValue.Currency(java.util.Currency.getInstance("USD")))).isEmpty
+        ) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("UUID primitive validates correctly") {
+        val ds = Schema[java.util.UUID].toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.UUID(java.util.UUID.randomUUID()))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      }
+    ),
+    suite("check - Numeric validation for all types")(
+      test("Numeric.Positive for Byte passes for positive") {
+        val ds = Schema[Byte].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(5))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(0))).isDefined)
+      },
+      test("Numeric.Positive for Short passes for positive") {
+        val ds = Schema[Short].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(5))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(0))).isDefined)
+      },
+      test("Numeric.Positive for Long passes for positive") {
+        val ds = Schema[Long].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(5L))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(0L))).isDefined)
+      },
+      test("Numeric.Positive for Float passes for positive") {
+        val ds = Schema[Float].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(5.0f))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(0.0f))).isDefined)
+      },
+      test("Numeric.Positive for Double passes for positive") {
+        val ds = Schema[Double].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Double(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(5.0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(0.0))).isDefined)
+      },
+      test("Numeric.Positive for BigInt passes for positive") {
+        val ds = Schema[BigInt].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.BigInt(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(5)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(0)))).isDefined)
+      },
+      test("Numeric.Positive for BigDecimal passes for positive") {
+        val ds = Schema[BigDecimal].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.BigDecimal(Validation.Numeric.Positive),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(5)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0)))).isDefined)
+      },
+      test("Numeric.Negative for Byte passes for negative") {
+        val ds = Schema[Byte].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(-1))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(0))).isDefined)
+      },
+      test("Numeric.Negative for Short passes for negative") {
+        val ds = Schema[Short].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(-1))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(0))).isDefined)
+      },
+      test("Numeric.Negative for Long passes for negative") {
+        val ds = Schema[Long].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(-1L))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(0L))).isDefined)
+      },
+      test("Numeric.Negative for Float passes for negative") {
+        val ds = Schema[Float].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(-1.0f))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(0.0f))).isDefined)
+      },
+      test("Numeric.Negative for Double passes for negative") {
+        val ds = Schema[Double].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Double(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(-1.0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(0.0))).isDefined)
+      },
+      test("Numeric.Negative for BigInt passes for negative") {
+        val ds = Schema[BigInt].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.BigInt(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(-1)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(0)))).isDefined)
+      },
+      test("Numeric.Negative for BigDecimal passes for negative") {
+        val ds = Schema[BigDecimal].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.BigDecimal(Validation.Numeric.Negative),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(-1)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0)))).isDefined)
+      },
+      test("Numeric.NonPositive for Byte passes for non-positive") {
+        val ds = Schema[Byte].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.NonPositive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(1))).isDefined)
+      },
+      test("Numeric.NonPositive for Short passes for non-positive") {
+        val ds = Schema[Short].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.NonPositive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(1))).isDefined)
+      },
+      test("Numeric.NonPositive for Long passes for non-positive") {
+        val ds = Schema[Long].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.NonPositive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(0L))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(1L))).isDefined)
+      },
+      test("Numeric.NonPositive for Float passes for non-positive") {
+        val ds = Schema[Float].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.NonPositive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(0.0f))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))).isDefined)
+      },
+      test("Numeric.NonPositive for Double passes for non-positive") {
+        val ds = Schema[Double].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Double(Validation.Numeric.NonPositive),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(0.0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(1.0))).isDefined)
+      },
+      test("Numeric.NonPositive for BigInt passes for non-positive") {
+        val ds = Schema[BigInt].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.BigInt(Validation.Numeric.NonPositive),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(0)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1)))).isDefined)
+      },
+      test("Numeric.NonPositive for BigDecimal passes for non-positive") {
+        val ds = Schema[BigDecimal].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.BigDecimal(Validation.Numeric.NonPositive),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1)))).isDefined)
+      },
+      test("Numeric.NonNegative for Byte passes for non-negative") {
+        val ds = Schema[Byte].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.NonNegative), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(-1))).isDefined)
+      },
+      test("Numeric.NonNegative for Short passes for non-negative") {
+        val ds = Schema[Short].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.NonNegative), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(-1))).isDefined)
+      },
+      test("Numeric.NonNegative for Long passes for non-negative") {
+        val ds = Schema[Long].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.NonNegative), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(0L))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(-1L))).isDefined)
+      },
+      test("Numeric.NonNegative for Float passes for non-negative") {
+        val ds = Schema[Float].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.NonNegative), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(0.0f))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(-1.0f))).isDefined)
+      },
+      test("Numeric.NonNegative for Double passes for non-negative") {
+        val ds = Schema[Double].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Double(Validation.Numeric.NonNegative),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(0.0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(-1.0))).isDefined)
+      },
+      test("Numeric.NonNegative for BigInt passes for non-negative") {
+        val ds = Schema[BigInt].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.BigInt(Validation.Numeric.NonNegative),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(0)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(-1)))).isDefined)
+      },
+      test("Numeric.NonNegative for BigDecimal passes for non-negative") {
+        val ds = Schema[BigDecimal].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.BigDecimal(Validation.Numeric.NonNegative),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(-1)))).isDefined)
+      },
+      test("Numeric.Range for Byte") {
+        val ds = Schema[Byte].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Byte(Validation.Numeric.Range(Some(1: Byte), Some(10: Byte))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(5))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(0))).isDefined)
+      },
+      test("Numeric.Range for Short") {
+        val ds = Schema[Short].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Short(Validation.Numeric.Range(Some(1: Short), Some(10: Short))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(5))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(0))).isDefined)
+      },
+      test("Numeric.Range for Long") {
+        val ds = Schema[Long].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Long(Validation.Numeric.Range(Some(1L), Some(10L))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(5L))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(0L))).isDefined)
+      },
+      test("Numeric.Range for Float") {
+        val ds = Schema[Float].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Float(Validation.Numeric.Range(Some(1.0f), Some(10.0f))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(5.0f))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(0.0f))).isDefined)
+      },
+      test("Numeric.Range for Double") {
+        val ds = Schema[Double].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Double(Validation.Numeric.Range(Some(1.0), Some(10.0))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(5.0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(0.0))).isDefined)
+      },
+      test("Numeric.Range for BigInt") {
+        val ds = Schema[BigInt].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.BigInt(Validation.Numeric.Range(Some(BigInt(1)), Some(BigInt(10)))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(5)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(0)))).isDefined)
+      },
+      test("Numeric.Range for BigDecimal") {
+        val ds = Schema[BigDecimal].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.BigDecimal(Validation.Numeric.Range(Some(BigDecimal(1)), Some(BigDecimal(10)))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(5)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0)))).isDefined)
+      },
+      test("Numeric.Set for Byte") {
+        val ds = Schema[Byte].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Byte(Validation.Numeric.Set(Set(1: Byte, 2: Byte))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(1))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Byte(3))).isDefined)
+      },
+      test("Numeric.Set for Short") {
+        val ds = Schema[Short].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Short(Validation.Numeric.Set(Set(1: Short, 2: Short))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(1))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Short(3))).isDefined)
+      },
+      test("Numeric.Set for Long") {
+        val ds = Schema[Long].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Long(Validation.Numeric.Set(Set(1L, 2L))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(1L))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Long(3L))).isDefined)
+      },
+      test("Numeric.Set for Float") {
+        val ds = Schema[Float].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Float(Validation.Numeric.Set(Set(1.0f, 2.0f))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Float(3.0f))).isDefined)
+      },
+      test("Numeric.Set for Double") {
+        val ds = Schema[Double].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Double(Validation.Numeric.Set(Set(1.0, 2.0))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(1.0))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Double(3.0))).isDefined)
+      },
+      test("Numeric.Set for BigInt") {
+        val ds = Schema[BigInt].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.BigInt(Validation.Numeric.Set(Set(BigInt(1), BigInt(2)))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(3)))).isDefined)
+      },
+      test("Numeric.Set for BigDecimal") {
+        val ds = Schema[BigDecimal].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.BigDecimal(Validation.Numeric.Set(Set(BigDecimal(1), BigDecimal(2)))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1)))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3)))).isDefined)
+      },
+      test("Range validation fails for wrong type") {
+        val ds = Schema[Int].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Int(Validation.Numeric.Range(Some(1), Some(10))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.String("not a number"))).isDefined)
+      },
+      test("Set validation fails for wrong type") {
+        val ds = Schema[Int].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.Int(Validation.Numeric.Set(Set(1, 2))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.String("not a number"))).isDefined)
+      }
+    ),
+    suite("check - String validation edge cases")(
+      test("String.Blank fails for non-string") {
+        val ds = Schema[String].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.String(Validation.String.Blank), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.String("  "))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.String("abc"))).isDefined)
+      },
+      test("String.NonBlank fails for non-string") {
+        val ds = Schema[String].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.String(Validation.String.NonBlank), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.String("abc"))).isEmpty) &&
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.String("  "))).isDefined)
+      },
+      test("String.Length fails for non-string") {
+        val ds = Schema[String].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.String(Validation.String.Length(Some(1), Some(5))),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      },
+      test("String.Pattern fails for non-string") {
+        val ds = Schema[String].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+          .toDynamicSchema
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
+      }
+    ),
     suite("Schema[DynamicSchema] round-trip")(
       test("primitive schema round-trips through DynamicValue") {
         val original  = Schema[Int].toDynamicSchema
