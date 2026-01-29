@@ -815,7 +815,7 @@ object DynamicOpticCoverageSpec extends SchemaBaseSpec {
       assertTrue(selection.isSuccess)
     },
     test("isFailure for failed selection") {
-      val selection = DynamicValueSelection.fail(DynamicValueError("test error"))
+      val selection = DynamicValueSelection.fail(SchemaError("test error"))
       assertTrue(selection.isFailure)
     },
     test("nonEmpty for non-empty selection") {
@@ -828,7 +828,7 @@ object DynamicOpticCoverageSpec extends SchemaBaseSpec {
       assertTrue(selection.isEmpty)
     },
     test("error returns Some for failure") {
-      val selection = DynamicValueSelection.fail(DynamicValueError("test error"))
+      val selection = DynamicValueSelection.fail(SchemaError("test error"))
       assertTrue(selection.error.isDefined)
     },
     test("error returns None for success") {
@@ -842,7 +842,7 @@ object DynamicOpticCoverageSpec extends SchemaBaseSpec {
       assertTrue(selection.toChunk.nonEmpty)
     },
     test("toChunk returns empty on failure") {
-      val selection = DynamicValueSelection.fail(DynamicValueError("error"))
+      val selection = DynamicValueSelection.fail(SchemaError("error"))
       assertTrue(selection.toChunk.isEmpty)
     },
     test("one returns Right for single value") {
@@ -867,7 +867,7 @@ object DynamicOpticCoverageSpec extends SchemaBaseSpec {
       assertTrue(filtered.isEmpty)
     },
     test("orElse returns alternative on failure") {
-      val failed      = DynamicValueSelection.fail(DynamicValueError("error"))
+      val failed      = DynamicValueSelection.fail(SchemaError("error"))
       val dv          = DynamicValue.Primitive(PrimitiveValue.Int(42))
       val alternative = DynamicValueSelection.succeed(dv)
       assertTrue(failed.orElse(alternative).isSuccess)

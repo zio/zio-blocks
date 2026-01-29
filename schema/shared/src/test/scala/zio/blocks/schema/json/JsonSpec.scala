@@ -1422,7 +1422,7 @@ object JsonSpec extends SchemaBaseSpec {
         test("flatMap chains decoders") {
           val decoder = JsonDecoder[Int].flatMap { n =>
             if (n > 0) Right(n.toString)
-            else Left(JsonError("must be positive"))
+            else Left(SchemaError("must be positive"))
           }
           assertTrue(
             decoder.decode(Json.Number("42")) == Right("42"),
@@ -1444,7 +1444,7 @@ object JsonSpec extends SchemaBaseSpec {
           val decoder = JsonDecoder.instance[Boolean] {
             case Json.String("yes") => Right(true)
             case Json.String("no")  => Right(false)
-            case _                  => Left(JsonError("expected yes/no"))
+            case _                  => Left(SchemaError("expected yes/no"))
           }
           assertTrue(
             decoder.decode(Json.String("yes")) == Right(true),
@@ -3201,7 +3201,7 @@ object JsonSpec extends SchemaBaseSpec {
           },
           test("flatMap transforms with Either result") {
             val decoder = JsonDecoder[Int].flatMap { n =>
-              if (n > 0) Right(n) else Left(JsonError("Must be positive"))
+              if (n > 0) Right(n) else Left(SchemaError("Must be positive"))
             }
             val resultPositive = decoder.decode(Json.Number("42"))
             val resultNegative = decoder.decode(Json.Number("-1"))
@@ -3221,7 +3221,7 @@ object JsonSpec extends SchemaBaseSpec {
           test("instance creates decoder from function") {
             val decoder = JsonDecoder.instance[String] {
               case s: Json.String => Right(s.value.toUpperCase)
-              case _              => Left(JsonError("Expected String"))
+              case _              => Left(SchemaError("Expected String"))
             }
             val result = decoder.decode(Json.String("hello"))
             assertTrue(result == Right("HELLO"))
