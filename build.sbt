@@ -35,7 +35,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "golemPublishLocal",
-  """set ThisBuild / version := "0.0.0-SNAPSHOT"; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal; zioGolemSbt/publishLocal"""
+  """set ThisBuild / version := "0.0.0-SNAPSHOT"; chunkJVM/publishLocal; chunkJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal; zioGolemSbt/publishLocal"""
 )
 addCommandAlias(
   "testJVM",
