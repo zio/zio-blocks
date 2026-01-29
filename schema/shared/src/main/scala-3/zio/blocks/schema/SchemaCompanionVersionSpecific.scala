@@ -1074,6 +1074,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             val tpeId  = makeTypeId(tpe)
             '{ new Schema($schema.reflect.typeId($tpeId.asInstanceOf[TypeId[s]])).asInstanceOf[Schema[T]] }
         }
+      } else if (isStructuralType(tpe)) {
+        deriveSchemaForStructuralType[T](tpe)
       } else cannotDeriveSchema(tpe)
     }.asInstanceOf[Expr[Schema[T]]]
     // For generic tuples and newtypes, the TypeId is already correctly set
@@ -1488,7 +1490,6 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   // NOTE: Empty structural types like `type Empty = {}` dealias to java.lang.Object.
   // We now treat AnyRef as an empty structural type, which allows Schema.derived[{}] to work.
 
-  @scala.annotation.nowarn("msg=unused private member")
   private def deriveSchemaForStructuralType[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
     // Pure structural types require runtime reflection (JVM only)
     if (!Platform.supportsReflection) {
