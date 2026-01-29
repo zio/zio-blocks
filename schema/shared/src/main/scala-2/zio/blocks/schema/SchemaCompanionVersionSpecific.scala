@@ -176,10 +176,6 @@ private object SchemaCompanionVersionSpecific {
 
     val fullTermNameCache = new mutable.HashMap[Type, Array[String]]
 
-    def typeName(tpe: Type): SchemaTypeName[?] = CommonMacroOps.typeName(c)(typeNameCache, tpe)
-
-    def toTree(tpeName: SchemaTypeName[?]): Tree = CommonMacroOps.toTree(c)(tpeName)
-
     def toFullTermName(tpe: Type): Array[String] = {
       def calculate(tpe: Type): Array[String] =
         if (tpe =:= typeOf[java.lang.String]) Array("java", "lang", "String")

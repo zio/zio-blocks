@@ -1,7 +1,7 @@
 package zio.blocks.schema.derive
 
 import zio.blocks.schema._
-import zio.blocks.schema.binding.{Binding, BindingType}
+import zio.blocks.schema.binding.{Binding, BindingType, HasBinding}
 import zio.blocks.typeid.TypeId
 
 /**
@@ -85,11 +85,7 @@ final case class DerivationBuilder[TC[_], A](
         case (acc, _) => acc
       }
 
-    def prependCombinedModifiers[A0](
-      modifiers: Seq[Modifier.Reflect],
-      path: DynamicOptic,
-      typeId: TypeId[A0]
-    ) =
+    def prependCombinedModifiers[A0](modifiers: Seq[Modifier.Reflect], path: DynamicOptic, typeId: TypeId[A0]) =
       (modifierReflectByOpticMap.get(path), modifierReflectByTypeMap.get(typeId)) match {
         case (Some(modifiers1), Some(modifiers2)) => (modifiers1 ++ modifiers2) ++ modifiers
         case (Some(modifiers1), _)                => modifiers1 ++ modifiers
@@ -106,8 +102,10 @@ final case class DerivationBuilder[TC[_], A](
       }
 
     def getCustomInstance[A0](path: DynamicOptic, typeId: TypeId[A0]): Option[Lazy[TC[A0]]] =
+      // first try to find an instance by optic (more precise)
       instanceByOpticMap
         .get(path)
+        // then try to find an instance by type name (more general)
         .orElse(instanceByTypeMap.get(typeId.asInstanceOf[TypeId[Any]]))
         .map(_.asInstanceOf[Lazy[TC[A0]]])
 
@@ -128,7 +126,21 @@ final case class DerivationBuilder[TC[_], A](
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Record[G, A0]] = Lazy {
-            val instance = getCustomInstance[A0](path, typeId).getOrElse {
+            implicit val hasBindingG: HasBinding[G] = BindingInstance.hasBinding[TC]
+            val tempReflect                         =
+              new Reflect.Record[G, A0](
+                fields,
+                typeId,
+                new BindingInstance(
+                  metadata,
+                  Lazy.fail(new IllegalStateException("Temporary instance for fromDynamicValue conversion"))
+                ),
+                doc,
+                modifiers
+              )
+            val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
+            val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
+            val instance     = getCustomInstance[A0](path, typeId).getOrElse {
               val modifiersToPrepend = combineModifiers(path, typeId)
               val updatedFields      =
                 if (modifiersToPrepend.isEmpty) fields
@@ -147,7 +159,9 @@ final case class DerivationBuilder[TC[_], A](
                   typeId,
                   metadata,
                   doc,
-                  prependCombinedModifiers(modifiers, path, typeId)
+                  prependCombinedModifiers(modifiers, path, typeId),
+                  defaultValue,
+                  examples
                 )
             }
             new Reflect.Record(
@@ -171,7 +185,21 @@ final case class DerivationBuilder[TC[_], A](
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Variant[G, A0]] = Lazy {
-            val instance = getCustomInstance[A0](path, typeId).getOrElse {
+            implicit val hasBindingG: HasBinding[G] = BindingInstance.hasBinding[TC]
+            val tempReflect                         =
+              new Reflect.Variant[G, A0](
+                cases,
+                typeId,
+                new BindingInstance(
+                  metadata,
+                  Lazy.fail(new IllegalStateException("Temporary instance for fromDynamicValue conversion"))
+                ),
+                doc,
+                modifiers
+              )
+            val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
+            val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
+            val instance     = getCustomInstance[A0](path, typeId).getOrElse {
               val modifiersToAdd = combineModifiers(path, typeId)
               val updatedCases   =
                 if (modifiersToAdd.isEmpty) cases
@@ -193,7 +221,9 @@ final case class DerivationBuilder[TC[_], A](
                   typeId,
                   metadata,
                   doc,
-                  prependCombinedModifiers(modifiers, path, typeId)
+                  prependCombinedModifiers(modifiers, path, typeId),
+                  defaultValue,
+                  examples
                 )
             }
             new Reflect.Variant(
@@ -217,9 +247,31 @@ final case class DerivationBuilder[TC[_], A](
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Sequence[G, A0, C]] = Lazy {
-            val instance = getCustomInstance[C[A0]](path, typeId).getOrElse(
+            implicit val hasBindingG: HasBinding[G] = BindingInstance.hasBinding[TC]
+            val tempReflect                         =
+              new Reflect.Sequence[G, A0, C](
+                element,
+                typeId,
+                new BindingInstance(
+                  metadata,
+                  Lazy.fail(new IllegalStateException("Temporary instance for fromDynamicValue conversion"))
+                ),
+                doc,
+                modifiers
+              )
+            val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
+            val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
+            val instance     = getCustomInstance[C[A0]](path, typeId).getOrElse(
               deriver
-                .deriveSequence(element, typeId, metadata, doc, prependCombinedModifiers(modifiers, path, typeId))
+                .deriveSequence(
+                  element,
+                  typeId,
+                  metadata,
+                  doc,
+                  prependCombinedModifiers(modifiers, path, typeId),
+                  defaultValue,
+                  examples
+                )
             )
             new Reflect.Sequence(
               element,
@@ -243,9 +295,33 @@ final case class DerivationBuilder[TC[_], A](
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Map[G, Key, Value, M]] = Lazy {
-            val instance = getCustomInstance[M[Key, Value]](path, typeId).getOrElse(
+            implicit val hasBindingG: HasBinding[G] = BindingInstance.hasBinding[TC]
+            val tempReflect                         =
+              new Reflect.Map[G, Key, Value, M](
+                key,
+                value,
+                typeId,
+                new BindingInstance(
+                  metadata,
+                  Lazy.fail(new IllegalStateException("Temporary instance for fromDynamicValue conversion"))
+                ),
+                doc,
+                modifiers
+              )
+            val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
+            val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
+            val instance     = getCustomInstance[M[Key, Value]](path, typeId).getOrElse(
               deriver
-                .deriveMap(key, value, typeId, metadata, doc, prependCombinedModifiers(modifiers, path, typeId))
+                .deriveMap(
+                  key,
+                  value,
+                  typeId,
+                  metadata,
+                  doc,
+                  prependCombinedModifiers(modifiers, path, typeId),
+                  defaultValue,
+                  examples
+                )
             )
             new Reflect.Map(
               key,
@@ -269,7 +345,15 @@ final case class DerivationBuilder[TC[_], A](
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Dynamic[G]] = Lazy {
             val instance = getCustomInstance[DynamicValue](path, TypeId.of[DynamicValue])
-              .getOrElse(deriver.deriveDynamic[G](metadata, doc, prependCombinedModifiers(modifiers, path, typeId)))
+              .getOrElse(
+                deriver.deriveDynamic[G](
+                  metadata,
+                  doc,
+                  prependCombinedModifiers(modifiers, path, typeId),
+                  storedDefaultValue,
+                  storedExamples
+                )
+              )
             new Reflect.Dynamic(
               new BindingInstance(metadata, instance),
               typeId,
@@ -290,14 +374,18 @@ final case class DerivationBuilder[TC[_], A](
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Primitive[G, A0]] = Lazy {
-            val instance = getCustomInstance[A0](path, typeId).getOrElse(
+            val defaultValue = storedDefaultValue.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
+            val examples     = storedExamples.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
+            val instance     = getCustomInstance[A0](path, typeId).getOrElse(
               deriver
                 .derivePrimitive(
                   primitiveType,
                   typeId,
                   metadata,
                   doc,
-                  prependCombinedModifiers(modifiers, path, typeId)
+                  prependCombinedModifiers(modifiers, path, typeId),
+                  defaultValue,
+                  examples
                 )
             )
             new Reflect.Primitive(
@@ -322,7 +410,22 @@ final case class DerivationBuilder[TC[_], A](
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Wrapper[G, A0, B]] = Lazy {
-            val instance = getCustomInstance[A0](path, typeId)
+            implicit val hasBindingG: HasBinding[G] = BindingInstance.hasBinding[TC]
+            val tempReflect                         =
+              new Reflect.Wrapper[G, A0, B](
+                wrapped,
+                typeId,
+                wrapperPrimitiveType,
+                new BindingInstance(
+                  metadata,
+                  Lazy.fail(new IllegalStateException("Temporary instance for fromDynamicValue conversion"))
+                ),
+                doc,
+                modifiers
+              )
+            val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
+            val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
+            val instance     = getCustomInstance[A0](path, typeId)
               .getOrElse(
                 deriver.deriveWrapper(
                   wrapped,
@@ -330,7 +433,9 @@ final case class DerivationBuilder[TC[_], A](
                   wrapperPrimitiveType,
                   metadata,
                   doc,
-                  prependCombinedModifiers(modifiers, path, typeId)
+                  prependCombinedModifiers(modifiers, path, typeId),
+                  defaultValue,
+                  examples
                 )
               )
             new Reflect.Wrapper(

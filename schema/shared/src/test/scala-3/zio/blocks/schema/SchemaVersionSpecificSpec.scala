@@ -663,7 +663,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema)(equalTo(Schema.derived[Int | Boolean | (Int, Boolean) | List[Int] | Map[Int, Long]])) &&
         assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
         assert(variant.map(_.cases.map(_.name)))(
-          isSome(equalTo(Vector("Int", "Boolean", "Tuple2", "collection.immutable.List", "collection.immutable.Map")))
+          isSome(equalTo(Vector("Boolean", "Int", "Tuple2", "collection.immutable.List", "collection.immutable.Map")))
         ) &&
         assert(variant.map(_.typeId.name))(isSome(equalTo("Union")))
       },
@@ -681,7 +681,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(true))))(isRight(equalTo(Variant(true)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant("VVV"))))(isRight(equalTo(Variant("VVV")))) &&
         assert(variant.map(_.cases.map(_.name)))(
-          isSome(equalTo(Vector("scala.Int", "java.lang.String", "scala.Boolean")))
+          isSome(equalTo(Vector("java.lang.String", "scala.Boolean", "scala.Int")))
         ) &&
         assert(variant.map(_.typeId))(
           isSome(equalTo(TypeId.of[Variant]))
@@ -710,10 +710,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(Unions.v3.get(value2))(equalTo(213)) &&
         assert(Unions.v3_s.getOption(value1))(isSome(equalTo("VVV"))) &&
         assert(record.flatMap(_.fields(1).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("scala.Int", "java.lang.String")))
+          isSome(equalTo(Seq("java.lang.String", "scala.Int")))
         ) &&
         assert(record.flatMap(_.fields(2).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("scala.Int", "scala.Boolean", "java.lang.String")))
+          isSome(equalTo(Seq("java.lang.String", "scala.Boolean", "scala.Int")))
         ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))

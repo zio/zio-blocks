@@ -75,60 +75,6 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def isOpaque(tpe: TypeRepr): Boolean = CommonMacroOps.isOpaque(tpe)
 
-// TODO(#471): Migrate structural type methods from TypeName to TypeId
-  private def isStructuralType(tpe: TypeRepr): Boolean = tpe.dealias match {
-    case Refinement(_, _, _) => true
-    // Empty structural type {} dealiases to java.lang.Object
-    case t if t =:= TypeRepr.of[AnyRef] => true
-    case _                              => false
-  }
-
-  private def getStructuralMembers(tpe: TypeRepr): List[(String, TypeRepr)] = {
-    def collectMembers(t: TypeRepr): List[(String, TypeRepr)] = t match {
-      case Refinement(parent, name, info) =>
-        val memberType = info match {
-          case MethodType(_, _, returnType) => returnType
-          case ByNameType(underlying)       => underlying
-          case other                        => other
-        }
-        (name, memberType) :: collectMembers(parent)
-      case _ => Nil
-    }
-    collectMembers(tpe.dealias).reverse
-  }
-
-  private def normalizeStructuralTypeName[T](members: List[(String, TypeRepr)]): TypeName[T] = {
-    // Sort fields alphabetically for deterministic naming
-    val sorted     = members.sortBy(_._1)
-    val nameString = sorted.map { case (name, tpe) =>
-      s"$name:${normalizeTypeForName(tpe)}"
-    }.mkString("{", ",", "}")
-    new TypeName[T](new Namespace(Nil, Nil), nameString, Nil)
-  }
-
-  private def normalizeTypeForName(tpe: TypeRepr): String = {
-    val dealiased = tpe.dealias
-    if (dealiased =:= intTpe) "Int"
-    else if (dealiased =:= longTpe) "Long"
-    else if (dealiased =:= floatTpe) "Float"
-    else if (dealiased =:= doubleTpe) "Double"
-    else if (dealiased =:= booleanTpe) "Boolean"
-    else if (dealiased =:= byteTpe) "Byte"
-    else if (dealiased =:= charTpe) "Char"
-    else if (dealiased =:= shortTpe) "Short"
-    else if (dealiased =:= stringTpe) "String"
-    else if (dealiased =:= unitTpe) "Unit"
-    else if (isStructuralType(dealiased)) {
-      val members = getStructuralMembers(dealiased)
-      val sorted  = members.sortBy(_._1)
-      sorted.map { case (name, t) => s"$name:${normalizeTypeForName(t)}" }.mkString("{", ",", "}")
-    } else {
-      val typeArgs = CommonMacroOps.typeArgs(dealiased)
-      if (typeArgs.isEmpty) dealiased.typeSymbol.name
-      else s"${dealiased.typeSymbol.name}[${typeArgs.map(normalizeTypeForName).mkString(",")}]"
-    }
-  }
-
   private def opaqueDealias(tpe: TypeRepr): TypeRepr = CommonMacroOps.opaqueDealias(tpe)
 
   private def isZioPreludeNewtype(tpe: TypeRepr): Boolean = CommonMacroOps.isZioPreludeNewtype(tpe)
