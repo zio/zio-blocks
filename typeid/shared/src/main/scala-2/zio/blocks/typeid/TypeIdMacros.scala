@@ -18,77 +18,214 @@ object TypeIdMacros {
    */
   def derived[A]: TypeId[A] = macro derivedImpl[A]
 
-  def derivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[TypeId[A]] = {
+  def ofImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[TypeId[A]] = {
     import c.universe._
 
     val tpe = weakTypeOf[A]
 
-    // Check if this is a type alias by pattern matching on TypeRef
+    tpe match {
+      case TypeRef(_, sym, args) if args.nonEmpty =>
+        if (sym.isType && sym.asType.isAliasType && isUserDefinedAlias(c)(sym))
+          deriveAppliedTypeAlias[A](c)(sym, args)
+        else
+          deriveAppliedTypeNew[A](c)(sym, args)
+      case TypeRef(_, sym, _) if sym.isType && sym.asType.isAliasType =>
+        deriveTypeId[A](c)
+      case _ =>
+        val fullName = tpe.typeSymbol.fullName
+        fullName match {
+          case "scala.Int" =>
+            c.Expr[TypeId[A]](
+              q"_root_.zio.blocks.typeid.TypeId.int.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]"
+            )
+          case "scala.Long" =>
+            c.Expr[TypeId[A]](
+              q"_root_.zio.blocks.typeid.TypeId.long.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]"
+            )
+          case "scala.Double" =>
+            c.Expr[TypeId[A]](
+              q"_root_.zio.blocks.typeid.TypeId.double.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]"
+            )
+          case "scala.Float" =>
+            c.Expr[TypeId[A]](
+              q"_root_.zio.blocks.typeid.TypeId.float.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]"
+            )
+          case "scala.Boolean" =>
+            c.Expr[TypeId[A]](
+              q"_root_.zio.blocks.typeid.TypeId.boolean.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]"
+            )
+          case "scala.Byte" =>
+            c.Expr[TypeId[A]](
+              q"_root_.zio.blocks.typeid.TypeId.byte.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]"
+            )
+          case "scala.Short" =>
+            c.Expr[TypeId[A]](
+              q"_root_.zio.blocks.typeid.TypeId.short.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]"
+            )
+          case "scala.Char" =>
+            c.Expr[TypeId[A]](
+              q"_root_.zio.blocks.typeid.TypeId.char.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]"
+            )
+          case "scala.Unit" =>
+            c.Expr[TypeId[A]](
+              q"_root_.zio.blocks.typeid.TypeId.unit.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]"
+            )
+          case _ =>
+            val typeIdType     = appliedType(typeOf[TypeId[_]].typeConstructor, tpe)
+            val implicitSearch = c.inferImplicitValue(typeIdType, silent = true)
+
+            if (implicitSearch != EmptyTree) {
+              val isDerived = implicitSearch.symbol.fullName.contains("TypeIdMacros") ||
+                implicitSearch.symbol.fullName.contains("derived")
+              if (isDerived) deriveTypeId[A](c)
+              else c.Expr[TypeId[A]](implicitSearch)
+            } else {
+              deriveTypeId[A](c)
+            }
+        }
+    }
+  }
+
+  def derivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[TypeId[A]] =
+    deriveTypeId[A](c)
+
+  private def deriveTypeId[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[TypeId[A]] = {
+    import c.universe._
+
+    val tpe = weakTypeOf[A]
+
     tpe match {
       case TypeRef(_, sym, args) =>
-        if (sym.isType && sym.asType.isAliasType && isUserDefinedAlias(c)(sym)) {
-          deriveNew[A](c)
+        if (sym.isType && sym.asType.isAliasType) {
+          if (isUserDefinedAlias(c)(sym)) {
+            deriveNew[A](c)
+          } else {
+            val dealiased = tpe.dealias
+            getPredefinedTypeId[A](c)(dealiased).getOrElse(deriveNew[A](c))
+          }
         } else if (args.nonEmpty) {
-          deriveAppliedType[A](c)(sym, args)
+          deriveAppliedTypeNew[A](c)(sym, args)
         } else {
-          searchOrDerive[A](c)
+          deriveNew[A](c)
         }
       case _ =>
-        searchOrDerive[A](c)
+        deriveNew[A](c)
     }
   }
 
-  private def searchOrDerive[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[TypeId[A]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[A]
-
-    val typeIdType     = appliedType(typeOf[TypeId[_]].typeConstructor, tpe)
-    val implicitSearch = c.inferImplicitValue(typeIdType, silent = true)
-
-    if (implicitSearch != EmptyTree) {
-      c.Expr[TypeId[A]](implicitSearch)
-    } else {
-      deriveNew[A](c)
-    }
-  }
-
-  private def deriveAppliedType[A: c.WeakTypeTag](
+  private def getPredefinedTypeId[A: c.WeakTypeTag](
     c: blackbox.Context
-  )(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
+  )(dealiased: c.Type): Option[c.Expr[TypeId[A]]] = {
     import c.universe._
-
-    val tpe             = weakTypeOf[A]
-    val wildcardArgs    = args.map(_ => WildcardType)
-    val existentialType = appliedType(sym, wildcardArgs)
-    val typeIdType      = appliedType(typeOf[TypeId[_]].typeConstructor, existentialType)
-    val implicitSearch  = c.inferImplicitValue(typeIdType, silent = true)
-
-    val typeArgsExprs = args.map(buildTypeReprFromType(c)(_))
-
-    if (implicitSearch != EmptyTree) {
-      c.Expr[TypeId[A]](
-        q"""
-          {
-            val base = $implicitSearch.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]
-            _root_.zio.blocks.typeid.TypeId.nominal[$tpe](
-              base.name,
-              base.owner,
-              base.typeParams,
-              _root_.scala.List(..$typeArgsExprs),
-              base.defKind,
-              base.selfType,
-              base.annotations
-            )
-          }
-        """
-      )
-    } else {
-      deriveAppliedTypeNew[A](c)(sym, args)
+    val fullName = dealiased.typeSymbol.fullName
+    fullName match {
+      case "java.lang.String" =>
+        Some(
+          c.Expr[TypeId[A]](
+            q"_root_.zio.blocks.typeid.TypeId.string.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$dealiased]]"
+          )
+        )
+      case "scala.math.BigInt" | "scala.BigInt" =>
+        Some(
+          c.Expr[TypeId[A]](
+            q"_root_.zio.blocks.typeid.TypeId.bigInt.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$dealiased]]"
+          )
+        )
+      case "scala.math.BigDecimal" | "scala.BigDecimal" =>
+        Some(
+          c.Expr[TypeId[A]](
+            q"_root_.zio.blocks.typeid.TypeId.bigDecimal.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$dealiased]]"
+          )
+        )
+      case _ => None
     }
   }
 
   private def deriveAppliedTypeNew[A: c.WeakTypeTag](
+    c: blackbox.Context
+  )(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
+    import c.universe._
+
+    val tpe          = weakTypeOf[A]
+    val typeParams   = if (sym.isType) sym.asType.typeParams else Nil
+    val typeArgsExpr = args.map(buildTypeReprFromType(c)(_))
+
+    // Check for known predefined type constructors by name (including Predef aliases)
+    val symFullName     = sym.fullName
+    val dealiasFullName = if (sym.isType && sym.asType.isAliasType) {
+      tpe.dealias.typeSymbol.fullName
+    } else symFullName
+
+    val predefinedBase: Option[c.Tree] = dealiasFullName match {
+      case "scala.collection.immutable.List"       => Some(q"_root_.zio.blocks.typeid.TypeId.list")
+      case "scala.collection.immutable.Vector"     => Some(q"_root_.zio.blocks.typeid.TypeId.vector")
+      case "scala.collection.immutable.Set"        => Some(q"_root_.zio.blocks.typeid.TypeId.set")
+      case "scala.collection.immutable.Seq"        => Some(q"_root_.zio.blocks.typeid.TypeId.seq")
+      case "scala.collection.immutable.IndexedSeq" => Some(q"_root_.zio.blocks.typeid.TypeId.indexedSeq")
+      case "scala.collection.immutable.Map"        => Some(q"_root_.zio.blocks.typeid.TypeId.map")
+      case "scala.Option"                          => Some(q"_root_.zio.blocks.typeid.TypeId.option")
+      case "scala.Some"                            => Some(q"_root_.zio.blocks.typeid.TypeId.some")
+      case "scala.util.Either"                     => Some(q"_root_.zio.blocks.typeid.TypeId.either")
+      case "scala.Array"                           => Some(q"_root_.zio.blocks.typeid.TypeId.array")
+      case "scala.collection.immutable.ArraySeq"   => Some(q"_root_.zio.blocks.typeid.TypeId.arraySeq")
+      case "zio.blocks.chunk.Chunk"                => Some(q"_root_.zio.blocks.typeid.TypeId.chunk")
+      case _                                       => None
+    }
+
+    predefinedBase match {
+      case Some(baseTree) =>
+        c.Expr[TypeId[A]](
+          q"""
+            val base = $baseTree.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]
+            _root_.zio.blocks.typeid.TypeId.nominal[$tpe](
+              base.name,
+              base.owner,
+              base.typeParams,
+              _root_.scala.List(..$typeArgsExpr),
+              base.defKind,
+              base.selfType,
+              base.annotations
+            )
+          """
+        )
+      case None =>
+        if (typeParams.nonEmpty) {
+          val wildcardArgs    = typeParams.map(_ => typeOf[Any])
+          val existentialType = appliedType(sym.asType.toType.typeConstructor, wildcardArgs)
+          val typeIdType      = appliedType(typeOf[TypeId[_]].typeConstructor, existentialType)
+          val implicitSearch  = c.inferImplicitValue(typeIdType, silent = true)
+
+          if (implicitSearch != EmptyTree) {
+            val isDerived = implicitSearch.symbol.fullName.contains("TypeIdMacros") ||
+              implicitSearch.symbol.fullName.contains("derived")
+            if (isDerived) {
+              deriveAppliedTypeFresh[A](c)(sym, args)
+            } else {
+              c.Expr[TypeId[A]](
+                q"""
+                  val base = $implicitSearch.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]
+                  _root_.zio.blocks.typeid.TypeId.nominal[$tpe](
+                    base.name,
+                    base.owner,
+                    base.typeParams,
+                    _root_.scala.List(..$typeArgsExpr),
+                    base.defKind,
+                    base.selfType,
+                    base.annotations
+                  )
+                """
+              )
+            }
+          } else {
+            deriveAppliedTypeFresh[A](c)(sym, args)
+          }
+        } else {
+          deriveAppliedTypeFresh[A](c)(sym, args)
+        }
+    }
+  }
+
+  private def deriveAppliedTypeFresh[A: c.WeakTypeTag](
     c: blackbox.Context
   )(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
     import c.universe._
@@ -110,6 +247,35 @@ object TypeIdMacros {
           _root_.scala.List(..$typeArgsExpr),
           $defKindExpr,
           _root_.scala.None,
+          $annotationsExpr
+        )
+      """
+    )
+  }
+
+  private def deriveAppliedTypeAlias[A: c.WeakTypeTag](
+    c: blackbox.Context
+  )(sym: c.Symbol, args: List[c.Type]): c.Expr[TypeId[A]] = {
+    import c.universe._
+
+    val tpe             = weakTypeOf[A]
+    val name            = sym.name.decodedName.toString
+    val ownerExpr       = buildOwner(c)(sym.owner)
+    val typeParamsExpr  = buildTypeParams(c)(sym)
+    val typeArgsExpr    = args.map(buildTypeReprFromType(c)(_))
+    val annotationsExpr = buildAnnotations(c)(sym)
+
+    val aliasedType = tpe.dealias
+    val aliasedExpr = buildTypeReprFromType(c)(aliasedType)
+
+    c.Expr[TypeId[A]](
+      q"""
+        _root_.zio.blocks.typeid.TypeId.alias[$tpe](
+          $name,
+          $ownerExpr,
+          $typeParamsExpr,
+          $aliasedExpr,
+          _root_.scala.List(..$typeArgsExpr),
           $annotationsExpr
         )
       """
@@ -242,13 +408,7 @@ object TypeIdMacros {
       case "Nothing" => return q"_root_.zio.blocks.typeid.TypeRepr.NothingType"
       case "Null"    => return q"_root_.zio.blocks.typeid.TypeRepr.NullType"
       case _         =>
-        val symType        = if (sym.isType) sym.asType.toType else sym.typeSignature
-        val typeIdType     = appliedType(typeOf[TypeId[_]].typeConstructor, symType)
-        val implicitSearch = c.inferImplicitValue(typeIdType, silent = true)
-
-        if (implicitSearch != EmptyTree) {
-          implicitSearch
-        } else {
+        def createFreshTypeId(): c.Tree = {
           val ownerExpr = buildOwner(c)(sym.owner)
           if (sym.isType && sym.asType.isAliasType) {
             val aliasedType = sym.asType.toType.dealias
@@ -259,6 +419,19 @@ object TypeIdMacros {
             val defKindExpr    = buildDefKindShallow(c)(sym)
             q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, $typeParamsExpr, _root_.scala.Nil, $defKindExpr)"
           }
+        }
+
+        val symType        = if (sym.isType) sym.asType.toType else sym.typeSignature
+        val typeIdType     = appliedType(typeOf[TypeId[_]].typeConstructor, symType)
+        val implicitSearch = c.inferImplicitValue(typeIdType, silent = true)
+
+        if (implicitSearch != EmptyTree) {
+          val isDerived = implicitSearch.symbol.fullName.contains("TypeIdMacros") ||
+            implicitSearch.symbol.fullName.contains("derived")
+          if (isDerived) createFreshTypeId()
+          else implicitSearch
+        } else {
+          createFreshTypeId()
         }
     }
     q"_root_.zio.blocks.typeid.TypeRepr.Ref($typeIdExpr)"

@@ -17,29 +17,88 @@ object TypeIdMacros {
    */
   inline def derived[A <: AnyKind]: TypeId[A] = ${ derivedImpl[A] }
 
-  private def derivedImpl[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
+  def ofImpl[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
+    import quotes.reflect.*
+
+    val tpe      = TypeRepr.of[A]
+    val sym      = tpe.typeSymbol
+    val fullName = if (sym.isNoSymbol) "" else sym.fullName
+
+    fullName match {
+      case "scala.Int"     => '{ TypeId.int.asInstanceOf[TypeId[A]] }
+      case "scala.Long"    => '{ TypeId.long.asInstanceOf[TypeId[A]] }
+      case "scala.Double"  => '{ TypeId.double.asInstanceOf[TypeId[A]] }
+      case "scala.Float"   => '{ TypeId.float.asInstanceOf[TypeId[A]] }
+      case "scala.Boolean" => '{ TypeId.boolean.asInstanceOf[TypeId[A]] }
+      case "scala.Byte"    => '{ TypeId.byte.asInstanceOf[TypeId[A]] }
+      case "scala.Short"   => '{ TypeId.short.asInstanceOf[TypeId[A]] }
+      case "scala.Char"    => '{ TypeId.char.asInstanceOf[TypeId[A]] }
+      case "scala.Unit"    => '{ TypeId.unit.asInstanceOf[TypeId[A]] }
+      case _               => deriveTypeId[A]
+    }
+  }
+
+  /**
+   * Entry point for given TypeId.derived[A] - always derives directly, never
+   * searches at top level. Used as implicit/given for automatic derivation. The
+   * compiler already searched for implicits and chose derived.
+   */
+  def derivedImpl[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] =
+    deriveTypeId[A]
+
+  private def deriveTypeId[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
     import quotes.reflect.*
 
     val tpe = quotes.reflect.TypeRepr.of[A]
 
-    // Handle union and intersection types first
     tpe match {
       case OrType(_, _) =>
         deriveUnionType[A](flattenUnion(tpe))
       case AndType(_, _) =>
         deriveIntersectionType[A](flattenIntersection(tpe))
       case AppliedType(tycon, args) =>
-        // Check if the type constructor is a type alias
         tycon match {
           case tr: TypeRef if tr.typeSymbol.isAliasType =>
-            // This is an applied type alias (e.g., StringMap[Int])
             deriveAppliedTypeAlias[A](tr, args)
           case _ =>
-            // Regular applied type - derive with actual type arguments preserved
-            deriveAppliedType[A](tycon, args)
+            deriveAppliedTypeNew[A](tycon, args)
         }
+      case tr: TypeRef if tr.typeSymbol.isAliasType && !isUserDefinedAlias(tr) =>
+        val dealiased = tr.dealias
+        getPredefinedTypeId[A](dealiased).getOrElse(deriveNew[A])
       case _ =>
-        searchOrDerive[A]
+        deriveNew[A]
+    }
+  }
+
+  private def isUserDefinedAlias(using Quotes)(tr: quotes.reflect.TypeRef): Boolean = {
+    val owner     = tr.typeSymbol.owner
+    val ownerPath = buildOwnerPath(owner)
+    val isBuiltIn = ownerPath.exists(_.contains("Predef")) ||
+      (ownerPath.contains("scala") && ownerPath.exists(_.contains("package")))
+    !isBuiltIn
+  }
+
+  private def buildOwnerPath(using Quotes)(sym: quotes.reflect.Symbol): List[String] = {
+    import quotes.reflect.*
+    def loop(s: Symbol, acc: List[String]): List[String] =
+      if (s.isNoSymbol || s == defn.RootPackage || s == defn.RootClass) acc
+      else loop(s.owner, s.name :: acc)
+    loop(sym, Nil)
+  }
+
+  private def getPredefinedTypeId[A <: AnyKind: Type](using
+    Quotes
+  )(
+    dealiased: quotes.reflect.TypeRepr
+  ): Option[Expr[TypeId[A]]] = {
+    val sym      = dealiased.typeSymbol
+    val fullName = if (sym.isNoSymbol) "" else sym.fullName
+    fullName match {
+      case "java.lang.String"                           => Some('{ TypeId.string.asInstanceOf[TypeId[A]] })
+      case "scala.math.BigInt" | "scala.BigInt"         => Some('{ TypeId.bigInt.asInstanceOf[TypeId[A]] })
+      case "scala.math.BigDecimal" | "scala.BigDecimal" => Some('{ TypeId.bigDecimal.asInstanceOf[TypeId[A]] })
+      case _                                            => None
     }
   }
 
@@ -61,7 +120,7 @@ object TypeIdMacros {
     }
   }
 
-  private def deriveAppliedType[A <: AnyKind: Type](using
+  private def deriveAppliedTypeNew[A <: AnyKind: Type](using
     Quotes
   )(
     tycon: quotes.reflect.TypeRepr,
@@ -69,69 +128,54 @@ object TypeIdMacros {
   ): Expr[TypeId[A]] = {
     import quotes.reflect.*
 
-    val tyconSym   = tycon.typeSymbol
-    val typeParams = tyconSym.typeMembers.filter(_.isTypeParam)
+    val tyconSym     = tycon.typeSymbol
+    val typeParams   = tyconSym.typeMembers.filter(_.isTypeParam)
+    val typeArgsExpr = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
 
-    if (typeParams.isEmpty) {
-      searchOrDerive[A]
-    } else {
-      // Search for higher-kinded TypeId[F] before falling back to TypeId[F[Any]]
-      tycon.asType match {
-        case '[tc] =>
-          val tyconIdType = quotes.reflect.TypeRepr.of[TypeId[tc]]
-          Implicits.search(tyconIdType) match {
+    if (typeParams.nonEmpty) {
+      val wildcardArgs    = typeParams.map(_ => TypeRepr.of[Any])
+      val existentialType = tycon.appliedTo(wildcardArgs)
+
+      existentialType.asType match {
+        case '[t] =>
+          val typeIdType = TypeRepr.of[TypeId[t]]
+          Implicits.search(typeIdType) match {
             case iss: ImplicitSearchSuccess =>
-              val foundTyconId = iss.tree.asExprOf[TypeId[tc]]
-              val typeArgsExpr = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
-              '{
-                val base = $foundTyconId.asInstanceOf[TypeId[A]]
-                TypeId.nominal[A](
-                  base.name,
-                  base.owner,
-                  base.typeParams,
-                  ${ Expr.ofList(typeArgsExpr) },
-                  base.defKind,
-                  base.selfType,
-                  base.annotations
-                )
+              val foundTree = iss.tree
+              val isDerived = foundTree match {
+                case Inlined(Some(call), _, _) =>
+                  call.symbol.fullName.contains("TypeIdMacros") || call.symbol.fullName.contains("derived")
+                case _ => foundTree.symbol.fullName.contains("derived")
+              }
+              if (isDerived) {
+                deriveAppliedTypeFresh[A](tycon, args)
+              } else {
+                val foundTyconId = iss.tree.asExprOf[TypeId[t]]
+                '{
+                  val base = $foundTyconId.asInstanceOf[TypeId[A]]
+                  TypeId.nominal[A](
+                    base.name,
+                    base.owner,
+                    base.typeParams,
+                    ${ Expr.ofList(typeArgsExpr) },
+                    base.defKind,
+                    base.selfType,
+                    base.annotations
+                  )
+                }
               }
             case _: ImplicitSearchFailure =>
-              val wildcardArgs    = typeParams.map(_ => TypeRepr.of[Any])
-              val existentialType = tycon.appliedTo(wildcardArgs)
-
-              existentialType.asType match {
-                case '[t] =>
-                  val typeIdType = quotes.reflect.TypeRepr.of[TypeId[t]]
-                  Implicits.search(typeIdType) match {
-                    case iss: ImplicitSearchSuccess =>
-                      val foundTyconId = iss.tree.asExprOf[TypeId[t]]
-                      val typeArgsExpr = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
-                      '{
-                        val base = $foundTyconId.asInstanceOf[TypeId[A]]
-                        TypeId.nominal[A](
-                          base.name,
-                          base.owner,
-                          base.typeParams,
-                          ${ Expr.ofList(typeArgsExpr) },
-                          base.defKind,
-                          base.selfType,
-                          base.annotations
-                        )
-                      }
-                    case _: ImplicitSearchFailure =>
-                      deriveAppliedTypeNew[A](tycon, args)
-                  }
-                case _ =>
-                  deriveAppliedTypeNew[A](tycon, args)
-              }
+              deriveAppliedTypeFresh[A](tycon, args)
           }
         case _ =>
-          deriveAppliedTypeNew[A](tycon, args)
+          deriveAppliedTypeFresh[A](tycon, args)
       }
+    } else {
+      deriveAppliedTypeFresh[A](tycon, args)
     }
   }
 
-  private def deriveAppliedTypeNew[A <: AnyKind: Type](using
+  private def deriveAppliedTypeFresh[A <: AnyKind: Type](using
     Quotes
   )(
     tycon: quotes.reflect.TypeRepr,
@@ -226,66 +270,6 @@ object TypeIdMacros {
         Nil
       )
     }
-  }
-
-  private def searchOrDerive[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
-    import quotes.reflect.*
-
-    val currentTpe = TypeRepr.of[A]
-    currentTpe match {
-      // Opaque types must be derived directly - implicit search finds the underlying type's TypeId due to subtyping
-      case tr: TypeRef if tr.typeSymbol.flags.is(Flags.Opaque) =>
-        deriveNew[A]
-      case tr: TypeRef if tr.typeSymbol.isAliasType =>
-        if (isUserDefinedAlias(tr)) {
-          deriveNew[A]
-        } else {
-          searchForImplicits[A]
-        }
-      case _ =>
-        searchForImplicits[A]
-    }
-  }
-
-  private def searchForImplicits[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
-    import quotes.reflect.*
-
-    // Try to find an existing implicit TypeId[A]
-    val typeIdType = quotes.reflect.TypeRepr.of[TypeId[A]]
-
-    Implicits.search(typeIdType) match {
-      case iss: ImplicitSearchSuccess =>
-        // Found an existing implicit instance, use it directly
-        iss.tree.asExprOf[TypeId[A]]
-      case _: ImplicitSearchFailure =>
-        // No implicit found, derive one
-        deriveNew[A]
-    }
-  }
-
-  private def isUserDefinedAlias(using Quotes)(tr: quotes.reflect.TypeRef): Boolean = {
-
-    val owner     = tr.typeSymbol.owner
-    val ownerPath = buildOwnerPath(owner)
-
-    // Built-in aliases are in scala.Predef or scala package object
-    val isBuiltIn = ownerPath.exists(_.contains("Predef")) ||
-      (ownerPath.contains("scala") && ownerPath.exists(_.contains("package")))
-
-    !isBuiltIn // User-defined if it's NOT built-in
-  }
-
-  private def buildOwnerPath(using Quotes)(sym: quotes.reflect.Symbol): List[String] = {
-    import quotes.reflect.*
-
-    def loop(s: Symbol, acc: List[String]): List[String] =
-      if (s.isNoSymbol || s == defn.RootPackage || s == defn.RootClass || s == defn.EmptyPackageClass) {
-        acc
-      } else {
-        loop(s.owner, s.name :: acc)
-      }
-
-    loop(sym, Nil)
   }
 
   private def deriveNew[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
@@ -597,7 +581,16 @@ object TypeIdMacros {
             val typeIdType = quotes.reflect.TypeRepr.of[TypeId[t]]
             Implicits.search(typeIdType) match {
               case iss: ImplicitSearchSuccess =>
-                iss.tree.asExprOf[TypeId[t]].asInstanceOf[Expr[TypeId[Nothing]]]
+                val foundTree = iss.tree
+                val isDerived = foundTree match {
+                  case Inlined(Some(call), _, _) =>
+                    call.symbol.fullName.contains("TypeIdMacros") ||
+                    call.symbol.fullName.contains("derived")
+                  case _ if foundTree.symbol.fullName.contains("derived") => true
+                  case _                                                  => false
+                }
+                if (isDerived) createFreshTypeId()
+                else iss.tree.asExprOf[TypeId[t]].asInstanceOf[Expr[TypeId[Nothing]]]
               case _: ImplicitSearchFailure =>
                 createFreshTypeId()
             }

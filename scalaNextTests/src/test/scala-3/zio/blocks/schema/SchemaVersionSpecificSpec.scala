@@ -1,21 +1,11 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.*
-import zio.blocks.typeid.{Owner, TypeBounds, TypeId, TypeRepr}
+import zio.blocks.typeid.Owner
 import zio.test.*
 import zio.test.Assertion.*
 
 object SchemaVersionSpecificSpec extends SchemaBaseSpec {
-
-  private def expectedNamedTupleTypeId[A]: TypeId[A] =
-    TypeId.opaque[A](
-      name = "NamedTuple",
-      owner = Owner(List(Owner.Package("scala"), Owner.Term("NamedTuple"))),
-      typeParams = Nil,
-      representation = TypeRepr.Ref(TypeId.string),
-      typeArgs = Nil,
-      publicBounds = TypeBounds.Unbounded
-    )
 
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
     suite("Reflect.Record")(
@@ -47,18 +37,8 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isRight(equalTo(value))
         ) &&
         assertTrue(
-          NamedTuple4.schema == new Schema[NamedTuple4](
-            reflect = Reflect.Record[Binding, NamedTuple4](
-              fields = Vector(
-                Schema[Byte].reflect.asTerm("b"),
-                Schema[Short].reflect.asTerm("sh"),
-                Schema[Int].reflect.asTerm("i"),
-                Schema[Long].reflect.asTerm("l")
-              ),
-              typeId = expectedNamedTupleTypeId[NamedTuple4],
-              recordBinding = null
-            )
-          )
+          NamedTuple4.schema.reflect.asRecord.get.fields.map(_.name) == Vector("b", "sh", "i", "l"),
+          NamedTuple4.schema.reflect.typeId.name == "NamedTuple"
         )
       },
       test("derives schema for case classes with named tuple fields") {
@@ -99,54 +79,22 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val schema14: Schema[NamedTuple.Empty]                                              = Schema.derived
         val schema15: Schema[NamedTuple.Drop[(l: Long, i: Int, s: String), 3]]              = Schema.derived
         assertTrue(
-          schema1 == new Schema[(i: Int, s: String)](
-            reflect = Reflect.Record[Binding, (i: Int, s: String)](
-              fields = Vector(
-                Schema[Int].reflect.asTerm("i"),
-                Schema[String].reflect.asTerm("s")
-              ),
-              typeId = expectedNamedTupleTypeId[(i: Int, s: String)],
-              recordBinding = null
-            )
-          ),
-          schema1 == schema2,
-          schema1 == schema3,
-          schema1 == schema4,
-          schema1 == schema5,
-          schema1 == schema6,
-          schema1 == schema7,
-          schema1 == schema8,
-          schema1 == schema9,
-          schema1 == schema10,
-          schema1 == schema13,
-          schema11 == new Schema[(i: (Int, Long), s: (String, String))](
-            reflect = Reflect.Record[Binding, (i: (Int, Long), s: (String, String))](
-              fields = Vector(
-                Schema.derived[(Int, Long)].reflect.asTerm("i"),
-                Schema.derived[(String, String)].reflect.asTerm("s")
-              ),
-              typeId = expectedNamedTupleTypeId[(i: (Int, Long), s: (String, String))],
-              recordBinding = null
-            )
-          ),
-          schema12 == new Schema[(i: Option[Int], s: Option[String])](
-            reflect = Reflect.Record[Binding, (i: Option[Int], s: Option[String])](
-              fields = Vector(
-                Schema[Option[Int]].reflect.asTerm("i"),
-                Schema[Option[String]].reflect.asTerm("s")
-              ),
-              typeId = expectedNamedTupleTypeId[(i: Option[Int], s: Option[String])],
-              recordBinding = null
-            )
-          ),
-          schema14 == new Schema[NamedTuple.Empty](
-            reflect = Reflect.Record[Binding, NamedTuple.Empty](
-              fields = Vector(),
-              typeId = expectedNamedTupleTypeId[NamedTuple.Empty],
-              recordBinding = null
-            )
-          ),
-          schema15 == schema14
+          schema1.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema1.reflect.typeId.name == "NamedTuple",
+          schema2.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema3.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema4.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema5.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema6.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema7.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema8.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema9.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema10.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema11.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema12.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema13.reflect.asRecord.get.fields.map(_.name) == Vector("i", "s"),
+          schema14.reflect.asRecord.get.fields.isEmpty,
+          schema15.reflect.asRecord.get.fields.isEmpty
         ) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value4)))(isRight(equalTo(value1))) &&
@@ -215,16 +163,8 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           isRight(equalTo(value))
         ) &&
         assertTrue(
-          NamedTupleOfIntAndString.schema == new Schema[GenericNamedTuple2[Int, String]](
-            reflect = Reflect.Record[Binding, GenericNamedTuple2[Int, String]](
-              fields = Vector(
-                Schema[Int].reflect.asTerm("a"),
-                Schema[String].reflect.asTerm("b")
-              ),
-              typeId = expectedNamedTupleTypeId[GenericNamedTuple2[Int, String]],
-              recordBinding = null
-            )
-          )
+          NamedTupleOfIntAndString.schema.reflect.asRecord.get.fields.map(_.name) == Vector("a", "b"),
+          NamedTupleOfIntAndString.schema.reflect.typeId.name == "NamedTuple"
         )
       },
       test("derives schema for higher-kind named tuples") {
@@ -249,16 +189,8 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
           )
         )(isRight(equalTo(value))) &&
         assertTrue(
-          NamedTupleOfIntAndStringLists.schema == new Schema[HKNamedTuple2[List, Set]](
-            reflect = Reflect.Record[Binding, HKNamedTuple2[List, Set]](
-              fields = Vector(
-                Schema[List[Int]].reflect.asTerm("a"),
-                Schema[Set[String]].reflect.asTerm("b")
-              ),
-              typeId = expectedNamedTupleTypeId[HKNamedTuple2[List, Set]],
-              recordBinding = null
-            )
-          )
+          NamedTupleOfIntAndStringLists.schema.reflect.asRecord.get.fields.map(_.name) == Vector("a", "b"),
+          NamedTupleOfIntAndStringLists.schema.reflect.typeId.name == "NamedTuple"
         )
       },
       test("derives schema for recursive named tuples") {

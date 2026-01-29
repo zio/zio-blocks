@@ -204,7 +204,7 @@ sealed trait TypeId[A <: AnyKind] {
   }
 }
 
-object TypeId extends TypeIdInstances {
+object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   // Private implementation case class
   private final case class Impl[A <: AnyKind](
@@ -352,9 +352,7 @@ object TypeId extends TypeIdInstances {
 
   // ========== Macro Derivation ==========
 
-  inline def of[A <: AnyKind]: TypeId[A] = TypeIdMacros.derived[A]
-
-  inline def derived[A <: AnyKind]: TypeId[A] = TypeIdMacros.derived[A]
+  inline def of[A <: AnyKind]: TypeId[A] = ${ TypeIdMacros.ofImpl[A] }
 
   // ========== Normalization and Equality ==========
 

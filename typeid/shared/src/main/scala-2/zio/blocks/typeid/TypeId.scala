@@ -138,7 +138,11 @@ sealed trait TypeId[A] {
   }
 }
 
-object TypeId extends TypeIdInstances {
+trait TypeIdLowPriority {
+  implicit def derived[A]: TypeId[A] = macro TypeIdMacros.derivedImpl[A]
+}
+
+object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   private[typeid] final case class Impl[A](
     name: String,
@@ -279,9 +283,7 @@ object TypeId extends TypeIdInstances {
       }
   }
 
-  def of[A]: TypeId[A] = macro TypeIdMacros.derivedImpl[A]
-
-  def derived[A]: TypeId[A] = macro TypeIdMacros.derivedImpl[A]
+  def of[A]: TypeId[A] = macro TypeIdMacros.ofImpl[A]
 
   def normalize(id: TypeId[_]): TypeId[_] = TypeIdOps.normalize(id)
 
