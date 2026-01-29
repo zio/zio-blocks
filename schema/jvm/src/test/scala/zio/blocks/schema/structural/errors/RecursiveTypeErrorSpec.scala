@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural.errors
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.test._
 
@@ -20,7 +21,7 @@ import zio.test._
  * Scala's type system does not support infinite types.
  * }}}
  */
-object RecursiveTypeErrorSpec extends ZIOSpecDefault {
+object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
   def spec = suite("RecursiveTypeErrorSpec")(
     suite("Direct Recursion Detection")(

@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -55,16 +54,13 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def fail(msg: String): Nothing = CommonMacroOps.fail(msg)
 
-  private def isEnumValue(tpe: TypeRepr): Boolean = tpe.termSymbol.flags.is(Flags.Enum)
+  private def isEnumValue(tpe: TypeRepr): Boolean = CommonMacroOps.isEnumValue(tpe)
 
-  private def isEnumOrModuleValue(tpe: TypeRepr): Boolean = isEnumValue(tpe) || tpe.typeSymbol.flags.is(Flags.Module)
+  private def isEnumOrModuleValue(tpe: TypeRepr): Boolean = CommonMacroOps.isEnumOrModuleValue(tpe)
 
-  private def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
-    val flags = symbol.flags
-    flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
-  }
+  private def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = CommonMacroOps.isSealedTraitOrAbstractClass(tpe)
 
-  private def isOpaque(tpe: TypeRepr): Boolean = tpe.typeSymbol.flags.is(Flags.Opaque)
+  private def isOpaque(tpe: TypeRepr): Boolean = CommonMacroOps.isOpaque(tpe)
 
   // === Structural Type Support (JVM only) ===
 
@@ -229,10 +225,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def allUnionTypes(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.allUnionTypes(tpe)
 
-  private def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
-    val flags = symbol.flags
-    !(flags.is(Flags.Abstract) || flags.is(Flags.JavaDefined) || flags.is(Flags.Trait))
-  }
+  private def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = CommonMacroOps.isNonAbstractScalaClass(tpe)
 
   private def typeArgs(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.typeArgs(tpe)
 

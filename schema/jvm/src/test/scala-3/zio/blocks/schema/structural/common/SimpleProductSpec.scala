@@ -1,10 +1,11 @@
 package zio.blocks.schema.structural.common
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
 /** Tests for simple product type to structural conversion. */
-object SimpleProductSpec extends ZIOSpecDefault {
+object SimpleProductSpec extends SchemaBaseSpec {
 
   case class Person(name: String, age: Int)
   type PersonLike = { def name: String; def age: Int }

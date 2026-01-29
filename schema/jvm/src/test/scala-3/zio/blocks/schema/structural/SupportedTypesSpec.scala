@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.test._
 
@@ -17,7 +18,7 @@ import zio.test._
  * Sum type error tests are in scala-2 specific: SumTypeErrorSpec.scala In Scala
  * 3, sealed traits/enums are supported via union types.
  */
-object SupportedTypesSpec extends ZIOSpecDefault {
+object SupportedTypesSpec extends SchemaBaseSpec {
 
   def spec = suite("SupportedTypesSpec")(
     suite("Supported Product Types")(

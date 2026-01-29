@@ -1,10 +1,11 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
 /** Tests for pure structural type Schema derivation (JVM only). */
-object PureStructuralTypeSpec extends ZIOSpecDefault {
+object PureStructuralTypeSpec extends SchemaBaseSpec {
 
   type PersonLike = { def name: String; def age: Int }
 
