@@ -2,10 +2,21 @@ package zio.blocks.schema
 
 import neotype._
 import zio.blocks.schema.json.JsonTestUtils._
+import zio.blocks.typeid.Owner
 import zio.test.Assertion._
 import zio.test._
 
 object NeotypeSupportSpec extends SchemaBaseSpec {
+
+  // Expected owner for types defined in this spec
+  private val specOwner = Owner(
+    List(
+      Owner.Package("zio"),
+      Owner.Package("blocks"),
+      Owner.Package("schema"),
+      Owner.Term("NeotypeSupportSpec")
+    )
+  )
 
   def spec: Spec[TestEnvironment, Any] = suite("NeotypeSupportSpec")(
     test("derive schemas for cases classes with subtype and newtype fields") {
@@ -22,10 +33,15 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
+      // TypeId assertions - verify both name AND owner (matching original TypeName assertions)
       assert(Planet.name.focus.typeId.dynamic.name)(equalTo("Name")) &&
+      assert(Planet.name.focus.typeId.dynamic.owner)(equalTo(specOwner)) &&
       assert(Planet.mass.focus.typeId.dynamic.name)(equalTo("Kilogram")) &&
+      assert(Planet.mass.focus.typeId.dynamic.owner)(equalTo(specOwner)) &&
       assert(Planet.radius.focus.typeId.dynamic.name)(equalTo("Meter")) &&
+      assert(Planet.radius.focus.typeId.dynamic.owner)(equalTo(specOwner)) &&
       assert(Planet.distanceFromSun.focus.typeId.dynamic.name)(equalTo("Option")) &&
+      assert(Planet.distanceFromSun.focus.typeId.dynamic.owner)(equalTo(Owner.parse("scala"))) &&
       roundTrip[Planet](value, """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""") &&
       decodeError[Planet](
         """{"name":"","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""",
@@ -73,10 +89,15 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
+      // TypeId assertions - verify name AND owner for Option types
       assert(schema1.reflect.typeId.dynamic.name)(equalTo("Option")) &&
+      assert(schema1.reflect.typeId.dynamic.owner)(equalTo(Owner.parse("scala"))) &&
       assert(schema2.reflect.typeId.dynamic.name)(equalTo("Option")) &&
+      assert(schema2.reflect.typeId.dynamic.owner)(equalTo(Owner.parse("scala"))) &&
       assert(schema3.reflect.typeId.dynamic.name)(equalTo("Option")) &&
-      assert(schema4.reflect.typeId.dynamic.name)(equalTo("Option"))
+      assert(schema3.reflect.typeId.dynamic.owner)(equalTo(Owner.parse("scala"))) &&
+      assert(schema4.reflect.typeId.dynamic.name)(equalTo("Option")) &&
+      assert(schema4.reflect.typeId.dynamic.owner)(equalTo(Owner.parse("scala")))
     },
     test("derive schemas for collections with newtypes and subtypes") {
       val schema1 = Schema.derived[List[Name]]
@@ -91,10 +112,15 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
+      // TypeId assertions - verify name AND owner for collection types
       assert(schema1.reflect.typeId.dynamic.name)(equalTo("List")) &&
+      assert(schema1.reflect.typeId.dynamic.owner)(equalTo(Owner.parse("scala.collection.immutable"))) &&
       assert(schema2.reflect.typeId.dynamic.name)(equalTo("Vector")) &&
+      assert(schema2.reflect.typeId.dynamic.owner)(equalTo(Owner.parse("scala.collection.immutable"))) &&
       assert(schema3.reflect.typeId.dynamic.name)(equalTo("Set")) &&
-      assert(schema4.reflect.typeId.dynamic.name)(equalTo("Map"))
+      assert(schema3.reflect.typeId.dynamic.owner)(equalTo(Owner.parse("scala.collection.immutable"))) &&
+      assert(schema4.reflect.typeId.dynamic.name)(equalTo("Map")) &&
+      assert(schema4.reflect.typeId.dynamic.owner)(equalTo(Owner.parse("scala.collection.immutable")))
     },
     test("derive schemas for cases classes and collections with newtypes for primitives") {
       val value         = Stats(Some(Id(123)), DropRate(0.5), Array(ResponseTime(0.1), ResponseTime(0.23)))
