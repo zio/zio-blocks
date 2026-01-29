@@ -1957,14 +1957,14 @@ object DynamicSchema {
       case DynamicValue.Variant("Range", DynamicValue.Record(fields)) =>
         val fieldMap = fields.toMap
         val min      = fieldMap.get("min").flatMap {
-          case DynamicValue.Variant("Some", DynamicValue.Record(inner)) =>
-            inner.toMap.get("value").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
-          case _ => scala.None
+          case DynamicValue.Primitive(PrimitiveValue.String(s)) => Some(s)
+          case DynamicValue.Null                                => scala.None
+          case _                                                => scala.None
         }
         val max = fieldMap.get("max").flatMap {
-          case DynamicValue.Variant("Some", DynamicValue.Record(inner)) =>
-            inner.toMap.get("value").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
-          case _ => scala.None
+          case DynamicValue.Primitive(PrimitiveValue.String(s)) => Some(s)
+          case DynamicValue.Null                                => scala.None
+          case _                                                => scala.None
         }
         Validation.Numeric.Range(min, max).asInstanceOf[Validation[Any]]
       case DynamicValue.Variant("Set", DynamicValue.Record(fields)) =>
@@ -1978,14 +1978,14 @@ object DynamicSchema {
       case DynamicValue.Variant("StringLength", DynamicValue.Record(fields)) =>
         val fieldMap = fields.toMap
         val min      = fieldMap.get("min").flatMap {
-          case DynamicValue.Variant("Some", DynamicValue.Record(inner)) =>
-            inner.toMap.get("value").collect { case DynamicValue.Primitive(PrimitiveValue.Int(i)) => i }
-          case _ => scala.None
+          case DynamicValue.Primitive(PrimitiveValue.Int(i)) => Some(i)
+          case DynamicValue.Null                             => scala.None
+          case _                                             => scala.None
         }
         val max = fieldMap.get("max").flatMap {
-          case DynamicValue.Variant("Some", DynamicValue.Record(inner)) =>
-            inner.toMap.get("value").collect { case DynamicValue.Primitive(PrimitiveValue.Int(i)) => i }
-          case _ => scala.None
+          case DynamicValue.Primitive(PrimitiveValue.Int(i)) => Some(i)
+          case DynamicValue.Null                             => scala.None
+          case _                                             => scala.None
         }
         Validation.String.Length(min, max).asInstanceOf[Validation[Any]]
       case DynamicValue.Variant("StringPattern", DynamicValue.Record(fields)) =>

@@ -1878,6 +1878,105 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val roundTrip     = DynamicSchema.fromDynamicValue(dv)
         assertTrue(roundTrip.doc != Doc.Empty)
       }
+    ),
+    suite("Serialization regression tests")(
+      test("regression: PrimitiveType serializes as Variant not Record") {
+        val ds = Schema[Int].toDynamicSchema
+        val dv = DynamicSchema.toDynamicValue(ds)
+        dv match {
+          case DynamicValue.Variant("Primitive", DynamicValue.Record(fields)) =>
+            val fieldMap = fields.toMap
+            fieldMap.get("primitiveType") match {
+              case Some(DynamicValue.Variant(caseName, _)) =>
+                assertTrue(caseName == "Int")
+              case _ =>
+                assertTrue(false)
+            }
+          case _ =>
+            assertTrue(false)
+        }
+      },
+      test("regression: all String validations round-trip correctly") {
+        def testStringValidation(v: Validation.String): zio.test.TestResult = {
+          val schema = Schema[String].reflect.asPrimitive
+            .map(p => new Schema(new Reflect.Primitive(PrimitiveType.String(v), p.typeName, p.primitiveBinding)))
+            .get
+          val ds        = schema.toDynamicSchema
+          val dv        = DynamicSchema.toDynamicValue(ds)
+          val roundTrip = DynamicSchema.fromDynamicValue(dv)
+          roundTrip.reflect.asPrimitive match {
+            case Some(p) =>
+              p.primitiveType match {
+                case PrimitiveType.String(validation) =>
+                  assertTrue(validation == v)
+                case _ =>
+                  assertTrue(false)
+              }
+            case _ =>
+              assertTrue(false)
+          }
+        }
+        testStringValidation(Validation.String.NonEmpty) &&
+        testStringValidation(Validation.String.Empty) &&
+        testStringValidation(Validation.String.Blank) &&
+        testStringValidation(Validation.String.NonBlank) &&
+        testStringValidation(Validation.String.Length(Some(1), Some(10))) &&
+        testStringValidation(Validation.String.Pattern("^[a-z]+$"))
+      },
+      test("regression: all Numeric validations round-trip correctly") {
+        def testNumericValidation(v: Validation[Int]): zio.test.TestResult = {
+          val schema = Schema[Int].reflect.asPrimitive
+            .map(p => new Schema(new Reflect.Primitive(PrimitiveType.Int(v), p.typeName, p.primitiveBinding)))
+            .get
+          val ds        = schema.toDynamicSchema
+          val dv        = DynamicSchema.toDynamicValue(ds)
+          val roundTrip = DynamicSchema.fromDynamicValue(dv)
+          roundTrip.reflect.asPrimitive match {
+            case Some(p) =>
+              p.primitiveType match {
+                case PrimitiveType.Int(validation) =>
+                  assertTrue(validation == v)
+                case _ =>
+                  assertTrue(false)
+              }
+            case _ =>
+              assertTrue(false)
+          }
+        }
+        testNumericValidation(Validation.None) &&
+        testNumericValidation(Validation.Numeric.Positive) &&
+        testNumericValidation(Validation.Numeric.Negative) &&
+        testNumericValidation(Validation.Numeric.NonPositive) &&
+        testNumericValidation(Validation.Numeric.NonNegative)
+      },
+      test("regression: Doc.Concat 'flatten' field name consistency") {
+        val doc       = Doc.Concat(IndexedSeq(Doc.Text("a"), Doc.Text("b")))
+        val schema    = Schema[Int].reflect.asPrimitive.map(p => new Schema(p.doc(doc))).get
+        val ds        = schema.toDynamicSchema
+        val dv        = DynamicSchema.toDynamicValue(ds)
+        val roundTrip = DynamicSchema.fromDynamicValue(dv)
+        roundTrip.doc match {
+          case Doc.Concat(flatten) =>
+            assertTrue(flatten.length == 2)
+          case _ =>
+            assertTrue(false)
+        }
+      },
+      test("regression: validation is enforced after round-trip") {
+        val schema = Schema[Int].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Int(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+        val ds        = schema.toDynamicSchema
+        val dv        = DynamicSchema.toDynamicValue(ds)
+        val roundTrip = DynamicSchema.fromDynamicValue(dv)
+        assertTrue(roundTrip.check(DynamicValue.Primitive(PrimitiveValue.Int(5))).isEmpty) &&
+        assertTrue(roundTrip.check(DynamicValue.Primitive(PrimitiveValue.Int(0))).isDefined) &&
+        assertTrue(roundTrip.check(DynamicValue.Primitive(PrimitiveValue.Int(-5))).isDefined)
+      }
     )
   )
 }
