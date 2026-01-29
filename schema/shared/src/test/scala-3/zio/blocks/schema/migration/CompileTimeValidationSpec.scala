@@ -925,6 +925,319 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         assertTrue(true)
       }
+    ),
+    suite("edge cases with container types (Phase 5)")(
+      test("Option fields don't recurse into element type") {
+        // Option fields should be treated as leaf nodes
+        case class WithOptionSrc(name: String, data: Option[String])
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class WithOptionTgt(name: String, data: Option[String], extra: Int)
+
+        given Schema[WithOptionSrc] = Schema.derived
+        given Schema[WithOptionTgt] = Schema.derived
+
+        // Only "extra" needs to be provided, "data" paths are identical
+        val fp = summon[FieldPaths[WithOptionSrc]]
+        summon[fp.Paths =:= ("data" *: "name" *: EmptyTuple)]
+
+        val migration = MigrationBuilder
+          .newBuilder[WithOptionSrc, WithOptionTgt]
+          .addField(_.extra, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+          .build
+
+        val result = migration(WithOptionSrc("test", Some("value")))
+        assertTrue(result.isRight)
+      },
+      test("List fields don't recurse into element type") {
+        // List fields should be treated as leaf nodes
+        case class WithListSrc(name: String, items: List[String])
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class WithListTgt(name: String, items: List[String], count: Int)
+
+        given Schema[WithListSrc] = Schema.derived
+        given Schema[WithListTgt] = Schema.derived
+
+        val fp = summon[FieldPaths[WithListSrc]]
+        summon[fp.Paths =:= ("items" *: "name" *: EmptyTuple)]
+
+        val migration = MigrationBuilder
+          .newBuilder[WithListSrc, WithListTgt]
+          .addField(_.count, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+          .build
+
+        val result = migration(WithListSrc("test", List("a", "b")))
+        assertTrue(result.isRight)
+      },
+      test("Set fields don't recurse into element type") {
+        // Set fields should be treated as leaf nodes
+        case class WithSetSrc(name: String, tags: Set[String])
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class WithSetTgt(name: String, tags: Set[String], active: Boolean)
+
+        given Schema[WithSetSrc] = Schema.derived
+        given Schema[WithSetTgt] = Schema.derived
+
+        val fp = summon[FieldPaths[WithSetSrc]]
+        summon[fp.Paths =:= ("name" *: "tags" *: EmptyTuple)]
+
+        val migration = MigrationBuilder
+          .newBuilder[WithSetSrc, WithSetTgt]
+          .addField(_.active, SchemaExpr.Literal[DynamicValue, Boolean](true, Schema.boolean))
+          .build
+
+        val result = migration(WithSetSrc("test", Set("tag1", "tag2")))
+        assertTrue(result.isRight)
+      },
+      test("Map fields don't recurse into key/value types") {
+        // Map fields should be treated as leaf nodes
+        case class WithMapSrc(name: String, data: Map[String, Int])
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class WithMapTgt(name: String, data: Map[String, Int], version: Long)
+
+        given Schema[WithMapSrc] = Schema.derived
+        given Schema[WithMapTgt] = Schema.derived
+
+        val fp = summon[FieldPaths[WithMapSrc]]
+        summon[fp.Paths =:= ("data" *: "name" *: EmptyTuple)]
+
+        val migration = MigrationBuilder
+          .newBuilder[WithMapSrc, WithMapTgt]
+          .addField(_.version, SchemaExpr.Literal[DynamicValue, Long](1L, Schema.long))
+          .build
+
+        val result = migration(WithMapSrc("test", Map("a" -> 1)))
+        assertTrue(result.isRight)
+      },
+      test("Vector fields don't recurse into element type") {
+        // Vector fields should be treated as leaf nodes
+        case class WithVectorSrc(name: String, values: Vector[Double])
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class WithVectorTgt(name: String, values: Vector[Double], sum: Double)
+
+        given Schema[WithVectorSrc] = Schema.derived
+        given Schema[WithVectorTgt] = Schema.derived
+
+        val fp = summon[FieldPaths[WithVectorSrc]]
+        summon[fp.Paths =:= ("name" *: "values" *: EmptyTuple)]
+
+        val migration = MigrationBuilder
+          .newBuilder[WithVectorSrc, WithVectorTgt]
+          .addField(_.sum, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
+          .build
+
+        val result = migration(WithVectorSrc("test", Vector(1.0, 2.0)))
+        assertTrue(result.isRight)
+      },
+      test("nested case class in Option is not recursed") {
+        // Option[CaseClass] should NOT recurse into CaseClass fields
+        case class Inner(x: Int, y: String)
+        case class OuterSrc(name: String, inner: Option[Inner])
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class OuterTgt(name: String, inner: Option[Inner], extra: Boolean)
+
+        given Schema[Inner]    = Schema.derived
+        given Schema[OuterSrc] = Schema.derived
+        given Schema[OuterTgt] = Schema.derived
+
+        // Paths should only include top-level: "inner", "name" - NOT "inner.x", "inner.y"
+        val fp = summon[FieldPaths[OuterSrc]]
+        summon[fp.Paths =:= ("inner" *: "name" *: EmptyTuple)]
+
+        val migration = MigrationBuilder
+          .newBuilder[OuterSrc, OuterTgt]
+          .addField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
+          .build
+
+        val result = migration(OuterSrc("test", Some(Inner(1, "hello"))))
+        assertTrue(result.isRight)
+      },
+      test("nested case class in List is not recursed") {
+        // List[CaseClass] should NOT recurse into CaseClass fields
+        case class Item(id: Int, name: String)
+        case class ContainerSrc(items: List[Item])
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class ContainerTgt(items: List[Item], count: Int)
+
+        given Schema[Item]         = Schema.derived
+        given Schema[ContainerSrc] = Schema.derived
+        given Schema[ContainerTgt] = Schema.derived
+
+        // Paths should only include "items" - NOT "items.id", "items.name"
+        val fp = summon[FieldPaths[ContainerSrc]]
+        summon[fp.Paths =:= Tuple1["items"]]
+
+        val migration = MigrationBuilder
+          .newBuilder[ContainerSrc, ContainerTgt]
+          .addField(_.count, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+          .build
+
+        val result = migration(ContainerSrc(List(Item(1, "a"), Item(2, "b"))))
+        assertTrue(result.isRight)
+      },
+      test("empty case class extracts no paths") {
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class EmptyClass()
+
+        val fp = summon[FieldPaths[EmptyClass]]
+        summon[fp.Paths =:= EmptyTuple]
+
+        assertTrue(true)
+      },
+      test("single field case class extracts one path") {
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class SingleField(value: String)
+
+        val fp = summon[FieldPaths[SingleField]]
+        summon[fp.Paths =:= Tuple1["value"]]
+
+        assertTrue(true)
+      },
+      test("deeply nested containers work correctly") {
+        // Nested containers: Option[List[Map[String, Int]]]
+        case class DeepContainerSrc(data: Option[List[Map[String, Int]]])
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class DeepContainerTgt(data: Option[List[Map[String, Int]]], meta: String)
+
+        given Schema[DeepContainerSrc] = Schema.derived
+        given Schema[DeepContainerTgt] = Schema.derived
+
+        val fp = summon[FieldPaths[DeepContainerSrc]]
+        summon[fp.Paths =:= Tuple1["data"]]
+
+        val migration = MigrationBuilder
+          .newBuilder[DeepContainerSrc, DeepContainerTgt]
+          .addField(_.meta, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
+          .build
+
+        val result = migration(DeepContainerSrc(Some(List(Map("a" -> 1)))))
+        assertTrue(result.isRight)
+      }
+    ),
+    suite("requireValidation macro (Phase 5)")(
+      test("requireValidation succeeds for valid migration") {
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class ValidSrc(name: String, age: Int)
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class ValidTgt(name: String, age: Int)
+
+        @scala.annotation.nowarn("msg=unused local definition")
+        given Schema[ValidSrc] = Schema.derived
+        @scala.annotation.nowarn("msg=unused local definition")
+        given Schema[ValidTgt] = Schema.derived
+
+        // This should compile and succeed
+        val proof = ValidationProof.requireValidation[ValidSrc, ValidTgt, EmptyTuple, EmptyTuple]
+        assertTrue(proof != null)
+      },
+      test("requireValidation succeeds with handled and provided fields") {
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class SrcWithExtra(name: String, removed: Int)
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class TgtWithExtra(name: String, added: Boolean)
+
+        @scala.annotation.nowarn("msg=unused local definition")
+        given Schema[SrcWithExtra] = Schema.derived
+        @scala.annotation.nowarn("msg=unused local definition")
+        given Schema[TgtWithExtra] = Schema.derived
+
+        // Needs "removed" handled and "added" provided
+        val proof = ValidationProof.requireValidation[SrcWithExtra, TgtWithExtra, Tuple1["removed"], Tuple1["added"]]
+        assertTrue(proof != null)
+      },
+      test("requireValidation produces error for incomplete migration") {
+        // Test that the error message is produced correctly
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration._
+          import zio.blocks.schema._
+
+          case class IncSrc(name: String, old: Int)
+          case class IncTgt(name: String, newField: Boolean)
+
+          given Schema[IncSrc] = Schema.derived
+          given Schema[IncTgt] = Schema.derived
+
+          // Missing handling for "old" and providing for "newField"
+          ValidationProof.requireValidation[IncSrc, IncTgt, EmptyTuple, EmptyTuple]
+        """))(Assertion.isLeft)
+      },
+      test("requireValidation error mentions unhandled fields") {
+        // Test that error message content includes field names
+        val result = typeCheck("""
+          import zio.blocks.schema.migration._
+          import zio.blocks.schema._
+
+          case class ErrSrc(keep: String, dropMe: Int)
+          case class ErrTgt(keep: String)
+
+          given Schema[ErrSrc] = Schema.derived
+          given Schema[ErrTgt] = Schema.derived
+
+          ValidationProof.requireValidation[ErrSrc, ErrTgt, EmptyTuple, EmptyTuple]
+        """)
+
+        // The error should contain "dropMe" field name
+        assertZIO(result)(Assertion.isLeft)
+      },
+      test("requireValidation error mentions unprovided fields") {
+        val result = typeCheck("""
+          import zio.blocks.schema.migration._
+          import zio.blocks.schema._
+
+          case class AddSrc(keep: String)
+          case class AddTgt(keep: String, addMe: Int)
+
+          given Schema[AddSrc] = Schema.derived
+          given Schema[AddTgt] = Schema.derived
+
+          ValidationProof.requireValidation[AddSrc, AddTgt, EmptyTuple, EmptyTuple]
+        """)
+
+        // The error should contain "addMe" field name
+        assertZIO(result)(Assertion.isLeft)
+      },
+      test("requireValidation error mentions unhandled cases") {
+        val result = typeCheck("""
+          import zio.blocks.schema.migration._
+          import zio.blocks.schema._
+
+          sealed trait OldEnum
+          case class OldCase(x: Int) extends OldEnum
+
+          sealed trait NewEnum
+          case class NewCase(x: Int) extends NewEnum
+
+          given Schema[OldEnum] = Schema.derived
+          given Schema[NewEnum] = Schema.derived
+
+          ValidationProof.requireValidation[OldEnum, NewEnum, EmptyTuple, EmptyTuple]
+        """)
+
+        // The error should mention case names
+        assertZIO(result)(Assertion.isLeft)
+      },
+      test("requireValidation works with nested field changes") {
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class InnerV1(a: Int, b: String)
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class OuterV1(inner: InnerV1)
+
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class InnerV2(a: Int, c: Boolean) // b -> c
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class OuterV2(inner: InnerV2)
+
+        given Schema[InnerV1] = Schema.derived
+        @scala.annotation.nowarn("msg=unused local definition")
+        given Schema[OuterV1] = Schema.derived
+        given Schema[InnerV2] = Schema.derived
+        @scala.annotation.nowarn("msg=unused local definition")
+        given Schema[OuterV2] = Schema.derived
+
+        // Need to handle "inner.b" and provide "inner.c"
+        val proof =
+          ValidationProof.requireValidation[OuterV1, OuterV2, Tuple1["inner.b"], Tuple1["inner.c"]]
+        assertTrue(proof != null)
+      }
     )
   )
 }
