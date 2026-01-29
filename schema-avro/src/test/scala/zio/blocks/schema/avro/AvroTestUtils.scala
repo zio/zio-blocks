@@ -16,7 +16,7 @@ object AvroTestUtils {
   private[this] val codecs = new ConcurrentHashMap[Schema[?], AvroBinaryCodec[?]]()
 
   private[this] def codec[A](schema: Schema[A]): AvroBinaryCodec[A] =
-    codecs.computeIfAbsent(schema, _.derive(AvroFormat.deriver)).asInstanceOf[AvroBinaryCodec[A]]
+    codecs.computeIfAbsent(schema, (s: Schema[?]) => s.derive(AvroFormat.deriver)).asInstanceOf[AvroBinaryCodec[A]]
 
   def avroSchema[A](expectedAvroSchemaJson: String)(implicit schema: Schema[A]): TestResult =
     avroSchema(expectedAvroSchemaJson, codec(schema))

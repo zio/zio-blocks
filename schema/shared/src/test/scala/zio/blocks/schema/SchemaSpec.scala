@@ -54,6 +54,10 @@ object SchemaSpec extends SchemaBaseSpec {
       },
       test("encodes values using provided formats and outputs") {
         assert(encodeToString(out => Schema[Byte].encode(ToStringFormat)(out)(1: Byte)))(equalTo("1"))
+      },
+      test("derives codec from format directly") {
+        val codec = Schema[Int].derive(ToStringFormat)
+        assert(encodeToString(out => codec.encode(42, out)))(equalTo("42"))
       }
     ),
     suite("Reflect.Record")(

@@ -31,7 +31,7 @@ object Person {
 }
 
 // Derive the TOON codec
-val codec = Schema[Person].derive(ToonFormat.deriver)
+val codec = Schema[Person].derive(ToonFormat)
 
 // Encode to TOON
 val person = Person("Alice", 30)
@@ -60,7 +60,7 @@ object Team {
 }
 
 // By default, object arrays use list format
-val teamCodec = Schema[Team].derive(ToonFormat.deriver)
+val teamCodec = Schema[Team].derive(ToonFormat)
 val team = Team(List(User(1, "Alice"), User(2, "Bob")))
 // Output:
 // members[2]:
@@ -83,7 +83,7 @@ object Project {
 }
 
 // Primitive arrays automatically use inline format
-val projectCodec = Schema[Project].derive(ToonFormat.deriver)
+val projectCodec = Schema[Project].derive(ToonFormat)
 val project = Project(List("scala", "zio", "toon"))
 // Output:
 // tags[3]: scala,zio,toon

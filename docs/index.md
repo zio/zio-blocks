@@ -60,10 +60,10 @@ object Person {
 }
 
 // Derive codecs for any format:
-val jsonCodec    = Schema[Person].derive(JsonFormat.deriver)        // JSON
-val avroCodec    = Schema[Person].derive(AvroFormat.deriver)        // Avro
-val toonCodec    = Schema[Person].derive(ToonFormat.deriver)        // TOON (LLM-optimized)
-val msgpackCodec = Schema[Person].derive(MessagePackFormat.deriver) // MessagePack
+val jsonCodec    = Schema[Person].derive(JsonFormat)        // JSON
+val avroCodec    = Schema[Person].derive(AvroFormat)        // Avro
+val toonCodec    = Schema[Person].derive(ToonFormat)        // TOON (LLM-optimized)
+val msgpackCodec = Schema[Person].derive(MessagePackFormat) // MessagePack
 ```
 
 ### Key Features
