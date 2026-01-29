@@ -165,7 +165,8 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
 
   /**
    * Applies nested migration actions to a specific variant case using selector
-   * syntax. Adds case name to both Handled and Provided (prefixed with "case:").
+   * syntax. Adds case name to both Handled and Provided (prefixed with
+   * "case:").
    */
   def transformCase(
     at: A => Any
@@ -184,17 +185,23 @@ object MigrationBuilderSyntax {
   /**
    * Validate a migration with detailed error messages.
    *
-   * This macro provides helpful compile-time error messages when validation fails,
-   * including specific field paths and case names that need handling or providing.
+   * This macro provides helpful compile-time error messages when validation
+   * fails, including specific field paths and case names that need handling or
+   * providing.
    *
    * Use this when you want clear feedback about what's missing in a migration
    * without needing to build the migration first.
    *
-   * @tparam A Source type
-   * @tparam B Target type
-   * @tparam Handled Fields/cases that have been handled
-   * @tparam Provided Fields/cases that have been provided
-   * @return Unit if validation passes, compile error otherwise
+   * @tparam A
+   *   Source type
+   * @tparam B
+   *   Target type
+   * @tparam Handled
+   *   Fields/cases that have been handled
+   * @tparam Provided
+   *   Fields/cases that have been provided
+   * @return
+   *   Unit if validation passes, compile error otherwise
    */
   def requireValidation[A, B, Handled <: TList, Provided <: TList]: Unit =
     macro MigrationBuilderMacrosImpl.requireValidationImpl[A, B, Handled, Provided]
@@ -215,7 +222,8 @@ private[migration] object MigrationBuilderMacrosImpl {
    *   1. Extracts full nested field paths from A and B using FieldPaths logic
    *   2. Extracts case names from A and B using CasePaths logic
    *   3. Extracts field/case names from Handled and Provided TList types
-   *   4. Computes which paths are removed (in A but not B) and added (in B but not A)
+   *   4. Computes which paths are removed (in A but not B) and added (in B but
+   *      not A)
    *   5. Verifies removed ⊆ handled and added ⊆ provided
    *   6. Emits compile error if validation fails with detailed hints
    */
@@ -258,7 +266,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     val missingProvided = added.diff(provided)
 
     if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
-      val (unhandledPaths, unhandledCases) = missingHandled.partition(!_.startsWith("case:"))
+      val (unhandledPaths, unhandledCases)   = missingHandled.partition(!_.startsWith("case:"))
       val (unprovidedPaths, unprovidedCases) = missingProvided.partition(!_.startsWith("case:"))
 
       val sb = new StringBuilder
@@ -287,12 +295,12 @@ private[migration] object MigrationBuilderMacrosImpl {
       // Add hints with example paths
       sb.append("\n")
       if (unhandledPaths.nonEmpty) {
-        val example = unhandledPaths.head
+        val example      = unhandledPaths.head
         val selectorPath = example.split("\\.").mkString(".")
         sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
       }
       if (unprovidedPaths.nonEmpty) {
-        val example = unprovidedPaths.head
+        val example      = unprovidedPaths.head
         val selectorPath = example.split("\\.").mkString(".")
         sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
       }
@@ -358,7 +366,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     val missingProvided = added.diff(provided)
 
     if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
-      val (unhandledPaths, unhandledCases) = missingHandled.partition(!_.startsWith("case:"))
+      val (unhandledPaths, unhandledCases)   = missingHandled.partition(!_.startsWith("case:"))
       val (unprovidedPaths, unprovidedCases) = missingProvided.partition(!_.startsWith("case:"))
 
       val sb = new StringBuilder
@@ -387,12 +395,12 @@ private[migration] object MigrationBuilderMacrosImpl {
       // Add hints
       sb.append("\n")
       if (unhandledPaths.nonEmpty) {
-        val example = unhandledPaths.head
+        val example      = unhandledPaths.head
         val selectorPath = example.split("\\.").mkString(".")
         sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
       }
       if (unprovidedPaths.nonEmpty) {
-        val example = unprovidedPaths.head
+        val example      = unprovidedPaths.head
         val selectorPath = example.split("\\.").mkString(".")
         sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
       }
@@ -460,8 +468,9 @@ private[migration] object MigrationBuilderMacrosImpl {
   // ==========================================================================
 
   /**
-   * Extract all field paths from a type, recursively descending into nested case classes.
-   * This mirrors the logic in FieldExtraction/ShapeExtraction for consistency.
+   * Extract all field paths from a type, recursively descending into nested
+   * case classes. This mirrors the logic in FieldExtraction/ShapeExtraction for
+   * consistency.
    */
   private def extractFieldPathsFromType(
     c: whitebox.Context
@@ -504,7 +513,7 @@ private[migration] object MigrationBuilderMacrosImpl {
    */
   private def extractCaseNamesFromType(c: whitebox.Context)(tpe: c.Type): List[String] = {
     val dealiased = tpe.dealias
-    val sym = dealiased.typeSymbol
+    val sym       = dealiased.typeSymbol
 
     if (sym.isClass && sym.asClass.isSealed) {
       val subTypes = sym.asClass.knownDirectSubclasses.toList.sortBy(_.name.toString)
@@ -618,8 +627,9 @@ private[migration] object MigrationBuilderMacrosImpl {
   // ==========================================================================
 
   /**
-   * Extracts the full field path from a selector and returns it as a dot-separated string.
-   * For example, `_.address.city` returns "address.city", and `_.name` returns "name".
+   * Extracts the full field path from a selector and returns it as a
+   * dot-separated string. For example, `_.address.city` returns "address.city",
+   * and `_.name` returns "name".
    */
   private def extractFieldNameFromSelector(c: whitebox.Context)(selector: c.Tree): String = {
     import c.universe._
@@ -647,7 +657,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       loop(tree, Nil)
     }
 
-    val pathBody = toPathBody(selector)
+    val pathBody  = toPathBody(selector)
     val pathParts = extractFullPath(pathBody)
 
     if (pathParts.isEmpty) {
@@ -1102,22 +1112,22 @@ private[migration] object MigrationBuilderMacrosImpl {
     // Extract the literal string value for the target case name
     val toCaseNameStr = to.tree match {
       case Literal(Constant(s: String)) => s
-      case _ => c.abort(c.enclosingPosition, "Target case name must be a string literal")
+      case _                            => c.abort(c.enclosingPosition, "Target case name must be a string literal")
     }
 
     // Track cases in Handled/Provided with "case:" prefix
     val fromCaseNameStr = fromCaseName.tree match {
       case Literal(Constant(s: String)) => s"case:$s"
-      case _ => c.abort(c.enclosingPosition, "Could not extract source case name")
+      case _                            => c.abort(c.enclosingPosition, "Could not extract source case name")
     }
     val toCaseNamePrefixed = s"case:$toCaseNameStr"
 
     val fromCaseType = literalType(c)(fromCaseNameStr)
-    val toCaseType = literalType(c)(toCaseNamePrefixed)
+    val toCaseType   = literalType(c)(toCaseNamePrefixed)
 
-    val handledType  = weakTypeOf[Handled]
-    val providedType = weakTypeOf[Provided]
-    val newHandledTpe = appendType(c)(handledType, fromCaseType)
+    val handledType    = weakTypeOf[Handled]
+    val providedType   = weakTypeOf[Provided]
+    val newHandledTpe  = appendType(c)(handledType, fromCaseType)
     val newProvidedTpe = appendType(c)(providedType, toCaseType)
 
     val aType = weakTypeOf[A]
@@ -1150,14 +1160,14 @@ private[migration] object MigrationBuilderMacrosImpl {
     // Track case in both Handled and Provided with "case:" prefix
     val caseNameStr = caseName.tree match {
       case Literal(Constant(s: String)) => s"case:$s"
-      case _ => c.abort(c.enclosingPosition, "Could not extract case name")
+      case _                            => c.abort(c.enclosingPosition, "Could not extract case name")
     }
 
     val caseNameType = literalType(c)(caseNameStr)
 
-    val handledType  = weakTypeOf[Handled]
-    val providedType = weakTypeOf[Provided]
-    val newHandledTpe = appendType(c)(handledType, caseNameType)
+    val handledType    = weakTypeOf[Handled]
+    val providedType   = weakTypeOf[Provided]
+    val newHandledTpe  = appendType(c)(handledType, caseNameType)
     val newProvidedTpe = appendType(c)(providedType, caseNameType)
 
     val aType = weakTypeOf[A]
