@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
+import zio.blocks.typeid.{DynamicTypeId, Owner, TypeDefKind, TypeId}
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
@@ -215,8 +216,8 @@ object ToStructuralMacro {
 
         val totalRegisters = binding.constructor.usedRegisters
 
-        val typeName = normalizeTypeName(fieldInfos.toList.map { case (name, reflect) =>
-          (name, reflect.typeName.name)
+        val structuralTypeName = normalizeTypeName(fieldInfos.toList.map { case (name, reflect) =>
+          (name, reflect.typeId.name)
         })
 
         new Schema[S](
@@ -224,7 +225,15 @@ object ToStructuralMacro {
             fields = record.fields.map { field =>
               field.value.asInstanceOf[Reflect.Bound[Any]].asTerm[S](field.name)
             },
-            typeName = new TypeName[S](new Namespace(Nil, Nil), typeName, Nil),
+            typeId = TypeId[S](DynamicTypeId(
+              owner = Owner.Root,
+              name = structuralTypeName,
+              typeParams = Nil,
+              kind = TypeDefKind.Class(),
+              parents = Nil,
+              args = Nil,
+              annotations = Nil
+            )),
             recordBinding = new Binding.Record[S](
               constructor = new Constructor[S] {
                 def usedRegisters: RegisterOffset = totalRegisters

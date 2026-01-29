@@ -443,15 +443,21 @@ private object SchemaCompanionVersionSpecific {
       }
     }
 
-    // Create structural type name
-    def structuralTypeName(members: List[(String, Type)]): Tree = {
+    // Create structural type id
+    def structuralTypeId(members: List[(String, Type)]): Tree = {
       val normalized = members
         .sortBy(_._1)
         .map { case (name, tpe) => s"$name:${normalizeTypeForName(tpe)}" }
         .mkString("{", ",", "}")
-      val packages = List.empty[String]
-      val values   = List.empty[String]
-      q"new TypeName(new Namespace($packages, $values), $normalized, Nil)"
+      q"""new zio.blocks.typeid.TypeId(new zio.blocks.typeid.DynamicTypeId(
+        owner = zio.blocks.typeid.Owner.Root,
+        name = $normalized,
+        typeParams = Nil,
+        kind = zio.blocks.typeid.TypeDefKind.Class(),
+        parents = Nil,
+        args = Nil,
+        annotations = Nil
+      ))"""
     }
 
     def deriveSchema(tpe: Type): Tree =
@@ -610,11 +616,11 @@ private object SchemaCompanionVersionSpecific {
 
       if (members.isEmpty) {
         // Empty structural type - derive as an empty record
-        val tpeName = structuralTypeName(members)
+        val tpeName = structuralTypeId(members)
         return q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector.empty,
-              typeName = $tpeName,
+              typeId = $tpeName,
               recordBinding = new Binding.Record(
                 constructor = new Constructor[$tpe] {
                   def usedRegisters: RegisterOffset = RegisterOffset.Zero
@@ -639,7 +645,7 @@ private object SchemaCompanionVersionSpecific {
 
     def deriveSchemaForPureStructuralType(tpe: Type, members: List[(String, Type)]): Tree = {
       // Pure structural types require runtime reflection for deconstruction (JVM only)
-      val tpeName = structuralTypeName(members)
+      val tpeName = structuralTypeId(members)
 
       // Calculate register offsets for each field
       var usedRegisters = RegisterOffset.Zero
@@ -727,7 +733,7 @@ private object SchemaCompanionVersionSpecific {
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector(..$fieldTerms),
-              typeName = $tpeName,
+              typeId = $tpeName,
               recordBinding = new Binding.Record(
                 constructor = new Constructor[$tpe] {
                   def usedRegisters: RegisterOffset = $usedRegisters
