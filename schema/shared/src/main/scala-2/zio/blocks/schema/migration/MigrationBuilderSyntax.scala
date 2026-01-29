@@ -236,88 +236,8 @@ private[migration] object MigrationBuilderMacrosImpl {
   def buildImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
     c: whitebox.Context
   ): c.Tree = {
-    import c.universe._
-
-    val builder = q"${c.prefix}.builder"
-
-    val aType        = weakTypeOf[A]
-    val bType        = weakTypeOf[B]
-    val handledType  = weakTypeOf[Handled]
-    val providedType = weakTypeOf[Provided]
-
-    // Extract full nested field paths from A and B (using FieldPaths logic)
-    val pathsA = extractFieldPathsFromType(c)(aType, "", Set.empty).sorted
-    val pathsB = extractFieldPathsFromType(c)(bType, "", Set.empty).sorted
-
-    // Extract case names from A and B (using CasePaths logic)
-    val casesA = extractCaseNamesFromType(c)(aType).sorted.map(name => s"case:$name")
-    val casesB = extractCaseNamesFromType(c)(bType).sorted.map(name => s"case:$name")
-
-    // Combine paths and cases for validation
-    val allPathsA = pathsA ++ casesA
-    val allPathsB = pathsB ++ casesB
-
-    // Extract field names from TList types
-    val handled  = extractTListElements(c)(handledType)
-    val provided = extractTListElements(c)(providedType)
-
-    // Compute what needs to be handled/provided
-    val unchanged       = allPathsA.intersect(allPathsB)
-    val removed         = allPathsA.diff(unchanged)
-    val added           = allPathsB.diff(unchanged)
-    val missingHandled  = removed.diff(handled)
-    val missingProvided = added.diff(provided)
-
-    if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
-      val (unhandledPaths, unhandledCases)   = missingHandled.partition(!_.startsWith("case:"))
-      val (unprovidedPaths, unprovidedCases) = missingProvided.partition(!_.startsWith("case:"))
-
-      val sb = new StringBuilder
-      sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
-
-      if (unhandledPaths.nonEmpty) {
-        sb.append("\nUnhandled paths from source (need dropField or renameField):\n")
-        unhandledPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
-      }
-
-      if (unprovidedPaths.nonEmpty) {
-        sb.append("\nUnprovided paths for target (need addField or renameField):\n")
-        unprovidedPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
-      }
-
-      if (unhandledCases.nonEmpty) {
-        sb.append("\nUnhandled cases from source (need renameCase or transformCase):\n")
-        unhandledCases.sorted.map(_.stripPrefix("case:")).foreach(c => sb.append(s"  - $c\n"))
-      }
-
-      if (unprovidedCases.nonEmpty) {
-        sb.append("\nUnprovided cases for target (need renameCase):\n")
-        unprovidedCases.sorted.map(_.stripPrefix("case:")).foreach(c => sb.append(s"  - $c\n"))
-      }
-
-      // Add hints with example paths
-      sb.append("\n")
-      if (unhandledPaths.nonEmpty) {
-        val example      = unhandledPaths.head
-        val selectorPath = example.split("\\.").mkString(".")
-        sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
-      }
-      if (unprovidedPaths.nonEmpty) {
-        val example      = unprovidedPaths.head
-        val selectorPath = example.split("\\.").mkString(".")
-        sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
-      }
-      if (unhandledPaths.nonEmpty && unprovidedPaths.nonEmpty) {
-        sb.append("Hint: Use .renameField(_.oldPath, _.newPath) when a field was renamed\n")
-      }
-      if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
-        sb.append("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") when a case was renamed\n")
-      }
-
-      c.abort(c.enclosingPosition, sb.toString)
-    }
-
-    q"$builder.buildPartial"
+    val helper = new MigrationBuilderMacrosHelper[c.type](c)
+    helper.buildImpl[A, B, Handled, Provided]
   }
 
   // ==========================================================================
@@ -338,291 +258,8 @@ private[migration] object MigrationBuilderMacrosImpl {
   def requireValidationImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
     c: whitebox.Context
   ): c.Tree = {
-    import c.universe._
-
-    val aType        = weakTypeOf[A]
-    val bType        = weakTypeOf[B]
-    val handledType  = weakTypeOf[Handled]
-    val providedType = weakTypeOf[Provided]
-
-    // Extract full nested field paths from A and B
-    val pathsA = extractFieldPathsFromType(c)(aType, "", Set.empty).sorted
-    val pathsB = extractFieldPathsFromType(c)(bType, "", Set.empty).sorted
-
-    // Extract case names from A and B
-    val casesA = extractCaseNamesFromType(c)(aType).sorted.map(name => s"case:$name")
-    val casesB = extractCaseNamesFromType(c)(bType).sorted.map(name => s"case:$name")
-
-    // Combine paths and cases for validation
-    val allPathsA = pathsA ++ casesA
-    val allPathsB = pathsB ++ casesB
-
-    // Extract field names from TList types
-    val handled  = extractTListElements(c)(handledType)
-    val provided = extractTListElements(c)(providedType)
-
-    // Compute what needs to be handled/provided
-    val unchanged       = allPathsA.intersect(allPathsB)
-    val removed         = allPathsA.diff(unchanged)
-    val added           = allPathsB.diff(unchanged)
-    val missingHandled  = removed.diff(handled)
-    val missingProvided = added.diff(provided)
-
-    if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
-      val (unhandledPaths, unhandledCases)   = missingHandled.partition(!_.startsWith("case:"))
-      val (unprovidedPaths, unprovidedCases) = missingProvided.partition(!_.startsWith("case:"))
-
-      val sb = new StringBuilder
-      sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
-
-      if (unhandledPaths.nonEmpty) {
-        sb.append("\nUnhandled paths from source (need dropField or renameField):\n")
-        unhandledPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
-      }
-
-      if (unprovidedPaths.nonEmpty) {
-        sb.append("\nUnprovided paths for target (need addField or renameField):\n")
-        unprovidedPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
-      }
-
-      if (unhandledCases.nonEmpty) {
-        sb.append("\nUnhandled cases from source (need renameCase or transformCase):\n")
-        unhandledCases.sorted.map(_.stripPrefix("case:")).foreach(c => sb.append(s"  - $c\n"))
-      }
-
-      if (unprovidedCases.nonEmpty) {
-        sb.append("\nUnprovided cases for target (need renameCase):\n")
-        unprovidedCases.sorted.map(_.stripPrefix("case:")).foreach(c => sb.append(s"  - $c\n"))
-      }
-
-      // Add hints
-      sb.append("\n")
-      if (unhandledPaths.nonEmpty) {
-        val example      = unhandledPaths.head
-        val selectorPath = example.split("\\.").mkString(".")
-        sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
-      }
-      if (unprovidedPaths.nonEmpty) {
-        val example      = unprovidedPaths.head
-        val selectorPath = example.split("\\.").mkString(".")
-        sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
-      }
-      if (unhandledPaths.nonEmpty && unprovidedPaths.nonEmpty) {
-        sb.append("Hint: Use .renameField(_.oldPath, _.newPath) when a field was renamed\n")
-      }
-      if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
-        sb.append("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") when a case was renamed\n")
-      }
-
-      c.abort(c.enclosingPosition, sb.toString)
-    }
-
-    q"()"
-  }
-
-  /**
-   * Extracts field name strings from a TList type.
-   *
-   * Given a type like "a" :: "b" :: TNil, returns List("a", "b").
-   */
-  private def extractTListElements(c: whitebox.Context)(tpe: c.Type): List[String] = {
-    import c.universe._
-
-    val tlistSym = typeOf[TList].typeSymbol
-    val tnilSym  = typeOf[TNil].typeSymbol
-    val tconsSym = typeOf[TCons[_, _]].typeSymbol
-
-    def loop(t: c.Type): List[String] = {
-      val dealiased = t.dealias
-      val sym       = dealiased.typeSymbol
-
-      if (sym == tnilSym) {
-        Nil
-      } else if (sym == tconsSym) {
-        // TCons[H, T] - extract H and recurse on T
-        val args = dealiased.typeArgs
-        if (args.size != 2) {
-          c.abort(c.enclosingPosition, s"Invalid TCons type: $dealiased")
-        }
-        val head = args(0)
-        val tail = args(1)
-
-        // Extract string literal from head type
-        val headStr = head.dealias match {
-          case ConstantType(Constant(s: String)) => s
-          case other                             =>
-            c.abort(c.enclosingPosition, s"Expected string literal type in TList, got: $other")
-        }
-
-        headStr :: loop(tail)
-      } else if (sym == tlistSym) {
-        // Generic TList - cannot extract elements
-        Nil
-      } else {
-        c.abort(c.enclosingPosition, s"Unexpected type in TList position: $dealiased (symbol: $sym)")
-      }
-    }
-
-    loop(tpe)
-  }
-
-  // ==========================================================================
-  // Full path extraction helpers (mirrors FieldExtraction logic)
-  // ==========================================================================
-
-  /**
-   * Extract all field paths from a type, recursively descending into nested
-   * case classes. This mirrors the logic in FieldExtraction/ShapeExtraction for
-   * consistency.
-   */
-  private def extractFieldPathsFromType(
-    c: whitebox.Context
-  )(tpe: c.Type, prefix: String, visiting: Set[String]): List[String] = {
-    val dealiased = tpe.dealias
-    val typeKey   = dealiased.typeSymbol.fullName
-
-    // Check for recursion
-    if (visiting.contains(typeKey)) {
-      c.abort(
-        c.enclosingPosition,
-        s"Recursive type detected: ${dealiased.typeSymbol.name}. " +
-          s"Migration validation does not support recursive types. " +
-          s"Recursion path: ${visiting.mkString(" -> ")} -> $typeKey"
-      )
-    }
-
-    // Skip extraction for container types and primitives
-    if (isContainerType(c)(dealiased) || isPrimitiveType(c)(dealiased)) {
-      return Nil
-    }
-
-    // Only extract fields from product types (case classes)
-    if (!isProductType(c)(dealiased.typeSymbol)) {
-      return Nil
-    }
-
-    val newVisiting = visiting + typeKey
-    val fields      = getProductFields(c)(dealiased)
-
-    fields.flatMap { case (fieldName, fieldType) =>
-      val fullPath    = if (prefix.isEmpty) fieldName else s"$prefix$fieldName"
-      val nestedPaths = extractFieldPathsFromType(c)(fieldType, s"$fullPath.", newVisiting)
-      fullPath :: nestedPaths
-    }
-  }
-
-  /**
-   * Extract case names from a sealed trait.
-   */
-  private def extractCaseNamesFromType(c: whitebox.Context)(tpe: c.Type): List[String] = {
-    val dealiased = tpe.dealias
-    val sym       = dealiased.typeSymbol
-
-    if (sym.isClass && sym.asClass.isSealed) {
-      val subTypes = sym.asClass.knownDirectSubclasses.toList.sortBy(_.name.toString)
-      subTypes.map { s =>
-        if (s.isModuleClass) {
-          s.asClass.module.name.decodedName.toString
-        } else {
-          s.name.decodedName.toString
-        }
-      }
-    } else {
-      Nil
-    }
-  }
-
-  /**
-   * Check if a type is a product type (case class, but not abstract).
-   */
-  private def isProductType(c: whitebox.Context)(symbol: c.Symbol): Boolean =
-    symbol.isClass && symbol.asClass.isCaseClass && !symbol.asClass.isAbstract
-
-  /**
-   * Check if a type is a container type (Option, List, Vector, Set, Map, etc.)
-   * that should not be recursed into.
-   */
-  private def isContainerType(c: whitebox.Context)(tpe: c.Type): Boolean = {
-    import c.universe._
-
-    val containerTypes = List(
-      typeOf[Option[_]],
-      typeOf[List[_]],
-      typeOf[Vector[_]],
-      typeOf[Set[_]],
-      typeOf[Seq[_]],
-      typeOf[IndexedSeq[_]],
-      typeOf[Iterable[_]],
-      typeOf[Map[_, _]],
-      typeOf[Array[_]]
-    )
-
-    containerTypes.exists(ct => tpe <:< ct)
-  }
-
-  /**
-   * Check if a type is a primitive type that should not be recursed into.
-   */
-  private def isPrimitiveType(c: whitebox.Context)(tpe: c.Type): Boolean = {
-    import c.universe._
-
-    val primitiveTypes = List(
-      typeOf[Boolean],
-      typeOf[Byte],
-      typeOf[Short],
-      typeOf[Int],
-      typeOf[Long],
-      typeOf[Float],
-      typeOf[Double],
-      typeOf[Char],
-      typeOf[String],
-      typeOf[java.math.BigInteger],
-      typeOf[java.math.BigDecimal],
-      typeOf[BigInt],
-      typeOf[BigDecimal],
-      typeOf[java.util.UUID],
-      typeOf[java.time.Instant],
-      typeOf[java.time.LocalDate],
-      typeOf[java.time.LocalTime],
-      typeOf[java.time.LocalDateTime],
-      typeOf[java.time.OffsetDateTime],
-      typeOf[java.time.ZonedDateTime],
-      typeOf[java.time.Duration],
-      typeOf[java.time.Period],
-      typeOf[java.time.Year],
-      typeOf[java.time.YearMonth],
-      typeOf[java.time.MonthDay],
-      typeOf[java.time.ZoneId],
-      typeOf[java.time.ZoneOffset],
-      typeOf[Unit],
-      typeOf[Nothing]
-    )
-
-    primitiveTypes.exists(pt => tpe =:= pt)
-  }
-
-  /**
-   * Get the fields of a product type as (name, type) pairs.
-   */
-  private def getProductFields(c: whitebox.Context)(tpe: c.Type): List[(String, c.Type)] = {
-    import c.universe._
-
-    // Get primary constructor
-    val constructor = tpe.decls.collectFirst {
-      case m: MethodSymbol if m.isPrimaryConstructor => m
-    }
-
-    constructor match {
-      case Some(ctor) =>
-        val paramList = ctor.paramLists.headOption.getOrElse(Nil)
-        paramList.map { param =>
-          val paramName = param.name.decodedName.toString
-          // Get the field type by looking up the accessor method in the type
-          val paramType = tpe.member(param.name).typeSignatureIn(tpe).dealias
-          (paramName, paramType)
-        }
-      case None => Nil
-    }
+    val helper = new MigrationBuilderMacrosHelper[c.type](c)
+    helper.requireValidationImpl[A, B, Handled, Provided]
   }
 
   // ==========================================================================
@@ -1204,5 +841,222 @@ private[migration] object MigrationBuilderMacrosImpl {
       val transformedBuilder = $nestedActions.apply(emptyBuilder)
       $builder.transformCase($atOptic, $caseName, transformedBuilder.actions).asInstanceOf[$resultType]
     }"""
+  }
+}
+
+/**
+ * Helper class that mixes in MacroHelpers trait for path-dependent type safety.
+ */
+private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.whitebox.Context](val c: C)
+    extends MacroHelpers {
+  import c.universe._
+
+  def buildImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag]: c.Tree = {
+    val builder = q"${c.prefix}.builder"
+
+    val aType        = weakTypeOf[A]
+    val bType        = weakTypeOf[B]
+    val handledType  = weakTypeOf[Handled]
+    val providedType = weakTypeOf[Provided]
+
+    // Extract full nested field paths from A and B (using FieldPaths logic)
+    val pathsA = extractFieldPathsFromType(aType, "", Set.empty).sorted
+    val pathsB = extractFieldPathsFromType(bType, "", Set.empty).sorted
+
+    // Extract case names from A and B (using CasePaths logic)
+    val casesA = extractCaseNamesFromType(aType).sorted.map(name => s"case:$name")
+    val casesB = extractCaseNamesFromType(bType).sorted.map(name => s"case:$name")
+
+    // Combine paths and cases for validation
+    val allPathsA = pathsA ++ casesA
+    val allPathsB = pathsB ++ casesB
+
+    // Extract field names from TList types
+    val handled  = extractTListElements(handledType)
+    val provided = extractTListElements(providedType)
+
+    // Compute what needs to be handled/provided
+    val unchanged       = allPathsA.intersect(allPathsB)
+    val removed         = allPathsA.diff(unchanged)
+    val added           = allPathsB.diff(unchanged)
+    val missingHandled  = removed.diff(handled)
+    val missingProvided = added.diff(provided)
+
+    if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
+      val (unhandledPaths, unhandledCases)   = missingHandled.partition(!_.startsWith("case:"))
+      val (unprovidedPaths, unprovidedCases) = missingProvided.partition(!_.startsWith("case:"))
+
+      val sb = new StringBuilder
+      sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
+
+      if (unhandledPaths.nonEmpty) {
+        sb.append("\nUnhandled paths from source (need dropField or renameField):\n")
+        unhandledPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
+      }
+
+      if (unprovidedPaths.nonEmpty) {
+        sb.append("\nUnprovided paths for target (need addField or renameField):\n")
+        unprovidedPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
+      }
+
+      if (unhandledCases.nonEmpty) {
+        sb.append("\nUnhandled cases from source (need renameCase or transformCase):\n")
+        unhandledCases.sorted.map(_.stripPrefix("case:")).foreach(cn => sb.append(s"  - $cn\n"))
+      }
+
+      if (unprovidedCases.nonEmpty) {
+        sb.append("\nUnprovided cases for target (need renameCase):\n")
+        unprovidedCases.sorted.map(_.stripPrefix("case:")).foreach(cn => sb.append(s"  - $cn\n"))
+      }
+
+      // Add hints with example paths
+      sb.append("\n")
+      if (unhandledPaths.nonEmpty) {
+        val example      = unhandledPaths.head
+        val selectorPath = example.split("\\.").mkString(".")
+        sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
+      }
+      if (unprovidedPaths.nonEmpty) {
+        val example      = unprovidedPaths.head
+        val selectorPath = example.split("\\.").mkString(".")
+        sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
+      }
+      if (unhandledPaths.nonEmpty && unprovidedPaths.nonEmpty) {
+        sb.append("Hint: Use .renameField(_.oldPath, _.newPath) when a field was renamed\n")
+      }
+      if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
+        sb.append("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") when a case was renamed\n")
+      }
+
+      c.abort(c.enclosingPosition, sb.toString)
+    }
+
+    q"$builder.buildPartial"
+  }
+
+  def requireValidationImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag]
+    : c.Tree = {
+    val aType        = weakTypeOf[A]
+    val bType        = weakTypeOf[B]
+    val handledType  = weakTypeOf[Handled]
+    val providedType = weakTypeOf[Provided]
+
+    // Extract full nested field paths from A and B
+    val pathsA = extractFieldPathsFromType(aType, "", Set.empty).sorted
+    val pathsB = extractFieldPathsFromType(bType, "", Set.empty).sorted
+
+    // Extract case names from A and B
+    val casesA = extractCaseNamesFromType(aType).sorted.map(name => s"case:$name")
+    val casesB = extractCaseNamesFromType(bType).sorted.map(name => s"case:$name")
+
+    // Combine paths and cases for validation
+    val allPathsA = pathsA ++ casesA
+    val allPathsB = pathsB ++ casesB
+
+    // Extract field names from TList types
+    val handled  = extractTListElements(handledType)
+    val provided = extractTListElements(providedType)
+
+    // Compute what needs to be handled/provided
+    val unchanged       = allPathsA.intersect(allPathsB)
+    val removed         = allPathsA.diff(unchanged)
+    val added           = allPathsB.diff(unchanged)
+    val missingHandled  = removed.diff(handled)
+    val missingProvided = added.diff(provided)
+
+    if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
+      val (unhandledPaths, unhandledCases)   = missingHandled.partition(!_.startsWith("case:"))
+      val (unprovidedPaths, unprovidedCases) = missingProvided.partition(!_.startsWith("case:"))
+
+      val sb = new StringBuilder
+      sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
+
+      if (unhandledPaths.nonEmpty) {
+        sb.append("\nUnhandled paths from source (need dropField or renameField):\n")
+        unhandledPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
+      }
+
+      if (unprovidedPaths.nonEmpty) {
+        sb.append("\nUnprovided paths for target (need addField or renameField):\n")
+        unprovidedPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
+      }
+
+      if (unhandledCases.nonEmpty) {
+        sb.append("\nUnhandled cases from source (need renameCase or transformCase):\n")
+        unhandledCases.sorted.map(_.stripPrefix("case:")).foreach(cn => sb.append(s"  - $cn\n"))
+      }
+
+      if (unprovidedCases.nonEmpty) {
+        sb.append("\nUnprovided cases for target (need renameCase):\n")
+        unprovidedCases.sorted.map(_.stripPrefix("case:")).foreach(cn => sb.append(s"  - $cn\n"))
+      }
+
+      // Add hints
+      sb.append("\n")
+      if (unhandledPaths.nonEmpty) {
+        val example      = unhandledPaths.head
+        val selectorPath = example.split("\\.").mkString(".")
+        sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
+      }
+      if (unprovidedPaths.nonEmpty) {
+        val example      = unprovidedPaths.head
+        val selectorPath = example.split("\\.").mkString(".")
+        sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
+      }
+      if (unhandledPaths.nonEmpty && unprovidedPaths.nonEmpty) {
+        sb.append("Hint: Use .renameField(_.oldPath, _.newPath) when a field was renamed\n")
+      }
+      if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
+        sb.append("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") when a case was renamed\n")
+      }
+
+      c.abort(c.enclosingPosition, sb.toString)
+    }
+
+    q"()"
+  }
+
+  /**
+   * Extracts field name strings from a TList type.
+   *
+   * Given a type like "a" :: "b" :: TNil, returns List("a", "b").
+   */
+  private def extractTListElements(tpe: c.Type): List[String] = {
+    val tlistSym = typeOf[TList].typeSymbol
+    val tnilSym  = typeOf[TNil].typeSymbol
+    val tconsSym = typeOf[TCons[_, _]].typeSymbol
+
+    def loop(t: c.Type): List[String] = {
+      val dealiased = t.dealias
+      val sym       = dealiased.typeSymbol
+
+      if (sym == tnilSym) {
+        Nil
+      } else if (sym == tconsSym) {
+        // TCons[H, T] - extract H and recurse on T
+        val args = dealiased.typeArgs
+        if (args.size != 2) {
+          c.abort(c.enclosingPosition, s"Invalid TCons type: $dealiased")
+        }
+        val head = args(0)
+        val tail = args(1)
+
+        // Extract string literal from head type
+        val headStr = head.dealias match {
+          case ConstantType(Constant(s: String)) => s
+          case other                             =>
+            c.abort(c.enclosingPosition, s"Expected string literal type in TList, got: $other")
+        }
+
+        headStr :: loop(tail)
+      } else if (sym == tlistSym) {
+        // Generic TList - cannot extract elements
+        Nil
+      } else {
+        c.abort(c.enclosingPosition, s"Unexpected type in TList position: $dealiased (symbol: $sym)")
+      }
+    }
+
+    loop(tpe)
   }
 }

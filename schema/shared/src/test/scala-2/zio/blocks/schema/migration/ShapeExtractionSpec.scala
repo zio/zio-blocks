@@ -2,6 +2,7 @@ package zio.blocks.schema.migration
 
 import zio.test._
 import zio.blocks.schema.migration.ShapeExtraction._
+import zio.blocks.schema.migration.ShapeExtraction.{CasePaths, FieldPaths}
 
 object ShapeExtractionSpec extends ZIOSpecDefault {
 
@@ -248,6 +249,139 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
       test("non-case-class types return empty field paths") {
         val paths = extractFieldPaths[String]
         assertTrue(paths == List())
+      }
+    ),
+    suite("FieldPaths typeclass")(
+      test("derives for flat case class") {
+        // Simple has fields: age, name (sorted alphabetically)
+        // Paths type member: "age" :: "name" :: TNil
+        val _ = implicitly[FieldPaths[Simple]]
+        // Test passes if macro derivation compiles successfully
+        assertCompletes
+      },
+      test("derives for nested case class with all paths") {
+        // Person has: name, address (nested Address)
+        // Address has: street, city
+        // FieldPaths extracts all paths including nested (sorted):
+        //   address, address.city, address.street, name
+        val _ = implicitly[FieldPaths[Person]]
+        assertCompletes
+      },
+      test("derives for deeply nested case class with full paths") {
+        // Contact has: address (FullAddress)
+        // FullAddress has: street, country (Country)
+        // Country has: name, code
+        // FieldPaths extracts all paths including nested (sorted):
+        //   address, address.country, address.country.code, address.country.name, address.street
+        val _ = implicitly[FieldPaths[Contact]]
+        assertCompletes
+      },
+      test("derives for empty case class") {
+        // Empty has no fields, Paths type member: TNil
+        val _ = implicitly[FieldPaths[Empty]]
+        assertCompletes
+      },
+      test("derives for single field case class") {
+        // SingleField has: x
+        // Paths type member: "x" :: TNil
+        val _ = implicitly[FieldPaths[SingleField]]
+        assertCompletes
+      },
+      test("derives for case class with Option field") {
+        // Container types like Option are not recursed into
+        // WithOption has: value (treated as leaf)
+        // Paths type member: "value" :: TNil
+        val _ = implicitly[FieldPaths[WithOption]]
+        assertCompletes
+      },
+      test("derives for case class with List field") {
+        // Container types like List are not recursed into
+        // WithList has: items (treated as leaf)
+        // Paths type member: "items" :: TNil
+        val _ = implicitly[FieldPaths[WithList]]
+        assertCompletes
+      },
+      test("derives for complex nested structure") {
+        // Outer has: inner (Inner), z
+        // Inner has: x, y
+        // Paths: inner, inner.x, inner.y, z
+        val _ = implicitly[FieldPaths[Outer]]
+        assertCompletes
+      },
+      test("derives for recursion through container") {
+        // TreeNode has: value, children (List[TreeNode])
+        // List is a container, so children is not recursed into
+        // Paths: children, value
+        val _ = implicitly[FieldPaths[TreeNode]]
+        assertCompletes
+      },
+      test("derives for sealed trait (returns empty paths)") {
+        // Sealed traits have no direct fields
+        // Paths type member: TNil
+        val _ = implicitly[FieldPaths[Result]]
+        assertCompletes
+      },
+      test("derives for primitive type (returns empty paths)") {
+        // Primitives have no fields
+        // Paths type member: TNil
+        val _ = implicitly[FieldPaths[String]]
+        assertCompletes
+      }
+    ),
+    suite("CasePaths typeclass")(
+      test("derives for sealed trait with case classes") {
+        // Result has cases: Failure, Success (sorted)
+        // Cases type member: "case:Failure" :: "case:Success" :: TNil
+        val _ = implicitly[CasePaths[Result]]
+        assertCompletes
+      },
+      test("derives for sealed trait with case object") {
+        // Status has cases: Active, Inactive (sorted)
+        // Cases type member: "case:Active" :: "case:Inactive" :: TNil
+        val _ = implicitly[CasePaths[Status]]
+        assertCompletes
+      },
+      test("derives for sealed trait with multiple cases") {
+        // Payment has cases: BankTransfer, Card, Cash (sorted)
+        // Cases type member: "case:BankTransfer" :: "case:Card" :: "case:Cash" :: TNil
+        val _ = implicitly[CasePaths[Payment]]
+        assertCompletes
+      },
+      test("derives for non-sealed type (returns empty cases)") {
+        // Non-sealed types have no cases
+        // Cases type member: TNil
+        val _ = implicitly[CasePaths[Simple]]
+        assertCompletes
+      },
+      test("derives for primitive type (returns empty cases)") {
+        // Primitives have no cases
+        // Cases type member: TNil
+        val _ = implicitly[CasePaths[Int]]
+        assertCompletes
+      }
+    ),
+    suite("FieldPaths/CasePaths recursion detection")(
+      test("direct recursion produces compile error") {
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration.ShapeExtraction._
+          case class DirectRecursion(self: DirectRecursion)
+          implicitly[FieldPaths[DirectRecursion]]
+        """))(Assertion.isLeft)
+      },
+      test("mutual recursion produces compile error") {
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration.ShapeExtraction._
+          case class MutualA(b: MutualB)
+          case class MutualB(a: MutualA)
+          implicitly[FieldPaths[MutualA]]
+        """))(Assertion.isLeft)
+      },
+      test("recursion through container does NOT error") {
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration.ShapeExtraction._
+          case class ListRecursion(children: List[ListRecursion])
+          implicitly[FieldPaths[ListRecursion]]
+        """))(Assertion.isRight)
       }
     )
   )

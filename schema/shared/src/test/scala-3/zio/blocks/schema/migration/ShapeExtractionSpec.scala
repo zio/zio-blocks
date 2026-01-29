@@ -3,6 +3,7 @@ package zio.blocks.schema.migration
 import zio.test._
 import zio.test.Assertion
 import zio.blocks.schema.migration.ShapeExtraction._
+import zio.blocks.schema.migration.TypeLevel._
 
 object ShapeExtractionSpec extends ZIOSpecDefault {
 
@@ -67,6 +68,20 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
   enum SingleCaseEnum {
     case OnlyCase(data: String)
   }
+
+  // ============ FieldPaths Test Case Classes ============
+
+  // Flat case class for FieldPaths tests
+  case class FlatPerson(name: String, age: Int)
+  case class AddressWithZip(street: String, city: String, zipCode: String)
+  case class PersonWithAddress(name: String, age: Int, address: AddressWithZip)
+  case class Wrapper(value: String)
+  case class LargeRecord(a: String, b: Int, c: Boolean, d: Double, e: Long, f: Float)
+
+  // For deeply nested field path extraction
+  case class FieldDeep(value: String)
+  case class FieldInner(deep: FieldDeep)
+  case class FieldOuter(inner: FieldInner)
 
   def spec = suite("ShapeExtractionSpec")(
     suite("extractFieldPaths")(
@@ -282,6 +297,103 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         // Regular classes are not product types, so they should return empty
         val paths = extractFieldPaths[String]
         assertTrue(paths == List())
+      }
+    ),
+    suite("FieldPaths typeclass")(
+      test("flat case class extracts top-level fields sorted alphabetically") {
+        val fp = summon[FieldPaths[FlatPerson]]
+        // Paths are sorted alphabetically: age, name
+        summon[fp.Paths =:= ("age", "name")]
+        assertCompletes
+      },
+      test("nested case class extracts all paths including nested") {
+        val fp = summon[FieldPaths[PersonWithAddress]]
+        // Should include: address, address.city, address.street, address.zipCode, age, name
+        summon[fp.Paths =:= ("address", "address.city", "address.street", "address.zipCode", "age", "name")]
+        assertCompletes
+      },
+      test("deeply nested case class extracts all levels") {
+        val fp = summon[FieldPaths[FieldOuter]]
+        // Should include: inner, inner.deep, inner.deep.value
+        summon[fp.Paths =:= ("inner", "inner.deep", "inner.deep.value")]
+        assertCompletes
+      },
+      test("single field case class") {
+        val fp = summon[FieldPaths[Wrapper]]
+        summon[fp.Paths =:= Tuple1["value"]]
+        assertCompletes
+      },
+      test("nested path difference detects changes at any level") {
+        // This demonstrates the key benefit of FieldPaths:
+        // it can detect changes in nested structures
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class AddressV1(street: String, city: String)
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class AddressV2(street: String, zip: String) // city -> zip
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class PersonV1(name: String, address: AddressV1)
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class PersonV2(name: String, address: AddressV2)
+
+        val fpA = summon[FieldPaths[PersonV1]]
+        val fpB = summon[FieldPaths[PersonV2]]
+
+        // PersonV1 paths: address, address.city, address.street, name
+        // PersonV2 paths: address, address.street, address.zip, name
+        // Difference (in V1 but not V2): address.city
+        // Difference (in V2 but not V1): address.zip
+        type Removed = Difference[fpA.Paths, fpB.Paths]
+        type Added   = Difference[fpB.Paths, fpA.Paths]
+
+        summon[Contains[Removed, "address.city"] =:= true]
+        summon[Contains[Added, "address.zip"] =:= true]
+        assertCompletes
+      }
+    ),
+    suite("extractFieldName")(
+      test("simple field access") {
+        val fieldName = extractFieldName[FlatPerson, String](_.name)
+        assertTrue(fieldName == "name")
+      },
+      test("different field in same class") {
+        val fieldName = extractFieldName[FlatPerson, Int](_.age)
+        assertTrue(fieldName == "age")
+      },
+      test("nested field access returns top-level field") {
+        // When accessing _.address.street, we get "address" (top-level)
+        val fieldName = extractFieldName[PersonWithAddress, String](_.address.street)
+        assertTrue(fieldName == "address")
+      },
+      test("single field case class") {
+        val fieldName = extractFieldName[Wrapper, String](_.value)
+        assertTrue(fieldName == "value")
+      },
+      test("field from large record") {
+        val fieldName = extractFieldName[LargeRecord, Double](_.d)
+        assertTrue(fieldName == "d")
+      }
+    ),
+    suite("extractFieldPath")(
+      test("simple field access") {
+        val path = extractFieldPath[FlatPerson, String](_.name)
+        assertTrue(path == List("name"))
+      },
+      test("nested field access returns full path") {
+        val path = extractFieldPath[PersonWithAddress, String](_.address.street)
+        assertTrue(path == List("address", "street"))
+      },
+      test("deeply nested access") {
+        val path = extractFieldPath[FieldOuter, String](_.inner.deep.value)
+        assertTrue(path == List("inner", "deep", "value"))
+      }
+    ),
+    suite("extractFieldName compile-time safety")(
+      test("extractFieldName requires field access syntax") {
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration.ShapeExtraction._
+          case class Foo(x: Int)
+          extractFieldName[Foo, Int](f => f.x + 1)
+        """))(Assertion.isLeft)
       }
     )
   )

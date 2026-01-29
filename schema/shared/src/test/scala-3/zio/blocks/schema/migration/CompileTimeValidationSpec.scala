@@ -3,8 +3,8 @@ package zio.blocks.schema.migration
 import zio.test._
 import zio.test.Assertion
 import zio.blocks.schema._
-import zio.blocks.schema.migration.FieldExtraction._
-import zio.blocks.schema.migration.FieldExtraction.CasePaths
+import zio.blocks.schema.migration.ShapeExtraction._
+import zio.blocks.schema.migration.ShapeExtraction.CasePaths
 import zio.blocks.schema.migration.TypeLevel._
 import zio.blocks.schema.CompanionOptics
 
@@ -64,12 +64,12 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     suite("ValidationProof typeclass")(
       test("proof exists for empty migration with identical schemas") {
         // PersonA and PersonB have the same fields, so no handling/providing needed
-        val fnA = summon[FieldNames[PersonA]]
-        val fnB = summon[FieldNames[PersonB]]
+        val fpA = summon[FieldPaths[PersonA]]
+        val fpB = summon[FieldPaths[PersonB]]
 
-        // Verify fields are the same
-        summon[fnA.Labels =:= ("name", "age")]
-        summon[fnB.Labels =:= ("name", "age")]
+        // Verify fields are the same (sorted alphabetically by FieldPaths)
+        summon[fpA.Paths =:= ("age", "name")]
+        summon[fpB.Paths =:= ("age", "name")]
 
         // Empty tuples should be sufficient since there are no removed/added fields
         summon[ValidationProof[PersonA, PersonB, EmptyTuple, EmptyTuple]]
@@ -77,11 +77,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       },
       test("proof exists when all removed fields are handled") {
         // DropSource -> DropTarget requires handling "extra"
-        val fnA = summon[FieldNames[DropSource]]
-        val fnB = summon[FieldNames[DropTarget]]
+        val fpA = summon[FieldPaths[DropSource]]
+        val fpB = summon[FieldPaths[DropTarget]]
 
         // Verify the difference
-        type Removed = Difference[fnA.Labels, fnB.Labels]
+        type Removed = Difference[fpA.Paths, fpB.Paths]
         summon[Contains[Removed, "extra"] =:= true]
 
         // Proof should exist when "extra" is handled
@@ -90,11 +90,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       },
       test("proof exists when all added fields are provided") {
         // AddSource -> AddTarget requires providing "extra"
-        val fnA = summon[FieldNames[AddSource]]
-        val fnB = summon[FieldNames[AddTarget]]
+        val fpA = summon[FieldPaths[AddSource]]
+        val fpB = summon[FieldPaths[AddTarget]]
 
         // Verify the difference
-        type Added = Difference[fnB.Labels, fnA.Labels]
+        type Added = Difference[fpB.Paths, fpA.Paths]
         summon[Contains[Added, "extra"] =:= true]
 
         // Proof should exist when "extra" is provided
@@ -116,7 +116,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       test("no proof when required handled field is missing") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration._
-          import zio.blocks.schema.migration.FieldExtraction._
+          import zio.blocks.schema.migration.ShapeExtraction._
           import zio.blocks.schema._
 
           case class Src(a: String, removed: Int)
@@ -131,7 +131,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       test("no proof when required provided field is missing") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration._
-          import zio.blocks.schema.migration.FieldExtraction._
+          import zio.blocks.schema.migration.ShapeExtraction._
           import zio.blocks.schema._
 
           case class Src(a: String)
@@ -146,7 +146,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       test("no proof when both handled and provided are missing") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration._
-          import zio.blocks.schema.migration.FieldExtraction._
+          import zio.blocks.schema.migration.ShapeExtraction._
           import zio.blocks.schema._
 
           case class Src(shared: String, removed: Int)
@@ -160,7 +160,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       test("no proof when handled exists but provided is missing") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration._
-          import zio.blocks.schema.migration.FieldExtraction._
+          import zio.blocks.schema.migration.ShapeExtraction._
           import zio.blocks.schema._
 
           case class Src(shared: String, removed: Int)
@@ -319,30 +319,30 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     ),
     suite("type-level validation logic")(
       test("required handled is difference of source from target") {
-        val fnA = summon[FieldNames[DropSource]]
-        val fnB = summon[FieldNames[DropTarget]]
+        val fpA = summon[FieldPaths[DropSource]]
+        val fpB = summon[FieldPaths[DropTarget]]
 
-        type Required = Difference[fnA.Labels, fnB.Labels]
+        type Required = Difference[fpA.Paths, fpB.Paths]
         summon[Contains[Required, "extra"] =:= true]
         summon[Contains[Required, "name"] =:= false]
         summon[Contains[Required, "age"] =:= false]
         assertTrue(true)
       },
       test("required provided is difference of target from source") {
-        val fnA = summon[FieldNames[AddSource]]
-        val fnB = summon[FieldNames[AddTarget]]
+        val fpA = summon[FieldPaths[AddSource]]
+        val fpB = summon[FieldPaths[AddTarget]]
 
-        type Required = Difference[fnB.Labels, fnA.Labels]
+        type Required = Difference[fpB.Paths, fpA.Paths]
         summon[Contains[Required, "extra"] =:= true]
         summon[Contains[Required, "name"] =:= false]
         summon[Contains[Required, "age"] =:= false]
         assertTrue(true)
       },
       test("IsSubset validates handled fields correctly") {
-        val fnA = summon[FieldNames[DropSource]]
-        val fnB = summon[FieldNames[DropTarget]]
+        val fpA = summon[FieldPaths[DropSource]]
+        val fpB = summon[FieldPaths[DropTarget]]
 
-        type Required = Difference[fnA.Labels, fnB.Labels]
+        type Required = Difference[fpA.Paths, fpB.Paths]
 
         // ("extra") is subset of ("extra")
         summon[IsSubset[Required, Tuple1["extra"]] =:= true]
