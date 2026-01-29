@@ -79,8 +79,8 @@ object FieldExtraction {
     transparent inline given derived[A]: FieldPaths[A] = ${ derivedImpl[A] }
 
     /**
-     * Derive FieldPaths for a specific case of a sealed trait/enum. This is used
-     * internally for validating case field changes in transformCase.
+     * Derive FieldPaths for a specific case of a sealed trait/enum. This is
+     * used internally for validating case field changes in transformCase.
      */
     transparent inline def forCase[A]: FieldPaths[A] = ${ derivedImpl[A] }
 

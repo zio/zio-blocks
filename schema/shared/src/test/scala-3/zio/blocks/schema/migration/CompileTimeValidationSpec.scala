@@ -754,11 +754,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         case class SuccessV1(value: Int) extends ResultV1
         @scala.annotation.nowarn("msg=unused local definition")
         case class FailureV1(err: String) extends ResultV1
-        object ResultV1 extends CompanionOptics[ResultV1]
+        object ResultV1                   extends CompanionOptics[ResultV1]
 
         sealed trait ResultV2
         @scala.annotation.nowarn("msg=unused local definition")
-        case class OkResult(value: Int)   extends ResultV2 // Renamed from SuccessV1
+        case class OkResult(value: Int) extends ResultV2 // Renamed from SuccessV1
         @scala.annotation.nowarn("msg=unused local definition")
         case class ErrResult(err: String) extends ResultV2 // Renamed from FailureV1
 

@@ -327,7 +327,7 @@ private[migration] object ShapeExtractionMacros {
    * Get the direct subtypes of a sealed trait.
    */
   private def directSubTypes(c: blackbox.Context)(tpe: c.Type): List[c.Type] = {
-    val tpeClass = tpe.typeSymbol.asClass
+    val tpeClass   = tpe.typeSymbol.asClass
     val subclasses = tpeClass.knownDirectSubclasses.toList.sortBy(_.name.toString)
 
     subclasses.map { symbol =>
