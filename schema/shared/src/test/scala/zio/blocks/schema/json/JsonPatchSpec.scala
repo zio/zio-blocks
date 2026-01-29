@@ -158,6 +158,30 @@ object JsonPatchSpec extends SchemaBaseSpec {
         assertTrue(result1 == result2)
       }
     },
+    test("L2: right identity - (p ++ empty)(j) == p(j) for Json.String") {
+      check(genJsonString, genJsonString) { (oldJson, newJson) =>
+        val patch    = JsonPatch.diff(oldJson, newJson)
+        val empty    = JsonPatch.empty
+        val composed = patch ++ empty
+
+        val result1 = composed(oldJson, PatchMode.Strict)
+        val result2 = patch(oldJson, PatchMode.Strict)
+
+        assertTrue(result1 == result2)
+      }
+    },
+    test("L2: right identity - (p ++ empty)(j) == p(j) for Json.Array") {
+      check(genJsonArray(2), genJsonArray(2)) { (oldJson, newJson) =>
+        val patch    = JsonPatch.diff(oldJson, newJson)
+        val empty    = JsonPatch.empty
+        val composed = patch ++ empty
+
+        val result1 = composed(oldJson, PatchMode.Strict)
+        val result2 = patch(oldJson, PatchMode.Strict)
+
+        assertTrue(result1 == result2)
+      }
+    },
     test("L3: associativity - ((p1 ++ p2) ++ p3)(j) == (p1 ++ (p2 ++ p3))(j) for Json.Number") {
       check(genJsonNumber, genJsonNumber, genJsonNumber, genJsonNumber) { (j0, j1, j2, j3) =>
         val p1 = JsonPatch.diff(j0, j1)
@@ -987,6 +1011,46 @@ object JsonPatchSpec extends SchemaBaseSpec {
       )
       val result = patch(json, PatchMode.Strict)
       assertTrue(result.isLeft)
+    },
+    // Lenient mode type-mismatch tests: should return unchanged
+    test("Type mismatch in Lenient mode: array edit on object returns unchanged") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("Type mismatch in Lenient mode: object edit on array returns unchanged") {
+      val json   = new Json.Array(Chunk(new Json.Number("1")))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("Type mismatch in Lenient mode: number delta on string returns unchanged") {
+      val json   = new Json.String("hello")
+      val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("Type mismatch in Lenient mode: string edit on number returns unchanged") {
+      val json  = new Json.Number("42")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Insert(0, "x"))))
+      )
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    // Clobber mode type-mismatch tests: should return unchanged (nothing to clobber)
+    test("Type mismatch in Clobber mode: array edit on object returns unchanged") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    test("Type mismatch in Clobber mode: object edit on array returns unchanged") {
+      val json   = new Json.Array(Chunk(new Json.Number("1")))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
     }
   )
 }
