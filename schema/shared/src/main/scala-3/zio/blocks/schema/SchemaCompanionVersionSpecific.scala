@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect.ClassTag
