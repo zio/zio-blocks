@@ -115,17 +115,18 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
 
   /**
    * Joins multiple source fields into a single target field using selector
-   * syntax. Note: Source fields tracking for joinFields is simplified to track
-   * the target only. Full multi-field tracking would require variadic type
-   * parameters.
+   * syntax. All source fields must share a common parent path.
+   *
+   * Adds all source field names to Handled and the target field name to
+   * Provided.
    */
-  transparent inline def joinFields[TargetName <: String & Singleton](
+  transparent inline def joinFields(
     inline target: B => Any,
     inline sourcePaths: Seq[A => Any],
     combiner: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B, Handled, Tuple.Append[Provided, TargetName]] =
+  ): MigrationBuilder[A, B, ? <: Tuple, ? <: Tuple] =
     ${
-      MigrationBuilderMacrosImpl.joinFieldsImpl[A, B, Handled, Provided, TargetName](
+      MigrationBuilderMacrosImpl.joinFieldsImpl[A, B, Handled, Provided](
         'builder,
         'target,
         'sourcePaths,
@@ -135,17 +136,18 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
 
   /**
    * Splits a single source field into multiple target fields using selector
-   * syntax. Note: Target fields tracking for splitField is simplified to track
-   * the source only. Full multi-field tracking would require variadic type
-   * parameters.
+   * syntax. All target fields must share a common parent path.
+   *
+   * Adds the source field name to Handled and all target field names to
+   * Provided.
    */
-  transparent inline def splitField[SourceName <: String & Singleton](
+  transparent inline def splitField(
     inline source: A => Any,
     inline targetPaths: Seq[B => Any],
     splitter: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B, Tuple.Append[Handled, SourceName], Provided] =
+  ): MigrationBuilder[A, B, ? <: Tuple, ? <: Tuple] =
     ${
-      MigrationBuilderMacrosImpl.splitFieldImpl[A, B, Handled, Provided, SourceName](
+      MigrationBuilderMacrosImpl.splitFieldImpl[A, B, Handled, Provided](
         'builder,
         'source,
         'targetPaths,
@@ -413,27 +415,49 @@ private[migration] object MigrationBuilderMacrosImpl {
     A: Type,
     B: Type,
     Handled <: Tuple: Type,
-    Provided <: Tuple: Type,
-    TargetName <: String & Singleton: Type
+    Provided <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     target: Expr[B => Any],
     sourcePaths: Expr[Seq[A => Any]],
     combiner: Expr[SchemaExpr[DynamicValue, ?]]
-  )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Tuple.Append[Provided, TargetName]]] = {
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, ? <: Tuple, ? <: Tuple]] = {
     import q.reflect.*
     val targetOptic  = MigrationBuilderMacros.extractOptic[B, Any](target)
     val sourceOptics = MigrationBuilderMacros.extractOptics[A, Any](sourcePaths)
     val targetName   = extractFieldNameFromSelector(target.asTerm)
 
-    // Create literal type for field name
-    val targetNameType     = ConstantType(StringConstant(targetName)).asType.asInstanceOf[Type[TargetName]]
-    given Type[TargetName] = targetNameType
+    // Extract all source field names from the Seq
+    val sourceNames = extractFieldNamesFromSeq(sourcePaths.asTerm)
 
-    '{
-      $builder
-        .joinFields($targetOptic, $sourceOptics, $combiner)
-        .asInstanceOf[MigrationBuilder[A, B, Handled, Tuple.Append[Provided, TargetName]]]
+    if (sourceNames.isEmpty) {
+      report.errorAndAbort("joinFields requires at least one source field", sourcePaths.asTerm.pos)
+    }
+
+    // Build the new Handled type by appending all source field names
+    val newHandledRepr = sourceNames.foldLeft(TypeRepr.of[Handled]) { (acc, name) =>
+      val nameType = ConstantType(StringConstant(name))
+      TypeRepr.of[Tuple.Append].appliedTo(List(acc, nameType))
+    }
+
+    // Build the new Provided type by appending the target field name
+    val targetNameType  = ConstantType(StringConstant(targetName))
+    val newProvidedRepr = TypeRepr.of[Tuple.Append].appliedTo(List(TypeRepr.of[Provided], targetNameType))
+
+    // Build the result type
+    val resultTypeRepr = TypeRepr
+      .of[MigrationBuilder]
+      .appliedTo(
+        List(TypeRepr.of[A], TypeRepr.of[B], newHandledRepr, newProvidedRepr)
+      )
+
+    resultTypeRepr.asType match {
+      case '[MigrationBuilder[A, B, h, p]] =>
+        '{
+          $builder
+            .joinFields($targetOptic, $sourceOptics, $combiner)
+            .asInstanceOf[MigrationBuilder[A, B, h & Tuple, p & Tuple]]
+        }
     }
   }
 
@@ -441,27 +465,49 @@ private[migration] object MigrationBuilderMacrosImpl {
     A: Type,
     B: Type,
     Handled <: Tuple: Type,
-    Provided <: Tuple: Type,
-    SourceName <: String & Singleton: Type
+    Provided <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     source: Expr[A => Any],
     targetPaths: Expr[Seq[B => Any]],
     splitter: Expr[SchemaExpr[DynamicValue, ?]]
-  )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, SourceName], Provided]] = {
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, ? <: Tuple, ? <: Tuple]] = {
     import q.reflect.*
     val sourceOptic  = MigrationBuilderMacros.extractOptic[A, Any](source)
     val targetOptics = MigrationBuilderMacros.extractOptics[B, Any](targetPaths)
     val sourceName   = extractFieldNameFromSelector(source.asTerm)
 
-    // Create literal type for field name
-    val sourceNameType     = ConstantType(StringConstant(sourceName)).asType.asInstanceOf[Type[SourceName]]
-    given Type[SourceName] = sourceNameType
+    // Extract all target field names from the Seq
+    val targetNames = extractFieldNamesFromSeq(targetPaths.asTerm)
 
-    '{
-      $builder
-        .splitField($sourceOptic, $targetOptics, $splitter)
-        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, SourceName], Provided]]
+    if (targetNames.isEmpty) {
+      report.errorAndAbort("splitField requires at least one target field", targetPaths.asTerm.pos)
+    }
+
+    // Build the new Handled type by appending the source field name
+    val sourceNameType = ConstantType(StringConstant(sourceName))
+    val newHandledRepr = TypeRepr.of[Tuple.Append].appliedTo(List(TypeRepr.of[Handled], sourceNameType))
+
+    // Build the new Provided type by appending all target field names
+    val newProvidedRepr = targetNames.foldLeft(TypeRepr.of[Provided]) { (acc, name) =>
+      val nameType = ConstantType(StringConstant(name))
+      TypeRepr.of[Tuple.Append].appliedTo(List(acc, nameType))
+    }
+
+    // Build the result type
+    val resultTypeRepr = TypeRepr
+      .of[MigrationBuilder]
+      .appliedTo(
+        List(TypeRepr.of[A], TypeRepr.of[B], newHandledRepr, newProvidedRepr)
+      )
+
+    resultTypeRepr.asType match {
+      case '[MigrationBuilder[A, B, h, p]] =>
+        '{
+          $builder
+            .splitField($sourceOptic, $targetOptics, $splitter)
+            .asInstanceOf[MigrationBuilder[A, B, h & Tuple, p & Tuple]]
+        }
     }
   }
 
@@ -662,5 +708,40 @@ private[migration] object MigrationBuilderMacrosImpl {
 
     // Return the full dot-separated path
     path.mkString(".")
+  }
+
+  /**
+   * Helper to extract all field names from a Seq of selector expressions.
+   *
+   * For `Seq(_.firstName, _.lastName)`, returns
+   * `List("firstName", "lastName")`. For nested selectors like
+   * `Seq(_.person.firstName, _.person.lastName)`, returns
+   * `List("person.firstName", "person.lastName")`.
+   */
+  private def extractFieldNamesFromSeq(using q: Quotes)(term: q.reflect.Term): List[String] = {
+    import q.reflect.*
+
+    def unwrap(t: Term): Term = t match {
+      case Inlined(_, _, inner) => unwrap(inner)
+      case Typed(inner, _)      => unwrap(inner)
+      case other                => other
+    }
+
+    def extractSelectors(t: Term): List[Term] = unwrap(t) match {
+      // Seq(a, b, c) -> Apply(_, List(Typed(Repeated(elements), _)))
+      case Apply(_, List(Typed(Repeated(elements, _), _))) =>
+        elements
+      // Seq(a, b, c) -> Apply(_, List(Repeated(elements)))
+      case Apply(_, List(Repeated(elements, _))) =>
+        elements
+      case other =>
+        report.errorAndAbort(
+          s"Expected a Seq literal (e.g., Seq(_.field1, _.field2)), got: ${other.show}",
+          other.pos
+        )
+    }
+
+    val selectors = extractSelectors(term)
+    selectors.map(extractFieldNameFromSelector)
   }
 }
