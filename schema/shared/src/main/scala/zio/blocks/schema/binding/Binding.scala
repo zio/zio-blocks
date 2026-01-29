@@ -555,14 +555,8 @@ object Binding extends BindingCompanionVersionSpecific {
 
   final case class Wrapper[A, B](
     wrap: B => Either[SchemaError, A],
-    unwrap: A => B,
-    defaultValue: Option[() => A] = None,
-    examples: collection.immutable.Seq[A] = Nil
-  ) extends Binding[BindingType.Wrapper[A, B], A] {
-    def defaultValue(value: => A): Wrapper[A, B] = copy(defaultValue = new Some(() => value))
-
-    def examples(value: A, values: A*): Wrapper[A, B] = copy(examples = value :: values.toList)
-  }
+    unwrap: A => B
+  ) extends Binding[BindingType.Wrapper[A, B], A]
 
   final case class Dynamic() extends Binding[BindingType.Dynamic, DynamicValue]
 

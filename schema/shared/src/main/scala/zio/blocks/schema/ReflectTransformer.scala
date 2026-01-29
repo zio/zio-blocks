@@ -169,7 +169,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Primitive[G, A]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)
+      } yield new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers, storedDefaultValue, storedExamples)
 
     def transformWrapper[A, B](
       path: DynamicOptic,
@@ -184,7 +184,16 @@ object ReflectTransformer {
     ): Lazy[Reflect.Wrapper[G, A, B]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield new Reflect.Wrapper(wrapped, typeId, wrapperPrimitiveType, binding, doc, modifiers)
+      } yield new Reflect.Wrapper(
+        wrapped,
+        typeId,
+        wrapperPrimitiveType,
+        binding,
+        doc,
+        modifiers,
+        storedDefaultValue,
+        storedExamples
+      )
   }
 
   private type Any2[_, _] = Any

@@ -473,7 +473,7 @@ object Reflect {
       reflects.foreach { fieldValue =>
         unwrapToPrimitiveTypeOption(fieldValue) match {
           case Some(primitiveType) =>
-            (primitiveType: PrimitiveType[?]) match {
+            primitiveType match {
               case PrimitiveType.Unit =>
                 registers(idx) = Register.Unit
               case _: PrimitiveType.Boolean =>
@@ -826,8 +826,6 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
-    def typeName(value: TypeId[C[A]]): Sequence[F, A, C] = copy(typeId = value)
-
     def typeId(value: TypeId[C[A]]): Sequence[F, A, C] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
@@ -1172,8 +1170,6 @@ object Reflect {
                    )
       } yield wrapper
 
-    def typeName(value: TypeId[A]): Wrapper[F, A, B] = copy(typeId = value)
-
     def typeId(value: TypeId[A]): Wrapper[F, A, B] = copy(typeId = value)
 
     override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = new Some(new Reflect.Wrapper.Unknown[F] {
@@ -1255,8 +1251,6 @@ object Reflect {
           result
         }
       }
-
-    def typeName(value: TypeId[A]): Deferred[F, A] = copy(_value = () => _value().typeId(value))
 
     def typeId(value: TypeId[A]): Deferred[F, A] = copy(_value = () => _value().typeId(value))
 
