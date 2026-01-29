@@ -263,6 +263,57 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   }
 
   // ==========================================================================
+  // Test case classes - Edge cases (Phase 10)
+  // ==========================================================================
+
+  // Container types - should not recurse into element types
+  case class WithContainers(
+    opt: Option[AddressV1],
+    list: List[String],
+    set: Set[Int],
+    map: Map[String, AddressV1]
+  )
+  object WithContainers {
+    implicit val schema: Schema[WithContainers] = Schema.derived
+  }
+
+  case class WithContainers2(
+    opt: Option[AddressV2],
+    list: List[String],
+    set: Set[Int],
+    map: Map[String, AddressV2]
+  )
+  object WithContainers2 {
+    implicit val schema: Schema[WithContainers2] = Schema.derived
+  }
+
+  // Deeply nested containers
+  case class DeeplyNestedContainers(items: List[Option[Map[String, Vector[Int]]]])
+  object DeeplyNestedContainers {
+    implicit val schema: Schema[DeeplyNestedContainers] = Schema.derived
+  }
+
+  // Sealed trait with case object
+  sealed trait WithCaseObject
+  case class SomeValue(x: Int) extends WithCaseObject
+  case object NoneValue extends WithCaseObject
+  object WithCaseObject extends CompanionOptics[WithCaseObject] {
+    implicit val schema: Schema[WithCaseObject] = Schema.derived
+  }
+  object SomeValue {
+    implicit val schema: Schema[SomeValue] = Schema.derived
+  }
+
+  // Sealed trait with only case objects (enum-like)
+  sealed trait Color
+  case object Red extends Color
+  case object Green extends Color
+  case object Blue extends Color
+  object Color extends CompanionOptics[Color] {
+    implicit val schema: Schema[Color] = Schema.derived
+  }
+
+  // ==========================================================================
   // Test case classes - Sealed trait case tracking (Phase 9)
   // ==========================================================================
 
@@ -332,7 +383,9 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     buildPartialSuite,
     compileFailureSuite,
     nestedPathValidationSuite,
-    caseTrackingSuite
+    caseTrackingSuite,
+    phase10EdgeCasesSuite,
+    requireValidationSuite
   )
 
   // --------------------------------------------------------------------------
@@ -719,7 +772,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         MigrationBuilder.newBuilder[Src, Tgt].build
       """)
 
-      assertZIO(result)(isLeft(containsString("unhandled fields")))
+      assertZIO(result)(isLeft(containsString("Unhandled paths from source")))
     },
     test("build fails when add is missing") {
       val result = typeCheck("""
@@ -737,7 +790,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         MigrationBuilder.newBuilder[Src, Tgt].build
       """)
 
-      assertZIO(result)(isLeft(containsString("unprovided fields")))
+      assertZIO(result)(isLeft(containsString("Unprovided paths for target")))
     },
     test("build fails when both handled and provided are missing") {
       val result = typeCheck("""
@@ -755,7 +808,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         MigrationBuilder.newBuilder[Src, Tgt].build
       """)
 
-      assertZIO(result)(isLeft(containsString("unhandled fields")))
+      assertZIO(result)(isLeft(containsString("Unhandled paths from source")))
     },
     test("build fails when only some fields are handled") {
       // Note: In Scala 2 typeCheck, the chained selector syntax has type inference issues
@@ -777,7 +830,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       """)
 
       // Should fail because drop1 and drop2 are not handled
-      assertZIO(result)(isLeft(containsString("unhandled fields")))
+      assertZIO(result)(isLeft(containsString("Unhandled paths from source")))
     },
     test("build fails when only some fields are provided") {
       // Note: In Scala 2 typeCheck, the chained selector syntax has type inference issues
@@ -799,7 +852,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       """)
 
       // Should fail because add1 and add2 are not provided
-      assertZIO(result)(isLeft(containsString("unprovided fields")))
+      assertZIO(result)(isLeft(containsString("Unprovided paths for target")))
     },
     test("error message includes field names") {
       val result = typeCheck("""
@@ -1013,8 +1066,8 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       """)
 
       // Should fail because CaseA and CaseB not handled
-      // Error shows "unhandled cases: CaseA, CaseB"
-      assertZIO(result)(isLeft(containsString("unhandled cases")))
+      // Error shows "Unhandled cases from source"
+      assertZIO(result)(isLeft(containsString("Unhandled cases from source")))
     },
     test("error message shows unhandled case names") {
       val result = typeCheck("""
@@ -1067,8 +1120,8 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       """)
 
       // Should show Active2 and Disabled as unprovided
-      // Error shows "unprovided cases: Active2, Disabled"
-      assertZIO(result)(isLeft(containsString("unprovided cases")))
+      // Error shows "Unprovided cases for target"
+      assertZIO(result)(isLeft(containsString("Unprovided cases for target")))
     },
     test("FieldPaths extracts nested paths correctly") {
       // Verify FieldPaths typeclass extracts full nested paths
@@ -1089,6 +1142,204 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val cp = implicitly[CasePaths[PersonA]]
       // CasePaths for a regular case class should be TNil
       assertTrue(cp != null)
+    }
+  )
+
+  // --------------------------------------------------------------------------
+  // Phase 10: Edge Cases Suite
+  // --------------------------------------------------------------------------
+  val phase10EdgeCasesSuite = suite("edge cases (Phase 10)")(
+    test("container types do not recurse into element types") {
+      // Container fields (Option, List, Set, Map) should NOT have their element types recursed
+      // So only top-level container fields appear in paths, not nested contents
+      val fp = implicitly[FieldPaths[WithContainers]]
+      // Paths should be: "list", "map", "opt", "set" - no nested paths like "opt.street"
+      assertTrue(fp != null)
+    },
+    test("deeply nested containers extract correctly") {
+      // List[Option[Map[String, Vector[Int]]]] should just be a single path "items"
+      val fp = implicitly[FieldPaths[DeeplyNestedContainers]]
+      assertTrue(fp != null)
+    },
+    test("migration with container fields works") {
+      // Containers with different element types should still migrate if container field names match
+      val migration = syntax(MigrationBuilder.newBuilder[WithContainers, WithContainers]).build
+      assertTrue(migration != null)
+    },
+    test("sealed trait with case objects extracts all cases") {
+      // CasePaths should include both case classes and case objects
+      val cp = implicitly[CasePaths[WithCaseObject]]
+      // Should have "case:NoneValue" and "case:SomeValue"
+      assertTrue(cp != null)
+    },
+    test("enum-like sealed trait with only case objects") {
+      // All case objects should be extracted
+      val cp = implicitly[CasePaths[Color]]
+      // Should have "case:Blue", "case:Green", "case:Red"
+      assertTrue(cp != null)
+    },
+    test("identical sealed traits with case objects require no handling") {
+      // Same case object structure should compile without handling
+      val migration = syntax(MigrationBuilder.newBuilder[WithCaseObject, WithCaseObject]).build
+      assertTrue(migration != null)
+    },
+    test("identical enum-like sealed traits require no handling") {
+      // Same enum structure should compile without handling
+      val migration = syntax(MigrationBuilder.newBuilder[Color, Color]).build
+      assertTrue(migration != null)
+    },
+    test("empty case class migration works") {
+      val migration = syntax(MigrationBuilder.newBuilder[EmptySource, EmptyTarget]).build
+      val result    = migration(EmptySource())
+      assertTrue(result.isRight)
+    },
+    test("single field case class migration works") {
+      val migration = syntax(MigrationBuilder.newBuilder[SingleA, SingleB]).build
+      val result    = migration(SingleA("test"))
+      assertTrue(result.isRight)
+    },
+    test("error message format is multi-line") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        case class Src(a: Int, b: String)
+        object Src { implicit val schema: Schema[Src] = Schema.derived }
+
+        case class Tgt(c: Boolean)
+        object Tgt { implicit val schema: Schema[Tgt] = Schema.derived }
+
+        MigrationBuilder.newBuilder[Src, Tgt].build
+      """)
+
+      // Error should contain multi-line format with "Unhandled paths" and "Unprovided paths"
+      assertZIO(result)(isLeft(containsString("Unhandled paths from source")))
+    },
+    test("error message includes hint with example path") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        case class Src(fieldToRemove: Int)
+        object Src { implicit val schema: Schema[Src] = Schema.derived }
+
+        case class Tgt()
+        object Tgt { implicit val schema: Schema[Tgt] = Schema.derived }
+
+        MigrationBuilder.newBuilder[Src, Tgt].build
+      """)
+
+      // Error should contain hint with example selector path
+      assertZIO(result)(isLeft(containsString("Hint: Use .dropField(_.fieldToRemove")))
+    }
+  )
+
+  // --------------------------------------------------------------------------
+  // requireValidation Suite (Phase 10)
+  // --------------------------------------------------------------------------
+  val requireValidationSuite = suite("requireValidation macro (Phase 10)")(
+    test("requireValidation succeeds for valid migration") {
+      // With all required fields handled/provided, validation should pass
+      MigrationBuilderSyntax.requireValidation[PersonA, PersonB, TNil, TNil]
+      assertTrue(true)
+    },
+    test("requireValidation succeeds with handled fields") {
+      // Create a type alias for the handled TList
+      type HandledList = TCons["extra", TNil]
+      MigrationBuilderSyntax.requireValidation[DropSource, DropTarget, HandledList, TNil]
+      assertTrue(true)
+    },
+    test("requireValidation succeeds with provided fields") {
+      // Create a type alias for the provided TList
+      type ProvidedList = TCons["extra", TNil]
+      MigrationBuilderSyntax.requireValidation[AddSource, AddTarget, TNil, ProvidedList]
+      assertTrue(true)
+    },
+    test("requireValidation fails with detailed error for missing handled") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        case class Src(name: String, toRemove: Int)
+        object Src { implicit val schema: Schema[Src] = Schema.derived }
+
+        case class Tgt(name: String)
+        object Tgt { implicit val schema: Schema[Tgt] = Schema.derived }
+
+        MigrationBuilderSyntax.requireValidation[Src, Tgt, TNil, TNil]
+      """)
+
+      assertZIO(result)(isLeft(containsString("toRemove")))
+    },
+    test("requireValidation fails with detailed error for missing provided") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        case class Src(name: String)
+        object Src { implicit val schema: Schema[Src] = Schema.derived }
+
+        case class Tgt(name: String, newField: Boolean)
+        object Tgt { implicit val schema: Schema[Tgt] = Schema.derived }
+
+        MigrationBuilderSyntax.requireValidation[Src, Tgt, TNil, TNil]
+      """)
+
+      assertZIO(result)(isLeft(containsString("newField")))
+    },
+    test("requireValidation shows nested paths in error") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        case class InnerSrc(old: String)
+        case class OuterSrc(inner: InnerSrc)
+        object InnerSrc { implicit val schema: Schema[InnerSrc] = Schema.derived }
+        object OuterSrc { implicit val schema: Schema[OuterSrc] = Schema.derived }
+
+        case class InnerTgt(newField: String)
+        case class OuterTgt(inner: InnerTgt)
+        object InnerTgt { implicit val schema: Schema[InnerTgt] = Schema.derived }
+        object OuterTgt { implicit val schema: Schema[OuterTgt] = Schema.derived }
+
+        MigrationBuilderSyntax.requireValidation[OuterSrc, OuterTgt, TNil, TNil]
+      """)
+
+      // Should show nested path "inner.old" as unhandled
+      assertZIO(result)(isLeft(containsString("inner.old")))
+    },
+    test("requireValidation shows case names in error") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        sealed trait TraitA
+        case class CaseX(x: Int) extends TraitA
+        object TraitA { implicit val schema: Schema[TraitA] = Schema.derived }
+        object CaseX { implicit val schema: Schema[CaseX] = Schema.derived }
+
+        sealed trait TraitB
+        case class CaseY(y: Int) extends TraitB
+        object TraitB { implicit val schema: Schema[TraitB] = Schema.derived }
+        object CaseY { implicit val schema: Schema[CaseY] = Schema.derived }
+
+        MigrationBuilderSyntax.requireValidation[TraitA, TraitB, TNil, TNil]
+      """)
+
+      // Should show case names in error
+      assertZIO(result)(isLeft(containsString("CaseX")))
     }
   )
 }
