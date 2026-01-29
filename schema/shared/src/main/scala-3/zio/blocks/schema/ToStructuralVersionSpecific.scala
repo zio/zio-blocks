@@ -142,12 +142,8 @@ private[schema] object ToStructuralMacro {
     }
   }
 
-  private def isProductType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
-    import quotes.reflect.*
-    tpe.classSymbol.exists { sym =>
-      CommonMacroOps.isProductType(sym) || (sym.flags.is(Flags.Module) && sym.flags.is(Flags.Case))
-    }
-  }
+  private def isProductType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean =
+    tpe.classSymbol.exists(CommonMacroOps.isProductType)
 
   private def isTupleType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean =
     tpe.typeSymbol.fullName.startsWith("scala.Tuple") || CommonMacroOps.isGenericTuple(tpe)
