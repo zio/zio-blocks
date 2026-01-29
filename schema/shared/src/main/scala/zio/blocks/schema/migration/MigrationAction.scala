@@ -341,6 +341,70 @@ object MigrationAction {
 
       removeAtDepth(value, 0)
     }
+
+    /**
+     * Transform a value at the given path. If path is empty, transforms the
+     * root value directly. Otherwise, navigates to the field and transforms it.
+     */
+    def transformAt(
+      value: DynamicValue,
+      path: DynamicOptic,
+      transform: DynamicValue => Either[MigrationError, DynamicValue]
+    ): Either[MigrationError, DynamicValue] =
+      if (path.nodes.isEmpty) {
+        transform(value)
+      } else {
+        navigateToField(value, path) match {
+          case Right((_, _, _, fieldValue)) =>
+            transform(fieldValue) match {
+              case Right(transformedValue) => updateNestedField(value, path, transformedValue)
+              case Left(err)               => Left(err)
+            }
+          case Left(err) => Left(err)
+        }
+      }
+
+    /**
+     * Modify the record containing the field at the given path. Path must be
+     * non-empty and consist only of Field nodes. The modify function receives
+     * the parent record and target field name.
+     */
+    def modifyRecordAt(
+      value: DynamicValue,
+      path: DynamicOptic,
+      modify: (DynamicValue.Record, String) => Either[MigrationError, DynamicValue.Record]
+    ): Either[MigrationError, DynamicValue] = {
+      if (path.nodes.isEmpty) {
+        return Left(MigrationError.InvalidStructure(path, "non-empty path", "empty path"))
+      }
+
+      val targetFieldName = path.nodes.last match {
+        case DynamicOptic.Node.Field(name) => name
+        case _                             => return Left(MigrationError.InvalidStructure(path, "Field node", s"${path.nodes.last}"))
+      }
+
+      if (path.nodes.length == 1) {
+        value match {
+          case record: DynamicValue.Record => modify(record, targetFieldName)
+          case _                           => Left(MigrationError.InvalidStructure(path, "Record", value.getClass.getSimpleName))
+        }
+      } else {
+        val parentPath = new DynamicOptic(path.nodes.dropRight(1))
+        navigateToField(value, parentPath) match {
+          case Right((_, _, _, parentValue)) =>
+            parentValue match {
+              case parentRecord: DynamicValue.Record =>
+                modify(parentRecord, targetFieldName) match {
+                  case Right(modifiedRecord) => updateNestedField(value, parentPath, modifiedRecord)
+                  case Left(err)             => Left(err)
+                }
+              case _ =>
+                Left(MigrationError.InvalidStructure(parentPath, "Record", parentValue.getClass.getSimpleName))
+            }
+          case Left(err) => Left(err)
+        }
+      }
+    }
   }
 
   /**
@@ -351,48 +415,21 @@ object MigrationAction {
     default: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      if (at.nodes.isEmpty) {
-        return Left(MigrationError.InvalidStructure(at, "non-empty path", "empty path"))
+      // Evaluate default expression first
+      val defaultValue = default.evalDynamic(value) match {
+        case Right(seq) if seq.nonEmpty => seq.head
+        case Right(_)                   => return Left(MigrationError.EvaluationError(at, "Default expression returned empty sequence"))
+        case Left(err)                  =>
+          return Left(MigrationError.EvaluationError(at, s"Failed to evaluate default: ${err.getMessage}"))
       }
 
-      // Evaluate default expression to get DynamicValue
-      val defaultValueResult = default.evalDynamic(value) match {
-        case Right(seq) =>
-          if (seq.isEmpty) {
-            return Left(MigrationError.EvaluationError(at, "Default expression returned empty sequence"))
-          }
-          Right(seq.head)
-        case Left(err) =>
-          Left(MigrationError.EvaluationError(at, s"Failed to evaluate default: ${err.getMessage}"))
-      }
-
-      val defaultValue = defaultValueResult match {
-        case Right(v)  => v
-        case Left(err) => return Left(err)
-      }
-
-      if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Check if field already exists
-                if (record.fields.exists(_._1 == fieldName)) {
-                  Left(MigrationError.FieldAlreadyExists(at, fieldName))
-                } else {
-                  Right(DynamicValue.Record(record.fields :+ (fieldName -> defaultValue)))
-                }
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested field - use navigation helpers
-        NavigationHelpers.addNestedField(value, at, defaultValue)
-      }
+      NavigationHelpers.modifyRecordAt(
+        value,
+        at,
+        (record, fieldName) =>
+          if (record.fields.exists(_._1 == fieldName)) Left(MigrationError.FieldAlreadyExists(at, fieldName))
+          else Right(DynamicValue.Record(record.fields :+ (fieldName -> defaultValue)))
+      )
     }
 
     def reverse: MigrationAction = DropField(at, default)
@@ -406,36 +443,16 @@ object MigrationAction {
     at: DynamicOptic,
     defaultForReverse: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
-    def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      if (at.nodes.isEmpty) {
-        return Left(MigrationError.InvalidStructure(at, "non-empty path", "empty path"))
-      }
-
-      if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Check if field exists
-                val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
-                if (fieldIndex < 0) {
-                  Left(MigrationError.FieldNotFound(at, fieldName))
-                } else {
-                  val newFields = record.fields.patch(fieldIndex, Nil, 1)
-                  Right(DynamicValue.Record(newFields))
-                }
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
+    def execute(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      NavigationHelpers.modifyRecordAt(
+        value,
+        at,
+        (record, fieldName) => {
+          val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
+          if (fieldIndex < 0) Left(MigrationError.FieldNotFound(at, fieldName))
+          else Right(DynamicValue.Record(record.fields.patch(fieldIndex, Nil, 1)))
         }
-      } else {
-        // Nested field - use navigation helpers
-        NavigationHelpers.removeNestedField(value, at)
-      }
-    }
+      )
 
     def reverse: MigrationAction = AddField(at, defaultForReverse)
   }
@@ -447,84 +464,30 @@ object MigrationAction {
     at: DynamicOptic,
     to: String
   ) extends MigrationAction {
-    def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      if (at.nodes.isEmpty) {
-        return Left(MigrationError.InvalidStructure(at, "non-empty path", "empty path"))
-      }
-
-      if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fromName) =>
-                // Check if from field exists
-                val fromIndex = record.fields.indexWhere(_._1 == fromName)
-                if (fromIndex < 0) {
-                  return Left(MigrationError.FieldNotFound(at, fromName))
-                }
-
-                // Check if to field already exists
-                if (record.fields.exists(_._1 == to)) {
-                  return Left(MigrationError.FieldAlreadyExists(at, to))
-                }
-
-                // Rename field
-                val (_, fieldValue) = record.fields(fromIndex)
-                val newFields       = record.fields.updated(fromIndex, (to, fieldValue))
-                Right(DynamicValue.Record(newFields))
-
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
+    def execute(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      NavigationHelpers.modifyRecordAt(
+        value,
+        at,
+        (record, fromName) => {
+          val fromIndex = record.fields.indexWhere(_._1 == fromName)
+          if (fromIndex < 0) Left(MigrationError.FieldNotFound(at, fromName))
+          else if (record.fields.exists(_._1 == to)) Left(MigrationError.FieldAlreadyExists(at, to))
+          else {
+            val (_, fieldValue) = record.fields(fromIndex)
+            Right(DynamicValue.Record(record.fields.updated(fromIndex, (to, fieldValue))))
+          }
         }
-      } else {
-        // Nested field - navigate and rename
-        NavigationHelpers.navigateToField(value, at) match {
-          case Right((parentRecord, fieldIndex, _, fieldValue)) =>
-            // Check if 'to' field already exists in parent
-            if (parentRecord.fields.exists(_._1 == to)) {
-              return Left(MigrationError.FieldAlreadyExists(at, to))
-            }
-
-            // Rename the field in parent record
-            val updatedParentFields = parentRecord.fields.updated(fieldIndex, (to, fieldValue))
-            val updatedParent       = DynamicValue.Record(updatedParentFields)
-
-            // Rebuild the structure with updated parent
-            // Create a path to the parent (all nodes except last)
-            val parentPath = new DynamicOptic(at.nodes.dropRight(1))
-            if (parentPath.nodes.isEmpty) {
-              // Parent is root, return updated parent directly
-              Right(updatedParent)
-            } else {
-              // Update the parent in the original structure
-              NavigationHelpers.updateNestedField(value, parentPath, updatedParent)
-            }
-
-          case Left(err) => Left(err)
-        }
-      }
-    }
+      )
 
     def reverse: MigrationAction =
-      // Extract the from field name and create reverse rename
       at.nodes.last match {
         case DynamicOptic.Node.Field(fromName) =>
-          // Create a new optic pointing to the "to" field
-          val reversePath = if (at.nodes.length == 1) {
-            DynamicOptic.root.field(to)
-          } else {
-            val parentNodes = at.nodes.dropRight(1)
-            new DynamicOptic(parentNodes :+ DynamicOptic.Node.Field(to))
-          }
+          val reversePath =
+            if (at.nodes.length == 1) DynamicOptic.root.field(to)
+            else new DynamicOptic(at.nodes.dropRight(1) :+ DynamicOptic.Node.Field(to))
           Rename(reversePath, fromName)
         case other =>
-          throw new IllegalStateException(
-            s"Rename.reverse requires a Field node at path end, but found: $other"
-          )
+          throw new IllegalStateException(s"Rename.reverse requires a Field node at path end, but found: $other")
       }
   }
 
@@ -542,61 +505,17 @@ object MigrationAction {
         return Left(MigrationError.InvalidStructure(at, "non-empty path", "empty path"))
       }
 
-      if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Check if field exists
-                val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
-                if (fieldIndex < 0) {
-                  return Left(MigrationError.FieldNotFound(at, fieldName))
-                }
-
-                // Get current field value
-                val (_, fieldValue) = record.fields(fieldIndex)
-
-                // Apply transformation to field value
-                transform.evalDynamic(fieldValue) match {
-                  case Right(seq) =>
-                    if (seq.isEmpty) {
-                      return Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
-                    }
-                    val transformedValue = seq.head
-                    // Update field with transformed value
-                    val newFields = record.fields.updated(fieldIndex, (fieldName, transformedValue))
-                    Right(DynamicValue.Record(newFields))
-                  case Left(err) =>
-                    Left(MigrationError.EvaluationError(at, s"Failed to evaluate transform: ${err.getMessage}"))
-                }
-
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested field - navigate, transform, update
-        NavigationHelpers.navigateToField(value, at) match {
-          case Right((_, _, _, fieldValue)) =>
-            // Apply transformation to field value
-            transform.evalDynamic(fieldValue) match {
-              case Right(seq) =>
-                if (seq.isEmpty) {
-                  Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
-                } else {
-                  val transformedValue = seq.head
-                  // Update the nested field with transformed value
-                  NavigationHelpers.updateNestedField(value, at, transformedValue)
-                }
-              case Left(err) =>
-                Left(MigrationError.EvaluationError(at, s"Failed to evaluate transform: ${err.getMessage}"))
-            }
-          case Left(err) => Left(err)
-        }
-      }
+      NavigationHelpers.transformAt(
+        value,
+        at,
+        fieldValue =>
+          transform.evalDynamic(fieldValue) match {
+            case Right(seq) if seq.nonEmpty => Right(seq.head)
+            case Right(_)                   => Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
+            case Left(err)                  =>
+              Left(MigrationError.EvaluationError(at, s"Failed to evaluate transform: ${err.getMessage}"))
+          }
+      )
     }
 
     def reverse: MigrationAction = TransformValue(at, inverseTransform(transform))
@@ -615,52 +534,15 @@ object MigrationAction {
         return Left(MigrationError.InvalidStructure(at, "non-empty path", "empty path"))
       }
 
-      if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Check if field exists
-                val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
-                if (fieldIndex < 0) {
-                  return Left(MigrationError.FieldNotFound(at, fieldName))
-                }
-
-                // Get current field value
-                val (_, fieldValue) = record.fields(fieldIndex)
-
-                // Apply converter to field value
-                converter.convert(fieldValue) match {
-                  case Right(convertedValue) =>
-                    // Update field with converted value
-                    val newFields = record.fields.updated(fieldIndex, (fieldName, convertedValue))
-                    Right(DynamicValue.Record(newFields))
-                  case Left(err) =>
-                    Left(MigrationError.EvaluationError(at, s"Type conversion failed: $err"))
-                }
-
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested field - navigate, convert, update
-        NavigationHelpers.navigateToField(value, at) match {
-          case Right((_, _, _, fieldValue)) =>
-            // Apply converter to field value
-            converter.convert(fieldValue) match {
-              case Right(convertedValue) =>
-                // Update the nested field with converted value
-                NavigationHelpers.updateNestedField(value, at, convertedValue)
-              case Left(err) =>
-                Left(MigrationError.EvaluationError(at, s"Type conversion failed: $err"))
-            }
-          case Left(err) => Left(err)
-        }
-      }
+      NavigationHelpers.transformAt(
+        value,
+        at,
+        fieldValue =>
+          converter
+            .convert(fieldValue)
+            .left
+            .map(err => MigrationError.EvaluationError(at, s"Type conversion failed: $err"))
+      )
     }
 
     def reverse: MigrationAction = ChangeType(at, converter.reverse)
@@ -674,16 +556,13 @@ object MigrationAction {
     at: DynamicOptic,
     default: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
-    def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      // Helper to unwrap Option value
+    def execute(rootValue: DynamicValue): Either[MigrationError, DynamicValue] = {
       def unwrapOption(optionValue: DynamicValue): Either[MigrationError, DynamicValue] = optionValue match {
         case DynamicValue.Variant(caseName, innerValue) =>
           caseName match {
             case "Some" =>
-              // Extract value from Some's Record
               innerValue match {
                 case DynamicValue.Record(fields) =>
-                  // Look for "value" field
                   fields.find(_._1 == "value") match {
                     case Some((_, extractedValue)) => Right(extractedValue)
                     case None                      =>
@@ -695,71 +574,19 @@ object MigrationAction {
                   Left(MigrationError.InvalidStructure(at, "Record inside Some", innerValue.getClass.getSimpleName))
               }
             case "None" =>
-              // Use default value
-              default.evalDynamic(value) match {
-                case Right(seq) =>
-                  if (seq.isEmpty) {
-                    Left(MigrationError.EvaluationError(at, "Default expression returned empty sequence"))
-                  } else {
-                    Right(seq.head)
-                  }
-                case Left(err) =>
+              default.evalDynamic(rootValue) match {
+                case Right(seq) if seq.nonEmpty => Right(seq.head)
+                case Right(_)                   => Left(MigrationError.EvaluationError(at, "Default expression returned empty sequence"))
+                case Left(err)                  =>
                   Left(MigrationError.EvaluationError(at, s"Failed to evaluate default: ${err.getMessage}"))
               }
             case other =>
               Left(MigrationError.InvalidStructure(at, "Variant with 'Some' or 'None'", s"Variant with case '$other'"))
           }
-        case _ =>
-          Left(MigrationError.InvalidStructure(at, "Variant (Option)", optionValue.getClass.getSimpleName))
+        case _ => Left(MigrationError.InvalidStructure(at, "Variant (Option)", optionValue.getClass.getSimpleName))
       }
 
-      // Handle root-level operation vs field operation
-      if (at.nodes.isEmpty) {
-        // Root-level operation - unwrap the value directly
-        unwrapOption(value)
-      } else if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Find the field
-                val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
-                if (fieldIndex < 0) {
-                  return Left(MigrationError.FieldNotFound(at, fieldName))
-                }
-
-                val (_, fieldValue) = record.fields(fieldIndex)
-
-                // Unwrap the Option value
-                unwrapOption(fieldValue) match {
-                  case Right(unwrappedValue) =>
-                    // Replace field with unwrapped value
-                    val newFields = record.fields.updated(fieldIndex, (fieldName, unwrappedValue))
-                    Right(DynamicValue.Record(newFields))
-                  case Left(err) => Left(err)
-                }
-
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested field - navigate, unwrap, update
-        NavigationHelpers.navigateToField(value, at) match {
-          case Right((_, _, _, fieldValue)) =>
-            // Unwrap the Option value
-            unwrapOption(fieldValue) match {
-              case Right(unwrappedValue) =>
-                // Update the nested field with unwrapped value
-                NavigationHelpers.updateNestedField(value, at, unwrappedValue)
-              case Left(err) => Left(err)
-            }
-          case Left(err) => Left(err)
-        }
-      }
+      NavigationHelpers.transformAt(rootValue, at, unwrapOption)
     }
 
     def reverse: MigrationAction = Optionalize(at, default)
@@ -774,55 +601,10 @@ object MigrationAction {
     defaultForReverse: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      // Helper to wrap value in Some
       def wrapInSome(originalValue: DynamicValue): DynamicValue =
-        DynamicValue.Variant(
-          "Some",
-          DynamicValue.Record(Chunk("value" -> originalValue))
-        )
+        DynamicValue.Variant("Some", DynamicValue.Record(Chunk("value" -> originalValue)))
 
-      // Handle root-level operation vs field operation
-      if (at.nodes.isEmpty) {
-        // Root-level operation - wrap the value directly
-        Right(wrapInSome(value))
-      } else if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Find the field
-                val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
-                if (fieldIndex < 0) {
-                  return Left(MigrationError.FieldNotFound(at, fieldName))
-                }
-
-                val (_, fieldValue) = record.fields(fieldIndex)
-
-                // Wrap the field value in Some
-                val wrappedValue = wrapInSome(fieldValue)
-
-                // Replace field with wrapped value
-                val newFields = record.fields.updated(fieldIndex, (fieldName, wrappedValue))
-                Right(DynamicValue.Record(newFields))
-
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested field - navigate, wrap, update
-        NavigationHelpers.navigateToField(value, at) match {
-          case Right((_, _, _, fieldValue)) =>
-            // Wrap the field value in Some
-            val wrappedValue = wrapInSome(fieldValue)
-            // Update the nested field with wrapped value
-            NavigationHelpers.updateNestedField(value, at, wrappedValue)
-          case Left(err) => Left(err)
-        }
-      }
+      NavigationHelpers.transformAt(value, at, v => Right(wrapInSome(v)))
     }
 
     def reverse: MigrationAction = Mandate(at, defaultForReverse)
@@ -848,139 +630,75 @@ object MigrationAction {
     combiner: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      // Validate target path
-      if (at.nodes.isEmpty) {
-        return Left(MigrationError.InvalidStructure(at, "non-empty path", "empty path"))
-      }
-
-      // Validate all paths share the same parent (sibling constraint)
+      // Validate sibling constraint for nested paths
       if (at.nodes.length > 1) {
         val targetParent = at.nodes.dropRight(1)
         val invalidPaths = sourcePaths.filterNot { sourcePath =>
-          sourcePath.nodes.length == at.nodes.length &&
-          sourcePath.nodes.dropRight(1) == targetParent
+          sourcePath.nodes.length == at.nodes.length && sourcePath.nodes.dropRight(1) == targetParent
         }
-
         if (invalidPaths.nonEmpty) {
           return Left(MigrationError.CrossPathJoinNotSupported(at, at, sourcePaths))
         }
       }
 
-      // Helper to perform join on a record
-      def performJoin(record: DynamicValue.Record): Either[MigrationError, DynamicValue.Record] = {
-        // Extract target field name
-        val targetFieldName = at.nodes.last match {
-          case DynamicOptic.Node.Field(name) => name
-          case _                             => return Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-        }
-
-        // Check if target field already exists
-        if (record.fields.exists(_._1 == targetFieldName)) {
-          return Left(MigrationError.FieldAlreadyExists(at, targetFieldName))
-        }
-
-        // Extract values from all source paths (assume they're in the same record)
-        val sourceValuesResult: Either[MigrationError, Vector[DynamicValue]] = {
-          val results = sourcePaths.map { sourcePath =>
-            if (sourcePath.nodes.isEmpty) {
-              Left(MigrationError.InvalidStructure(sourcePath, "non-empty path", "empty path"))
-            } else {
-              sourcePath.nodes.last match {
-                case DynamicOptic.Node.Field(fieldName) =>
-                  record.fields.find(_._1 == fieldName) match {
-                    case Some((_, fieldValue)) => Right(fieldValue)
-                    case None                  => Left(MigrationError.FieldNotFound(sourcePath, fieldName))
+      NavigationHelpers.modifyRecordAt(
+        value,
+        at,
+        (record, targetFieldName) =>
+          if (record.fields.exists(_._1 == targetFieldName)) {
+            Left(MigrationError.FieldAlreadyExists(at, targetFieldName))
+          } else {
+            // Extract values from all source paths
+            val sourceValuesResult: Either[MigrationError, Vector[DynamicValue]] = {
+              val results = sourcePaths.map { sourcePath =>
+                if (sourcePath.nodes.isEmpty)
+                  Left(MigrationError.InvalidStructure(sourcePath, "non-empty path", "empty path"))
+                else
+                  sourcePath.nodes.last match {
+                    case DynamicOptic.Node.Field(fieldName) =>
+                      record.fields.find(_._1 == fieldName) match {
+                        case Some((_, fv)) => Right(fv)
+                        case None          => Left(MigrationError.FieldNotFound(sourcePath, fieldName))
+                      }
+                    case _ =>
+                      Left(MigrationError.InvalidStructure(sourcePath, "Field node", s"${sourcePath.nodes.last}"))
                   }
-                case _ =>
-                  Left(MigrationError.InvalidStructure(sourcePath, "Field node", s"${sourcePath.nodes.last}"))
+              }
+              results.collectFirst { case Left(err) => err }.toLeft(results.collect { case Right(v) => v })
+            }
+
+            sourceValuesResult.flatMap { sourceValues =>
+              // Build temporary Record with field0, field1, etc. and evaluate combiner
+              val tempFields = Chunk.fromIterable(sourceValues.zipWithIndex.map { case (v, idx) => s"field$idx" -> v })
+              combiner.evalDynamic(DynamicValue.Record(tempFields)) match {
+                case Right(seq) if seq.nonEmpty =>
+                  val combinedValue = seq.head
+                  // Add combined value and remove source fields
+                  val sourceFieldNames = sourcePaths
+                    .flatMap(_.nodes.last match {
+                      case DynamicOptic.Node.Field(name) => Some(name)
+                      case _                             => None
+                    })
+                    .toSet
+                  val resultFields = (record.fields :+ (targetFieldName -> combinedValue)).filterNot { case (fn, _) =>
+                    sourceFieldNames.contains(fn)
+                  }
+                  Right(DynamicValue.Record(resultFields))
+                case Right(_)  => Left(MigrationError.EvaluationError(at, "Combiner expression returned empty sequence"))
+                case Left(err) =>
+                  Left(MigrationError.EvaluationError(at, s"Failed to evaluate combiner: ${err.getMessage}"))
               }
             }
           }
-
-          val errors = results.collect { case Left(err) => err }
-          if (errors.nonEmpty) {
-            Left(errors.head)
-          } else {
-            Right(results.collect { case Right(v) => v })
-          }
-        }
-
-        val sourceValues = sourceValuesResult match {
-          case Right(values) => values
-          case Left(err)     => return Left(err)
-        }
-
-        // Build temporary Record with field0, field1, etc.
-        val tempFields = Chunk.fromIterable(sourceValues.zipWithIndex.map { case (v, idx) => s"field$idx" -> v })
-        val tempRecord = DynamicValue.Record(tempFields)
-
-        // Evaluate combiner on temporary Record
-        val combinedValue = combiner.evalDynamic(tempRecord) match {
-          case Right(seq) =>
-            if (seq.isEmpty) {
-              return Left(MigrationError.EvaluationError(at, "Combiner expression returned empty sequence"))
-            }
-            seq.head
-          case Left(err) =>
-            return Left(MigrationError.EvaluationError(at, s"Failed to evaluate combiner: ${err.getMessage}"))
-        }
-
-        // Add the combined value to target field
-        var resultFields = record.fields :+ (targetFieldName -> combinedValue)
-
-        // Remove source fields from record
-        val sourceFieldNames = sourcePaths.flatMap { sourcePath =>
-          sourcePath.nodes.last match {
-            case DynamicOptic.Node.Field(name) => Some(name)
-            case _                             => None
-          }
-        }.toSet
-
-        resultFields = resultFields.filterNot { case (fieldName, _) => sourceFieldNames.contains(fieldName) }
-
-        Right(DynamicValue.Record(resultFields))
-      }
-
-      if (at.nodes.length == 1) {
-        // Top-level join
-        value match {
-          case record: DynamicValue.Record => performJoin(record)
-          case _                           => Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested join - navigate to parent record, perform join, rebuild
-        // All paths MUST share the same parent
-        val parentPath = new DynamicOptic(at.nodes.dropRight(1))
-        NavigationHelpers.navigateToField(value, parentPath) match {
-          case Right((_, _, _, parentValue)) =>
-            parentValue match {
-              case parentRecord: DynamicValue.Record =>
-                performJoin(parentRecord) match {
-                  case Right(updatedParent) =>
-                    NavigationHelpers.updateNestedField(value, parentPath, updatedParent)
-                  case Left(err) => Left(err)
-                }
-              case _ =>
-                Left(MigrationError.InvalidStructure(parentPath, "Record", parentValue.getClass.getSimpleName))
-            }
-          case Left(err) => Left(err)
-        }
-      }
+      )
     }
 
     def reverse: MigrationAction = {
-      // Try to create an appropriate splitter from the combiner
-      // For StringConcat with a literal delimiter, use StringSplit
       val splitter = combiner match {
-        // Pattern: field0 + delimiter + field1 (simple 2-field join)
         case SchemaExpr.StringConcat(_, SchemaExpr.StringConcat(SchemaExpr.Literal(delimiter: String, _), _)) =>
-          // Extract the delimiter and create a StringSplit
           SchemaExpr.StringSplit(SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root), delimiter)
-
-        // For other combiners, use the combiner as-is (may fail at runtime)
         case _ => combiner
       }
-
       Split(at, sourcePaths, splitter)
     }
   }
@@ -1006,133 +724,77 @@ object MigrationAction {
     splitter: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      // Validate source path
-      if (at.nodes.isEmpty) {
-        return Left(MigrationError.InvalidStructure(at, "non-empty path", "empty path"))
-      }
-
-      // Validate all paths share the same parent (sibling constraint)
+      // Validate sibling constraint for nested paths
       if (at.nodes.length > 1) {
         val sourceParent = at.nodes.dropRight(1)
         val invalidPaths = targetPaths.filterNot { targetPath =>
-          targetPath.nodes.length == at.nodes.length &&
-          targetPath.nodes.dropRight(1) == sourceParent
+          targetPath.nodes.length == at.nodes.length && targetPath.nodes.dropRight(1) == sourceParent
         }
-
         if (invalidPaths.nonEmpty) {
           return Left(MigrationError.CrossPathSplitNotSupported(at, at, targetPaths))
         }
       }
 
-      // Helper to perform split on a record
-      def performSplit(record: DynamicValue.Record): Either[MigrationError, DynamicValue.Record] = {
-        // Extract source field name
-        val sourceFieldName = at.nodes.last match {
-          case DynamicOptic.Node.Field(name) => name
-          case _                             => return Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-        }
-
-        // Extract value from source field
-        val sourceFieldIndex = record.fields.indexWhere(_._1 == sourceFieldName)
-        if (sourceFieldIndex < 0) {
-          return Left(MigrationError.FieldNotFound(at, sourceFieldName))
-        }
-
-        val (_, sourceValue) = record.fields(sourceFieldIndex)
-
-        // Evaluate splitter on source value
-        val splitResults = splitter.evalDynamic(sourceValue) match {
-          case Right(seq) => seq
-          case Left(err)  =>
-            return Left(MigrationError.EvaluationError(at, s"Failed to evaluate splitter: ${err.getMessage}"))
-        }
-
-        // Check result count matches targetPaths.length
-        if (splitResults.length != targetPaths.length) {
-          return Left(
-            MigrationError.EvaluationError(
-              at,
-              s"Splitter returned ${splitResults.length} results, but expected ${targetPaths.length}"
-            )
-          )
-        }
-
-        // Validate target paths and extract field names
-        val targetFieldNamesResult: Either[MigrationError, Vector[String]] = {
-          val results = targetPaths.map { targetPath =>
-            if (targetPath.nodes.isEmpty) {
-              Left(MigrationError.InvalidStructure(targetPath, "non-empty path", "empty path"))
-            } else {
-              targetPath.nodes.last match {
-                case DynamicOptic.Node.Field(name) =>
-                  if (record.fields.exists(_._1 == name)) {
-                    Left(MigrationError.FieldAlreadyExists(targetPath, name))
-                  } else {
-                    Right(name)
-                  }
-                case _ =>
-                  Left(MigrationError.InvalidStructure(targetPath, "Field node", s"${targetPath.nodes.last}"))
-              }
-            }
-          }
-
-          val errors = results.collect { case Left(err) => err }
-          if (errors.nonEmpty) {
-            Left(errors.head)
+      NavigationHelpers.modifyRecordAt(
+        value,
+        at,
+        (record, sourceFieldName) => {
+          val sourceFieldIndex = record.fields.indexWhere(_._1 == sourceFieldName)
+          if (sourceFieldIndex < 0) {
+            Left(MigrationError.FieldNotFound(at, sourceFieldName))
           } else {
-            Right(results.collect { case Right(v) => v })
+            val (_, sourceValue) = record.fields(sourceFieldIndex)
+
+            // Evaluate splitter on source value
+            splitter.evalDynamic(sourceValue) match {
+              case Left(err) =>
+                Left(MigrationError.EvaluationError(at, s"Failed to evaluate splitter: ${err.getMessage}"))
+              case Right(splitResults) =>
+                if (splitResults.length != targetPaths.length) {
+                  Left(
+                    MigrationError.EvaluationError(
+                      at,
+                      s"Splitter returned ${splitResults.length} results, but expected ${targetPaths.length}"
+                    )
+                  )
+                } else {
+                  // Validate target paths and extract field names
+                  val targetFieldNamesResult: Either[MigrationError, Vector[String]] = {
+                    val results = targetPaths.map { targetPath =>
+                      if (targetPath.nodes.isEmpty)
+                        Left(MigrationError.InvalidStructure(targetPath, "non-empty path", "empty path"))
+                      else
+                        targetPath.nodes.last match {
+                          case DynamicOptic.Node.Field(name) =>
+                            if (record.fields.exists(_._1 == name))
+                              Left(MigrationError.FieldAlreadyExists(targetPath, name))
+                            else Right(name)
+                          case _ =>
+                            Left(MigrationError.InvalidStructure(targetPath, "Field node", s"${targetPath.nodes.last}"))
+                        }
+                    }
+                    results.collectFirst { case Left(err) => err }.toLeft(results.collect { case Right(v) => v })
+                  }
+
+                  targetFieldNamesResult.map { targetFieldNames =>
+                    // Remove source field and add split results
+                    val withoutSource = record.fields.patch(sourceFieldIndex, Nil, 1)
+                    val resultFields  =
+                      targetFieldNames.zip(splitResults).foldLeft(withoutSource) { case (fields, (fn, fv)) =>
+                        fields :+ (fn -> fv)
+                      }
+                    DynamicValue.Record(resultFields)
+                  }
+                }
+            }
           }
         }
-
-        val targetFieldNames = targetFieldNamesResult match {
-          case Right(names) => names
-          case Left(err)    => return Left(err)
-        }
-
-        // Remove source field from record
-        var resultFields = record.fields.patch(sourceFieldIndex, Nil, 1)
-
-        // Add each split result to corresponding target field
-        targetFieldNames.zip(splitResults).foreach { case (fieldName, fieldValue) =>
-          resultFields = resultFields :+ (fieldName -> fieldValue)
-        }
-
-        Right(DynamicValue.Record(resultFields))
-      }
-
-      if (at.nodes.length == 1) {
-        // Top-level split
-        value match {
-          case record: DynamicValue.Record => performSplit(record)
-          case _                           => Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested split - navigate to parent record, perform split, rebuild
-        // All paths MUST share the same parent
-        val parentPath = new DynamicOptic(at.nodes.dropRight(1))
-        NavigationHelpers.navigateToField(value, parentPath) match {
-          case Right((_, _, _, parentValue)) =>
-            parentValue match {
-              case parentRecord: DynamicValue.Record =>
-                performSplit(parentRecord) match {
-                  case Right(updatedParent) =>
-                    NavigationHelpers.updateNestedField(value, parentPath, updatedParent)
-                  case Left(err) => Left(err)
-                }
-              case _ =>
-                Left(MigrationError.InvalidStructure(parentPath, "Record", parentValue.getClass.getSimpleName))
-            }
-          case Left(err) => Left(err)
-        }
-      }
+      )
     }
 
     def reverse: MigrationAction = {
-      // Try to create an appropriate combiner from the splitter
       val combiner: SchemaExpr[DynamicValue, ?] = splitter match {
-        // Pattern: StringSplit(_, delimiter) -> StringConcat(field0, delimiter, field1)
         case SchemaExpr.StringSplit(_, delimiter) if targetPaths.length == 2 =>
-          // Create: field0 + delimiter + field1
           SchemaExpr.StringConcat(
             SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
             SchemaExpr.StringConcat(
@@ -1140,13 +802,8 @@ object MigrationAction {
               SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
             )
           )
-
-        // For other splitters, create identity (return first field's value)
-        // This is lossy but at least won't crash
-        case _ =>
-          SchemaExpr.Dynamic[DynamicValue, DynamicValue](DynamicOptic.root.field("field0"))
+        case _ => SchemaExpr.Dynamic[DynamicValue, DynamicValue](DynamicOptic.root.field("field0"))
       }
-
       Join(at, targetPaths, combiner)
     }
   }
@@ -1162,92 +819,27 @@ object MigrationAction {
     transform: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      // Helper to transform a sequence
-      def transformSequence(seq: DynamicValue.Sequence): Either[MigrationError, DynamicValue.Sequence] = {
-        // Transform each element independently
+      def transformSequence(seq: DynamicValue.Sequence): Either[MigrationError, DynamicValue] = {
         val transformedResults = seq.elements.map { element =>
           transform.evalDynamic(element) match {
-            case Right(results) =>
-              if (results.isEmpty) {
-                Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
-              } else {
-                Right(results.head)
-              }
-            case Left(err) =>
+            case Right(results) if results.nonEmpty => Right(results.head)
+            case Right(_)                           => Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
+            case Left(err)                          =>
               Left(MigrationError.EvaluationError(at, s"Failed to transform element: ${err.getMessage}"))
           }
         }
-
-        // Check if any transformations failed
-        val errors = transformedResults.collect { case Left(err) => err }
-        if (errors.nonEmpty) {
-          Left(errors.head)
-        } else {
-          val transformedElements = transformedResults.collect { case Right(v) => v }
-          Right(DynamicValue.Sequence(transformedElements))
-        }
+        transformedResults.collectFirst { case Left(err) => err }
+          .toLeft(DynamicValue.Sequence(transformedResults.collect { case Right(v) => v }))
       }
 
-      // Handle root-level operation vs field operation
-      if (at.nodes.isEmpty) {
-        // Root-level operation - transform the sequence directly
-        value match {
-          case seq: DynamicValue.Sequence =>
-            transformSequence(seq)
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Sequence", value.getClass.getSimpleName))
+      NavigationHelpers.transformAt(
+        value,
+        at,
+        {
+          case seq: DynamicValue.Sequence => transformSequence(seq)
+          case other                      => Left(MigrationError.InvalidStructure(at, "Sequence", other.getClass.getSimpleName))
         }
-      } else if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Find the field
-                val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
-                if (fieldIndex < 0) {
-                  return Left(MigrationError.FieldNotFound(at, fieldName))
-                }
-
-                val (_, fieldValue) = record.fields(fieldIndex)
-
-                // Transform the sequence
-                fieldValue match {
-                  case seq: DynamicValue.Sequence =>
-                    transformSequence(seq) match {
-                      case Right(transformedSeq) =>
-                        // Replace field with transformed sequence
-                        val newFields = record.fields.updated(fieldIndex, (fieldName, transformedSeq))
-                        Right(DynamicValue.Record(newFields))
-                      case Left(err) => Left(err)
-                    }
-                  case _ =>
-                    Left(MigrationError.InvalidStructure(at, "Sequence", fieldValue.getClass.getSimpleName))
-                }
-
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested field - navigate, transform, update
-        NavigationHelpers.navigateToField(value, at) match {
-          case Right((_, _, _, fieldValue)) =>
-            fieldValue match {
-              case seq: DynamicValue.Sequence =>
-                transformSequence(seq) match {
-                  case Right(transformedSeq) =>
-                    NavigationHelpers.updateNestedField(value, at, transformedSeq)
-                  case Left(err) => Left(err)
-                }
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Sequence", fieldValue.getClass.getSimpleName))
-            }
-          case Left(err) => Left(err)
-        }
-      }
+      )
     }
 
     def reverse: MigrationAction = TransformElements(at, inverseTransform(transform))
@@ -1264,92 +856,26 @@ object MigrationAction {
     transform: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      // Helper to transform map keys
-      def transformMapKeys(map: DynamicValue.Map): Either[MigrationError, DynamicValue.Map] = {
-        // Transform each key independently, preserving values
-        val transformedResults = map.entries.map { case (key, value) =>
+      def transformMapKeys(map: DynamicValue.Map): Either[MigrationError, DynamicValue] = {
+        val transformedResults = map.entries.map { case (key, v) =>
           transform.evalDynamic(key) match {
-            case Right(results) =>
-              if (results.isEmpty) {
-                Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
-              } else {
-                Right((results.head, value))
-              }
-            case Left(err) =>
-              Left(MigrationError.EvaluationError(at, s"Failed to transform key: ${err.getMessage}"))
+            case Right(results) if results.nonEmpty => Right((results.head, v))
+            case Right(_)                           => Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
+            case Left(err)                          => Left(MigrationError.EvaluationError(at, s"Failed to transform key: ${err.getMessage}"))
           }
         }
-
-        // Check if any transformations failed
-        val errors = transformedResults.collect { case Left(err) => err }
-        if (errors.nonEmpty) {
-          Left(errors.head)
-        } else {
-          val transformedEntries = transformedResults.collect { case Right(entry) => entry }
-          Right(DynamicValue.Map(transformedEntries))
-        }
+        transformedResults.collectFirst { case Left(err) => err }
+          .toLeft(DynamicValue.Map(transformedResults.collect { case Right(entry) => entry }))
       }
 
-      // Handle root-level operation vs field operation
-      if (at.nodes.isEmpty) {
-        // Root-level operation - transform the map directly
-        value match {
-          case map: DynamicValue.Map =>
-            transformMapKeys(map)
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Map", value.getClass.getSimpleName))
+      NavigationHelpers.transformAt(
+        value,
+        at,
+        {
+          case map: DynamicValue.Map => transformMapKeys(map)
+          case other                 => Left(MigrationError.InvalidStructure(at, "Map", other.getClass.getSimpleName))
         }
-      } else if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Find the field
-                val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
-                if (fieldIndex < 0) {
-                  return Left(MigrationError.FieldNotFound(at, fieldName))
-                }
-
-                val (_, fieldValue) = record.fields(fieldIndex)
-
-                // Transform the map
-                fieldValue match {
-                  case map: DynamicValue.Map =>
-                    transformMapKeys(map) match {
-                      case Right(transformedMap) =>
-                        // Replace field with transformed map
-                        val newFields = record.fields.updated(fieldIndex, (fieldName, transformedMap))
-                        Right(DynamicValue.Record(newFields))
-                      case Left(err) => Left(err)
-                    }
-                  case _ =>
-                    Left(MigrationError.InvalidStructure(at, "Map", fieldValue.getClass.getSimpleName))
-                }
-
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested field - navigate, transform, update
-        NavigationHelpers.navigateToField(value, at) match {
-          case Right((_, _, _, fieldValue)) =>
-            fieldValue match {
-              case map: DynamicValue.Map =>
-                transformMapKeys(map) match {
-                  case Right(transformedMap) =>
-                    NavigationHelpers.updateNestedField(value, at, transformedMap)
-                  case Left(err) => Left(err)
-                }
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Map", fieldValue.getClass.getSimpleName))
-            }
-          case Left(err) => Left(err)
-        }
-      }
+      )
     }
 
     def reverse: MigrationAction = TransformKeys(at, inverseTransform(transform))
@@ -1366,92 +892,26 @@ object MigrationAction {
     transform: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      // Helper to transform map values
-      def transformMapValues(map: DynamicValue.Map): Either[MigrationError, DynamicValue.Map] = {
-        // Transform each value independently, preserving keys
-        val transformedResults = map.entries.map { case (key, value) =>
-          transform.evalDynamic(value) match {
-            case Right(results) =>
-              if (results.isEmpty) {
-                Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
-              } else {
-                Right((key, results.head))
-              }
-            case Left(err) =>
-              Left(MigrationError.EvaluationError(at, s"Failed to transform value: ${err.getMessage}"))
+      def transformMapValues(map: DynamicValue.Map): Either[MigrationError, DynamicValue] = {
+        val transformedResults = map.entries.map { case (key, v) =>
+          transform.evalDynamic(v) match {
+            case Right(results) if results.nonEmpty => Right((key, results.head))
+            case Right(_)                           => Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
+            case Left(err)                          => Left(MigrationError.EvaluationError(at, s"Failed to transform value: ${err.getMessage}"))
           }
         }
-
-        // Check if any transformations failed
-        val errors = transformedResults.collect { case Left(err) => err }
-        if (errors.nonEmpty) {
-          Left(errors.head)
-        } else {
-          val transformedEntries = transformedResults.collect { case Right(entry) => entry }
-          Right(DynamicValue.Map(transformedEntries))
-        }
+        transformedResults.collectFirst { case Left(err) => err }
+          .toLeft(DynamicValue.Map(transformedResults.collect { case Right(entry) => entry }))
       }
 
-      // Handle root-level operation vs field operation
-      if (at.nodes.isEmpty) {
-        // Root-level operation - transform the map directly
-        value match {
-          case map: DynamicValue.Map =>
-            transformMapValues(map)
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Map", value.getClass.getSimpleName))
+      NavigationHelpers.transformAt(
+        value,
+        at,
+        {
+          case map: DynamicValue.Map => transformMapValues(map)
+          case other                 => Left(MigrationError.InvalidStructure(at, "Map", other.getClass.getSimpleName))
         }
-      } else if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Find the field
-                val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
-                if (fieldIndex < 0) {
-                  return Left(MigrationError.FieldNotFound(at, fieldName))
-                }
-
-                val (_, fieldValue) = record.fields(fieldIndex)
-
-                // Transform the map
-                fieldValue match {
-                  case map: DynamicValue.Map =>
-                    transformMapValues(map) match {
-                      case Right(transformedMap) =>
-                        // Replace field with transformed map
-                        val newFields = record.fields.updated(fieldIndex, (fieldName, transformedMap))
-                        Right(DynamicValue.Record(newFields))
-                      case Left(err) => Left(err)
-                    }
-                  case _ =>
-                    Left(MigrationError.InvalidStructure(at, "Map", fieldValue.getClass.getSimpleName))
-                }
-
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested field - navigate, transform, update
-        NavigationHelpers.navigateToField(value, at) match {
-          case Right((_, _, _, fieldValue)) =>
-            fieldValue match {
-              case map: DynamicValue.Map =>
-                transformMapValues(map) match {
-                  case Right(transformedMap) =>
-                    NavigationHelpers.updateNestedField(value, at, transformedMap)
-                  case Left(err) => Left(err)
-                }
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Map", fieldValue.getClass.getSimpleName))
-            }
-          case Left(err) => Left(err)
-        }
-      }
+      )
     }
 
     def reverse: MigrationAction = TransformValues(at, inverseTransform(transform))
@@ -1469,78 +929,17 @@ object MigrationAction {
     from: String,
     to: String
   ) extends MigrationAction {
-    def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      // Helper to rename a variant case
-      def renameVariant(variant: DynamicValue.Variant): Either[MigrationError, DynamicValue] =
-        if (variant.caseNameValue == from) {
-          // Rename the case
-          Right(DynamicValue.Variant(to, variant.value))
-        } else {
-          // Case name doesn't match, leave unchanged
-          Right(variant)
-        }
-
-      // Handle root-level operation vs field operation
-      if (at.nodes.isEmpty) {
-        // Root-level operation - rename the variant directly
-        value match {
+    def execute(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      NavigationHelpers.transformAt(
+        value,
+        at,
+        {
           case variant: DynamicValue.Variant =>
-            renameVariant(variant)
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Variant", value.getClass.getSimpleName))
+            if (variant.caseNameValue == from) Right(DynamicValue.Variant(to, variant.value))
+            else Right(variant)
+          case other => Left(MigrationError.InvalidStructure(at, "Variant", other.getClass.getSimpleName))
         }
-      } else if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Find the field
-                val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
-                if (fieldIndex < 0) {
-                  return Left(MigrationError.FieldNotFound(at, fieldName))
-                }
-
-                val (_, fieldValue) = record.fields(fieldIndex)
-
-                // Rename the variant
-                fieldValue match {
-                  case variant: DynamicValue.Variant =>
-                    renameVariant(variant) match {
-                      case Right(renamedVariant) =>
-                        // Replace field with renamed variant
-                        val newFields = record.fields.updated(fieldIndex, (fieldName, renamedVariant))
-                        Right(DynamicValue.Record(newFields))
-                      case Left(err) => Left(err)
-                    }
-                  case _ =>
-                    Left(MigrationError.InvalidStructure(at, "Variant", fieldValue.getClass.getSimpleName))
-                }
-
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested field - navigate, rename, update
-        NavigationHelpers.navigateToField(value, at) match {
-          case Right((_, _, _, fieldValue)) =>
-            fieldValue match {
-              case variant: DynamicValue.Variant =>
-                renameVariant(variant) match {
-                  case Right(renamedVariant) =>
-                    NavigationHelpers.updateNestedField(value, at, renamedVariant)
-                  case Left(err) => Left(err)
-                }
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Variant", fieldValue.getClass.getSimpleName))
-            }
-          case Left(err) => Left(err)
-        }
-      }
-    }
+      )
 
     def reverse: MigrationAction = RenameCase(at, to, from)
   }
@@ -1557,87 +956,19 @@ object MigrationAction {
     caseName: String,
     actions: Vector[MigrationAction]
   ) extends MigrationAction {
-    def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-      // Helper to transform a variant case if it matches
-      def transformVariant(variant: DynamicValue.Variant): Either[MigrationError, DynamicValue] =
-        if (variant.caseNameValue == caseName) {
-          // Case matches - apply nested actions to the inner value
-          // Create a DynamicMigration from the actions and apply it
-          val migration = DynamicMigration(actions)
-          migration.apply(variant.value).map { transformedValue =>
-            DynamicValue.Variant(caseName, transformedValue)
-          }
-        } else {
-          // Case doesn't match, leave unchanged
-          Right(variant)
-        }
-
-      // Handle root-level operation vs field operation
-      if (at.nodes.isEmpty) {
-        // Root-level operation - transform the variant directly
-        value match {
+    def execute(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      NavigationHelpers.transformAt(
+        value,
+        at,
+        {
           case variant: DynamicValue.Variant =>
-            transformVariant(variant)
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Variant", value.getClass.getSimpleName))
+            if (variant.caseNameValue == caseName) {
+              DynamicMigration(actions).apply(variant.value).map(DynamicValue.Variant(caseName, _))
+            } else Right(variant)
+          case other => Left(MigrationError.InvalidStructure(at, "Variant", other.getClass.getSimpleName))
         }
-      } else if (at.nodes.length == 1) {
-        // Optimized path: top-level field
-        value match {
-          case record: DynamicValue.Record =>
-            at.nodes.last match {
-              case DynamicOptic.Node.Field(fieldName) =>
-                // Find the field
-                val fieldIndex = record.fields.indexWhere(_._1 == fieldName)
-                if (fieldIndex < 0) {
-                  return Left(MigrationError.FieldNotFound(at, fieldName))
-                }
+      )
 
-                val (_, fieldValue) = record.fields(fieldIndex)
-
-                // Transform the variant
-                fieldValue match {
-                  case variant: DynamicValue.Variant =>
-                    transformVariant(variant) match {
-                      case Right(transformedVariant) =>
-                        // Replace field with transformed variant
-                        val newFields = record.fields.updated(fieldIndex, (fieldName, transformedVariant))
-                        Right(DynamicValue.Record(newFields))
-                      case Left(err) => Left(err)
-                    }
-                  case _ =>
-                    Left(MigrationError.InvalidStructure(at, "Variant", fieldValue.getClass.getSimpleName))
-                }
-
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Field node", s"${at.nodes.last}"))
-            }
-          case _ =>
-            Left(MigrationError.InvalidStructure(at, "Record", value.getClass.getSimpleName))
-        }
-      } else {
-        // Nested field - navigate, transform, update
-        NavigationHelpers.navigateToField(value, at) match {
-          case Right((_, _, _, fieldValue)) =>
-            fieldValue match {
-              case variant: DynamicValue.Variant =>
-                transformVariant(variant) match {
-                  case Right(transformedVariant) =>
-                    NavigationHelpers.updateNestedField(value, at, transformedVariant)
-                  case Left(err) => Left(err)
-                }
-              case _ =>
-                Left(MigrationError.InvalidStructure(at, "Variant", fieldValue.getClass.getSimpleName))
-            }
-          case Left(err) => Left(err)
-        }
-      }
-    }
-
-    def reverse: MigrationAction = {
-      // Reverse the nested actions
-      val reversedActions = actions.reverse.map(_.reverse)
-      TransformCase(at, caseName, reversedActions)
-    }
+    def reverse: MigrationAction = TransformCase(at, caseName, actions.reverse.map(_.reverse))
   }
 }
