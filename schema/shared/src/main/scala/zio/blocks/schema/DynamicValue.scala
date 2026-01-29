@@ -124,7 +124,7 @@ sealed trait DynamicValue {
    * containing all matching values.
    */
   def get(fieldName: String): DynamicValueSelection =
-    DynamicValueSelection.fail(DynamicValueError(s"Cannot get field '$fieldName' from non-Record value"))
+    DynamicValueSelection.fail(SchemaError(s"Cannot get field '$fieldName' from non-Record value"))
 
   /**
    * Navigates to an element in a Sequence by index. Returns a
@@ -132,14 +132,14 @@ sealed trait DynamicValue {
    * bounds.
    */
   def get(index: Int): DynamicValueSelection =
-    DynamicValueSelection.fail(DynamicValueError(s"Cannot get index $index from non-Sequence value"))
+    DynamicValueSelection.fail(SchemaError(s"Cannot get index $index from non-Sequence value"))
 
   /**
    * Navigates to an entry in a Map by key. Returns a DynamicValueSelection
    * containing all matching values.
    */
   def get(key: DynamicValue): DynamicValueSelection =
-    DynamicValueSelection.fail(DynamicValueError(s"Cannot get key $key from non-Map value"))
+    DynamicValueSelection.fail(SchemaError(s"Cannot get key $key from non-Map value"))
 
   /**
    * Navigates to the value(s) at the given path. Returns a
@@ -152,7 +152,7 @@ sealed trait DynamicValue {
    * containing the case value if the case matches.
    */
   def getCase(name: String): DynamicValueSelection =
-    DynamicValueSelection.fail(DynamicValueError(s"Cannot get case '$name' from non-Variant value"))
+    DynamicValueSelection.fail(SchemaError(s"Cannot get case '$name' from non-Variant value"))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Path-based Modification
@@ -172,7 +172,7 @@ sealed trait DynamicValue {
    */
   def modifyOrFail(path: DynamicOptic)(
     pf: PartialFunction[DynamicValue, DynamicValue]
-  ): Either[DynamicValueError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     DynamicValue.modifyAtPathOrFail(this, path, pf)
 
   /**
@@ -185,7 +185,7 @@ sealed trait DynamicValue {
    * Sets a value at the given path. Returns Left with an error if the path
    * doesn't exist.
    */
-  def setOrFail(path: DynamicOptic, value: DynamicValue): Either[DynamicValueError, DynamicValue] =
+  def setOrFail(path: DynamicOptic, value: DynamicValue): Either[SchemaError, DynamicValue] =
     DynamicValue.modifyAtPathOrFail(this, path, { case _ => value })
 
   /**
@@ -198,7 +198,7 @@ sealed trait DynamicValue {
    * Deletes the value at the given path. Returns Left with an error if the path
    * doesn't exist.
    */
-  def deleteOrFail(path: DynamicOptic): Either[DynamicValueError, DynamicValue] =
+  def deleteOrFail(path: DynamicOptic): Either[SchemaError, DynamicValue] =
     DynamicValue.deleteAtPathOrFail(this, path)
 
   /**
@@ -212,7 +212,7 @@ sealed trait DynamicValue {
    * Inserts a value at the given path. Returns Left with an error if the path
    * already exists or the parent doesn't exist.
    */
-  def insertOrFail(path: DynamicOptic, value: DynamicValue): Either[DynamicValueError, DynamicValue] =
+  def insertOrFail(path: DynamicOptic, value: DynamicValue): Either[SchemaError, DynamicValue] =
     DynamicValue.insertAtPathOrFail(this, path, value)
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -394,16 +394,16 @@ sealed trait DynamicValue {
    * Folds over the DynamicValue structure bottom-up, allowing failure.
    */
   def foldUpOrFail[B](z: B)(
-    f: (DynamicOptic, DynamicValue, B) => Either[DynamicValueError, B]
-  ): Either[DynamicValueError, B] =
+    f: (DynamicOptic, DynamicValue, B) => Either[SchemaError, B]
+  ): Either[SchemaError, B] =
     DynamicValue.foldUpOrFailImpl(this, DynamicOptic.root, z, f)
 
   /**
    * Folds over the DynamicValue structure top-down, allowing failure.
    */
   def foldDownOrFail[B](z: B)(
-    f: (DynamicOptic, DynamicValue, B) => Either[DynamicValueError, B]
-  ): Either[DynamicValueError, B] =
+    f: (DynamicOptic, DynamicValue, B) => Either[SchemaError, B]
+  ): Either[SchemaError, B] =
     DynamicValue.foldDownOrFailImpl(this, DynamicOptic.root, z, f)
 
   /**
@@ -500,7 +500,7 @@ object DynamicValue {
 
     override def get(fieldName: String): DynamicValueSelection = {
       val matches = fields.collect { case (name, value) if name == fieldName => value }
-      if (matches.isEmpty) DynamicValueSelection.fail(DynamicValueError(s"Field '$fieldName' not found"))
+      if (matches.isEmpty) DynamicValueSelection.fail(SchemaError(s"Field '$fieldName' not found"))
       else DynamicValueSelection.succeedMany(matches)
     }
 
@@ -562,7 +562,7 @@ object DynamicValue {
 
     override def getCase(name: String): DynamicValueSelection =
       if (caseNameValue == name) DynamicValueSelection.succeed(value)
-      else DynamicValueSelection.fail(DynamicValueError(s"Variant case '$name' does not match '$caseNameValue'"))
+      else DynamicValueSelection.fail(SchemaError(s"Variant case '$name' does not match '$caseNameValue'"))
 
     def compare(that: DynamicValue): Int = that match {
       case thatVariant: Variant =>
@@ -606,7 +606,7 @@ object DynamicValue {
 
     override def get(index: Int): DynamicValueSelection =
       if (index >= 0 && index < elements.length) DynamicValueSelection.succeed(elements(index))
-      else DynamicValueSelection.fail(DynamicValueError(s"Index $index out of bounds (size: ${elements.length})"))
+      else DynamicValueSelection.fail(SchemaError(s"Index $index out of bounds (size: ${elements.length})"))
 
     def compare(that: DynamicValue): Int = that match {
       case thatSequence: Sequence =>
@@ -670,7 +670,7 @@ object DynamicValue {
 
     override def get(key: DynamicValue): DynamicValueSelection = {
       val matches = entries.collect { case (k, v) if k == key => v }
-      if (matches.isEmpty) DynamicValueSelection.fail(DynamicValueError(s"Key not found in Map"))
+      if (matches.isEmpty) DynamicValueSelection.fail(SchemaError(s"Key not found in Map"))
       else DynamicValueSelection.succeedMany(matches)
     }
 
@@ -844,7 +844,7 @@ object DynamicValue {
       idx += 1
     }
 
-    if (current.isEmpty) DynamicValueSelection.fail(DynamicValueError(s"Path not found", path))
+    if (current.isEmpty) DynamicValueSelection.fail(SchemaError.message(s"Path not found", path))
     else DynamicValueSelection.succeedMany(current)
   }
 
@@ -1017,15 +1017,15 @@ object DynamicValue {
     dv: DynamicValue,
     path: DynamicOptic,
     pf: PartialFunction[DynamicValue, DynamicValue]
-  ): Either[DynamicValueError, DynamicValue] = {
+  ): Either[SchemaError, DynamicValue] = {
     val nodes = path.nodes
     if (nodes.isEmpty) {
       if (pf.isDefinedAt(dv)) Right(pf(dv))
-      else Left(DynamicValueError("Partial function not defined at root", path))
+      else Left(SchemaError.message("Partial function not defined at root", path))
     } else {
       modifyAtPath(dv, path, v => if (pf.isDefinedAt(v)) pf(v) else v) match {
         case Some(result) => Right(result)
-        case None         => Left(DynamicValueError("Path not found", path))
+        case None         => Left(SchemaError.message("Path not found", path))
       }
     }
   }
@@ -1234,8 +1234,8 @@ object DynamicValue {
   private[schema] def deleteAtPathOrFail(
     dv: DynamicValue,
     path: DynamicOptic
-  ): Either[DynamicValueError, DynamicValue] =
-    deleteAtPath(dv, path).toRight(DynamicValueError("Path not found", path))
+  ): Either[SchemaError, DynamicValue] =
+    deleteAtPath(dv, path).toRight(SchemaError.message("Path not found", path))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Insert Implementation
@@ -1337,9 +1337,9 @@ object DynamicValue {
     dv: DynamicValue,
     path: DynamicOptic,
     value: DynamicValue
-  ): Either[DynamicValueError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] =
     insertAtPath(dv, path, value).toRight(
-      DynamicValueError("Cannot insert at path (already exists or parent not found)", path)
+      SchemaError.message("Cannot insert at path (already exists or parent not found)", path)
     )
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1773,19 +1773,19 @@ object DynamicValue {
     dv: DynamicValue,
     path: DynamicOptic,
     z: B,
-    f: (DynamicOptic, DynamicValue, B) => Either[DynamicValueError, B]
-  ): Either[DynamicValueError, B] = {
+    f: (DynamicOptic, DynamicValue, B) => Either[SchemaError, B]
+  ): Either[SchemaError, B] = {
     val childResult = dv match {
       case r: Record =>
-        r.fields.foldLeft[Either[DynamicValueError, B]](Right(z)) { case (accE, (k, v)) =>
+        r.fields.foldLeft[Either[SchemaError, B]](Right(z)) { case (accE, (k, v)) =>
           accE.flatMap(acc => foldUpOrFailImpl(v, path.field(k), acc, f))
         }
       case s: Sequence =>
-        s.elements.zipWithIndex.foldLeft[Either[DynamicValueError, B]](Right(z)) { case (accE, (e, i)) =>
+        s.elements.zipWithIndex.foldLeft[Either[SchemaError, B]](Right(z)) { case (accE, (e, i)) =>
           accE.flatMap(acc => foldUpOrFailImpl(e, path.at(i), acc, f))
         }
       case m: Map =>
-        m.entries.foldLeft[Either[DynamicValueError, B]](Right(z)) { case (accE, (k, v)) =>
+        m.entries.foldLeft[Either[SchemaError, B]](Right(z)) { case (accE, (k, v)) =>
           accE.flatMap { acc =>
             val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
             val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
@@ -1803,20 +1803,20 @@ object DynamicValue {
     dv: DynamicValue,
     path: DynamicOptic,
     z: B,
-    f: (DynamicOptic, DynamicValue, B) => Either[DynamicValueError, B]
-  ): Either[DynamicValueError, B] =
+    f: (DynamicOptic, DynamicValue, B) => Either[SchemaError, B]
+  ): Either[SchemaError, B] =
     f(path, dv, z).flatMap { acc =>
       dv match {
         case r: Record =>
-          r.fields.foldLeft[Either[DynamicValueError, B]](Right(acc)) { case (aE, (k, v)) =>
+          r.fields.foldLeft[Either[SchemaError, B]](Right(acc)) { case (aE, (k, v)) =>
             aE.flatMap(a => foldDownOrFailImpl(v, path.field(k), a, f))
           }
         case s: Sequence =>
-          s.elements.zipWithIndex.foldLeft[Either[DynamicValueError, B]](Right(acc)) { case (aE, (e, i)) =>
+          s.elements.zipWithIndex.foldLeft[Either[SchemaError, B]](Right(acc)) { case (aE, (e, i)) =>
             aE.flatMap(a => foldDownOrFailImpl(e, path.at(i), a, f))
           }
         case m: Map =>
-          m.entries.foldLeft[Either[DynamicValueError, B]](Right(acc)) { case (aE, (k, v)) =>
+          m.entries.foldLeft[Either[SchemaError, B]](Right(acc)) { case (aE, (k, v)) =>
             aE.flatMap { a =>
               val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
               val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
@@ -1853,13 +1853,13 @@ object DynamicValue {
   // KV Reconstruction
   // ─────────────────────────────────────────────────────────────────────────
 
-  def fromKV(kvs: Seq[(DynamicOptic, DynamicValue)]): Either[DynamicValueError, DynamicValue] =
+  def fromKV(kvs: Seq[(DynamicOptic, DynamicValue)]): Either[SchemaError, DynamicValue] =
     if (kvs.isEmpty) Right(Record.empty)
     else {
       try {
         Right(fromKVUnsafe(kvs))
       } catch {
-        case e: DynamicValueError => Left(e)
+        case e: SchemaError => Left(e)
       }
     }
 

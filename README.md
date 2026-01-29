@@ -37,12 +37,12 @@ object Person {
 }
 
 // Get everything for free:
-val jsonCodec    = Schema[Person].derive(JsonFormat.deriver)        // JSON serialization
-val avroCodec    = Schema[Person].derive(AvroFormat.deriver)        // Avro serialization
-val toonCodec    = Schema[Person].derive(ToonFormat.deriver)        // TOON serialization
-val msgpackCodec = Schema[Person].derive(MessagePackFormat.deriver) // MessagePack serialization
-val protobuf     = Schema[Person].derive(ProtobufFormat.deriver)    // Protobuf serialization (not implemented yet)
-val thrift       = Schema[Person].derive(ThriftFormat.deriver)      // Thrift serialization (not implemented yet)
+val jsonCodec    = Schema[Person].derive(JsonFormat)        // JSON serialization
+val avroCodec    = Schema[Person].derive(AvroFormat)        // Avro serialization
+val toonCodec    = Schema[Person].derive(ToonFormat)        // TOON serialization
+val msgpackCodec = Schema[Person].derive(MessagePackFormat) // MessagePack serialization
+val protobuf     = Schema[Person].derive(ProtobufFormat)    // Protobuf serialization (not implemented yet)
+val thrift       = Schema[Person].derive(ThriftFormat)      // Thrift serialization (not implemented yet)
 // ...
 ```
 
@@ -77,6 +77,7 @@ Now you have access to the core ZIO Blocks schema library. You can also add addi
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-json" % "0.0.1"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.1"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.1"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.1"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.1"
 ```
 

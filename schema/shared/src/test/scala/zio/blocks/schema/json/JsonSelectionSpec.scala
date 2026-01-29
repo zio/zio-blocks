@@ -1,6 +1,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema._
+import zio.blocks.schema.SchemaError
 import zio.test._
 
 object JsonSelectionSpec extends SchemaBaseSpec {
@@ -270,7 +271,7 @@ object JsonSelectionSpec extends SchemaBaseSpec {
         )
       },
       test("merge propagates left error") {
-        val left   = JsonSelection.fail(JsonError("left error"))
+        val left   = JsonSelection.fail(SchemaError("left error"))
         val right  = JsonSelection.succeed(Json.Object("b" -> Json.Number("2")))
         val result = left.merge(right)
         assertTrue(
@@ -280,11 +281,24 @@ object JsonSelectionSpec extends SchemaBaseSpec {
       },
       test("merge propagates right error") {
         val left   = JsonSelection.succeed(Json.Object("a" -> Json.Number("1")))
-        val right  = JsonSelection.fail(JsonError("right error"))
+        val right  = JsonSelection.fail(SchemaError("right error"))
         val result = left.merge(right)
         assertTrue(
           result.isFailure,
           result.error.map(_.message) == Some("right error")
+        )
+      }
+    ),
+    suite("++ error aggregation")(
+      test("++ with both failures aggregates errors") {
+        val left     = JsonSelection.fail(SchemaError("first error"))
+        val right    = JsonSelection.fail(SchemaError("second error"))
+        val combined = left ++ right
+        assertTrue(
+          combined.isFailure,
+          combined.error.exists(_.errors.length == 2),
+          combined.error.exists(_.message.contains("first error")),
+          combined.error.exists(_.message.contains("second error"))
         )
       }
     ),
@@ -434,14 +448,14 @@ object JsonSelectionSpec extends SchemaBaseSpec {
         )
       },
       test("unwrap(jsonType) extracts underlying Scala value") {
-        val strSelection                             = JsonSelection.succeed(Json.String("hello"))
-        val numSelection                             = JsonSelection.succeed(Json.Number("42"))
-        val boolSelection                            = JsonSelection.succeed(Json.Boolean(true))
-        val nullSelection                            = JsonSelection.succeed(Json.Null)
-        val strResult: Either[JsonError, String]     = strSelection.unwrap(JsonType.String)
-        val numResult: Either[JsonError, BigDecimal] = numSelection.unwrap(JsonType.Number)
-        val boolResult: Either[JsonError, Boolean]   = boolSelection.unwrap(JsonType.Boolean)
-        val nullResult: Either[JsonError, Unit]      = nullSelection.unwrap(JsonType.Null)
+        val strSelection                               = JsonSelection.succeed(Json.String("hello"))
+        val numSelection                               = JsonSelection.succeed(Json.Number("42"))
+        val boolSelection                              = JsonSelection.succeed(Json.Boolean(true))
+        val nullSelection                              = JsonSelection.succeed(Json.Null)
+        val strResult: Either[SchemaError, String]     = strSelection.unwrap(JsonType.String)
+        val numResult: Either[SchemaError, BigDecimal] = numSelection.unwrap(JsonType.Number)
+        val boolResult: Either[SchemaError, Boolean]   = boolSelection.unwrap(JsonType.Boolean)
+        val nullResult: Either[SchemaError, Unit]      = nullSelection.unwrap(JsonType.Null)
         assertTrue(
           strResult == Right("hello"),
           numResult == Right(BigDecimal(42)),
@@ -468,7 +482,7 @@ object JsonSelectionSpec extends SchemaBaseSpec {
             Json.Number("3")
           )
         )
-        val result: Either[JsonError, Vector[BigDecimal]] = selection.unwrapAll(JsonType.Number)
+        val result: Either[SchemaError, Vector[BigDecimal]] = selection.unwrapAll(JsonType.Number)
         assertTrue(result == Right(Vector(BigDecimal(1), BigDecimal(2), BigDecimal(3))))
       },
       test("unwrapAll(jsonType) for Object extracts Chunk[(String, Json)]") {

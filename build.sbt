@@ -160,8 +160,8 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 68,
-    coverageMinimumBranchTotal := 62
+    coverageMinimumStmtTotal   := 72,
+    coverageMinimumBranchTotal := 72
   )
 
 lazy val `schema-avro` = project
@@ -330,7 +330,7 @@ lazy val benchmarks = project
     libraryDependencies ++= Seq(
       "com.vitthalmirji"                      %% "toon4s-core"           % "0.5.0",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.8",
-      "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.14",
+      "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.7.45",
       "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
       "dev.zio"                               %% "zio-schema-json"       % "1.7.5",

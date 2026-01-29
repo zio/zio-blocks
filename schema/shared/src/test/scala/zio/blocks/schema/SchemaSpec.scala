@@ -54,6 +54,10 @@ object SchemaSpec extends SchemaBaseSpec {
       },
       test("encodes values using provided formats and outputs") {
         assert(encodeToString(out => Schema[Byte].encode(ToStringFormat)(out)(1: Byte)))(equalTo("1"))
+      },
+      test("derives codec from format directly") {
+        val codec = Schema[Int].derive(ToStringFormat)
+        assert(encodeToString(out => codec.encode(42, out)))(equalTo("42"))
       }
     ),
     suite("Reflect.Record")(
@@ -2035,7 +2039,9 @@ object SchemaSpec extends SchemaBaseSpec {
             typeName: TypeName[A],
             binding: Binding[BindingType.Primitive, A],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
           ): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
@@ -2048,7 +2054,9 @@ object SchemaSpec extends SchemaBaseSpec {
             typeName: TypeName[A],
             binding: Binding[BindingType.Record, A],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
@@ -2061,7 +2069,9 @@ object SchemaSpec extends SchemaBaseSpec {
             typeName: TypeName[A],
             binding: Binding[BindingType.Variant, A],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
@@ -2074,7 +2084,9 @@ object SchemaSpec extends SchemaBaseSpec {
             typeName: TypeName[C[A]],
             binding: Binding[BindingType.Seq[C], C[A]],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[C[A]],
+            examples: Seq[C[A]]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[C[A]]] =
             Lazy(new TextCodec[C[A]] {
               override def encode(value: C[A], output: CharBuffer): Unit = output.append(value.toString)
@@ -2088,7 +2100,9 @@ object SchemaSpec extends SchemaBaseSpec {
             typeName: TypeName[M[K, V]],
             binding: Binding[BindingType.Map[M], M[K, V]],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[M[K, V]],
+            examples: Seq[M[K, V]]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[M[K, V]]] =
             Lazy(new TextCodec[M[K, V]] {
               override def encode(value: M[K, V], output: CharBuffer): Unit = output.append(value.toString)
@@ -2099,7 +2113,9 @@ object SchemaSpec extends SchemaBaseSpec {
           override def deriveDynamic[F[_, _]](
             binding: Binding[BindingType.Dynamic, DynamicValue],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[DynamicValue],
+            examples: Seq[DynamicValue]
           )(implicit
             F: HasBinding[F],
             D: HasInstance[F]
@@ -2116,7 +2132,9 @@ object SchemaSpec extends SchemaBaseSpec {
             wrapperPrimitiveType: Option[PrimitiveType[A]],
             binding: Binding[BindingType.Wrapper[A, B], A],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)

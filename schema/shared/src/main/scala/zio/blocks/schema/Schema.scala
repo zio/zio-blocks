@@ -12,13 +12,13 @@ import java.util.concurrent.ConcurrentHashMap
  * of a Scala data type, together with the ability to tear down and build up
  * values of that type.
  */
-final case class Schema[A](reflect: Reflect.Bound[A]) {
+final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpecific[A] {
   private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
 
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
-      .computeIfAbsent(format, _ => derive(format.deriver))
+      .computeIfAbsent(format, _ => derive(format))
 
   def getDefaultValue: Option[A] = reflect.getDefaultValue
 
@@ -30,6 +30,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def defaultValue(value: => A): Schema[A] = new Schema(reflect.defaultValue(value))
 
   def derive[TC[_]](deriver: Deriver[TC]): TC[A] = deriving(deriver).derive
+
+  def derive[F <: codec.Format](format: F): format.TypeClass[A] = derive(format.deriver)
 
   def deriving[TC[_]](deriver: Deriver[TC]): DerivationBuilder[TC, A] =
     new DerivationBuilder[TC, A](this, deriver, IndexedSeq.empty, IndexedSeq.empty)
@@ -66,7 +68,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
 
   /** Derives a JSON Schema from this Schema. */
-  def toJsonSchema: JsonSchema = derive(JsonFormat.deriver).toJsonSchema
+  def toJsonSchema: JsonSchema = derive(JsonFormat).toJsonSchema
 
   def updated(dynamic: DynamicOptic)(f: Reflect.Updater[Binding]): Option[Schema[A]] =
     reflect.updated(dynamic)(f).map(x => new Schema(x))
