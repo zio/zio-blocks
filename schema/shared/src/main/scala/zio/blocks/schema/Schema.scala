@@ -65,6 +65,21 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
 
+  /**
+   * Converts this schema to a [[DynamicSchema]] by stripping runtime bindings.
+   *
+   * The resulting `DynamicSchema` retains all structural information (fields,
+   * cases, types, validations) but without the runtime constructors and
+   * deconstructors needed to work with actual values of type `A`. This is
+   * useful for runtime schema validation of [[DynamicValue]] instances.
+   *
+   * @return
+   *   A type-erased schema that can validate `DynamicValue` instances
+   * @see
+   *   [[DynamicSchema]] for validation capabilities
+   */
+  def toDynamicSchema: DynamicSchema = new DynamicSchema(reflect.noBinding)
+
   /** Derives a JSON Schema from this Schema. */
   def toJsonSchema: JsonSchema = derive(JsonFormat.deriver).toJsonSchema
 
