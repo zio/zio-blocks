@@ -683,6 +683,123 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val migration: Migration[DropSource, DropTarget] = builder.build
 
       assertTrue(migration != null)
+    },
+    // Tests for variable-based syntax usage
+    // The key improvement: storing syntax wrapper in variable and calling .build without re-wrapping
+    test("syntax stored in variable - dropField then build without re-wrap") {
+      // Store syntax wrapper in a variable and call methods directly on it
+      val ops      = syntax(MigrationBuilder.newBuilder[DropSource, DropTarget])
+      val withDrop = ops.dropField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
+      // Key: calling .build directly on the result without wrapping in syntax()
+      val migration = withDrop.build
+
+      val source = DropSource("test", 42, true)
+      val result = migration(source)
+
+      assertTrue(result.isRight) &&
+      assertTrue(result.map(_.name) == Right("test")) &&
+      assertTrue(result.map(_.age) == Right(42))
+    },
+    test("syntax stored in variable - addField then build without re-wrap") {
+      val ops     = syntax(MigrationBuilder.newBuilder[AddSource, AddTarget])
+      val withAdd = ops.addField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](true, Schema.boolean))
+      // Key: calling .build directly without re-wrapping
+      val migration = withAdd.build
+
+      val source = AddSource("test", 42)
+      val result = migration(source)
+
+      assertTrue(result.isRight)
+    },
+    test("syntax stored in variable - renameField then build without re-wrap") {
+      val ops        = syntax(MigrationBuilder.newBuilder[RenameSource, RenameTarget])
+      val withRename = ops.renameField(_.oldName, _.newName)
+      // Key: calling .build directly without re-wrapping
+      val migration = withRename.build
+
+      val source = RenameSource("John", 30)
+      val result = migration(source)
+
+      assertTrue(result.isRight) &&
+      assertTrue(result.map(_.newName) == Right("John"))
+    },
+    test("syntax stored in variable - transformField then build without re-wrap") {
+      val ops           = syntax(MigrationBuilder.newBuilder[PersonA, PersonB])
+      val withTransform =
+        ops.transformField(_.name, SchemaExpr.Literal[DynamicValue, String]("transformed", Schema.string))
+      // Key: calling .build directly without re-wrapping
+      val migration = withTransform.build
+
+      assertTrue(migration != null)
+    },
+    test("syntax stored in variable - changeFieldType then build without re-wrap") {
+      val ops        = syntax(MigrationBuilder.newBuilder[DeepOuterV1, DeepOuterV2])
+      val withChange = ops.changeFieldType(_.middle.inner.value, PrimitiveConverter.IntToLong)
+      // Key: calling .build directly without re-wrapping
+      val migration = withChange.build
+
+      val source = DeepOuterV1(DeepMiddleV1(DeepInnerV1(42)))
+      val result = migration(source)
+
+      assertTrue(result.isRight)
+    },
+    test("chained operations with syntax wrappers - build without final re-wrap") {
+      // For chained operations, we need syntax() due to Scala 2 lambda type inference
+      // But the key improvement is we can call .build without wrapping at the end
+      val step1 = syntax(MigrationBuilder.newBuilder[ComplexSource, ComplexTarget])
+        .renameField(_.a, _.x)
+      val step2 = syntax(step1).renameField(_.c, _.y)
+      val step3 = syntax(step2).dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
+      val step4 = syntax(step3).addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
+      // Key: calling .build directly on step4 without wrapping in syntax()
+      val migration = step4.build
+
+      val source = ComplexSource("hello", 42, true, 3.14)
+      val result = migration(source)
+
+      assertTrue(result.isRight) &&
+      assertTrue(result.map(_.x) == Right("hello")) &&
+      assertTrue(result.map(_.b) == Right(42))
+    },
+    test("chained drops with syntax wrappers - build without final re-wrap") {
+      val step1 = syntax(MigrationBuilder.newBuilder[MultiDropSource, MultiDropTarget])
+        .dropField(_.drop1, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+      val step2 = syntax(step1).dropField(_.drop2, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
+      val step3 = syntax(step2).dropField(_.drop3, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
+      // Key: calling .build directly without re-wrapping
+      val migration = step3.build
+
+      val source = MultiDropSource("keep", 1, true, 2.5)
+      val result = migration(source)
+
+      assertTrue(result.isRight) &&
+      assertTrue(result.map(_.keep) == Right("keep"))
+    },
+    test("chained adds with syntax wrappers - build without final re-wrap") {
+      val step1 = syntax(MigrationBuilder.newBuilder[MultiAddSource, MultiAddTarget])
+        .addField(_.add1, SchemaExpr.Literal[DynamicValue, Int](42, Schema.int))
+      val step2 = syntax(step1).addField(_.add2, SchemaExpr.Literal[DynamicValue, Boolean](true, Schema.boolean))
+      val step3 = syntax(step2).addField(_.add3, SchemaExpr.Literal[DynamicValue, Double](3.14, Schema.double))
+      // Key: calling .build directly without re-wrapping
+      val migration = step3.build
+
+      val source = MultiAddSource("keep")
+      val result = migration(source)
+
+      assertTrue(result.isRight)
+    },
+    test("nested path with syntax wrappers - build without final re-wrap") {
+      val step1 = syntax(MigrationBuilder.newBuilder[NestedPersonV1, NestedPersonV2])
+        .dropField(_.address.city, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
+      val step2 =
+        syntax(step1).addField(_.address.zip, SchemaExpr.Literal[DynamicValue, String]("00000", Schema.string))
+      // Key: calling .build directly without re-wrapping
+      val migration = step2.build
+
+      val source = NestedPersonV1("John", AddressV1("Main St", "NYC"))
+      val result = migration(source)
+
+      assertTrue(result.isRight)
     }
   )
 
