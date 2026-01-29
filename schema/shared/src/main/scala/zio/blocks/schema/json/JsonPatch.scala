@@ -461,7 +461,25 @@ object JsonPatch {
             }
 
           case _ =>
-            new Left(SchemaError.message(s"Expected Object but got ${json.jsonType}"))
+            mode match {
+              case PatchMode.Strict =>
+                new Left(SchemaError.message(s"Expected Object but got ${json.jsonType}"))
+              case PatchMode.Lenient =>
+                // Lenient: skip, return unchanged
+                new Right(json)
+              case PatchMode.Clobber =>
+                // Clobber: create new Object with the field
+                val newTrace = DynamicOptic.Node.Field(name) :: trace
+                if (isLast) {
+                  applyOperation(Json.Null, operation, mode, newTrace).map { newFieldValue =>
+                    new Json.Object(Chunk((name, newFieldValue)))
+                  }
+                } else {
+                  navigateAndApply(Json.Null, path, pathIdx + 1, operation, mode, newTrace).map { newFieldValue =>
+                    new Json.Object(Chunk((name, newFieldValue)))
+                  }
+                }
+            }
         }
 
       case DynamicOptic.Node.AtIndex(index) =>
@@ -469,11 +487,36 @@ object JsonPatch {
           case arr: Json.Array =>
             val elements = arr.value
             if (index < 0 || index >= elements.length) {
-              new Left(
-                SchemaError.message(
-                  s"Index $index out of bounds for array of length ${elements.length}"
-                )
-              )
+              mode match {
+                case PatchMode.Strict =>
+                  new Left(
+                    SchemaError.message(
+                      s"Index $index out of bounds for array of length ${elements.length}"
+                    )
+                  )
+                case PatchMode.Lenient =>
+                  // Lenient: skip, return unchanged
+                  new Right(json)
+                case PatchMode.Clobber =>
+                  // Clobber: pad array with Json.Null to reach the index
+                  if (index < 0) {
+                    new Right(json) // Negative index can't be padded
+                  } else {
+                    val padding  = Chunk.fill(index - elements.length + 1)(Json.Null)
+                    val padded   = elements ++ padding
+                    val element  = padded(index)
+                    val newTrace = DynamicOptic.Node.AtIndex(index) :: trace
+                    if (isLast) {
+                      applyOperation(element, operation, mode, newTrace).map { newElement =>
+                        new Json.Array(padded.updated(index, newElement))
+                      }
+                    } else {
+                      navigateAndApply(element, path, pathIdx + 1, operation, mode, newTrace).map { newElement =>
+                        new Json.Array(padded.updated(index, newElement))
+                      }
+                    }
+                  }
+              }
             } else {
               val element  = elements(index)
               val newTrace = DynamicOptic.Node.AtIndex(index) :: trace
@@ -490,7 +533,30 @@ object JsonPatch {
             }
 
           case _ =>
-            new Left(SchemaError.message(s"Expected Array but got ${json.jsonType}"))
+            mode match {
+              case PatchMode.Strict =>
+                new Left(SchemaError.message(s"Expected Array but got ${json.jsonType}"))
+              case PatchMode.Lenient =>
+                // Lenient: skip, return unchanged
+                new Right(json)
+              case PatchMode.Clobber =>
+                // Clobber: replace with Array padded with Json.Null
+                if (index < 0) {
+                  new Right(json)
+                } else {
+                  val padding  = Chunk.fill(index + 1)(Json.Null)
+                  val newTrace = DynamicOptic.Node.AtIndex(index) :: trace
+                  if (isLast) {
+                    applyOperation(Json.Null, operation, mode, newTrace).map { newElement =>
+                      new Json.Array(padding.updated(index, newElement))
+                    }
+                  } else {
+                    navigateAndApply(Json.Null, path, pathIdx + 1, operation, mode, newTrace).map { newElement =>
+                      new Json.Array(padding.updated(index, newElement))
+                    }
+                  }
+                }
+            }
         }
 
       case DynamicOptic.Node.Elements =>
@@ -513,7 +579,13 @@ object JsonPatch {
             }
 
           case _ =>
-            new Left(SchemaError.message(s"Expected Array but got ${json.jsonType}"))
+            mode match {
+              case PatchMode.Strict =>
+                new Left(SchemaError.message(s"Expected Array but got ${json.jsonType}"))
+              case _ =>
+                // Lenient/Clobber on non-array for Elements: return unchanged
+                new Right(json)
+            }
         }
 
       case _ =>
@@ -815,11 +887,30 @@ object JsonPatch {
 
       case ArrayOp.Modify(index, nestedOp) =>
         if (index < 0 || index >= elements.length) {
-          new Left(
-            SchemaError.message(
-              s"Modify index $index out of bounds for array of length ${elements.length}"
-            )
-          )
+          mode match {
+            case PatchMode.Strict =>
+              new Left(
+                SchemaError.message(
+                  s"Modify index $index out of bounds for array of length ${elements.length}"
+                )
+              )
+            case PatchMode.Lenient =>
+              // Lenient: skip, return unchanged
+              new Right(elements)
+            case PatchMode.Clobber =>
+              // Clobber: pad array with Json.Null and apply
+              if (index < 0) {
+                new Right(elements)
+              } else {
+                val padding  = Chunk.fill(index - elements.length + 1)(Json.Null)
+                val padded   = elements ++ padding
+                val element  = padded(index)
+                val newTrace = DynamicOptic.Node.AtIndex(index) :: trace
+                applyOperation(element, nestedOp, mode, newTrace).map { newElement =>
+                  padded.updated(index, newElement)
+                }
+              }
+          }
         } else {
           val element  = elements(index)
           val newTrace = DynamicOptic.Node.AtIndex(index) :: trace

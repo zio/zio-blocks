@@ -699,6 +699,56 @@ object JsonPatchSpec extends SchemaBaseSpec {
         assertTrue(roundtripResult == originalResult)
       }
     },
+    test("toDynamicPatch/fromDynamicPatch roundtrip preserves semantics for ArrayOp.Append") {
+      val json            = new Json.Array(Chunk(new Json.Number("1")))
+      val patch           = JsonPatch.root(JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val dynamic         = patch.toDynamicPatch
+      val back            = JsonPatch.fromDynamicPatch(dynamic)
+      val originalResult  = patch(json, PatchMode.Strict)
+      val roundtripResult = back.flatMap(p => p(json, PatchMode.Strict))
+      assertTrue(roundtripResult == originalResult)
+    },
+    test("toDynamicPatch/fromDynamicPatch roundtrip preserves semantics for ArrayOp.Modify") {
+      val json  = new Json.Array(Chunk(new Json.Number("10")))
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(
+          Chunk(
+            JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
+          )
+        )
+      )
+      val dynamic         = patch.toDynamicPatch
+      val back            = JsonPatch.fromDynamicPatch(dynamic)
+      val originalResult  = patch(json, PatchMode.Strict)
+      val roundtripResult = back.flatMap(p => p(json, PatchMode.Strict))
+      assertTrue(roundtripResult == originalResult)
+    },
+    test("toDynamicPatch/fromDynamicPatch roundtrip preserves semantics for ObjectOp.Modify") {
+      val json        = new Json.Object(Chunk(("count", new Json.Number("10"))))
+      val nestedPatch = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
+      val patch       = JsonPatch.root(
+        JsonPatch.Op.ObjectEdit(
+          Chunk(
+            JsonPatch.ObjectOp.Modify("count", nestedPatch)
+          )
+        )
+      )
+      val dynamic         = patch.toDynamicPatch
+      val back            = JsonPatch.fromDynamicPatch(dynamic)
+      val originalResult  = patch(json, PatchMode.Strict)
+      val roundtripResult = back.flatMap(p => p(json, PatchMode.Strict))
+      assertTrue(roundtripResult == originalResult)
+    },
+    test("toDynamicPatch/fromDynamicPatch roundtrip preserves semantics for Op.Nested") {
+      val innerPatch      = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(1))))
+      val json            = new Json.Number("5")
+      val patch           = JsonPatch.root(JsonPatch.Op.Nested(innerPatch))
+      val dynamic         = patch.toDynamicPatch
+      val back            = JsonPatch.fromDynamicPatch(dynamic)
+      val originalResult  = patch(json, PatchMode.Strict)
+      val roundtripResult = back.flatMap(p => p(json, PatchMode.Strict))
+      assertTrue(roundtripResult == originalResult)
+    },
     test("empty patch conversion roundtrip") {
       val patch   = JsonPatch.empty
       val dynamic = patch.toDynamicPatch
