@@ -180,6 +180,24 @@ object MigrationBuilderSyntax {
     builder: MigrationBuilder[A, B, Handled, Provided]
   ): MigrationBuilderSyntax[A, B, Handled, Provided] =
     new MigrationBuilderSyntax[A, B, Handled, Provided](builder)
+
+  /**
+   * Validate a migration with detailed error messages.
+   *
+   * This macro provides helpful compile-time error messages when validation fails,
+   * including specific field paths and case names that need handling or providing.
+   *
+   * Use this when you want clear feedback about what's missing in a migration
+   * without needing to build the migration first.
+   *
+   * @tparam A Source type
+   * @tparam B Target type
+   * @tparam Handled Fields/cases that have been handled
+   * @tparam Provided Fields/cases that have been provided
+   * @return Unit if validation passes, compile error otherwise
+   */
+  def requireValidation[A, B, Handled <: TList, Provided <: TList]: Unit =
+    macro MigrationBuilderMacrosImpl.requireValidationImpl[A, B, Handled, Provided]
 }
 
 // Macro implementations for Scala 2 selector syntax with type tracking.
@@ -243,33 +261,152 @@ private[migration] object MigrationBuilderMacrosImpl {
       val (unhandledPaths, unhandledCases) = missingHandled.partition(!_.startsWith("case:"))
       val (unprovidedPaths, unprovidedCases) = missingProvided.partition(!_.startsWith("case:"))
 
-      val parts = List(
-        if (unhandledPaths.nonEmpty) Some(s"unhandled fields: ${unhandledPaths.mkString(", ")}") else None,
-        if (unprovidedPaths.nonEmpty) Some(s"unprovided fields: ${unprovidedPaths.mkString(", ")}") else None,
-        if (unhandledCases.nonEmpty)
-          Some(s"unhandled cases: ${unhandledCases.map(_.stripPrefix("case:")).mkString(", ")}")
-        else None,
-        if (unprovidedCases.nonEmpty)
-          Some(s"unprovided cases: ${unprovidedCases.map(_.stripPrefix("case:")).mkString(", ")}")
-        else None
-      ).flatten
+      val sb = new StringBuilder
+      sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
 
-      val hints = List(
-        if (unhandledPaths.nonEmpty) Some("Hint: Use .dropField(_.path, default) to handle removed fields") else None,
-        if (unprovidedPaths.nonEmpty) Some("Hint: Use .addField(_.path, default) to provide new fields") else None,
-        if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty)
-          Some("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") for case renames")
-        else None
-      ).flatten
+      if (unhandledPaths.nonEmpty) {
+        sb.append("\nUnhandled paths from source (need dropField or renameField):\n")
+        unhandledPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
+      }
 
-      c.abort(
-        c.enclosingPosition,
-        s"Incomplete migration from ${aType.typeSymbol.name} to ${bType.typeSymbol.name}: ${parts.mkString("; ")}" +
-          (if (hints.nonEmpty) s"\n${hints.mkString("\n")}" else "")
-      )
+      if (unprovidedPaths.nonEmpty) {
+        sb.append("\nUnprovided paths for target (need addField or renameField):\n")
+        unprovidedPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
+      }
+
+      if (unhandledCases.nonEmpty) {
+        sb.append("\nUnhandled cases from source (need renameCase or transformCase):\n")
+        unhandledCases.sorted.map(_.stripPrefix("case:")).foreach(c => sb.append(s"  - $c\n"))
+      }
+
+      if (unprovidedCases.nonEmpty) {
+        sb.append("\nUnprovided cases for target (need renameCase):\n")
+        unprovidedCases.sorted.map(_.stripPrefix("case:")).foreach(c => sb.append(s"  - $c\n"))
+      }
+
+      // Add hints with example paths
+      sb.append("\n")
+      if (unhandledPaths.nonEmpty) {
+        val example = unhandledPaths.head
+        val selectorPath = example.split("\\.").mkString(".")
+        sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
+      }
+      if (unprovidedPaths.nonEmpty) {
+        val example = unprovidedPaths.head
+        val selectorPath = example.split("\\.").mkString(".")
+        sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
+      }
+      if (unhandledPaths.nonEmpty && unprovidedPaths.nonEmpty) {
+        sb.append("Hint: Use .renameField(_.oldPath, _.newPath) when a field was renamed\n")
+      }
+      if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
+        sb.append("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") when a case was renamed\n")
+      }
+
+      c.abort(c.enclosingPosition, sb.toString)
     }
 
     q"$builder.buildPartial"
+  }
+
+  // ==========================================================================
+  // requireValidation macro implementation
+  // ==========================================================================
+
+  /**
+   * Compile-time validation with detailed error messages.
+   *
+   * This macro validates that:
+   *   1. All removed field paths (in A but not B) are in Handled
+   *   2. All added field paths (in B but not A) are in Provided
+   *   3. All removed case names (in A but not B) are in Handled
+   *   4. All added case names (in B but not A) are in Provided
+   *
+   * Produces detailed error messages showing exactly what's missing.
+   */
+  def requireValidationImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
+    c: whitebox.Context
+  ): c.Tree = {
+    import c.universe._
+
+    val aType        = weakTypeOf[A]
+    val bType        = weakTypeOf[B]
+    val handledType  = weakTypeOf[Handled]
+    val providedType = weakTypeOf[Provided]
+
+    // Extract full nested field paths from A and B
+    val pathsA = extractFieldPathsFromType(c)(aType, "", Set.empty).sorted
+    val pathsB = extractFieldPathsFromType(c)(bType, "", Set.empty).sorted
+
+    // Extract case names from A and B
+    val casesA = extractCaseNamesFromType(c)(aType).sorted.map(name => s"case:$name")
+    val casesB = extractCaseNamesFromType(c)(bType).sorted.map(name => s"case:$name")
+
+    // Combine paths and cases for validation
+    val allPathsA = pathsA ++ casesA
+    val allPathsB = pathsB ++ casesB
+
+    // Extract field names from TList types
+    val handled  = extractTListElements(c)(handledType)
+    val provided = extractTListElements(c)(providedType)
+
+    // Compute what needs to be handled/provided
+    val unchanged       = allPathsA.intersect(allPathsB)
+    val removed         = allPathsA.diff(unchanged)
+    val added           = allPathsB.diff(unchanged)
+    val missingHandled  = removed.diff(handled)
+    val missingProvided = added.diff(provided)
+
+    if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
+      val (unhandledPaths, unhandledCases) = missingHandled.partition(!_.startsWith("case:"))
+      val (unprovidedPaths, unprovidedCases) = missingProvided.partition(!_.startsWith("case:"))
+
+      val sb = new StringBuilder
+      sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
+
+      if (unhandledPaths.nonEmpty) {
+        sb.append("\nUnhandled paths from source (need dropField or renameField):\n")
+        unhandledPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
+      }
+
+      if (unprovidedPaths.nonEmpty) {
+        sb.append("\nUnprovided paths for target (need addField or renameField):\n")
+        unprovidedPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
+      }
+
+      if (unhandledCases.nonEmpty) {
+        sb.append("\nUnhandled cases from source (need renameCase or transformCase):\n")
+        unhandledCases.sorted.map(_.stripPrefix("case:")).foreach(c => sb.append(s"  - $c\n"))
+      }
+
+      if (unprovidedCases.nonEmpty) {
+        sb.append("\nUnprovided cases for target (need renameCase):\n")
+        unprovidedCases.sorted.map(_.stripPrefix("case:")).foreach(c => sb.append(s"  - $c\n"))
+      }
+
+      // Add hints
+      sb.append("\n")
+      if (unhandledPaths.nonEmpty) {
+        val example = unhandledPaths.head
+        val selectorPath = example.split("\\.").mkString(".")
+        sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
+      }
+      if (unprovidedPaths.nonEmpty) {
+        val example = unprovidedPaths.head
+        val selectorPath = example.split("\\.").mkString(".")
+        sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
+      }
+      if (unhandledPaths.nonEmpty && unprovidedPaths.nonEmpty) {
+        sb.append("Hint: Use .renameField(_.oldPath, _.newPath) when a field was renamed\n")
+      }
+      if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
+        sb.append("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") when a case was renamed\n")
+      }
+
+      c.abort(c.enclosingPosition, sb.toString)
+    }
+
+    q"()"
   }
 
   /**
