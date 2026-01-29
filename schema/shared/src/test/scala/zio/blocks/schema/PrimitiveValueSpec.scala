@@ -366,6 +366,211 @@ object PrimitiveValueSpec extends SchemaBaseSpec {
         val back                  = Schema[PrimitiveValue].fromDynamicValue(dyn)
         assert(back)(equalTo(Right(value)))
       }
+    ),
+    suite("Individual PrimitiveValue schema binding roundtrips")(
+      test("PrimitiveValue.Boolean binding roundtrip") {
+        val schema   = PrimitiveValue.booleanSchema
+        val original = PrimitiveValue.Boolean(true)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Byte binding roundtrip") {
+        val schema   = PrimitiveValue.byteSchema
+        val original = PrimitiveValue.Byte(42.toByte)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Short binding roundtrip") {
+        val schema   = PrimitiveValue.shortSchema
+        val original = PrimitiveValue.Short(42.toShort)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Int binding roundtrip") {
+        val schema   = PrimitiveValue.intSchema
+        val original = PrimitiveValue.Int(42)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Long binding roundtrip") {
+        val schema   = PrimitiveValue.longSchema
+        val original = PrimitiveValue.Long(42L)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Float binding roundtrip") {
+        val schema   = PrimitiveValue.floatSchema
+        val original = PrimitiveValue.Float(3.14f)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Double binding roundtrip") {
+        val schema   = PrimitiveValue.doubleSchema
+        val original = PrimitiveValue.Double(3.14)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Char binding roundtrip") {
+        val schema   = PrimitiveValue.charSchema
+        val original = PrimitiveValue.Char('x')
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.String binding roundtrip") {
+        val schema   = PrimitiveValue.stringSchema
+        val original = PrimitiveValue.String("hello")
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.BigInt binding roundtrip") {
+        val schema   = PrimitiveValue.bigIntSchema
+        val original = PrimitiveValue.BigInt(BigInt(12345))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.BigDecimal binding roundtrip") {
+        val schema   = PrimitiveValue.bigDecimalSchema
+        val original = PrimitiveValue.BigDecimal(BigDecimal("123.45"))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.DayOfWeek binding roundtrip") {
+        val schema   = PrimitiveValue.dayOfWeekSchema
+        val original = PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Duration binding roundtrip") {
+        val schema   = PrimitiveValue.durationSchema
+        val original = PrimitiveValue.Duration(Duration.ofHours(1))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Instant binding roundtrip") {
+        val schema   = PrimitiveValue.instantSchema
+        val original = PrimitiveValue.Instant(Instant.EPOCH)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.LocalDate binding roundtrip") {
+        val schema   = PrimitiveValue.localDateSchema
+        val original = PrimitiveValue.LocalDate(LocalDate.of(2025, 1, 28))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.LocalDateTime binding roundtrip") {
+        val schema   = PrimitiveValue.localDateTimeSchema
+        val original = PrimitiveValue.LocalDateTime(LocalDateTime.of(2025, 1, 28, 10, 30))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.LocalTime binding roundtrip") {
+        val schema   = PrimitiveValue.localTimeSchema
+        val original = PrimitiveValue.LocalTime(LocalTime.of(10, 30))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Month binding roundtrip") {
+        val schema   = PrimitiveValue.monthSchema
+        val original = PrimitiveValue.Month(Month.JANUARY)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.MonthDay binding roundtrip") {
+        val schema   = PrimitiveValue.monthDaySchema
+        val original = PrimitiveValue.MonthDay(MonthDay.of(1, 28))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.OffsetDateTime binding roundtrip") {
+        val schema   = PrimitiveValue.offsetDateTimeSchema
+        val original = PrimitiveValue.OffsetDateTime(OffsetDateTime.of(2025, 1, 28, 10, 30, 0, 0, ZoneOffset.UTC))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.OffsetTime binding roundtrip") {
+        val schema   = PrimitiveValue.offsetTimeSchema
+        val original = PrimitiveValue.OffsetTime(OffsetTime.of(10, 30, 0, 0, ZoneOffset.UTC))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Period binding roundtrip") {
+        val schema   = PrimitiveValue.periodSchema
+        val original = PrimitiveValue.Period(Period.ofDays(7))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Year binding roundtrip") {
+        val schema   = PrimitiveValue.yearSchema
+        val original = PrimitiveValue.Year(Year.of(2025))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.YearMonth binding roundtrip") {
+        val schema   = PrimitiveValue.yearMonthSchema
+        val original = PrimitiveValue.YearMonth(YearMonth.of(2025, 1))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.ZoneId binding roundtrip") {
+        val schema   = PrimitiveValue.zoneIdSchema
+        val original = PrimitiveValue.ZoneId(ZoneId.of("UTC"))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.ZoneOffset binding roundtrip") {
+        val schema   = PrimitiveValue.zoneOffsetSchema
+        val original = PrimitiveValue.ZoneOffset(ZoneOffset.UTC)
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.ZonedDateTime binding roundtrip") {
+        val schema   = PrimitiveValue.zonedDateTimeSchema
+        val original = PrimitiveValue.ZonedDateTime(ZonedDateTime.of(2025, 1, 28, 10, 30, 0, 0, ZoneId.of("UTC")))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.Currency binding roundtrip") {
+        val schema   = PrimitiveValue.currencySchema
+        val original = PrimitiveValue.Currency(Currency.getInstance("USD"))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      },
+      test("PrimitiveValue.UUID binding roundtrip") {
+        val schema   = PrimitiveValue.uuidSchema
+        val original = PrimitiveValue.UUID(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"))
+        val dyn      = schema.toDynamicValue(original)
+        val back     = schema.fromDynamicValue(dyn)
+        assert(back)(equalTo(Right(original)))
+      }
     )
   )
 

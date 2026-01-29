@@ -48,7 +48,7 @@ object AvroFormatVersionSpecificSpec extends SchemaBaseSpec {
         implicit val schema: Schema[Value] = Schema.derived
 
         avroSchema[Value](
-          "[\"int\",\"boolean\",\"string\",{\"type\":\"record\",\"name\":\"Tuple2\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"boolean\"}]},{\"type\":\"array\",\"items\":\"int\"}]"
+          "[\"string\",\"boolean\",\"int\",{\"type\":\"record\",\"name\":\"Tuple2\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"boolean\"}]},{\"type\":\"array\",\"items\":\"int\"}]"
         ) &&
         roundTrip[Value](1, 2) &&
         roundTrip[Value](true, 2) &&

@@ -17,7 +17,7 @@ trait MapDeconstructor[M[_, _]] {
 }
 
 object MapDeconstructor {
-  val map: MapDeconstructor[Map] = new MapDeconstructor[Map] {
+  implicit val map: MapDeconstructor[Map] = new MapDeconstructor[Map] {
     type KeyValue[K, V] = (K, V)
 
     def deconstruct[K, V](m: Map[K, V]): Iterator[(K, V)] = m.iterator
@@ -32,4 +32,5 @@ object MapDeconstructor {
 
     def getKeyValue[K, V](kv: (K, V)): (K, V) = kv
   }
+
 }

@@ -1781,6 +1781,96 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val result = patch(original)
         assertTrue(result.isLeft)
       }
+    ),
+    suite("DynamicPatch additional coverage")(
+      test("toString renders positive numeric deltas with +=") {
+        val patches = List(
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta(1.toByte))),
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta(1.toShort))),
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(100))),
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(1000L))),
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(1.5f))),
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(2.5)))
+        )
+
+        patches.foldLeft(assertTrue(true)) { case (acc, patch) =>
+          acc && assertTrue(patch.toString.contains("+="))
+        }
+      },
+      test("toString renders negative numeric deltas with -=") {
+        val patches = List(
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta(-1.toByte))),
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta(-1.toShort))),
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(-100))),
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(-1000L))),
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(-1.5f))),
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(-2.5)))
+        )
+
+        patches.foldLeft(assertTrue(true)) { case (acc, patch) =>
+          acc && assertTrue(patch.toString.contains("-="))
+        }
+      },
+      test("applies patch to deeply nested record field") {
+        val original = DynamicValue.Record(
+          Chunk(
+            "level1" -> DynamicValue.Record(
+              Chunk(
+                "level2" -> DynamicValue.Record(
+                  Chunk(
+                    "value" -> intVal(1)
+                  )
+                )
+              )
+            )
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("level1").field("level2").field("value"),
+          DynamicPatch.Operation.Set(intVal(99))
+        )
+        val result = patch(original)
+
+        val expected = DynamicValue.Record(
+          Chunk(
+            "level1" -> DynamicValue.Record(
+              Chunk(
+                "level2" -> DynamicValue.Record(
+                  Chunk(
+                    "value" -> intVal(99)
+                  )
+                )
+              )
+            )
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("applies patch through variant structure") {
+        val original = DynamicValue.Variant("Some", intVal(42))
+        val patch    = DynamicPatch(
+          DynamicOptic.root,
+          DynamicPatch.Operation.Set(DynamicValue.Variant("Some", intVal(99)))
+        )
+        val result = patch(original)
+
+        assertTrue(result == Right(DynamicValue.Variant("Some", intVal(99))))
+      },
+      test("navigateAndApply handles map values") {
+        val original = DynamicValue.Map(
+          Chunk(
+            stringVal("key1") -> intVal(1),
+            stringVal("key2") -> intVal(2)
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.atKey("key1"),
+          DynamicPatch.Operation.Set(intVal(100))
+        )
+        val result = patch(original)
+
+        assertTrue(result.isRight)
+      }
     )
   )
 }
