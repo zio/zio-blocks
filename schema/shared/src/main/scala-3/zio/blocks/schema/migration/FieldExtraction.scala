@@ -78,6 +78,12 @@ object FieldExtraction {
      */
     transparent inline given derived[A]: FieldPaths[A] = ${ derivedImpl[A] }
 
+    /**
+     * Derive FieldPaths for a specific case of a sealed trait/enum. This is used
+     * internally for validating case field changes in transformCase.
+     */
+    transparent inline def forCase[A]: FieldPaths[A] = ${ derivedImpl[A] }
+
     private def derivedImpl[A: Type](using q: Quotes): Expr[FieldPaths[A]] = {
       import q.reflect.*
 
@@ -239,6 +245,129 @@ object FieldExtraction {
         val paramName = param.name
         val paramType = tpe.memberType(param)
         (paramName, paramType.dealias)
+      }
+    }
+  }
+
+  /**
+   * Typeclass for extracting case names from a sealed trait/enum at compile
+   * time. The Cases type member contains the case names as a tuple of string
+   * literal types with "case:" prefix.
+   *
+   * For sealed traits/enums:
+   * {{{
+   * sealed trait Result
+   * case class Success(value: Int) extends Result
+   * case class Failure(error: String) extends Result
+   *
+   * CasePaths[Result].Cases =:= ("case:Failure", "case:Success")
+   * }}}
+   *
+   * For non-sealed types, Cases is EmptyTuple.
+   */
+  sealed trait CasePaths[A] {
+    type Cases <: Tuple
+  }
+
+  object CasePaths {
+
+    /**
+     * Concrete implementation of CasePaths with the Cases type member. Public
+     * because it's used in transparent inline given.
+     */
+    class Impl[A, C <: Tuple] extends CasePaths[A] {
+      type Cases = C
+    }
+
+    /**
+     * Given instance that extracts all case names from a type at compile time.
+     * Returns case names with "case:" prefix for sealed traits/enums, or
+     * EmptyTuple for non-sealed types.
+     */
+    transparent inline given derived[A]: CasePaths[A] = ${ derivedImpl[A] }
+
+    private def derivedImpl[A: Type](using q: Quotes): Expr[CasePaths[A]] = {
+      import q.reflect.*
+
+      val tpe       = TypeRepr.of[A].dealias
+      val caseNames = extractCaseNamesFromType(tpe).sorted.map(name => s"case:$name")
+
+      // Create a tuple type from the case names
+      val tupleType = caseNamesToTupleType(caseNames)
+
+      tupleType.asType match {
+        case '[t] =>
+          '{ new CasePaths.Impl[A, t & Tuple] }
+      }
+    }
+
+    /**
+     * Convert a list of case name strings to a Tuple type.
+     */
+    private def caseNamesToTupleType(using q: Quotes)(names: List[String]): q.reflect.TypeRepr = {
+      import q.reflect.*
+
+      names.foldRight(TypeRepr.of[EmptyTuple]) { (name, acc) =>
+        val nameType = ConstantType(StringConstant(name))
+        TypeRepr.of[*:].appliedTo(List(nameType, acc))
+      }
+    }
+
+    /**
+     * Extract case names from a sealed trait or enum.
+     */
+    private def extractCaseNamesFromType(using q: Quotes)(tpe: q.reflect.TypeRepr): List[String] = {
+      val dealiased = tpe.dealias
+
+      if (isSealedTraitOrEnum(dealiased)) {
+        val subTypes = directSubTypes(dealiased)
+        subTypes.map(getCaseName)
+      } else {
+        Nil
+      }
+    }
+
+    /**
+     * Check if a type is a sealed trait, abstract class, or enum.
+     */
+    private def isSealedTraitOrEnum(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
+      import q.reflect.*
+
+      tpe.classSymbol.fold(false) { symbol =>
+        val flags = symbol.flags
+        (flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))) ||
+        flags.is(Flags.Enum)
+      }
+    }
+
+    /**
+     * Get the name of a case from its type.
+     */
+    private def getCaseName(using q: Quotes)(tpe: q.reflect.TypeRepr): String = {
+      import q.reflect.*
+
+      if (tpe.termSymbol.flags.is(Flags.Enum)) {
+        tpe.termSymbol.name
+      } else {
+        tpe.typeSymbol.name
+      }
+    }
+
+    /**
+     * Get the direct subtypes of a sealed trait or enum.
+     */
+    private def directSubTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): List[q.reflect.TypeRepr] = {
+      import q.reflect.*
+
+      val symbol   = tpe.typeSymbol
+      val children = symbol.children
+
+      children.map { child =>
+        if (child.isType) {
+          child.typeRef
+        } else {
+          Ref(child).tpe
+        }
       }
     }
   }
