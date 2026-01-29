@@ -103,24 +103,30 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
 
   /**
    * Joins multiple source fields into a single target field using selector
-   * syntax. Adds target to Provided.
+   * syntax. All source fields must share a common parent path.
+   *
+   * Adds all source field names to Handled and the target field name to
+   * Provided.
    */
   def joinFields(
     target: B => Any,
     sourcePaths: Seq[A => Any],
     combiner: SchemaExpr[DynamicValue, _]
-  ): MigrationBuilder[A, B, Handled, _ <: TList] =
+  ): MigrationBuilder[A, B, _ <: TList, _ <: TList] =
     macro MigrationBuilderMacrosImpl.joinFieldsImpl[A, B, Handled, Provided]
 
   /**
    * Splits a single source field into multiple target fields using selector
-   * syntax. Adds source to Handled.
+   * syntax. All target fields must share a common parent path.
+   *
+   * Adds the source field name to Handled and all target field names to
+   * Provided.
    */
   def splitField(
     source: A => Any,
     targetPaths: Seq[B => Any],
     splitter: SchemaExpr[DynamicValue, _]
-  ): MigrationBuilder[A, B, _ <: TList, Provided] =
+  ): MigrationBuilder[A, B, _ <: TList, _ <: TList] =
     macro MigrationBuilderMacrosImpl.splitFieldImpl[A, B, Handled, Provided]
 
   /**
@@ -668,6 +674,38 @@ private[migration] object MigrationBuilderMacrosImpl {
   }
 
   /**
+   * Extracts all field names from a Seq of selector expressions.
+   *
+   * For `Seq(_.firstName, _.lastName)`, returns
+   * `List("firstName", "lastName")`. For nested selectors like
+   * `Seq(_.person.firstName, _.person.lastName)`, returns
+   * `List("person.firstName", "person.lastName")`.
+   */
+  private def extractFieldNamesFromSeq(c: whitebox.Context)(seqExpr: c.Tree): List[String] = {
+    import c.universe._
+
+    def unwrap(tree: c.Tree): c.Tree = tree match {
+      case Typed(inner, _) => unwrap(inner)
+      case Block(_, expr)  => unwrap(expr)
+      case _               => tree
+    }
+
+    def extractSelectors(tree: c.Tree): List[c.Tree] = unwrap(tree) match {
+      // Seq(a, b, c) or Vector(a, b, c) etc.
+      case Apply(_, args) =>
+        args
+      case _ =>
+        c.abort(
+          c.enclosingPosition,
+          s"Expected a Seq/Vector/List literal (e.g., Seq(_.field1, _.field2)), got: ${showRaw(tree)}"
+        )
+    }
+
+    val selectors = extractSelectors(seqExpr)
+    selectors.map(extractFieldNameFromSelector(c)(_))
+  }
+
+  /**
    * Creates a literal singleton type for a string.
    */
   private def literalType(c: whitebox.Context)(value: String): c.Type = {
@@ -959,18 +997,31 @@ private[migration] object MigrationBuilderMacrosImpl {
     val targetFieldName = extractFieldNameFromSelector(c)(target.tree)
     val targetOptic     = MigrationBuilderMacros.extractOptic[B, Any](c)(target)
     val sourceOptics    = MigrationBuilderMacros.extractOptics[A, Any](c)(sourcePaths)
-    val fieldNameType   = literalType(c)(targetFieldName)
 
-    val handledType    = weakTypeOf[Handled]
-    val providedType   = weakTypeOf[Provided]
-    val newProvidedTpe = appendType(c)(providedType, fieldNameType)
+    // Extract all source field names from the Seq
+    val sourceFieldNames = extractFieldNamesFromSeq(c)(sourcePaths.tree)
+
+    if (sourceFieldNames.isEmpty) {
+      c.abort(c.enclosingPosition, "joinFields requires at least one source field")
+    }
+
+    val handledType  = weakTypeOf[Handled]
+    val providedType = weakTypeOf[Provided]
+
+    // Build new Handled type by appending all source field names
+    val newHandledTpe = sourceFieldNames.foldLeft(handledType) { (acc, name) =>
+      appendType(c)(acc, literalType(c)(name))
+    }
+
+    // Build new Provided type by appending the target field name
+    val newProvidedTpe = appendType(c)(providedType, literalType(c)(targetFieldName))
 
     val aType = weakTypeOf[A]
     val bType = weakTypeOf[B]
 
     val resultType = appliedType(
       typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
-      List(aType, bType, handledType, newProvidedTpe)
+      List(aType, bType, newHandledTpe, newProvidedTpe)
     )
 
     q"""$builder.joinFields($targetOptic, $sourceOptics, $combiner).asInstanceOf[$resultType]"""
@@ -993,18 +1044,31 @@ private[migration] object MigrationBuilderMacrosImpl {
     val sourceFieldName = extractFieldNameFromSelector(c)(source.tree)
     val sourceOptic     = MigrationBuilderMacros.extractOptic[A, Any](c)(source)
     val targetOptics    = MigrationBuilderMacros.extractOptics[B, Any](c)(targetPaths)
-    val fieldNameType   = literalType(c)(sourceFieldName)
 
-    val handledType   = weakTypeOf[Handled]
-    val providedType  = weakTypeOf[Provided]
-    val newHandledTpe = appendType(c)(handledType, fieldNameType)
+    // Extract all target field names from the Seq
+    val targetFieldNames = extractFieldNamesFromSeq(c)(targetPaths.tree)
+
+    if (targetFieldNames.isEmpty) {
+      c.abort(c.enclosingPosition, "splitField requires at least one target field")
+    }
+
+    val handledType  = weakTypeOf[Handled]
+    val providedType = weakTypeOf[Provided]
+
+    // Build new Handled type by appending the source field name
+    val newHandledTpe = appendType(c)(handledType, literalType(c)(sourceFieldName))
+
+    // Build new Provided type by appending all target field names
+    val newProvidedTpe = targetFieldNames.foldLeft(providedType) { (acc, name) =>
+      appendType(c)(acc, literalType(c)(name))
+    }
 
     val aType = weakTypeOf[A]
     val bType = weakTypeOf[B]
 
     val resultType = appliedType(
       typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
-      List(aType, bType, newHandledTpe, providedType)
+      List(aType, bType, newHandledTpe, newProvidedTpe)
     )
 
     q"""$builder.splitField($sourceOptic, $targetOptics, $splitter).asInstanceOf[$resultType]"""

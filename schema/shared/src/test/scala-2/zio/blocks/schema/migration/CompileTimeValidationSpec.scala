@@ -170,6 +170,20 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   }
 
   // ==========================================================================
+  // Test case classes - Join/Split field tracking
+  // ==========================================================================
+
+  case class FullNameSource(firstName: String, lastName: String, age: Int)
+  object FullNameSource {
+    implicit val schema: Schema[FullNameSource] = Schema.derived
+  }
+
+  case class FullNameTarget(fullName: String, age: Int)
+  object FullNameTarget {
+    implicit val schema: Schema[FullNameTarget] = Schema.derived
+  }
+
+  // ==========================================================================
   // Test case classes - Nested path validation (Phase 9)
   // ==========================================================================
 
@@ -384,6 +398,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     compileFailureSuite,
     nestedPathValidationSuite,
     caseTrackingSuite,
+    joinSplitTrackingSuite,
     phase10EdgeCasesSuite,
     requireValidationSuite
   )
@@ -1142,6 +1157,85 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val cp = implicitly[CasePaths[PersonA]]
       // CasePaths for a regular case class should be TNil
       assertTrue(cp != null)
+    }
+  )
+
+  // --------------------------------------------------------------------------
+  // Join/Split Field Tracking Suite
+  // --------------------------------------------------------------------------
+  val joinSplitTrackingSuite = suite("joinFields and splitField tracking")(
+    test("joinFields tracks all source fields in Handled") {
+      // joinFields should handle firstName and lastName, and provide fullName
+      // Using top-level case classes FullNameSource and FullNameTarget
+      // Note: explicit function types required due to type inference limitations with Seq
+      // Macro requires inlined builder expression
+      val migration = syntax(MigrationBuilder.newBuilder[FullNameSource, FullNameTarget])
+        .joinFields(
+          (t: FullNameTarget) => t.fullName,
+          Seq((s: FullNameSource) => s.firstName, (s: FullNameSource) => s.lastName),
+          SchemaExpr.Literal[DynamicValue, String]("combined", Schema.string)
+        )
+        .build
+      // If joinFields didn't track firstName and lastName as Handled, .build wouldn't compile
+      assertTrue(migration != null)
+    },
+    test("splitField tracks all target fields in Provided") {
+      // splitField should handle fullName and provide firstName and lastName
+      // Using top-level case classes FullNameTarget (as source) and FullNameSource (as target)
+      // Macro requires inlined builder expression
+      val migration = syntax(MigrationBuilder.newBuilder[FullNameTarget, FullNameSource])
+        .splitField(
+          (s: FullNameTarget) => s.fullName,
+          Seq((t: FullNameSource) => t.firstName, (t: FullNameSource) => t.lastName),
+          SchemaExpr.Literal[DynamicValue, String]("split", Schema.string)
+        )
+        .build
+      // If splitField didn't track firstName and lastName as Provided, .build wouldn't compile
+      assertTrue(migration != null)
+    },
+    test("joinFields without tracking all sources fails to compile") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        case class Source(a: String, b: String, shared: Int)
+        object Source { implicit val schema: Schema[Source] = Schema.derived }
+
+        case class Target(combined: String, shared: Int)
+        object Target { implicit val schema: Schema[Target] = Schema.derived }
+
+        // Without joinFields handling a and b, this should fail
+        syntax(MigrationBuilder.newBuilder[Source, Target])
+          .addField((_: Target).combined, SchemaExpr.Literal[DynamicValue, String]("default", Schema.string))
+          .build
+      """)
+
+      // Just check that it fails to compile (error message varies)
+      assertZIO(result)(isLeft)
+    },
+    test("splitField without tracking all targets fails to compile") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        case class Source(combined: String, shared: Int)
+        object Source { implicit val schema: Schema[Source] = Schema.derived }
+
+        case class Target(a: String, b: String, shared: Int)
+        object Target { implicit val schema: Schema[Target] = Schema.derived }
+
+        // Without splitField providing a and b, this should fail
+        syntax(MigrationBuilder.newBuilder[Source, Target])
+          .dropField((_: Source).combined, SchemaExpr.Literal[DynamicValue, String]("default", Schema.string))
+          .build
+      """)
+
+      // Just check that it fails to compile (error message varies)
+      assertZIO(result)(isLeft)
     }
   )
 
