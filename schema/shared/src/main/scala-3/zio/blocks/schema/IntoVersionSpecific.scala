@@ -374,7 +374,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
             new Into[A, B] {
               def into(a: A): Either[SchemaError, B] =
                 ${ fieldInto.asExprOf[Into[Any, Any]] }.into(a.asInstanceOf[Any]).map { converted =>
-                  ${ Apply(Select(New(TypeTree.of[B]), ctor), List('{ converted }.asTerm)).asExprOf[B] }
+                  ${ Apply(Select(New(TypeTree.of[B]), ctor), List('converted.asTerm)).asExprOf[B] }
                 }
             }
           }
@@ -772,7 +772,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                                   if (nestedField.hasDefault && nestedField.defaultValue.isDefined) {
                                     nestedField.defaultValue.get
                                   } else if (isOptionType(nestedField.tpe)) {
-                                    '{ None }.asTerm
+                                    'None.asTerm
                                   } else {
                                     // This should never happen - validation should have caught this
                                     fail(
@@ -813,7 +813,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                     targetField.defaultValue.get
                   } else if (isOptionType(targetField.tpe)) {
                     // Option type - return None
-                    '{ None }.asTerm
+                    'None.asTerm
                   } else {
                     // This should never happen if validation is correct
                     // But if it does, generate a compile-time error by calling fail
@@ -1146,7 +1146,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       if (field.hasDefault && field.defaultValue.isDefined) {
         field.defaultValue.get
       } else if (isOptionType(field.tpe)) {
-        '{ None }.asTerm
+        'None.asTerm
       } else {
         val targetFieldsStr   = targetInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
         val requiredFields    = targetInfo.fields.filterNot(f => f.hasDefault || isOptionType(f.tpe))
@@ -2429,7 +2429,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                     '{ (elem: se) =>
                       ${
                         convertToOpaqueTypeEitherTyped[te](
-                          '{ elem }.asTerm,
+                          'elem.asTerm,
                           sourceElemTpe,
                           targetElemTpe,
                           fieldName
@@ -2441,7 +2441,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                   } else if (requiresNewtypeConversion(sourceElemTpe, targetElemTpe)) {
                     '{ (elem: se) =>
                       ${
-                        convertToNewtypeEither('{ elem }.asTerm, targetElemTpe, fieldName)
+                        convertToNewtypeEither('elem.asTerm, targetElemTpe, fieldName)
                       }.asInstanceOf[Either[SchemaError, te]]
                     }
                   } else if (requiresNewtypeUnwrapping(sourceElemTpe, targetElemTpe)) {
