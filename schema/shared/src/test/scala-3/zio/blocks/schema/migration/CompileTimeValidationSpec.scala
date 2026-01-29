@@ -518,7 +518,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         assertTrue(result.toOption.get.isInstanceOf[SingleB])
       }
     ),
-    suite("nested path validation (Phase 2)")(
+    suite("nested path validation")(
       test("FieldPaths extracts nested paths") {
         // Verify FieldPaths extracts full paths for nested structures
         @scala.annotation.nowarn("msg=unused local definition")
@@ -661,7 +661,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         assertTrue(result.isRight)
       }
     ),
-    suite("sealed trait case validation (Phase 4)")(
+    suite("sealed trait case validation")(
       test("CasePaths extracts case names with prefix") {
         // Verify CasePaths extracts case names for sealed traits
         sealed trait SimpleResult
@@ -836,7 +836,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         """))(Assertion.isLeft)
       },
       test("transformCase tracks case in Handled and Provided") {
-        // TODO: Phase 4 - This test needs to verify that transformCase properly tracks
+        // This test needs to verify that transformCase properly tracks
         // case names in the Handled and Provided type parameters.
         //
         // transformCase adds the case name to both Handled and Provided because
@@ -998,7 +998,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         """))(Assertion.isLeft)
       }
     ),
-    suite("edge cases with container types (Phase 5)")(
+    suite("edge cases with container types")(
       test("Option fields don't recurse into element type") {
         // Option fields should be treated as leaf nodes
         case class WithOptionSrc(name: String, data: Option[String])
@@ -1185,7 +1185,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         assertTrue(result.isRight)
       }
     ),
-    suite("requireValidation macro (Phase 5)")(
+    suite("requireValidation macro")(
       test("requireValidation succeeds for valid migration") {
         @scala.annotation.nowarn("msg=unused local definition")
         case class ValidSrc(name: String, age: Int)

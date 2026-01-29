@@ -6,10 +6,7 @@ import TypeLevel._
 
 object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
 
-  // ==========================================================================
   // Test case classes
-  // ==========================================================================
-
   case class PersonV1(name: String, age: Int, oldField: String)
   object PersonV1 {
     implicit val schema: Schema[PersonV1] = Schema.derived
@@ -65,19 +62,12 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     implicit val schema: Schema[MultiField2] = Schema.derived
   }
 
-  // ==========================================================================
-  // Helpers
-  // ==========================================================================
-
   // Helper to get syntax explicitly (avoids conflict with private[migration] methods)
   def syntax[A, B, H <: TList, P <: TList](
     b: MigrationBuilder[A, B, H, P]
   ): MigrationBuilderSyntax[A, B, H, P] = new MigrationBuilderSyntax(b)
 
-  // ==========================================================================
   // Tests
-  // ==========================================================================
-
   override def spec = suite("MigrationBuilderTypeLevelSpec - Scala 2")(
     newBuilderSuite,
     dropFieldSuite,
@@ -94,9 +84,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     typeLevelVerificationSuite
   )
 
-  // --------------------------------------------------------------------------
   // newBuilder Suite
-  // --------------------------------------------------------------------------
   val newBuilderSuite = suite("newBuilder")(
     test("returns TNil for both Handled and Provided") {
       val builder: MigrationBuilder[PersonV1, PersonV2, TNil, TNil] =
@@ -115,9 +103,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // dropField Suite
-  // --------------------------------------------------------------------------
   val dropFieldSuite = suite("dropField")(
     test("adds field name to Handled") {
       val builder = syntax(MigrationBuilder.newBuilder[PersonV1, PersonV2])
@@ -142,9 +128,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // addField Suite
-  // --------------------------------------------------------------------------
   val addFieldSuite = suite("addField")(
     test("adds field name to Provided") {
       val builder = syntax(MigrationBuilder.newBuilder[PersonV1, PersonV2])
@@ -169,9 +153,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // renameField Suite
-  // --------------------------------------------------------------------------
   val renameFieldSuite = suite("renameField")(
     test("adds source to Handled and target to Provided") {
       val builder = syntax(MigrationBuilder.newBuilder[PersonV1, PersonV2])
@@ -188,9 +170,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // transformField Suite
-  // --------------------------------------------------------------------------
   val transformFieldSuite = suite("transformField")(
     test("adds field name to both Handled and Provided") {
       val builder = syntax(MigrationBuilder.newBuilder[PersonV1, PersonV1])
@@ -207,9 +187,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // mandateField Suite
-  // --------------------------------------------------------------------------
   val mandateFieldSuite = suite("mandateField")(
     test("adds field name to both Handled and Provided") {
       val builder = syntax(MigrationBuilder.newBuilder[WithOption, WithoutOption])
@@ -226,9 +204,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // optionalizeField Suite
-  // --------------------------------------------------------------------------
   val optionalizeFieldSuite = suite("optionalizeField")(
     test("adds field name to both Handled and Provided") {
       val builder = syntax(MigrationBuilder.newBuilder[WithoutOption, WithOption])
@@ -245,9 +221,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // changeFieldType Suite
-  // --------------------------------------------------------------------------
   val changeFieldTypeSuite = suite("changeFieldType")(
     test("adds field name to both Handled and Provided") {
       val builder = syntax(MigrationBuilder.newBuilder[WithInt, WithString])
@@ -264,9 +238,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // joinFields Suite
-  // --------------------------------------------------------------------------
   val joinFieldsSuite = suite("joinFields")(
     test("adds target to Provided") {
       val combiner = SchemaExpr.StringConcat(
@@ -301,9 +273,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // splitField Suite
-  // --------------------------------------------------------------------------
   val splitFieldSuite = suite("splitField")(
     test("adds source to Handled") {
       val splitter = SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
@@ -332,9 +302,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Collection Operations Suite
-  // --------------------------------------------------------------------------
   val collectionOperationsSuite = suite("collection operations")(
     test("transformElements preserves types") {
       val builder = syntax(MigrationBuilder.newBuilder[WithList, WithList])
@@ -359,9 +327,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Chaining Suite
-  // --------------------------------------------------------------------------
   val chainingSuite = suite("chaining operations")(
     test("chaining accumulates Handled fields") {
       val builder = syntax(
@@ -403,9 +369,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Type-Level Verification Suite
-  // --------------------------------------------------------------------------
   val typeLevelVerificationSuite = suite("type-level verification")(
     test("schemas are preserved through operations") {
       val builder = syntax(MigrationBuilder.newBuilder[PersonV1, PersonV2])

@@ -5,9 +5,6 @@ import scala.reflect.macros.blackbox
 /**
  * Shared macro helper functions for compile-time type introspection.
  *
- * These functions are used by FieldExtractionMacros, ShapeExtractionMacros, and
- * MigrationBuilderMacrosImpl to avoid code duplication.
- *
  * Note: This is implemented as a trait to be mixed in, which properly handles
  * Scala 2's path-dependent types in macros.
  */

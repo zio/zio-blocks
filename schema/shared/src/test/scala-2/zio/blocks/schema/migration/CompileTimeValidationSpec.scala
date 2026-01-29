@@ -10,10 +10,7 @@ import ShapeExtraction.{CasePaths, FieldPaths}
 
 object CompileTimeValidationSpec extends ZIOSpecDefault {
 
-  // ==========================================================================
   // Test case classes - Identical schemas
-  // ==========================================================================
-
   case class PersonA(name: String, age: Int)
   object PersonA {
     implicit val schema: Schema[PersonA] = Schema.derived
@@ -24,10 +21,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[PersonB] = Schema.derived
   }
 
-  // ==========================================================================
   // Test case classes - Field renamed
-  // ==========================================================================
-
   case class RenameSource(oldName: String, age: Int)
   object RenameSource {
     implicit val schema: Schema[RenameSource] = Schema.derived
@@ -38,10 +32,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[RenameTarget] = Schema.derived
   }
 
-  // ==========================================================================
   // Test case classes - Field dropped
-  // ==========================================================================
-
   case class DropSource(name: String, age: Int, extra: Boolean)
   object DropSource {
     implicit val schema: Schema[DropSource] = Schema.derived
@@ -52,10 +43,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[DropTarget] = Schema.derived
   }
 
-  // ==========================================================================
   // Test case classes - Field added
-  // ==========================================================================
-
   case class AddSource(name: String, age: Int)
   object AddSource {
     implicit val schema: Schema[AddSource] = Schema.derived
@@ -66,10 +54,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[AddTarget] = Schema.derived
   }
 
-  // ==========================================================================
   // Test case classes - Complex: drop + add + rename
-  // ==========================================================================
-
   case class ComplexSource(a: String, b: Int, c: Boolean, d: Double)
   object ComplexSource {
     implicit val schema: Schema[ComplexSource] = Schema.derived
@@ -80,10 +65,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[ComplexTarget] = Schema.derived
   }
 
-  // ==========================================================================
   // Test case classes - Many shared fields
-  // ==========================================================================
-
   case class ManySharedSource(shared1: String, shared2: Int, shared3: Boolean, removed: Double)
   object ManySharedSource {
     implicit val schema: Schema[ManySharedSource] = Schema.derived
@@ -94,10 +76,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[ManySharedTarget] = Schema.derived
   }
 
-  // ==========================================================================
   // Test case classes - Single field
-  // ==========================================================================
-
   case class SingleA(only: String)
   object SingleA {
     implicit val schema: Schema[SingleA] = Schema.derived
@@ -108,10 +87,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[SingleB] = Schema.derived
   }
 
-  // ==========================================================================
   // Test case classes - Empty schemas
-  // ==========================================================================
-
   case class EmptySource()
   object EmptySource {
     implicit val schema: Schema[EmptySource] = Schema.derived
@@ -127,10 +103,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[NonEmptyForEmpty] = Schema.derived
   }
 
-  // ==========================================================================
   // Test case classes - All fields changed
-  // ==========================================================================
-
   case class AllChangedSource(a: String, b: Int)
   object AllChangedSource {
     implicit val schema: Schema[AllChangedSource] = Schema.derived
@@ -141,10 +114,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[AllChangedTarget] = Schema.derived
   }
 
-  // ==========================================================================
-  // Test case classes - Multiple drops
-  // ==========================================================================
-
+  // Test case classes - Multiple drops and adds
   case class MultiDropSource(keep: String, drop1: Int, drop2: Boolean, drop3: Double)
   object MultiDropSource {
     implicit val schema: Schema[MultiDropSource] = Schema.derived
@@ -154,10 +124,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   object MultiDropTarget {
     implicit val schema: Schema[MultiDropTarget] = Schema.derived
   }
-
-  // ==========================================================================
-  // Test case classes - Multiple adds
-  // ==========================================================================
 
   case class MultiAddSource(keep: String)
   object MultiAddSource {
@@ -169,10 +135,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[MultiAddTarget] = Schema.derived
   }
 
-  // ==========================================================================
   // Test case classes - Join/Split field tracking
-  // ==========================================================================
-
   case class FullNameSource(firstName: String, lastName: String, age: Int)
   object FullNameSource {
     implicit val schema: Schema[FullNameSource] = Schema.derived
@@ -182,10 +145,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   object FullNameTarget {
     implicit val schema: Schema[FullNameTarget] = Schema.derived
   }
-
-  // ==========================================================================
-  // Test case classes - Nested path validation (Phase 9)
-  // ==========================================================================
 
   // Shared nested structure
   case class SharedNested(a: Int, b: String)
@@ -276,10 +235,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[DeepOuterV2] = Schema.derived
   }
 
-  // ==========================================================================
-  // Test case classes - Edge cases (Phase 10)
-  // ==========================================================================
-
   // Container types - should not recurse into element types
   case class WithContainers(
     opt: Option[AddressV1],
@@ -327,10 +282,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Color] = Schema.derived
   }
 
-  // ==========================================================================
-  // Test case classes - Sealed trait case tracking (Phase 9)
-  // ==========================================================================
-
   sealed trait ResultV1
   case class SuccessV1(value: Int)  extends ResultV1
   case class FailureV1(err: String) extends ResultV1
@@ -374,18 +325,12 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[InactiveSame] = Schema.derived
   }
 
-  // ==========================================================================
   // Helpers
-  // ==========================================================================
-
   def syntax[A, B, H <: TList, P <: TList](
     b: MigrationBuilder[A, B, H, P]
   ): MigrationBuilderSyntax[A, B, H, P] = new MigrationBuilderSyntax(b)
 
-  // ==========================================================================
   // Tests
-  // ==========================================================================
-
   override def spec = suite("CompileTimeValidationSpec - Scala 2")(
     identicalSchemasSuite,
     dropFieldSuite,
@@ -399,13 +344,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     nestedPathValidationSuite,
     caseTrackingSuite,
     joinSplitTrackingSuite,
-    phase10EdgeCasesSuite,
+    EdgeCasesSuite,
     requireValidationSuite
   )
 
-  // --------------------------------------------------------------------------
   // Identical Schemas Suite
-  // --------------------------------------------------------------------------
   val identicalSchemasSuite = suite("identical schemas")(
     test("build works with no operations needed") {
       val migration = syntax(MigrationBuilder.newBuilder[PersonA, PersonB]).build
@@ -436,9 +379,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Drop Field Suite
-  // --------------------------------------------------------------------------
   val dropFieldSuite = suite("drop field migrations")(
     test("complete drop migration - single field") {
       val migration = syntax(MigrationBuilder.newBuilder[DropSource, DropTarget])
@@ -482,9 +423,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Add Field Suite
-  // --------------------------------------------------------------------------
   val addFieldSuite = suite("add field migrations")(
     test("complete add migration - single field") {
       val migration = syntax(MigrationBuilder.newBuilder[AddSource, AddTarget])
@@ -537,9 +476,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Rename Field Suite
-  // --------------------------------------------------------------------------
   val renameFieldSuite = suite("rename field migrations")(
     test("complete rename migration") {
       val migration = syntax(MigrationBuilder.newBuilder[RenameSource, RenameTarget])
@@ -563,9 +500,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Complex Migration Suite
-  // --------------------------------------------------------------------------
   val complexMigrationSuite = suite("complex migrations")(
     test("drop + add + rename inline") {
       // ComplexSource: a, b, c, d
@@ -635,9 +570,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Chaining Styles Suite
-  // --------------------------------------------------------------------------
   val chainingStylesSuite = suite("chaining styles")(
     test("fully inline chaining with syntax wrapper") {
       val migration = syntax(
@@ -803,9 +736,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Edge Cases Suite
-  // --------------------------------------------------------------------------
   val edgeCasesSuite = suite("edge cases")(
     test("non-empty source to empty target") {
       val migration = syntax(MigrationBuilder.newBuilder[NonEmptyForEmpty, EmptyTarget])
@@ -846,9 +777,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // buildPartial Suite
-  // --------------------------------------------------------------------------
   val buildPartialSuite = suite("buildPartial always succeeds")(
     test("buildPartial works for empty migration on different schemas") {
       val builder   = MigrationBuilder.newBuilder[DropSource, DropTarget]
@@ -884,9 +813,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Compile Failure Suite (using typeCheck)
-  // --------------------------------------------------------------------------
   val compileFailureSuite = suite("compile failures for incomplete migrations")(
     test("build fails when drop is missing") {
       val result = typeCheck("""
@@ -1024,10 +951,8 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
-  // Nested Path Validation Suite (Phase 9)
-  // --------------------------------------------------------------------------
-  val nestedPathValidationSuite = suite("nested path validation (Phase 9)")(
+  // Nested Path Validation Suite
+  val nestedPathValidationSuite = suite("nested path validation")(
     test("unchanged nested structure requires no handling") {
       // When nested structure is identical in both types, no handling needed
       // The "shared", "shared.a", "shared.b" paths exist in both, so only
@@ -1162,10 +1087,8 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
-  // Case Tracking Suite (Phase 9)
-  // --------------------------------------------------------------------------
-  val caseTrackingSuite = suite("sealed trait case tracking (Phase 9)")(
+  // Case Tracking Suite
+  val caseTrackingSuite = suite("sealed trait case tracking")(
     test("identical sealed traits require no case handling") {
       // When sealed traits have the same case names, no handling needed
       val migration = syntax(MigrationBuilder.newBuilder[StatusSame, StatusSame]).build
@@ -1277,9 +1200,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
   // Join/Split Field Tracking Suite
-  // --------------------------------------------------------------------------
   val joinSplitTrackingSuite = suite("joinFields and splitField tracking")(
     test("joinFields tracks all source fields in Handled") {
       // joinFields should handle firstName and lastName, and provide fullName
@@ -1356,10 +1277,8 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
-  // Phase 10: Edge Cases Suite
-  // --------------------------------------------------------------------------
-  val phase10EdgeCasesSuite = suite("edge cases (Phase 10)")(
+  // Edge Cases Suite
+  val EdgeCasesSuite = suite("edge cases")(
     test("container types do not recurse into element types") {
       // Container fields (Option, List, Set, Map) should NOT have their element types recursed
       // So only top-level container fields appear in paths, not nested contents
@@ -1449,10 +1368,8 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // --------------------------------------------------------------------------
-  // requireValidation Suite (Phase 10)
-  // --------------------------------------------------------------------------
-  val requireValidationSuite = suite("requireValidation macro (Phase 10)")(
+  // requireValidation
+  val requireValidationSuite = suite("requireValidation macro")(
     test("requireValidation succeeds for valid migration") {
       // With all required fields handled/provided, validation should pass
       MigrationBuilderSyntax.requireValidation[PersonA, PersonB, TNil, TNil]

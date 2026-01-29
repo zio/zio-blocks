@@ -7,8 +7,6 @@ import zio.blocks.schema.migration.TypeLevel._
 
 object ShapeExtractionSpec extends ZIOSpecDefault {
 
-  // ============ Test Case Classes ============
-
   // Test 1: Flat case class
   case class Simple(name: String, age: Int)
 
@@ -68,8 +66,6 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
   enum SingleCaseEnum {
     case OnlyCase(data: String)
   }
-
-  // ============ FieldPaths Test Case Classes ============
 
   // Flat case class for FieldPaths tests
   case class FlatPerson(name: String, age: Int)

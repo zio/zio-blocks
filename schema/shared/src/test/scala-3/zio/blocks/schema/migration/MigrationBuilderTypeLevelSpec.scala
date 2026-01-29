@@ -7,10 +7,6 @@ import zio.test._
 /**
  * Tests for compile-time type-level tracking of Handled and Provided fields in
  * MigrationBuilder.
- *
- * These tests verify that the Scala 3 macros correctly refine the type
- * parameters to track which fields have been handled (from source) and provided
- * (for target).
  */
 object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
 
