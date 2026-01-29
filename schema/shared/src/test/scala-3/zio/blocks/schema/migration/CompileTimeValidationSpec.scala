@@ -389,6 +389,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       },
       test("multiple drops over multiple lines") {
         case class MultiDropSrc(keep: String, drop1: Int, drop2: Boolean, drop3: Double)
+        @scala.annotation.nowarn("msg=unused local definition")
         case class MultiDropTgt(keep: String)
 
         given Schema[MultiDropSrc] = Schema.derived
@@ -404,10 +405,12 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         val result = migration(source)
 
         assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.isInstanceOf[MultiDropTgt]) &&
         assertTrue(result.map(_.keep) == Right("keep"))
       },
       test("multiple adds over multiple lines") {
         case class MultiAddSrc(keep: String)
+        @scala.annotation.nowarn("msg=unused local definition")
         case class MultiAddTgt(keep: String, add1: Int, add2: Boolean, add3: Double)
 
         given Schema[MultiAddSrc] = Schema.derived
@@ -423,12 +426,14 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         val result = migration(source)
 
         assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.isInstanceOf[MultiAddTgt]) &&
         assertTrue(result.map(_.keep) == Right("keep"))
       }
     ),
     suite("edge cases")(
       test("empty source schema") {
         case class EmptySrc()
+        @scala.annotation.nowarn("msg=unused local definition")
         case class NonEmptyTgt(field: String)
 
         implicit val emptySrcSchema: Schema[EmptySrc]       = Schema.derived
@@ -442,10 +447,13 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .addField(_.field, SchemaExpr.Literal[DynamicValue, String]("default", Schema.string))
           .build
 
-        assertTrue(migration(EmptySrc()).isRight)
+        val result = migration(EmptySrc())
+        assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.isInstanceOf[NonEmptyTgt])
       },
       test("empty target schema") {
         case class NonEmptySrc(field: String)
+        @scala.annotation.nowarn("msg=unused local definition")
         case class EmptyTgt()
 
         implicit val nonEmptySrcSchema: Schema[NonEmptySrc] = Schema.derived
@@ -459,10 +467,13 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .dropField(_.field, SchemaExpr.Literal[DynamicValue, String]("default", Schema.string))
           .build
 
-        assertTrue(migration(NonEmptySrc("test")).isRight)
+        val result = migration(NonEmptySrc("test"))
+        assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.isInstanceOf[EmptyTgt])
       },
       test("all fields changed") {
         case class AllChangedSrc(a: String, b: Int)
+        @scala.annotation.nowarn("msg=unused local definition")
         case class AllChangedTgt(x: Boolean, y: Double)
 
         implicit val allChangedSrcSchema: Schema[AllChangedSrc] = Schema.derived
@@ -479,10 +490,13 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .addField(_.y, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
           .build
 
-        assertTrue(migration(AllChangedSrc("test", 42)).isRight)
+        val result = migration(AllChangedSrc("test", 42))
+        assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.isInstanceOf[AllChangedTgt])
       },
       test("single field schemas") {
         case class SingleA(only: String)
+        @scala.annotation.nowarn("msg=unused local definition")
         case class SingleB(only: String)
 
         implicit val singleASchema: Schema[SingleA] = Schema.derived
@@ -491,7 +505,152 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         summon[ValidationProof[SingleA, SingleB, EmptyTuple, EmptyTuple]]
 
         val migration = MigrationBuilder.newBuilder[SingleA, SingleB].build
-        assertTrue(migration(SingleA("test")).isRight)
+        val result    = migration(SingleA("test"))
+        assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.isInstanceOf[SingleB])
+      }
+    ),
+    suite("nested path validation (Phase 2)")(
+      test("FieldPaths extracts nested paths") {
+        // Verify FieldPaths extracts full paths for nested structures
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class NestedInner(x: Int, y: String)
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class NestedOuter(inner: NestedInner, z: Boolean)
+
+        val fp = summon[FieldPaths[NestedOuter]]
+        // The Paths type should contain: "inner", "inner.x", "inner.y", "z"
+        // We can verify this compiles by checking the type
+        summon[fp.Paths =:= ("inner" *: "inner.x" *: "inner.y" *: "z" *: EmptyTuple)]
+
+        assertTrue(true)
+      },
+      test("unchanged nested structure requires no handling") {
+        // When nested structure is identical in both types, no handling needed
+        case class SharedNested(a: Int, b: String)
+        case class TypeWithNestedSrc(shared: SharedNested, remove: Boolean)
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class TypeWithNestedTgt(
+          shared: SharedNested,
+          add: Double
+        )
+
+        given Schema[SharedNested]      = Schema.derived
+        given Schema[TypeWithNestedSrc] = Schema.derived
+        given Schema[TypeWithNestedTgt] = Schema.derived
+
+        // The "shared", "shared.a", "shared.b" paths exist in both, so only
+        // "remove" needs to be handled and "add" needs to be provided
+        val migration = MigrationBuilder
+          .newBuilder[TypeWithNestedSrc, TypeWithNestedTgt]
+          .dropField(_.remove, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
+          .addField(_.add, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
+          .build
+
+        val source = TypeWithNestedSrc(SharedNested(42, "hello"), true)
+        val result = migration(source)
+
+        assertTrue(result.isRight)
+      },
+      test("nested field change requires handling with full path") {
+        // When a nested field changes, the full path must be handled/provided
+        case class AddressV1(street: String, city: String)
+        case class PersonV1(name: String, address: AddressV1)
+
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class AddressV2(street: String, zip: String) // city -> zip
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class PersonV2(name: String, address: AddressV2)
+
+        given Schema[AddressV1] = Schema.derived
+        given Schema[PersonV1]  = Schema.derived
+        given Schema[AddressV2] = Schema.derived
+        given Schema[PersonV2]  = Schema.derived
+
+        // Need to handle "address.city" and provide "address.zip"
+        val migration = MigrationBuilder
+          .newBuilder[PersonV1, PersonV2]
+          .dropField(_.address.city, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
+          .addField(_.address.zip, SchemaExpr.Literal[DynamicValue, String]("00000", Schema.string))
+          .build
+
+        val source = PersonV1("John", AddressV1("Main St", "NYC"))
+        val result = migration(source)
+
+        assertTrue(result.isRight)
+      },
+      test("nested field change fails without full path handling") {
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration._
+          import zio.blocks.schema._
+
+          case class AddressA(street: String, city: String)
+          case class PersonA(name: String, address: AddressA)
+
+          case class AddressB(street: String, zip: String)
+          case class PersonB(name: String, address: AddressB)
+
+          given Schema[AddressA] = Schema.derived
+          given Schema[PersonA]  = Schema.derived
+          given Schema[AddressB] = Schema.derived
+          given Schema[PersonB]  = Schema.derived
+
+          // This should fail - nested change detected but not handled
+          MigrationBuilder.newBuilder[PersonA, PersonB].build
+        """))(Assertion.isLeft)
+      },
+      test("deeply nested path tracking (3 levels)") {
+        case class Level3(value: String)
+        case class Level2(l3: Level3)
+        case class Level1Src(l2: Level2, extra: Int)
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class Level1Tgt(l2: Level2)
+
+        given Schema[Level3]    = Schema.derived
+        given Schema[Level2]    = Schema.derived
+        given Schema[Level1Src] = Schema.derived
+        given Schema[Level1Tgt] = Schema.derived
+
+        // Nested l2, l2.l3, l2.l3.value are shared, only "extra" needs handling
+        val migration = MigrationBuilder
+          .newBuilder[Level1Src, Level1Tgt]
+          .dropField(_.extra, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+          .build
+
+        val source = Level1Src(Level2(Level3("deep")), 42)
+        val result = migration(source)
+
+        assertTrue(result.isRight)
+      },
+      test("deeply nested change requires full path") {
+        case class DeepInnerV1(value: Int)
+        case class DeepMiddleV1(inner: DeepInnerV1)
+        case class DeepOuterV1(middle: DeepMiddleV1)
+
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class DeepInnerV2(value: Long) // Int -> Long
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class DeepMiddleV2(inner: DeepInnerV2)
+        @scala.annotation.nowarn("msg=unused local definition")
+        case class DeepOuterV2(middle: DeepMiddleV2)
+
+        given Schema[DeepInnerV1]  = Schema.derived
+        given Schema[DeepMiddleV1] = Schema.derived
+        given Schema[DeepOuterV1]  = Schema.derived
+        given Schema[DeepInnerV2]  = Schema.derived
+        given Schema[DeepMiddleV2] = Schema.derived
+        given Schema[DeepOuterV2]  = Schema.derived
+
+        // The change at middle.inner.value needs to be handled
+        val migration = MigrationBuilder
+          .newBuilder[DeepOuterV1, DeepOuterV2]
+          .changeFieldType(_.middle.inner.value, PrimitiveConverter.IntToLong)
+          .build
+
+        val source = DeepOuterV1(DeepMiddleV1(DeepInnerV1(42)))
+        val result = migration(source)
+
+        assertTrue(result.isRight)
       }
     )
   )

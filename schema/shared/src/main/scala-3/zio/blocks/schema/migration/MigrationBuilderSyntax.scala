@@ -513,7 +513,12 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
   }
 
-  // Helper to extract field name from selector expression
+  /**
+   * Helper to extract full field path from selector expression.
+   *
+   * For nested selectors like `_.address.street`, returns the full path
+   * "address.street" instead of just "street".
+   */
   private def extractFieldNameFromSelector(using q: Quotes)(term: q.reflect.Term): String = {
     import q.reflect.*
 
@@ -524,11 +529,13 @@ private[migration] object MigrationBuilderMacrosImpl {
         report.errorAndAbort(s"Expected a lambda expression, got '${t.show}'", t.pos)
     }
 
-    def extractLastFieldName(t: Term): String = t match {
-      case Select(_, fieldName) => fieldName
-      case Typed(expr, _)       => extractLastFieldName(expr)
-      case _: Ident             =>
-        report.errorAndAbort("Selector must access a field", t.pos)
+    def extractPath(t: Term, acc: List[String]): List[String] = t match {
+      case Select(parent, fieldName) =>
+        extractPath(parent, fieldName :: acc)
+      case _: Ident =>
+        acc
+      case Typed(expr, _) =>
+        extractPath(expr, acc)
       case _ =>
         report.errorAndAbort(
           s"Unsupported selector pattern: '${t.show}'. Only simple field access is supported",
@@ -537,6 +544,13 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
 
     val pathBody = toPathBody(term)
-    extractLastFieldName(pathBody)
+    val path     = extractPath(pathBody, Nil)
+
+    if (path.isEmpty) {
+      report.errorAndAbort("Selector must access at least one field", term.pos)
+    }
+
+    // Return the full dot-separated path
+    path.mkString(".")
   }
 }
