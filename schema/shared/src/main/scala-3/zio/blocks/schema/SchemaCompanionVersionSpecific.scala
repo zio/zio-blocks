@@ -146,8 +146,23 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     }
 
     val sTpe = loop(tpe)
-    if (sTpe =:= tpe) fail(s"Cannot dealias opaque type: ${tpe.show}.")
-    sTpe
+    // If loop didn't change the type but we know it's opaque, try alternatives
+    if (sTpe =:= tpe) {
+      tpe match {
+        case trTpe: TypeRef =>
+          // Try translucentSuperType directly
+          val superType = trTpe.translucentSuperType
+          if (!(superType =:= tpe)) superType.dealias
+          else {
+            // Try widen for opaque types with upper bounds (e.g., opaque type X <: String)
+            val widened = tpe.widen
+            if (!(widened =:= tpe)) widened.dealias
+            else fail(s"Cannot dealias opaque type: ${tpe.show}.")
+          }
+        case _ =>
+          fail(s"Cannot dealias opaque type: ${tpe.show}.")
+      }
+    } else sTpe
   }
 
   private def isNewtype(tpe: TypeRepr): Boolean = tpe match {
