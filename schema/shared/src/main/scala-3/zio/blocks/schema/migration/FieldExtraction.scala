@@ -18,6 +18,9 @@ object FieldExtraction {
    * Typeclass for extracting field names from a type at compile time. The
    * Labels type member contains the field names as a tuple of string literal
    * types.
+   *
+   * Note: This extracts only top-level field names. For full nested path
+   * extraction, use FieldPaths instead.
    */
   sealed trait FieldNames[A] {
     type Labels <: Tuple
@@ -39,6 +42,205 @@ object FieldExtraction {
      */
     transparent inline given derived[A](using m: Mirror.ProductOf[A]): FieldNames[A] =
       new Impl[A, m.MirroredElemLabels]
+  }
+
+  /**
+   * Typeclass for extracting all field paths (including nested paths) from a
+   * type at compile time. The Paths type member contains the paths as a tuple
+   * of string literal types.
+   *
+   * For nested case classes, returns all dot-separated paths:
+   * {{{
+   * case class Address(street: String, city: String)
+   * case class Person(name: String, address: Address)
+   *
+   * FieldPaths[Person].Paths =:= ("address", "address.city", "address.street", "name")
+   * }}}
+   */
+  sealed trait FieldPaths[A] {
+    type Paths <: Tuple
+  }
+
+  object FieldPaths {
+
+    /**
+     * Concrete implementation of FieldPaths with the Paths type member. Public
+     * because it's used in transparent inline given.
+     */
+    class Impl[A, P <: Tuple] extends FieldPaths[A] {
+      type Paths = P
+    }
+
+    /**
+     * Given instance that extracts all field paths from a type at compile time.
+     * Uses ShapeExtraction to get nested paths and converts them to a Tuple
+     * type.
+     */
+    transparent inline given derived[A]: FieldPaths[A] = ${ derivedImpl[A] }
+
+    private def derivedImpl[A: Type](using q: Quotes): Expr[FieldPaths[A]] = {
+      import q.reflect.*
+
+      // Use ShapeExtraction's internal logic to get paths
+      val tpe   = TypeRepr.of[A].dealias
+      val paths = extractFieldPathsFromType(tpe, "", Set.empty).sorted
+
+      // Create a tuple type from the paths
+      val tupleType = pathsToTupleType(paths)
+
+      tupleType.asType match {
+        case '[t] =>
+          '{ new FieldPaths.Impl[A, t & Tuple] }
+      }
+    }
+
+    /**
+     * Convert a list of path strings to a Tuple type.
+     */
+    private def pathsToTupleType(using q: Quotes)(paths: List[String]): q.reflect.TypeRepr = {
+      import q.reflect.*
+
+      paths.foldRight(TypeRepr.of[EmptyTuple]) { (path, acc) =>
+        val pathType = ConstantType(StringConstant(path))
+        TypeRepr.of[*:].appliedTo(List(pathType, acc))
+      }
+    }
+
+    /**
+     * Extract all field paths from a type, recursively descending into nested
+     * case classes. This duplicates ShapeExtraction logic to avoid cyclic
+     * dependencies.
+     */
+    private def extractFieldPathsFromType(using
+      q: Quotes
+    )(tpe: q.reflect.TypeRepr, prefix: String, visiting: Set[String]): List[String] = {
+      import q.reflect.*
+
+      val dealiased = tpe.dealias
+      val typeKey   = dealiased.typeSymbol.fullName
+
+      // Check for recursion
+      if (visiting.contains(typeKey)) {
+        report.errorAndAbort(
+          s"Recursive type detected: ${dealiased.show}. " +
+            s"Migration validation does not support recursive types. " +
+            s"Recursion path: ${visiting.mkString(" -> ")} -> $typeKey"
+        )
+      }
+
+      // Skip extraction for container types and primitives
+      if (isContainerType(dealiased) || isPrimitiveType(dealiased)) {
+        return Nil
+      }
+
+      // Only extract fields from product types (case classes)
+      if (!isProductType(dealiased.typeSymbol)) {
+        return Nil
+      }
+
+      val newVisiting = visiting + typeKey
+      val fields      = getProductFields(dealiased)
+
+      fields.flatMap { case (fieldName, fieldType) =>
+        val fullPath    = if (prefix.isEmpty) fieldName else s"$prefix$fieldName"
+        val nestedPaths = extractFieldPathsFromType(fieldType, s"$fullPath.", newVisiting)
+        fullPath :: nestedPaths
+      }
+    }
+
+    /**
+     * Check if a type is a product type (case class, but not abstract).
+     */
+    private def isProductType(using q: Quotes)(symbol: q.reflect.Symbol): Boolean = {
+      import q.reflect.*
+      symbol.flags.is(Flags.Case) && !symbol.flags.is(Flags.Abstract)
+    }
+
+    /**
+     * Check if a type is a container type (Option, List, Vector, Set, Map,
+     * etc.) that should not be recursed into.
+     */
+    private def isContainerType(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
+      import q.reflect.*
+
+      val containerTypes = List(
+        TypeRepr.of[Option[?]],
+        TypeRepr.of[List[?]],
+        TypeRepr.of[Vector[?]],
+        TypeRepr.of[Set[?]],
+        TypeRepr.of[Seq[?]],
+        TypeRepr.of[IndexedSeq[?]],
+        TypeRepr.of[Iterable[?]],
+        TypeRepr.of[Map[?, ?]],
+        TypeRepr.of[Array[?]]
+      )
+
+      containerTypes.exists(ct => tpe <:< ct)
+    }
+
+    /**
+     * Check if a type is a primitive type that should not be recursed into.
+     */
+    private def isPrimitiveType(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
+      import q.reflect.*
+
+      val primitiveTypes = List(
+        TypeRepr.of[Boolean],
+        TypeRepr.of[Byte],
+        TypeRepr.of[Short],
+        TypeRepr.of[Int],
+        TypeRepr.of[Long],
+        TypeRepr.of[Float],
+        TypeRepr.of[Double],
+        TypeRepr.of[Char],
+        TypeRepr.of[String],
+        TypeRepr.of[java.math.BigInteger],
+        TypeRepr.of[java.math.BigDecimal],
+        TypeRepr.of[BigInt],
+        TypeRepr.of[BigDecimal],
+        TypeRepr.of[java.util.UUID],
+        TypeRepr.of[java.time.Instant],
+        TypeRepr.of[java.time.LocalDate],
+        TypeRepr.of[java.time.LocalTime],
+        TypeRepr.of[java.time.LocalDateTime],
+        TypeRepr.of[java.time.OffsetDateTime],
+        TypeRepr.of[java.time.ZonedDateTime],
+        TypeRepr.of[java.time.Duration],
+        TypeRepr.of[java.time.Period],
+        TypeRepr.of[java.time.Year],
+        TypeRepr.of[java.time.YearMonth],
+        TypeRepr.of[java.time.MonthDay],
+        TypeRepr.of[java.time.ZoneId],
+        TypeRepr.of[java.time.ZoneOffset],
+        TypeRepr.of[Unit],
+        TypeRepr.of[Nothing]
+      )
+
+      primitiveTypes.exists(pt => tpe =:= pt)
+    }
+
+    /**
+     * Get the fields of a product type as (name, type) pairs.
+     */
+    private def getProductFields(using q: Quotes)(tpe: q.reflect.TypeRepr): List[(String, q.reflect.TypeRepr)] = {
+      val symbol = tpe.typeSymbol
+
+      // Get primary constructor
+      val constructor = symbol.primaryConstructor
+      if (constructor.isNoSymbol) return Nil
+
+      // Get constructor parameter lists
+      val paramLists = constructor.paramSymss
+
+      // Filter to term parameters (not type parameters)
+      val termParams = paramLists.flatten.filter(_.isTerm)
+
+      termParams.map { param =>
+        val paramName = param.name
+        val paramType = tpe.memberType(param)
+        (paramName, paramType.dealias)
+      }
+    }
   }
 
   /**
