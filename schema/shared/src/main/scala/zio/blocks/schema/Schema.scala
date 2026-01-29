@@ -15,7 +15,7 @@ import scala.collection.immutable.ArraySeq
  * of a Scala data type, together with the ability to tear down and build up
  * values of that type.
  */
-final case class Schema[A](reflect: Reflect.Bound[A]) {
+final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpecific[A] {
   private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
 
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =

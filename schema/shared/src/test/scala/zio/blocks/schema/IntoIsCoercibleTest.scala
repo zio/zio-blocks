@@ -121,10 +121,10 @@ object IntoIsCoercibleTest extends SchemaBaseSpec {
       test("Long to Int in case class - overflow") {
         case class Source(value: Long)
         case class Target(value: Int)
-        locally { val _ = Target }
 
         val source = Source(Long.MaxValue)
         val result = Into.derived[Source, Target].into(source)
+        val _      = Target(0) // suppress unused warning
 
         assertTrue(
           result.isLeft,
@@ -143,10 +143,10 @@ object IntoIsCoercibleTest extends SchemaBaseSpec {
       test("Double to Float in case class - overflow") {
         case class Source(value: Double)
         case class Target(value: Float)
-        locally { val _ = Target }
 
         val source = Source(Double.MaxValue)
         val result = Into.derived[Source, Target].into(source)
+        val _      = Target(0f) // suppress unused warning
 
         assertTrue(
           result.isLeft,
