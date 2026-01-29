@@ -209,8 +209,8 @@ object JsonDecoder {
       case _: Json.Null.type => new Right(None)
       case _                 =>
         decoder.decode(json) match {
-          case Right(v) => new Right(new Some(v))
-          case left     => left.asInstanceOf[Either[SchemaError, Option[A]]]
+          case Right(v)    => new Right(new Some(v))
+          case Left(error) => new Left(error.atCase("Some"))
         }
     }
   }
@@ -382,11 +382,11 @@ object JsonDecoder {
           case Some(("Left", value)) =>
             new Right(new Left(leftDecoder.decode(value) match {
               case Right(l)    => l
-              case Left(error) => return new Left(error.atField("Left"))
+              case Left(error) => return new Left(error.atCase("Left"))
             }))
           case Some(("Right", value)) =>
             new Right(rightDecoder.decode(value) match {
-              case Left(error) => return new Left(error.atField("Right"))
+              case Left(error) => return new Left(error.atCase("Right"))
               case r           => r.asInstanceOf[Either[L, R]]
             })
           case _ => new Left(SchemaError("Expected Object with 'Left' or 'Right' key"))
