@@ -1,10 +1,11 @@
 package zio.blocks.schema.structural.common
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
 /** Tests for empty product types to structural conversion. */
-object EmptyProductSpec extends ZIOSpecDefault {
+object EmptyProductSpec extends SchemaBaseSpec {
 
   case class Empty()
   case object Singleton

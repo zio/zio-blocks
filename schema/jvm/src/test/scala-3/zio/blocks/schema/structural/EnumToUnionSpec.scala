@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
@@ -10,7 +11,7 @@ import zio.test._
  * Example: enum Color { Red, Green, Blue } → Schema[{type Tag = "Red"} | {type
  * Tag = "Green"} | {type Tag = "Blue"}]
  */
-object EnumToUnionSpec extends ZIOSpecDefault {
+object EnumToUnionSpec extends SchemaBaseSpec {
 
   enum Color {
     case Red, Green, Blue
