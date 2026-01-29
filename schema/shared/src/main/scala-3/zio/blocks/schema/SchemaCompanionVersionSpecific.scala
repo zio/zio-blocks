@@ -6,7 +6,7 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.quoted._
 import zio.blocks.schema.{Term => SchemaTerm}
-import zio.blocks.typeid.{DynamicTypeId, TypeId}
+import zio.blocks.typeid.{DynamicTypeId, Owner, TypeDefKind, TypeId}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.schema.CommonMacroOps
@@ -89,13 +89,23 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     collectMembers(tpe.dealias).reverse
   }
 
-  private def normalizeStructuralTypeName[T](members: List[(String, TypeRepr)]): TypeName[T] = {
+  private def normalizeStructuralTypeId[T](members: List[(String, TypeRepr)]): TypeId[T] = {
     // Sort fields alphabetically for deterministic naming
     val sorted     = members.sortBy(_._1)
     val nameString = sorted.map { case (name, tpe) =>
       s"$name:${normalizeTypeForName(tpe)}"
     }.mkString("{", ",", "}")
-    new TypeName[T](new Namespace(Nil, Nil), nameString, Nil)
+    TypeId[T](
+      DynamicTypeId(
+        owner = Owner.Root,
+        name = nameString,
+        typeParams = Nil,
+        kind = TypeDefKind.Class(),
+        parents = Nil,
+        args = Nil,
+        annotations = Nil
+      )
+    )
   }
 
   private def normalizeTypeForName(tpe: TypeRepr): String = {
@@ -1491,12 +1501,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
     // Handle empty structural type (no members)
     if (members.isEmpty) {
-      val tpeName = toExpr(normalizeStructuralTypeName[T](members))
+      val tpeId = normalizeStructuralTypeId[T](members)
       '{
         new Schema(
           reflect = new Reflect.Record[Binding, T](
             fields = Vector.empty,
-            typeName = $tpeName,
+            typeId = ${ Expr(tpeId) },
             recordBinding = new Binding.Record(
               constructor = new Constructor {
                 def usedRegisters: RegisterOffset                           = RegisterOffset.Zero
@@ -1549,7 +1559,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       }
     })
 
-    val tpeName = toExpr(normalizeStructuralTypeName[T](members))
+    val tpeId = normalizeStructuralTypeId[T](members)
 
     val fieldInfoForRuntime: List[(String, Int, Int, Int)] = fieldInfos.map { case (fi, baseOffset) =>
       val typeIndicator =
@@ -1579,7 +1589,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector($fieldTerms*),
-          typeName = $tpeName,
+          typeId = ${ Expr(tpeId) },
           recordBinding = new Binding.Record(
             constructor = new Constructor {
               def usedRegisters: RegisterOffset = $totalRegistersExpr
