@@ -778,6 +778,75 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = ds.toJsonSchema
         assertTrue(jsonSchema != null)
       }
+    ),
+    suite("Schema[DynamicSchema] round-trip")(
+      test("primitive schema round-trips through DynamicValue") {
+        val original  = Schema[Int].toDynamicSchema
+        val dv        = DynamicSchema.toDynamicValue(original)
+        val roundTrip = DynamicSchema.fromDynamicValue(dv)
+        val name      = roundTrip.typeName.name
+        assertTrue(name == "Int")
+      },
+      test("record schema round-trips through DynamicValue") {
+        val original  = Schema[Person].toDynamicSchema
+        val dv        = DynamicSchema.toDynamicValue(original)
+        val roundTrip = DynamicSchema.fromDynamicValue(dv)
+        val name      = roundTrip.typeName.name
+        val hasName   = roundTrip.get(DynamicOptic.root.field("name")).isDefined
+        val hasAge    = roundTrip.get(DynamicOptic.root.field("age")).isDefined
+        assertTrue(name == "Person") &&
+        assertTrue(hasName) &&
+        assertTrue(hasAge)
+      },
+      test("variant schema round-trips through DynamicValue") {
+        val original  = Schema[Color].toDynamicSchema
+        val dv        = DynamicSchema.toDynamicValue(original)
+        val roundTrip = DynamicSchema.fromDynamicValue(dv)
+        val name      = roundTrip.typeName.name
+        assertTrue(name == "Color")
+      },
+      test("sequence schema round-trips through DynamicValue") {
+        val original  = Schema[List[Int]].toDynamicSchema
+        val dv        = DynamicSchema.toDynamicValue(original)
+        val roundTrip = DynamicSchema.fromDynamicValue(dv)
+        val name      = roundTrip.typeName.name
+        assertTrue(name == "List")
+      },
+      test("map schema round-trips through DynamicValue") {
+        val original  = Schema[Map[String, Int]].toDynamicSchema
+        val dv        = DynamicSchema.toDynamicValue(original)
+        val roundTrip = DynamicSchema.fromDynamicValue(dv)
+        val name      = roundTrip.typeName.name
+        assertTrue(name == "Map")
+      },
+      test("round-tripped schema validates same values as original") {
+        val original   = Schema[Person].toDynamicSchema
+        val dv         = DynamicSchema.toDynamicValue(original)
+        val roundTrip  = DynamicSchema.fromDynamicValue(dv)
+        val validValue = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
+        val conformsOriginal  = original.conforms(validValue)
+        val conformsRoundTrip = roundTrip.conforms(validValue)
+        assertTrue(conformsOriginal == conformsRoundTrip)
+      },
+      test("Schema[DynamicSchema] implicit is available") {
+        val schemaForDynamicSchema = implicitly[Schema[DynamicSchema]]
+        assertTrue(schemaForDynamicSchema != null)
+      },
+      test("DynamicSchema serializes via Schema[DynamicSchema]") {
+        val original  = Schema[Person].toDynamicSchema
+        val schema    = Schema[DynamicSchema]
+        val dv        = schema.toDynamicValue(original)
+        val roundTrip = schema.fromDynamicValue(dv)
+        val isRight   = roundTrip.isRight
+        val name      = roundTrip.toOption.get.typeName.name
+        assertTrue(isRight) &&
+        assertTrue(name == "Person")
+      }
     )
   )
 }

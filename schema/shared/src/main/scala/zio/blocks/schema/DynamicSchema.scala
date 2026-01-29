@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.binding.NoBinding
+import zio.blocks.schema.binding._
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.json.JsonSchema
 
 /**
@@ -602,6 +603,763 @@ object DynamicSchema {
         if (typedSet.values.contains(v)) scala.None else fail(s"value $v not in allowed set")
       case _ =>
         fail("Set validation only applies to numeric types")
+    }
+  }
+
+  // ===========================================================================
+  // Hand-written Schemas for Serialization
+  // ===========================================================================
+
+  /** Schema for [[Namespace]]. */
+  implicit lazy val namespaceSchema: Schema[Namespace] = new Schema(
+    reflect = new Reflect.Record[Binding, Namespace](
+      fields = Vector(
+        Schema[Seq[String]].reflect.asTerm("packages"),
+        Schema[Seq[String]].reflect.asTerm("values")
+      ),
+      typeName = new TypeName(Namespace.zioBlocksSchema, "Namespace"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Namespace] {
+          def usedRegisters: RegisterOffset                               = 2
+          def construct(in: Registers, offset: RegisterOffset): Namespace =
+            new Namespace(
+              in.getObject(offset).asInstanceOf[Seq[String]],
+              in.getObject(offset + 1).asInstanceOf[Seq[String]]
+            )
+        },
+        deconstructor = new Deconstructor[Namespace] {
+          def usedRegisters: RegisterOffset                                            = 2
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Namespace): Unit = {
+            out.setObject(offset, in.packages)
+            out.setObject(offset + 1, in.values)
+          }
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[TypeName]] (type-erased). */
+  implicit lazy val typeNameSchema: Schema[TypeName[_]] = {
+    lazy val paramsReflect: Reflect.Bound[Seq[TypeName[_]]] =
+      Schema.seq(typeNameSchema).reflect
+
+    new Schema(
+      reflect = new Reflect.Record[Binding, TypeName[_]](
+        fields = Vector(
+          namespaceSchema.reflect.asTerm("namespace"),
+          Schema[String].reflect.asTerm("name"),
+          new Reflect.Deferred(() => paramsReflect).asTerm("params")
+        ),
+        typeName = new TypeName(Namespace.zioBlocksSchema, "TypeName"),
+        recordBinding = new Binding.Record(
+          constructor = new Constructor[TypeName[_]] {
+            def usedRegisters: RegisterOffset                                 = 3
+            def construct(in: Registers, offset: RegisterOffset): TypeName[_] =
+              new TypeName(
+                in.getObject(offset).asInstanceOf[Namespace],
+                in.getObject(offset + 1).asInstanceOf[String],
+                in.getObject(offset + 2).asInstanceOf[Seq[TypeName[_]]]
+              )
+          },
+          deconstructor = new Deconstructor[TypeName[_]] {
+            def usedRegisters: RegisterOffset                                              = 3
+            def deconstruct(out: Registers, offset: RegisterOffset, in: TypeName[_]): Unit = {
+              out.setObject(offset, in.namespace)
+              out.setObject(offset + 1, in.name)
+              out.setObject(offset + 2, in.params)
+            }
+          }
+        ),
+        modifiers = Vector.empty
+      )
+    )
+  }
+
+  /** Schema for [[Doc.Empty]]. */
+  private lazy val docEmptySchema: Schema[Doc.Empty.type] = new Schema(
+    reflect = new Reflect.Record[Binding, Doc.Empty.type](
+      fields = Vector.empty,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Doc")), "Empty"),
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[Doc.Empty.type](Doc.Empty),
+        deconstructor = new ConstantDeconstructor[Doc.Empty.type]
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Doc.Text]]. */
+  private lazy val docTextSchema: Schema[Doc.Text] = new Schema(
+    reflect = new Reflect.Record[Binding, Doc.Text](
+      fields = Vector(Schema[String].reflect.asTerm("value")),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Doc")), "Text"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Doc.Text] {
+          def usedRegisters: RegisterOffset                              = 1
+          def construct(in: Registers, offset: RegisterOffset): Doc.Text =
+            Doc.Text(in.getObject(offset).asInstanceOf[String])
+        },
+        deconstructor = new Deconstructor[Doc.Text] {
+          def usedRegisters: RegisterOffset                                           = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Doc.Text): Unit =
+            out.setObject(offset, in.value)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Doc.Concat]]. */
+  private lazy val docConcatSchema: Schema[Doc.Concat] = new Schema(
+    reflect = new Reflect.Record[Binding, Doc.Concat](
+      fields = Vector(Schema[IndexedSeq[Doc.Leaf]].reflect.asTerm("flatten")),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Doc")), "Concat"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Doc.Concat] {
+          def usedRegisters: RegisterOffset                                = 1
+          def construct(in: Registers, offset: RegisterOffset): Doc.Concat =
+            Doc.Concat(in.getObject(offset).asInstanceOf[IndexedSeq[Doc.Leaf]])
+        },
+        deconstructor = new Deconstructor[Doc.Concat] {
+          def usedRegisters: RegisterOffset                                             = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Doc.Concat): Unit =
+            out.setObject(offset, in.flatten)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Doc.Leaf]]. */
+  implicit lazy val docLeafSchema: Schema[Doc.Leaf] = new Schema(
+    reflect = new Reflect.Variant[Binding, Doc.Leaf](
+      cases = Vector(
+        docEmptySchema.reflect.asTerm("Empty"),
+        docTextSchema.reflect.asTerm("Text")
+      ),
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Doc")), "Leaf"),
+      variantBinding = new Binding.Variant(
+        discriminator = new Discriminator[Doc.Leaf] {
+          def discriminate(a: Doc.Leaf): Int = a match {
+            case Doc.Empty   => 0
+            case _: Doc.Text => 1
+          }
+        },
+        matchers = Matchers(
+          new Matcher[Doc.Empty.type] {
+            def downcastOrNull(a: Any): Doc.Empty.type = a match {
+              case Doc.Empty => Doc.Empty
+              case _         => null.asInstanceOf[Doc.Empty.type]
+            }
+          },
+          new Matcher[Doc.Text] {
+            def downcastOrNull(a: Any): Doc.Text = a match {
+              case x: Doc.Text => x
+              case _           => null.asInstanceOf[Doc.Text]
+            }
+          }
+        )
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /** Schema for [[Doc]]. */
+  implicit lazy val docSchema: Schema[Doc] = new Schema(
+    reflect = new Reflect.Variant[Binding, Doc](
+      cases = Vector(
+        docEmptySchema.reflect.asTerm("Empty"),
+        docTextSchema.reflect.asTerm("Text"),
+        docConcatSchema.reflect.asTerm("Concat")
+      ),
+      typeName = new TypeName(Namespace.zioBlocksSchema, "Doc"),
+      variantBinding = new Binding.Variant(
+        discriminator = new Discriminator[Doc] {
+          def discriminate(a: Doc): Int = a match {
+            case Doc.Empty     => 0
+            case _: Doc.Text   => 1
+            case _: Doc.Concat => 2
+          }
+        },
+        matchers = Matchers(
+          new Matcher[Doc.Empty.type] {
+            def downcastOrNull(a: Any): Doc.Empty.type = a match {
+              case Doc.Empty => Doc.Empty
+              case _         => null.asInstanceOf[Doc.Empty.type]
+            }
+          },
+          new Matcher[Doc.Text] {
+            def downcastOrNull(a: Any): Doc.Text = a match {
+              case x: Doc.Text => x
+              case _           => null.asInstanceOf[Doc.Text]
+            }
+          },
+          new Matcher[Doc.Concat] {
+            def downcastOrNull(a: Any): Doc.Concat = a match {
+              case x: Doc.Concat => x
+              case _             => null.asInstanceOf[Doc.Concat]
+            }
+          }
+        )
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /**
+   * Schema for [[DynamicSchema]].
+   *
+   * Serializes the schema structure by converting the underlying
+   * [[Reflect.Unbound]] to a [[DynamicValue]] representation and back. This
+   * enables round-trip serialization while preserving full structural fidelity.
+   */
+  implicit lazy val schema: Schema[DynamicSchema] = new Schema(
+    reflect = new Reflect.Record[Binding, DynamicSchema](
+      fields = Vector(Schema[DynamicValue].reflect.asTerm("reflect")),
+      typeName = new TypeName(Namespace.zioBlocksSchema, "DynamicSchema"),
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[DynamicSchema] {
+          def usedRegisters: RegisterOffset                                   = 1
+          def construct(in: Registers, offset: RegisterOffset): DynamicSchema =
+            fromDynamicValue(in.getObject(offset).asInstanceOf[DynamicValue])
+        },
+        deconstructor = new Deconstructor[DynamicSchema] {
+          def usedRegisters: RegisterOffset                                                = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: DynamicSchema): Unit =
+            out.setObject(offset, toDynamicValue(in))
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  /**
+   * Converts a [[DynamicSchema]] to a [[DynamicValue]] representation for
+   * serialization.
+   */
+  def toDynamicValue(ds: DynamicSchema): DynamicValue =
+    reflectToDynamicValue(ds.reflect)
+
+  /**
+   * Reconstructs a [[DynamicSchema]] from a [[DynamicValue]] representation.
+   */
+  def fromDynamicValue(dv: DynamicValue): DynamicSchema =
+    new DynamicSchema(dynamicValueToReflect(dv))
+
+  private def reflectToDynamicValue(reflect: Reflect[NoBinding, _]): DynamicValue = {
+    import zio.blocks.chunk.Chunk
+
+    def typeNameToDV(tn: TypeName[_]): DynamicValue = DynamicValue.Record(
+      Chunk(
+        "namespace" -> DynamicValue.Record(
+          Chunk(
+            "packages" -> DynamicValue.Sequence(
+              Chunk.from(tn.namespace.packages.map(s => DynamicValue.Primitive(PrimitiveValue.String(s))))
+            ),
+            "values" -> DynamicValue.Sequence(
+              Chunk.from(tn.namespace.values.map(s => DynamicValue.Primitive(PrimitiveValue.String(s))))
+            )
+          )
+        ),
+        "name"   -> DynamicValue.Primitive(PrimitiveValue.String(tn.name)),
+        "params" -> DynamicValue.Sequence(Chunk.from(tn.params.map(typeNameToDV)))
+      )
+    )
+
+    def docToDV(doc: Doc): DynamicValue = doc match {
+      case Doc.Empty       => DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))
+      case Doc.Text(value) =>
+        DynamicValue.Variant(
+          "Text",
+          DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.String(value))))
+        )
+      case Doc.Concat(leaves) =>
+        DynamicValue.Variant(
+          "Concat",
+          DynamicValue.Record(Chunk("leaves" -> DynamicValue.Sequence(Chunk.from(leaves.map(docToDV)))))
+        )
+    }
+
+    def modifierToDV(m: Modifier.Reflect): DynamicValue = m match {
+      case Modifier.config(key, value) =>
+        DynamicValue.Variant(
+          "config",
+          DynamicValue.Record(
+            Chunk(
+              "key"   -> DynamicValue.Primitive(PrimitiveValue.String(key)),
+              "value" -> DynamicValue.Primitive(PrimitiveValue.String(value))
+            )
+          )
+        )
+    }
+
+    def validationToDV(v: Validation[_]): DynamicValue = v match {
+      case Validation.None                    => DynamicValue.Variant("None", DynamicValue.Record(Chunk.empty))
+      case Validation.Numeric.Positive        => DynamicValue.Variant("Positive", DynamicValue.Record(Chunk.empty))
+      case Validation.Numeric.Negative        => DynamicValue.Variant("Negative", DynamicValue.Record(Chunk.empty))
+      case Validation.Numeric.NonPositive     => DynamicValue.Variant("NonPositive", DynamicValue.Record(Chunk.empty))
+      case Validation.Numeric.NonNegative     => DynamicValue.Variant("NonNegative", DynamicValue.Record(Chunk.empty))
+      case Validation.Numeric.Range(min, max) =>
+        DynamicValue.Variant(
+          "Range",
+          DynamicValue.Record(
+            Chunk(
+              "min" -> min
+                .map(v => DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
+                .getOrElse(DynamicValue.Null),
+              "max" -> max
+                .map(v => DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
+                .getOrElse(DynamicValue.Null)
+            )
+          )
+        )
+      case Validation.Numeric.Set(values) =>
+        DynamicValue.Variant(
+          "Set",
+          DynamicValue.Record(
+            Chunk(
+              "values" -> DynamicValue.Sequence(
+                Chunk.from(values.map(v => DynamicValue.Primitive(PrimitiveValue.String(v.toString))).toSeq)
+              )
+            )
+          )
+        )
+      case Validation.String.NonEmpty         => DynamicValue.Variant("NonEmpty", DynamicValue.Record(Chunk.empty))
+      case Validation.String.Empty            => DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))
+      case Validation.String.Blank            => DynamicValue.Variant("Blank", DynamicValue.Record(Chunk.empty))
+      case Validation.String.NonBlank         => DynamicValue.Variant("NonBlank", DynamicValue.Record(Chunk.empty))
+      case Validation.String.Length(min, max) =>
+        DynamicValue.Variant(
+          "Length",
+          DynamicValue.Record(
+            Chunk(
+              "min" -> min.map(v => DynamicValue.Primitive(PrimitiveValue.Int(v))).getOrElse(DynamicValue.Null),
+              "max" -> max.map(v => DynamicValue.Primitive(PrimitiveValue.Int(v))).getOrElse(DynamicValue.Null)
+            )
+          )
+        )
+      case Validation.String.Pattern(regex) =>
+        DynamicValue.Variant(
+          "Pattern",
+          DynamicValue.Record(
+            Chunk(
+              "regex" -> DynamicValue.Primitive(PrimitiveValue.String(regex))
+            )
+          )
+        )
+    }
+
+    def primitiveTypeToDV(pt: PrimitiveType[_]): DynamicValue = {
+      val name = pt.typeName.name
+      DynamicValue.Record(
+        Chunk(
+          "type"       -> DynamicValue.Primitive(PrimitiveValue.String(name)),
+          "validation" -> validationToDV(pt.validation)
+        )
+      )
+    }
+
+    def termToDV[S, A](term: Term[NoBinding, S, A]): DynamicValue = DynamicValue.Record(
+      Chunk(
+        "name"      -> DynamicValue.Primitive(PrimitiveValue.String(term.name)),
+        "value"     -> reflectToDynamicValue(term.value),
+        "doc"       -> docToDV(term.doc),
+        "modifiers" -> DynamicValue.Sequence(Chunk.from(term.modifiers.map {
+          case Modifier.transient() => DynamicValue.Variant("transient", DynamicValue.Record(Chunk.empty))
+          case Modifier.rename(n)   =>
+            DynamicValue.Variant(
+              "rename",
+              DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String(n))))
+            )
+          case Modifier.alias(n) =>
+            DynamicValue.Variant(
+              "alias",
+              DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String(n))))
+            )
+          case Modifier.config(k, v) =>
+            DynamicValue.Variant(
+              "config",
+              DynamicValue.Record(
+                Chunk(
+                  "key"   -> DynamicValue.Primitive(PrimitiveValue.String(k)),
+                  "value" -> DynamicValue.Primitive(PrimitiveValue.String(v))
+                )
+              )
+            )
+        }))
+      )
+    )
+
+    reflect match {
+      case r: Reflect.Record[NoBinding, _] =>
+        DynamicValue.Variant(
+          "Record",
+          DynamicValue.Record(
+            Chunk(
+              "typeName"     -> typeNameToDV(r.typeName),
+              "doc"          -> docToDV(r.doc),
+              "modifiers"    -> DynamicValue.Sequence(Chunk.from(r.modifiers.map(modifierToDV))),
+              "fields"       -> DynamicValue.Sequence(Chunk.from(r.fields.map(termToDV(_)))),
+              "defaultValue" -> r.storedDefaultValue.getOrElse(DynamicValue.Null),
+              "examples"     -> DynamicValue.Sequence(Chunk.from(r.storedExamples))
+            )
+          )
+        )
+
+      case v: Reflect.Variant[NoBinding, _] =>
+        DynamicValue.Variant(
+          "Variant",
+          DynamicValue.Record(
+            Chunk(
+              "typeName"     -> typeNameToDV(v.typeName),
+              "doc"          -> docToDV(v.doc),
+              "modifiers"    -> DynamicValue.Sequence(Chunk.from(v.modifiers.map(modifierToDV))),
+              "cases"        -> DynamicValue.Sequence(Chunk.from(v.cases.map(termToDV(_)))),
+              "defaultValue" -> v.storedDefaultValue.getOrElse(DynamicValue.Null),
+              "examples"     -> DynamicValue.Sequence(Chunk.from(v.storedExamples))
+            )
+          )
+        )
+
+      case s: Reflect.Sequence[NoBinding, _, _] @unchecked =>
+        DynamicValue.Variant(
+          "Sequence",
+          DynamicValue.Record(
+            Chunk(
+              "typeName"     -> typeNameToDV(s.typeName),
+              "doc"          -> docToDV(s.doc),
+              "modifiers"    -> DynamicValue.Sequence(Chunk.from(s.modifiers.map(modifierToDV))),
+              "element"      -> reflectToDynamicValue(s.element),
+              "defaultValue" -> s.storedDefaultValue.getOrElse(DynamicValue.Null),
+              "examples"     -> DynamicValue.Sequence(Chunk.from(s.storedExamples))
+            )
+          )
+        )
+
+      case m: Reflect.Map[NoBinding, _, _, _] @unchecked =>
+        DynamicValue.Variant(
+          "Map",
+          DynamicValue.Record(
+            Chunk(
+              "typeName"     -> typeNameToDV(m.typeName),
+              "doc"          -> docToDV(m.doc),
+              "modifiers"    -> DynamicValue.Sequence(Chunk.from(m.modifiers.map(modifierToDV))),
+              "key"          -> reflectToDynamicValue(m.key),
+              "value"        -> reflectToDynamicValue(m.value),
+              "defaultValue" -> m.storedDefaultValue.getOrElse(DynamicValue.Null),
+              "examples"     -> DynamicValue.Sequence(Chunk.from(m.storedExamples))
+            )
+          )
+        )
+
+      case p: Reflect.Primitive[NoBinding, _] =>
+        DynamicValue.Variant(
+          "Primitive",
+          DynamicValue.Record(
+            Chunk(
+              "typeName"      -> typeNameToDV(p.typeName),
+              "doc"           -> docToDV(p.doc),
+              "modifiers"     -> DynamicValue.Sequence(Chunk.from(p.modifiers.map(modifierToDV))),
+              "primitiveType" -> primitiveTypeToDV(p.primitiveType),
+              "defaultValue"  -> p.storedDefaultValue.getOrElse(DynamicValue.Null),
+              "examples"      -> DynamicValue.Sequence(Chunk.from(p.storedExamples))
+            )
+          )
+        )
+
+      case w: Reflect.Wrapper[NoBinding, _, _] =>
+        DynamicValue.Variant(
+          "Wrapper",
+          DynamicValue.Record(
+            Chunk(
+              "typeName"     -> typeNameToDV(w.typeName),
+              "doc"          -> docToDV(w.doc),
+              "modifiers"    -> DynamicValue.Sequence(Chunk.from(w.modifiers.map(modifierToDV))),
+              "wrapped"      -> reflectToDynamicValue(w.wrapped),
+              "defaultValue" -> w.storedDefaultValue.getOrElse(DynamicValue.Null),
+              "examples"     -> DynamicValue.Sequence(Chunk.from(w.storedExamples))
+            )
+          )
+        )
+
+      case _: Reflect.Dynamic[NoBinding] =>
+        DynamicValue.Variant("Dynamic", DynamicValue.Record(Chunk.empty))
+
+      case d: Reflect.Deferred[NoBinding, _] =>
+        reflectToDynamicValue(d.value)
+    }
+  }
+
+  private def dynamicValueToReflect(dv: DynamicValue): Reflect.Unbound[_] = {
+    import zio.blocks.chunk.Chunk
+
+    def dvToTypeName(dv: DynamicValue): TypeName[Any] = dv match {
+      case DynamicValue.Record(fields) =>
+        val fieldMap  = fields.toMap
+        val namespace = fieldMap("namespace") match {
+          case DynamicValue.Record(nsFields) =>
+            val nsMap = nsFields.toMap
+            new Namespace(
+              dvToStringSeq(nsMap("packages")),
+              dvToStringSeq(nsMap("values"))
+            )
+          case _ => Namespace.zioBlocksSchema
+        }
+        val name = fieldMap("name") match {
+          case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+          case _                                                => "Unknown"
+        }
+        val params = fieldMap("params") match {
+          case DynamicValue.Sequence(elems) => elems.map(dvToTypeName).toSeq
+          case _                            => Nil
+        }
+        new TypeName(namespace, name, params)
+      case _ => new TypeName(Namespace.zioBlocksSchema, "Unknown")
+    }
+
+    def dvToStringSeq(dv: DynamicValue): Seq[String] = dv match {
+      case DynamicValue.Sequence(elems) =>
+        elems.flatMap {
+          case DynamicValue.Primitive(PrimitiveValue.String(s)) => Some(s)
+          case _                                                => scala.None
+        }.toSeq
+      case _ => Nil
+    }
+
+    def dvToDoc(dv: DynamicValue): Doc = dv match {
+      case DynamicValue.Variant("Empty", _)                          => Doc.Empty
+      case DynamicValue.Variant("Text", DynamicValue.Record(fields)) =>
+        val fieldMap = fields.toMap
+        fieldMap.get("value") match {
+          case Some(DynamicValue.Primitive(PrimitiveValue.String(s))) => Doc.Text(s)
+          case _                                                      => Doc.Empty
+        }
+      case DynamicValue.Variant("Concat", DynamicValue.Record(fields)) =>
+        val fieldMap = fields.toMap
+        fieldMap.get("leaves") match {
+          case Some(DynamicValue.Sequence(elems)) =>
+            Doc.Concat(elems.map(dvToDoc).collect { case l: Doc.Leaf => l }.toIndexedSeq)
+          case _ => Doc.Empty
+        }
+      case _ => Doc.Empty
+    }
+
+    def dvToModifiers(dv: DynamicValue): Seq[Modifier.Reflect] = dv match {
+      case DynamicValue.Sequence(elems) =>
+        elems.flatMap {
+          case DynamicValue.Variant("config", DynamicValue.Record(fields)) =>
+            val fieldMap = fields.toMap
+            for {
+              key   <- fieldMap.get("key").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
+              value <- fieldMap.get("value").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
+            } yield Modifier.config(key, value)
+          case _ => scala.None
+        }.toSeq
+      case _ => Nil
+    }
+
+    def dvToTermModifiers(dv: DynamicValue): Seq[Modifier.Term] = dv match {
+      case DynamicValue.Sequence(elems) =>
+        elems.flatMap {
+          case DynamicValue.Variant("transient", _)                        => Some(Modifier.transient())
+          case DynamicValue.Variant("rename", DynamicValue.Record(fields)) =>
+            fields.toMap.get("name").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+              Modifier.rename(s)
+            }
+          case DynamicValue.Variant("alias", DynamicValue.Record(fields)) =>
+            fields.toMap.get("name").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+              Modifier.alias(s)
+            }
+          case DynamicValue.Variant("config", DynamicValue.Record(fields)) =>
+            val fieldMap = fields.toMap
+            for {
+              key   <- fieldMap.get("key").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
+              value <- fieldMap.get("value").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
+            } yield Modifier.config(key, value)
+          case _ => scala.None
+        }.toSeq
+      case _ => Nil
+    }
+
+    def dvToOptionalDV(dv: DynamicValue): Option[DynamicValue] = dv match {
+      case DynamicValue.Null => scala.None
+      case other             => Some(other)
+    }
+
+    def dvToExamples(dv: DynamicValue): Seq[DynamicValue] = dv match {
+      case DynamicValue.Sequence(elems) => elems.toSeq
+      case _                            => Nil
+    }
+
+    def dvToTerm(dv: DynamicValue): Term[NoBinding, Any, Any] = dv match {
+      case DynamicValue.Record(fields) =>
+        val fieldMap = fields.toMap
+        val name     = fieldMap("name") match {
+          case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+          case _                                                => "unknown"
+        }
+        val value     = dynamicValueToReflect(fieldMap("value"))
+        val doc       = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
+        val modifiers = dvToTermModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
+        new Term(name, value.asInstanceOf[Reflect.Unbound[Any]], doc, modifiers)
+      case _ => new Term("unknown", new Reflect.Dynamic[NoBinding](NoBinding()).asInstanceOf[Reflect.Unbound[Any]])
+    }
+
+    def dvToPrimitiveType(dv: DynamicValue): PrimitiveType[Any] = dv match {
+      case DynamicValue.Record(fields) =>
+        val fieldMap = fields.toMap
+        val typeName = fieldMap("type") match {
+          case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+          case _                                                => "String"
+        }
+        typeName match {
+          case "Unit"          => PrimitiveType.Unit.asInstanceOf[PrimitiveType[Any]]
+          case "Boolean"       => PrimitiveType.Boolean(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "Byte"          => PrimitiveType.Byte(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "Short"         => PrimitiveType.Short(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "Int"           => PrimitiveType.Int(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "Long"          => PrimitiveType.Long(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "Float"         => PrimitiveType.Float(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "Double"        => PrimitiveType.Double(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "Char"          => PrimitiveType.Char(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "String"        => PrimitiveType.String(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "BigInt"        => PrimitiveType.BigInt(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "BigDecimal"    => PrimitiveType.BigDecimal(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "UUID"          => PrimitiveType.UUID(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "Instant"       => PrimitiveType.Instant(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "LocalDate"     => PrimitiveType.LocalDate(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "LocalDateTime" => PrimitiveType.LocalDateTime(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "LocalTime"     => PrimitiveType.LocalTime(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "Duration"      => PrimitiveType.Duration(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case _               => PrimitiveType.String(Validation.None).asInstanceOf[PrimitiveType[Any]]
+        }
+      case _ => PrimitiveType.String(Validation.None).asInstanceOf[PrimitiveType[Any]]
+    }
+
+    dv match {
+      case DynamicValue.Variant("Record", DynamicValue.Record(fields)) =>
+        val fieldMap   = fields.toMap
+        val typeName   = dvToTypeName(fieldMap("typeName"))
+        val doc        = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
+        val modifiers  = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
+        val termFields = fieldMap("fields") match {
+          case DynamicValue.Sequence(elems) => elems.map(dvToTerm).toVector
+          case _                            => Vector.empty
+        }
+        val defaultValue = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
+        val examples     = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
+        new Reflect.Record[NoBinding, Any](
+          fields = termFields,
+          typeName = typeName,
+          recordBinding = NoBinding(),
+          doc = doc,
+          modifiers = modifiers,
+          storedDefaultValue = defaultValue,
+          storedExamples = examples
+        )
+
+      case DynamicValue.Variant("Variant", DynamicValue.Record(fields)) =>
+        val fieldMap  = fields.toMap
+        val typeName  = dvToTypeName(fieldMap("typeName"))
+        val doc       = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
+        val modifiers = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
+        val cases     = fieldMap("cases") match {
+          case DynamicValue.Sequence(elems) => elems.map(dvToTerm).toVector
+          case _                            => Vector.empty
+        }
+        val defaultValue = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
+        val examples     = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
+        new Reflect.Variant[NoBinding, Any](
+          cases = cases,
+          typeName = typeName,
+          variantBinding = NoBinding(),
+          doc = doc,
+          modifiers = modifiers,
+          storedDefaultValue = defaultValue,
+          storedExamples = examples
+        )
+
+      case DynamicValue.Variant("Sequence", DynamicValue.Record(fields)) =>
+        val fieldMap     = fields.toMap
+        val typeName     = dvToTypeName(fieldMap("typeName"))
+        val doc          = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
+        val modifiers    = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
+        val element      = dynamicValueToReflect(fieldMap("element"))
+        val defaultValue = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
+        val examples     = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
+        new Reflect.Sequence[NoBinding, Any, Seq](
+          element = element.asInstanceOf[Reflect.Unbound[Any]],
+          typeName = typeName.asInstanceOf[TypeName[Seq[Any]]],
+          seqBinding = NoBinding(),
+          doc = doc,
+          modifiers = modifiers,
+          storedDefaultValue = defaultValue,
+          storedExamples = examples
+        )
+
+      case DynamicValue.Variant("Map", DynamicValue.Record(fields)) =>
+        val fieldMap     = fields.toMap
+        val typeName     = dvToTypeName(fieldMap("typeName"))
+        val doc          = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
+        val modifiers    = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
+        val key          = dynamicValueToReflect(fieldMap("key"))
+        val value        = dynamicValueToReflect(fieldMap("value"))
+        val defaultValue = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
+        val examples     = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
+        new Reflect.Map[NoBinding, Any, Any, scala.collection.immutable.Map](
+          key = key.asInstanceOf[Reflect.Unbound[Any]],
+          value = value.asInstanceOf[Reflect.Unbound[Any]],
+          typeName = typeName.asInstanceOf[TypeName[scala.collection.immutable.Map[Any, Any]]],
+          mapBinding = NoBinding(),
+          doc = doc,
+          modifiers = modifiers,
+          storedDefaultValue = defaultValue,
+          storedExamples = examples
+        )
+
+      case DynamicValue.Variant("Primitive", DynamicValue.Record(fields)) =>
+        val fieldMap      = fields.toMap
+        val typeName      = dvToTypeName(fieldMap("typeName"))
+        val doc           = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
+        val modifiers     = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
+        val primitiveType = dvToPrimitiveType(fieldMap("primitiveType"))
+        val defaultValue  = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
+        val examples      = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
+        new Reflect.Primitive[NoBinding, Any](
+          primitiveType = primitiveType,
+          typeName = typeName,
+          primitiveBinding = NoBinding(),
+          doc = doc,
+          modifiers = modifiers,
+          storedDefaultValue = defaultValue,
+          storedExamples = examples
+        )
+
+      case DynamicValue.Variant("Wrapper", DynamicValue.Record(fields)) =>
+        val fieldMap     = fields.toMap
+        val typeName     = dvToTypeName(fieldMap("typeName"))
+        val doc          = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
+        val modifiers    = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
+        val wrapped      = dynamicValueToReflect(fieldMap("wrapped"))
+        val defaultValue = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
+        val examples     = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
+        new Reflect.Wrapper[NoBinding, Any, Any](
+          wrapped = wrapped.asInstanceOf[Reflect.Unbound[Any]],
+          typeName = typeName,
+          wrapperPrimitiveType = scala.None,
+          wrapperBinding = NoBinding(),
+          doc = doc,
+          modifiers = modifiers,
+          storedDefaultValue = defaultValue,
+          storedExamples = examples
+        )
+
+      case DynamicValue.Variant("Dynamic", _) =>
+        new Reflect.Dynamic[NoBinding](NoBinding())
+
+      case _ =>
+        new Reflect.Dynamic[NoBinding](NoBinding())
     }
   }
 }
