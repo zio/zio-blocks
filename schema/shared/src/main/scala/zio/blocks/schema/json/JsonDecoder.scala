@@ -386,7 +386,7 @@ object JsonDecoder {
             }))
           case Some(("Right", value)) =>
             new Right(rightDecoder.decode(value) match {
-              case Left(error) => return new Left(error.atField("Left"))
+              case Left(error) => return new Left(error.atField("Right"))
               case r           => r.asInstanceOf[Either[L, R]]
             })
           case _ => new Left(SchemaError("Expected Object with 'Left' or 'Right' key"))
