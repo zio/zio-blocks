@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural.errors
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.test._
 
@@ -23,7 +24,7 @@ import zio.test._
  * because from the perspective of each type, it appears as a recursive
  * reference.
  */
-object MutualRecursionErrorSpec extends ZIOSpecDefault {
+object MutualRecursionErrorSpec extends SchemaBaseSpec {
 
   def spec = suite("MutualRecursionErrorSpec")(
     suite("Two-Way Mutual Recursion Detection")(

@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
@@ -7,7 +8,7 @@ import zio.test._
  * Tests for Scala 3 enum structural conversion (JVM only, requires
  * ToStructural).
  */
-object EnumStructuralSpec extends ZIOSpecDefault {
+object EnumStructuralSpec extends SchemaBaseSpec {
 
   enum Color {
     case Red, Green, Blue

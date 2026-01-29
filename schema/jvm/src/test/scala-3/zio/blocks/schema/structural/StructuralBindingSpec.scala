@@ -1,9 +1,10 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
-object StructuralBindingSpec extends ZIOSpecDefault {
+object StructuralBindingSpec extends SchemaBaseSpec {
 
   case class Point(x: Int, y: Int)
   case class Person(name: String, age: Int)
