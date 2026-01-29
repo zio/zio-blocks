@@ -185,26 +185,29 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
     ${ MigrationBuilderMacrosImpl.transformValuesImpl[A, B, Handled, Provided]('builder, 'at, 'transform) }
 
   /**
-   * Renames a variant case using selector syntax. Does not affect field
-   * tracking (case-level operation, not field-level).
+   * Renames a variant case using selector syntax. Adds the source case name to
+   * Handled and the target case name to Provided (both prefixed with "case:").
    */
-  transparent inline def renameCase(
+  transparent inline def renameCase[FromCase <: String & Singleton, ToCase <: String & Singleton](
     inline from: A => Any,
     to: String
-  ): MigrationBuilder[A, B, Handled, Provided] =
-    ${ MigrationBuilderMacrosImpl.renameCaseImpl[A, B, Handled, Provided]('builder, 'from, 'to) }
+  ): MigrationBuilder[A, B, Tuple.Append[Handled, FromCase], Tuple.Append[Provided, ToCase]] =
+    ${ MigrationBuilderMacrosImpl.renameCaseImpl[A, B, Handled, Provided, FromCase, ToCase]('builder, 'from, 'to) }
 
   /**
    * Applies nested migration actions to a specific variant case using selector
-   * syntax. Does not affect field tracking (case-level operation, not
-   * field-level).
+   * syntax. Adds the case name to both Handled and Provided (prefixed with
+   * "case:") since the case is being transformed but not renamed.
    */
-  transparent inline def transformCase(
+  transparent inline def transformCase[CaseName <: String & Singleton](
     inline at: A => Any
   )(
     nestedActions: MigrationBuilder[A, A, EmptyTuple, EmptyTuple] => MigrationBuilder[A, A, ?, ?]
-  ): MigrationBuilder[A, B, Handled, Provided] =
-    ${ MigrationBuilderMacrosImpl.transformCaseImpl[A, B, Handled, Provided]('builder, 'at, 'nestedActions) }
+  ): MigrationBuilder[A, B, Tuple.Append[Handled, CaseName], Tuple.Append[Provided, CaseName]] =
+    ${
+      MigrationBuilderMacrosImpl
+        .transformCaseImpl[A, B, Handled, Provided, CaseName]('builder, 'at, 'nestedActions)
+    }
 }
 
 // Macro implementations for Scala 3 selector syntax with type tracking.
@@ -489,27 +492,134 @@ private[migration] object MigrationBuilderMacrosImpl {
     '{ $builder.transformValues($optic, $transform) }
   }
 
-  def renameCaseImpl[A: Type, B: Type, Handled <: Tuple: Type, Provided <: Tuple: Type](
+  def renameCaseImpl[
+    A: Type,
+    B: Type,
+    Handled <: Tuple: Type,
+    Provided <: Tuple: Type,
+    FromCase <: String & Singleton: Type,
+    ToCase <: String & Singleton: Type
+  ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     from: Expr[A => Any],
     to: Expr[String]
-  )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Provided]] = {
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FromCase], Tuple.Append[Provided, ToCase]]] = {
+    import q.reflect.*
+
     val (fromOptic, fromCaseName) = MigrationBuilderMacros.extractCaseSelector[A, Any](from)
-    '{ $builder.renameCase($fromOptic, $fromCaseName, $to) }
+
+    // Extract the case name as a string literal
+    val caseNameStr = extractCaseNameFromSelector(from.asTerm)
+
+    // Extract the target case name from the string expression
+    // Handle both literal strings and other string expressions
+    val toCaseStr = to.asTerm match {
+      case Literal(StringConstant(s)) => s
+      case Inlined(_, _, Literal(StringConstant(s))) => s
+      case _ =>
+        // For non-literal expressions, we extract at runtime but can't verify at compile time
+        // This is a fallback - ideally we should handle more patterns
+        report.errorAndAbort(
+          "renameCase target must be a string literal (e.g., \"NewCaseName\")",
+          to.asTerm.pos
+        )
+    }
+
+    // Create literal types for case names with "case:" prefix
+    val fromCaseType     = ConstantType(StringConstant(s"case:$caseNameStr")).asType.asInstanceOf[Type[FromCase]]
+    val toCaseType       = ConstantType(StringConstant(s"case:$toCaseStr")).asType.asInstanceOf[Type[ToCase]]
+    given Type[FromCase] = fromCaseType
+    given Type[ToCase]   = toCaseType
+
+    '{
+      $builder
+        .renameCase($fromOptic, $fromCaseName, $to)
+        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FromCase], Tuple.Append[Provided, ToCase]]]
+    }
   }
 
-  def transformCaseImpl[A: Type, B: Type, Handled <: Tuple: Type, Provided <: Tuple: Type](
+  /**
+   * Extract the case name from a selector expression like `_.when[CaseType]`.
+   * Uses the same pattern as MigrationBuilderMacros.extractCaseSelector.
+   * Handles both regular case classes and enum values.
+   */
+  private def extractCaseNameFromSelector(using q: Quotes)(term: q.reflect.Term): String = {
+    import q.reflect.*
+    import scala.annotation.tailrec
+
+    @tailrec
+    def toPathBody(t: Term): Term = t match {
+      case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
+      case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
+      case _                                               =>
+        report.errorAndAbort(s"Expected a lambda expression, got '${t.show}'", t.pos)
+    }
+
+    def isEnumValue(tpe: TypeRepr): Boolean =
+      tpe.termSymbol.flags.is(Flags.Enum)
+
+    def getCaseName(tpe: TypeRepr): String = {
+      val dealiased = tpe.dealias
+      // For enum values (simple cases like `case Red`), use termSymbol
+      if (isEnumValue(dealiased)) {
+        dealiased.termSymbol.name
+      } else {
+        dealiased.typeSymbol.name
+      }
+    }
+
+    def extractCaseName(t: Term): String = t match {
+      // Pattern: _.when[CaseType] or _.field.when[CaseType]
+      // This is TypeApply(Apply(TypeApply(caseTerm, _), List(parent)), List(typeTree))
+      case TypeApply(Apply(TypeApply(caseTerm, _), List(_)), List(typeTree)) if caseTerm match {
+            case Select(_, name) => name == "when"
+            case Ident(name)     => name == "when"
+            case _               => false
+          } =>
+        getCaseName(typeTree.tpe)
+      case _ =>
+        report.errorAndAbort(
+          s"Case selector must use .when[CaseType] pattern (e.g., _.when[MyCase] or _.field.when[MyCase]), got '${t.show}'",
+          t.pos
+        )
+    }
+
+    val pathBody = toPathBody(term)
+    extractCaseName(pathBody)
+  }
+
+  def transformCaseImpl[
+    A: Type,
+    B: Type,
+    Handled <: Tuple: Type,
+    Provided <: Tuple: Type,
+    CaseName <: String & Singleton: Type
+  ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
     nestedActions: Expr[MigrationBuilder[A, A, EmptyTuple, EmptyTuple] => MigrationBuilder[A, A, ?, ?]]
-  )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Provided]] = {
+  )(using
+    q: Quotes
+  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, CaseName], Tuple.Append[Provided, CaseName]]] = {
+    import q.reflect.*
+
     val (atOptic, caseName) = MigrationBuilderMacros.extractCaseSelector[A, Any](at)
+
+    // Extract the case name from the selector
+    val caseNameStr = extractCaseNameFromSelector(at.asTerm)
+
+    // Create literal type for case name with "case:" prefix
+    val caseNameType      = ConstantType(StringConstant(s"case:$caseNameStr")).asType.asInstanceOf[Type[CaseName]]
+    given Type[CaseName]  = caseNameType
+
     '{
       val sourceSchema                                                 = $builder.sourceSchema
       val emptyBuilder: MigrationBuilder[A, A, EmptyTuple, EmptyTuple] =
         MigrationBuilder(sourceSchema, sourceSchema, Vector.empty)
       val transformedBuilder = $nestedActions.apply(emptyBuilder)
-      $builder.transformCase($atOptic, $caseName, transformedBuilder.actions)
+      $builder
+        .transformCase($atOptic, $caseName, transformedBuilder.actions)
+        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, CaseName], Tuple.Append[Provided, CaseName]]]
     }
   }
 
