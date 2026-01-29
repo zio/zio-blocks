@@ -179,7 +179,14 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
     new DynamicSchema(updatedReflect.asInstanceOf[Reflect.Unbound[_]])
   }
 
-  /** Derives a JSON Schema from this schema's structure. */
+  /**
+   * Derives a JSON Schema from this schema.
+   *
+   * Note: Currently returns the generic `Schema[DynamicValue]` JSON Schema,
+   * which represents the DynamicValue ADT structure rather than this specific
+   * schema's structure. A future enhancement could derive structure-specific
+   * JSON Schema directly from the unbound reflect.
+   */
   def toJsonSchema: JsonSchema = Schema[DynamicValue].toJsonSchema
 }
 
@@ -268,15 +275,11 @@ object DynamicSchema {
     var error: Option[SchemaError] = None
     record.fields.foreach { term =>
       if (error.isEmpty) {
-        fieldMap.get(term.name) match {
-          case Some(fieldValue) =>
-            val fieldTrace = DynamicOptic.Node.Field(term.name) :: trace
-            checkValue(term.value.asInstanceOf[Reflect.Unbound[_]], fieldValue, fieldTrace) match {
-              case Some(e) => error = Some(e)
-              case None    => ()
-            }
-          case None =>
-            error = Some(SchemaError.missingField(trace, term.name))
+        val fieldValue = fieldMap(term.name)
+        val fieldTrace = DynamicOptic.Node.Field(term.name) :: trace
+        checkValue(term.value.asInstanceOf[Reflect.Unbound[_]], fieldValue, fieldTrace) match {
+          case Some(e) => error = Some(e)
+          case None    => ()
         }
       }
     }

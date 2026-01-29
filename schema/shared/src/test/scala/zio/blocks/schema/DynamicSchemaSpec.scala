@@ -751,6 +751,33 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         )
         assertTrue(ds.check(dv).isEmpty)
       }
+    ),
+    suite("check - Wrapper validation")(
+      test("wrapper schema validates wrapped value") {
+        case class PositiveInt(value: Int)
+        object PositiveInt {
+          implicit val schema: Schema[PositiveInt] = Schema[Int].transform(PositiveInt(_), _.value)
+        }
+        val ds = Schema[PositiveInt].toDynamicSchema
+        val dv = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        assertTrue(ds.check(dv).isEmpty)
+      },
+      test("wrapper schema rejects wrong type") {
+        case class PositiveInt(value: Int)
+        object PositiveInt {
+          implicit val schema: Schema[PositiveInt] = Schema[Int].transform(PositiveInt(_), _.value)
+        }
+        val ds = Schema[PositiveInt].toDynamicSchema
+        val dv = DynamicValue.Primitive(PrimitiveValue.String("not an int"))
+        assertTrue(ds.check(dv).isDefined)
+      }
+    ),
+    suite("toJsonSchema")(
+      test("toJsonSchema returns a valid JsonSchema") {
+        val ds         = Schema[Person].toDynamicSchema
+        val jsonSchema = ds.toJsonSchema
+        assertTrue(jsonSchema != null)
+      }
     )
   )
 }
