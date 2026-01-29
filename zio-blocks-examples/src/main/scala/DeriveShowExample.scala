@@ -25,64 +25,32 @@ object DeriveShowExample extends App {
 
   /**
    * A deriver for the Show type class that implements the Deriver trait.
-   *
-   * This deriver follows the same pattern as JsonBinaryCodecDeriver:
-   *   - Implements Deriver[Show]
-   *   - Delegates to a private deriveShow method that pattern matches on
-   *     Reflect
-   *   - Does not use the F and D implicit parameters directly in method bodies
-   *     (they are required by the trait signature but the implementation casts
-   *     to Binding types instead)
-   *
-   * Usage:
-   * {{{
-   * import zio.blocks.schema._
-   * import zio.blocks.schema.show._
-   *
-   * case class Person(name: String, age: Int)
-   * object Person {
-   *   implicit val schema: Schema[Person] = Schema.derived
-   *   implicit val show: Show[Person] = schema.derive(ShowDeriver())
-   * }
-   *
-   * val person = Person("Alice", 30)
-   * Show[Person].show(person) // "Person(name = "Alice", age = 30)"
-   * }}}
    */
   object ShowDeriver extends Deriver[Show] {
 
-    val fieldSeparator = ", "
+    val fieldSeparator          = ", "
     val fieldNameValueSeparator = " = "
 
-    // =========================================================================
-    // Deriver trait implementation
-    //
-    // Note: The F and D implicit parameters are required by the Deriver trait
-    // signature but are not used directly in the implementation. Instead, the
-    // implementation casts Terms and Reflects to Binding types following the
-    // same pattern as JsonBinaryCodecDeriver.
-    // =========================================================================
-
     override def derivePrimitive[A](
-                                              primitiveType: PrimitiveType[A],
-                                              typeName: TypeName[A],
-                                              binding: Binding[BindingType.Primitive, A],
-                                              doc: Doc,
-                                              modifiers: Seq[Modifier.Reflect],
-                                              defaultValue: Option[A],
-                                              examples: Seq[A]
-                                            ): Lazy[Show[A]] =
+      primitiveType: PrimitiveType[A],
+      typeName: TypeName[A],
+      binding: Binding[BindingType.Primitive, A],
+      doc: Doc,
+      modifiers: Seq[Modifier.Reflect],
+      defaultValue: Option[A],
+      examples: Seq[A]
+    ): Lazy[Show[A]] =
       Lazy(deriveShow(new Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)))
 
     override def deriveRecord[F[_, _], A](
-                                           fields: IndexedSeq[Term[F, A, ?]],
-                                           typeName: TypeName[A],
-                                           binding: Binding[BindingType.Record, A],
-                                           doc: Doc,
-                                           modifiers: Seq[Modifier.Reflect],
-                                           defaultValue: Option[A],
-                                           examples: Seq[A]
-                                         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = Lazy {
+      fields: IndexedSeq[Term[F, A, ?]],
+      typeName: TypeName[A],
+      binding: Binding[BindingType.Record, A],
+      doc: Doc,
+      modifiers: Seq[Modifier.Reflect],
+      defaultValue: Option[A],
+      examples: Seq[A]
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = Lazy {
       deriveShow(
         new Reflect.Record(
           fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
@@ -95,14 +63,14 @@ object DeriveShowExample extends App {
     }
 
     override def deriveVariant[F[_, _], A](
-                                            cases: IndexedSeq[Term[F, A, ?]],
-                                            typeName: TypeName[A],
-                                            binding: Binding[BindingType.Variant, A],
-                                            doc: Doc,
-                                            modifiers: Seq[Modifier.Reflect],
-                                            defaultValue: Option[A],
-                                            examples: Seq[A]
-                                          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = Lazy {
+      cases: IndexedSeq[Term[F, A, ?]],
+      typeName: TypeName[A],
+      binding: Binding[BindingType.Variant, A],
+      doc: Doc,
+      modifiers: Seq[Modifier.Reflect],
+      defaultValue: Option[A],
+      examples: Seq[A]
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = Lazy {
       deriveShow(
         new Reflect.Variant(
           cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
@@ -115,29 +83,29 @@ object DeriveShowExample extends App {
     }
 
     override def deriveSequence[F[_, _], C[_], A](
-                                                   element: Reflect[F, A],
-                                                   typeName: TypeName[C[A]],
-                                                   binding: Binding[BindingType.Seq[C], C[A]],
-                                                   doc: Doc,
-                                                   modifiers: Seq[Modifier.Reflect],
-                                                   defaultValue: Option[C[A]],
-                                                   examples: Seq[C[A]]
-                                                 )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[C[A]]] = Lazy {
+      element: Reflect[F, A],
+      typeName: TypeName[C[A]],
+      binding: Binding[BindingType.Seq[C], C[A]],
+      doc: Doc,
+      modifiers: Seq[Modifier.Reflect],
+      defaultValue: Option[C[A]],
+      examples: Seq[C[A]]
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[C[A]]] = Lazy {
       deriveShow(
         new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeName, binding, doc, modifiers)
       )
     }
 
     override def deriveMap[F[_, _], M[_, _], K, V](
-                                                    key: Reflect[F, K],
-                                                    value: Reflect[F, V],
-                                                    typeName: TypeName[M[K, V]],
-                                                    binding: Binding[BindingType.Map[M], M[K, V]],
-                                                    doc: Doc,
-                                                    modifiers: Seq[Modifier.Reflect],
-                                                    defaultValue: Option[M[K, V]],
-                                                    examples: Seq[M[K, V]]
-                                                  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[M[K, V]]] = Lazy {
+      key: Reflect[F, K],
+      value: Reflect[F, V],
+      typeName: TypeName[M[K, V]],
+      binding: Binding[BindingType.Map[M], M[K, V]],
+      doc: Doc,
+      modifiers: Seq[Modifier.Reflect],
+      defaultValue: Option[M[K, V]],
+      examples: Seq[M[K, V]]
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[M[K, V]]] = Lazy {
       deriveShow(
         new Reflect.Map(
           key.asInstanceOf[Reflect[Binding, K]],
@@ -151,24 +119,24 @@ object DeriveShowExample extends App {
     }
 
     override def deriveDynamic[F[_, _]](
-                                         binding: Binding[BindingType.Dynamic, DynamicValue],
-                                         doc: Doc,
-                                         modifiers: Seq[Modifier.Reflect],
-                                         defaultValue: Option[DynamicValue],
-                                         examples: Seq[DynamicValue]
-                                       )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[DynamicValue]] =
+      binding: Binding[BindingType.Dynamic, DynamicValue],
+      doc: Doc,
+      modifiers: Seq[Modifier.Reflect],
+      defaultValue: Option[DynamicValue],
+      examples: Seq[DynamicValue]
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[DynamicValue]] =
       Lazy(deriveShow(new Reflect.Dynamic(binding, TypeName.dynamicValue, doc, modifiers)))
 
     override def deriveWrapper[F[_, _], A, B](
-                                               wrapped: Reflect[F, B],
-                                               typeName: TypeName[A],
-                                               wrapperPrimitiveType: Option[PrimitiveType[A]],
-                                               binding: Binding[BindingType.Wrapper[A, B], A],
-                                               doc: Doc,
-                                               modifiers: Seq[Modifier.Reflect],
-                                               defaultValue: Option[A],
-                                               examples: Seq[A]
-                                             )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = Lazy {
+      wrapped: Reflect[F, B],
+      typeName: TypeName[A],
+      wrapperPrimitiveType: Option[PrimitiveType[A]],
+      binding: Binding[BindingType.Wrapper[A, B], A],
+      doc: Doc,
+      modifiers: Seq[Modifier.Reflect],
+      defaultValue: Option[A],
+      examples: Seq[A]
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = Lazy {
       deriveShow(
         new Reflect.Wrapper(
           wrapped.asInstanceOf[Reflect[Binding, B]],
@@ -181,40 +149,31 @@ object DeriveShowExample extends App {
       )
     }
 
-    // =========================================================================
     // Internal type alias for cleaner code
-    // =========================================================================
-
     private type TC[A] = Show[A]
 
-    // =========================================================================
     // Private field info class for record handling
-    // =========================================================================
-
     private final class FieldInfo(
-                                   val name: String,
-                                   val show: Show[Any],
-                                   val offset: RegisterOffset,
-                                   val fieldType: Byte
-                                 )
+      val name: String,
+      val show: Show[Any],
+      val offset: RegisterOffset,
+      val fieldType: Byte
+    )
 
-    // =========================================================================
     // Private derivation logic
-    // =========================================================================
-
     private[this] def deriveShow[F[_, _], A](reflect: Reflect[F, A]): Show[A] =
       if (reflect.isPrimitive) {
         derivePrimitiveShow(reflect.asPrimitive.get)
       } else if (reflect.isVariant) {
         deriveVariantShow(reflect.asVariant.get)
-//      } else if (reflect.isSequence) {
-//        deriveSequenceShow(reflect.asSequenceUnknown.get.sequence)
-//      } else if (reflect.isMap) {
-//        deriveMapShow(reflect.asMapUnknown.get.map)
+      } else if (reflect.isSequence) {
+        deriveSequenceShow(reflect.asSequenceUnknown.get.sequence).asInstanceOf[Show[A]]
+      } else if (reflect.isMap) {
+        deriveMapShow(reflect.asMapUnknown.get.map).asInstanceOf[Show[A]]
       } else if (reflect.isRecord) {
         deriveRecordShow(reflect.asRecord.get)
-//      } else if (reflect.isWrapper) {
-//        deriveWrapperShow(reflect.asWrapperUnknown.get.wrapper)
+      } else if (reflect.isWrapper) {
+        deriveWrapperShow(reflect.asWrapperUnknown.get.wrapper.asInstanceOf[Reflect.Wrapper[F, A, Any]])
       } else if (reflect.isDynamic) {
         deriveDynamicShow(reflect.asDynamic.get).asInstanceOf[Show[A]]
       } else {
@@ -223,8 +182,8 @@ object DeriveShowExample extends App {
       }
 
     private[this] def derivePrimitiveShow[F[_, _], A](
-                                                       primitive: Reflect.Primitive[F, A]
-                                                     ): Show[A] =
+      primitive: Reflect.Primitive[F, A]
+    ): Show[A] =
       // Check if there's a custom instance provided via BindingInstance
       if (!primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
         primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -266,8 +225,8 @@ object DeriveShowExample extends App {
         }.asInstanceOf[Show[A]]
 
     private[this] def deriveRecordShow[F[_, _], A](
-                                                    record: Reflect.Record[F, A]
-                                                  ): Show[A] =
+      record: Reflect.Record[F, A]
+    ): Show[A] =
       // Check if there's a custom instance provided via BindingInstance
       if (!record.recordBinding.isInstanceOf[Binding[?, ?]]) {
         record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -299,7 +258,7 @@ object DeriveShowExample extends App {
 
           def show(value: A): String =
             if (value == null) {
-              "null" 
+              "null"
             } else {
               val regs = Registers(usedRegisters)
               deconstructor.deconstruct(regs, RegisterOffset.Zero, value)
@@ -331,8 +290,8 @@ object DeriveShowExample extends App {
       }
 
     private[this] def deriveVariantShow[F[_, _], A](
-                                                     variant: Reflect.Variant[F, A]
-                                                   ): Show[A] =
+      variant: Reflect.Variant[F, A]
+    ): Show[A] =
       // Check if there's a custom instance provided via BindingInstance
       if (!variant.variantBinding.isInstanceOf[Binding[?, ?]]) {
         variant.variantBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -368,7 +327,8 @@ object DeriveShowExample extends App {
               private[this] val caseLen       = len
 
               def show(value: A): String =
-                if (value == null) "null" else {
+                if (value == null) "null"
+                else {
                   val caseIdx = discriminator.discriminate(value)
                   if (caseIdx >= 0 && caseIdx < caseLen) {
                     shows(caseIdx).show(value.asInstanceOf[Any])
@@ -381,8 +341,8 @@ object DeriveShowExample extends App {
       }
 
     private[this] def deriveSequenceShow[F[_, _], C[_], A](
-                                                            sequence: Reflect.Sequence[F, A, C]
-                                                          ): Show[C[A]] =
+      sequence: Reflect.Sequence[F, A, C]
+    ): Show[C[A]] =
       // Check if there's a custom instance provided via BindingInstance
       if (!sequence.seqBinding.isInstanceOf[Binding[?, ?]]) {
         sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, C[A]]].instance.force
@@ -397,7 +357,8 @@ object DeriveShowExample extends App {
           private[this] val name          = typeName.name
 
           def show(value: C[A]): String =
-            if (value == null) "null" else {
+            if (value == null) "null"
+            else {
               val sb = new StringBuilder
               sb.append(name)
               sb.append("(")
@@ -419,8 +380,8 @@ object DeriveShowExample extends App {
       }
 
     private[this] def deriveMapShow[F[_, _], M[_, _], K, V](
-                                                             map: Reflect.Map[F, K, V, M]
-                                                           ): Show[M[K, V]] =
+      map: Reflect.Map[F, K, V, M]
+    ): Show[M[K, V]] =
       // Check if there's a custom instance provided via BindingInstance
       if (!map.mapBinding.isInstanceOf[Binding[?, ?]]) {
         map.mapBinding.asInstanceOf[BindingInstance[TC, ?, M[K, V]]].instance.force
@@ -437,7 +398,8 @@ object DeriveShowExample extends App {
           private[this] val name          = typeName.name
 
           def show(value: M[K, V]): String =
-            if (value == null) "null" else {
+            if (value == null) "null"
+            else {
               val sb = new StringBuilder
               sb.append(name)
               sb.append("(")
@@ -463,8 +425,8 @@ object DeriveShowExample extends App {
       }
 
     private[this] def deriveWrapperShow[F[_, _], A, B](
-                                                        wrapper: Reflect.Wrapper[F, A, B]
-                                                      ): Show[A] =
+      wrapper: Reflect.Wrapper[F, A, B]
+    ): Show[A] =
       // Check if there's a custom instance provided via BindingInstance
       if (!wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
         wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -479,7 +441,8 @@ object DeriveShowExample extends App {
           private[this] val name   = typeName.name
 
           def show(value: A): String =
-            if (value == null) "null" else {
+            if (value == null) "null"
+            else {
               val unwrapped = unwrap(value)
               if (name.nonEmpty) {
                 s"$name(${inner.show(unwrapped)})"
@@ -491,8 +454,8 @@ object DeriveShowExample extends App {
       }
 
     private[this] def deriveDynamicShow[F[_, _]](
-                                                  dynamic: Reflect.Dynamic[F]
-                                                ): Show[DynamicValue] =
+      dynamic: Reflect.Dynamic[F]
+    ): Show[DynamicValue] =
       // Check if there's a custom instance provided via BindingInstance
       if (!dynamic.dynamicBinding.isInstanceOf[Binding[?, ?]]) {
         dynamic.dynamicBinding.asInstanceOf[BindingInstance[TC, ?, DynamicValue]].instance.force
@@ -509,8 +472,8 @@ object DeriveShowExample extends App {
      * reflect.
      */
     private[this] def option[F[_, _], A](
-                                          variant: Reflect.Variant[F, A]
-                                        ): Option[Reflect[F, ?]] = {
+      variant: Reflect.Variant[F, A]
+    ): Option[Reflect[F, ?]] = {
       val cases = variant.cases
       if (cases.length == 2) {
         val case0 = cases(0)

@@ -74,7 +74,8 @@ lazy val root = project
     scalaNextTests.js,
     scalaNextTests.native,
     benchmarks,
-    docs
+    docs,
+    examples
   )
 
 lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
