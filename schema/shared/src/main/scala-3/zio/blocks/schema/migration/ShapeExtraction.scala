@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import scala.annotation.tailrec
 import scala.quoted.*
 
 /**
@@ -97,7 +98,7 @@ object ShapeExtraction {
     import q.reflect.*
 
     val tpe    = TypeRepr.of[A].dealias
-    val paths  = extractFieldPathsFromType(tpe, "", Set.empty)
+    val paths  = MacroHelpers.extractFieldPathsFromType(tpe, "", Set.empty, "Migration shape extraction")
     val sorted = paths.sorted
     Expr(sorted)
   }
@@ -106,7 +107,7 @@ object ShapeExtraction {
     import q.reflect.*
 
     val tpe   = TypeRepr.of[A].dealias
-    val names = extractCaseNamesFromType(tpe)
+    val names = MacroHelpers.extractCaseNamesFromType(tpe)
     Expr(names.sorted)
   }
 
@@ -116,18 +117,19 @@ object ShapeExtraction {
     val tpe = TypeRepr.of[A].dealias
 
     // Extract field paths (for product types)
-    val fieldPaths = extractFieldPathsFromType(tpe, "", Set.empty).sorted
+    val fieldPaths = MacroHelpers.extractFieldPathsFromType(tpe, "", Set.empty, "Migration shape extraction").sorted
 
     // Extract case names (for sum types)
-    val caseNames = extractCaseNamesFromType(tpe).sorted
+    val caseNames = MacroHelpers.extractCaseNamesFromType(tpe).sorted
 
     // Extract field paths for each case
     val caseFieldPaths: Map[String, List[String]] =
-      if (isSealedTraitOrEnum(tpe)) {
-        val subTypes = directSubTypes(tpe)
+      if (MacroHelpers.isSealedTraitOrEnum(tpe)) {
+        val subTypes = MacroHelpers.directSubTypes(tpe)
         subTypes.map { subTpe =>
-          val caseName  = getCaseName(subTpe)
-          val casePaths = extractFieldPathsFromType(subTpe, "", Set.empty).sorted
+          val caseName  = MacroHelpers.getCaseName(subTpe)
+          val casePaths =
+            MacroHelpers.extractFieldPathsFromType(subTpe, "", Set.empty, "Migration shape extraction").sorted
           caseName -> casePaths
         }.toMap
       } else {
@@ -141,216 +143,229 @@ object ShapeExtraction {
     '{ Shape($fieldPathsExpr, $caseNamesExpr, $caseFieldPathsExpr) }
   }
 
+  // ============ Type-level Field Extraction ============
+
   /**
-   * Extract all field paths from a type, recursively descending into nested
-   * case classes.
+   * Typeclass for extracting all field paths (including nested paths) from a
+   * type at compile time. The Paths type member contains the paths as a tuple
+   * of string literal types.
    *
-   * @param tpe
-   *   The type to extract paths from
-   * @param prefix
-   *   The current path prefix (e.g., "address." for nested fields)
-   * @param visiting
-   *   Set of type full names currently being visited (for recursion detection)
-   * @return
-   *   List of dot-separated field paths
+   * For nested case classes, returns all dot-separated paths:
+   * {{{
+   * case class Address(street: String, city: String)
+   * case class Person(name: String, address: Address)
+   *
+   * FieldPaths[Person].Paths =:= ("address", "address.city", "address.street", "name")
+   * }}}
    */
-  private def extractFieldPathsFromType(using
-    q: Quotes
-  )(tpe: q.reflect.TypeRepr, prefix: String, visiting: Set[String]): List[String] = {
-    import q.reflect.*
-
-    val dealiased = tpe.dealias
-    val typeKey   = dealiased.typeSymbol.fullName
-
-    // Check for recursion
-    if (visiting.contains(typeKey)) {
-      report.errorAndAbort(
-        s"Recursive type detected: ${dealiased.show}. " +
-          s"Migration shape extraction does not support recursive types. " +
-          s"Recursion path: ${visiting.mkString(" -> ")} -> $typeKey"
-      )
-    }
-
-    // Skip extraction for container types and primitives
-    if (isContainerType(dealiased) || isPrimitiveType(dealiased)) {
-      return Nil
-    }
-
-    // Only extract fields from product types (case classes)
-    if (!isProductType(dealiased.typeSymbol)) {
-      return Nil
-    }
-
-    val newVisiting = visiting + typeKey
-    val fields      = getProductFields(dealiased)
-
-    fields.flatMap { case (fieldName, fieldType) =>
-      val fullPath    = if (prefix.isEmpty) fieldName else s"$prefix$fieldName"
-      val nestedPaths = extractFieldPathsFromType(fieldType, s"$fullPath.", newVisiting)
-      fullPath :: nestedPaths
-    }
+  sealed trait FieldPaths[A] {
+    type Paths <: Tuple
   }
 
-  /**
-   * Extract case names from a sealed trait or enum.
-   */
-  private def extractCaseNamesFromType(using q: Quotes)(tpe: q.reflect.TypeRepr): List[String] = {
-    val dealiased = tpe.dealias
+  object FieldPaths {
 
-    if (isSealedTraitOrEnum(dealiased)) {
-      val subTypes = directSubTypes(dealiased)
-      subTypes.map(getCaseName)
-    } else {
-      Nil
-    }
-  }
-
-  /**
-   * Get the name of a case from its type. Handles both regular case classes and
-   * enum values.
-   */
-  private def getCaseName(using q: Quotes)(tpe: q.reflect.TypeRepr): String =
-    // For enum values (simple cases like `case Red`), use termSymbol
-    if (isEnumValue(tpe)) {
-      tpe.termSymbol.name
-    } else {
-      tpe.typeSymbol.name
+    /**
+     * Concrete implementation of FieldPaths with the Paths type member. Public
+     * because it's used in transparent inline given.
+     */
+    class Impl[A, P <: Tuple] extends FieldPaths[A] {
+      type Paths = P
     }
 
-  /**
-   * Check if a type is an enum value (like `case Red` in an enum).
-   */
-  private def isEnumValue(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
-    import q.reflect.*
+    /**
+     * Given instance that extracts all field paths from a type at compile time.
+     * Uses MacroHelpers to get nested paths and converts them to a Tuple type.
+     */
+    transparent inline given derived[A]: FieldPaths[A] = ${ derivedImpl[A] }
 
-    tpe.termSymbol.flags.is(Flags.Enum)
-  }
+    /**
+     * Derive FieldPaths for a specific case of a sealed trait/enum. This is
+     * used internally for validating case field changes in transformCase.
+     */
+    transparent inline def forCase[A]: FieldPaths[A] = ${ derivedImpl[A] }
 
-  /**
-   * Check if a type is a sealed trait, abstract class, or enum.
-   */
-  private def isSealedTraitOrEnum(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
-    import q.reflect.*
+    private def derivedImpl[A: Type](using q: Quotes): Expr[FieldPaths[A]] = {
+      import q.reflect.*
 
-    tpe.classSymbol.fold(false) { symbol =>
-      val flags = symbol.flags
-      (flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))) ||
-      flags.is(Flags.Enum)
-    }
-  }
+      // Use MacroHelpers to get paths
+      val tpe   = TypeRepr.of[A].dealias
+      val paths = MacroHelpers.extractFieldPathsFromType(tpe, "", Set.empty).sorted
 
-  /**
-   * Check if a type is a product type (case class, but not abstract).
-   */
-  private def isProductType(using q: Quotes)(symbol: q.reflect.Symbol): Boolean = {
-    import q.reflect.*
+      // Create a tuple type from the paths
+      val tupleType = pathsToTupleType(paths)
 
-    symbol.flags.is(Flags.Case) && !symbol.flags.is(Flags.Abstract)
-  }
-
-  /**
-   * Check if a type is a container type (Option, List, Vector, Set, Map, etc.)
-   * that should not be recursed into.
-   */
-  private def isContainerType(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
-    import q.reflect.*
-
-    // Check common container types
-    val containerTypes = List(
-      TypeRepr.of[Option[?]],
-      TypeRepr.of[List[?]],
-      TypeRepr.of[Vector[?]],
-      TypeRepr.of[Set[?]],
-      TypeRepr.of[Seq[?]],
-      TypeRepr.of[IndexedSeq[?]],
-      TypeRepr.of[Iterable[?]],
-      TypeRepr.of[Map[?, ?]],
-      TypeRepr.of[Array[?]]
-    )
-
-    containerTypes.exists(ct => tpe <:< ct)
-  }
-
-  /**
-   * Check if a type is a primitive type that should not be recursed into.
-   */
-  private def isPrimitiveType(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
-    import q.reflect.*
-
-    val primitiveTypes = List(
-      TypeRepr.of[Boolean],
-      TypeRepr.of[Byte],
-      TypeRepr.of[Short],
-      TypeRepr.of[Int],
-      TypeRepr.of[Long],
-      TypeRepr.of[Float],
-      TypeRepr.of[Double],
-      TypeRepr.of[Char],
-      TypeRepr.of[String],
-      TypeRepr.of[java.math.BigInteger],
-      TypeRepr.of[java.math.BigDecimal],
-      TypeRepr.of[BigInt],
-      TypeRepr.of[BigDecimal],
-      TypeRepr.of[java.util.UUID],
-      TypeRepr.of[java.time.Instant],
-      TypeRepr.of[java.time.LocalDate],
-      TypeRepr.of[java.time.LocalTime],
-      TypeRepr.of[java.time.LocalDateTime],
-      TypeRepr.of[java.time.OffsetDateTime],
-      TypeRepr.of[java.time.ZonedDateTime],
-      TypeRepr.of[java.time.Duration],
-      TypeRepr.of[java.time.Period],
-      TypeRepr.of[java.time.Year],
-      TypeRepr.of[java.time.YearMonth],
-      TypeRepr.of[java.time.MonthDay],
-      TypeRepr.of[java.time.ZoneId],
-      TypeRepr.of[java.time.ZoneOffset],
-      TypeRepr.of[Unit],
-      TypeRepr.of[Nothing]
-    )
-
-    primitiveTypes.exists(pt => tpe =:= pt)
-  }
-
-  /**
-   * Get the fields of a product type as (name, type) pairs.
-   */
-  private def getProductFields(using q: Quotes)(tpe: q.reflect.TypeRepr): List[(String, q.reflect.TypeRepr)] = {
-    val symbol = tpe.typeSymbol
-
-    // Get primary constructor
-    val constructor = symbol.primaryConstructor
-    if (constructor.isNoSymbol) return Nil
-
-    // Get constructor parameter lists
-    val paramLists = constructor.paramSymss
-
-    // Filter to term parameters (not type parameters)
-    val termParams = paramLists.flatten.filter(_.isTerm)
-
-    termParams.map { param =>
-      val paramName = param.name
-      val paramType = tpe.memberType(param)
-      (paramName, paramType.dealias)
-    }
-  }
-
-  /**
-   * Get the direct subtypes of a sealed trait or enum.
-   */
-  private def directSubTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): List[q.reflect.TypeRepr] = {
-    import q.reflect.*
-
-    val symbol   = tpe.typeSymbol
-    val children = symbol.children
-
-    children.map { child =>
-      if (child.isType) {
-        child.typeRef
-      } else {
-        // For enum values (object cases)
-        Ref(child).tpe
+      tupleType.asType match {
+        case '[t] =>
+          '{ new FieldPaths.Impl[A, t & Tuple] }
       }
     }
+
+    /**
+     * Convert a list of path strings to a Tuple type.
+     */
+    private def pathsToTupleType(using q: Quotes)(paths: List[String]): q.reflect.TypeRepr = {
+      import q.reflect.*
+
+      paths.foldRight(TypeRepr.of[EmptyTuple]) { (path, acc) =>
+        val pathType = ConstantType(StringConstant(path))
+        TypeRepr.of[*:].appliedTo(List(pathType, acc))
+      }
+    }
+  }
+
+  /**
+   * Typeclass for extracting case names from a sealed trait/enum at compile
+   * time. The Cases type member contains the case names as a tuple of string
+   * literal types with "case:" prefix.
+   *
+   * For sealed traits/enums:
+   * {{{
+   * sealed trait Result
+   * case class Success(value: Int) extends Result
+   * case class Failure(error: String) extends Result
+   *
+   * CasePaths[Result].Cases =:= ("case:Failure", "case:Success")
+   * }}}
+   *
+   * For non-sealed types, Cases is EmptyTuple.
+   */
+  sealed trait CasePaths[A] {
+    type Cases <: Tuple
+  }
+
+  object CasePaths {
+
+    /**
+     * Concrete implementation of CasePaths with the Cases type member. Public
+     * because it's used in transparent inline given.
+     */
+    class Impl[A, C <: Tuple] extends CasePaths[A] {
+      type Cases = C
+    }
+
+    /**
+     * Given instance that extracts all case names from a type at compile time.
+     * Returns case names with "case:" prefix for sealed traits/enums, or
+     * EmptyTuple for non-sealed types.
+     */
+    transparent inline given derived[A]: CasePaths[A] = ${ casesDerivdImpl[A] }
+
+    private def casesDerivdImpl[A: Type](using q: Quotes): Expr[CasePaths[A]] = {
+      import q.reflect.*
+
+      val tpe       = TypeRepr.of[A].dealias
+      val caseNames = MacroHelpers.extractCaseNamesFromType(tpe).sorted.map(name => s"case:$name")
+
+      // Create a tuple type from the case names
+      val tupleType = caseNamesToTupleType(caseNames)
+
+      tupleType.asType match {
+        case '[t] =>
+          '{ new CasePaths.Impl[A, t & Tuple] }
+      }
+    }
+
+    /**
+     * Convert a list of case name strings to a Tuple type.
+     */
+    private def caseNamesToTupleType(using q: Quotes)(names: List[String]): q.reflect.TypeRepr = {
+      import q.reflect.*
+
+      names.foldRight(TypeRepr.of[EmptyTuple]) { (name, acc) =>
+        val nameType = ConstantType(StringConstant(name))
+        TypeRepr.of[*:].appliedTo(List(nameType, acc))
+      }
+    }
+  }
+
+  /**
+   * Extracts the field name from a selector function at compile time.
+   *
+   * {{{
+   * case class Person(name: String, age: Int)
+   *
+   * val fieldName = extractFieldName[Person, String](_.name) // "name"
+   * }}}
+   *
+   * For nested selectors, returns only the top-level field name:
+   * {{{
+   * case class Address(street: String)
+   * case class Person(address: Address)
+   *
+   * val fieldName = extractFieldName[Person, String](_.address.street) // "address"
+   * }}}
+   */
+  inline def extractFieldName[A, B](inline selector: A => B): String =
+    ${ extractFieldNameImpl[A, B]('selector) }
+
+  /**
+   * Extracts the full field path from a selector function at compile time.
+   *
+   * For nested selectors, returns all field names in the path:
+   * {{{
+   * case class Address(street: String)
+   * case class Person(address: Address)
+   *
+   * val path: List[String] = extractFieldPath[Person, String](_.address.street)
+   * // path == List("address", "street")
+   * }}}
+   */
+  inline def extractFieldPath[A, B](inline selector: A => B): List[String] =
+    ${ extractFieldPathImpl[A, B]('selector) }
+
+  // Implementation macros for field extraction
+
+  private def extractFieldNameImpl[A: Type, B: Type](
+    selector: Expr[A => B]
+  )(using q: Quotes): Expr[String] = {
+    import q.reflect.*
+
+    val fieldPath = extractFieldPathFromTerm(selector.asTerm)
+    if (fieldPath.isEmpty) {
+      report.errorAndAbort("Selector must access at least one field", selector.asTerm.pos)
+    }
+    // Return the first (top-level) field name
+    Expr(fieldPath.head)
+  }
+
+  private def extractFieldPathImpl[A: Type, B: Type](
+    selector: Expr[A => B]
+  )(using q: Quotes): Expr[List[String]] = {
+    import q.reflect.*
+
+    val fieldPath = extractFieldPathFromTerm(selector.asTerm)
+    if (fieldPath.isEmpty) {
+      report.errorAndAbort("Selector must access at least one field", selector.asTerm.pos)
+    }
+    Expr(fieldPath)
+  }
+
+  private def extractFieldPathFromTerm(using q: Quotes)(term: q.reflect.Term): List[String] = {
+    import q.reflect.*
+
+    @tailrec
+    def toPathBody(t: Term): Term = t match {
+      case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
+      case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
+      case _                                               =>
+        report.errorAndAbort(s"Expected a lambda expression, got '${t.show}'", t.pos)
+    }
+
+    def extractPath(t: Term, acc: List[String]): List[String] = t match {
+      case Select(parent, fieldName) =>
+        extractPath(parent, fieldName :: acc)
+      case _: Ident =>
+        acc
+      case Typed(expr, _) =>
+        extractPath(expr, acc)
+      case _ =>
+        report.errorAndAbort(
+          s"Unsupported selector pattern: '${t.show}'. Only simple field access is supported (e.g., _.field or _.field.nested)",
+          t.pos
+        )
+    }
+
+    val pathBody = toPathBody(term)
+    extractPath(pathBody, Nil)
   }
 }

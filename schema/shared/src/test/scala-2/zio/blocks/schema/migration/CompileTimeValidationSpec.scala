@@ -6,7 +6,7 @@ import zio.test._
 import zio.test.Assertion._
 import TypeLevel._
 import MigrationBuilderSyntax._
-import FieldExtraction.{CasePaths, FieldPaths}
+import ShapeExtraction.{CasePaths, FieldPaths}
 
 object CompileTimeValidationSpec extends ZIOSpecDefault {
 

@@ -3,6 +3,8 @@ package zio.blocks.schema.migration
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
+import TypeLevel._
+
 /**
  * Compile-time shape extraction for migration validation.
  *
@@ -13,8 +15,89 @@ import scala.reflect.macros.blackbox
  *
  * This enables validation that migrations handle all structural changes between
  * source and target types.
+ *
+ * Also provides typeclasses that extract field paths and case names from types
+ * at compile time, encoding them as TList type members for type-level
+ * validation.
  */
 object ShapeExtraction {
+
+  // ============================================================================
+  // FieldPaths Typeclass
+  // ============================================================================
+
+  /**
+   * Typeclass for extracting all field paths (including nested paths) from a
+   * type at compile time. The Paths type member contains the paths as a TList
+   * of string literal types.
+   *
+   * For nested case classes, returns all dot-separated paths:
+   * {{{
+   * case class Address(street: String, city: String)
+   * case class Person(name: String, address: Address)
+   *
+   * FieldPaths[Person].Paths =:= "address" :: "address.city" :: "address.street" :: "name" :: TNil
+   * }}}
+   */
+  sealed trait FieldPaths[A] {
+    type Paths <: TList
+  }
+
+  object FieldPaths {
+
+    /** Concrete implementation of FieldPaths with the Paths type member. */
+    class Impl[A, P <: TList] extends FieldPaths[A] {
+      type Paths = P
+    }
+
+    /** Auxiliary type alias for dependent type extraction. */
+    type Aux[A, P <: TList] = FieldPaths[A] { type Paths = P }
+
+    /** Implicit derivation macro for FieldPaths. */
+    implicit def derived[A]: FieldPaths[A] = macro ShapeExtractionMacros.fieldPathsDerivedImpl[A]
+  }
+
+  // ============================================================================
+  // CasePaths Typeclass
+  // ============================================================================
+
+  /**
+   * Typeclass for extracting case names from a sealed trait at compile time.
+   * The Cases type member contains the case names as a TList of string literal
+   * types with "case:" prefix.
+   *
+   * For sealed traits:
+   * {{{
+   * sealed trait Result
+   * case class Success(value: Int) extends Result
+   * case class Failure(error: String) extends Result
+   *
+   * CasePaths[Result].Cases =:= "case:Failure" :: "case:Success" :: TNil
+   * }}}
+   *
+   * For non-sealed types, Cases is TNil.
+   */
+  sealed trait CasePaths[A] {
+    type Cases <: TList
+  }
+
+  object CasePaths {
+
+    /** Concrete implementation of CasePaths with the Cases type member. */
+    class Impl[A, C <: TList] extends CasePaths[A] {
+      type Cases = C
+    }
+
+    /** Auxiliary type alias for dependent type extraction. */
+    type Aux[A, C <: TList] = CasePaths[A] { type Cases = C }
+
+    /** Implicit derivation macro for CasePaths. */
+    implicit def derived[A]: CasePaths[A] = macro ShapeExtractionMacros.casePathsDerivedImpl[A]
+  }
+
+  // ============================================================================
+  // Shape Case Class
+  // ============================================================================
 
   /**
    * Represents the complete shape of a type.
@@ -96,42 +179,73 @@ object ShapeExtraction {
 private[migration] object ShapeExtractionMacros {
 
   def extractFieldPathsMacro[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[List[String]] = {
-    import c.universe._
+    val helper = new ShapeExtractionHelper[c.type](c)
+    helper.extractFieldPaths[A]
+  }
 
+  def extractCaseNamesMacro[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[List[String]] = {
+    val helper = new ShapeExtractionHelper[c.type](c)
+    helper.extractCaseNames[A]
+  }
+
+  def extractShapeMacro[A: c.WeakTypeTag](c: blackbox.Context): c.Tree = {
+    val helper = new ShapeExtractionHelper[c.type](c)
+    helper.extractShape[A]
+  }
+
+  // ============================================================================
+  // FieldPaths Derivation
+  // ============================================================================
+
+  def fieldPathsDerivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[ShapeExtraction.FieldPaths[A]] = {
+    val helper = new ShapeExtractionHelper[c.type](c)
+    helper.fieldPathsDerived[A]
+  }
+
+  // ============================================================================
+  // CasePaths Derivation
+  // ============================================================================
+
+  def casePathsDerivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[ShapeExtraction.CasePaths[A]] = {
+    val helper = new ShapeExtractionHelper[c.type](c)
+    helper.casePathsDerived[A]
+  }
+}
+
+private[migration] class ShapeExtractionHelper[C <: blackbox.Context](val c: C) extends MacroHelpers {
+  import c.universe._
+
+  def extractFieldPaths[A: c.WeakTypeTag]: c.Expr[List[String]] = {
     val tpe    = weakTypeOf[A].dealias
-    val paths  = extractFieldPathsFromType(c)(tpe, "", Set.empty)
+    val paths  = extractFieldPathsFromType(tpe, "", Set.empty, "Migration shape extraction")
     val sorted = paths.sorted
 
     c.Expr[List[String]](q"${sorted.toList}")
   }
 
-  def extractCaseNamesMacro[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[List[String]] = {
-    import c.universe._
-
+  def extractCaseNames[A: c.WeakTypeTag]: c.Expr[List[String]] = {
     val tpe   = weakTypeOf[A].dealias
-    val names = extractCaseNamesFromType(c)(tpe)
+    val names = extractCaseNamesFromType(tpe)
 
     c.Expr[List[String]](q"${names.sorted.toList}")
   }
 
-  def extractShapeMacro[A: c.WeakTypeTag](c: blackbox.Context): c.Tree = {
-    import c.universe._
-
+  def extractShape[A: c.WeakTypeTag]: c.Tree = {
     val tpe = weakTypeOf[A].dealias
 
     // Extract field paths (for product types)
-    val fieldPaths = extractFieldPathsFromType(c)(tpe, "", Set.empty).sorted.toList
+    val fieldPaths = extractFieldPathsFromType(tpe, "", Set.empty, "Migration shape extraction").sorted.toList
 
     // Extract case names (for sum types)
-    val caseNames = extractCaseNamesFromType(c)(tpe).sorted.toList
+    val caseNames = extractCaseNamesFromType(tpe).sorted.toList
 
     // Extract field paths for each case
     val caseFieldPaths: Map[String, List[String]] =
-      if (isSealedTrait(c)(tpe)) {
-        val subTypes = directSubTypes(c)(tpe)
+      if (isSealedTrait(tpe)) {
+        val subTypes = directSubTypes(tpe)
         subTypes.map { subTpe =>
-          val caseName  = getCaseName(c)(subTpe)
-          val casePaths = extractFieldPathsFromType(c)(subTpe, "", Set.empty).sorted.toList
+          val caseName  = getCaseName(subTpe)
+          val casePaths = extractFieldPathsFromType(subTpe, "", Set.empty, "Migration shape extraction").sorted.toList
           caseName -> casePaths
         }.toMap
       } else {
@@ -146,198 +260,49 @@ private[migration] object ShapeExtractionMacros {
     q"_root_.zio.blocks.schema.migration.ShapeExtraction.Shape($fieldPaths, $caseNames, _root_.scala.collection.immutable.Map(..$mapEntries))"
   }
 
-  /**
-   * Extract all field paths from a type, recursively descending into nested
-   * case classes.
-   *
-   * @param tpe
-   *   The type to extract paths from
-   * @param prefix
-   *   The current path prefix (e.g., "address." for nested fields)
-   * @param visiting
-   *   Set of type full names currently being visited (for recursion detection)
-   * @return
-   *   List of dot-separated field paths
-   */
-  private def extractFieldPathsFromType(
-    c: blackbox.Context
-  )(tpe: c.Type, prefix: String, visiting: Set[String]): List[String] = {
-    val dealiased = tpe.dealias
-    val typeKey   = dealiased.typeSymbol.fullName
+  // ============================================================================
+  // FieldPaths/CasePaths Typeclass Derivation
+  // ============================================================================
 
-    // Check for recursion
-    if (visiting.contains(typeKey)) {
-      c.abort(
-        c.enclosingPosition,
-        s"Recursive type detected: ${dealiased.typeSymbol.name}. " +
-          s"Migration shape extraction does not support recursive types. " +
-          s"Recursion path: ${visiting.mkString(" -> ")} -> $typeKey"
-      )
-    }
+  def fieldPathsDerived[A: c.WeakTypeTag]: c.Expr[ShapeExtraction.FieldPaths[A]] = {
+    val tpe   = weakTypeOf[A].dealias
+    val paths = extractFieldPathsFromType(tpe, "", Set.empty).sorted
 
-    // Skip extraction for container types and primitives
-    if (isContainerType(c)(dealiased) || isPrimitiveType(c)(dealiased)) {
-      return Nil
-    }
+    // Build TList type from paths
+    val tlistType = pathsToTListType(paths)
 
-    // Only extract fields from product types (case classes)
-    if (!isProductType(c)(dealiased.typeSymbol)) {
-      return Nil
-    }
+    // Create the instance with correct type
+    val implClass  = typeOf[ShapeExtraction.FieldPaths.Impl[_, _]].typeSymbol
+    val resultType = appliedType(implClass, List(tpe, tlistType))
 
-    val newVisiting = visiting + typeKey
-    val fields      = getProductFields(c)(dealiased)
+    c.Expr[ShapeExtraction.FieldPaths[A]](q"new $resultType")
+  }
 
-    fields.flatMap { case (fieldName, fieldType) =>
-      val fullPath    = if (prefix.isEmpty) fieldName else s"$prefix$fieldName"
-      val nestedPaths = extractFieldPathsFromType(c)(fieldType, s"$fullPath.", newVisiting)
-      fullPath :: nestedPaths
-    }
+  def casePathsDerived[A: c.WeakTypeTag]: c.Expr[ShapeExtraction.CasePaths[A]] = {
+    val tpe       = weakTypeOf[A].dealias
+    val caseNames = extractCaseNamesFromType(tpe).sorted.map(name => s"case:$name")
+
+    // Build TList type from case names
+    val tlistType = pathsToTListType(caseNames)
+
+    // Create the instance with correct type
+    val implClass  = typeOf[ShapeExtraction.CasePaths.Impl[_, _]].typeSymbol
+    val resultType = appliedType(implClass, List(tpe, tlistType))
+
+    c.Expr[ShapeExtraction.CasePaths[A]](q"new $resultType")
   }
 
   /**
-   * Extract case names from a sealed trait.
+   * Convert a list of path strings to a TList type. List("a", "b", "c") => "a"
+   * :: "b" :: "c" :: TNil
    */
-  private def extractCaseNamesFromType(c: blackbox.Context)(tpe: c.Type): List[String] = {
-    val dealiased = tpe.dealias
+  private def pathsToTListType(paths: List[String]): c.Type = {
+    val tnilType  = typeOf[TNil]
+    val tconsType = typeOf[TCons[_, _]].typeConstructor
 
-    if (isSealedTrait(c)(dealiased)) {
-      val subTypes = directSubTypes(c)(dealiased)
-      subTypes.map(getCaseName(c))
-    } else {
-      Nil
-    }
-  }
-
-  /**
-   * Get the name of a case from its type.
-   */
-  private def getCaseName(c: blackbox.Context)(tpe: c.Type): String = {
-    val sym = tpe.typeSymbol
-    // For case objects (modules), use the module symbol name
-    if (sym.isModuleClass) {
-      sym.asClass.module.name.decodedName.toString
-    } else {
-      sym.name.decodedName.toString
-    }
-  }
-
-  /**
-   * Check if a type is a sealed trait or abstract class.
-   */
-  private def isSealedTrait(c: blackbox.Context)(tpe: c.Type): Boolean = {
-    val sym = tpe.typeSymbol
-    sym.isClass && sym.asClass.isSealed
-  }
-
-  /**
-   * Check if a type is a product type (case class, but not abstract).
-   */
-  private def isProductType(c: blackbox.Context)(symbol: c.Symbol): Boolean =
-    symbol.isClass && symbol.asClass.isCaseClass && !symbol.asClass.isAbstract
-
-  /**
-   * Check if a type is a container type (Option, List, Vector, Set, Map, etc.)
-   * that should not be recursed into.
-   */
-  private def isContainerType(c: blackbox.Context)(tpe: c.Type): Boolean = {
-    import c.universe._
-
-    val containerTypes = List(
-      typeOf[Option[_]],
-      typeOf[List[_]],
-      typeOf[Vector[_]],
-      typeOf[Set[_]],
-      typeOf[Seq[_]],
-      typeOf[IndexedSeq[_]],
-      typeOf[Iterable[_]],
-      typeOf[Map[_, _]],
-      typeOf[Array[_]]
-    )
-
-    containerTypes.exists(ct => tpe <:< ct)
-  }
-
-  /**
-   * Check if a type is a primitive type that should not be recursed into.
-   */
-  private def isPrimitiveType(c: blackbox.Context)(tpe: c.Type): Boolean = {
-    import c.universe._
-
-    val primitiveTypes = List(
-      typeOf[Boolean],
-      typeOf[Byte],
-      typeOf[Short],
-      typeOf[Int],
-      typeOf[Long],
-      typeOf[Float],
-      typeOf[Double],
-      typeOf[Char],
-      typeOf[String],
-      typeOf[java.math.BigInteger],
-      typeOf[java.math.BigDecimal],
-      typeOf[BigInt],
-      typeOf[BigDecimal],
-      typeOf[java.util.UUID],
-      typeOf[java.time.Instant],
-      typeOf[java.time.LocalDate],
-      typeOf[java.time.LocalTime],
-      typeOf[java.time.LocalDateTime],
-      typeOf[java.time.OffsetDateTime],
-      typeOf[java.time.ZonedDateTime],
-      typeOf[java.time.Duration],
-      typeOf[java.time.Period],
-      typeOf[java.time.Year],
-      typeOf[java.time.YearMonth],
-      typeOf[java.time.MonthDay],
-      typeOf[java.time.ZoneId],
-      typeOf[java.time.ZoneOffset],
-      typeOf[Unit],
-      typeOf[Nothing]
-    )
-
-    primitiveTypes.exists(pt => tpe =:= pt)
-  }
-
-  /**
-   * Get the fields of a product type as (name, type) pairs.
-   */
-  private def getProductFields(c: blackbox.Context)(tpe: c.Type): List[(String, c.Type)] = {
-    import c.universe._
-
-    // Get primary constructor
-    val constructor = tpe.decls.collectFirst {
-      case m: MethodSymbol if m.isPrimaryConstructor => m
-    }
-
-    constructor match {
-      case Some(ctor) =>
-        val paramList = ctor.paramLists.headOption.getOrElse(Nil)
-        paramList.map { param =>
-          val paramName = param.name.decodedName.toString
-          // Get the field type by looking up the accessor method in the type
-          val paramType = tpe.member(param.name).typeSignatureIn(tpe).dealias
-          (paramName, paramType)
-        }
-      case None => Nil
-    }
-  }
-
-  /**
-   * Get the direct subtypes of a sealed trait.
-   */
-  private def directSubTypes(c: blackbox.Context)(tpe: c.Type): List[c.Type] = {
-    val tpeClass   = tpe.typeSymbol.asClass
-    val subclasses = tpeClass.knownDirectSubclasses.toList.sortBy(_.name.toString)
-
-    subclasses.map { symbol =>
-      val classSymbol = symbol.asClass
-      // For modules (case objects), use the singleton type
-      if (classSymbol.isModuleClass) {
-        classSymbol.module.typeSignature
-      } else {
-        classSymbol.toType
-      }
+    paths.foldRight(tnilType) { (path, acc) =>
+      val pathType = c.internal.constantType(Constant(path))
+      appliedType(tconsType, List(pathType, acc))
     }
   }
 }

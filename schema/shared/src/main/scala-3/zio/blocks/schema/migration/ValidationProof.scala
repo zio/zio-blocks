@@ -3,7 +3,7 @@ package zio.blocks.schema.migration
 import scala.compiletime.{summonFrom, summonInline}
 import scala.quoted.*
 import zio.blocks.schema.migration.TypeLevel._
-import zio.blocks.schema.migration.FieldExtraction._
+import zio.blocks.schema.migration.ShapeExtraction._
 
 /**
  * Compile-time proof that a migration is complete.
@@ -177,9 +177,9 @@ object ValidationProof {
     import q.reflect.*
 
     // Extract paths from source type A
-    val pathsA = extractFieldPathsForValidation(TypeRepr.of[A])
+    val pathsA = MacroHelpers.extractFieldPathsFromType(TypeRepr.of[A].dealias, "", Set.empty).sorted
     // Extract paths from target type B
-    val pathsB = extractFieldPathsForValidation(TypeRepr.of[B])
+    val pathsB = MacroHelpers.extractFieldPathsFromType(TypeRepr.of[B].dealias, "", Set.empty).sorted
     // Extract cases from source type A
     val casesA = extractCaseNamesForValidation(TypeRepr.of[A])
     // Extract cases from target type B
@@ -255,41 +255,12 @@ object ValidationProof {
   }
 
   /**
-   * Extract field paths from a type for validation error messages. This mirrors
-   * the logic in FieldPaths but returns a runtime List[String].
-   */
-  private def extractFieldPathsForValidation(using q: Quotes)(tpe: q.reflect.TypeRepr): List[String] = {
-    import q.reflect.*
-
-    def extract(t: TypeRepr, prefix: String, visiting: Set[String]): List[String] = {
-      val dealiased = t.dealias
-      val typeKey   = dealiased.typeSymbol.fullName
-
-      if (visiting.contains(typeKey)) return Nil // Recursion - stop
-      if (isContainerTypeForValidation(dealiased)) return Nil
-      if (isPrimitiveTypeForValidation(dealiased)) return Nil
-      if (!isProductTypeForValidation(dealiased.typeSymbol)) return Nil
-
-      val newVisiting = visiting + typeKey
-      val fields      = getProductFieldsForValidation(dealiased)
-
-      fields.flatMap { case (fieldName, fieldType) =>
-        val fullPath    = if (prefix.isEmpty) fieldName else s"$prefix$fieldName"
-        val nestedPaths = extract(fieldType, s"$fullPath.", newVisiting)
-        fullPath :: nestedPaths
-      }
-    }
-
-    extract(tpe, "", Set.empty).sorted
-  }
-
-  /**
    * Extract case names from a type for validation error messages.
    */
   private def extractCaseNamesForValidation(using q: Quotes)(tpe: q.reflect.TypeRepr): List[String] = {
     val dealiased = tpe.dealias
 
-    if (isSealedTraitOrEnumForValidation(dealiased)) {
+    if (MacroHelpers.isSealedTraitOrEnum(dealiased)) {
       val symbol   = dealiased.typeSymbol
       val children = symbol.children
       children.map { child =>
@@ -333,97 +304,5 @@ object ValidationProof {
     }
 
     extract(tpe)
-  }
-
-  // Helper methods for validation - mirror those in FieldPaths
-
-  private def isContainerTypeForValidation(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
-    import q.reflect.*
-
-    val containerTypes = List(
-      TypeRepr.of[Option[?]],
-      TypeRepr.of[List[?]],
-      TypeRepr.of[Vector[?]],
-      TypeRepr.of[Set[?]],
-      TypeRepr.of[Seq[?]],
-      TypeRepr.of[IndexedSeq[?]],
-      TypeRepr.of[Iterable[?]],
-      TypeRepr.of[Map[?, ?]],
-      TypeRepr.of[Array[?]]
-    )
-
-    containerTypes.exists(ct => tpe <:< ct)
-  }
-
-  private def isPrimitiveTypeForValidation(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
-    import q.reflect.*
-
-    val primitiveTypes = List(
-      TypeRepr.of[Boolean],
-      TypeRepr.of[Byte],
-      TypeRepr.of[Short],
-      TypeRepr.of[Int],
-      TypeRepr.of[Long],
-      TypeRepr.of[Float],
-      TypeRepr.of[Double],
-      TypeRepr.of[Char],
-      TypeRepr.of[String],
-      TypeRepr.of[java.math.BigInteger],
-      TypeRepr.of[java.math.BigDecimal],
-      TypeRepr.of[BigInt],
-      TypeRepr.of[BigDecimal],
-      TypeRepr.of[java.util.UUID],
-      TypeRepr.of[java.time.Instant],
-      TypeRepr.of[java.time.LocalDate],
-      TypeRepr.of[java.time.LocalTime],
-      TypeRepr.of[java.time.LocalDateTime],
-      TypeRepr.of[java.time.OffsetDateTime],
-      TypeRepr.of[java.time.ZonedDateTime],
-      TypeRepr.of[java.time.Duration],
-      TypeRepr.of[java.time.Period],
-      TypeRepr.of[java.time.Year],
-      TypeRepr.of[java.time.YearMonth],
-      TypeRepr.of[java.time.MonthDay],
-      TypeRepr.of[java.time.ZoneId],
-      TypeRepr.of[java.time.ZoneOffset],
-      TypeRepr.of[Unit],
-      TypeRepr.of[Nothing]
-    )
-
-    primitiveTypes.exists(pt => tpe =:= pt)
-  }
-
-  private def isProductTypeForValidation(using q: Quotes)(symbol: q.reflect.Symbol): Boolean = {
-    import q.reflect.*
-    symbol.flags.is(Flags.Case) && !symbol.flags.is(Flags.Abstract)
-  }
-
-  private def isSealedTraitOrEnumForValidation(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
-    import q.reflect.*
-
-    tpe.classSymbol.fold(false) { symbol =>
-      val flags = symbol.flags
-      (flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))) ||
-      flags.is(Flags.Enum)
-    }
-  }
-
-  private def getProductFieldsForValidation(using
-    q: Quotes
-  )(tpe: q.reflect.TypeRepr): List[(String, q.reflect.TypeRepr)] = {
-
-    val symbol = tpe.typeSymbol
-
-    val constructor = symbol.primaryConstructor
-    if (constructor.isNoSymbol) return Nil
-
-    val paramLists = constructor.paramSymss
-    val termParams = paramLists.flatten.filter(_.isTerm)
-
-    termParams.map { param =>
-      val paramName = param.name
-      val paramType = tpe.memberType(param)
-      (paramName, paramType.dealias)
-    }
   }
 }
