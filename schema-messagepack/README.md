@@ -31,7 +31,7 @@ object Person {
 }
 
 // Derive the MessagePack codec
-val codec = Schema[Person].derive(MessagePackFormat.deriver)
+val codec = Schema[Person].derive(MessagePackFormat)
 
 // Encode to MessagePack
 val person = Person("Alice", 30)
@@ -54,7 +54,7 @@ object Team {
   implicit val schema: Schema[Team] = Schema.derived
 }
 
-val teamCodec = Schema[Team].derive(MessagePackFormat.deriver)
+val teamCodec = Schema[Team].derive(MessagePackFormat)
 val team = Team(List(User(1, "Alice"), User(2, "Bob")))
 
 // Encode
@@ -77,7 +77,7 @@ object Shape {
   implicit val schema: Schema[Shape] = Schema.derived
 }
 
-val shapeCodec = Schema[Shape].derive(MessagePackFormat.deriver)
+val shapeCodec = Schema[Shape].derive(MessagePackFormat)
 
 // Circle is encoded as: 0{radius: 5.0} (index 0 followed by the record)
 val circle: Shape = Circle(5.0)

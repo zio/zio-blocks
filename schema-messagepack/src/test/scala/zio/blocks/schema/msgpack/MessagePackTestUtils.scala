@@ -85,7 +85,10 @@ object MessagePackTestUtils {
 
   private def getOrDeriveCodec[A](schema: Schema[A]): MessagePackBinaryCodec[A] =
     codecs
-      .computeIfAbsent(schema, s => s.derive(MessagePackFormat.deriver).asInstanceOf[MessagePackBinaryCodec[?]])
+      .computeIfAbsent(
+        schema,
+        (s: Schema[?]) => s.derive(MessagePackFormat.deriver).asInstanceOf[MessagePackBinaryCodec[?]]
+      )
       .asInstanceOf[MessagePackBinaryCodec[A]]
 
   private def toHeapByteBuffer(bs: Array[Byte]): ByteBuffer = ByteBuffer.wrap(bs)
