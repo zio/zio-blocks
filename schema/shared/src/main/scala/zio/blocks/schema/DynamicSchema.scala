@@ -160,7 +160,10 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
       case m: Reflect.Map[NoBinding, _, _, _] @unchecked   => m.copy(storedDefaultValue = Some(value))
       case p: Reflect.Primitive[NoBinding, _]              => p.copy(storedDefaultValue = Some(value))
       case w: Reflect.Wrapper[NoBinding, _, _]             => w.copy(storedDefaultValue = Some(value))
-      case other                                           => other
+      case d: Reflect.Deferred[NoBinding, _]               =>
+        val inner = DynamicSchema(d.value).defaultValue(value).reflect
+        d.copy(_value = () => inner.asInstanceOf[Reflect[NoBinding, Any]])
+      case other => other
     }
     new DynamicSchema(updatedReflect.asInstanceOf[Reflect.Unbound[_]])
   }
@@ -175,7 +178,10 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
       case m: Reflect.Map[NoBinding, _, _, _] @unchecked   => m.copy(storedExamples = allExamples)
       case p: Reflect.Primitive[NoBinding, _]              => p.copy(storedExamples = allExamples)
       case w: Reflect.Wrapper[NoBinding, _, _]             => w.copy(storedExamples = allExamples)
-      case other                                           => other
+      case d: Reflect.Deferred[NoBinding, _]               =>
+        val inner = DynamicSchema(d.value).examples(value, values: _*).reflect
+        d.copy(_value = () => inner.asInstanceOf[Reflect[NoBinding, Any]])
+      case other => other
     }
     new DynamicSchema(updatedReflect.asInstanceOf[Reflect.Unbound[_]])
   }

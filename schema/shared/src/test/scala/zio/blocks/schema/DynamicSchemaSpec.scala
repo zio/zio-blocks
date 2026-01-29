@@ -702,6 +702,30 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val dv2 = DynamicValue.Primitive(PrimitiveValue.Int(2))
         val ds2 = ds.examples(dv1, dv2)
         assertTrue(ds2.examples.length == 2)
+      },
+      test("defaultValue works through Deferred (recursive schema)") {
+        val ds = Schema[Tree].toDynamicSchema
+        val dv = DynamicValue.Variant(
+          "Leaf",
+          DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        )
+        val ds2 = ds.defaultValue(dv)
+        assertTrue(ds2.getDefaultValue.contains(dv))
+      },
+      test("examples works through Deferred (recursive schema)") {
+        val ds  = Schema[Tree].toDynamicSchema
+        val dv1 = DynamicValue.Variant(
+          "Leaf",
+          DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        )
+        val dv2 = DynamicValue.Variant(
+          "Leaf",
+          DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(2))))
+        )
+        val ds2 = ds.examples(dv1, dv2)
+        assertTrue(ds2.examples.length == 2) &&
+        assertTrue(ds2.examples.contains(dv1)) &&
+        assertTrue(ds2.examples.contains(dv2))
       }
     ),
     suite("type mismatch errors")(
