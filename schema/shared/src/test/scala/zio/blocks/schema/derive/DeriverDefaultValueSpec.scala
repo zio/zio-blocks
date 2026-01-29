@@ -41,10 +41,13 @@ object DeriverDefaultValueSpec extends SchemaBaseSpec {
     val entries: Lens[Dictionary, Map[String, Int]] = optic(_.entries)
   }
 
-  case class Wrapper(value: String)
+  case class StringWrapper(value: String)
 
-  object Wrapper extends CompanionOptics[Wrapper] {
-    implicit val schema: Schema[Wrapper] = Schema.derived
+  object StringWrapper {
+    implicit val schema: Schema[StringWrapper] =
+      Schema[String]
+        .transformOrFail(s => Right(StringWrapper(s)), (w: StringWrapper) => w.value)
+        .withTypeName[StringWrapper]
   }
 
   class CapturingDeriver extends Deriver[CapturedValues] {
@@ -320,15 +323,28 @@ object DeriverDefaultValueSpec extends SchemaBaseSpec {
     suite("Wrapper")(
       test("receives None when no default value set") {
         val deriver = new CapturingDeriver
-        Wrapper.schema.derive(deriver)
-        assertTrue(deriver.lastWrapperCapture.isEmpty || deriver.lastWrapperCapture.exists(_._1.isEmpty))
+        StringWrapper.schema.derive(deriver)
+        assertTrue(deriver.lastWrapperCapture.exists(_._1.isEmpty))
+      },
+      test("receives empty Seq when no examples set") {
+        val deriver = new CapturingDeriver
+        StringWrapper.schema.derive(deriver)
+        assertTrue(deriver.lastWrapperCapture.exists(_._2.isEmpty))
       },
       test("receives default value when set on wrapper schema") {
         val deriver        = new CapturingDeriver
-        val defaultWrapper = Wrapper("default")
-        val schema         = Wrapper.schema.defaultValue(defaultWrapper)
+        val defaultWrapper = StringWrapper("default")
+        val schema         = StringWrapper.schema.defaultValue(defaultWrapper)
         schema.derive(deriver)
-        assertTrue(deriver.lastRecordCapture.exists(_._1 == Some(defaultWrapper)))
+        assertTrue(deriver.lastWrapperCapture.exists(_._1 == Some(defaultWrapper)))
+      },
+      test("receives examples when set on wrapper schema") {
+        val deriver  = new CapturingDeriver
+        val example1 = StringWrapper("example1")
+        val example2 = StringWrapper("example2")
+        val schema   = StringWrapper.schema.examples(example1, example2)
+        schema.derive(deriver)
+        assertTrue(deriver.lastWrapperCapture.exists(_._2 == Seq(example1, example2)))
       }
     )
   )

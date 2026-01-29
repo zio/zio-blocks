@@ -130,7 +130,10 @@ final case class DerivationBuilder[TC[_], A](
               new Reflect.Record[G, A0](
                 fields,
                 typeName,
-                new BindingInstance(metadata, Lazy(null.asInstanceOf[TC[A0]])),
+                new BindingInstance(
+                  metadata,
+                  Lazy.fail(new IllegalStateException("Temporary instance for fromDynamicValue conversion"))
+                ),
                 doc,
                 modifiers
               )
@@ -186,7 +189,10 @@ final case class DerivationBuilder[TC[_], A](
               new Reflect.Variant[G, A0](
                 cases,
                 typeName,
-                new BindingInstance(metadata, Lazy(null.asInstanceOf[TC[A0]])),
+                new BindingInstance(
+                  metadata,
+                  Lazy.fail(new IllegalStateException("Temporary instance for fromDynamicValue conversion"))
+                ),
                 doc,
                 modifiers
               )
@@ -245,7 +251,10 @@ final case class DerivationBuilder[TC[_], A](
               new Reflect.Sequence[G, A0, C](
                 element,
                 typeName,
-                new BindingInstance(metadata, Lazy(null.asInstanceOf[TC[C[A0]]])),
+                new BindingInstance(
+                  metadata,
+                  Lazy.fail(new IllegalStateException("Temporary instance for fromDynamicValue conversion"))
+                ),
                 doc,
                 modifiers
               )
@@ -291,7 +300,10 @@ final case class DerivationBuilder[TC[_], A](
                 key,
                 value,
                 typeName,
-                new BindingInstance(metadata, Lazy(null.asInstanceOf[TC[M[Key, Value]]])),
+                new BindingInstance(
+                  metadata,
+                  Lazy.fail(new IllegalStateException("Temporary instance for fromDynamicValue conversion"))
+                ),
                 doc,
                 modifiers
               )
@@ -403,7 +415,10 @@ final case class DerivationBuilder[TC[_], A](
                 wrapped,
                 typeName,
                 wrapperPrimitiveType,
-                new BindingInstance(metadata, Lazy(null.asInstanceOf[TC[A0]])),
+                new BindingInstance(
+                  metadata,
+                  Lazy.fail(new IllegalStateException("Temporary instance for fromDynamicValue conversion"))
+                ),
                 doc,
                 modifiers
               )
