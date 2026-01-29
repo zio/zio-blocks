@@ -238,10 +238,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val aType        = weakTypeOf[A]
     val bType        = weakTypeOf[B]
@@ -755,10 +752,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val fieldName     = extractFieldNameFromSelector(c)(target.tree)
     val optic         = MigrationBuilderMacros.extractOptic[B, Any](c)(target)
@@ -787,10 +781,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val fieldName     = extractFieldNameFromSelector(c)(source.tree)
     val optic         = MigrationBuilderMacros.extractOptic[A, Any](c)(source)
@@ -819,10 +810,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val fromFieldName = extractFieldNameFromSelector(c)(from.tree)
     val toFieldName   = extractFieldNameFromSelector(c)(to.tree)
@@ -856,10 +844,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val fieldName     = extractFieldNameFromSelector(c)(at.tree)
     val optic         = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
@@ -889,10 +874,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val fieldName     = extractFieldNameFromSelector(c)(at.tree)
     val optic         = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
@@ -922,10 +904,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val fieldName     = extractFieldNameFromSelector(c)(at.tree)
     val optic         = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
@@ -955,10 +934,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val fieldName     = extractFieldNameFromSelector(c)(at.tree)
     val optic         = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
@@ -989,10 +965,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val targetFieldName = extractFieldNameFromSelector(c)(target.tree)
     val targetOptic     = MigrationBuilderMacros.extractOptic[B, Any](c)(target)
@@ -1036,10 +1009,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val sourceFieldName = extractFieldNameFromSelector(c)(source.tree)
     val sourceOptic     = MigrationBuilderMacros.extractOptic[A, Any](c)(source)
@@ -1082,10 +1052,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val optic = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
 
@@ -1110,10 +1077,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val optic = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
 
@@ -1138,10 +1102,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val optic = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
 
@@ -1166,10 +1127,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val (fromOptic, fromCaseName) = MigrationBuilderMacros.extractCaseSelector[A, Any](c)(from)
 
@@ -1214,10 +1172,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
 
-    val builder = c.prefix.tree match {
-      case Apply(_, List(b)) => b
-      case _                 => c.abort(c.enclosingPosition, "Could not extract builder from prefix")
-    }
+    val builder = q"${c.prefix}.builder"
 
     val (atOptic, caseName) = MigrationBuilderMacros.extractCaseSelector[A, Any](c)(at)
 
