@@ -3,8 +3,8 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 
 /**
- * A wrapper around `Either[DynamicValueError, Chunk[DynamicValue]]` that
- * provides fluent chaining for DynamicValue navigation and querying operations.
+ * A wrapper around `Either[SchemaError, Chunk[DynamicValue]]` that provides
+ * fluent chaining for DynamicValue navigation and querying operations.
  *
  * DynamicValueSelection enables a fluent API style for navigating through
  * DynamicValue structures:
@@ -15,7 +15,7 @@ import zio.blocks.chunk.Chunk
  * The selection can contain zero, one, or multiple DynamicValue values,
  * supporting both single-value navigation and multi-value queries.
  */
-final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[DynamicValue]]) extends AnyVal {
+final case class DynamicValueSelection(either: Either[SchemaError, Chunk[DynamicValue]]) extends AnyVal {
 
   // ─────────────────────────────────────────────────────────────────────────
   // Basic operations
@@ -28,7 +28,7 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[D
   def isFailure: Boolean = either.isLeft
 
   /** Returns the error if this is a failure, otherwise None. */
-  def error: Option[DynamicValueError] = either.left.toOption
+  def error: Option[SchemaError] = either.left.toOption
 
   /** Returns the selected values if successful, otherwise None. */
   def values: Option[Chunk[DynamicValue]] = either.toOption
@@ -40,10 +40,10 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[D
    * Returns the single selected value, or fails if there are 0 or more than 1
    * values.
    */
-  def one: Either[DynamicValueError, DynamicValue] = either.flatMap { v =>
+  def one: Either[SchemaError, DynamicValue] = either.flatMap { v =>
     if (v.length == 1) Right(v.head)
-    else if (v.isEmpty) Left(DynamicValueError("Expected single value but got none"))
-    else Left(DynamicValueError(s"Expected single value but got ${v.length}"))
+    else if (v.isEmpty) Left(SchemaError("Expected single value but got none"))
+    else Left(SchemaError(s"Expected single value but got ${v.length}"))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -67,10 +67,10 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[D
    * Returns any single value from the selection. Fails if the selection is
    * empty or an error.
    */
-  def any: Either[DynamicValueError, DynamicValue] = either.flatMap { v =>
+  def any: Either[SchemaError, DynamicValue] = either.flatMap { v =>
     v.headOption match {
       case Some(dv) => Right(dv)
-      case None     => Left(DynamicValueError("Expected at least one value but got none"))
+      case None     => Left(SchemaError("Expected at least one value but got none"))
     }
   }
 
@@ -79,8 +79,8 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[D
    * are multiple values, wraps them in a Sequence. Fails if the selection is
    * empty or an error.
    */
-  def all: Either[DynamicValueError, DynamicValue] = either.flatMap { v =>
-    if (v.isEmpty) Left(DynamicValueError("Expected at least one value but got none"))
+  def all: Either[SchemaError, DynamicValue] = either.flatMap { v =>
+    if (v.isEmpty) Left(SchemaError("Expected at least one value but got none"))
     else if (v.length == 1) Right(v.head)
     else Right(DynamicValue.Sequence(v))
   }
@@ -88,10 +88,10 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[D
   /**
    * Returns all selected values as a DynamicValue.Sequence.
    */
-  def toSequence: Either[DynamicValueError, DynamicValue] = either.map(v => DynamicValue.Sequence(v))
+  def toSequence: Either[SchemaError, DynamicValue] = either.map(v => DynamicValue.Sequence(v))
 
   /**
-   * Unsafe version of `one` - throws DynamicValueError on error.
+   * Unsafe version of `one` - throws SchemaError on error.
    */
   def oneUnsafe: DynamicValue = one match {
     case Right(dv) => dv
@@ -99,7 +99,7 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[D
   }
 
   /**
-   * Unsafe version of `any` - throws DynamicValueError on error.
+   * Unsafe version of `any` - throws SchemaError on error.
    */
   def anyUnsafe: DynamicValue = any match {
     case Right(dv) => dv
@@ -181,7 +181,7 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[D
     DynamicValueSelection(either.map(_.filter(p)))
 
   /** Collects values for which the partial function is defined. */
-  def collect[A](pf: PartialFunction[DynamicValue, A]): Either[DynamicValueError, Chunk[A]] =
+  def collect[A](pf: PartialFunction[DynamicValue, A]): Either[SchemaError, Chunk[A]] =
     either.map(_.collect(pf))
 
   /** Returns this selection if successful, otherwise the alternative. */
@@ -196,6 +196,7 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[D
   def ++(other: DynamicValueSelection): DynamicValueSelection =
     (either, other.either) match {
       case (Right(v1), Right(v2)) => DynamicValueSelection(Right(v1 ++ v2))
+      case (Left(e1), Left(e2))   => DynamicValueSelection(Left(e1 ++ e2))
       case (Left(e), _)           => DynamicValueSelection(Left(e))
       case (_, Left(e))           => DynamicValueSelection(Left(e))
     }
@@ -423,32 +424,32 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[D
    * Narrows the single selected value to the specified DynamicValue type. Fails
    * if there are 0 or more than 1 values, or if the value doesn't match.
    */
-  def as(t: DynamicValueType): Either[DynamicValueError, t.Type] =
+  def as(t: DynamicValueType): Either[SchemaError, t.Type] =
     one.flatMap { dv =>
-      dv.as(t).toRight(DynamicValueError(s"Expected ${t} but got ${dv.valueType}"))
+      dv.as(t).toRight(SchemaError(s"Expected ${t} but got ${dv.valueType}"))
     }
 
   /**
    * Narrows all selected values to the specified DynamicValue type. Values not
    * matching the type are silently dropped.
    */
-  def asAll(t: DynamicValueType): Either[DynamicValueError, Chunk[t.Type]] =
+  def asAll(t: DynamicValueType): Either[SchemaError, Chunk[t.Type]] =
     either.map(_.flatMap(_.as(t).toList))
 
   /**
    * Extracts the underlying Scala value from the single selected DynamicValue.
    * Fails if there are 0 or more than 1 values, or if the value doesn't match.
    */
-  def unwrap(t: DynamicValueType): Either[DynamicValueError, t.Unwrap] =
+  def unwrap(t: DynamicValueType): Either[SchemaError, t.Unwrap] =
     one.flatMap { dv =>
-      dv.unwrap(t).toRight(DynamicValueError(s"Cannot unwrap ${dv.valueType} as ${t}"))
+      dv.unwrap(t).toRight(SchemaError(s"Cannot unwrap ${dv.valueType} as ${t}"))
     }
 
   /**
    * Extracts the underlying Scala values from all selected DynamicValues.
    * Values not matching the type are silently dropped.
    */
-  def unwrapAll(t: DynamicValueType): Either[DynamicValueError, Chunk[t.Unwrap]] =
+  def unwrapAll(t: DynamicValueType): Either[SchemaError, Chunk[t.Unwrap]] =
     either.map(_.flatMap(_.unwrap(t).toList))
 
   /**
@@ -456,16 +457,16 @@ final case class DynamicValueSelection(either: Either[DynamicValueError, Chunk[D
    * if there are 0 or more than 1 values, or if the value isn't the expected
    * primitive.
    */
-  def asPrimitive[A](pt: PrimitiveType[A]): Either[DynamicValueError, A] =
+  def asPrimitive[A](pt: PrimitiveType[A]): Either[SchemaError, A] =
     one.flatMap { dv =>
-      dv.asPrimitive(pt).toRight(DynamicValueError(s"Expected primitive ${pt} but got ${dv.valueType}"))
+      dv.asPrimitive(pt).toRight(SchemaError(s"Expected primitive ${pt} but got ${dv.valueType}"))
     }
 
   /**
    * Extracts primitive values of type A from all selected values. Values not
    * matching the type are silently dropped.
    */
-  def asPrimitiveAll[A](pt: PrimitiveType[A]): Either[DynamicValueError, Chunk[A]] =
+  def asPrimitiveAll[A](pt: PrimitiveType[A]): Either[SchemaError, Chunk[A]] =
     either.map(_.flatMap(_.asPrimitive(pt).toList))
 }
 
@@ -478,7 +479,7 @@ object DynamicValueSelection {
   def succeedMany(dvs: Chunk[DynamicValue]): DynamicValueSelection = DynamicValueSelection(Right(dvs))
 
   /** Creates a failed selection with an error. */
-  def fail(error: DynamicValueError): DynamicValueSelection = DynamicValueSelection(Left(error))
+  def fail(error: SchemaError): DynamicValueSelection = DynamicValueSelection(Left(error))
 
   /** An empty successful selection. */
   val empty: DynamicValueSelection = DynamicValueSelection(Right(Chunk.empty))
