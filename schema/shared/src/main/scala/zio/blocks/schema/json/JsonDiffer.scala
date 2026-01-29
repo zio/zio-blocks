@@ -176,13 +176,14 @@ private[json] object JsonDiffer {
       i += 1
     }
 
-    // Reconstruct the LCS
+    // Reconstruct the LCS by appending chars in reverse, then reversing the result
+    // This is O(n) instead of O(n^2) from using insert(0, ...)
     val result = new StringBuilder
     i = m
     var j = n
     while (i > 0 && j > 0) {
       if (s1.charAt(i - 1) == s2.charAt(j - 1)) {
-        result.insert(0, s1.charAt(i - 1))
+        result.append(s1.charAt(i - 1))
         i -= 1
         j -= 1
       } else if (dp(i - 1)(j) > dp(i)(j - 1)) {
@@ -192,7 +193,7 @@ private[json] object JsonDiffer {
       }
     }
 
-    result.toString
+    result.reverse.toString()
   }
 
   // ─────────────────────────────────────────────────────────────────────────

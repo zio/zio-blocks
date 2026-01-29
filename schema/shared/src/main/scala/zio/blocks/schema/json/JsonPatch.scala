@@ -430,9 +430,20 @@ object JsonPatch {
                 case PatchMode.Strict =>
                   new Left(SchemaError.missingField(trace, name))
                 case PatchMode.Lenient =>
-                  new Left(SchemaError.missingField(trace, name))
+                  // Lenient: skip the operation, return json unchanged
+                  new Right(json)
                 case PatchMode.Clobber =>
-                  new Left(SchemaError.missingField(trace, name))
+                  // Clobber: create the missing field with Json.Null and continue
+                  val newTrace = DynamicOptic.Node.Field(name) :: trace
+                  if (isLast) {
+                    applyOperation(Json.Null, operation, mode, newTrace).map { newFieldValue =>
+                      new Json.Object(fields :+ (name, newFieldValue))
+                    }
+                  } else {
+                    navigateAndApply(Json.Null, path, pathIdx + 1, operation, mode, newTrace).map { newFieldValue =>
+                      new Json.Object(fields :+ (name, newFieldValue))
+                    }
+                  }
               }
             } else {
               val (fieldName, fieldValue) = fields(fieldIdx)
@@ -769,11 +780,8 @@ object JsonPatch {
                 )
               )
             case PatchMode.Lenient =>
-              new Left(
-                SchemaError.message(
-                  s"Insert index $index out of bounds for array of length ${elements.length}"
-                )
-              )
+              // Lenient: skip the operation, return unchanged
+              new Right(elements)
             case PatchMode.Clobber =>
               val clampedIndex    = Math.max(0, Math.min(index, elements.length))
               val (before, after) = elements.splitAt(clampedIndex)
@@ -794,11 +802,8 @@ object JsonPatch {
                 )
               )
             case PatchMode.Lenient =>
-              new Left(
-                SchemaError.message(
-                  s"Delete range [$index, ${index + count}) out of bounds for array of length ${elements.length}"
-                )
-              )
+              // Lenient: skip the operation, return unchanged
+              new Right(elements)
             case PatchMode.Clobber =>
               val clampedIndex = Math.max(0, Math.min(index, elements.length))
               val clampedEnd   = Math.max(0, Math.min(index + count, elements.length))
@@ -877,7 +882,8 @@ object JsonPatch {
             case PatchMode.Strict =>
               new Left(SchemaError.message(s"Field '$key' already exists in object"))
             case PatchMode.Lenient =>
-              new Left(SchemaError.message(s"Field '$key' already exists in object"))
+              // Lenient: skip the operation, return unchanged
+              new Right(fields)
             case PatchMode.Clobber =>
               new Right(fields.updated(existingIdx, (key, value)))
           }
@@ -892,7 +898,8 @@ object JsonPatch {
             case PatchMode.Strict =>
               new Left(SchemaError.message(s"Field '$key' not found in object"))
             case PatchMode.Lenient =>
-              new Left(SchemaError.message(s"Field '$key' not found in object"))
+              // Lenient: skip the operation, return unchanged
+              new Right(fields)
             case PatchMode.Clobber =>
               new Right(fields)
           }
@@ -907,9 +914,13 @@ object JsonPatch {
             case PatchMode.Strict =>
               new Left(SchemaError.message(s"Field '$key' not found in object"))
             case PatchMode.Lenient =>
-              new Left(SchemaError.message(s"Field '$key' not found in object"))
+              // Lenient: skip the operation, return unchanged
+              new Right(fields)
             case PatchMode.Clobber =>
-              new Left(SchemaError.message(s"Field '$key' not found in object"))
+              // Clobber: create the key with Json.Null and apply the nested patch
+              nestedPatch.apply(Json.Null, mode).map { newFieldValue =>
+                fields :+ (key, newFieldValue)
+              }
           }
         } else {
           val (fieldKey, fieldValue) = fields(existingIdx)
