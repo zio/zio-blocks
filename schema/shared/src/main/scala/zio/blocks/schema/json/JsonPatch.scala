@@ -689,10 +689,10 @@ object JsonPatch {
             val result = value + delta
             // Normalize: strip trailing zeros to get canonical representation
             // e.g., "-1.0" becomes "-1", "10.00" becomes "10"
-            // Note: We use toPlainString first then normalize manually because
-            // java.math.BigDecimal.stripTrailingZeros() behaves differently on Scala Native
-            val plainStr   = result.bigDecimal.toPlainString
-            val normalized = normalizeNumberString(plainStr)
+            // Note: We use Scala BigDecimal.toString() because
+            // java.math.BigDecimal methods behave differently on Scala Native
+            val str        = result.toString()
+            val normalized = normalizeNumberString(str)
             new Right(new Json.Number(normalized))
           case None =>
             new Left(SchemaError.message(s"Cannot parse number: ${num.value}"))
