@@ -64,17 +64,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
   }
 
-  private def isOpaque(tpe: TypeRepr): Boolean =
-    if (!tpe.typeSymbol.flags.is(Flags.Opaque)) false
-    else {
-      // Only treat as opaque if we can actually access the underlying type
-      tpe match {
-        case trTpe: TypeRef =>
-          val superType = trTpe.translucentSuperType
-          !(superType =:= tpe) // Can access underlying type
-        case _ => false
-      }
-    }
+  private def isOpaque(tpe: TypeRepr): Boolean = tpe.typeSymbol.flags.is(Flags.Opaque)
 
   // === Structural Type Support (JVM only) ===
 
@@ -144,7 +134,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     }
   }
 
-  private def opaqueDealias(tpe: TypeRepr): TypeRepr = {
+  private def tryOpaqueDealias(tpe: TypeRepr): Option[TypeRepr] = {
     @tailrec
     def loop(tpe: TypeRepr): TypeRepr = tpe match {
       case trTpe: TypeRef =>
@@ -156,23 +146,22 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     }
 
     val sTpe = loop(tpe)
-    // If loop didn't change the type but we know it's opaque, try alternatives
+    // If loop didn't change the type, try alternatives
     if (sTpe =:= tpe) {
       tpe match {
         case trTpe: TypeRef =>
           // Try translucentSuperType directly
           val superType = trTpe.translucentSuperType
-          if (!(superType =:= tpe)) superType.dealias
+          if (!(superType =:= tpe)) Some(superType.dealias)
           else {
             // Try widen for opaque types with upper bounds (e.g., opaque type X <: String)
             val widened = tpe.widen
-            if (!(widened =:= tpe)) widened.dealias
-            else fail(s"Cannot dealias opaque type: ${tpe.show}.")
+            if (!(widened =:= tpe)) Some(widened.dealias)
+            else None // Can't dealias
           }
-        case _ =>
-          fail(s"Cannot dealias opaque type: ${tpe.show}.")
+        case _ => None
       }
-    } else sTpe
+    } else Some(sTpe)
   }
 
   private def isNewtype(tpe: TypeRepr): Boolean = tpe match {
@@ -229,7 +218,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private def dealiasOnDemand(tpe: TypeRepr): TypeRepr = {
     val sTpe =
       if (isNewtype(tpe)) newtypeDealias(tpe)
-      else if (isOpaque(tpe)) opaqueDealias(tpe)
+      else if (isOpaque(tpe)) tryOpaqueDealias(tpe).getOrElse(tpe)
       else if (isTypeRef(tpe)) typeRefDealias(tpe)
       else tpe
 
@@ -305,7 +294,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               isNonRecursive(fTpe, nestedTpes_)
             })
           } else if (isOpaque(tpe)) {
-            isNonRecursive(opaqueDealias(tpe), nestedTpes_)
+            tryOpaqueDealias(tpe).forall(isNonRecursive(_, nestedTpes_))
           } else if (isNewtype(tpe)) {
             isNonRecursive(newtypeDealias(tpe), nestedTpes_)
           } else if (isTypeRef(tpe)) {
@@ -344,21 +333,35 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     .getOrElse(
       tpe, {
         val schemaTpeApplied = schemaTpe.appliedTo(tpe)
+        // First try implicit search with the type as-is
         Implicits.search(schemaTpeApplied) match {
           case v: ImplicitSearchSuccess => v.tree.asExpr.asInstanceOf[Expr[Schema[?]]]
           case _                        =>
-            val name  = s"s${schemaRefs.size}"
-            val flags =
-              if (isNonRecursive(tpe)) Flags.Implicit
-              else Flags.Implicit | Flags.Lazy
-            val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpeApplied, flags, Symbol.noSymbol)
-            val ref    = Ref(symbol).asExpr.asInstanceOf[Expr[Schema[?]]]
-            // adding the schema reference before its derivation to avoid an endless loop on recursive data structures
-            schemaRefs.update(tpe, ref)
-            implicit val quotes: Quotes = symbol.asQuotes
-            val schema                  = deriveSchema(tpe)
-            schemaDefs.addOne(ValDef(symbol, new Some(schema.asTerm)))
-            ref
+            // If the type is a type alias, also try with the dealiased form
+            val dealiased           = tpe.dealias
+            val implicitFromDealias =
+              if (!(dealiased =:= tpe)) {
+                val schemaDealiasedApplied = schemaTpe.appliedTo(dealiased)
+                Implicits.search(schemaDealiasedApplied) match {
+                  case v: ImplicitSearchSuccess => Some(v.tree.asExpr.asInstanceOf[Expr[Schema[?]]])
+                  case _                        => None
+                }
+              } else None
+
+            implicitFromDealias.getOrElse {
+              val name  = s"s${schemaRefs.size}"
+              val flags =
+                if (isNonRecursive(tpe)) Flags.Implicit
+                else Flags.Implicit | Flags.Lazy
+              val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpeApplied, flags, Symbol.noSymbol)
+              val ref    = Ref(symbol).asExpr.asInstanceOf[Expr[Schema[?]]]
+              // adding the schema reference before its derivation to avoid an endless loop on recursive data structures
+              schemaRefs.update(tpe, ref)
+              implicit val quotes: Quotes = symbol.asQuotes
+              val schema                  = deriveSchema(tpe)
+              schemaDefs.addOne(ValDef(symbol, new Some(schema.asTerm)))
+              ref
+            }
         }
       }
     )
@@ -1084,12 +1087,17 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             '{ new Schema($schema.reflect.typeId($tpeId.asInstanceOf[TypeId[s]])).asInstanceOf[Schema[T]] }
         }
       } else if (isOpaque(tpe)) {
-        val sTpe = opaqueDealias(tpe)
-        sTpe.asType match {
-          case '[s] =>
-            val schema = findImplicitOrDeriveSchema[s](sTpe)
-            val tpeId  = makeTypeId(tpe)
-            '{ new Schema($schema.reflect.typeId($tpeId.asInstanceOf[TypeId[s]])).asInstanceOf[Schema[T]] }
+        tryOpaqueDealias(tpe) match {
+          case Some(sTpe) =>
+            sTpe.asType match {
+              case '[s] =>
+                val schema = findImplicitOrDeriveSchema[s](sTpe)
+                val tpeId  = makeTypeId(tpe)
+                '{ new Schema($schema.reflect.typeId($tpeId.asInstanceOf[TypeId[s]])).asInstanceOf[Schema[T]] }
+            }
+          case None =>
+            // Can't see through opaque type - require explicit Schema
+            fail(s"Cannot derive Schema for opaque type '${tpe.show}'. Please provide an implicit Schema instance.")
         }
       } else if (isNewtype(tpe)) {
         val sTpe = newtypeDealias(tpe)
