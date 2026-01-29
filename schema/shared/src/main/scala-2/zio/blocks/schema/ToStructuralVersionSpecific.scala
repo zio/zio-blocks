@@ -225,15 +225,17 @@ object ToStructuralMacro {
             fields = record.fields.map { field =>
               field.value.asInstanceOf[Reflect.Bound[Any]].asTerm[S](field.name)
             },
-            typeId = TypeId[S](DynamicTypeId(
-              owner = Owner.Root,
-              name = structuralTypeName,
-              typeParams = Nil,
-              kind = TypeDefKind.Class(),
-              parents = Nil,
-              args = Nil,
-              annotations = Nil
-            )),
+            typeId = TypeId[S](
+              DynamicTypeId(
+                owner = Owner.Root,
+                name = structuralTypeName,
+                typeParams = Nil,
+                kind = TypeDefKind.Class(),
+                parents = Nil,
+                args = Nil,
+                annotations = Nil
+              )
+            ),
             recordBinding = new Binding.Record[S](
               constructor = new Constructor[S] {
                 def usedRegisters: RegisterOffset = totalRegisters
