@@ -15,8 +15,8 @@ import zio.blocks.schema.migration.FieldExtraction._
  *   - All "added" case names (in B but not in A) are provided
  *
  * Paths that exist in both A and B (unchanged paths) are automatically
- * handled/provided. This includes nested paths like "address.street" and
- * case names like "case:Success".
+ * handled/provided. This includes nested paths like "address.street" and case
+ * names like "case:Success".
  *
  * Type parameters:
  *   - A: Source type
@@ -24,11 +24,13 @@ import zio.blocks.schema.migration.FieldExtraction._
  *   - Handled: Tuple of field paths and case names that have been handled (from
  *     source). Case names are prefixed with "case:" (e.g., "case:OldCase").
  *   - Provided: Tuple of field paths and case names that have been provided
- *     (for target). Case names are prefixed with "case:" (e.g., "case:NewCase").
+ *     (for target). Case names are prefixed with "case:" (e.g.,
+ *     "case:NewCase").
  *
- * == Error Messages ==
+ * ==Error Messages==
  *
- * When validation fails, the compiler produces a detailed error message showing:
+ * When validation fails, the compiler produces a detailed error message
+ * showing:
  *   - Unhandled field paths from the source type
  *   - Unprovided field paths for the target type
  *   - Unhandled case names from the source type
@@ -88,8 +90,8 @@ object ValidationProof {
    *   - All removed case names are in Handled (prefixed with "case:")
    *   - All added case names are in Provided (prefixed with "case:")
    *
-   * Uses FieldPaths to extract full nested paths (e.g., "address.street")
-   * and CasePaths to extract case names (e.g., "case:Success").
+   * Uses FieldPaths to extract full nested paths (e.g., "address.street") and
+   * CasePaths to extract case names (e.g., "case:Success").
    */
   transparent inline given derive[A, B, Handled <: Tuple, Provided <: Tuple](using
     fpA: FieldPaths[A],
@@ -193,10 +195,10 @@ object ValidationProof {
     val requiredHandledCases   = casesA.diff(casesB)
     val requiredProvidedCases  = casesB.diff(casesA)
 
-    val unhandledFields   = requiredHandledFields.diff(handled)
-    val unprovidedFields  = requiredProvidedFields.diff(provided)
-    val unhandledCases    = requiredHandledCases.diff(handled)
-    val unprovidedCases   = requiredProvidedCases.diff(provided)
+    val unhandledFields  = requiredHandledFields.diff(handled)
+    val unprovidedFields = requiredProvidedFields.diff(provided)
+    val unhandledCases   = requiredHandledCases.diff(handled)
+    val unprovidedCases  = requiredProvidedCases.diff(provided)
 
     // If there are issues, generate detailed error message
     if (unhandledFields.nonEmpty || unprovidedFields.nonEmpty || unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
@@ -229,12 +231,12 @@ object ValidationProof {
       // Add hints
       sb.append("\n")
       if (unhandledFields.nonEmpty) {
-        val example = unhandledFields.head
+        val example      = unhandledFields.head
         val selectorPath = example.split("\\.").mkString("_.")
         sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
       }
       if (unprovidedFields.nonEmpty) {
-        val example = unprovidedFields.head
+        val example      = unprovidedFields.head
         val selectorPath = example.split("\\.").mkString("_.")
         sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
       }
@@ -253,8 +255,8 @@ object ValidationProof {
   }
 
   /**
-   * Extract field paths from a type for validation error messages.
-   * This mirrors the logic in FieldPaths but returns a runtime List[String].
+   * Extract field paths from a type for validation error messages. This mirrors
+   * the logic in FieldPaths but returns a runtime List[String].
    */
   private def extractFieldPathsForValidation(using q: Quotes)(tpe: q.reflect.TypeRepr): List[String] = {
     import q.reflect.*
@@ -302,8 +304,8 @@ object ValidationProof {
   }
 
   /**
-   * Extract string literals from a Tuple type.
-   * Handles both Tuple1/Tuple2/etc. syntax and *: syntax.
+   * Extract string literals from a Tuple type. Handles both Tuple1/Tuple2/etc.
+   * syntax and *: syntax.
    */
   private def extractTupleStrings(using q: Quotes)(tpe: q.reflect.TypeRepr): List[String] = {
     import q.reflect.*
@@ -397,7 +399,7 @@ object ValidationProof {
   }
 
   private def isSealedTraitOrEnumForValidation(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
-  import q.reflect.* 
+    import q.reflect.*
 
     tpe.classSymbol.fold(false) { symbol =>
       val flags = symbol.flags
@@ -406,7 +408,9 @@ object ValidationProof {
     }
   }
 
-  private def getProductFieldsForValidation(using q: Quotes)(tpe: q.reflect.TypeRepr): List[(String, q.reflect.TypeRepr)] = {
+  private def getProductFieldsForValidation(using
+    q: Quotes
+  )(tpe: q.reflect.TypeRepr): List[(String, q.reflect.TypeRepr)] = {
 
     val symbol = tpe.typeSymbol
 

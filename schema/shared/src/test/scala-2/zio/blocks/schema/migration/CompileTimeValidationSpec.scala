@@ -296,8 +296,8 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   // Sealed trait with case object
   sealed trait WithCaseObject
   case class SomeValue(x: Int) extends WithCaseObject
-  case object NoneValue extends WithCaseObject
-  object WithCaseObject extends CompanionOptics[WithCaseObject] {
+  case object NoneValue        extends WithCaseObject
+  object WithCaseObject        extends CompanionOptics[WithCaseObject] {
     implicit val schema: Schema[WithCaseObject] = Schema.derived
   }
   object SomeValue {
@@ -306,10 +306,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
   // Sealed trait with only case objects (enum-like)
   sealed trait Color
-  case object Red extends Color
+  case object Red   extends Color
   case object Green extends Color
-  case object Blue extends Color
-  object Color extends CompanionOptics[Color] {
+  case object Blue  extends Color
+  object Color      extends CompanionOptics[Color] {
     implicit val schema: Schema[Color] = Schema.derived
   }
 
@@ -318,7 +318,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   // ==========================================================================
 
   sealed trait ResultV1
-  case class SuccessV1(value: Int) extends ResultV1
+  case class SuccessV1(value: Int)  extends ResultV1
   case class FailureV1(err: String) extends ResultV1
 
   object ResultV1 extends CompanionOptics[ResultV1] {
@@ -332,7 +332,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   }
 
   sealed trait ResultV2
-  case class OkResult(value: Int) extends ResultV2   // Renamed from SuccessV1
+  case class OkResult(value: Int)   extends ResultV2 // Renamed from SuccessV1
   case class ErrResult(err: String) extends ResultV2 // Renamed from FailureV1
 
   object ResultV2 {
@@ -348,7 +348,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   // Identical sealed traits (no case changes)
   sealed trait StatusSame
   case class ActiveSame(since: String) extends StatusSame
-  case class InactiveSame() extends StatusSame
+  case class InactiveSame()            extends StatusSame
 
   object StatusSame extends CompanionOptics[StatusSame] {
     implicit val schema: Schema[StatusSame] = Schema.derived

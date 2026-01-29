@@ -514,9 +514,9 @@ private[migration] object MigrationBuilderMacrosImpl {
     // Extract the target case name from the string expression
     // Handle both literal strings and other string expressions
     val toCaseStr = to.asTerm match {
-      case Literal(StringConstant(s)) => s
+      case Literal(StringConstant(s))                => s
       case Inlined(_, _, Literal(StringConstant(s))) => s
-      case _ =>
+      case _                                         =>
         // For non-literal expressions, we extract at runtime but can't verify at compile time
         // This is a fallback - ideally we should handle more patterns
         report.errorAndAbort(
@@ -609,8 +609,8 @@ private[migration] object MigrationBuilderMacrosImpl {
     val caseNameStr = extractCaseNameFromSelector(at.asTerm)
 
     // Create literal type for case name with "case:" prefix
-    val caseNameType      = ConstantType(StringConstant(s"case:$caseNameStr")).asType.asInstanceOf[Type[CaseName]]
-    given Type[CaseName]  = caseNameType
+    val caseNameType     = ConstantType(StringConstant(s"case:$caseNameStr")).asType.asInstanceOf[Type[CaseName]]
+    given Type[CaseName] = caseNameType
 
     '{
       val sourceSchema                                                 = $builder.sourceSchema

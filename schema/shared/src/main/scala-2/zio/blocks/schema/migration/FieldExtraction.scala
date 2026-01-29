@@ -6,10 +6,11 @@ import scala.reflect.macros.blackbox
 import TypeLevel._
 
 /**
- * Type-level field and case path extraction for compile-time migration validation (Scala 2).
+ * Type-level field and case path extraction for compile-time migration
+ * validation (Scala 2).
  *
- * Provides typeclasses that extract field paths and case names from types at compile time,
- * encoding them as TList type members for type-level validation.
+ * Provides typeclasses that extract field paths and case names from types at
+ * compile time, encoding them as TList type members for type-level validation.
  */
 object FieldExtraction {
 
@@ -18,8 +19,9 @@ object FieldExtraction {
   // ============================================================================
 
   /**
-   * Typeclass for extracting all field paths (including nested paths) from a type at compile time.
-   * The Paths type member contains the paths as a TList of string literal types.
+   * Typeclass for extracting all field paths (including nested paths) from a
+   * type at compile time. The Paths type member contains the paths as a TList
+   * of string literal types.
    *
    * For nested case classes, returns all dot-separated paths:
    * {{{
@@ -53,8 +55,8 @@ object FieldExtraction {
 
   /**
    * Typeclass for extracting case names from a sealed trait at compile time.
-   * The Cases type member contains the case names as a TList of string literal types
-   * with "case:" prefix.
+   * The Cases type member contains the case names as a TList of string literal
+   * types with "case:" prefix.
    *
    * For sealed traits:
    * {{{
@@ -90,11 +92,12 @@ object FieldExtraction {
   // ============================================================================
 
   /**
-   * Typeclass for extracting field names from a type at compile time.
-   * The Labels type member contains the field names as a TList of string literal types.
+   * Typeclass for extracting field names from a type at compile time. The
+   * Labels type member contains the field names as a TList of string literal
+   * types.
    *
-   * Note: This extracts only top-level field names. For full nested path extraction,
-   * use FieldPaths instead.
+   * Note: This extracts only top-level field names. For full nested path
+   * extraction, use FieldPaths instead.
    */
   sealed trait FieldNames[A] {
     type Labels <: TList
@@ -131,7 +134,7 @@ private[migration] object FieldExtractionMacros {
     val tlistType = pathsToTListType(c)(paths)
 
     // Create the instance with correct type
-    val implClass = typeOf[FieldExtraction.FieldPaths.Impl[_, _]].typeSymbol
+    val implClass  = typeOf[FieldExtraction.FieldPaths.Impl[_, _]].typeSymbol
     val resultType = appliedType(implClass, List(tpe, tlistType))
 
     c.Expr[FieldExtraction.FieldPaths[A]](q"new $resultType")
@@ -151,7 +154,7 @@ private[migration] object FieldExtractionMacros {
     val tlistType = pathsToTListType(c)(caseNames)
 
     // Create the instance with correct type
-    val implClass = typeOf[FieldExtraction.CasePaths.Impl[_, _]].typeSymbol
+    val implClass  = typeOf[FieldExtraction.CasePaths.Impl[_, _]].typeSymbol
     val resultType = appliedType(implClass, List(tpe, tlistType))
 
     c.Expr[FieldExtraction.CasePaths[A]](q"new $resultType")
@@ -171,7 +174,7 @@ private[migration] object FieldExtractionMacros {
     val tlistType = pathsToTListType(c)(fields)
 
     // Create the instance with correct type
-    val implClass = typeOf[FieldExtraction.FieldNames.Impl[_, _]].typeSymbol
+    val implClass  = typeOf[FieldExtraction.FieldNames.Impl[_, _]].typeSymbol
     val resultType = appliedType(implClass, List(tpe, tlistType))
 
     c.Expr[FieldExtraction.FieldNames[A]](q"new $resultType")
@@ -182,8 +185,8 @@ private[migration] object FieldExtractionMacros {
   // ============================================================================
 
   /**
-   * Convert a list of path strings to a TList type.
-   * List("a", "b", "c") => "a" :: "b" :: "c" :: TNil
+   * Convert a list of path strings to a TList type. List("a", "b", "c") => "a"
+   * :: "b" :: "c" :: TNil
    */
   private def pathsToTListType(c: blackbox.Context)(paths: List[String]): c.Type = {
     import c.universe._
@@ -202,8 +205,9 @@ private[migration] object FieldExtractionMacros {
   // ============================================================================
 
   /**
-   * Extract all field paths from a type, recursively descending into nested case classes.
-   * This mirrors the logic in ShapeExtraction but is duplicated to avoid macro dependency issues.
+   * Extract all field paths from a type, recursively descending into nested
+   * case classes. This mirrors the logic in ShapeExtraction but is duplicated
+   * to avoid macro dependency issues.
    */
   private def extractFieldPathsFromType(
     c: blackbox.Context
