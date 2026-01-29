@@ -92,8 +92,6 @@ object ShapeExtraction {
    */
   inline def extractShape[A]: Shape = ${ extractShapeMacro[A] }
 
-  // ============ Macro Implementations ============
-
   private def extractFieldPathsMacro[A: Type](using q: Quotes): Expr[List[String]] = {
     import q.reflect.*
 
@@ -142,8 +140,6 @@ object ShapeExtraction {
 
     '{ Shape($fieldPathsExpr, $caseNamesExpr, $caseFieldPathsExpr) }
   }
-
-  // ============ Type-level Field Extraction ============
 
   /**
    * Typeclass for extracting all field paths (including nested paths) from a

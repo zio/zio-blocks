@@ -13,18 +13,11 @@ import TypeLevel._
  *   - Sealed trait case names
  *   - Field paths within each case
  *
- * This enables validation that migrations handle all structural changes between
- * source and target types.
- *
  * Also provides typeclasses that extract field paths and case names from types
  * at compile time, encoding them as TList type members for type-level
  * validation.
  */
 object ShapeExtraction {
-
-  // ============================================================================
-  // FieldPaths Typeclass
-  // ============================================================================
 
   /**
    * Typeclass for extracting all field paths (including nested paths) from a
@@ -56,10 +49,6 @@ object ShapeExtraction {
     /** Implicit derivation macro for FieldPaths. */
     implicit def derived[A]: FieldPaths[A] = macro ShapeExtractionMacros.fieldPathsDerivedImpl[A]
   }
-
-  // ============================================================================
-  // CasePaths Typeclass
-  // ============================================================================
 
   /**
    * Typeclass for extracting case names from a sealed trait at compile time.
@@ -94,10 +83,6 @@ object ShapeExtraction {
     /** Implicit derivation macro for CasePaths. */
     implicit def derived[A]: CasePaths[A] = macro ShapeExtractionMacros.casePathsDerivedImpl[A]
   }
-
-  // ============================================================================
-  // Shape Case Class
-  // ============================================================================
 
   /**
    * Represents the complete shape of a type.
@@ -193,18 +178,10 @@ private[migration] object ShapeExtractionMacros {
     helper.extractShape[A]
   }
 
-  // ============================================================================
-  // FieldPaths Derivation
-  // ============================================================================
-
   def fieldPathsDerivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[ShapeExtraction.FieldPaths[A]] = {
     val helper = new ShapeExtractionHelper[c.type](c)
     helper.fieldPathsDerived[A]
   }
-
-  // ============================================================================
-  // CasePaths Derivation
-  // ============================================================================
 
   def casePathsDerivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[ShapeExtraction.CasePaths[A]] = {
     val helper = new ShapeExtractionHelper[c.type](c)
@@ -259,10 +236,6 @@ private[migration] class ShapeExtractionHelper[C <: blackbox.Context](val c: C) 
 
     q"_root_.zio.blocks.schema.migration.ShapeExtraction.Shape($fieldPaths, $caseNames, _root_.scala.collection.immutable.Map(..$mapEntries))"
   }
-
-  // ============================================================================
-  // FieldPaths/CasePaths Typeclass Derivation
-  // ============================================================================
 
   def fieldPathsDerived[A: c.WeakTypeTag]: c.Expr[ShapeExtraction.FieldPaths[A]] = {
     val tpe   = weakTypeOf[A].dealias

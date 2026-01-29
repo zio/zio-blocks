@@ -26,30 +26,6 @@ import zio.blocks.schema.migration.ShapeExtraction._
  *   - Provided: Tuple of field paths and case names that have been provided
  *     (for target). Case names are prefixed with "case:" (e.g.,
  *     "case:NewCase").
- *
- * ==Error Messages==
- *
- * When validation fails, the compiler produces a detailed error message
- * showing:
- *   - Unhandled field paths from the source type
- *   - Unprovided field paths for the target type
- *   - Unhandled case names from the source type
- *   - Unprovided case names for the target type
- *   - Hints for which builder methods to use
- *
- * Example error:
- * {{{
- * Migration validation failed for PersonV1 => PersonV2:
- *
- * Unhandled paths from source (need dropField or renameField):
- *   - address.city
- *
- * Unprovided paths for target (need addField or renameField):
- *   - address.zip
- *
- * Hint: Use .dropField(_.address.city, default) to handle removed fields
- * Hint: Use .addField(_.address.zip, default) to provide new fields
- * }}}
  */
 sealed trait ValidationProof[A, B, Handled <: Tuple, Provided <: Tuple]
 
@@ -137,10 +113,6 @@ object ValidationProof {
 
   /**
    * Explicitly summon a validation proof with better error messages.
-   *
-   * This is an alternative way to get a proof that provides more helpful
-   * compile error messages when validation fails. Use this via the
-   * `requireValidation` macro for the best error messages.
    */
   inline def require[A, B, Handled <: Tuple, Provided <: Tuple](using
     fpA: FieldPaths[A],
@@ -165,8 +137,6 @@ object ValidationProof {
    *   - Specific case names that need handling
    *   - Specific case names that need providing
    *   - Hints for which builder methods to use
-   *
-   * Use this when you want clear feedback about what's missing in a migration.
    */
   inline def requireValidation[A, B, Handled <: Tuple, Provided <: Tuple]: ValidationProof[A, B, Handled, Provided] =
     ${ requireValidationImpl[A, B, Handled, Provided] }

@@ -12,11 +12,6 @@ import zio.blocks.schema._
  *     (dropped, renamed from, etc.)
  *   - Provided: Type-level list of field names for B that have been provided
  *     (added, renamed to, etc.)
- *
- * Both Scala 2 and Scala 3 track field names at compile time, enabling
- * compile-time validation of migration completeness. The mechanisms differ:
- *   - Scala 3: Uses Tuple types with match types
- *   - Scala 2: Uses TList (custom HList) with implicit resolution
  */
 final case class MigrationBuilder[A, B, Handled, Provided](
   sourceSchema: Schema[A],
@@ -158,10 +153,6 @@ final case class MigrationBuilder[A, B, Handled, Provided](
 
   /**
    * Builds the migration without compile-time validation.
-   *
-   * Note: For compile-time validated migrations, use the `build` method from
-   * MigrationBuilderSyntax which provides compile-time guarantees that the
-   * migration is complete.
    */
   def buildPartial: Migration[A, B] =
     Migration(

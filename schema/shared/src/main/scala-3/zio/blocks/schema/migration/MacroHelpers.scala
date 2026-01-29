@@ -4,9 +4,6 @@ import scala.quoted.*
 
 /**
  * Shared macro helper functions for compile-time type introspection.
- *
- * These functions are used by FieldExtraction, ShapeExtraction, and
- * ValidationProof to avoid code duplication.
  */
 private[migration] object MacroHelpers {
 
