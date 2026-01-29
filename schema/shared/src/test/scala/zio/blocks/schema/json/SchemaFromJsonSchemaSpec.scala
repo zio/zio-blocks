@@ -10,28 +10,28 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       test("string schema accepts string values") {
         val jsonSchema  = JsonSchema.string()
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode(""""hello world"""")
         assertTrue(result.isRight)
       },
       test("integer schema accepts integer values") {
         val jsonSchema  = JsonSchema.integer()
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("42")
         assertTrue(result.isRight)
       },
       test("number schema accepts number values") {
         val jsonSchema  = JsonSchema.number()
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("3.14159")
         assertTrue(result.isRight)
       },
       test("boolean schema accepts boolean values") {
         val jsonSchema  = JsonSchema.boolean
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val resultTrue  = codec.decode("true")
         val resultFalse = codec.decode("false")
         assertTrue(resultTrue.isRight, resultFalse.isRight)
@@ -39,14 +39,14 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       test("null schema accepts null values") {
         val jsonSchema  = JsonSchema.nullSchema
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("null")
         assertTrue(result.isRight)
       },
       test("array schema accepts array values") {
         val jsonSchema  = JsonSchema.array(items = Some(JsonSchema.integer()))
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("[1, 2, 3]")
         assertTrue(result.isRight)
       },
@@ -56,7 +56,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("name", "age"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("""{"name": "Alice", "age": 30}""")
         assertTrue(result.isRight)
       },
@@ -70,7 +70,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("name"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("""{"name": "Bob", "address": {"city": "NYC"}}""")
         assertTrue(result.isRight)
       }
@@ -79,28 +79,28 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       test("string schema rejects non-string values") {
         val jsonSchema  = JsonSchema.string()
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("42")
         assertTrue(result.isLeft)
       },
       test("integer schema rejects string values") {
         val jsonSchema  = JsonSchema.integer()
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode(""""not a number"""")
         assertTrue(result.isLeft)
       },
       test("boolean schema rejects non-boolean values") {
         val jsonSchema  = JsonSchema.boolean
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("42")
         assertTrue(result.isLeft)
       },
       test("array schema rejects non-array values") {
         val jsonSchema  = JsonSchema.array(items = Some(JsonSchema.integer()))
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode(""""not an array"""")
         assertTrue(result.isLeft)
       },
@@ -109,7 +109,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
           properties = Some(Map("name" -> JsonSchema.string()))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("[1, 2, 3]")
         assertTrue(result.isLeft)
       },
@@ -119,14 +119,14 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("name", "age"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("""{"name": "Alice"}""")
         assertTrue(result.isLeft)
       },
       test("array items schema validation fails for wrong item type") {
         val jsonSchema  = JsonSchema.array(items = Some(JsonSchema.integer()))
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("""[1, "two", 3]""")
         assertTrue(result.isLeft)
       },
@@ -140,7 +140,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("name", "address"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("""{"name": "Bob", "address": {"city": 12345}}""")
         assertTrue(result.isLeft)
       }
@@ -149,7 +149,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       test("error for wrong type at root includes path") {
         val jsonSchema  = JsonSchema.string()
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("42")
         assertTrue(
           result.left.exists(_.message == "Expected type string at: . at: .")
@@ -160,7 +160,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
           properties = Some(Map("user" -> JsonSchema.obj(properties = Some(Map("age" -> JsonSchema.integer())))))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("""{"user": {"age": "not-a-number"}}""")
         // Currently paths are reported at root level; nested field paths not yet propagated
         assertTrue(
@@ -170,7 +170,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       test("error for array item includes index path") {
         val jsonSchema  = JsonSchema.array(items = Some(JsonSchema.integer()))
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("""[1, 2, "three", 4]""")
         // Currently paths are reported at root level; array index paths not yet propagated
         assertTrue(
@@ -183,7 +183,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("name"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
         val result      = codec.decode("""{}""")
         assertTrue(
           result.left.exists(_.message == "Missing required property: name at: . at: .")
@@ -248,7 +248,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       test("Schema[Json] can encode and decode JSON") {
         val jsonSchema  = JsonSchema.True
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
 
         val original = Json.Object("key" -> Json.String("value"))
         val encoded  = codec.encodeToString(original)
@@ -262,7 +262,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("status"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
 
         val result = codec.decode("""{"status": "ok"}""")
         assertTrue(result.isRight)
@@ -273,7 +273,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("status"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
 
         val result = codec.decode("""{"status": 123}""")
         assertTrue(result.isLeft)
@@ -281,7 +281,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       test("encode then decode preserves JSON structure") {
         val jsonSchema  = JsonSchema.True
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
 
         val original = Json.Array(
           Json.Object("id" -> Json.Number(1), "name" -> Json.String("first")),
@@ -304,7 +304,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
           required = Some(Set("name"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat.deriver)
+        val codec       = schemaForJs.derive(JsonFormat)
 
         val valid   = codec.decode("""{"name": "Alice", "age": 30, "tags": ["developer"]}""")
         val invalid = codec.decode("""{"name": "", "age": 30}""")
@@ -314,7 +314,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
     ),
     suite("Schema[Json] implicit instance")(
       test("implicit Schema[Json] round-trips all JSON types") {
-        val codec = Schema[Json].derive(JsonFormat.deriver)
+        val codec = Schema[Json].derive(JsonFormat)
 
         val values = List(
           Json.String("string"),
@@ -330,7 +330,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(results.zip(values).forall { case (result, original) => result == Right(original) })
       },
       test("implicit Schema[Json] round-trips correctly") {
-        val codec    = Schema[Json].derive(JsonFormat.deriver)
+        val codec    = Schema[Json].derive(JsonFormat)
         val original = Json.Object("nested" -> Json.Object("array" -> Json.Array(Json.Number(1), Json.String("two"))))
         val encoded  = codec.encodeToString(original)
         val decoded  = codec.decode(encoded)
