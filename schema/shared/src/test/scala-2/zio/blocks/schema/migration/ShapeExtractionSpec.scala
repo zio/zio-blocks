@@ -6,8 +6,6 @@ import zio.blocks.schema.migration.ShapeExtraction.{CasePaths, FieldPaths}
 
 object ShapeExtractionSpec extends ZIOSpecDefault {
 
-  // ============ Test Case Classes ============
-
   // Test 1: Flat case class
   case class Simple(name: String, age: Int)
 

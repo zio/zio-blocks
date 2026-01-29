@@ -3,9 +3,6 @@ package zio.blocks.schema.migration
 /**
  * Type-level operations on Tuples for compile-time migration validation.
  *
- * These match types enable tracking handled and provided fields at the type
- * level, allowing the compiler to verify migration completeness.
- *
  * Note: Additional type-level operations (Union, Intersect, TupleEquals, Size)
  * could be implemented using match types if needed for advanced use cases.
  */

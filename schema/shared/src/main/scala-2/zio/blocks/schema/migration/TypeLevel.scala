@@ -6,7 +6,7 @@ package zio.blocks.schema.migration
  * In Scala 3, these operations use match types on Tuples. In Scala 2, we use a
  * custom TList type (TNil, TCons) for type-level field tracking.
  *
- * The actual compile-time validation in Scala 2 is done via macro-based type
+ * The compile-time validation in Scala 2 is done via macro-based type
  * extraction and runtime List[String] operations in MigrationBuilderSyntax.
  *
  * Note: Additional type-level operations (Contains, IsSubset, Difference,
@@ -15,10 +15,6 @@ package zio.blocks.schema.migration
  * pattern of using implicit existence as proof of type-level propositions.
  */
 object TypeLevel {
-
-  // ============================================================================
-  // Type-Level List
-  // ============================================================================
 
   /** Type-level heterogeneous list. Analogous to Scala 3's Tuple. */
   sealed trait TList
