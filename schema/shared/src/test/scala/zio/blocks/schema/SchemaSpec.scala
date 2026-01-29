@@ -2188,4 +2188,211 @@ object SchemaSpec extends SchemaBaseSpec {
       )
     }
   )
+
+  private[this] def hasError(message: String): Assertion[SchemaError] =
+    hasField[SchemaError, String]("getMessage", _.getMessage, containsString(message))
+
+  implicit val eitherSchema: Schema[Either[Int, Long]] = Schema.derived
+
+  case class Record(b: Byte, i: Int)
+
+  object Record extends CompanionOptics[Record] {
+    implicit val schema: Schema[Record] = Schema.derived
+    val b: Lens[Record, Byte]           = $(_.b)
+    val i: Lens[Record, Int]            = $(_.i)
+    val x: Lens[Record, Boolean]        = // invalid lens
+      Lens(schema.reflect.asRecord.get, Reflect.boolean[Binding].asTerm("x").asInstanceOf[Term.Bound[Record, Boolean]])
+  }
+
+  sealed trait Variant
+
+  object Variant extends CompanionOptics[Variant] {
+    implicit val schema: Schema[Variant] = Schema.derived
+    val case1: Prism[Variant, Case1]     = $(_.when[Case1])
+    val case2: Prism[Variant, Case2]     = $(_.when[Case2])
+  }
+
+  case class Case1(c: Char) extends Variant
+
+  case class Case2(s: String) extends Variant
+
+  sealed trait A
+
+  object B {
+    case object A1 extends A
+
+    case object A2 extends A
+  }
+
+  object A extends CompanionOptics[A] {
+    implicit val schema: Schema[A] = Schema.derived
+    val a1: Prism[A, B.A1.type]    = $(_.when[B.A1.type])
+    val a2: Prism[A, B.A2.type]    = $(_.when[B.A2.type])
+  }
+
+  object Level1 {
+    sealed trait MultiLevel
+
+    case object Case extends MultiLevel
+  }
+
+  case object Case extends Level1.MultiLevel
+
+  case class Box1(l: Long) extends AnyVal
+
+  object Box1 extends CompanionOptics[Box1] {
+    implicit val schema: Schema[Box1] = Schema.derived
+  }
+
+  case class Box2(s: String) extends AnyVal
+
+  object Box2 extends CompanionOptics[Box2] {
+    implicit val schema: Schema[Box2] = Schema.derived
+  }
+
+  case class PosInt private (value: Int) extends AnyVal
+
+  object PosInt extends CompanionOptics[PosInt] {
+    def apply(value: Int): Either[SchemaError, PosInt] =
+      if (value >= 0) new Right(new PosInt(value))
+      else new Left(SchemaError.validationFailed("Expected positive value"))
+
+    def applyUnsafe(value: Int): PosInt =
+      if (value >= 0) new PosInt(value)
+      else throw new IllegalArgumentException("Expected positive value")
+
+    // Note: AnyVal classes are NOT true opaque types - they get boxed in generic contexts.
+    // Use withTypeName instead of asOpaqueType for AnyVal wrappers.
+    implicit val schema: Schema[PosInt] =
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeName[PosInt]
+    val wrapped: Optional[PosInt, Int] = $(_.wrapped[Int])
+  }
+
+  case class Email(value: String)
+
+  object Email extends CompanionOptics[Email] {
+    implicit val schema: Schema[Email] =
+      Schema[String].transform[Email](x => new Email(x), _.value).withTypeName[Email]
+    val wrapped: Optional[Email, String] = $(_.wrapped[String])
+  }
+
+  def encodeToString(f: CharBuffer => Unit): String = {
+    val out = CharBuffer.allocate(1024)
+    f(out)
+    out.limit(out.position()).position(0).toString
+  }
+
+  object ToStringFormat
+      extends TextFormat(
+        "text/plain",
+        new Deriver[TextCodec] {
+          override def derivePrimitive[A](
+            primitiveType: PrimitiveType[A],
+            typeId: TypeId[A],
+            binding: Binding[BindingType.Primitive, A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
+          ): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+
+          override def deriveRecord[F[_, _], A](
+            fields: IndexedSeq[Term[F, A, ?]],
+            typeId: TypeId[A],
+            binding: Binding[BindingType.Record, A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+
+          override def deriveVariant[F[_, _], A](
+            cases: IndexedSeq[Term[F, A, ?]],
+            typeId: TypeId[A],
+            binding: Binding[BindingType.Variant, A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+
+          override def deriveSequence[F[_, _], C[_], A](
+            element: Reflect[F, A],
+            typeId: TypeId[C[A]],
+            binding: Binding[BindingType.Seq[C], C[A]],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[C[A]],
+            examples: Seq[C[A]]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[C[A]]] =
+            Lazy(new TextCodec[C[A]] {
+              override def encode(value: C[A], output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, C[A]] = ???
+            })
+
+          override def deriveMap[F[_, _], M[_, _], K, V](
+            key: Reflect[F, K],
+            value: Reflect[F, V],
+            typeId: TypeId[M[K, V]],
+            binding: Binding[BindingType.Map[M], M[K, V]],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[M[K, V]],
+            examples: Seq[M[K, V]]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[M[K, V]]] =
+            Lazy(new TextCodec[M[K, V]] {
+              override def encode(value: M[K, V], output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, M[K, V]] = ???
+            })
+
+          override def deriveDynamic[F[_, _]](
+            binding: Binding[BindingType.Dynamic, DynamicValue],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[DynamicValue],
+            examples: Seq[DynamicValue]
+          )(implicit
+            F: HasBinding[F],
+            D: HasInstance[F]
+          ): Lazy[TextCodec[DynamicValue]] =
+            Lazy(new TextCodec[DynamicValue] {
+              override def encode(value: DynamicValue, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, DynamicValue] = ???
+            })
+
+          override def deriveWrapper[F[_, _], A, B](
+            wrapped: Reflect[F, B],
+            typeId: TypeId[A],
+            wrapperPrimitiveType: Option[PrimitiveType[A]],
+            binding: Binding[BindingType.Wrapper[A, B], A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+        }
+      )
 }

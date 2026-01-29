@@ -269,7 +269,9 @@ class JsonBinaryCodecDeriver private[json] (
     typeId: TypeId[A],
     binding: Binding[BindingType.Primitive, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
   ): Lazy[JsonBinaryCodec[A]] =
     Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)))
 
@@ -278,7 +280,9 @@ class JsonBinaryCodecDeriver private[json] (
     typeId: TypeId[A],
     binding: Binding[BindingType.Record, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Record(
@@ -296,7 +300,9 @@ class JsonBinaryCodecDeriver private[json] (
     typeId: TypeId[A],
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Variant(
@@ -314,7 +320,9 @@ class JsonBinaryCodecDeriver private[json] (
     typeId: TypeId[C[A]],
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[C[A]],
+    examples: Seq[C[A]]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[C[A]]] = Lazy {
     deriveCodec(
       new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeId, binding, doc, modifiers)
@@ -327,7 +335,9 @@ class JsonBinaryCodecDeriver private[json] (
     typeId: TypeId[M[K, V]],
     binding: Binding[BindingType.Map[M], M[K, V]],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[M[K, V]],
+    examples: Seq[M[K, V]]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[M[K, V]]] = Lazy {
     deriveCodec(
       new Reflect.Map(
@@ -344,7 +354,9 @@ class JsonBinaryCodecDeriver private[json] (
   override def deriveDynamic[F[_, _]](
     binding: Binding[BindingType.Dynamic, DynamicValue],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[DynamicValue],
+    examples: Seq[DynamicValue]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[DynamicValue]] =
     Lazy(
       deriveCodec(
@@ -363,7 +375,9 @@ class JsonBinaryCodecDeriver private[json] (
     wrapperPrimitiveType: Option[PrimitiveType[A]],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Wrapper(
