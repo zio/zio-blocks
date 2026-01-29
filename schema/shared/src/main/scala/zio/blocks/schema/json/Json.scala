@@ -84,14 +84,14 @@ sealed trait Json {
    * containing the value, or an error if not found.
    */
   def get(key: String): JsonSelection =
-    JsonSelection.fail(JsonError(s"Cannot get field '$key' from non-object JSON value"))
+    JsonSelection.fail(SchemaError(s"Cannot get field '$key' from non-object JSON value"))
 
   /**
    * Navigates to an element in an array by index. Returns a JsonSelection
    * containing the value, or an error if index is out of bounds.
    */
   def get(index: Int): JsonSelection =
-    JsonSelection.fail(JsonError(s"Cannot get index $index from non-array JSON value"))
+    JsonSelection.fail(SchemaError(s"Cannot get index $index from non-array JSON value"))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Path-based Navigation and Modification (DynamicOptic)
@@ -121,7 +121,7 @@ sealed trait Json {
    * with an error if the path doesn't exist or the partial function is not
    * defined.
    */
-  def modifyOrFail(path: DynamicOptic)(pf: PartialFunction[Json, Json]): Either[JsonError, Json] =
+  def modifyOrFail(path: DynamicOptic)(pf: PartialFunction[Json, Json]): Either[SchemaError, Json] =
     Json.modifyAtPathOrFail(this, path, pf)
 
   /**
@@ -134,7 +134,7 @@ sealed trait Json {
    * Sets a value at the given path. Returns Left with an error if the path
    * doesn't exist.
    */
-  def setOrFail(path: DynamicOptic, value: Json): Either[JsonError, Json] =
+  def setOrFail(path: DynamicOptic, value: Json): Either[SchemaError, Json] =
     Json.modifyAtPathOrFail(this, path, { case _ => value })
 
   /**
@@ -154,7 +154,7 @@ sealed trait Json {
    * Deletes the value at the given path. Returns Left with an error if the path
    * doesn't exist.
    */
-  def deleteOrFail(path: DynamicOptic): Either[JsonError, Json] = Json.deleteAtPathOrFail(this, path)
+  def deleteOrFail(path: DynamicOptic): Either[SchemaError, Json] = Json.deleteAtPathOrFail(this, path)
 
   /**
    * Inserts a value at the given path. For arrays, inserts at the specified
@@ -174,7 +174,7 @@ sealed trait Json {
    * Inserts a value at the given path. Returns Left with an error if the path
    * already exists or the parent doesn't exist.
    */
-  def insertOrFail(path: DynamicOptic, value: Json): Either[JsonError, Json] =
+  def insertOrFail(path: DynamicOptic, value: Json): Either[SchemaError, Json] =
     Json.insertAtPathOrFail(this, path, value)
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -241,10 +241,10 @@ sealed trait Json {
    * Decodes this JSON value to a value of type A using the implicit
    * JsonDecoder.
    */
-  def as[A](implicit decoder: JsonDecoder[A]): Either[JsonError, A] = decoder.decode(this)
+  def as[A](implicit decoder: JsonDecoder[A]): Either[SchemaError, A] = decoder.decode(this)
 
   /**
-   * Decodes this JSON value to a value of type A, throwing JsonError on
+   * Decodes this JSON value to a value of type A, throwing SchemaError on
    * failure.
    */
   def asUnsafe[A](implicit decoder: JsonDecoder[A]): A = as[A].fold(e => throw e, identity)
@@ -412,13 +412,13 @@ sealed trait Json {
   /**
    * Folds over the JSON structure bottom-up, allowing failure.
    */
-  def foldUpOrFail[B](z: B)(f: (DynamicOptic, Json, B) => Either[JsonError, B]): Either[JsonError, B] =
+  def foldUpOrFail[B](z: B)(f: (DynamicOptic, Json, B) => Either[SchemaError, B]): Either[SchemaError, B] =
     Json.foldUpOrFailImpl(this, DynamicOptic.root, z, f)
 
   /**
    * Folds over the JSON structure top-down, allowing failure.
    */
-  def foldDownOrFail[B](z: B)(f: (DynamicOptic, Json, B) => Either[JsonError, B]): Either[JsonError, B] =
+  def foldDownOrFail[B](z: B)(f: (DynamicOptic, Json, B) => Either[SchemaError, B]): Either[SchemaError, B] =
     Json.foldDownOrFailImpl(this, DynamicOptic.root, z, f)
 
   /**
@@ -435,7 +435,7 @@ sealed trait Json {
   def diff(that: Json): Json = ???
 
   /** Applies a JSON patch to this value. */
-  def patch(patch: Json): Either[JsonError, Json] = ???
+  def patch(patch: Json): Either[SchemaError, Json] = ???
 
   /** Checks if this JSON conforms to a JSON Schema. */
   def check(schema: JsonSchema): Option[SchemaError] = schema.check(this)
@@ -477,7 +477,7 @@ object Json {
         if (kv._1 == key) return JsonSelection.succeed(kv._2)
         idx += 1
       }
-      JsonSelection.fail(JsonError(s"Key '$key' not found"))
+      JsonSelection.fail(SchemaError(s"Key '$key' not found"))
     }
 
     override def sortKeys: Json =
@@ -558,7 +558,7 @@ object Json {
 
     override def get(index: Int): JsonSelection =
       if (index >= 0 && index < value.length) JsonSelection.succeed(value(index))
-      else JsonSelection.fail(JsonError(s"Index $index out of bounds (size: ${value.length})").atIndex(index))
+      else JsonSelection.fail(SchemaError(s"Index $index out of bounds (size: ${value.length})").atIndex(index))
 
     override def sortKeys: Json = new Array(value.map(_.sortKeys))
 
@@ -741,60 +741,60 @@ object Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Parses a JSON string into a Json value. */
-  def parse(input: java.lang.String): Either[JsonError, Json] =
+  def parse(input: java.lang.String): Either[SchemaError, Json] =
     jsonCodec.decode(input) match {
-      case r: Right[_, _] => r.asInstanceOf[Either[JsonError, Json]]
-      case Left(error)    => new Left(JsonError.fromSchemaError(error))
+      case r: Right[_, _] => r.asInstanceOf[Either[SchemaError, Json]]
+      case Left(error)    => new Left(error)
     }
 
   /** Parses a JSON byte array into a Json value. */
-  def parse(input: scala.Array[Byte]): Either[JsonError, Json] =
+  def parse(input: scala.Array[Byte]): Either[SchemaError, Json] =
     jsonCodec.decode(input) match {
-      case r: Right[_, _] => r.asInstanceOf[Either[JsonError, Json]]
-      case Left(error)    => new Left(JsonError.fromSchemaError(error))
+      case r: Right[_, _] => r.asInstanceOf[Either[SchemaError, Json]]
+      case Left(error)    => new Left(error)
     }
 
   /** Parses a JSON byte array with config. */
-  def parse(input: scala.Array[Byte], config: ReaderConfig): Either[JsonError, Json] =
+  def parse(input: scala.Array[Byte], config: ReaderConfig): Either[SchemaError, Json] =
     jsonCodec.decode(input, config) match {
-      case r: Right[_, _] => r.asInstanceOf[Either[JsonError, Json]]
-      case Left(error)    => new Left(JsonError.fromSchemaError(error))
+      case r: Right[_, _] => r.asInstanceOf[Either[SchemaError, Json]]
+      case Left(error)    => new Left(error)
     }
 
   /** Parses a JSON string with config. */
-  def parse(input: java.lang.String, config: ReaderConfig): Either[JsonError, Json] =
+  def parse(input: java.lang.String, config: ReaderConfig): Either[SchemaError, Json] =
     jsonCodec.decode(input, config) match {
-      case r: Right[_, _] => r.asInstanceOf[Either[JsonError, Json]]
-      case Left(error)    => new Left(JsonError.fromSchemaError(error))
+      case r: Right[_, _] => r.asInstanceOf[Either[SchemaError, Json]]
+      case Left(error)    => new Left(error)
     }
 
   /** Parses a JSON CharSequence into a Json value. */
-  def parse(input: CharSequence): Either[JsonError, Json] = parse(input.toString)
+  def parse(input: CharSequence): Either[SchemaError, Json] = parse(input.toString)
 
   /** Parses a JSON CharSequence with config. */
-  def parse(input: CharSequence, config: ReaderConfig): Either[JsonError, Json] = parse(input.toString, config)
+  def parse(input: CharSequence, config: ReaderConfig): Either[SchemaError, Json] = parse(input.toString, config)
 
   /** Parses a JSON ByteBuffer into a Json value. */
-  def parse(input: ByteBuffer): Either[JsonError, Json] =
+  def parse(input: ByteBuffer): Either[SchemaError, Json] =
     jsonCodec.decode(input) match {
-      case r: Right[_, _] => r.asInstanceOf[Either[JsonError, Json]]
-      case Left(error)    => new Left(JsonError.fromSchemaError(error))
+      case r: Right[_, _] => r.asInstanceOf[Either[SchemaError, Json]]
+      case Left(error)    => new Left(error)
     }
 
   /** Parses a JSON ByteBuffer with config. */
-  def parse(input: ByteBuffer, config: ReaderConfig): Either[JsonError, Json] =
+  def parse(input: ByteBuffer, config: ReaderConfig): Either[SchemaError, Json] =
     jsonCodec.decode(input, config) match {
-      case r: Right[_, _] => r.asInstanceOf[Either[JsonError, Json]]
-      case Left(error)    => new Left(JsonError.fromSchemaError(error))
+      case r: Right[_, _] => r.asInstanceOf[Either[SchemaError, Json]]
+      case Left(error)    => new Left(error)
     }
 
   /** Parses a JSON Chunk of bytes (UTF-8) into a Json value. */
-  def parse(input: Chunk[Byte]): Either[JsonError, Json] = parse(input.toArray)
+  def parse(input: Chunk[Byte]): Either[SchemaError, Json] = parse(input.toArray)
 
   /** Parses a JSON Chunk of bytes (UTF-8) with config. */
-  def parse(input: Chunk[Byte], config: ReaderConfig): Either[JsonError, Json] = parse(input.toArray, config)
+  def parse(input: Chunk[Byte], config: ReaderConfig): Either[SchemaError, Json] = parse(input.toArray, config)
 
-  /** Parses a JSON string, throwing JsonError on failure. */
+  /** Parses a JSON string, throwing SchemaError on failure. */
   def parseUnsafe(input: java.lang.String): Json = parse(input).fold(e => throw e, identity)
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1043,8 +1043,8 @@ object Json {
     json: Json,
     path: DynamicOptic,
     z: B,
-    f: (DynamicOptic, Json, B) => Either[JsonError, B]
-  ): Either[JsonError, B] =
+    f: (DynamicOptic, Json, B) => Either[SchemaError, B]
+  ): Either[SchemaError, B] =
     f(
       path,
       json,
@@ -1085,8 +1085,8 @@ object Json {
     json: Json,
     path: DynamicOptic,
     z: B,
-    f: (DynamicOptic, Json, B) => Either[JsonError, B]
-  ): Either[JsonError, B] =
+    f: (DynamicOptic, Json, B) => Either[SchemaError, B]
+  ): Either[SchemaError, B] =
     f(path, json, z) match {
       case Right(afterThis) =>
         new Right(json match {
@@ -1171,11 +1171,11 @@ object Json {
    * Reconstructs a JSON value from path-value pairs. Returns Left if the paths
    * are inconsistent.
    */
-  def fromKV(kvs: Seq[(DynamicOptic, Json)]): Either[JsonError, Json] = {
+  def fromKV(kvs: Seq[(DynamicOptic, Json)]): Either[SchemaError, Json] = {
     if (kvs.isEmpty) return new Right(Null)
     try new Right(fromKVUnsafe(kvs))
     catch {
-      case e: Exception => Left(JsonError(s"Failed to construct JSON from KV pairs: ${e.getMessage}"))
+      case e: Exception => Left(SchemaError(s"Failed to construct JSON from KV pairs: ${e.getMessage}"))
     }
   }
 
@@ -1261,9 +1261,9 @@ object Json {
   private def getAtPath(json: Json, path: DynamicOptic): JsonSelection = {
     val nodes = path.nodes
     if (nodes.isEmpty) return JsonSelection.succeed(json)
-    var current: Either[JsonError, Chunk[Json]] = new Right(Chunk(json))
-    var idx                                     = 0
-    val len                                     = nodes.length
+    var current: Either[SchemaError, Chunk[Json]] = new Right(Chunk(json))
+    var idx                                       = 0
+    val len                                       = nodes.length
     while (idx < len && current.isRight) {
       val node = nodes(idx)
       current = current.flatMap { jsons =>
@@ -1278,7 +1278,7 @@ object Json {
                 }
               case _ => Chunk.empty[Json]
             }
-            if (results.isEmpty && jsons.nonEmpty) new Left(JsonError(s"Field '$name' not found"))
+            if (results.isEmpty && jsons.nonEmpty) new Left(SchemaError(s"Field '$name' not found"))
             else new Right(results)
           case atIndex: DynamicOptic.Node.AtIndex =>
             val index   = atIndex.index
@@ -1290,7 +1290,7 @@ object Json {
                 }
               case _ => Chunk.empty[Json]
             }
-            if (results.isEmpty && jsons.nonEmpty) new Left(JsonError(s"Index $index out of bounds").atIndex(index))
+            if (results.isEmpty && jsons.nonEmpty) new Left(SchemaError(s"Index $index out of bounds").atIndex(index))
             else new Right(results)
           case _: DynamicOptic.Node.Elements.type =>
             new Right(jsons.flatMap {
@@ -1328,7 +1328,7 @@ object Json {
                   case _ => Chunk.empty[Json]
                 })
               case _ =>
-                new Left(JsonError("AtMapKey requires a string key for JSON objects"))
+                new Left(SchemaError("AtMapKey requires a string key for JSON objects"))
             }
           case atMapKeys: DynamicOptic.Node.AtMapKeys =>
             val keyStrs = atMapKeys.keys.collect { case DynamicValue.Primitive(pv: PrimitiveValue.String) =>
@@ -1507,11 +1507,11 @@ object Json {
     json: Json,
     path: DynamicOptic,
     pf: PartialFunction[Json, Json]
-  ): Either[JsonError, Json] = {
+  ): Either[SchemaError, Json] = {
     val nodes = path.nodes
     if (nodes.isEmpty) {
       if (pf.isDefinedAt(json)) new Right(pf(json))
-      else new Left(JsonError("Partial function not defined for value at path"))
+      else new Left(SchemaError("Partial function not defined for value at path"))
     } else modifyAtPathOrFailRecursive(json, nodes, 0, pf)
   }
 
@@ -1520,10 +1520,10 @@ object Json {
     nodes: IndexedSeq[DynamicOptic.Node],
     nodeIdx: Int,
     pf: PartialFunction[Json, Json]
-  ): Either[JsonError, Json] =
+  ): Either[SchemaError, Json] =
     if (nodeIdx >= nodes.length) {
       if (pf.isDefinedAt(json)) new Right(pf(json))
-      else new Left(JsonError("Partial function not defined for value at path"))
+      else new Left(SchemaError("Partial function not defined for value at path"))
     } else {
       nodes(nodeIdx) match {
         case field: DynamicOptic.Node.Field =>
@@ -1543,8 +1543,8 @@ object Json {
                   case Right(newValue) => new Right(new Object(fields.updated(fieldIdx, (name, newValue))))
                   case l               => l
                 }
-              } else new Left(JsonError(s"Field '$name' not found"))
-            case _ => new Left(JsonError(s"Cannot access field '$name' on non-object"))
+              } else new Left(SchemaError(s"Field '$name' not found"))
+            case _ => new Left(SchemaError(s"Cannot access field '$name' on non-object"))
           }
         case atIndex: DynamicOptic.Node.AtIndex =>
           val index = atIndex.index
@@ -1556,8 +1556,8 @@ object Json {
                   case Right(newValue) => new Right(new Array(elems.updated(index, newValue)))
                   case l               => l
                 }
-              } else new Left(JsonError(s"Index $index out of bounds (size: ${elems.length})"))
-            case _ => new Left(JsonError(s"Cannot access index $index on non-array"))
+              } else new Left(SchemaError(s"Index $index out of bounds (size: ${elems.length})"))
+            case _ => new Left(SchemaError(s"Cannot access index $index on non-array"))
           }
         case _: DynamicOptic.Node.Elements.type =>
           json match {
@@ -1575,7 +1575,7 @@ object Json {
                 idx += 1
               }
               new Right(new Array(builder.result()))
-            case _ => new Left(JsonError("Cannot iterate elements on non-array"))
+            case _ => new Left(SchemaError("Cannot iterate elements on non-array"))
           }
         case _: DynamicOptic.Node.MapValues.type =>
           json match {
@@ -1593,13 +1593,13 @@ object Json {
                 idx += 1
               }
               new Right(new Object(builder.result()))
-            case _ => new Left(JsonError("Cannot iterate map values on non-object"))
+            case _ => new Left(SchemaError("Cannot iterate map values on non-object"))
           }
         case _ =>
           // For other node types, delegate to a non-failing version and wrap the result
           modifyAtPath(json, new DynamicOptic(nodes.drop(nodeIdx)), pf.lift.andThen(_.getOrElse(json))) match {
             case some: Some[_] => new Right(some.value)
-            case _             => new Left(JsonError(s"Path not found: ${new DynamicOptic(nodes)}"))
+            case _             => new Left(SchemaError(s"Path not found: ${new DynamicOptic(nodes)}"))
           }
       }
     }
@@ -1689,8 +1689,8 @@ object Json {
    * Deletes the value at the given path, returning Left with error if the path
    * doesn't exist.
    */
-  private[json] def deleteAtPathOrFail(json: Json, path: DynamicOptic): Either[JsonError, Json] =
-    deleteAtPath(json, path).toRight(JsonError(s"Path not found: $path"))
+  private[json] def deleteAtPathOrFail(json: Json, path: DynamicOptic): Either[SchemaError, Json] =
+    deleteAtPath(json, path).toRight(SchemaError(s"Path not found: $path"))
 
   /**
    * Inserts a value at the given path, returning Some(modified) or None if the
@@ -1766,9 +1766,9 @@ object Json {
    * Inserts a value at the given path, returning Left with error if the path
    * already exists or the parent doesn't exist.
    */
-  private[json] def insertAtPathOrFail(json: Json, path: DynamicOptic, value: Json): Either[JsonError, Json] = {
+  private[json] def insertAtPathOrFail(json: Json, path: DynamicOptic, value: Json): Either[SchemaError, Json] = {
     val nodes = path.nodes
-    if (nodes.isEmpty) return Left(JsonError("Cannot insert at root path"))
+    if (nodes.isEmpty) return Left(SchemaError("Cannot insert at root path"))
     insertAtPathOrFailRecursive(json, nodes, 0, value)
   }
 
@@ -1777,7 +1777,7 @@ object Json {
     nodes: IndexedSeq[DynamicOptic.Node],
     nodeIdx: Int,
     value: Json
-  ): Either[JsonError, Json] = {
+  ): Either[SchemaError, Json] = {
     val isLast = nodeIdx == nodes.length - 1
     nodes(nodeIdx) match {
       case field: DynamicOptic.Node.Field =>
@@ -1787,7 +1787,7 @@ object Json {
             if (isLast) {
               val exists = fields.exists(_._1 == name)
               if (!exists) new Right(new Object(fields :+ (name, value)))
-              else new Left(JsonError(s"Field '$name' already exists"))
+              else new Left(SchemaError(s"Field '$name' already exists"))
             } else {
               var found    = false
               var fieldIdx = 0
@@ -1800,9 +1800,9 @@ object Json {
                 insertAtPathOrFailRecursive(fields(fieldIdx)._2, nodes, nodeIdx + 1, value).map { newValue =>
                   new Object(fields.updated(fieldIdx, (name, newValue)))
                 }
-              } else new Left(JsonError(s"Field '$name' not found"))
+              } else new Left(SchemaError(s"Field '$name' not found"))
             }
-          case _ => new Left(JsonError(s"Cannot access field '$name' on non-object"))
+          case _ => new Left(SchemaError(s"Cannot access field '$name' on non-object"))
         }
       case ai: DynamicOptic.Node.AtIndex =>
         val index = ai.index
@@ -1813,17 +1813,17 @@ object Json {
               if (index >= 0 && index <= elems.length) {
                 val (before, after) = elems.splitAt(index)
                 new Right(new Array((before :+ value) ++ after))
-              } else new Left(JsonError(s"Index $index out of bounds for insert (size: ${elems.length})"))
+              } else new Left(SchemaError(s"Index $index out of bounds for insert (size: ${elems.length})"))
             } else {
               if (index >= 0 && index < elems.length) {
                 insertAtPathOrFailRecursive(elems(index), nodes, nodeIdx + 1, value).map { newValue =>
                   new Array(elems.updated(index, newValue))
                 }
-              } else new Left(JsonError(s"Index $index out of bounds (size: ${elems.length})"))
+              } else new Left(SchemaError(s"Index $index out of bounds (size: ${elems.length})"))
             }
-          case _ => new Left(JsonError(s"Cannot access index $index on non-array"))
+          case _ => new Left(SchemaError(s"Cannot access index $index on non-array"))
         }
-      case other => new Left(JsonError(s"Insert not supported for path node type: $other"))
+      case other => new Left(SchemaError(s"Insert not supported for path node type: $other"))
     }
   }
 

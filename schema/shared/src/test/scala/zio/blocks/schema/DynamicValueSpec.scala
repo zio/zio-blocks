@@ -649,7 +649,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("foldUpOrFail fails when function fails") {
         val result = recordVal.foldUpOrFail(0) { (_, _, _) =>
-          Left(DynamicValueError("error"))
+          Left(SchemaError("error"))
         }
         assertTrue(result.isLeft)
       },
@@ -664,7 +664,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("foldDownOrFail fails when function fails") {
         val result = recordVal.foldDownOrFail(0) { (_, _, _) =>
-          Left(DynamicValueError("error"))
+          Left(SchemaError("error"))
         }
         assertTrue(result.isLeft)
       },

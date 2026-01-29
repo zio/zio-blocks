@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{Schema, SchemaError}
 
 import java.time._
 import java.util.{Currency, UUID}
@@ -21,7 +21,7 @@ trait JsonDecoder[A] { self =>
   /**
    * Decodes a Json value into a value of type A.
    */
-  def decode(json: Json): Either[JsonError, A]
+  def decode(json: Json): Either[SchemaError, A]
 
   /**
    * Maps the decoded value using the given function.
@@ -31,7 +31,7 @@ trait JsonDecoder[A] { self =>
   /**
    * FlatMaps the decoded value using the given function.
    */
-  def flatMap[B](f: A => Either[JsonError, B]): JsonDecoder[B] = (json: Json) => self.decode(json).flatMap(f)
+  def flatMap[B](f: A => Either[SchemaError, B]): JsonDecoder[B] = (json: Json) => self.decode(json).flatMap(f)
 
   /**
    * Returns an alternative decoder that is tried if this decoder fails.
@@ -53,52 +53,52 @@ object JsonDecoder {
   /**
    * Creates a JsonDecoder from a function.
    */
-  def instance[A](f: Json => Either[JsonError, A]): JsonDecoder[A] = (json: Json) => f(json)
+  def instance[A](f: Json => Either[SchemaError, A]): JsonDecoder[A] = (json: Json) => f(json)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Primitive Decoders
   // ─────────────────────────────────────────────────────────────────────────
 
   implicit val stringDecoder: JsonDecoder[String] = new JsonDecoder[String] {
-    def decode(json: Json): Either[JsonError, String] = json match {
+    def decode(json: Json): Either[SchemaError, String] = json match {
       case str: Json.String => new Right(str.value)
-      case _                => new Left(JsonError("Expected String"))
+      case _                => new Left(SchemaError("Expected String"))
     }
   }
 
   implicit val booleanDecoder: JsonDecoder[Boolean] = new JsonDecoder[Boolean] {
-    def decode(json: Json): Either[JsonError, Boolean] = json match {
+    def decode(json: Json): Either[SchemaError, Boolean] = json match {
       case bool: Json.Boolean => new Right(bool.value)
-      case _                  => new Left(JsonError("Expected Boolean"))
+      case _                  => new Left(SchemaError("Expected Boolean"))
     }
   }
 
   implicit val intDecoder: JsonDecoder[Int] = new JsonDecoder[Int] {
-    def decode(json: Json): Either[JsonError, Int] = json match {
+    def decode(json: Json): Either[SchemaError, Int] = json match {
       case num: Json.Number =>
         val n = num.value
         try new Right(n.toInt)
         catch {
-          case err if NonFatal(err) => new Left(JsonError(s"Number $n is not a valid Int"))
+          case err if NonFatal(err) => new Left(SchemaError(s"Number $n is not a valid Int"))
         }
-      case _ => new Left(JsonError("Expected Number"))
+      case _ => new Left(SchemaError("Expected Number"))
     }
   }
 
   implicit val longDecoder: JsonDecoder[Long] = new JsonDecoder[Long] {
-    def decode(json: Json): Either[JsonError, Long] = json match {
+    def decode(json: Json): Either[SchemaError, Long] = json match {
       case num: Json.Number =>
         val n = num.value
         try new Right(n.toLong)
         catch {
-          case err if NonFatal(err) => new Left(JsonError(s"Number $n is not a valid Long"))
+          case err if NonFatal(err) => new Left(SchemaError(s"Number $n is not a valid Long"))
         }
-      case _ => new Left(JsonError("Expected Number"))
+      case _ => new Left(SchemaError("Expected Number"))
     }
   }
 
   implicit val floatDecoder: JsonDecoder[Float] = new JsonDecoder[Float] {
-    def decode(json: Json): Either[JsonError, Float] = {
+    def decode(json: Json): Either[SchemaError, Float] = {
       json match {
         case num: Json.Number =>
           try return new Right(num.value.toFloat)
@@ -107,12 +107,12 @@ object JsonDecoder {
           }
         case _ =>
       }
-      new Left(JsonError("Expected Number"))
+      new Left(SchemaError("Expected Number"))
     }
   }
 
   implicit val doubleDecoder: JsonDecoder[Double] = new JsonDecoder[Double] {
-    def decode(json: Json): Either[JsonError, Double] = {
+    def decode(json: Json): Either[SchemaError, Double] = {
       json match {
         case num: Json.Number =>
           try return new Right(num.value.toDouble)
@@ -121,12 +121,12 @@ object JsonDecoder {
           }
         case _ =>
       }
-      new Left(JsonError("Expected Number"))
+      new Left(SchemaError("Expected Number"))
     }
   }
 
   implicit val bigDecimalDecoder: JsonDecoder[BigDecimal] = new JsonDecoder[BigDecimal] {
-    def decode(json: Json): Either[JsonError, BigDecimal] = {
+    def decode(json: Json): Either[SchemaError, BigDecimal] = {
       json match {
         case num: Json.Number =>
           try return new Right(BigDecimal(num.value))
@@ -135,60 +135,60 @@ object JsonDecoder {
           }
         case _ =>
       }
-      new Left(JsonError("Expected Number"))
+      new Left(SchemaError("Expected Number"))
     }
   }
 
   implicit val bigIntDecoder: JsonDecoder[BigInt] = new JsonDecoder[BigInt] {
-    def decode(json: Json): Either[JsonError, BigInt] = json match {
+    def decode(json: Json): Either[SchemaError, BigInt] = json match {
       case num: Json.Number =>
         val n = num.value
         try new Right(BigInt(n))
         catch {
-          case err if NonFatal(err) => new Left(JsonError(s"Number $n is not a valid BigInt"))
+          case err if NonFatal(err) => new Left(SchemaError(s"Number $n is not a valid BigInt"))
         }
-      case _ => new Left(JsonError("Expected Number"))
+      case _ => new Left(SchemaError("Expected Number"))
     }
   }
 
   implicit val byteDecoder: JsonDecoder[Byte] = new JsonDecoder[Byte] {
-    def decode(json: Json): Either[JsonError, Byte] = json match {
+    def decode(json: Json): Either[SchemaError, Byte] = json match {
       case num: Json.Number =>
         val n = num.value
         try new Right(n.toByte)
         catch {
-          case err if NonFatal(err) => new Left(JsonError(s"Number $n is not a valid Byte"))
+          case err if NonFatal(err) => new Left(SchemaError(s"Number $n is not a valid Byte"))
         }
-      case _ => new Left(JsonError("Expected Number"))
+      case _ => new Left(SchemaError("Expected Number"))
     }
   }
 
   implicit val shortDecoder: JsonDecoder[Short] = new JsonDecoder[Short] {
-    def decode(json: Json): Either[JsonError, Short] = json match {
+    def decode(json: Json): Either[SchemaError, Short] = json match {
       case num: Json.Number =>
         val n = num.value
         try new Right(n.toShort)
         catch {
-          case err if NonFatal(err) => new Left(JsonError(s"Number $n is not a valid Short"))
+          case err if NonFatal(err) => new Left(SchemaError(s"Number $n is not a valid Short"))
         }
-      case _ => new Left(JsonError("Expected Number"))
+      case _ => new Left(SchemaError("Expected Number"))
     }
   }
 
   implicit val charDecoder: JsonDecoder[Char] = new JsonDecoder[Char] {
-    def decode(json: Json): Either[JsonError, Char] = json match {
+    def decode(json: Json): Either[SchemaError, Char] = json match {
       case str: Json.String =>
         val s = str.value
         if (s.length == 1) new Right(s.charAt(0))
-        else new Left(JsonError(s"String '$s' is not a single character"))
-      case _ => new Left(JsonError("Expected String"))
+        else new Left(SchemaError(s"String '$s' is not a single character"))
+      case _ => new Left(SchemaError("Expected String"))
     }
   }
 
   implicit val unitDecoder: JsonDecoder[Unit] = new JsonDecoder[Unit] {
-    def decode(json: Json): Either[JsonError, Unit] = json match {
+    def decode(json: Json): Either[SchemaError, Unit] = json match {
       case _: Json.Null.type => new Right(())
-      case _                 => new Left(JsonError("Expected Null"))
+      case _                 => new Left(SchemaError("Expected Null"))
     }
   }
 
@@ -197,7 +197,7 @@ object JsonDecoder {
   // ─────────────────────────────────────────────────────────────────────────
 
   implicit val jsonDecoder: JsonDecoder[Json] = new JsonDecoder[Json] {
-    def decode(json: Json): Either[JsonError, Json] = new Right(json)
+    def decode(json: Json): Either[SchemaError, Json] = new Right(json)
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -205,18 +205,18 @@ object JsonDecoder {
   // ─────────────────────────────────────────────────────────────────────────
 
   implicit def optionDecoder[A](implicit decoder: JsonDecoder[A]): JsonDecoder[Option[A]] = new JsonDecoder[Option[A]] {
-    def decode(json: Json): Either[JsonError, Option[A]] = json match {
+    def decode(json: Json): Either[SchemaError, Option[A]] = json match {
       case _: Json.Null.type => new Right(None)
       case _                 =>
         decoder.decode(json) match {
-          case Right(v) => new Right(new Some(v))
-          case left     => left.asInstanceOf[Either[JsonError, Option[A]]]
+          case Right(v)    => new Right(new Some(v))
+          case Left(error) => new Left(error.atCase("Some"))
         }
     }
   }
 
   implicit def vectorDecoder[A](implicit decoder: JsonDecoder[A]): JsonDecoder[Vector[A]] = new JsonDecoder[Vector[A]] {
-    def decode(json: Json): Either[JsonError, Vector[A]] = json match {
+    def decode(json: Json): Either[SchemaError, Vector[A]] = json match {
       case arr: Json.Array =>
         val builder = Vector.newBuilder[A]
         val elems   = arr.value
@@ -230,12 +230,12 @@ object JsonDecoder {
           idx += 1
         }
         new Right(builder.result())
-      case _ => new Left(JsonError("Expected Array"))
+      case _ => new Left(SchemaError("Expected Array"))
     }
   }
 
   implicit def listDecoder[A](implicit decoder: JsonDecoder[A]): JsonDecoder[List[A]] = new JsonDecoder[List[A]] {
-    def decode(json: Json): Either[JsonError, List[A]] = json match {
+    def decode(json: Json): Either[SchemaError, List[A]] = json match {
       case arr: Json.Array =>
         val builder = List.newBuilder[A]
         val elems   = arr.value
@@ -249,12 +249,12 @@ object JsonDecoder {
           idx += 1
         }
         new Right(builder.result())
-      case _ => new Left(JsonError("Expected Array"))
+      case _ => new Left(SchemaError("Expected Array"))
     }
   }
 
   implicit def seqDecoder[A](implicit decoder: JsonDecoder[A]): JsonDecoder[Seq[A]] = new JsonDecoder[Seq[A]] {
-    def decode(json: Json): Either[JsonError, Seq[A]] = json match {
+    def decode(json: Json): Either[SchemaError, Seq[A]] = json match {
       case arr: Json.Array =>
         val builder = Seq.newBuilder[A]
         val elems   = arr.value
@@ -268,12 +268,12 @@ object JsonDecoder {
           idx += 1
         }
         new Right(builder.result())
-      case _ => new Left(JsonError("Expected Array"))
+      case _ => new Left(SchemaError("Expected Array"))
     }
   }
 
   implicit def setDecoder[A](implicit decoder: JsonDecoder[A]): JsonDecoder[Set[A]] = new JsonDecoder[Set[A]] {
-    def decode(json: Json): Either[JsonError, Set[A]] = json match {
+    def decode(json: Json): Either[SchemaError, Set[A]] = json match {
       case arr: Json.Array =>
         val builder = Set.newBuilder[A]
         val elems   = arr.value
@@ -287,13 +287,13 @@ object JsonDecoder {
           idx += 1
         }
         new Right(builder.result())
-      case _ => new Left(JsonError("Expected Array"))
+      case _ => new Left(SchemaError("Expected Array"))
     }
   }
 
   implicit def mapDecoder[V](implicit valueDecoder: JsonDecoder[V]): JsonDecoder[Map[String, V]] =
     new JsonDecoder[Map[String, V]] {
-      def decode(json: Json): Either[JsonError, Map[String, V]] = json match {
+      def decode(json: Json): Either[SchemaError, Map[String, V]] = json match {
         case obj: Json.Object =>
           val builder = Map.newBuilder[String, V]
           val fields  = obj.value
@@ -308,7 +308,7 @@ object JsonDecoder {
             idx += 1
           }
           new Right(builder.result())
-        case _ => new Left(JsonError("Expected Object"))
+        case _ => new Left(SchemaError("Expected Object"))
       }
     }
 
@@ -320,7 +320,7 @@ object JsonDecoder {
     decoderA: JsonDecoder[A],
     decoderB: JsonDecoder[B]
   ): JsonDecoder[(A, B)] = new JsonDecoder[(A, B)] {
-    def decode(json: Json): Either[JsonError, (A, B)] = json match {
+    def decode(json: Json): Either[SchemaError, (A, B)] = json match {
       case arr: Json.Array =>
         val elems = arr.value
         val len   = elems.length
@@ -334,8 +334,8 @@ object JsonDecoder {
             case Left(error) => return new Left(error.atIndex(1))
           }
           new Right((a, b))
-        } else new Left(JsonError(s"Expected Array of 2 elements, got $len"))
-      case _ => new Left(JsonError("Expected Array"))
+        } else new Left(SchemaError(s"Expected Array of 2 elements, got $len"))
+      case _ => new Left(SchemaError("Expected Array"))
     }
   }
 
@@ -344,7 +344,7 @@ object JsonDecoder {
     decoderB: JsonDecoder[B],
     decoderC: JsonDecoder[C]
   ): JsonDecoder[(A, B, C)] = new JsonDecoder[(A, B, C)] {
-    def decode(json: Json): Either[JsonError, (A, B, C)] = json match {
+    def decode(json: Json): Either[SchemaError, (A, B, C)] = json match {
       case arr: Json.Array =>
         val elems = arr.value
         val len   = elems.length
@@ -362,8 +362,8 @@ object JsonDecoder {
             case Left(error) => return new Left(error.atIndex(2))
           }
           new Right((a, b, c))
-        } else new Left(JsonError(s"Expected array of 3 elements, got $len"))
-      case _ => new Left(JsonError("Expected Array"))
+        } else new Left(SchemaError(s"Expected array of 3 elements, got $len"))
+      case _ => new Left(SchemaError("Expected Array"))
     }
   }
 
@@ -375,23 +375,23 @@ object JsonDecoder {
     leftDecoder: JsonDecoder[L],
     rightDecoder: JsonDecoder[R]
   ): JsonDecoder[Either[L, R]] = new JsonDecoder[Either[L, R]] {
-    def decode(json: Json): Either[JsonError, Either[L, R]] = json match {
+    def decode(json: Json): Either[SchemaError, Either[L, R]] = json match {
       case obj: Json.Object =>
         val fields = obj.value
         fields.headOption match {
           case Some(("Left", value)) =>
             new Right(new Left(leftDecoder.decode(value) match {
               case Right(l)    => l
-              case Left(error) => return new Left(error.atField("Left"))
+              case Left(error) => return new Left(error.atCase("Left"))
             }))
           case Some(("Right", value)) =>
             new Right(rightDecoder.decode(value) match {
-              case Left(error) => return new Left(error.atField("Left"))
+              case Left(error) => return new Left(error.atCase("Right"))
               case r           => r.asInstanceOf[Either[L, R]]
             })
-          case _ => new Left(JsonError("Expected Object with 'Left' or 'Right' key"))
+          case _ => new Left(SchemaError("Expected Object with 'Left' or 'Right' key"))
         }
-      case _ => new Left(JsonError("Expected Object"))
+      case _ => new Left(SchemaError("Expected Object"))
     }
   }
 
@@ -400,14 +400,14 @@ object JsonDecoder {
   // ─────────────────────────────────────────────────────────────────────────
 
   private def parseString[A](name: String)(parse: String => A): JsonDecoder[A] = new JsonDecoder[A] {
-    def decode(json: Json): Either[JsonError, A] = json match {
+    def decode(json: Json): Either[SchemaError, A] = json match {
       case str: Json.String =>
         val s = str.value
         try new Right(parse(s))
         catch {
-          case err if NonFatal(err) => new Left(JsonError(s"Invalid $name: ${err.getMessage}"))
+          case err if NonFatal(err) => new Left(SchemaError(s"Invalid $name: ${err.getMessage}"))
         }
-      case _ => new Left(JsonError(s"Expected String for $name"))
+      case _ => new Left(SchemaError(s"Expected String for $name"))
     }
   }
 
@@ -464,9 +464,9 @@ object JsonDecoder {
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonDecoder[A] = new JsonDecoder[A] {
     private[this] val codec = schema.derive(JsonBinaryCodecDeriver)
 
-    def decode(json: Json): Either[JsonError, A] = codec.decode(json.printBytes) match {
-      case r: Right[_, _] => r.asInstanceOf[Either[JsonError, A]]
-      case Left(error)    => Left(JsonError.fromSchemaError(error))
+    def decode(json: Json): Either[SchemaError, A] = codec.decode(json.printBytes) match {
+      case r: Right[_, _] => r.asInstanceOf[Either[SchemaError, A]]
+      case Left(error)    => new Left(error)
     }
   }
 }
