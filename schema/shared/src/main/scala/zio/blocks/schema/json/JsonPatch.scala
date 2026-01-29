@@ -606,8 +606,11 @@ object JsonPatch {
             val result = value + delta
             // Normalize: strip trailing zeros to get canonical representation
             // e.g., "-1.0" becomes "-1", "10.00" becomes "10"
-            val normalized = result.underlying.stripTrailingZeros()
-            new Right(new Json.Number(normalized.toPlainString))
+            // Note: We use toPlainString first then normalize manually because
+            // java.math.BigDecimal.stripTrailingZeros() behaves differently on Scala Native
+            val plainStr   = result.bigDecimal.toPlainString
+            val normalized = normalizeNumberString(plainStr)
+            new Right(new Json.Number(normalized))
           case None =>
             new Left(SchemaError.message(s"Cannot parse number: ${num.value}"))
         }
@@ -675,6 +678,32 @@ object JsonPatch {
     error match {
       case Some(err) => new Left(err)
       case None      => new Right(result)
+    }
+  }
+
+  /**
+   * Normalize a number string by stripping trailing zeros after decimal point.
+   * This is a platform-safe alternative to
+   * java.math.BigDecimal.stripTrailingZeros() which behaves differently on
+   * Scala Native. Examples: "10.00" -> "10", "10.50" -> "10.5", "10" -> "10"
+   */
+  private def normalizeNumberString(s: java.lang.String): java.lang.String = {
+    val dotIdx = s.indexOf('.')
+    if (dotIdx < 0) {
+      // No decimal point, return as is
+      s
+    } else {
+      // Find last non-zero character after decimal point
+      var endIdx = s.length
+      while (endIdx > dotIdx + 1 && s.charAt(endIdx - 1) == '0') {
+        endIdx -= 1
+      }
+      // If we're left with just the decimal point, remove it too
+      if (endIdx == dotIdx + 1) {
+        s.substring(0, dotIdx)
+      } else {
+        s.substring(0, endIdx)
+      }
     }
   }
 
