@@ -2,6 +2,7 @@ package zio.blocks.schema.json
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
+import zio.blocks.schema.SchemaError
 import zio.test._
 import zio.test.Assertion.{equalTo, isRight}
 
@@ -880,7 +881,7 @@ object JsonSpec extends SchemaBaseSpec {
           val result = json.foldUpOrFail(BigDecimal(0)) { (_, j, acc) =>
             j match {
               case Json.Number(n) => Right(acc + BigDecimal(n))
-              case Json.String(_) => Left(JsonError("Found a string!"))
+              case Json.String(_) => Left(SchemaError("Found a string!"))
               case _              => Right(acc)
             }
           }
@@ -890,7 +891,7 @@ object JsonSpec extends SchemaBaseSpec {
           val json   = Json.Object("a" -> Json.Number("1"), "b" -> Json.String("error"))
           val result = json.foldDownOrFail(0) { (_, j, acc) =>
             j match {
-              case Json.String(s) if s == "error" => Left(JsonError("Found error"))
+              case Json.String(s) if s == "error" => Left(SchemaError("Found error"))
               case _                              => Right(acc + 1)
             }
           }
@@ -992,7 +993,7 @@ object JsonSpec extends SchemaBaseSpec {
         assertTrue(combined.either == Right(Vector(Json.Number("1"), Json.Number("2"))))
       },
       test("++ propagates errors") {
-        val sel1      = JsonSelection.fail(JsonError("error"))
+        val sel1      = JsonSelection.fail(SchemaError("error"))
         val sel2      = JsonSelection.succeed(Json.Number("2"))
         val combined1 = sel1 ++ sel2
         val combined2 = sel2 ++ sel1
@@ -1903,7 +1904,7 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(numbers == Right(Vector("1", "2")))
         },
         test("orElse returns alternative on failure") {
-          val failed   = JsonSelection.fail(JsonError("error"))
+          val failed   = JsonSelection.fail(SchemaError("error"))
           val fallback = JsonSelection.succeed(Json.Number("42"))
           val result   = failed.orElse(fallback)
           assertTrue(result.one == Right(Json.Number("42")))
@@ -1920,7 +1921,7 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(result == Vector(Json.Number("1"), Json.Number("2")))
         },
         test("getOrElse returns default on failure") {
-          val failed = JsonSelection.fail(JsonError("error"))
+          val failed = JsonSelection.fail(SchemaError("error"))
           val result = failed.getOrElse(Vector(Json.Null))
           assertTrue(result == Vector(Json.Null))
         },
@@ -1973,7 +1974,7 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(empty.any.isLeft)
         },
         test("error returns Some on failure") {
-          val failed = JsonSelection.fail(JsonError("test error"))
+          val failed = JsonSelection.fail(SchemaError("test error"))
           assertTrue(failed.error.isDefined, failed.error.get.message == "test error")
         },
         test("error returns None on success") {
@@ -1985,7 +1986,7 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(success.values.isDefined)
         },
         test("values returns None on failure") {
-          val failed = JsonSelection.fail(JsonError("error"))
+          val failed = JsonSelection.fail(SchemaError("error"))
           assertTrue(failed.values.isEmpty)
         },
         test("any.toOption returns first value") {
@@ -1997,7 +1998,7 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(empty.any.toOption.isEmpty)
         },
         test("toVector returns empty on failure") {
-          val failed = JsonSelection.fail(JsonError("error"))
+          val failed = JsonSelection.fail(SchemaError("error"))
           assertTrue(failed.toVector.isEmpty)
         },
         test("numbers/booleans/nulls type filtering") {
@@ -2187,18 +2188,18 @@ object JsonSpec extends SchemaBaseSpec {
           }
         }
       ),
-      suite("JsonError with path")(
+      suite("SchemaError with path")(
         test("atField adds field to path") {
-          val error = JsonError("test").atField("foo")
-          assertTrue(error.path.toString.contains("foo"))
+          val error = SchemaError("test").atField("foo")
+          assertTrue(error.errors.head.source.toString.contains("foo"))
         },
         test("atIndex adds index to path") {
-          val error = JsonError("test").atIndex(5)
-          assertTrue(error.path.toString.contains("5"))
+          val error = SchemaError("test").atIndex(5)
+          assertTrue(error.errors.head.source.toString.contains("5"))
         },
         test("chained path building") {
-          val error   = JsonError("test").atField("users").atIndex(0).atField("name")
-          val pathStr = error.path.toString
+          val error   = SchemaError("test").atField("users").atIndex(0).atField("name")
+          val pathStr = error.errors.head.source.toString
           assertTrue(
             pathStr.contains("users"),
             pathStr.contains("0"),
@@ -2560,81 +2561,74 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(result == Right(Json.Object("emoji" -> Json.String("Hello"))))
         }
       ),
-      suite("JsonError as Exception")(
-        test("JsonError extends Exception with NoStackTrace") {
-          val error = JsonError("test message")
+      suite("SchemaError as Exception")(
+        test("SchemaError extends Exception with NoStackTrace") {
+          val error = SchemaError("test message")
           assertTrue(
             error.isInstanceOf[Exception],
             error.isInstanceOf[scala.util.control.NoStackTrace],
             error.getStackTrace.isEmpty
           )
         },
-        test("JsonError getMessage returns formatted string") {
-          val error = JsonError("test message")
+        test("SchemaError getMessage returns formatted string") {
+          val error = SchemaError("test message")
           assertTrue(error.getMessage == "test message")
         },
-        test("JsonError with path is formatted correctly") {
-          val error = JsonError("test message").atField("users").atIndex(0)
+        test("SchemaError with path is formatted correctly") {
+          val error = SchemaError("test message").atField("users").atIndex(0)
           assertTrue(error.getMessage.contains("users") && error.getMessage.contains("0"))
         },
-        test("parseUnsafe throws JsonError directly") {
+        test("parseUnsafe throws SchemaError directly") {
           val thrown =
             try {
               Json.parseUnsafe("invalid json")
               None
             } catch {
-              case e: JsonError => Some(e)
-              case _: Throwable => None
+              case e: SchemaError => Some(e)
+              case _: Throwable   => None
             }
           assertTrue(thrown.isDefined)
         },
-        test("JsonSelection.oneUnsafe throws JsonError directly") {
+        test("JsonSelection.oneUnsafe throws SchemaError directly") {
           val thrown =
             try {
               JsonSelection.empty.oneUnsafe
               None
             } catch {
-              case e: JsonError => Some(e)
-              case _: Throwable => None
+              case e: SchemaError => Some(e)
+              case _: Throwable   => None
             }
           assertTrue(thrown.isDefined)
         },
-        test("JsonSelection.anyUnsafe throws JsonError directly") {
+        test("JsonSelection.anyUnsafe throws SchemaError directly") {
           val thrown =
             try {
               JsonSelection.empty.anyUnsafe
               None
             } catch {
-              case e: JsonError => Some(e)
-              case _: Throwable => None
+              case e: SchemaError => Some(e)
+              case _: Throwable   => None
             }
           assertTrue(thrown.isDefined)
         }
       ),
-      suite("JsonError additional methods")(
-        test("++ combines error messages") {
-          val error1   = JsonError("first error")
-          val error2   = JsonError("second error")
+      suite("SchemaError additional methods")(
+        test("++ aggregates errors") {
+          val error1   = SchemaError("first error")
+          val error2   = SchemaError("second error")
           val combined = error1 ++ error2
           assertTrue(
-            combined.message == "first error; second error",
-            combined.path == error1.path
-          )
-        },
-        test("fromSchemaError converts SchemaError to JsonError") {
-          val schemaError = SchemaError.missingField(Nil, "testField")
-          val jsonError   = JsonError.fromSchemaError(schemaError)
-          assertTrue(
-            jsonError.message.contains("testField"),
-            jsonError.path == DynamicOptic.root
+            combined.errors.length == 2,
+            combined.message.contains("first error"),
+            combined.message.contains("second error")
           )
         },
         test("apply with message and path") {
           val path  = DynamicOptic.root.field("users").at(0)
-          val error = JsonError("field missing", path)
+          val error = SchemaError.message("field missing", path)
           assertTrue(
-            error.message == "field missing",
-            error.path == path
+            error.message.contains("field missing"),
+            error.errors.head.source == path
           )
         }
       ),
@@ -3254,7 +3248,7 @@ object JsonSpec extends SchemaBaseSpec {
       test("flatMap chains decoders") {
         val decoder = JsonDecoder.intDecoder.flatMap { n =>
           if (n > 0) Right(n * 2)
-          else Left(JsonError("Expected positive number"))
+          else Left(SchemaError("Expected positive number"))
         }
         val result1 = decoder.decode(Json.Number(21))
         val result2 = decoder.decode(Json.Number(-5))

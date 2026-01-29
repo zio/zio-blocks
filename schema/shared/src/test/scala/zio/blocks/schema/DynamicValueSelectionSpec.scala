@@ -27,11 +27,11 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.isSuccess)
       },
       test("isSuccess returns false for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(!sel.isSuccess)
       },
       test("isFailure returns true for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(sel.isFailure)
       },
       test("isFailure returns false for success") {
@@ -39,7 +39,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(!sel.isFailure)
       },
       test("error returns Some for failure") {
-        val err = DynamicValueError("test error")
+        val err = SchemaError("test error")
         val sel = DynamicValueSelection.fail(err)
         assertTrue(sel.error == Some(err))
       },
@@ -52,7 +52,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.values == Some(Chunk(stringVal)))
       },
       test("values returns None for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(sel.values.isEmpty)
       },
       test("toChunk returns values for success") {
@@ -60,7 +60,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.toChunk == Chunk(stringVal, intVal))
       },
       test("toChunk returns empty for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(sel.toChunk.isEmpty)
       },
       test("one succeeds with single value") {
@@ -80,7 +80,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.isEmpty)
       },
       test("isEmpty returns true for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(sel.isEmpty)
       },
       test("isEmpty returns false for non-empty selection") {
@@ -100,7 +100,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.size == 3)
       },
       test("size returns 0 for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(sel.size == 0)
       },
       test("any succeeds with at least one value") {
@@ -137,7 +137,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
           sel.oneUnsafe
           false
         } catch {
-          case _: DynamicValueError => true
+          case _: SchemaError => true
         }
         assertTrue(result)
       },
@@ -151,7 +151,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
           sel.anyUnsafe
           false
         } catch {
-          case _: DynamicValueError => true
+          case _: SchemaError => true
         }
         assertTrue(result)
       }
@@ -280,7 +280,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel1.orElse(sel2).one == Right(stringVal))
       },
       test("orElse returns alternative on failure") {
-        val sel1 = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel1 = DynamicValueSelection.fail(SchemaError("error"))
         val sel2 = DynamicValueSelection.succeed(intVal)
         assertTrue(sel1.orElse(sel2).one == Right(intVal))
       },
@@ -289,7 +289,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.getOrElse(Chunk(intVal)) == Chunk(stringVal))
       },
       test("getOrElse returns default on failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(sel.getOrElse(Chunk(intVal)) == Chunk(intVal))
       },
       test("++ combines two selections") {
@@ -298,19 +298,25 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue((sel1 ++ sel2).toChunk == Chunk(stringVal, intVal))
       },
       test("++ with failure propagates error") {
-        val sel1 = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel1 = DynamicValueSelection.fail(SchemaError("error"))
         val sel2 = DynamicValueSelection.succeed(intVal)
         assertTrue((sel1 ++ sel2).isFailure)
       },
       test("++ with second failure propagates error") {
         val sel1 = DynamicValueSelection.succeed(intVal)
-        val sel2 = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel2 = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue((sel1 ++ sel2).isFailure)
       },
-      test("++ with both failure propagates first error") {
-        val sel1 = DynamicValueSelection.fail(DynamicValueError("first"))
-        val sel2 = DynamicValueSelection.fail(DynamicValueError("second"))
-        assertTrue((sel1 ++ sel2).error.map(_.message) == Some("first"))
+      test("++ with both failures aggregates errors") {
+        val sel1     = DynamicValueSelection.fail(SchemaError("first"))
+        val sel2     = DynamicValueSelection.fail(SchemaError("second"))
+        val combined = sel1 ++ sel2
+        assertTrue(
+          combined.isFailure,
+          combined.error.exists(_.errors.length == 2),
+          combined.error.exists(_.message.contains("first")),
+          combined.error.exists(_.message.contains("second"))
+        )
       }
     ),
     suite("Query methods")(
