@@ -64,7 +64,17 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
   }
 
-  private def isOpaque(tpe: TypeRepr): Boolean = tpe.typeSymbol.flags.is(Flags.Opaque)
+  private def isOpaque(tpe: TypeRepr): Boolean =
+    if (!tpe.typeSymbol.flags.is(Flags.Opaque)) false
+    else {
+      // Only treat as opaque if we can actually access the underlying type
+      tpe match {
+        case trTpe: TypeRef =>
+          val superType = trTpe.translucentSuperType
+          !(superType =:= tpe) // Can access underlying type
+        case _ => false
+      }
+    }
 
   // === Structural Type Support (JVM only) ===
 
