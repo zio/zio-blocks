@@ -1059,8 +1059,9 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
       },
       test("UUID primitive validates correctly") {
-        val ds = Schema[java.util.UUID].toDynamicSchema
-        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.UUID(java.util.UUID.randomUUID()))).isEmpty) &&
+        val ds        = Schema[java.util.UUID].toDynamicSchema
+        val fixedUUID = java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
+        assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.UUID(fixedUUID))).isEmpty) &&
         assertTrue(ds.check(DynamicValue.Primitive(PrimitiveValue.Int(1))).isDefined)
       }
     ),
