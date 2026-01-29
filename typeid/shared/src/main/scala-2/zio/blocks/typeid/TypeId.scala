@@ -152,7 +152,7 @@ object TypeId extends TypeIdInstances {
     annotations: List[Annotation]
   ) extends TypeId[A]
 
-  private[typeid] def makeImpl[A](
+  private[blocks] def makeImpl[A](
     name: String,
     owner: Owner,
     typeParams: List[TypeParam],

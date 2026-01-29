@@ -1,6 +1,5 @@
-package zio.blocks.typeid.schema
+package zio.blocks.schema
 
-import zio.blocks.schema._
 import zio.blocks.typeid._
 import zio.blocks.chunk.Chunk
 
@@ -10,7 +9,7 @@ import zio.blocks.chunk.Chunk
  * These schemas enable serialization/deserialization of TypeId metadata, which
  * is essential for schema reflection and type-safe serialization.
  */
-object TypeIdSchemas {
+trait TypeIdSchemas {
 
   // ============================================================================
   // Simple Enums - String-based encoding

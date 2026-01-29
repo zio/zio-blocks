@@ -1,11 +1,9 @@
-package zio.blocks.typeid.schema
+package zio.blocks.schema
 
 import zio.test._
-import zio.blocks.schema._
 import zio.blocks.typeid._
 
-object TypeIdSchemasSpec extends ZIOSpecDefault {
-  import TypeIdSchemas._
+object TypeIdSchemasSpec extends SchemaBaseSpec {
 
   def roundtrip[A](value: A)(implicit schema: Schema[A]): Boolean = {
     val dynamic = schema.toDynamicValue(value)
@@ -14,7 +12,7 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
   }
 
   def roundtripTypeId[A](typeId: TypeId[A]): Boolean = {
-    val schema  = typeIdSchema.asInstanceOf[Schema[TypeId[A]]]
+    val schema  = Schema.typeIdSchema.asInstanceOf[Schema[TypeId[A]]]
     val dynamic = schema.toDynamicValue(typeId)
     val result  = schema.fromDynamicValue(dynamic)
     result == Right(typeId)
@@ -41,9 +39,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     typeIdSuite
   )
 
-  // ===========================================================================
-  // Variance
-  // ===========================================================================
   lazy val varianceSuite = suite("Variance")(
     test("roundtrip Covariant") {
       assertTrue(roundtrip[Variance](Variance.Covariant))
@@ -56,9 +51,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // Kind
-  // ===========================================================================
   lazy val kindSuite = suite("Kind")(
     test("roundtrip Type") {
       assertTrue(roundtrip[Kind](Kind.Type))
@@ -75,9 +67,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // Owner.Segment
-  // ===========================================================================
   lazy val ownerSegmentSuite = suite("Owner.Segment")(
     test("roundtrip Package") {
       assertTrue(roundtrip[Owner.Segment](Owner.Package("zio")))
@@ -90,9 +79,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // Owner
-  // ===========================================================================
   lazy val ownerSuite = suite("Owner")(
     test("roundtrip empty owner") {
       assertTrue(roundtrip(Owner(Nil)))
@@ -108,9 +94,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // TermPath.Segment
-  // ===========================================================================
   lazy val termPathSegmentSuite = suite("TermPath.Segment")(
     test("roundtrip Package") {
       assertTrue(roundtrip[TermPath.Segment](TermPath.Package("scala")))
@@ -120,9 +103,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // TermPath
-  // ===========================================================================
   lazy val termPathSuite = suite("TermPath")(
     test("roundtrip empty path") {
       assertTrue(roundtrip(TermPath(Nil)))
@@ -135,9 +115,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // TypeBounds
-  // ===========================================================================
   lazy val typeBoundsSuite = suite("TypeBounds")(
     test("roundtrip empty bounds") {
       assertTrue(roundtrip(TypeBounds(None, None)))
@@ -153,9 +130,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // TypeParam
-  // ===========================================================================
   lazy val typeParamSuite = suite("TypeParam")(
     test("roundtrip simple TypeParam") {
       val typeParam = TypeParam(
@@ -189,9 +163,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // Param
-  // ===========================================================================
   lazy val paramSuite = suite("Param")(
     test("roundtrip simple Param") {
       val param = Param(
@@ -222,9 +193,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // Member
-  // ===========================================================================
   lazy val memberSuite = suite("Member")(
     test("roundtrip Def member") {
       val member: Member = Member.Def(
@@ -277,9 +245,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // TupleElement
-  // ===========================================================================
   lazy val tupleElementSuite = suite("TupleElement")(
     test("roundtrip unnamed TupleElement") {
       val elem = TupleElement(None, TypeRepr.Ref(TypeId.of[Int]))
@@ -291,9 +256,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // EnumCaseParam
-  // ===========================================================================
   lazy val enumCaseParamSuite = suite("EnumCaseParam")(
     test("roundtrip EnumCaseParam") {
       val param = EnumCaseParam(
@@ -304,9 +266,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // EnumCaseInfo
-  // ===========================================================================
   lazy val enumCaseInfoSuite = suite("EnumCaseInfo")(
     test("roundtrip simple EnumCaseInfo") {
       val info = EnumCaseInfo(
@@ -329,14 +288,8 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // AnnotationArg
-  // Note: AnnotationArg.Const contains Any which doesn't roundtrip perfectly
-  // (non-DynamicValue values get serialized via .toString)
-  // ===========================================================================
   lazy val annotationArgSuite = suite("AnnotationArg")(
     test("roundtrip Const with DynamicValue") {
-      // Const roundtrips correctly when wrapping a DynamicValue
       val dv = DynamicValue.Primitive(PrimitiveValue.String("test"))
       assertTrue(roundtrip[AnnotationArg](AnnotationArg.Const(dv)))
     },
@@ -369,9 +322,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // Annotation
-  // ===========================================================================
   lazy val annotationSuite = suite("Annotation")(
     test("roundtrip simple annotation") {
       val ann = Annotation(TypeId.of[Deprecated], Nil)
@@ -386,9 +336,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // TypeRepr - All cases
-  // ===========================================================================
   lazy val typeReprSuite = suite("TypeRepr")(
     test("roundtrip Ref") {
       assertTrue(roundtrip[TypeRepr](TypeRepr.Ref(TypeId.of[String])))
@@ -523,9 +470,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // TypeDefKind - All cases
-  // ===========================================================================
   lazy val typeDefKindSuite = suite("TypeDefKind")(
     test("roundtrip Class simple") {
       val defKind: TypeDefKind = TypeDefKind.Class(
@@ -622,9 +566,6 @@ object TypeIdSchemasSpec extends ZIOSpecDefault {
     }
   )
 
-  // ===========================================================================
-  // TypeId
-  // ===========================================================================
   lazy val typeIdSuite = suite("TypeId")(
     test("roundtrip simple TypeId") {
       assertTrue(roundtripTypeId(TypeId.of[String]))
