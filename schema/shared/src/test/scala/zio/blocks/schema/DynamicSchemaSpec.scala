@@ -1838,6 +1838,45 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val name      = roundTrip.toOption.get.typeName.name
         assertTrue(isRight) &&
         assertTrue(name == "Person")
+      },
+      test("validation is preserved through DynamicSchema round-trip") {
+        val schemaWithValidation = Schema[Int].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(PrimitiveType.Int(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+            )
+          )
+          .get
+        val original  = schemaWithValidation.toDynamicSchema
+        val dv        = DynamicSchema.toDynamicValue(original)
+        val roundTrip = DynamicSchema.fromDynamicValue(dv)
+        assertTrue(roundTrip.check(DynamicValue.Primitive(PrimitiveValue.Int(5))).isEmpty) &&
+        assertTrue(roundTrip.check(DynamicValue.Primitive(PrimitiveValue.Int(-5))).isDefined)
+      },
+      test("String.NonEmpty validation is preserved through round-trip") {
+        val schemaWithValidation = Schema[String].reflect.asPrimitive
+          .map(p =>
+            new Schema(
+              new Reflect.Primitive(
+                PrimitiveType.String(Validation.String.NonEmpty),
+                p.typeName,
+                p.primitiveBinding
+              )
+            )
+          )
+          .get
+        val original  = schemaWithValidation.toDynamicSchema
+        val dv        = DynamicSchema.toDynamicValue(original)
+        val roundTrip = DynamicSchema.fromDynamicValue(dv)
+        assertTrue(roundTrip.check(DynamicValue.Primitive(PrimitiveValue.String("hello"))).isEmpty) &&
+        assertTrue(roundTrip.check(DynamicValue.Primitive(PrimitiveValue.String(""))).isDefined)
+      },
+      test("Doc.Concat is preserved through round-trip") {
+        val schemaWithDoc = Schema[Int].doc("First line").doc("Second line")
+        val original      = schemaWithDoc.toDynamicSchema
+        val dv            = DynamicSchema.toDynamicValue(original)
+        val roundTrip     = DynamicSchema.fromDynamicValue(dv)
+        assertTrue(roundTrip.doc != Doc.Empty)
       }
     )
   )

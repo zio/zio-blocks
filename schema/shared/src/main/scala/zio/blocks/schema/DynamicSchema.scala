@@ -1612,10 +1612,10 @@ object DynamicSchema {
           "Text",
           DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.String(value))))
         )
-      case Doc.Concat(leaves) =>
+      case Doc.Concat(flatten) =>
         DynamicValue.Variant(
           "Concat",
-          DynamicValue.Record(Chunk("leaves" -> DynamicValue.Sequence(Chunk.from(leaves.map(docToDV)))))
+          DynamicValue.Record(Chunk("flatten" -> DynamicValue.Sequence(Chunk.from(flatten.map(docToDV)))))
         )
     }
 
@@ -1663,13 +1663,13 @@ object DynamicSchema {
             )
           )
         )
-      case Validation.String.NonEmpty         => DynamicValue.Variant("NonEmpty", DynamicValue.Record(Chunk.empty))
-      case Validation.String.Empty            => DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))
-      case Validation.String.Blank            => DynamicValue.Variant("Blank", DynamicValue.Record(Chunk.empty))
-      case Validation.String.NonBlank         => DynamicValue.Variant("NonBlank", DynamicValue.Record(Chunk.empty))
+      case Validation.String.NonEmpty         => DynamicValue.Variant("StringNonEmpty", DynamicValue.Record(Chunk.empty))
+      case Validation.String.Empty            => DynamicValue.Variant("StringEmpty", DynamicValue.Record(Chunk.empty))
+      case Validation.String.Blank            => DynamicValue.Variant("StringBlank", DynamicValue.Record(Chunk.empty))
+      case Validation.String.NonBlank         => DynamicValue.Variant("StringNonBlank", DynamicValue.Record(Chunk.empty))
       case Validation.String.Length(min, max) =>
         DynamicValue.Variant(
-          "Length",
+          "StringLength",
           DynamicValue.Record(
             Chunk(
               "min" -> min.map(v => DynamicValue.Primitive(PrimitiveValue.Int(v))).getOrElse(DynamicValue.Null),
@@ -1679,7 +1679,7 @@ object DynamicSchema {
         )
       case Validation.String.Pattern(regex) =>
         DynamicValue.Variant(
-          "Pattern",
+          "StringPattern",
           DynamicValue.Record(
             Chunk(
               "regex" -> DynamicValue.Primitive(PrimitiveValue.String(regex))
@@ -1689,13 +1689,13 @@ object DynamicSchema {
     }
 
     def primitiveTypeToDV(pt: PrimitiveType[_]): DynamicValue = {
-      val name = pt.typeName.name
-      DynamicValue.Record(
-        Chunk(
-          "type"       -> DynamicValue.Primitive(PrimitiveValue.String(name)),
-          "validation" -> validationToDV(pt.validation)
-        )
-      )
+      val caseName = pt.typeName.name
+      val payload  =
+        if (caseName == "Unit")
+          DynamicValue.Record(Chunk.empty)
+        else
+          DynamicValue.Record(Chunk("validation" -> validationToDV(pt.validation)))
+      DynamicValue.Variant(caseName, payload)
     }
 
     def termToDV[S, A](term: Term[NoBinding, S, A]): DynamicValue = DynamicValue.Record(
@@ -1875,7 +1875,7 @@ object DynamicSchema {
         }
       case DynamicValue.Variant("Concat", DynamicValue.Record(fields)) =>
         val fieldMap = fields.toMap
-        fieldMap.get("leaves") match {
+        fieldMap.get("flatten") match {
           case Some(DynamicValue.Sequence(elems)) =>
             Doc.Concat(elems.map(dvToDoc).collect { case l: Doc.Leaf => l }.toIndexedSeq)
           case _ => Doc.Empty
@@ -1944,33 +1944,97 @@ object DynamicSchema {
       case _ => new Term("unknown", new Reflect.Dynamic[NoBinding](NoBinding()).asInstanceOf[Reflect.Unbound[Any]])
     }
 
-    def dvToPrimitiveType(dv: DynamicValue): PrimitiveType[Any] = dv match {
-      case DynamicValue.Record(fields) =>
+    def dvToValidation(dv: DynamicValue): Validation[Any] = dv match {
+      case DynamicValue.Variant("None", _)                            => Validation.None
+      case DynamicValue.Variant("Positive", _)                        => Validation.Numeric.Positive
+      case DynamicValue.Variant("Negative", _)                        => Validation.Numeric.Negative
+      case DynamicValue.Variant("NonPositive", _)                     => Validation.Numeric.NonPositive
+      case DynamicValue.Variant("NonNegative", _)                     => Validation.Numeric.NonNegative
+      case DynamicValue.Variant("StringNonEmpty", _)                  => Validation.String.NonEmpty.asInstanceOf[Validation[Any]]
+      case DynamicValue.Variant("StringEmpty", _)                     => Validation.String.Empty.asInstanceOf[Validation[Any]]
+      case DynamicValue.Variant("StringBlank", _)                     => Validation.String.Blank.asInstanceOf[Validation[Any]]
+      case DynamicValue.Variant("StringNonBlank", _)                  => Validation.String.NonBlank.asInstanceOf[Validation[Any]]
+      case DynamicValue.Variant("Range", DynamicValue.Record(fields)) =>
         val fieldMap = fields.toMap
-        val typeName = fieldMap("type") match {
-          case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-          case _                                                => "String"
+        val min      = fieldMap.get("min").flatMap {
+          case DynamicValue.Variant("Some", DynamicValue.Record(inner)) =>
+            inner.toMap.get("value").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
+          case _ => scala.None
         }
+        val max = fieldMap.get("max").flatMap {
+          case DynamicValue.Variant("Some", DynamicValue.Record(inner)) =>
+            inner.toMap.get("value").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
+          case _ => scala.None
+        }
+        Validation.Numeric.Range(min, max).asInstanceOf[Validation[Any]]
+      case DynamicValue.Variant("Set", DynamicValue.Record(fields)) =>
+        val fieldMap = fields.toMap
+        val values   = fieldMap.get("values") match {
+          case Some(DynamicValue.Sequence(elems)) =>
+            elems.collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }.toSet
+          case _ => Set.empty[String]
+        }
+        Validation.Numeric.Set(values).asInstanceOf[Validation[Any]]
+      case DynamicValue.Variant("StringLength", DynamicValue.Record(fields)) =>
+        val fieldMap = fields.toMap
+        val min      = fieldMap.get("min").flatMap {
+          case DynamicValue.Variant("Some", DynamicValue.Record(inner)) =>
+            inner.toMap.get("value").collect { case DynamicValue.Primitive(PrimitiveValue.Int(i)) => i }
+          case _ => scala.None
+        }
+        val max = fieldMap.get("max").flatMap {
+          case DynamicValue.Variant("Some", DynamicValue.Record(inner)) =>
+            inner.toMap.get("value").collect { case DynamicValue.Primitive(PrimitiveValue.Int(i)) => i }
+          case _ => scala.None
+        }
+        Validation.String.Length(min, max).asInstanceOf[Validation[Any]]
+      case DynamicValue.Variant("StringPattern", DynamicValue.Record(fields)) =>
+        val fieldMap = fields.toMap
+        val regex    = fieldMap.get("regex").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
+        regex.map(r => Validation.String.Pattern(r).asInstanceOf[Validation[Any]]).getOrElse(Validation.None)
+      case _ => Validation.None
+    }
+
+    def dvToPrimitiveType(dv: DynamicValue): PrimitiveType[Any] = dv match {
+      case DynamicValue.Variant(typeName, DynamicValue.Record(fields)) =>
+        val fieldMap            = fields.toMap
+        val validation          = fieldMap.get("validation").map(dvToValidation).getOrElse(Validation.None)
+        def v[A]: Validation[A] = validation.asInstanceOf[Validation[A]]
         typeName match {
           case "Unit"          => PrimitiveType.Unit.asInstanceOf[PrimitiveType[Any]]
-          case "Boolean"       => PrimitiveType.Boolean(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "Byte"          => PrimitiveType.Byte(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "Short"         => PrimitiveType.Short(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "Int"           => PrimitiveType.Int(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "Long"          => PrimitiveType.Long(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "Float"         => PrimitiveType.Float(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "Double"        => PrimitiveType.Double(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "Char"          => PrimitiveType.Char(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "String"        => PrimitiveType.String(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "BigInt"        => PrimitiveType.BigInt(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "BigDecimal"    => PrimitiveType.BigDecimal(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "UUID"          => PrimitiveType.UUID(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "Instant"       => PrimitiveType.Instant(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "LocalDate"     => PrimitiveType.LocalDate(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "LocalDateTime" => PrimitiveType.LocalDateTime(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "LocalTime"     => PrimitiveType.LocalTime(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case "Duration"      => PrimitiveType.Duration(Validation.None).asInstanceOf[PrimitiveType[Any]]
-          case _               => PrimitiveType.String(Validation.None).asInstanceOf[PrimitiveType[Any]]
+          case "Boolean"       => PrimitiveType.Boolean(v[Boolean]).asInstanceOf[PrimitiveType[Any]]
+          case "Byte"          => PrimitiveType.Byte(v[Byte]).asInstanceOf[PrimitiveType[Any]]
+          case "Short"         => PrimitiveType.Short(v[Short]).asInstanceOf[PrimitiveType[Any]]
+          case "Int"           => PrimitiveType.Int(v[Int]).asInstanceOf[PrimitiveType[Any]]
+          case "Long"          => PrimitiveType.Long(v[Long]).asInstanceOf[PrimitiveType[Any]]
+          case "Float"         => PrimitiveType.Float(v[Float]).asInstanceOf[PrimitiveType[Any]]
+          case "Double"        => PrimitiveType.Double(v[Double]).asInstanceOf[PrimitiveType[Any]]
+          case "Char"          => PrimitiveType.Char(v[Char]).asInstanceOf[PrimitiveType[Any]]
+          case "String"        => PrimitiveType.String(v[String]).asInstanceOf[PrimitiveType[Any]]
+          case "BigInt"        => PrimitiveType.BigInt(v[BigInt]).asInstanceOf[PrimitiveType[Any]]
+          case "BigDecimal"    => PrimitiveType.BigDecimal(v[BigDecimal]).asInstanceOf[PrimitiveType[Any]]
+          case "UUID"          => PrimitiveType.UUID(v[java.util.UUID]).asInstanceOf[PrimitiveType[Any]]
+          case "Instant"       => PrimitiveType.Instant(v[java.time.Instant]).asInstanceOf[PrimitiveType[Any]]
+          case "LocalDate"     => PrimitiveType.LocalDate(v[java.time.LocalDate]).asInstanceOf[PrimitiveType[Any]]
+          case "LocalDateTime" =>
+            PrimitiveType.LocalDateTime(v[java.time.LocalDateTime]).asInstanceOf[PrimitiveType[Any]]
+          case "LocalTime"      => PrimitiveType.LocalTime(v[java.time.LocalTime]).asInstanceOf[PrimitiveType[Any]]
+          case "Duration"       => PrimitiveType.Duration(v[java.time.Duration]).asInstanceOf[PrimitiveType[Any]]
+          case "DayOfWeek"      => PrimitiveType.DayOfWeek(v[java.time.DayOfWeek]).asInstanceOf[PrimitiveType[Any]]
+          case "Month"          => PrimitiveType.Month(v[java.time.Month]).asInstanceOf[PrimitiveType[Any]]
+          case "MonthDay"       => PrimitiveType.MonthDay(v[java.time.MonthDay]).asInstanceOf[PrimitiveType[Any]]
+          case "OffsetDateTime" =>
+            PrimitiveType.OffsetDateTime(v[java.time.OffsetDateTime]).asInstanceOf[PrimitiveType[Any]]
+          case "OffsetTime"    => PrimitiveType.OffsetTime(v[java.time.OffsetTime]).asInstanceOf[PrimitiveType[Any]]
+          case "Period"        => PrimitiveType.Period(v[java.time.Period]).asInstanceOf[PrimitiveType[Any]]
+          case "Year"          => PrimitiveType.Year(v[java.time.Year]).asInstanceOf[PrimitiveType[Any]]
+          case "YearMonth"     => PrimitiveType.YearMonth(v[java.time.YearMonth]).asInstanceOf[PrimitiveType[Any]]
+          case "ZoneId"        => PrimitiveType.ZoneId(v[java.time.ZoneId]).asInstanceOf[PrimitiveType[Any]]
+          case "ZoneOffset"    => PrimitiveType.ZoneOffset(v[java.time.ZoneOffset]).asInstanceOf[PrimitiveType[Any]]
+          case "ZonedDateTime" =>
+            PrimitiveType.ZonedDateTime(v[java.time.ZonedDateTime]).asInstanceOf[PrimitiveType[Any]]
+          case "Currency" => PrimitiveType.Currency(v[java.util.Currency]).asInstanceOf[PrimitiveType[Any]]
+          case _          => PrimitiveType.String(v[String]).asInstanceOf[PrimitiveType[Any]]
         }
       case _ => PrimitiveType.String(Validation.None).asInstanceOf[PrimitiveType[Any]]
     }
