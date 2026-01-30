@@ -291,6 +291,26 @@ object AdtSpec extends MarkdownBaseSpec {
           val doc        = Doc(Chunk(BlockQuote(Chunk(Paragraph(Chunk(Text("a"), Text("b")))))))
           val normalized = doc.normalize
           assertTrue(normalized.blocks == Chunk(BlockQuote(Chunk(Paragraph(Chunk(Text("ab")))))))
+        },
+        test("normalizes Inline.Emphasis variant") {
+          val doc        = Doc(Chunk(Paragraph(Chunk(Inline.Emphasis(Chunk(Text("a"), Text("b")))))))
+          val normalized = doc.normalize
+          assertTrue(normalized.blocks == Chunk(Paragraph(Chunk(Emphasis(Chunk(Text("ab")))))))
+        },
+        test("normalizes Inline.Strong variant") {
+          val doc        = Doc(Chunk(Paragraph(Chunk(Inline.Strong(Chunk(Text("a"), Text("b")))))))
+          val normalized = doc.normalize
+          assertTrue(normalized.blocks == Chunk(Paragraph(Chunk(Strong(Chunk(Text("ab")))))))
+        },
+        test("normalizes Inline.Strikethrough variant") {
+          val doc        = Doc(Chunk(Paragraph(Chunk(Inline.Strikethrough(Chunk(Text("a"), Text("b")))))))
+          val normalized = doc.normalize
+          assertTrue(normalized.blocks == Chunk(Paragraph(Chunk(Strikethrough(Chunk(Text("ab")))))))
+        },
+        test("normalizes Inline.Link variant") {
+          val doc        = Doc(Chunk(Paragraph(Chunk(Inline.Link(Chunk(Text("a"), Text("b")), "url", None)))))
+          val normalized = doc.normalize
+          assertTrue(normalized.blocks == Chunk(Paragraph(Chunk(Link(Chunk(Text("ab")), "url", None)))))
         }
       ),
       suite("equality via normalization")(
