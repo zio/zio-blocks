@@ -2,6 +2,7 @@ package zio.blocks.schema.tostring
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.TypeId
 import zio.test._
 
 object SchemaToStringSpec extends ZIOSpecDefault {
@@ -364,7 +365,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, String](
             new PrimitiveType.String(Validation.String.NonEmpty),
-            TypeName.string,
+            TypeId.string,
             Binding.Primitive()
           )
         )
@@ -374,7 +375,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, String](
             new PrimitiveType.String(Validation.String.Length(Some(3), Some(50))),
-            TypeName.string,
+            TypeId.string,
             Binding.Primitive()
           )
         )
@@ -384,7 +385,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, String](
             new PrimitiveType.String(Validation.String.Length(Some(3), None)),
-            TypeName.string,
+            TypeId.string,
             Binding.Primitive()
           )
         )
@@ -394,7 +395,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, String](
             new PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
-            TypeName.string,
+            TypeId.string,
             Binding.Primitive()
           )
         )
@@ -404,7 +405,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, Int](
             new PrimitiveType.Int(Validation.Numeric.Positive),
-            TypeName.int,
+            TypeId.int,
             Binding.Primitive()
           )
         )
@@ -414,7 +415,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, Int](
             new PrimitiveType.Int(Validation.Numeric.NonNegative),
-            TypeName.int,
+            TypeId.int,
             Binding.Primitive()
           )
         )
@@ -424,7 +425,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, Int](
             new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(100))),
-            TypeName.int,
+            TypeId.int,
             Binding.Primitive()
           )
         )
@@ -434,7 +435,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val schema = new Schema(
           Reflect.Primitive[Binding, Long](
             new PrimitiveType.Long(Validation.Numeric.Negative),
-            TypeName.long,
+            TypeId.long,
             Binding.Primitive()
           )
         )
@@ -448,17 +449,17 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         // Create validated primitives
         val nameReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Length(Some(1), Some(100))),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         val ageReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(150))),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         val emailReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Pattern("^[^@]+@[^@]+$")),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
 
@@ -486,13 +487,13 @@ object SchemaToStringSpec extends ZIOSpecDefault {
       test("renders sequence schema with validated element type") {
         val intReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Positive),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
 
         val listReflect = Reflect.Sequence[Binding, Int, List](
           element = intReflect,
-          typeName = TypeName.list(TypeName.int),
+          typeId = TypeId.of[List[Int]],
           seqBinding = Binding.Seq.list
         )
 
@@ -502,19 +503,19 @@ object SchemaToStringSpec extends ZIOSpecDefault {
       test("renders map schema with validated key and value types") {
         val keyReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.NonBlank),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         val valueReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.NonNegative),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
 
         val mapReflect = Reflect.Map[Binding, String, Int, scala.collection.immutable.Map](
           key = keyReflect,
           value = valueReflect,
-          typeName = TypeName.map(TypeName.string, TypeName.int),
+          typeId = TypeId.of[Map[String, Int]],
           mapBinding = Binding.Map.map
         )
 

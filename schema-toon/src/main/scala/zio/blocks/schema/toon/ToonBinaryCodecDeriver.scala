@@ -5,6 +5,7 @@ import zio.blocks.schema.binding.{Binding, BindingType, HasBinding}
 import zio.blocks.schema._
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.schema.toon.codec._
+import zio.blocks.typeid.TypeId
 
 import java.util
 import scala.util.control.NonFatal
@@ -113,18 +114,18 @@ class ToonBinaryCodecDeriver private[toon] (
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     binding: Binding[BindingType.Primitive, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
   ): Lazy[ToonBinaryCodec[A]] =
-    Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)))
+    Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)))
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     binding: Binding[BindingType.Record, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -134,7 +135,7 @@ class ToonBinaryCodecDeriver private[toon] (
     deriveCodec(
       new Reflect.Record(
         fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
-        typeName,
+        typeId,
         binding,
         doc,
         modifiers
@@ -144,7 +145,7 @@ class ToonBinaryCodecDeriver private[toon] (
 
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -154,7 +155,7 @@ class ToonBinaryCodecDeriver private[toon] (
     deriveCodec(
       new Reflect.Variant(
         cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
-        typeName,
+        typeId,
         binding,
         doc,
         modifiers
@@ -164,7 +165,7 @@ class ToonBinaryCodecDeriver private[toon] (
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
-    typeName: TypeName[C[A]],
+    typeId: TypeId[C[A]],
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -172,14 +173,14 @@ class ToonBinaryCodecDeriver private[toon] (
     examples: Seq[C[A]]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[C[A]]] = Lazy {
     deriveCodec(
-      new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeName, binding, doc, modifiers)
+      new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeId, binding, doc, modifiers)
     )
   }
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
     value: Reflect[F, V],
-    typeName: TypeName[M[K, V]],
+    typeId: TypeId[M[K, V]],
     binding: Binding[BindingType.Map[M], M[K, V]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -190,7 +191,7 @@ class ToonBinaryCodecDeriver private[toon] (
       new Reflect.Map(
         key.asInstanceOf[Reflect[Binding, K]],
         value.asInstanceOf[Reflect[Binding, V]],
-        typeName,
+        typeId,
         binding,
         doc,
         modifiers
@@ -205,11 +206,11 @@ class ToonBinaryCodecDeriver private[toon] (
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[DynamicValue]] =
-    Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeName.dynamicValue, doc, modifiers)))
+    Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)))
 
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     wrapperPrimitiveType: Option[PrimitiveType[A]],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
@@ -220,7 +221,7 @@ class ToonBinaryCodecDeriver private[toon] (
     deriveCodec(
       new Reflect.Wrapper(
         wrapped.asInstanceOf[Reflect[Binding, B]],
-        typeName,
+        typeId,
         wrapperPrimitiveType,
         binding,
         doc,
@@ -242,9 +243,9 @@ class ToonBinaryCodecDeriver private[toon] (
   type Map[_, _]
   type TC[_]
 
-  private[this] val recursiveRecordCache: ThreadLocal[util.HashMap[TypeName[?], Array[ToonFieldInfo]]] =
-    new ThreadLocal[java.util.HashMap[TypeName[?], Array[ToonFieldInfo]]] {
-      override def initialValue: java.util.HashMap[TypeName[?], Array[ToonFieldInfo]] = new java.util.HashMap
+  private[this] val recursiveRecordCache: ThreadLocal[util.HashMap[TypeId[?], Array[ToonFieldInfo]]] =
+    new ThreadLocal[java.util.HashMap[TypeId[?], Array[ToonFieldInfo]]] {
+      override def initialValue: java.util.HashMap[TypeId[?], Array[ToonFieldInfo]] = new java.util.HashMap
     }
 
   private[this] val discriminatorFields: ThreadLocal[List[ToonDiscriminatorFieldInfo]] =

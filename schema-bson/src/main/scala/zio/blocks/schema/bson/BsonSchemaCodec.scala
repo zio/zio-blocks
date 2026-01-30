@@ -160,7 +160,7 @@ object BsonSchemaCodec {
             deriveWrapperCodec(w.wrapper, config).asInstanceOf[BsonCodec[A]]
           } else {
             throw new UnsupportedOperationException(
-              s"BSON codec for ${reflect.typeName} (type: ${reflect.nodeType}) is not yet implemented."
+              s"BSON codec for ${reflect.typeId.fullName} (type: ${reflect.nodeType}) is not yet implemented."
             )
           }
       }
@@ -595,7 +595,7 @@ object BsonSchemaCodec {
       BsonCodec(encoder, decoder)
     } else {
       // Non-string keys: encode as array of [key, value] pairs
-      throw new UnsupportedOperationException(s"Map with non-string keys not yet supported for ${map.typeName}")
+      throw new UnsupportedOperationException(s"Map with non-string keys not yet supported for ${map.typeId.fullName}")
     }
   }
 
@@ -1029,8 +1029,8 @@ object BsonSchemaCodec {
   // Wrapper (newtype) codec derivation
   private def deriveWrapperCodec[A, B](wrapper: Reflect.Wrapper.Bound[A, B], config: Config): BsonCodec[A] = {
     // Check if this is ObjectId and if we should use native BSON ObjectId codec
-    val isObjectId = wrapper.typeName.name == "ObjectId" &&
-      wrapper.typeName.namespace.packages == Seq("org", "bson", "types")
+    val isObjectId = wrapper.typeId.name == "ObjectId" &&
+      wrapper.typeId.owner.asString == "org.bson.types"
 
     // Use native ObjectId codec if:
     // 1. It's detected as ObjectId by typename (from ObjectIdSupport), OR

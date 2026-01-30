@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.binding.RegisterOffset.*
+import zio.blocks.typeid.{Owner, TypeId}
 
 import scala.quoted.*
 
@@ -361,7 +362,7 @@ private[schema] object ToStructuralMacro {
         val totalRegisters = binding.constructor.usedRegisters
 
         val typeName = normalizeTypeName(fieldInfos.toList.map { case (name, reflect) =>
-          (name, reflect.typeName.name)
+          (name, reflect.typeId.name)
         })
 
         // Build field metadata for reflective deconstruction
@@ -374,7 +375,7 @@ private[schema] object ToStructuralMacro {
             fields = record.fields.map { field =>
               field.value.asInstanceOf[Reflect.Bound[Any]].asTerm[S](field.name)
             },
-            typeName = new TypeName[S](new Namespace(Nil, Nil), typeName, Nil),
+            typeId = TypeId.nominal[S](typeName, Owner.Root),
             recordBinding = new Binding.Record[S](
               constructor = new Constructor[S] {
                 def usedRegisters: RegisterOffset = totalRegisters
@@ -424,7 +425,7 @@ private[schema] object ToStructuralMacro {
           val caseFields = case_.value match {
             case record: Reflect.Record[Binding, _] @unchecked =>
               record.fields.map { field =>
-                (field.name, field.value.asInstanceOf[Reflect.Bound[Any]].typeName.name)
+                (field.name, field.value.asInstanceOf[Reflect.Bound[Any]].typeId.name)
               }.toList
             case _ => Nil
           }
@@ -460,7 +461,7 @@ private[schema] object ToStructuralMacro {
             cases = sortedCases.map { case_ =>
               transformVariantCase[S](case_)
             },
-            typeName = new TypeName[S](new Namespace(Nil, Nil), unionTypeName, Nil),
+            typeId = TypeId.nominal[S](unionTypeName, Owner.Root),
             variantBinding = new Binding.Variant[S](
               discriminator = reflectiveDiscriminator,
               matchers = newMatchers
@@ -490,7 +491,7 @@ private[schema] object ToStructuralMacro {
           fields = record.fields.map { field =>
             field.value.asInstanceOf[Reflect.Bound[Any]].asTerm[Any](field.name)
           },
-          typeName = record.typeName.asInstanceOf[TypeName[Any]],
+          typeId = record.typeId.asInstanceOf[TypeId[Any]],
           recordBinding = new Binding.Record[Any](
             constructor = binding.constructor.asInstanceOf[Constructor[Any]],
             deconstructor = new ReflectiveVariantCaseDeconstructor[Any](totalRegisters, caseName, fieldMetadata)

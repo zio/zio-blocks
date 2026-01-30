@@ -4,7 +4,7 @@ import zio.blocks.chunk.Chunk
 import zio.test._
 
 object DynamicSchemaSpec extends SchemaBaseSpec {
-  private def getTypeName(ds: DynamicSchema): String = ds.typeName.name
+  private def getTypeName(ds: DynamicSchema): String = ds.typeId.name
   case class Person(name: String, age: Int)
   object Person {
     implicit val schema: Schema[Person] = Schema.derived
@@ -38,32 +38,32 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
     suite("toDynamicSchema")(
       test("primitive schema converts to DynamicSchema") {
         val ds   = Schema[Int].toDynamicSchema
-        val name = ds.typeName.name
+        val name = ds.typeId.name
         assertTrue(name == "Int")
       },
       test("record schema converts to DynamicSchema") {
         val ds   = Schema[Person].toDynamicSchema
-        val name = ds.typeName.name
+        val name = ds.typeId.name
         assertTrue(name == "Person")
       },
       test("variant schema converts to DynamicSchema") {
         val ds   = Schema[Color].toDynamicSchema
-        val name = ds.typeName.name
+        val name = ds.typeId.name
         assertTrue(name == "Color")
       },
       test("sequence schema converts to DynamicSchema") {
         val ds   = Schema[List[Int]].toDynamicSchema
-        val name = ds.typeName.name
+        val name = ds.typeId.name
         assertTrue(name == "List")
       },
       test("map schema converts to DynamicSchema") {
         val ds   = Schema[Map[String, Int]].toDynamicSchema
-        val name = ds.typeName.name
+        val name = ds.typeId.name
         assertTrue(name == "Map")
       },
       test("option schema converts to DynamicSchema") {
         val ds   = Schema[Option[Int]].toDynamicSchema
-        val name = ds.typeName.name
+        val name = ds.typeId.name
         assertTrue(name == "Option")
       }
     ),
@@ -225,7 +225,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Positive),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -240,7 +240,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Positive),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -255,7 +255,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Positive),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -270,7 +270,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Negative),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -285,7 +285,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Negative),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -300,7 +300,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.NonPositive),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -315,7 +315,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.NonPositive),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -330,7 +330,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.NonNegative),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -345,7 +345,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.NonNegative),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -360,7 +360,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Range(Some(1), Some(10))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -375,7 +375,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Range(Some(1), Some(10))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -390,7 +390,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Range(Some(1), Some(10))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -405,7 +405,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Set(Set(1, 2, 3))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -420,7 +420,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Set(Set(1, 2, 3))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -437,7 +437,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.NonEmpty),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -452,7 +452,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.NonEmpty),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -467,7 +467,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Empty),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -482,7 +482,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Empty),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -497,7 +497,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Blank),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -512,7 +512,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.NonBlank),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -527,7 +527,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Length(Some(2), Some(10))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -542,7 +542,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Length(Some(5), Some(10))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -557,7 +557,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Length(Some(1), Some(3))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -572,7 +572,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -587,7 +587,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -662,9 +662,9 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds2 = ds.doc("Updated doc")
         assertTrue(ds2.doc == Doc.Text("Updated doc"))
       },
-      test("typeName returns reflect.typeName") {
+      test("typeId returns reflect.typeId") {
         val ds   = Schema[Person].toDynamicSchema
-        val name = ds.typeName.name
+        val name = ds.typeId.name
         assertTrue(name == "Person")
       },
       test("modifiers returns reflect.modifiers") {
@@ -1095,7 +1095,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Byte].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.Positive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1107,7 +1107,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Short].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.Positive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1119,7 +1119,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Long].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.Positive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1131,7 +1131,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Float].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.Positive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1143,7 +1143,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Double].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Double(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Double(Validation.Numeric.Positive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1155,7 +1155,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[BigInt].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.BigInt(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.BigInt(Validation.Numeric.Positive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1169,7 +1169,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigDecimal(Validation.Numeric.Positive),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1183,7 +1183,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Byte].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.Negative), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1195,7 +1195,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Short].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.Negative), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1207,7 +1207,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Long].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.Negative), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1219,7 +1219,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Float].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.Negative), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1231,7 +1231,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Double].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Double(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Double(Validation.Numeric.Negative), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1243,7 +1243,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[BigInt].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.BigInt(Validation.Numeric.Negative), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.BigInt(Validation.Numeric.Negative), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1257,7 +1257,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigDecimal(Validation.Numeric.Negative),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1271,7 +1271,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Byte].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.NonPositive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.NonPositive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1283,7 +1283,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Short].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.NonPositive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.NonPositive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1295,7 +1295,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Long].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.NonPositive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.NonPositive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1307,7 +1307,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Float].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.NonPositive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.NonPositive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1321,7 +1321,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Double(Validation.Numeric.NonPositive),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1337,7 +1337,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigInt(Validation.Numeric.NonPositive),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1353,7 +1353,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigDecimal(Validation.Numeric.NonPositive),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1367,7 +1367,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Byte].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.NonNegative), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Byte(Validation.Numeric.NonNegative), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1379,7 +1379,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Short].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.NonNegative), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Short(Validation.Numeric.NonNegative), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1391,7 +1391,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Long].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.NonNegative), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Long(Validation.Numeric.NonNegative), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1403,7 +1403,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[Float].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.NonNegative), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Float(Validation.Numeric.NonNegative), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1417,7 +1417,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Double(Validation.Numeric.NonNegative),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1433,7 +1433,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigInt(Validation.Numeric.NonNegative),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1449,7 +1449,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigDecimal(Validation.Numeric.NonNegative),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1465,7 +1465,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Byte(Validation.Numeric.Range(Some(1: Byte), Some(10: Byte))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1481,7 +1481,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Short(Validation.Numeric.Range(Some(1: Short), Some(10: Short))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1497,7 +1497,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Long(Validation.Numeric.Range(Some(1L), Some(10L))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1513,7 +1513,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Float(Validation.Numeric.Range(Some(1.0f), Some(10.0f))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1529,7 +1529,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Double(Validation.Numeric.Range(Some(1.0), Some(10.0))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1545,7 +1545,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigInt(Validation.Numeric.Range(Some(BigInt(1)), Some(BigInt(10)))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1561,7 +1561,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigDecimal(Validation.Numeric.Range(Some(BigDecimal(1)), Some(BigDecimal(10)))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1577,7 +1577,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Byte(Validation.Numeric.Set(Set(1: Byte, 2: Byte))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1593,7 +1593,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Short(Validation.Numeric.Set(Set(1: Short, 2: Short))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1609,7 +1609,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Long(Validation.Numeric.Set(Set(1L, 2L))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1625,7 +1625,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Float(Validation.Numeric.Set(Set(1.0f, 2.0f))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1641,7 +1641,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Double(Validation.Numeric.Set(Set(1.0, 2.0))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1657,7 +1657,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigInt(Validation.Numeric.Set(Set(BigInt(1), BigInt(2)))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1673,7 +1673,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigDecimal(Validation.Numeric.Set(Set(BigDecimal(1), BigDecimal(2)))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1689,7 +1689,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Int(Validation.Numeric.Range(Some(1), Some(10))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1704,7 +1704,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Int(Validation.Numeric.Set(Set(1, 2))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1719,7 +1719,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[String].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.String(Validation.String.Blank), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.String(Validation.String.Blank), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1732,7 +1732,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds = Schema[String].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.String(Validation.String.NonBlank), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.String(Validation.String.NonBlank), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1747,7 +1747,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.String(Validation.String.Length(Some(1), Some(5))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1762,7 +1762,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1777,14 +1777,14 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val original  = Schema[Int].toDynamicSchema
         val dv        = DynamicSchema.toDynamicValue(original)
         val roundTrip = DynamicSchema.fromDynamicValue(dv)
-        val name      = roundTrip.typeName.name
+        val name      = roundTrip.typeId.name
         assertTrue(name == "Int")
       },
       test("record schema round-trips through DynamicValue") {
         val original  = Schema[Person].toDynamicSchema
         val dv        = DynamicSchema.toDynamicValue(original)
         val roundTrip = DynamicSchema.fromDynamicValue(dv)
-        val name      = roundTrip.typeName.name
+        val name      = roundTrip.typeId.name
         val hasName   = roundTrip.get(DynamicOptic.root.field("name")).isDefined
         val hasAge    = roundTrip.get(DynamicOptic.root.field("age")).isDefined
         assertTrue(name == "Person") &&
@@ -1795,21 +1795,21 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val original  = Schema[Color].toDynamicSchema
         val dv        = DynamicSchema.toDynamicValue(original)
         val roundTrip = DynamicSchema.fromDynamicValue(dv)
-        val name      = roundTrip.typeName.name
+        val name      = roundTrip.typeId.name
         assertTrue(name == "Color")
       },
       test("sequence schema round-trips through DynamicValue") {
         val original  = Schema[List[Int]].toDynamicSchema
         val dv        = DynamicSchema.toDynamicValue(original)
         val roundTrip = DynamicSchema.fromDynamicValue(dv)
-        val name      = roundTrip.typeName.name
+        val name      = roundTrip.typeId.name
         assertTrue(name == "List")
       },
       test("map schema round-trips through DynamicValue") {
         val original  = Schema[Map[String, Int]].toDynamicSchema
         val dv        = DynamicSchema.toDynamicValue(original)
         val roundTrip = DynamicSchema.fromDynamicValue(dv)
-        val name      = roundTrip.typeName.name
+        val name      = roundTrip.typeId.name
         assertTrue(name == "Map")
       },
       test("round-tripped schema validates same values as original") {
@@ -1836,7 +1836,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val dv        = schema.toDynamicValue(original)
         val roundTrip = schema.fromDynamicValue(dv)
         val isRight   = roundTrip.isRight
-        val name      = roundTrip.toOption.get.typeName.name
+        val name      = roundTrip.toOption.get.typeId.name
         assertTrue(isRight) &&
         assertTrue(name == "Person")
       },
@@ -1844,7 +1844,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val schemaWithValidation = Schema[Int].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Int(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Int(Validation.Numeric.Positive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -1860,7 +1860,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.String(Validation.String.NonEmpty),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -1900,7 +1900,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
       test("regression: all String validations round-trip correctly") {
         def testStringValidation(v: Validation.String): zio.test.TestResult = {
           val schema = Schema[String].reflect.asPrimitive
-            .map(p => new Schema(new Reflect.Primitive(PrimitiveType.String(v), p.typeName, p.primitiveBinding)))
+            .map(p => new Schema(new Reflect.Primitive(PrimitiveType.String(v), p.typeId, p.primitiveBinding)))
             .get
           val ds        = schema.toDynamicSchema
           val dv        = DynamicSchema.toDynamicValue(ds)
@@ -1927,7 +1927,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
       test("regression: all Numeric validations round-trip correctly") {
         def testNumericValidation(v: Validation[Int]): zio.test.TestResult = {
           val schema = Schema[Int].reflect.asPrimitive
-            .map(p => new Schema(new Reflect.Primitive(PrimitiveType.Int(v), p.typeName, p.primitiveBinding)))
+            .map(p => new Schema(new Reflect.Primitive(PrimitiveType.Int(v), p.typeId, p.primitiveBinding)))
             .get
           val ds        = schema.toDynamicSchema
           val dv        = DynamicSchema.toDynamicValue(ds)
@@ -1967,7 +1967,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val schema = Schema[Int].reflect.asPrimitive
           .map(p =>
             new Schema(
-              new Reflect.Primitive(PrimitiveType.Int(Validation.Numeric.Positive), p.typeName, p.primitiveBinding)
+              new Reflect.Primitive(PrimitiveType.Int(Validation.Numeric.Positive), p.typeId, p.primitiveBinding)
             )
           )
           .get
@@ -2003,7 +2003,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Length(Some(1), Some(10))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -2018,7 +2018,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -2035,7 +2035,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(100))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -2050,7 +2050,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, Int](
               PrimitiveType.Int(Validation.Numeric.Set(Set(1, 2, 3))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -2080,7 +2080,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(100))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2109,7 +2109,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Int(Validation.Numeric.Set(Set(1, 2, 3))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2139,7 +2139,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds           = schema.toDynamicSchema
         val dv           = DynamicSchema.toDynamicValue(ds)
         val roundTrip    = DynamicSchema.fromDynamicValue(dv)
-        val name: String = roundTrip.typeName.name
+        val name: String = roundTrip.typeId.name
         assertTrue(name == "Unit")
       }
     ),
@@ -2231,7 +2231,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds           = Schema[List[Int]].toDynamicSchema
         val dv           = DynamicSchema.toDynamicValue(ds)
         val roundTrip    = DynamicSchema.fromDynamicValue(dv)
-        val name: String = roundTrip.typeName.name
+        val name: String = roundTrip.typeId.name
         assertTrue(name == "List")
       }
     ),
@@ -2240,7 +2240,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds           = Schema[Map[String, Int]].toDynamicSchema
         val dv           = DynamicSchema.toDynamicValue(ds)
         val roundTrip    = DynamicSchema.fromDynamicValue(dv)
-        val name: String = roundTrip.typeName.name
+        val name: String = roundTrip.typeId.name
         assertTrue(name == "Map")
       }
     ),
@@ -2466,7 +2466,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Byte(Validation.Numeric.Range(Some(0.toByte), Some(100.toByte))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2482,7 +2482,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Short(Validation.Numeric.Range(Some(0.toShort), Some(100.toShort))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2498,7 +2498,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Long(Validation.Numeric.Range(Some(0L), Some(100L))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2514,7 +2514,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Float(Validation.Numeric.Range(Some(0.0f), Some(100.0f))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2530,7 +2530,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Double(Validation.Numeric.Range(Some(0.0), Some(100.0))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2546,7 +2546,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigInt(Validation.Numeric.Range(Some(BigInt(0)), Some(BigInt(100)))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2562,7 +2562,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigDecimal(Validation.Numeric.Range(Some(BigDecimal(0)), Some(BigDecimal(100)))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2580,7 +2580,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Byte(Validation.Numeric.Set(Set(1.toByte, 2.toByte, 3.toByte))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2596,7 +2596,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Short(Validation.Numeric.Set(Set(1.toShort, 2.toShort, 3.toShort))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2612,7 +2612,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Long(Validation.Numeric.Set(Set(1L, 2L, 3L))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2628,7 +2628,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Float(Validation.Numeric.Set(Set(1.0f, 2.0f, 3.0f))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2644,7 +2644,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Double(Validation.Numeric.Set(Set(1.0, 2.0, 3.0))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2660,7 +2660,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigInt(Validation.Numeric.Set(Set(BigInt(1), BigInt(2), BigInt(3)))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2676,7 +2676,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.BigDecimal(Validation.Numeric.Set(Set(BigDecimal(1), BigDecimal(2), BigDecimal(3)))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -2688,31 +2688,29 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
       }
     ),
     suite("Hand-written schema round-trips")(
-      test("Namespace schema round-trips") {
-        val ns        = new Namespace(List("zio", "blocks"), List("schema"))
-        val schema    = DynamicSchema.namespaceSchema
-        val dv        = schema.toDynamicValue(ns)
-        val roundTrip = schema.fromDynamicValue(dv)
-        assertTrue(roundTrip == Right(ns))
-      },
-      test("TypeName schema round-trips") {
-        val tn        = new TypeName[Int](Namespace.zioBlocksSchema, "Int", Nil)
-        val schema    = DynamicSchema.typeNameSchema
-        val dv        = schema.toDynamicValue(tn)
+      test("TypeId schema round-trips") {
+        import zio.blocks.typeid._
+        val tid       = TypeId.nominal[Int]("Int", Owner.fromPackagePath("scala"))
+        val schema    = DynamicSchema.typeIdSchema
+        val dv        = schema.toDynamicValue(tid)
         val roundTrip = schema.fromDynamicValue(dv)
         val isRight   = roundTrip.isRight
         val name      = roundTrip.toOption.map(_.name).getOrElse("")
         assertTrue(isRight) && assertTrue(name == "Int")
       },
-      test("TypeName with params round-trips") {
-        val intType   = new TypeName[Int](Namespace.zioBlocksSchema, "Int", Nil)
-        val listType  = new TypeName[List[Int]](Namespace.zioBlocksSchema, "List", Seq(intType))
-        val schema    = DynamicSchema.typeNameSchema
-        val dv        = schema.toDynamicValue(listType)
+      test("TypeId with type params round-trips") {
+        import zio.blocks.typeid._
+        val listTypeId = TypeId.nominal[List[Int]](
+          "List",
+          Owner.fromPackagePath("scala.collection.immutable"),
+          List(TypeParam("A", 0, Variance.Covariant))
+        )
+        val schema    = DynamicSchema.typeIdSchema
+        val dv        = schema.toDynamicValue(listTypeId)
         val roundTrip = schema.fromDynamicValue(dv)
         val isRight   = roundTrip.isRight
         val name      = roundTrip.toOption.map(_.name).getOrElse("")
-        val hasParams = roundTrip.toOption.exists(_.params.nonEmpty)
+        val hasParams = roundTrip.toOption.exists(_.typeParams.nonEmpty)
         assertTrue(isRight) && assertTrue(name == "List") && assertTrue(hasParams)
       },
       test("Doc.Empty round-trips via docSchema") {
@@ -3012,7 +3010,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Length(Some(1), Some(10))),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -3026,7 +3024,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           .map(p =>
             new Reflect.Primitive[binding.Binding, String](
               PrimitiveType.String(Validation.String.Pattern(".*")),
-              p.typeName,
+              p.typeId,
               p.primitiveBinding
             )
           )
@@ -3041,7 +3039,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(100))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -3056,7 +3054,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.Int(Validation.Numeric.Set(Set(1, 2, 3))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -3135,19 +3133,19 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val isDynamic   = roundTrip.reflect.asDynamic.isDefined
         assertTrue(isDynamic)
       },
-      test("malformed TypeName with non-Record namespace falls back gracefully") {
-        val malformedTypeName = DynamicValue.Record(
+      test("malformed TypeId with non-Record owner falls back gracefully") {
+        val malformedTypeId = DynamicValue.Record(
           Chunk(
             "namespace" -> DynamicValue.Primitive(PrimitiveValue.String("not a record")),
             "name"      -> DynamicValue.Primitive(PrimitiveValue.String("Test")),
             "params"    -> DynamicValue.Sequence(Chunk.empty)
           )
         )
-        val primitiveWithMalformedTypeName = DynamicValue.Variant(
+        val primitiveWithMalformedTypeId = DynamicValue.Variant(
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName"      -> malformedTypeName,
+              "typeId"        -> malformedTypeId,
               "doc"           -> DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty)),
               "modifiers"     -> DynamicValue.Sequence(Chunk.empty),
               "primitiveType" -> DynamicValue.Variant("Int", DynamicValue.Record(Chunk.empty)),
@@ -3156,12 +3154,12 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             )
           )
         )
-        val roundTrip    = DynamicSchema.fromDynamicValue(primitiveWithMalformedTypeName)
-        val typeNameName = roundTrip.typeName.name
-        assertTrue(typeNameName == "Test")
+        val roundTrip  = DynamicSchema.fromDynamicValue(primitiveWithMalformedTypeId)
+        val typeIdName = roundTrip.typeId.name
+        assertTrue(typeIdName == "Unknown")
       },
-      test("malformed TypeName with non-String name falls back to Unknown") {
-        val malformedTypeName = DynamicValue.Record(
+      test("malformed TypeId with non-String name falls back to Unknown") {
+        val malformedTypeId = DynamicValue.Record(
           Chunk(
             "namespace" -> DynamicValue.Record(
               Chunk(
@@ -3173,11 +3171,11 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             "params" -> DynamicValue.Sequence(Chunk.empty)
           )
         )
-        val primitiveWithMalformedTypeName = DynamicValue.Variant(
+        val primitiveWithMalformedTypeId = DynamicValue.Variant(
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName"      -> malformedTypeName,
+              "typeId"        -> malformedTypeId,
               "doc"           -> DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty)),
               "modifiers"     -> DynamicValue.Sequence(Chunk.empty),
               "primitiveType" -> DynamicValue.Variant("Int", DynamicValue.Record(Chunk.empty)),
@@ -3186,16 +3184,16 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             )
           )
         )
-        val roundTrip    = DynamicSchema.fromDynamicValue(primitiveWithMalformedTypeName)
-        val typeNameName = roundTrip.typeName.name
-        assertTrue(typeNameName == "Unknown")
+        val roundTrip  = DynamicSchema.fromDynamicValue(primitiveWithMalformedTypeId)
+        val typeIdName = roundTrip.typeId.name
+        assertTrue(typeIdName == "Unknown")
       },
-      test("TypeName that's not a Record falls back to Unknown") {
-        val primitiveWithMalformedTypeName = DynamicValue.Variant(
+      test("TypeId that's not a Record falls back to Unknown") {
+        val primitiveWithMalformedTypeId = DynamicValue.Variant(
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName"      -> DynamicValue.Primitive(PrimitiveValue.String("not a record")),
+              "typeId"        -> DynamicValue.Primitive(PrimitiveValue.String("not a record")),
               "doc"           -> DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty)),
               "modifiers"     -> DynamicValue.Sequence(Chunk.empty),
               "primitiveType" -> DynamicValue.Variant("Int", DynamicValue.Record(Chunk.empty)),
@@ -3204,16 +3202,16 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             )
           )
         )
-        val roundTrip    = DynamicSchema.fromDynamicValue(primitiveWithMalformedTypeName)
-        val typeNameName = roundTrip.typeName.name
-        assertTrue(typeNameName == "Unknown")
+        val roundTrip  = DynamicSchema.fromDynamicValue(primitiveWithMalformedTypeId)
+        val typeIdName = roundTrip.typeId.name
+        assertTrue(typeIdName == "Unknown")
       },
       test("malformed doc falls back to Empty") {
         val primitiveWithMalformedDoc = DynamicValue.Variant(
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3236,8 +3234,8 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val roundTrip = DynamicSchema.fromDynamicValue(primitiveWithMalformedDoc)
         assertTrue(roundTrip.doc == Doc.Empty)
       },
-      test("malformed params in TypeName falls back to empty") {
-        val malformedTypeName = DynamicValue.Record(
+      test("malformed typeArgs in TypeId falls back to empty") {
+        val malformedTypeId = DynamicValue.Record(
           Chunk(
             "namespace" -> DynamicValue.Record(
               Chunk(
@@ -3249,11 +3247,11 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             "params" -> DynamicValue.Primitive(PrimitiveValue.String("not a sequence"))
           )
         )
-        val primitiveWithMalformedTypeName = DynamicValue.Variant(
+        val primitiveWithMalformedTypeId = DynamicValue.Variant(
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName"      -> malformedTypeName,
+              "typeId"        -> malformedTypeId,
               "doc"           -> DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty)),
               "modifiers"     -> DynamicValue.Sequence(Chunk.empty),
               "primitiveType" -> DynamicValue.Variant("Int", DynamicValue.Record(Chunk.empty)),
@@ -3262,8 +3260,8 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             )
           )
         )
-        val roundTrip   = DynamicSchema.fromDynamicValue(primitiveWithMalformedTypeName)
-        val paramsEmpty = roundTrip.typeName.params.isEmpty
+        val roundTrip   = DynamicSchema.fromDynamicValue(primitiveWithMalformedTypeId)
+        val paramsEmpty = roundTrip.typeId.typeParams.isEmpty
         assertTrue(paramsEmpty)
       },
       test("malformed modifiers (non-Sequence) falls back to empty") {
@@ -3271,7 +3269,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3299,7 +3297,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3328,7 +3326,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3357,7 +3355,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3386,7 +3384,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Record",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3423,7 +3421,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Record",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3462,7 +3460,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Record",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3491,7 +3489,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3516,8 +3514,8 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val roundTrip = DynamicSchema.fromDynamicValue(primitiveDv)
         assertTrue(roundTrip.modifiers.isEmpty)
       },
-      test("dvToStringSeq with non-String elements filters them out") {
-        val malformedTypeName = DynamicValue.Record(
+      test("malformed TypeId in old format falls back to Unknown with empty owner") {
+        val malformedTypeId = DynamicValue.Record(
           Chunk(
             "namespace" -> DynamicValue.Record(
               Chunk(
@@ -3538,7 +3536,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName"      -> malformedTypeName,
+              "typeId"        -> malformedTypeId,
               "doc"           -> DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty)),
               "modifiers"     -> DynamicValue.Sequence(Chunk.empty),
               "primitiveType" -> DynamicValue.Variant("Int", DynamicValue.Record(Chunk.empty)),
@@ -3547,12 +3545,13 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             )
           )
         )
-        val roundTrip      = DynamicSchema.fromDynamicValue(primitiveDv)
-        val packagesLength = roundTrip.typeName.namespace.packages.length
-        assertTrue(packagesLength == 1)
+        val roundTrip   = DynamicSchema.fromDynamicValue(primitiveDv)
+        val typeIdName  = roundTrip.typeId.name
+        val ownerIsRoot = roundTrip.typeId.owner.isRoot
+        assertTrue(typeIdName == "Unknown") && assertTrue(ownerIsRoot)
       },
-      test("dvToStringSeq with non-Sequence falls back to empty") {
-        val malformedTypeName = DynamicValue.Record(
+      test("malformed TypeId without proper fields falls back to Unknown") {
+        val malformedTypeId = DynamicValue.Record(
           Chunk(
             "namespace" -> DynamicValue.Record(
               Chunk(
@@ -3568,7 +3567,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName"      -> malformedTypeName,
+              "typeId"        -> malformedTypeId,
               "doc"           -> DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty)),
               "modifiers"     -> DynamicValue.Sequence(Chunk.empty),
               "primitiveType" -> DynamicValue.Variant("Int", DynamicValue.Record(Chunk.empty)),
@@ -3577,16 +3576,17 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             )
           )
         )
-        val roundTrip       = DynamicSchema.fromDynamicValue(primitiveDv)
-        val packagesIsEmpty = roundTrip.typeName.namespace.packages.isEmpty
-        assertTrue(packagesIsEmpty)
+        val roundTrip   = DynamicSchema.fromDynamicValue(primitiveDv)
+        val typeIdName  = roundTrip.typeId.name
+        val ownerIsRoot = roundTrip.typeId.owner.isRoot
+        assertTrue(typeIdName == "Unknown") && assertTrue(ownerIsRoot)
       },
       test("Doc.Text with missing value falls back to Empty") {
         val primitiveDv = DynamicValue.Variant(
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3614,7 +3614,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3650,7 +3650,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Record",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3679,7 +3679,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3717,7 +3717,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Record",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3746,7 +3746,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           "Variant",
           DynamicValue.Record(
             Chunk(
-              "typeName" -> DynamicValue.Record(
+              "typeId" -> DynamicValue.Record(
                 Chunk(
                   "namespace" -> DynamicValue.Record(
                     Chunk(
@@ -3778,7 +3778,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.String(Validation.String.Length(Some(5), Some(10))),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -3796,7 +3796,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
             new Schema(
               new Reflect.Primitive(
                 PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
-                p.typeName,
+                p.typeId,
                 p.primitiveBinding
               )
             )
@@ -3817,12 +3817,12 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         object WithTransient {
           implicit val schema: Schema[WithTransient] = Schema.derived
         }
-        val _             = WithTransient("", "test")
-        val original      = WithTransient.schema.toDynamicSchema
-        val dv            = DynamicSchema.toDynamicValue(original)
-        val roundTrip     = DynamicSchema.fromDynamicValue(dv)
-        val typeNameMatch = roundTrip.typeName.name == "WithTransient"
-        assertTrue(typeNameMatch)
+        val _           = WithTransient("", "test")
+        val original    = WithTransient.schema.toDynamicSchema
+        val dv          = DynamicSchema.toDynamicValue(original)
+        val roundTrip   = DynamicSchema.fromDynamicValue(dv)
+        val typeIdMatch = roundTrip.typeId.name == "WithTransient"
+        assertTrue(typeIdMatch)
       },
       test("rename modifier on term deserializes correctly") {
         case class WithRename(@Modifier.rename("full_name") name: String) {
@@ -3831,12 +3831,12 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         object WithRename {
           implicit val schema: Schema[WithRename] = Schema.derived
         }
-        val _             = WithRename("test")
-        val original      = WithRename.schema.toDynamicSchema
-        val dv            = DynamicSchema.toDynamicValue(original)
-        val roundTrip     = DynamicSchema.fromDynamicValue(dv)
-        val typeNameMatch = roundTrip.typeName.name == "WithRename"
-        assertTrue(typeNameMatch)
+        val _           = WithRename("test")
+        val original    = WithRename.schema.toDynamicSchema
+        val dv          = DynamicSchema.toDynamicValue(original)
+        val roundTrip   = DynamicSchema.fromDynamicValue(dv)
+        val typeIdMatch = roundTrip.typeId.name == "WithRename"
+        assertTrue(typeIdMatch)
       },
       test("alias modifier on term deserializes correctly") {
         case class WithAlias(@Modifier.alias("n") name: String) {
@@ -3845,12 +3845,12 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         object WithAlias {
           implicit val schema: Schema[WithAlias] = Schema.derived
         }
-        val _             = WithAlias("test")
-        val original      = WithAlias.schema.toDynamicSchema
-        val dv            = DynamicSchema.toDynamicValue(original)
-        val roundTrip     = DynamicSchema.fromDynamicValue(dv)
-        val typeNameMatch = roundTrip.typeName.name == "WithAlias"
-        assertTrue(typeNameMatch)
+        val _           = WithAlias("test")
+        val original    = WithAlias.schema.toDynamicSchema
+        val dv          = DynamicSchema.toDynamicValue(original)
+        val roundTrip   = DynamicSchema.fromDynamicValue(dv)
+        val typeIdMatch = roundTrip.typeId.name == "WithAlias"
+        assertTrue(typeIdMatch)
       },
       test("config modifier on term deserializes correctly") {
         case class WithConfig(@Modifier.config("key", "value") name: String) {
@@ -3859,12 +3859,12 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         object WithConfig {
           implicit val schema: Schema[WithConfig] = Schema.derived
         }
-        val _             = WithConfig("test")
-        val original      = WithConfig.schema.toDynamicSchema
-        val dv            = DynamicSchema.toDynamicValue(original)
-        val roundTrip     = DynamicSchema.fromDynamicValue(dv)
-        val typeNameMatch = roundTrip.typeName.name == "WithConfig"
-        assertTrue(typeNameMatch)
+        val _           = WithConfig("test")
+        val original    = WithConfig.schema.toDynamicSchema
+        val dv          = DynamicSchema.toDynamicValue(original)
+        val roundTrip   = DynamicSchema.fromDynamicValue(dv)
+        val typeIdMatch = roundTrip.typeId.name == "WithConfig"
+        assertTrue(typeIdMatch)
       }
     )
   )
