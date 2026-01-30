@@ -882,28 +882,67 @@ object DynamicSchema {
     )
   )
 
+  /** Helper to convert Any numeric value to DynamicValue. */
+  private def numericToDynamicValue(v: Any): DynamicValue = v match {
+    case v: Byte       => DynamicValue.Primitive(PrimitiveValue.Byte(v))
+    case v: Short      => DynamicValue.Primitive(PrimitiveValue.Short(v))
+    case v: Int        => DynamicValue.Primitive(PrimitiveValue.Int(v))
+    case v: Long       => DynamicValue.Primitive(PrimitiveValue.Long(v))
+    case v: Float      => DynamicValue.Primitive(PrimitiveValue.Float(v))
+    case v: Double     => DynamicValue.Primitive(PrimitiveValue.Double(v))
+    case v: BigInt     => DynamicValue.Primitive(PrimitiveValue.BigInt(v))
+    case v: BigDecimal => DynamicValue.Primitive(PrimitiveValue.BigDecimal(v))
+    case v             => DynamicValue.Primitive(PrimitiveValue.String(v.toString))
+  }
+
+  /** Helper to convert DynamicValue back to the underlying numeric value. */
+  private def dynamicValueToNumeric(dv: DynamicValue): Any = dv match {
+    case DynamicValue.Primitive(pv) =>
+      pv match {
+        case PrimitiveValue.Byte(v)       => v
+        case PrimitiveValue.Short(v)      => v
+        case PrimitiveValue.Int(v)        => v
+        case PrimitiveValue.Long(v)       => v
+        case PrimitiveValue.Float(v)      => v
+        case PrimitiveValue.Double(v)     => v
+        case PrimitiveValue.BigInt(v)     => v
+        case PrimitiveValue.BigDecimal(v) => v
+        case PrimitiveValue.String(v)     => v
+        case _                            => null
+      }
+    case _ => null
+  }
+
+  /** Helper to convert DynamicValue to Option[Any], handling Null and non-primitives. */
+  private def dynamicValueToNumericOpt(dv: DynamicValue): Option[Any] = dv match {
+    case DynamicValue.Null => scala.None
+    case other             =>
+      val result = dynamicValueToNumeric(other)
+      if (result == null) scala.None else Some(result)
+  }
+
   /** Schema for [[Validation.Numeric.Range]] (type-erased). */
   private lazy val validationRangeSchema: Schema[Validation.Numeric.Range[_]] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.Numeric.Range[_]](
       fields = Vector(
-        Schema[Option[String]].reflect.asTerm("min"),
-        Schema[Option[String]].reflect.asTerm("max")
+        Schema[Option[DynamicValue]].reflect.asTerm("min"),
+        Schema[Option[DynamicValue]].reflect.asTerm("max")
       ),
       typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "Range"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Validation.Numeric.Range[_]] {
           def usedRegisters: RegisterOffset                                                 = 2
           def construct(in: Registers, offset: RegisterOffset): Validation.Numeric.Range[_] =
-            Validation.Numeric.Range[String](
-              in.getObject(offset).asInstanceOf[Option[String]],
-              in.getObject(offset + 1).asInstanceOf[Option[String]]
+            Validation.Numeric.Range[Any](
+              in.getObject(offset).asInstanceOf[Option[DynamicValue]].map(dynamicValueToNumeric),
+              in.getObject(offset + 1).asInstanceOf[Option[DynamicValue]].map(dynamicValueToNumeric)
             )
         },
         deconstructor = new Deconstructor[Validation.Numeric.Range[_]] {
           def usedRegisters: RegisterOffset                                                              = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: Validation.Numeric.Range[_]): Unit = {
-            out.setObject(offset, in.min.map(_.toString))
-            out.setObject(offset + 1, in.max.map(_.toString))
+            out.setObject(offset, in.min.map(numericToDynamicValue))
+            out.setObject(offset + 1, in.max.map(numericToDynamicValue))
           }
         }
       ),
@@ -914,18 +953,18 @@ object DynamicSchema {
   /** Schema for [[Validation.Numeric.Set]] (type-erased). */
   private lazy val validationSetSchema: Schema[Validation.Numeric.Set[_]] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.Numeric.Set[_]](
-      fields = Vector(Schema[Set[String]].reflect.asTerm("values")),
+      fields = Vector(Schema[Set[DynamicValue]].reflect.asTerm("values")),
       typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "Set"),
       recordBinding = new Binding.Record(
         constructor = new Constructor[Validation.Numeric.Set[_]] {
           def usedRegisters: RegisterOffset                                               = 1
           def construct(in: Registers, offset: RegisterOffset): Validation.Numeric.Set[_] =
-            Validation.Numeric.Set[String](in.getObject(offset).asInstanceOf[Set[String]])
+            Validation.Numeric.Set[Any](in.getObject(offset).asInstanceOf[Set[DynamicValue]].map(dynamicValueToNumeric))
         },
         deconstructor = new Deconstructor[Validation.Numeric.Set[_]] {
           def usedRegisters: RegisterOffset                                                            = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Validation.Numeric.Set[_]): Unit =
-            out.setObject(offset, in.values.map(_.toString))
+            out.setObject(offset, in.values.map(numericToDynamicValue))
         }
       ),
       modifiers = Vector.empty
@@ -1643,12 +1682,8 @@ object DynamicSchema {
           "Range",
           DynamicValue.Record(
             Chunk(
-              "min" -> min
-                .map(v => DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
-                .getOrElse(DynamicValue.Null),
-              "max" -> max
-                .map(v => DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
-                .getOrElse(DynamicValue.Null)
+              "min" -> min.map(numericToDynamicValue).getOrElse(DynamicValue.Null),
+              "max" -> max.map(numericToDynamicValue).getOrElse(DynamicValue.Null)
             )
           )
         )
@@ -1658,7 +1693,7 @@ object DynamicSchema {
           DynamicValue.Record(
             Chunk(
               "values" -> DynamicValue.Sequence(
-                Chunk.from(values.map(v => DynamicValue.Primitive(PrimitiveValue.String(v.toString))).toSeq)
+                Chunk.from(values.map(numericToDynamicValue).toSeq)
               )
             )
           )
@@ -1956,23 +1991,15 @@ object DynamicSchema {
       case DynamicValue.Variant("StringNonBlank", _)                  => Validation.String.NonBlank.asInstanceOf[Validation[Any]]
       case DynamicValue.Variant("Range", DynamicValue.Record(fields)) =>
         val fieldMap = fields.toMap
-        val min      = fieldMap.get("min").flatMap {
-          case DynamicValue.Primitive(PrimitiveValue.String(s)) => Some(s)
-          case DynamicValue.Null                                => scala.None
-          case _                                                => scala.None
-        }
-        val max = fieldMap.get("max").flatMap {
-          case DynamicValue.Primitive(PrimitiveValue.String(s)) => Some(s)
-          case DynamicValue.Null                                => scala.None
-          case _                                                => scala.None
-        }
+        val min      = fieldMap.get("min").flatMap(dynamicValueToNumericOpt)
+        val max      = fieldMap.get("max").flatMap(dynamicValueToNumericOpt)
         Validation.Numeric.Range(min, max).asInstanceOf[Validation[Any]]
       case DynamicValue.Variant("Set", DynamicValue.Record(fields)) =>
         val fieldMap = fields.toMap
-        val values   = fieldMap.get("values") match {
+        val values = fieldMap.get("values") match {
           case Some(DynamicValue.Sequence(elems)) =>
-            elems.collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }.toSet
-          case _ => Set.empty[String]
+            elems.flatMap(dynamicValueToNumericOpt).toSet
+          case _ => Set.empty[Any]
         }
         Validation.Numeric.Set(values).asInstanceOf[Validation[Any]]
       case DynamicValue.Variant("StringLength", DynamicValue.Record(fields)) =>
