@@ -1,7 +1,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Schema, SchemaError}
 import zio.blocks.schema.patch.{DynamicPatch, PatchMode}
 
 import scala.collection.immutable.IndexedSeq
@@ -158,6 +158,24 @@ object JsonPatch {
    *   }}}
    */
   val empty: JsonPatch = new JsonPatch(Vector.empty)
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Schema instances for serialization
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Schema for [[JsonPatch]] enabling serialization/deserialization.
+   *
+   * This implementation leverages [[DynamicPatch]] as an intermediate format,
+   * since DynamicValue is a superset of JSON and the conversion is lossless for
+   * JSON-representable patches.
+   */
+  implicit lazy val schema: Schema[JsonPatch] =
+    Schema[DynamicPatch]
+      .transformOrFail[JsonPatch](
+        dp => fromDynamicPatch(dp),
+        jp => jp.toDynamicPatch
+      )
 
   /**
    * Creates a patch with a single operation at the root path.
@@ -336,7 +354,13 @@ object JsonPatch {
     /** Delete characters starting at the given index. */
     final case class Delete(index: Int, length: Int) extends StringOp
 
-    /** Append text to the end of the string. */
+    /**
+     * Append text to the end of the string.
+     *
+     * Semantically equivalent to `Insert(str.length, text)` but provided as a
+     * separate operation to mirror [[DynamicPatch.StringOp.Append]] for
+     * consistency and to enable optimized diff/patch serialization.
+     */
     final case class Append(text: java.lang.String) extends StringOp
 
     /** Replace characters starting at index with new text. */

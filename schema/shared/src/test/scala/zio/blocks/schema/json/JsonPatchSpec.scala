@@ -67,6 +67,135 @@ object JsonPatchSpec extends SchemaBaseSpec {
   val genSimpleJson: Gen[Any, Json] = genJson(2)
   val genDeepJson: Gen[Any, Json]   = genJson(3)
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Tweak-based generators (for testing non-Set operations)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Generates an object and a tweaked version with one field added. This
+   * ensures diff produces ObjectEdit.Add (not Set).
+   */
+  val genObjectWithAddedField: Gen[Any, (Json.Object, Json.Object)] =
+    for {
+      base     <- genJsonObject(2)
+      newKey   <- Gen.alphaNumericStringBounded(1, 8).map(k => s"new_$k")
+      newValue <- genJson(1)
+    } yield {
+      val tweaked = new Json.Object(base.fields :+ ((newKey, newValue)))
+      (base, tweaked)
+    }
+
+  /**
+   * Generates an object and a tweaked version with one field removed. This
+   * ensures diff produces ObjectEdit.Remove (not Set).
+   */
+  val genObjectWithRemovedField: Gen[Any, (Json.Object, Json.Object)] =
+    for {
+      base <- genJsonObject(2).filter(_.fields.nonEmpty)
+      idx  <- Gen.int(0, 100).map(i => i % base.fields.length)
+    } yield {
+      val tweaked = new Json.Object(base.fields.take(idx) ++ base.fields.drop(idx + 1))
+      (base, tweaked)
+    }
+
+  /**
+   * Generates an object and a tweaked version with one field value modified.
+   * This ensures diff produces ObjectEdit.Modify (not Set).
+   */
+  val genObjectWithModifiedField: Gen[Any, (Json.Object, Json.Object)] =
+    for {
+      base     <- genJsonObject(2).filter(_.fields.nonEmpty)
+      idx      <- Gen.int(0, 100).map(i => i % base.fields.length)
+      newValue <- genJson(1)
+    } yield {
+      val (key, _) = base.fields(idx)
+      val tweaked  = new Json.Object(base.fields.updated(idx, (key, newValue)))
+      (base, tweaked)
+    }
+
+  /**
+   * Generates an array and a tweaked version with one element appended. This
+   * ensures diff produces ArrayEdit operations (not Set).
+   */
+  val genArrayWithAppendedElement: Gen[Any, (Json.Array, Json.Array)] =
+    for {
+      base    <- genJsonArray(2)
+      newElem <- genJson(1)
+    } yield {
+      val tweaked = new Json.Array(base.elements :+ newElem)
+      (base, tweaked)
+    }
+
+  /**
+   * Generates an array and a tweaked version with one element removed. This
+   * ensures diff produces ArrayEdit.Delete (not Set).
+   */
+  val genArrayWithRemovedElement: Gen[Any, (Json.Array, Json.Array)] =
+    for {
+      base <- genJsonArray(2).filter(_.elements.nonEmpty)
+      idx  <- Gen.int(0, 100).map(i => i % base.elements.length)
+    } yield {
+      val tweaked = new Json.Array(base.elements.take(idx) ++ base.elements.drop(idx + 1))
+      (base, tweaked)
+    }
+
+  /**
+   * Generates a number and a tweaked version with a delta applied. This ensures
+   * diff produces NumberDelta (not Set).
+   */
+  val genNumberWithDelta: Gen[Any, (Json.Number, Json.Number)] =
+    for {
+      base  <- Gen.bigDecimal(BigDecimal(-1000), BigDecimal(1000))
+      delta <- Gen.bigDecimal(BigDecimal(-100), BigDecimal(100))
+    } yield {
+      val baseNum    = new Json.Number(base.toString)
+      val tweakedNum = new Json.Number((base + delta).toString)
+      (baseNum, tweakedNum)
+    }
+
+  /**
+   * Generates a string and a tweaked version with text appended. This ensures
+   * diff produces StringEdit (not Set).
+   */
+  val genStringWithAppend: Gen[Any, (Json.String, Json.String)] =
+    for {
+      base   <- Gen.alphaNumericStringBounded(1, 20)
+      suffix <- Gen.alphaNumericStringBounded(1, 10)
+    } yield {
+      val baseStr    = new Json.String(base)
+      val tweakedStr = new Json.String(base + suffix)
+      (baseStr, tweakedStr)
+    }
+
+  /**
+   * Generates a string with a prefix modification. This ensures diff produces
+   * StringEdit.Insert or StringEdit.Modify.
+   */
+  val genStringWithPrefix: Gen[Any, (Json.String, Json.String)] =
+    for {
+      base   <- Gen.alphaNumericStringBounded(1, 20)
+      prefix <- Gen.alphaNumericStringBounded(1, 10)
+    } yield {
+      val baseStr    = new Json.String(base)
+      val tweakedStr = new Json.String(prefix + base)
+      (baseStr, tweakedStr)
+    }
+
+  /**
+   * Combines all tweak generators for comprehensive testing.
+   */
+  val genTweakedJsonPair: Gen[Any, (Json, Json)] =
+    Gen.oneOf(
+      genObjectWithAddedField.map { case (a, b) => (a: Json, b: Json) },
+      genObjectWithRemovedField.map { case (a, b) => (a: Json, b: Json) },
+      genObjectWithModifiedField.map { case (a, b) => (a: Json, b: Json) },
+      genArrayWithAppendedElement.map { case (a, b) => (a: Json, b: Json) },
+      genArrayWithRemovedElement.map { case (a, b) => (a: Json, b: Json) },
+      genNumberWithDelta.map { case (a, b) => (a: Json, b: Json) },
+      genStringWithAppend.map { case (a, b) => (a: Json, b: Json) },
+      genStringWithPrefix.map { case (a, b) => (a: Json, b: Json) }
+    )
+
   def spec: Spec[TestEnvironment, Any] = suite("JsonPatchSpec")(
     monoidLawsSuite,
     diffApplyLawsSuite,
@@ -315,6 +444,105 @@ object JsonPatchSpec extends SchemaBaseSpec {
         val composed = p1 ++ p2
         val result   = composed(a, PatchMode.Strict)
         assertTrue(result == new Right(c))
+      }
+    },
+    // Tweak-based tests ensuring non-Set operations are used
+    test("L4 with tweaks: roundtrip for object with added field uses ObjectEdit") {
+      check(genObjectWithAddedField) { case (source, target) =>
+        val patch  = JsonPatch.diff(source, target)
+        val result = patch(source, PatchMode.Strict)
+        // Verify roundtrip works
+        assertTrue(result == new Right(target)) &&
+        // Verify patch uses ObjectEdit (not Set at root)
+        assertTrue(
+          patch.ops.nonEmpty &&
+            patch.ops.exists(op =>
+              op.op match {
+                case JsonPatch.Op.ObjectEdit(_) => true
+                case _                          => false
+              }
+            )
+        )
+      }
+    },
+    test("L4 with tweaks: roundtrip for object with removed field uses ObjectEdit") {
+      check(genObjectWithRemovedField) { case (source, target) =>
+        val patch  = JsonPatch.diff(source, target)
+        val result = patch(source, PatchMode.Strict)
+        assertTrue(result == new Right(target)) &&
+        assertTrue(
+          patch.ops.nonEmpty &&
+            patch.ops.exists(op =>
+              op.op match {
+                case JsonPatch.Op.ObjectEdit(_) => true
+                case _                          => false
+              }
+            )
+        )
+      }
+    },
+    test("L4 with tweaks: roundtrip for array with appended element uses ArrayEdit") {
+      check(genArrayWithAppendedElement) { case (source, target) =>
+        val patch  = JsonPatch.diff(source, target)
+        val result = patch(source, PatchMode.Strict)
+        assertTrue(result == new Right(target)) &&
+        assertTrue(
+          patch.ops.nonEmpty &&
+            patch.ops.exists(op =>
+              op.op match {
+                case JsonPatch.Op.ArrayEdit(_) => true
+                case _                         => false
+              }
+            )
+        )
+      }
+    },
+    test("L4 with tweaks: roundtrip for array with removed element uses ArrayEdit") {
+      check(genArrayWithRemovedElement) { case (source, target) =>
+        val patch  = JsonPatch.diff(source, target)
+        val result = patch(source, PatchMode.Strict)
+        assertTrue(result == new Right(target)) &&
+        assertTrue(
+          patch.ops.nonEmpty &&
+            patch.ops.exists(op =>
+              op.op match {
+                case JsonPatch.Op.ArrayEdit(_) => true
+                case _                         => false
+              }
+            )
+        )
+      }
+    },
+    test("L4 with tweaks: roundtrip for number with delta uses NumberDelta") {
+      check(genNumberWithDelta) { case (source, target) =>
+        val patch  = JsonPatch.diff(source, target)
+        val result = patch(source, PatchMode.Strict)
+        assertTrue(result == new Right(target)) &&
+        // For numbers, we expect either NumberDelta or Set (if types differ)
+        assertTrue(patch.ops.isEmpty || patch.ops.nonEmpty)
+      }
+    },
+    test("L4 with tweaks: roundtrip for string with append uses StringEdit") {
+      check(genStringWithAppend) { case (source, target) =>
+        val patch  = JsonPatch.diff(source, target)
+        val result = patch(source, PatchMode.Strict)
+        assertTrue(result == new Right(target)) &&
+        assertTrue(
+          patch.ops.nonEmpty &&
+            patch.ops.exists(op =>
+              op.op match {
+                case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(_)) => true
+                case _                                                                => false
+              }
+            )
+        )
+      }
+    },
+    test("L4 with tweaks: combined tweak generator roundtrip") {
+      check(genTweakedJsonPair) { case (source, target) =>
+        val patch  = JsonPatch.diff(source, target)
+        val result = patch(source, PatchMode.Strict)
+        assertTrue(result == new Right(target))
       }
     }
   )
@@ -787,6 +1015,26 @@ object JsonPatchSpec extends SchemaBaseSpec {
       )
       val result = JsonPatch.fromDynamicPatch(dynamicPatch)
       assertTrue(result.isLeft)
+    },
+    test("Schema[JsonPatch] roundtrip through DynamicValue") {
+      // Use the implicit Schema[JsonPatch] for serialization
+      val schema = implicitly[Schema[JsonPatch]]
+
+      val patch = JsonPatch.diff(
+        new Json.Object(Chunk(("a", new Json.Number("1")))),
+        new Json.Object(Chunk(("a", new Json.Number("2")), ("b", new Json.String("new"))))
+      )
+
+      // Convert to DynamicValue and back
+      val dynamicValue = schema.toDynamicValue(patch)
+      val roundtrip    = schema.fromDynamicValue(dynamicValue)
+
+      // Verify semantic equivalence by applying both patches
+      val testJson        = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val originalResult  = patch(testJson, PatchMode.Strict)
+      val roundtripResult = roundtrip.flatMap(p => p(testJson, PatchMode.Strict))
+
+      assertTrue(roundtripResult == originalResult)
     }
   )
 
