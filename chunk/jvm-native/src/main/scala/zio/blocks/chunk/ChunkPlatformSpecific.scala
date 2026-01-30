@@ -40,14 +40,14 @@ private[chunk] trait ChunkPlatformSpecific {
         else ClassTag(unboxedClass).asInstanceOf[ClassTag[A]]
       }
 
-    private def isBoolean(c: Class[_]): Boolean = c == BooleanClass || c == BooleanClassBox
-    private def isByte(c: Class[_]): Boolean    = c == ByteClass || c == ByteClassBox
-    private def isShort(c: Class[_]): Boolean   = c == ShortClass || c == ShortClassBox
-    private def isInt(c: Class[_]): Boolean     = c == IntClass || c == IntClassBox
-    private def isLong(c: Class[_]): Boolean    = c == LongClass || c == LongClassBox
-    private def isFloat(c: Class[_]): Boolean   = c == FloatClass || c == FloatClassBox
-    private def isDouble(c: Class[_]): Boolean  = c == DoubleClass || c == DoubleClassBox
-    private def isChar(c: Class[_]): Boolean    = c == CharClass || c == CharClassBox
+    private def isBoolean(c: Class[?]): Boolean = c == BooleanClass || c == BooleanClassBox
+    private def isByte(c: Class[?]): Boolean    = c == ByteClass || c == ByteClassBox
+    private def isShort(c: Class[?]): Boolean   = c == ShortClass || c == ShortClassBox
+    private def isInt(c: Class[?]): Boolean     = c == IntClass || c == IntClassBox
+    private def isLong(c: Class[?]): Boolean    = c == LongClass || c == LongClassBox
+    private def isFloat(c: Class[?]): Boolean   = c == FloatClass || c == FloatClassBox
+    private def isDouble(c: Class[?]): Boolean  = c == DoubleClass || c == DoubleClassBox
+    private def isChar(c: Class[?]): Boolean    = c == CharClass || c == CharClassBox
 
     private val BooleanClass    = classOf[Boolean]
     private val BooleanClassBox = classOf[java.lang.Boolean]

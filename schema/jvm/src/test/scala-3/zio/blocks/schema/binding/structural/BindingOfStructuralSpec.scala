@@ -278,8 +278,9 @@ object BindingOfStructuralSpec extends SchemaBaseSpec {
       val registers = createRegisters(record)
       record.deconstructor.deconstruct(registers, 0L, obj)
 
-      val age  = registers.getInt(0L)
-      val name = registers.getObject(RegisterOffset(ints = 1)).asInstanceOf[String]
+      // Fields are sorted alphabetically: age (Int), name (String/Object)
+      val age  = registers.getInt(RegisterOffset(ints = 0))
+      val name = registers.getObject(RegisterOffset(objects = 0)).asInstanceOf[String]
 
       assertTrue(name == "Alice", age == 30)
     }

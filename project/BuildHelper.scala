@@ -9,7 +9,7 @@ import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
   val Scala213: String = "2.13.18"
-  val Scala3: String   = "3.3.7"
+  val Scala3: String   = "3.5.2"
 
   lazy val isRelease: Boolean = {
     val value = sys.env.contains("CI_RELEASE_MODE")
@@ -95,8 +95,10 @@ object BuildHelper {
           "-no-indent",
           "-explain",
           "-explain-cyclic",
-          "-Xcheck-macros",
+          "-experimental",
           "-Wunused:all",
+          "-Wconf:msg=unused.*&src=.*/test/.*:s", // suppress unused warnings in test sources
+          "-Wconf:msg=nowarn annotation does not suppress any warnings:s", // nowarn difference between Scala 3.3 and 3.5
           "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent", // workaround for `@deprecated("reasons") case class C() derives Schema`
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",

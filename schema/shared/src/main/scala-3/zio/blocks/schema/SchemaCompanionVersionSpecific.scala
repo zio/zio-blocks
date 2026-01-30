@@ -7,7 +7,6 @@ import scala.quoted._
 import zio.blocks.schema.{Term => SchemaTerm}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
-import zio.blocks.schema.CommonMacroOps
 
 trait SchemaCompanionVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }

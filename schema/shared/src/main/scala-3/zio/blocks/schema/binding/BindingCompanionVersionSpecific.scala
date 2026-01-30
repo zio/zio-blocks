@@ -1,5 +1,6 @@
 package zio.blocks.schema.binding
 
+import scala.annotation.experimental
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
@@ -19,6 +20,7 @@ trait BindingCompanionVersionSpecific {
    *   - Option, Either, and their subtypes
    *   - Standard collections (List, Vector, Set, Map, etc.)
    *   - [[DynamicValue]]
+   *   - Structural types (JVM only, requires `@experimental`)
    *
    * @tparam A
    *   the type to derive a binding for
@@ -49,12 +51,14 @@ trait BindingCompanionVersionSpecific {
     new Binding.Map(mc, md)
 }
 
+@experimental
 private object BindingCompanionVersionSpecificImpl {
   import scala.quoted.*
 
   def of[A: Type](using Quotes): Expr[Any] = new BindingCompanionVersionSpecificImpl().of[A]
 }
 
+@experimental
 private class BindingCompanionVersionSpecificImpl(using Quotes) {
   import quotes.reflect.*
 
@@ -231,9 +235,15 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
   def of[A: Type]: Expr[Any] = {
     var tpe = TypeRepr.of[A].dealias
     // Handle AndType (e.g., Record8[Option] & Object) by extracting the left (application) type
+    // BUT preserve true intersection types of structural types (e.g., HasName & HasAge)
     tpe = tpe match {
-      case AndType(left, _) => left
-      case _                => tpe
+      case AndType(left, right) if right =:= anyTpe || right =:= TypeRepr.of[Object] =>
+        // This is an artifact like "Record8[Option] & Object", extract the left type
+        left
+      case AndType(_, _) =>
+        // Keep intersection types as-is (could be structural types like HasName & HasAge)
+        tpe
+      case _ => tpe
     }
     deriveBinding[A](tpe)
   }
@@ -299,6 +309,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     else if (isNamedTuple(tpe)) deriveNamedTupleBinding[A](tpe)
     else if (isEnumOrModuleValue(tpe)) deriveEnumOrModuleValueBinding[A]
     else if (isSealedTraitOrAbstractClass(tpe)) deriveSealedTraitBinding[A](tpe)
+    else if (isUnionOfStructuralTypes(tpe)) deriveStructuralVariantBindingSimple[A](tpe)
     else if (isUnion(tpe)) deriveUnionBinding[A](tpe)
     else if (isNonAbstractScalaClass(tpe)) {
       findSmartConstructor(tpe) match {
@@ -311,7 +322,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
       val sTpe = typeRefDealias(tpe)
       sTpe.asType match { case '[s] => deriveBinding[s](sTpe) }
     } else if (isStructuralType(tpe)) deriveStructuralRecordBindingSimple[A](tpe)
-    else if (isUnionOfStructuralTypes(tpe)) deriveStructuralVariantBindingSimple[A](tpe)
     else fail(s"Cannot derive Binding for type: ${tpe.show}")
 
   private def deriveSomeBinding(tpe: TypeRepr)(using Quotes): Expr[Any] = {
@@ -1906,7 +1916,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     }
 
     val members = collectMembers(tpe)
-    val grouped  = members.groupBy(_._1)
+    val grouped = members.groupBy(_._1)
     grouped.foreach { case (name, occurrences) =>
       if (occurrences.size > 1) {
         val types = occurrences.map(_._2.show).distinct
@@ -1953,6 +1963,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
 
   private case class StructuralFieldForGen(name: String, memberTpe: TypeRepr, kind: String, index: Int)
 
+  @experimental
   private def deriveStructuralRecordBindingSimple[A: Type](tpe: TypeRepr): Expr[Any] = {
     if (!Platform.supportsReflection) {
       fail(
@@ -1980,21 +1991,36 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
       acc
     }
 
-    val fieldNamesExpr = Expr(fields.map(_.name).toArray)
+    val constructorExpr: Expr[Constructor[A]] =
+      generateStructuralConstructorWithRealMethods[A](fields, totalUsedRegistersExpr)
+
+    val deconstructorExpr: Expr[Deconstructor[A]] = generateStructuralDeconstructor[A](fields, totalUsedRegistersExpr)
+
+    '{ new Binding.Record[A]($constructorExpr, $deconstructorExpr) }
+  }
+
+  @experimental
+  private def generateStructuralConstructorWithRealMethods[A: Type](
+    fields: Seq[StructuralFieldForGen],
+    totalUsedRegistersExpr: Expr[RegisterOffset.RegisterOffset]
+  ): Expr[Constructor[A]] = {
     val fieldKindsExpr = Expr(fields.map(_.kind).toArray)
 
-    val constructorExpr = '{
+    // Generate an expression that creates an anonymous class with real methods
+    val instanceCreatorExpr: Expr[Array[Any] => A] = generateAnonymousClassFactory[A](fields)
+
+    '{
       new Constructor[A] {
-        private val _fieldNames = $fieldNamesExpr
-        private val _fieldKinds = $fieldKindsExpr
+        private val _fieldKinds      = $fieldKindsExpr
+        private val _instanceCreator = $instanceCreatorExpr
 
         def usedRegisters: RegisterOffset.RegisterOffset = $totalUsedRegistersExpr
 
         def construct(in: Registers, baseOffset: RegisterOffset.RegisterOffset): A = {
-          val values = new scala.Array[Any](_fieldNames.length)
+          val values = new scala.Array[Any](_fieldKinds.length)
           var idx    = 0
           var offset = baseOffset
-          val len    = _fieldNames.length
+          val len    = _fieldKinds.length
           while (idx < len) {
             val value: Any = _fieldKinds(idx) match {
               case "boolean" =>
@@ -2037,26 +2063,106 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
             values(idx) = value
             idx += 1
           }
-          StructuralRecord.create[A](_fieldNames, values)
+          _instanceCreator(values)
         }
       }
     }
+  }
 
-    val deconstructorExpr = '{
+  @experimental
+  private def generateAnonymousClassFactory[A: Type](fields: Seq[StructuralFieldForGen]): Expr[Array[Any] => A] = {
+    // Generate a lambda using quoted expressions that creates an anonymous class with real methods.
+    // Each method reads from the captured `values` array at a specific index.
+    //
+    // We generate code like:
+    //   (values: Array[Any]) => {
+    //     class Anon$ { def name: String = values(0).asInstanceOf[String]; def age: Int = values(1).asInstanceOf[Int] }
+    //     (new Anon$).asInstanceOf[A]
+    //   }
+
+    val parents        = List(TypeRepr.of[Object])
+    val className      = Symbol.freshName("Structural")
+    val arrayOfAnyType = TypeRepr.of[Array[Any]]
+
+    // Create the lambda symbol first (it will be the owner of everything inside)
+    val lambdaSym = Symbol.newMethod(
+      Symbol.spliceOwner,
+      "factory",
+      MethodType(List("values"))(_ => List(arrayOfAnyType), _ => TypeRepr.of[A])
+    )
+
+    // Create class symbol with methods for each field (parameterless constructor)
+    // The class is owned by the lambda
+    // IMPORTANT: Use ByNameType for nullary methods (def name: String), not MethodType(Nil)
+    // which creates methods with empty parameter list (def name(): String)
+    val classSymbol = Symbol.newClass(
+      lambdaSym,
+      className,
+      parents,
+      decls = cls => {
+        fields.map { f =>
+          Symbol.newMethod(cls, f.name, ByNameType(f.memberTpe))
+        }.toList
+      },
+      selfType = None
+    )
+
+    val lambdaDef = DefDef(
+      lambdaSym,
+      {
+        case List(List(valuesParam: Term)) =>
+          // Create method definitions that reference the `valuesParam` directly
+          val methodDefs = fields.zipWithIndex.map { case (f, idx) =>
+            val methodSym = classSymbol.declaredMethod(f.name).head
+            DefDef(
+              methodSym,
+              { _ =>
+                // Method body: values(idx).asInstanceOf[FieldType]
+                val indexExpr = Literal(IntConstant(idx))
+                val arrayGet  = Apply(Select.unique(valuesParam, "apply"), List(indexExpr))
+                val casted    = f.memberTpe.asType match {
+                  case '[t] =>
+                    Some(TypeApply(Select.unique(arrayGet, "asInstanceOf"), List(TypeTree.of[t])))
+                }
+                casted
+              }
+            )
+          }.toList
+
+          // Create the class definition
+          val classDef = ClassDef(
+            classSymbol,
+            parents.map(Inferred(_)),
+            body = methodDefs
+          )
+
+          // Create instance: new ClassName()
+          val newInstance = New(TypeIdent(classSymbol))
+            .select(classSymbol.primaryConstructor)
+            .appliedToNone
+
+          // Cast to A
+          val castInstance = Typed(newInstance, TypeTree.of[A])
+
+          Some(Block(List(classDef), castInstance))
+
+        case _ =>
+          fail("Unexpected parameter list shape in lambda definition")
+      }
+    )
+
+    // Create and return the lambda expression
+    val closure = Closure(Ref(lambdaSym), None)
+    Block(List(lambdaDef), closure).asExprOf[Array[Any] => A]
+  }
+
+  private def generateStructuralDeconstructor[A: Type](
+    fields: Seq[StructuralFieldForGen],
+    totalUsedRegistersExpr: Expr[RegisterOffset.RegisterOffset]
+  ): Expr[Deconstructor[A]] =
+    '{
       new Deconstructor[A] {
         def usedRegisters: RegisterOffset.RegisterOffset = $totalUsedRegistersExpr
-
-        private def getValue(in: A, name: String): Any =
-          in match {
-            case sel: scala.Selectable =>
-              try sel.selectDynamic(name)
-              catch {
-                case _: NoSuchMethodException =>
-                  in.getClass.getMethod(name).invoke(in)
-              }
-            case _ =>
-              in.getClass.getMethod(name).invoke(in)
-          }
 
         def deconstruct(out: Registers, baseOffset: RegisterOffset.RegisterOffset, in: A): Unit = {
           var offset = baseOffset
@@ -2066,25 +2172,29 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
               f.kind match {
                 case "boolean" =>
                   '{
-                    val v = getValue(in, $fieldNameExpr).asInstanceOf[java.lang.Boolean].booleanValue
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    val v      = method.invoke(in).asInstanceOf[java.lang.Boolean].booleanValue
                     out.setBoolean(offset, v)
                     offset = RegisterOffset.add(offset, RegisterOffset(booleans = 1))
                   }
                 case "byte" =>
                   '{
-                    val v = getValue(in, $fieldNameExpr).asInstanceOf[java.lang.Byte].byteValue
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    val v      = method.invoke(in).asInstanceOf[java.lang.Byte].byteValue
                     out.setByte(offset, v)
                     offset = RegisterOffset.add(offset, RegisterOffset(bytes = 1))
                   }
                 case "short" =>
                   '{
-                    val v = getValue(in, $fieldNameExpr).asInstanceOf[java.lang.Short].shortValue
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    val v      = method.invoke(in).asInstanceOf[java.lang.Short].shortValue
                     out.setShort(offset, v)
                     offset = RegisterOffset.add(offset, RegisterOffset(shorts = 1))
                   }
                 case "int" =>
                   '{
-                    val v = getValue(in, $fieldNameExpr).asInstanceOf[java.lang.Integer].intValue
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    val v      = method.invoke(in).asInstanceOf[java.lang.Integer].intValue
                     out.setInt(offset, v)
                     offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
                   }
@@ -2125,9 +2235,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
         }
       }
     }
-
-    '{ new Binding.Record[A]($constructorExpr, $deconstructorExpr) }
-  }
 
   private def deriveStructuralVariantBindingSimple[A: Type](tpe: TypeRepr): Expr[Any] = {
     if (!Platform.supportsReflection) {
@@ -2175,10 +2282,12 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
 
     // Helper to check if object has all named methods - inlined into generated code
     def hasAllMethodsExpr(objExpr: Expr[AnyRef], names: Array[String]): Expr[Boolean] = {
-      val namesExpr = Expr(names)
+      // Use Varargs to construct a proper Seq expression, then convert to Array
+      val nameExprs: Seq[Expr[String]]    = names.toSeq.map(n => Expr(n))
+      val namesSeqExpr: Expr[Seq[String]] = Varargs(nameExprs)
       '{
         val obj   = $objExpr
-        val names = $namesExpr
+        val names = $namesSeqExpr.toArray
         if (obj == null) false
         else {
           val cls = obj.getClass

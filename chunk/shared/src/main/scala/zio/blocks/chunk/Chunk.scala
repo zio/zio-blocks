@@ -208,7 +208,7 @@ object ChunkBuilder {
     private var maxBitIndex: SInt                 = 0
 
     override def addAll(as: IterableOnce[SBoolean]): this.type = {
-      as.iterator.foreach(addOne _)
+      as.iterator.foreach(addOne)
       this
     }
 
@@ -1427,7 +1427,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    */
   private def toArrayOrNull[A1 >: A]: Array[A1] =
     if (self eq Chunk.Empty) null
-    else self.toArray(Chunk.classTagOf(self))
+    else self.toArray(using Chunk.classTagOf(self))
 }
 
 object Chunk extends ChunkFactory with ChunkPlatformSpecific {
@@ -1618,8 +1618,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
    */
   def fromJavaIterable[A](iterable: java.lang.Iterable[A]): Chunk[A] = {
     val builder =
-      if (iterable.isInstanceOf[java.util.Collection[_]]) {
-        ChunkBuilder.make[A](iterable.asInstanceOf[java.util.Collection[_]].size())
+      if (iterable.isInstanceOf[java.util.Collection[?]]) {
+        ChunkBuilder.make[A](iterable.asInstanceOf[java.util.Collection[?]].size())
       } else ChunkBuilder.make[A]()
     val iterator = iterable.iterator()
     while (iterator.hasNext) builder.addOne(iterator.next())

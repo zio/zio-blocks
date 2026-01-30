@@ -1,6 +1,6 @@
 # ZIO Blocks Agent Guidelines
 
-Zero-dependency building blocks for Scala. Supports Scala 2.13 and 3.3+ with source compatibility across JVM, JS, and Native.
+Zero-dependency building blocks for Scala. Supports Scala 2.13 and 3.5+ with source compatibility across JVM, JS, and Native.
 
 ## Staged Verification Workflow
 
@@ -36,7 +36,7 @@ Examples use `<module>` as placeholder — substitute the actual project (e.g., 
 
 **Stage 4 — Cross-Platform** (once, if applicable)
 - Modified module(s) on JS/Native if supported and sources touched
-- Both Scala versions: `sbt "++3.3.7; <module>JS/test" && sbt "++2.13.18; <module>JS/test"`
+- Both Scala versions: `sbt "++3.5.2; <module>JS/test" && sbt "++2.13.18; <module>JS/test"`
 
 **Stage 5 — Downstream** (once)
 - Test ALL downstream modules (direct + transitive) of any modified module

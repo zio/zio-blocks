@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
 import zio.blocks.chunk.Chunk
 import scala.annotation.tailrec
