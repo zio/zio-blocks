@@ -670,6 +670,28 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
           case None => assertTrue(false)
         }
       },
+      test("string with pattern AND length constraints prioritizes pattern") {
+        val schema = JsonSchema.string(
+          minLength = Some(NonNegativeInt.unsafe(5)),
+          maxLength = Some(NonNegativeInt.unsafe(10)),
+          pattern = Some(RegexPattern.unsafe("^[a-z]+$"))
+        )
+        val reflect = toReflect(schema)
+        val inner   = reflect.asWrapperUnknown.map(_.wrapper.wrapped)
+        val prim    = inner.flatMap(_.asPrimitive)
+        prim match {
+          case Some(p) =>
+            p.primitiveType match {
+              case pt: PrimitiveType.String =>
+                pt.validation match {
+                  case Validation.String.Pattern("^[a-z]+$") => assertTrue(true)
+                  case _                                     => assertTrue(false)
+                }
+              case _ => assertTrue(false)
+            }
+          case None => assertTrue(false)
+        }
+      },
       test("integer minimum/maximum translates to Validation.Numeric.Range with BigInt") {
         val schema  = JsonSchema.integer(minimum = Some(0), maximum = Some(100))
         val reflect = toReflect(schema)

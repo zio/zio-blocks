@@ -54,6 +54,7 @@ object JsonSchemaToReflect {
   private def analyzeEnum(obj: JsonSchema.Object): Option[Shape] =
     obj.`enum` match {
       case Some(values) =>
+        // values is ::[Json], guaranteed non-empty by type
         val strings = values.collect { case Json.String(s) => s }
         if (strings.length == values.length) Some(Shape.Enum(strings))
         else None
@@ -245,16 +246,15 @@ object JsonSchemaToReflect {
     val pat    = obj.pattern.map(_.value)
 
     (minLen, maxLen, pat) match {
-      case (None, None, Some(regex)) =>
+      case (_, _, Some(regex)) =>
+        // Pattern takes precedence; length constraints cannot be combined in Validation ADT
         Validation.String.Pattern(regex)
       case (Some(min), Some(max), None) if min == max && min == 1 =>
         Validation.String.NonEmpty
-      case (Some(min), None, None) if min > 0 =>
-        Validation.String.Length(Some(min), None)
-      case (None, Some(max), None) =>
-        Validation.String.Length(None, Some(max))
-      case (Some(min), Some(max), None) =>
-        Validation.String.Length(Some(min), Some(max))
+      case (Some(min), _, None) if min > 0 =>
+        Validation.String.Length(Some(min), maxLen)
+      case (_, Some(max), None) =>
+        Validation.String.Length(minLen, Some(max))
       case _ =>
         Validation.None
     }
