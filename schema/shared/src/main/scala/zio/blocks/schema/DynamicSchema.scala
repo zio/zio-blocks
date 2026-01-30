@@ -3,6 +3,7 @@ package zio.blocks.schema
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.json.JsonSchema
+import zio.blocks.typeid.TypeId
 
 /**
  * A type-erased schema representation that can validate [[DynamicValue]]
@@ -109,7 +110,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   def doc(value: String): DynamicSchema = copy(reflect = reflect.doc(value))
 
   /** Returns the type name of the schema's root type. */
-  def typeName: TypeName[_] = reflect.typeName
+  def typeId: TypeId[_] = reflect.typeId
 
   /** Returns the modifiers attached to this schema. */
   def modifiers: Seq[Modifier.Reflect] = reflect.modifiers
@@ -362,7 +363,7 @@ object DynamicSchema {
       case DynamicValue.Primitive(pv) =>
         if (!primitiveTypeMatches(pt, pv)) {
           Some(
-            SchemaError.expectationMismatch(trace, s"Expected ${pt.typeName.name}, got ${pv.getClass.getSimpleName}")
+            SchemaError.expectationMismatch(trace, s"Expected ${pt.typeId.name}, got ${pv.getClass.getSimpleName}")
           )
         } else {
           checkValidation(pt.validation, pv, trace)
@@ -370,7 +371,7 @@ object DynamicSchema {
       case DynamicValue.Null if pt == PrimitiveType.Unit =>
         None
       case _ =>
-        Some(SchemaError.expectationMismatch(trace, s"Expected Primitive(${pt.typeName.name}), got ${value.valueType}"))
+        Some(SchemaError.expectationMismatch(trace, s"Expected Primitive(${pt.typeId.name}), got ${value.valueType}"))
     }
   }
 
@@ -616,77 +617,74 @@ object DynamicSchema {
   // Hand-written Schemas for Serialization
   // ===========================================================================
 
-  /** Schema for [[Namespace]]. */
-  implicit lazy val namespaceSchema: Schema[Namespace] = new Schema(
-    reflect = new Reflect.Record[Binding, Namespace](
+  /** Schema for [[zio.blocks.typeid.Owner]]. */
+  implicit lazy val ownerSchema: Schema[zio.blocks.typeid.Owner] = new Schema(
+    reflect = new Reflect.Record[Binding, zio.blocks.typeid.Owner](
       fields = Vector(
-        Schema[Seq[String]].reflect.asTerm("packages"),
-        Schema[Seq[String]].reflect.asTerm("values")
+        Schema[String].reflect.asTerm("path")
       ),
-      typeName = new TypeName(Namespace.zioBlocksSchema, "Namespace"),
+      typeId = TypeId.of[zio.blocks.typeid.Owner],
       recordBinding = new Binding.Record(
-        constructor = new Constructor[Namespace] {
-          def usedRegisters: RegisterOffset                               = 2
-          def construct(in: Registers, offset: RegisterOffset): Namespace =
-            new Namespace(
-              in.getObject(offset).asInstanceOf[Seq[String]],
-              in.getObject(offset + 1).asInstanceOf[Seq[String]]
-            )
+        constructor = new Constructor[zio.blocks.typeid.Owner] {
+          def usedRegisters: RegisterOffset                                             = 1
+          def construct(in: Registers, offset: RegisterOffset): zio.blocks.typeid.Owner =
+            zio.blocks.typeid.Owner.parse(in.getObject(offset).asInstanceOf[String])
         },
-        deconstructor = new Deconstructor[Namespace] {
-          def usedRegisters: RegisterOffset                                            = 2
-          def deconstruct(out: Registers, offset: RegisterOffset, in: Namespace): Unit = {
-            out.setObject(offset, in.packages)
-            out.setObject(offset + 1, in.values)
-          }
+        deconstructor = new Deconstructor[zio.blocks.typeid.Owner] {
+          def usedRegisters: RegisterOffset                                                          = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: zio.blocks.typeid.Owner): Unit =
+            out.setObject(offset, in.asString)
         }
       ),
       modifiers = Vector.empty
     )
   )
 
-  /** Schema for [[TypeName]] (type-erased). */
-  implicit lazy val typeNameSchema: Schema[TypeName[_]] = {
-    lazy val paramsReflect: Reflect.Bound[Seq[TypeName[_]]] =
-      Schema.seq(typeNameSchema).reflect
-
+  /** Schema for [[TypeId]] (type-erased). */
+  implicit lazy val typeIdSchema: Schema[TypeId[_]] =
     new Schema(
-      reflect = new Reflect.Record[Binding, TypeName[_]](
+      reflect = new Reflect.Record[Binding, TypeId[_]](
         fields = Vector(
-          namespaceSchema.reflect.asTerm("namespace"),
-          Schema[String].reflect.asTerm("name"),
-          new Reflect.Deferred(() => paramsReflect).asTerm("params")
+          ownerSchema.reflect.asTerm("owner"),
+          Schema[String].reflect.asTerm("name")
         ),
-        typeName = new TypeName(Namespace.zioBlocksSchema, "TypeName"),
+        typeId = TypeId.of[TypeId[_]],
         recordBinding = new Binding.Record(
-          constructor = new Constructor[TypeName[_]] {
-            def usedRegisters: RegisterOffset                                 = 3
-            def construct(in: Registers, offset: RegisterOffset): TypeName[_] =
-              new TypeName(
-                in.getObject(offset).asInstanceOf[Namespace],
-                in.getObject(offset + 1).asInstanceOf[String],
-                in.getObject(offset + 2).asInstanceOf[Seq[TypeName[_]]]
+          constructor = new Constructor[TypeId[_]] {
+            def usedRegisters: RegisterOffset                               = 2
+            def construct(in: Registers, offset: RegisterOffset): TypeId[_] = {
+              val owner = in.getObject(offset).asInstanceOf[zio.blocks.typeid.Owner]
+              val name  = in.getObject(offset + 1).asInstanceOf[String]
+              // Create a simple DynamicTypeId wrapper
+              TypeId(
+                zio.blocks.typeid.DynamicTypeId(
+                  owner = owner,
+                  name = name,
+                  typeParams = Nil,
+                  kind = zio.blocks.typeid.TypeDefKind
+                    .Class(isAbstract = false, isFinal = false, isCase = false, isValue = false),
+                  parents = Nil
+                )
               )
+            }
           },
-          deconstructor = new Deconstructor[TypeName[_]] {
-            def usedRegisters: RegisterOffset                                              = 3
-            def deconstruct(out: Registers, offset: RegisterOffset, in: TypeName[_]): Unit = {
-              out.setObject(offset, in.namespace)
+          deconstructor = new Deconstructor[TypeId[_]] {
+            def usedRegisters: RegisterOffset                                            = 2
+            def deconstruct(out: Registers, offset: RegisterOffset, in: TypeId[_]): Unit = {
+              out.setObject(offset, in.owner)
               out.setObject(offset + 1, in.name)
-              out.setObject(offset + 2, in.params)
             }
           }
         ),
         modifiers = Vector.empty
       )
     )
-  }
 
   /** Schema for [[Doc.Empty]]. */
   private lazy val docEmptySchema: Schema[Doc.Empty.type] = new Schema(
     reflect = new Reflect.Record[Binding, Doc.Empty.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Doc")), "Empty"),
+      typeId = TypeId.of[Doc.Empty.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Doc.Empty.type](Doc.Empty),
         deconstructor = new ConstantDeconstructor[Doc.Empty.type]
@@ -699,7 +697,7 @@ object DynamicSchema {
   private lazy val docTextSchema: Schema[Doc.Text] = new Schema(
     reflect = new Reflect.Record[Binding, Doc.Text](
       fields = Vector(Schema[String].reflect.asTerm("value")),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Doc")), "Text"),
+      typeId = TypeId.of[Doc.Text],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Doc.Text] {
           def usedRegisters: RegisterOffset                              = 1
@@ -720,7 +718,7 @@ object DynamicSchema {
   private lazy val docConcatSchema: Schema[Doc.Concat] = new Schema(
     reflect = new Reflect.Record[Binding, Doc.Concat](
       fields = Vector(Schema[IndexedSeq[Doc.Leaf]].reflect.asTerm("flatten")),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Doc")), "Concat"),
+      typeId = TypeId.of[Doc.Concat],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Doc.Concat] {
           def usedRegisters: RegisterOffset                                = 1
@@ -744,7 +742,7 @@ object DynamicSchema {
         docEmptySchema.reflect.asTerm("Empty"),
         docTextSchema.reflect.asTerm("Text")
       ),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Doc")), "Leaf"),
+      typeId = TypeId.of[Doc.Leaf],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Doc.Leaf] {
           def discriminate(a: Doc.Leaf): Int = a match {
@@ -779,7 +777,7 @@ object DynamicSchema {
         docTextSchema.reflect.asTerm("Text"),
         docConcatSchema.reflect.asTerm("Concat")
       ),
-      typeName = new TypeName(Namespace.zioBlocksSchema, "Doc"),
+      typeId = TypeId.of[Doc],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Doc] {
           def discriminate(a: Doc): Int = a match {
@@ -821,7 +819,7 @@ object DynamicSchema {
   private lazy val validationNoneSchema: Schema[Validation.None.type] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.None.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation")), "None"),
+      typeId = TypeId.of[Validation.None.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Validation.None.type](Validation.None),
         deconstructor = new ConstantDeconstructor[Validation.None.type]
@@ -834,7 +832,7 @@ object DynamicSchema {
   private lazy val validationPositiveSchema: Schema[Validation.Numeric.Positive.type] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.Numeric.Positive.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "Positive"),
+      typeId = TypeId.of[Validation.Numeric.Positive.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Validation.Numeric.Positive.type](Validation.Numeric.Positive),
         deconstructor = new ConstantDeconstructor[Validation.Numeric.Positive.type]
@@ -847,7 +845,7 @@ object DynamicSchema {
   private lazy val validationNegativeSchema: Schema[Validation.Numeric.Negative.type] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.Numeric.Negative.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "Negative"),
+      typeId = TypeId.of[Validation.Numeric.Negative.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Validation.Numeric.Negative.type](Validation.Numeric.Negative),
         deconstructor = new ConstantDeconstructor[Validation.Numeric.Negative.type]
@@ -860,7 +858,7 @@ object DynamicSchema {
   private lazy val validationNonPositiveSchema: Schema[Validation.Numeric.NonPositive.type] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.Numeric.NonPositive.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "NonPositive"),
+      typeId = TypeId.of[Validation.Numeric.NonPositive.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Validation.Numeric.NonPositive.type](Validation.Numeric.NonPositive),
         deconstructor = new ConstantDeconstructor[Validation.Numeric.NonPositive.type]
@@ -873,7 +871,7 @@ object DynamicSchema {
   private lazy val validationNonNegativeSchema: Schema[Validation.Numeric.NonNegative.type] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.Numeric.NonNegative.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "NonNegative"),
+      typeId = TypeId.of[Validation.Numeric.NonNegative.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Validation.Numeric.NonNegative.type](Validation.Numeric.NonNegative),
         deconstructor = new ConstantDeconstructor[Validation.Numeric.NonNegative.type]
@@ -931,7 +929,7 @@ object DynamicSchema {
         Schema[Option[DynamicValue]].reflect.asTerm("min"),
         Schema[Option[DynamicValue]].reflect.asTerm("max")
       ),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "Range"),
+      typeId = TypeId.of[Validation.Numeric.Range[_]],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Validation.Numeric.Range[_]] {
           def usedRegisters: RegisterOffset                                                 = 2
@@ -957,7 +955,7 @@ object DynamicSchema {
   private lazy val validationSetSchema: Schema[Validation.Numeric.Set[_]] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.Numeric.Set[_]](
       fields = Vector(Schema[Set[DynamicValue]].reflect.asTerm("values")),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "Numeric")), "Set"),
+      typeId = TypeId.of[Validation.Numeric.Set[_]],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Validation.Numeric.Set[_]] {
           def usedRegisters: RegisterOffset                                               = 1
@@ -978,7 +976,7 @@ object DynamicSchema {
   private lazy val validationStringNonEmptySchema: Schema[Validation.String.NonEmpty.type] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.String.NonEmpty.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "NonEmpty"),
+      typeId = TypeId.of[Validation.String.NonEmpty.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Validation.String.NonEmpty.type](Validation.String.NonEmpty),
         deconstructor = new ConstantDeconstructor[Validation.String.NonEmpty.type]
@@ -991,7 +989,7 @@ object DynamicSchema {
   private lazy val validationStringEmptySchema: Schema[Validation.String.Empty.type] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.String.Empty.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "Empty"),
+      typeId = TypeId.of[Validation.String.Empty.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Validation.String.Empty.type](Validation.String.Empty),
         deconstructor = new ConstantDeconstructor[Validation.String.Empty.type]
@@ -1004,7 +1002,7 @@ object DynamicSchema {
   private lazy val validationStringBlankSchema: Schema[Validation.String.Blank.type] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.String.Blank.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "Blank"),
+      typeId = TypeId.of[Validation.String.Blank.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Validation.String.Blank.type](Validation.String.Blank),
         deconstructor = new ConstantDeconstructor[Validation.String.Blank.type]
@@ -1017,7 +1015,7 @@ object DynamicSchema {
   private lazy val validationStringNonBlankSchema: Schema[Validation.String.NonBlank.type] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.String.NonBlank.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "NonBlank"),
+      typeId = TypeId.of[Validation.String.NonBlank.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Validation.String.NonBlank.type](Validation.String.NonBlank),
         deconstructor = new ConstantDeconstructor[Validation.String.NonBlank.type]
@@ -1033,7 +1031,7 @@ object DynamicSchema {
         Schema[Option[Int]].reflect.asTerm("min"),
         Schema[Option[Int]].reflect.asTerm("max")
       ),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "Length"),
+      typeId = TypeId.of[Validation.String.Length],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Validation.String.Length] {
           def usedRegisters: RegisterOffset                                              = 2
@@ -1059,7 +1057,7 @@ object DynamicSchema {
   private lazy val validationStringPatternSchema: Schema[Validation.String.Pattern] = new Schema(
     reflect = new Reflect.Record[Binding, Validation.String.Pattern](
       fields = Vector(Schema[String].reflect.asTerm("regex")),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Validation", "String")), "Pattern"),
+      typeId = TypeId.of[Validation.String.Pattern],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Validation.String.Pattern] {
           def usedRegisters: RegisterOffset                                               = 1
@@ -1094,7 +1092,7 @@ object DynamicSchema {
         validationStringLengthSchema.reflect.asTerm("StringLength"),
         validationStringPatternSchema.reflect.asTerm("StringPattern")
       ),
-      typeName = new TypeName(Namespace.zioBlocksSchema, "Validation"),
+      typeId = TypeId.of[Validation[_]],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Validation[_]] {
           def discriminate(a: Validation[_]): Int = a match {
@@ -1206,7 +1204,7 @@ object DynamicSchema {
   private lazy val primitiveTypeUnitSchema: Schema[PrimitiveType.Unit.type] = new Schema(
     reflect = new Reflect.Record[Binding, PrimitiveType.Unit.type](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveType")), "Unit"),
+      typeId = TypeId.of[PrimitiveType.Unit.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[PrimitiveType.Unit.type](PrimitiveType.Unit),
         deconstructor = new ConstantDeconstructor[PrimitiveType.Unit.type]
@@ -1219,13 +1217,12 @@ object DynamicSchema {
    * Helper to create schemas for PrimitiveType case classes with validation.
    */
   private def primitiveTypeWithValidationSchema[A, V](
-    name: String,
     make: Validation[V] => A,
     getValidation: A => Validation[V]
-  ): Schema[A] = new Schema(
+  )(implicit tid: TypeId[A]): Schema[A] = new Schema(
     reflect = new Reflect.Record[Binding, A](
       fields = Vector(validationSchema.reflect.asTerm("validation")),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "PrimitiveType")), name),
+      typeId = tid,
       recordBinding = new Binding.Record(
         constructor = new Constructor[A] {
           def usedRegisters: RegisterOffset                       = 1
@@ -1243,91 +1240,91 @@ object DynamicSchema {
   )
 
   private lazy val primitiveTypeBooleanSchema: Schema[PrimitiveType.Boolean] =
-    primitiveTypeWithValidationSchema("Boolean", PrimitiveType.Boolean(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Boolean(_), _.validation)
 
   private lazy val primitiveTypeByteSchema: Schema[PrimitiveType.Byte] =
-    primitiveTypeWithValidationSchema("Byte", PrimitiveType.Byte(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Byte(_), _.validation)
 
   private lazy val primitiveTypeShortSchema: Schema[PrimitiveType.Short] =
-    primitiveTypeWithValidationSchema("Short", PrimitiveType.Short(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Short(_), _.validation)
 
   private lazy val primitiveTypeIntSchema: Schema[PrimitiveType.Int] =
-    primitiveTypeWithValidationSchema("Int", PrimitiveType.Int(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Int(_), _.validation)
 
   private lazy val primitiveTypeLongSchema: Schema[PrimitiveType.Long] =
-    primitiveTypeWithValidationSchema("Long", PrimitiveType.Long(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Long(_), _.validation)
 
   private lazy val primitiveTypeFloatSchema: Schema[PrimitiveType.Float] =
-    primitiveTypeWithValidationSchema("Float", PrimitiveType.Float(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Float(_), _.validation)
 
   private lazy val primitiveTypeDoubleSchema: Schema[PrimitiveType.Double] =
-    primitiveTypeWithValidationSchema("Double", PrimitiveType.Double(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Double(_), _.validation)
 
   private lazy val primitiveTypeCharSchema: Schema[PrimitiveType.Char] =
-    primitiveTypeWithValidationSchema("Char", PrimitiveType.Char(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Char(_), _.validation)
 
   private lazy val primitiveTypeStringSchema: Schema[PrimitiveType.String] =
-    primitiveTypeWithValidationSchema("String", PrimitiveType.String(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.String(_), _.validation)
 
   private lazy val primitiveTypeBigIntSchema: Schema[PrimitiveType.BigInt] =
-    primitiveTypeWithValidationSchema("BigInt", PrimitiveType.BigInt(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.BigInt(_), _.validation)
 
   private lazy val primitiveTypeBigDecimalSchema: Schema[PrimitiveType.BigDecimal] =
-    primitiveTypeWithValidationSchema("BigDecimal", PrimitiveType.BigDecimal(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.BigDecimal(_), _.validation)
 
   private lazy val primitiveTypeDayOfWeekSchema: Schema[PrimitiveType.DayOfWeek] =
-    primitiveTypeWithValidationSchema("DayOfWeek", PrimitiveType.DayOfWeek(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.DayOfWeek(_), _.validation)
 
   private lazy val primitiveTypeDurationSchema: Schema[PrimitiveType.Duration] =
-    primitiveTypeWithValidationSchema("Duration", PrimitiveType.Duration(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Duration(_), _.validation)
 
   private lazy val primitiveTypeInstantSchema: Schema[PrimitiveType.Instant] =
-    primitiveTypeWithValidationSchema("Instant", PrimitiveType.Instant(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Instant(_), _.validation)
 
   private lazy val primitiveTypeLocalDateSchema: Schema[PrimitiveType.LocalDate] =
-    primitiveTypeWithValidationSchema("LocalDate", PrimitiveType.LocalDate(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.LocalDate(_), _.validation)
 
   private lazy val primitiveTypeLocalDateTimeSchema: Schema[PrimitiveType.LocalDateTime] =
-    primitiveTypeWithValidationSchema("LocalDateTime", PrimitiveType.LocalDateTime(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.LocalDateTime(_), _.validation)
 
   private lazy val primitiveTypeLocalTimeSchema: Schema[PrimitiveType.LocalTime] =
-    primitiveTypeWithValidationSchema("LocalTime", PrimitiveType.LocalTime(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.LocalTime(_), _.validation)
 
   private lazy val primitiveTypeMonthSchema: Schema[PrimitiveType.Month] =
-    primitiveTypeWithValidationSchema("Month", PrimitiveType.Month(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Month(_), _.validation)
 
   private lazy val primitiveTypeMonthDaySchema: Schema[PrimitiveType.MonthDay] =
-    primitiveTypeWithValidationSchema("MonthDay", PrimitiveType.MonthDay(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.MonthDay(_), _.validation)
 
   private lazy val primitiveTypeOffsetDateTimeSchema: Schema[PrimitiveType.OffsetDateTime] =
-    primitiveTypeWithValidationSchema("OffsetDateTime", PrimitiveType.OffsetDateTime(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.OffsetDateTime(_), _.validation)
 
   private lazy val primitiveTypeOffsetTimeSchema: Schema[PrimitiveType.OffsetTime] =
-    primitiveTypeWithValidationSchema("OffsetTime", PrimitiveType.OffsetTime(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.OffsetTime(_), _.validation)
 
   private lazy val primitiveTypePeriodSchema: Schema[PrimitiveType.Period] =
-    primitiveTypeWithValidationSchema("Period", PrimitiveType.Period(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Period(_), _.validation)
 
   private lazy val primitiveTypeYearSchema: Schema[PrimitiveType.Year] =
-    primitiveTypeWithValidationSchema("Year", PrimitiveType.Year(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Year(_), _.validation)
 
   private lazy val primitiveTypeYearMonthSchema: Schema[PrimitiveType.YearMonth] =
-    primitiveTypeWithValidationSchema("YearMonth", PrimitiveType.YearMonth(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.YearMonth(_), _.validation)
 
   private lazy val primitiveTypeZoneIdSchema: Schema[PrimitiveType.ZoneId] =
-    primitiveTypeWithValidationSchema("ZoneId", PrimitiveType.ZoneId(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.ZoneId(_), _.validation)
 
   private lazy val primitiveTypeZoneOffsetSchema: Schema[PrimitiveType.ZoneOffset] =
-    primitiveTypeWithValidationSchema("ZoneOffset", PrimitiveType.ZoneOffset(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.ZoneOffset(_), _.validation)
 
   private lazy val primitiveTypeZonedDateTimeSchema: Schema[PrimitiveType.ZonedDateTime] =
-    primitiveTypeWithValidationSchema("ZonedDateTime", PrimitiveType.ZonedDateTime(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.ZonedDateTime(_), _.validation)
 
   private lazy val primitiveTypeCurrencySchema: Schema[PrimitiveType.Currency] =
-    primitiveTypeWithValidationSchema("Currency", PrimitiveType.Currency(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.Currency(_), _.validation)
 
   private lazy val primitiveTypeUUIDSchema: Schema[PrimitiveType.UUID] =
-    primitiveTypeWithValidationSchema("UUID", PrimitiveType.UUID(_), _.validation)
+    primitiveTypeWithValidationSchema(PrimitiveType.UUID(_), _.validation)
 
   /** Schema for [[PrimitiveType]] (type-erased variant). */
   implicit lazy val primitiveTypeSchema: Schema[PrimitiveType[_]] = new Schema(
@@ -1364,7 +1361,7 @@ object DynamicSchema {
         primitiveTypeCurrencySchema.reflect.asTerm("Currency"),
         primitiveTypeUUIDSchema.reflect.asTerm("UUID")
       ),
-      typeName = new TypeName(Namespace.zioBlocksSchema, "PrimitiveType"),
+      typeId = TypeId.of[PrimitiveType[_]],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[PrimitiveType[_]] {
           def discriminate(a: PrimitiveType[_]): Int = a match {
@@ -1597,7 +1594,7 @@ object DynamicSchema {
   implicit lazy val schema: Schema[DynamicSchema] = new Schema(
     reflect = new Reflect.Record[Binding, DynamicSchema](
       fields = Vector(Schema[DynamicValue].reflect.asTerm("reflect")),
-      typeName = new TypeName(Namespace.zioBlocksSchema, "DynamicSchema"),
+      typeId = TypeId.of[DynamicSchema],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchema] {
           def usedRegisters: RegisterOffset                                   = 1
@@ -1630,20 +1627,14 @@ object DynamicSchema {
   private def reflectToDynamicValue(reflect: Reflect[NoBinding, _]): DynamicValue = {
     import zio.blocks.chunk.Chunk
 
-    def typeNameToDV(tn: TypeName[_]): DynamicValue = DynamicValue.Record(
+    def typeIdToDV(tid: TypeId[_]): DynamicValue = DynamicValue.Record(
       Chunk(
-        "namespace" -> DynamicValue.Record(
+        "owner" -> DynamicValue.Record(
           Chunk(
-            "packages" -> DynamicValue.Sequence(
-              Chunk.from(tn.namespace.packages.map(s => DynamicValue.Primitive(PrimitiveValue.String(s))))
-            ),
-            "values" -> DynamicValue.Sequence(
-              Chunk.from(tn.namespace.values.map(s => DynamicValue.Primitive(PrimitiveValue.String(s))))
-            )
+            "path" -> DynamicValue.Primitive(PrimitiveValue.String(tid.owner.asString))
           )
         ),
-        "name"   -> DynamicValue.Primitive(PrimitiveValue.String(tn.name)),
-        "params" -> DynamicValue.Sequence(Chunk.from(tn.params.map(typeNameToDV)))
+        "name" -> DynamicValue.Primitive(PrimitiveValue.String(tid.name))
       )
     )
 
@@ -1727,7 +1718,7 @@ object DynamicSchema {
     }
 
     def primitiveTypeToDV(pt: PrimitiveType[_]): DynamicValue = {
-      val caseName = pt.typeName.name
+      val caseName = pt.typeId.name
       val payload  =
         if (caseName == "Unit")
           DynamicValue.Record(Chunk.empty)
@@ -1773,7 +1764,7 @@ object DynamicSchema {
           "Record",
           DynamicValue.Record(
             Chunk(
-              "typeName"     -> typeNameToDV(r.typeName),
+              "typeId"       -> typeIdToDV(r.typeId),
               "doc"          -> docToDV(r.doc),
               "modifiers"    -> DynamicValue.Sequence(Chunk.from(r.modifiers.map(modifierToDV))),
               "fields"       -> DynamicValue.Sequence(Chunk.from(r.fields.map(termToDV(_)))),
@@ -1788,7 +1779,7 @@ object DynamicSchema {
           "Variant",
           DynamicValue.Record(
             Chunk(
-              "typeName"     -> typeNameToDV(v.typeName),
+              "typeId"       -> typeIdToDV(v.typeId),
               "doc"          -> docToDV(v.doc),
               "modifiers"    -> DynamicValue.Sequence(Chunk.from(v.modifiers.map(modifierToDV))),
               "cases"        -> DynamicValue.Sequence(Chunk.from(v.cases.map(termToDV(_)))),
@@ -1803,7 +1794,7 @@ object DynamicSchema {
           "Sequence",
           DynamicValue.Record(
             Chunk(
-              "typeName"     -> typeNameToDV(s.typeName),
+              "typeId"       -> typeIdToDV(s.typeId),
               "doc"          -> docToDV(s.doc),
               "modifiers"    -> DynamicValue.Sequence(Chunk.from(s.modifiers.map(modifierToDV))),
               "element"      -> reflectToDynamicValue(s.element),
@@ -1818,7 +1809,7 @@ object DynamicSchema {
           "Map",
           DynamicValue.Record(
             Chunk(
-              "typeName"     -> typeNameToDV(m.typeName),
+              "typeId"       -> typeIdToDV(m.typeId),
               "doc"          -> docToDV(m.doc),
               "modifiers"    -> DynamicValue.Sequence(Chunk.from(m.modifiers.map(modifierToDV))),
               "key"          -> reflectToDynamicValue(m.key),
@@ -1834,7 +1825,7 @@ object DynamicSchema {
           "Primitive",
           DynamicValue.Record(
             Chunk(
-              "typeName"      -> typeNameToDV(p.typeName),
+              "typeId"        -> typeIdToDV(p.typeId),
               "doc"           -> docToDV(p.doc),
               "modifiers"     -> DynamicValue.Sequence(Chunk.from(p.modifiers.map(modifierToDV))),
               "primitiveType" -> primitiveTypeToDV(p.primitiveType),
@@ -1849,7 +1840,7 @@ object DynamicSchema {
           "Wrapper",
           DynamicValue.Record(
             Chunk(
-              "typeName"     -> typeNameToDV(w.typeName),
+              "typeId"       -> typeIdToDV(w.typeId),
               "doc"          -> docToDV(w.doc),
               "modifiers"    -> DynamicValue.Sequence(Chunk.from(w.modifiers.map(modifierToDV))),
               "wrapped"      -> reflectToDynamicValue(w.wrapped),
@@ -1870,37 +1861,44 @@ object DynamicSchema {
   private def dynamicValueToReflect(dv: DynamicValue): Reflect.Unbound[_] = {
     import zio.blocks.chunk.Chunk
 
-    def dvToTypeName(dv: DynamicValue): TypeName[Any] = dv match {
+    def dvToTypeId(dv: DynamicValue): TypeId[Any] = dv match {
       case DynamicValue.Record(fields) =>
-        val fieldMap  = fields.toMap
-        val namespace = fieldMap("namespace") match {
-          case DynamicValue.Record(nsFields) =>
-            val nsMap = nsFields.toMap
-            new Namespace(
-              dvToStringSeq(nsMap("packages")),
-              dvToStringSeq(nsMap("values"))
-            )
-          case _ => Namespace.zioBlocksSchema
+        val fieldMap = fields.toMap
+        val owner    = fieldMap.get("owner") match {
+          case Some(DynamicValue.Record(ownerFields)) =>
+            val ownerMap = ownerFields.toMap
+            ownerMap.get("path") match {
+              case Some(DynamicValue.Primitive(PrimitiveValue.String(s))) =>
+                zio.blocks.typeid.Owner.parse(s)
+              case _ => zio.blocks.typeid.Owner.Root
+            }
+          case _ => zio.blocks.typeid.Owner.Root
         }
-        val name = fieldMap("name") match {
-          case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-          case _                                                => "Unknown"
+        val name = fieldMap.get("name") match {
+          case Some(DynamicValue.Primitive(PrimitiveValue.String(s))) => s
+          case _                                                      => "Unknown"
         }
-        val params = fieldMap("params") match {
-          case DynamicValue.Sequence(elems) => elems.map(dvToTypeName).toSeq
-          case _                            => Nil
-        }
-        new TypeName(namespace, name, params)
-      case _ => new TypeName(Namespace.zioBlocksSchema, "Unknown")
-    }
-
-    def dvToStringSeq(dv: DynamicValue): Seq[String] = dv match {
-      case DynamicValue.Sequence(elems) =>
-        elems.flatMap {
-          case DynamicValue.Primitive(PrimitiveValue.String(s)) => Some(s)
-          case _                                                => scala.None
-        }.toSeq
-      case _ => Nil
+        TypeId[Any](
+          zio.blocks.typeid.DynamicTypeId(
+            owner = owner,
+            name = name,
+            typeParams = Nil,
+            kind =
+              zio.blocks.typeid.TypeDefKind.Class(isAbstract = false, isFinal = false, isCase = false, isValue = false),
+            parents = Nil
+          )
+        )
+      case _ =>
+        TypeId[Any](
+          zio.blocks.typeid.DynamicTypeId(
+            owner = zio.blocks.typeid.Owner.Root,
+            name = "Unknown",
+            typeParams = Nil,
+            kind =
+              zio.blocks.typeid.TypeDefKind.Class(isAbstract = false, isFinal = false, isCase = false, isValue = false),
+            parents = Nil
+          )
+        )
     }
 
     def dvToDoc(dv: DynamicValue): Doc = dv match {
@@ -2072,7 +2070,7 @@ object DynamicSchema {
     dv match {
       case DynamicValue.Variant("Record", DynamicValue.Record(fields)) =>
         val fieldMap   = fields.toMap
-        val typeName   = dvToTypeName(fieldMap("typeName"))
+        val typeId     = dvToTypeId(fieldMap("typeId"))
         val doc        = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
         val modifiers  = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
         val termFields = fieldMap("fields") match {
@@ -2083,7 +2081,7 @@ object DynamicSchema {
         val examples     = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
         new Reflect.Record[NoBinding, Any](
           fields = termFields,
-          typeName = typeName,
+          typeId = typeId,
           recordBinding = NoBinding(),
           doc = doc,
           modifiers = modifiers,
@@ -2093,7 +2091,7 @@ object DynamicSchema {
 
       case DynamicValue.Variant("Variant", DynamicValue.Record(fields)) =>
         val fieldMap  = fields.toMap
-        val typeName  = dvToTypeName(fieldMap("typeName"))
+        val typeId    = dvToTypeId(fieldMap("typeId"))
         val doc       = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
         val modifiers = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
         val cases     = fieldMap("cases") match {
@@ -2104,7 +2102,7 @@ object DynamicSchema {
         val examples     = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
         new Reflect.Variant[NoBinding, Any](
           cases = cases,
-          typeName = typeName,
+          typeId = typeId,
           variantBinding = NoBinding(),
           doc = doc,
           modifiers = modifiers,
@@ -2114,7 +2112,7 @@ object DynamicSchema {
 
       case DynamicValue.Variant("Sequence", DynamicValue.Record(fields)) =>
         val fieldMap     = fields.toMap
-        val typeName     = dvToTypeName(fieldMap("typeName"))
+        val typeId       = dvToTypeId(fieldMap("typeId"))
         val doc          = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
         val modifiers    = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
         val element      = dynamicValueToReflect(fieldMap("element"))
@@ -2122,7 +2120,7 @@ object DynamicSchema {
         val examples     = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
         new Reflect.Sequence[NoBinding, Any, Seq](
           element = element.asInstanceOf[Reflect.Unbound[Any]],
-          typeName = typeName.asInstanceOf[TypeName[Seq[Any]]],
+          typeId = typeId.asInstanceOf[TypeId[Seq[Any]]],
           seqBinding = NoBinding(),
           doc = doc,
           modifiers = modifiers,
@@ -2132,7 +2130,7 @@ object DynamicSchema {
 
       case DynamicValue.Variant("Map", DynamicValue.Record(fields)) =>
         val fieldMap     = fields.toMap
-        val typeName     = dvToTypeName(fieldMap("typeName"))
+        val typeId       = dvToTypeId(fieldMap("typeId"))
         val doc          = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
         val modifiers    = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
         val key          = dynamicValueToReflect(fieldMap("key"))
@@ -2142,7 +2140,7 @@ object DynamicSchema {
         new Reflect.Map[NoBinding, Any, Any, scala.collection.immutable.Map](
           key = key.asInstanceOf[Reflect.Unbound[Any]],
           value = value.asInstanceOf[Reflect.Unbound[Any]],
-          typeName = typeName.asInstanceOf[TypeName[scala.collection.immutable.Map[Any, Any]]],
+          typeId = typeId.asInstanceOf[TypeId[scala.collection.immutable.Map[Any, Any]]],
           mapBinding = NoBinding(),
           doc = doc,
           modifiers = modifiers,
@@ -2152,7 +2150,7 @@ object DynamicSchema {
 
       case DynamicValue.Variant("Primitive", DynamicValue.Record(fields)) =>
         val fieldMap      = fields.toMap
-        val typeName      = dvToTypeName(fieldMap("typeName"))
+        val typeId        = dvToTypeId(fieldMap("typeId"))
         val doc           = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
         val modifiers     = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
         val primitiveType = dvToPrimitiveType(fieldMap("primitiveType"))
@@ -2160,7 +2158,7 @@ object DynamicSchema {
         val examples      = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
         new Reflect.Primitive[NoBinding, Any](
           primitiveType = primitiveType,
-          typeName = typeName,
+          typeId = typeId,
           primitiveBinding = NoBinding(),
           doc = doc,
           modifiers = modifiers,
@@ -2170,7 +2168,7 @@ object DynamicSchema {
 
       case DynamicValue.Variant("Wrapper", DynamicValue.Record(fields)) =>
         val fieldMap     = fields.toMap
-        val typeName     = dvToTypeName(fieldMap("typeName"))
+        val typeId       = dvToTypeId(fieldMap("typeId"))
         val doc          = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", DynamicValue.Record(Chunk.empty))))
         val modifiers    = dvToModifiers(fieldMap.getOrElse("modifiers", DynamicValue.Sequence(Chunk.empty)))
         val wrapped      = dynamicValueToReflect(fieldMap("wrapped"))
@@ -2178,7 +2176,7 @@ object DynamicSchema {
         val examples     = dvToExamples(fieldMap.getOrElse("examples", DynamicValue.Sequence(Chunk.empty)))
         new Reflect.Wrapper[NoBinding, Any, Any](
           wrapped = wrapped.asInstanceOf[Reflect.Unbound[Any]],
-          typeName = typeName,
+          typeId = typeId,
           wrapperPrimitiveType = scala.None,
           wrapperBinding = NoBinding(),
           doc = doc,
