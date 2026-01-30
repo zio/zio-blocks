@@ -32,7 +32,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
           case class LinkedList(head: Int, tail: Option[LinkedList])
 
-          val schema = Schema.derived[LinkedList]
+          val schema: Schema[LinkedList] = Schema.derived[LinkedList]
           schema.structural
           """
         }.map { result =>
@@ -54,7 +54,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
           case class SelfRef(value: Int, next: SelfRef)
 
-          val schema = Schema.derived[SelfRef]
+          val schema: Schema[SelfRef] = Schema.derived[SelfRef]
           schema.structural
           """
         }.map { result =>
@@ -70,7 +70,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
           case class Tree(value: Int, children: List[Tree])
 
-          val schema = Schema.derived[Tree]
+          val schema: Schema[Tree] = Schema.derived[Tree]
           schema.structural
           """
         }.map { result =>
@@ -92,7 +92,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
           case class Node(id: Int, next: Option[Node])
 
-          val schema = Schema.derived[Node]
+          val schema: Schema[Node] = Schema.derived[Node]
           schema.structural
           """
         }.map { result =>
@@ -106,7 +106,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
           case class Graph(id: Int, connections: Set[Graph])
 
-          val schema = Schema.derived[Graph]
+          val schema: Schema[Graph] = Schema.derived[Graph]
           schema.structural
           """
         }.map { result =>
@@ -120,7 +120,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
           case class Sequence(value: Int, rest: Vector[Sequence])
 
-          val schema = Schema.derived[Sequence]
+          val schema: Schema[Sequence] = Schema.derived[Sequence]
           schema.structural
           """
         }.map { result =>
@@ -136,7 +136,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
           case class Recursive(data: Int, self: List[Recursive])
 
-          val schema = Schema.derived[Recursive]
+          val schema: Schema[Recursive] = Schema.derived[Recursive]
           schema.structural
           """
         }.map { result =>
@@ -158,7 +158,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
           case class MyRecursiveType(value: Int, children: List[MyRecursiveType])
 
-          val schema = Schema.derived[MyRecursiveType]
+          val schema: Schema[MyRecursiveType] = Schema.derived[MyRecursiveType]
           schema.structural
           """
         }.map { result =>
@@ -177,7 +177,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
           case class Person(name: String, age: Int)
 
-          val schema = Schema.derived[Person]
+          val schema: Schema[Person] = Schema.derived[Person]
           schema.structural
           """
         }.map { result =>
@@ -192,7 +192,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
           case class Inner(value: Int)
           case class Outer(name: String, inner: Inner)
 
-          val schema = Schema.derived[Outer]
+          val schema: Schema[Outer] = Schema.derived[Outer]
           schema.structural
           """
         }.map { result =>
@@ -206,7 +206,7 @@ object RecursiveTypeErrorSpec extends SchemaBaseSpec {
 
           case class Container(items: List[Int], mapping: Map[String, Int])
 
-          val schema = Schema.derived[Container]
+          val schema: Schema[Container] = Schema.derived[Container]
           schema.structural
           """
         }.map { result =>

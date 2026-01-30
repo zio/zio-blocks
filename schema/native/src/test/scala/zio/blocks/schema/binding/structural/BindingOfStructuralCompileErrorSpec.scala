@@ -4,7 +4,8 @@ import zio.blocks.schema._
 import zio.test._
 
 /**
- * Tests that Binding.of for structural types fails at compile time on Scala Native.
+ * Tests that Binding.of for structural types fails at compile time on Scala
+ * Native.
  *
  * Structural types require reflection APIs that are only available on the JVM.
  */
@@ -25,8 +26,8 @@ object BindingOfStructuralCompileErrorSpec extends SchemaBaseSpec {
             result.isLeft,
             result.swap.exists(msg =>
               msg.toLowerCase.contains("jvm") ||
-              msg.toLowerCase.contains("reflection") ||
-              msg.toLowerCase.contains("structural")
+                msg.toLowerCase.contains("reflection") ||
+                msg.toLowerCase.contains("structural")
             )
           )
         }
@@ -43,8 +44,8 @@ object BindingOfStructuralCompileErrorSpec extends SchemaBaseSpec {
             result.isLeft,
             result.swap.exists(msg =>
               msg.toLowerCase.contains("jvm") ||
-              msg.toLowerCase.contains("reflection") ||
-              msg.toLowerCase.contains("structural")
+                msg.toLowerCase.contains("reflection") ||
+                msg.toLowerCase.contains("structural")
             )
           )
         }

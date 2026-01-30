@@ -25,8 +25,8 @@ object BindingOfStructuralCompileErrorSpec extends SchemaBaseSpec {
             result.isLeft,
             result.swap.exists(msg =>
               msg.toLowerCase.contains("jvm") ||
-              msg.toLowerCase.contains("reflection") ||
-              msg.toLowerCase.contains("structural")
+                msg.toLowerCase.contains("reflection") ||
+                msg.toLowerCase.contains("structural")
             )
           )
         }
@@ -43,8 +43,8 @@ object BindingOfStructuralCompileErrorSpec extends SchemaBaseSpec {
             result.isLeft,
             result.swap.exists(msg =>
               msg.toLowerCase.contains("jvm") ||
-              msg.toLowerCase.contains("reflection") ||
-              msg.toLowerCase.contains("structural")
+                msg.toLowerCase.contains("reflection") ||
+                msg.toLowerCase.contains("structural")
             )
           )
         }

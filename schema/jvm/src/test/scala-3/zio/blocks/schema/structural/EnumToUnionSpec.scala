@@ -32,7 +32,7 @@ object EnumToUnionSpec extends SchemaBaseSpec {
       typeCheck("""
         import zio.blocks.schema._
         enum Color { case Red, Green, Blue }
-        val schema = Schema.derived[Color]
+        val schema: Schema[Color] = Schema.derived[Color]
         val structural: Schema[{def Blue: {}} | {def Green: {}} | {def Red: {}}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },
@@ -44,7 +44,7 @@ object EnumToUnionSpec extends SchemaBaseSpec {
           case Rectangle(width: Double, height: Double)
           case Triangle(base: Double, height: Double)
         }
-        val schema = Schema.derived[Shape]
+        val schema: Schema[Shape] = Schema.derived[Shape]
         val structural: Schema[{def Circle: {def radius: Double}} | {def Rectangle: {def height: Double; def width: Double}} | {def Triangle: {def base: Double; def height: Double}}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },

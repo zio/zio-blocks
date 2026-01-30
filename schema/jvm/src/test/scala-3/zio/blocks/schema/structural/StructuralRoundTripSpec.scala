@@ -115,7 +115,7 @@ object StructuralRoundTripSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           case class Simple(x: Int, y: String)
-          val schema = Schema.derived[Simple]
+          val schema: Schema[Simple] = Schema.derived[Simple]
           val structural: Schema[{def x: Int; def y: String}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       },
@@ -126,7 +126,7 @@ object StructuralRoundTripSpec extends SchemaBaseSpec {
           case class Dog(name: String, breed: String) extends Animal
           case class Cat(name: String, indoor: Boolean) extends Animal
           case object Fish extends Animal
-          val schema = Schema.derived[Animal]
+          val schema: Schema[Animal] = Schema.derived[Animal]
           val structural: Schema[{def Cat: {def indoor: Boolean; def name: String}} | {def Dog: {def breed: String; def name: String}} | {def Fish: {}}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       },
@@ -135,7 +135,7 @@ object StructuralRoundTripSpec extends SchemaBaseSpec {
           import zio.blocks.schema._
           case class Simple(x: Int, y: String)
           case class Nested(inner: Simple, flag: Boolean)
-          val schema = Schema.derived[Nested]
+          val schema: Schema[Nested] = Schema.derived[Nested]
           val structural: Schema[{def flag: Boolean; def inner: Simple}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       }

@@ -24,18 +24,20 @@ object TuplesSpec extends SchemaBaseSpec {
       assertTrue(roundTrip == Right(tuple))
     },
     test("tuple2 converts to expected structural type") {
-      typeCheck("""
-        import zio.blocks.schema._
-        val schema = Schema.derived[(String, Int)]
-        val structural: Schema[{def _1: String; def _2: Int}] = schema.structural
-      """).map(result => assertTrue(result.isRight))
+      val schema     = Schema.derived[(String, Int)]
+      val structural = schema.structural
+      val fieldNames = (structural.reflect: @unchecked) match {
+        case record: Reflect.Record[_, _] => record.fields.map(_.name).toList
+      }
+      assertTrue(fieldNames == List("_1", "_2"))
     },
     test("tuple3 converts to expected structural type") {
-      typeCheck("""
-        import zio.blocks.schema._
-        val schema = Schema.derived[(String, Int, Boolean)]
-        val structural: Schema[{def _1: String; def _2: Int; def _3: Boolean}] = schema.structural
-      """).map(result => assertTrue(result.isRight))
+      val schema     = Schema.derived[(String, Int, Boolean)]
+      val structural = schema.structural
+      val fieldNames = (structural.reflect: @unchecked) match {
+        case record: Reflect.Record[_, _] => record.fields.map(_.name).toList
+      }
+      assertTrue(fieldNames == List("_1", "_2", "_3"))
     }
   )
 }

@@ -24,7 +24,7 @@ object EmptyProductSpec extends SchemaBaseSpec {
       typeCheck("""
         import zio.blocks.schema._
         case class Empty()
-        val schema = Schema.derived[Empty]
+        val schema: Schema[Empty] = Schema.derived[Empty]
         val structural: Schema[{}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },
@@ -32,7 +32,7 @@ object EmptyProductSpec extends SchemaBaseSpec {
       typeCheck("""
         import zio.blocks.schema._
         case object Singleton
-        val schema = Schema.derived[Singleton.type]
+        val schema: Schema[Singleton.type] = Schema.derived[Singleton.type]
         val structural: Schema[{}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     }

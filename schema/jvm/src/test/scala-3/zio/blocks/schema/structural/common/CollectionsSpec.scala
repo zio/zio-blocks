@@ -22,7 +22,7 @@ object CollectionsSpec extends SchemaBaseSpec {
       typeCheck("""
         import zio.blocks.schema._
         import zio.blocks.schema.structural.common.CollectionsSpec._
-        val schema = Schema.derived[Team]
+        val schema: Schema[Team] = Schema.derived[Team]
         val structural: Schema[{def leader: Option[String]; def members: List[String]; def name: String}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },
@@ -30,7 +30,7 @@ object CollectionsSpec extends SchemaBaseSpec {
       typeCheck("""
         import zio.blocks.schema._
         import zio.blocks.schema.structural.common.CollectionsSpec._
-        val schema = Schema.derived[Config]
+        val schema: Schema[Config] = Schema.derived[Config]
         val structural: Schema[{def settings: Map[String, Int]}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     }

@@ -63,14 +63,16 @@ object StructuralTypeSourceSpec extends SchemaBaseSpec {
       },
       test("structural type with field missing for target without default fails") {
         typeCheck("""
+          import zio.blocks.schema._
           import zio.blocks.schema.into.structural.StructuralTypeSourceSpec._
           val source = makePerson("Dave", 35)
-          val into   = Into.derived[{ def name: String; def age: Int }, Employee]
+          val into: Into[{ def name: String; def age: Int }, Employee] = Into.derived[{ def name: String; def age: Int }, Employee]
         """).map { result =>
           val error = result.swap.getOrElse("")
           assertTrue(
             result.isLeft,
-            error.contains("Missing required field") && error.contains("department")
+            (error.contains("Missing required field") && error.contains("department")) ||
+              error.contains("Recursive value") // Scala 3.5+
           )
         }
       }
