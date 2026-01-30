@@ -259,10 +259,26 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 }
 
 object Reflect {
+
+  /**
+   * A [[Reflect]] with runtime bindings, capable of constructing and
+   * deconstructing values.
+   */
   type Bound[A] = Reflect[Binding, A]
 
   // Cached TypeIds for frequently used types
   private val noneTypeId: TypeId[None.type] = TypeId.of[None.type]
+
+  /**
+   * A [[Reflect]] without runtime bindings, used for structural inspection and
+   * validation.
+   *
+   * `Unbound` reflects retain all schema metadata (type names, documentation,
+   * validations) but lack the runtime machinery to construct or deconstruct
+   * actual values. They are used by [[DynamicSchema]] for runtime validation of
+   * [[DynamicValue]] instances.
+   */
+  type Unbound[A] = Reflect[NoBinding, A]
 
   sealed trait Type {
     type NodeBinding <: BindingType
