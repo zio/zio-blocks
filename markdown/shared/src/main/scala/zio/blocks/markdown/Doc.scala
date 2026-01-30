@@ -84,9 +84,7 @@ final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.e
 
   def toHtml: String         = HtmlRenderer.render(this)
   def toHtmlFragment: String = HtmlRenderer.renderFragment(this)
-
-  // TODO: Uncomment after TerminalRenderer is implemented
-  // def toTerminal: String = TerminalRenderer.render(this)
+  def toTerminal: String     = TerminalRenderer.render(this)
 }
 
 object Doc {
