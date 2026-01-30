@@ -345,12 +345,14 @@ Then:
 chmod +x build-scalajs.sh
 ```
 
-## 5) Provide the base guest runtime WASM (`agent_guest.wasm`)
+## 5) Base guest runtime (no user files)
 
-The `zio-golem-sbt` plugin ships a compatible `agent_guest.wasm` embedded as a resource and will ensure it exists at
-`golem-temp/agent_guest.wasm` automatically during normal builds (compile/link), if the file is missing.
+You should **not** commit any WASM or WIT files in the starter project. The Scala
+plugin bundles a compatible `agent_guest.wasm` internally and writes it into
+`golem-temp/agent_guest.wasm` automatically during the first build.
 
-If your project layout is different, set `golemAgentGuestWasmFile` in `scala/build.sbt`
+In other words, the initial project layout should be free of WASM/WIT artifacts;
+`golem-temp/` is created after running the build.
 to point at the desired output file.
 
 ## 6) Deploy + invoke
