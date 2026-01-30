@@ -47,4 +47,54 @@ trait MigrationBuilderVersionSpecific[A, B] { self: MigrationBuilder[A, B] =>
    */
   inline def optionalizeField(inline source: A => Any): MigrationBuilder[A, B] =
     ${ MigrationMacros.optionalizeImpl[A, B]('self, 'source) }
+
+  /**
+   * Transform a field value using a selector on the source type.
+   */
+  inline def transformField(
+    inline source: A => Any,
+    transform: DynamicValue,
+    reverseTransform: Option[DynamicValue]
+  ): MigrationBuilder[A, B] =
+    ${ MigrationMacros.transformFieldImpl[A, B]('self, 'source, 'transform, 'reverseTransform) }
+
+  /**
+   * Change the type of a field using a selector on the source type.
+   */
+  inline def changeFieldType(
+    inline source: A => Any,
+    converter: DynamicValue,
+    reverseConverter: Option[DynamicValue]
+  ): MigrationBuilder[A, B] =
+    ${ MigrationMacros.changeFieldTypeImpl[A, B]('self, 'source, 'converter, 'reverseConverter) }
+
+  /**
+   * Transform all elements in a collection field.
+   */
+  inline def transformElements(
+    inline source: A => Any,
+    transform: DynamicValue,
+    reverseTransform: Option[DynamicValue]
+  ): MigrationBuilder[A, B] =
+    ${ MigrationMacros.transformElementsImpl[A, B]('self, 'source, 'transform, 'reverseTransform) }
+
+  /**
+   * Transform all keys in a map field.
+   */
+  inline def transformKeys(
+    inline source: A => Any,
+    transform: DynamicValue,
+    reverseTransform: Option[DynamicValue]
+  ): MigrationBuilder[A, B] =
+    ${ MigrationMacros.transformKeysImpl[A, B]('self, 'source, 'transform, 'reverseTransform) }
+
+  /**
+   * Transform all values in a map field.
+   */
+  inline def transformValues(
+    inline source: A => Any,
+    transform: DynamicValue,
+    reverseTransform: Option[DynamicValue]
+  ): MigrationBuilder[A, B] =
+    ${ MigrationMacros.transformValuesImpl[A, B]('self, 'source, 'transform, 'reverseTransform) }
 }

@@ -25,5 +25,20 @@ trait MigrationBuilderVersionSpecific[A, B] { self: MigrationBuilder[A, B] =>
 
   /** Make a field optional using a selector on the source type. */
   def optionalizeField(source: A => Any): MigrationBuilder[A, B] = macro MigrationMacros.optionalizeFieldImpl[A, B]
+
+  /** Transform a field value using a selector on the source type. */
+  def transformField(source: A => Any, transform: DynamicValue, reverseTransform: Option[DynamicValue]): MigrationBuilder[A, B] = macro MigrationMacros.transformFieldImpl[A, B]
+
+  /** Change the type of a field using a selector on the source type. */
+  def changeFieldType(source: A => Any, converter: DynamicValue, reverseConverter: Option[DynamicValue]): MigrationBuilder[A, B] = macro MigrationMacros.changeFieldTypeImpl[A, B]
+
+  /** Transform all elements in a collection field. */
+  def transformElements(source: A => Any, transform: DynamicValue, reverseTransform: Option[DynamicValue]): MigrationBuilder[A, B] = macro MigrationMacros.transformElementsImpl[A, B]
+
+  /** Transform all keys in a map field. */
+  def transformKeys(source: A => Any, transform: DynamicValue, reverseTransform: Option[DynamicValue]): MigrationBuilder[A, B] = macro MigrationMacros.transformKeysImpl[A, B]
+
+  /** Transform all values in a map field. */
+  def transformValues(source: A => Any, transform: DynamicValue, reverseTransform: Option[DynamicValue]): MigrationBuilder[A, B] = macro MigrationMacros.transformValuesImpl[A, B]
   // format: on
 }

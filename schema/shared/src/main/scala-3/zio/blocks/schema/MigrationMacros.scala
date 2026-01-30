@@ -86,6 +86,56 @@ object MigrationMacros {
     '{ $builder.optionalize($path) }
   }
 
+  def transformFieldImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    source: Expr[A => Any],
+    transform: Expr[DynamicValue],
+    reverseTransform: Expr[Option[DynamicValue]]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B]] = {
+    val path = extractPath[A](source)
+    '{ $builder.transformValue($path, $transform, $reverseTransform) }
+  }
+
+  def changeFieldTypeImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    source: Expr[A => Any],
+    converter: Expr[DynamicValue],
+    reverseConverter: Expr[Option[DynamicValue]]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B]] = {
+    val path = extractPath[A](source)
+    '{ $builder.changeType($path, $converter, $reverseConverter) }
+  }
+
+  def transformElementsImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    source: Expr[A => Any],
+    transform: Expr[DynamicValue],
+    reverseTransform: Expr[Option[DynamicValue]]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B]] = {
+    val path = extractPath[A](source)
+    '{ $builder.transformElements($path, $transform, $reverseTransform) }
+  }
+
+  def transformKeysImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    source: Expr[A => Any],
+    transform: Expr[DynamicValue],
+    reverseTransform: Expr[Option[DynamicValue]]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B]] = {
+    val path = extractPath[A](source)
+    '{ $builder.transformKeys($path, $transform, $reverseTransform) }
+  }
+
+  def transformValuesImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    source: Expr[A => Any],
+    transform: Expr[DynamicValue],
+    reverseTransform: Expr[Option[DynamicValue]]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B]] = {
+    val path = extractPath[A](source)
+    '{ $builder.transformValues($path, $transform, $reverseTransform) }
+  }
+
   // Extract the last field name from a selector lambda at compile time.
   private def extractLastFieldName[S: Type](path: Expr[S => Any])(using q: Quotes): Expr[String] = {
     import q.reflect.*

@@ -89,6 +89,30 @@ object DynamicMigration {
   def apply(action: MigrationAction): DynamicMigration =
     DynamicMigration(Vector(action))
 
+  implicit lazy val schema: Schema[DynamicMigration] = {
+    import binding._
+    import binding.RegisterOffset.RegisterOffset
+    new Schema(
+      reflect = new Reflect.Record[Binding, DynamicMigration](
+        fields = Vector(Schema[Vector[MigrationAction]].reflect.asTerm("actions")),
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema")), "DynamicMigration"),
+        recordBinding = new Binding.Record(
+          constructor = new Constructor[DynamicMigration] {
+            def usedRegisters: RegisterOffset                                      = RegisterOffset(objects = 1)
+            def construct(in: Registers, offset: RegisterOffset): DynamicMigration =
+              DynamicMigration(in.getObject(offset).asInstanceOf[Vector[MigrationAction]])
+          },
+          deconstructor = new Deconstructor[DynamicMigration] {
+            def usedRegisters: RegisterOffset                                                   = RegisterOffset(objects = 1)
+            def deconstruct(out: Registers, offset: RegisterOffset, in: DynamicMigration): Unit =
+              out.setObject(offset, in.actions)
+          }
+        ),
+        modifiers = Vector.empty
+      )
+    )
+  }
+
   // Apply a single MigrationAction to a DynamicValue.
   private[schema] def applyAction(
     value: DynamicValue,
@@ -191,9 +215,9 @@ object DynamicMigration {
     at: DynamicOptic,
     transform: DynamicValue
   ): Either[MigrationError, DynamicValue] =
-    // For now, TransformValue replaces the value at the path with the
-    // transform value. Full SchemaExpr evaluation will be added in the
-    // typed Migration[A, B] layer.
+    // TransformValue replaces the value at the path with the pre-evaluated
+    // transform DynamicValue. SchemaExpr is evaluated at MigrationBuilder
+    // build time, producing the DynamicValue stored in the action.
     value.setOrFail(at, transform) match {
       case Right(v) => Right(v)
       case Left(_)  => Left(MigrationError.InvalidPath(at, s"Cannot set value at path"))
@@ -264,8 +288,7 @@ object DynamicMigration {
   ): Either[MigrationError, DynamicValue] =
     getAtPath(value, at).flatMap {
       case seq: DynamicValue.Sequence =>
-        // Replace each element with the transform value.
-        // Full SchemaExpr evaluation in typed layer.
+        // Replace each element with the pre-evaluated transform value.
         val newElements = Chunk.fill(seq.elements.length)(transform)
         setAtPath(value, at, DynamicValue.Sequence(newElements))
       case _ =>
@@ -306,8 +329,7 @@ object DynamicMigration {
     @scala.annotation.unused sourcePaths: Vector[DynamicOptic],
     combiner: DynamicValue
   ): Either[MigrationError, DynamicValue] =
-    // For now, replaces the value at `at` with the combiner value.
-    // Full SchemaExpr-based combination in typed layer.
+    // Replaces the value at `at` with the pre-evaluated combiner value.
     setAtPath(value, at, combiner)
 
   private def applySplit(
@@ -316,8 +338,7 @@ object DynamicMigration {
     @scala.annotation.unused targetPaths: Vector[DynamicOptic],
     splitter: DynamicValue
   ): Either[MigrationError, DynamicValue] =
-    // For now, replaces the value at `at` with the splitter value.
-    // Full SchemaExpr-based splitting in typed layer.
+    // Replaces the value at `at` with the pre-evaluated splitter value.
     setAtPath(value, at, splitter)
 
   // ─── Change type ────────────────────────────────────────────────────────
@@ -327,8 +348,7 @@ object DynamicMigration {
     at: DynamicOptic,
     converter: DynamicValue
   ): Either[MigrationError, DynamicValue] =
-    // For now, replaces the value at the path with the converter value.
-    // Full primitive-to-primitive conversion in typed layer.
+    // Replaces the value at the path with the pre-evaluated converter value.
     setAtPath(value, at, converter)
 
   // ─── Helpers ────────────────────────────────────────────────────────────

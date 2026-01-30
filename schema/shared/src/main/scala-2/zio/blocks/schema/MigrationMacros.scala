@@ -75,7 +75,7 @@ object MigrationMacros {
     q"_root_.zio.blocks.schema.DynamicOptic(_root_.scala.Vector(..$parentNodes))"
   }
 
-  // ─── Builder method implementations ──────────────────────────────────
+  // ─── Builder method implementations (original 5) ────────────────────
 
   def addFieldImpl[A, B](c: whitebox.Context)(
     target: c.Tree,
@@ -123,5 +123,57 @@ object MigrationMacros {
     import c.universe._
     val path = extractPath(c)(source)
     q"${c.prefix.tree}.optionalize($path)"
+  }
+
+  // ─── Builder method implementations (new 5) ────────────────────────
+
+  def transformFieldImpl[A, B](c: whitebox.Context)(
+    source: c.Tree,
+    transform: c.Tree,
+    reverseTransform: c.Tree
+  ): c.Tree = {
+    import c.universe._
+    val path = extractPath(c)(source)
+    q"${c.prefix.tree}.transformValue($path, $transform, $reverseTransform)"
+  }
+
+  def changeFieldTypeImpl[A, B](c: whitebox.Context)(
+    source: c.Tree,
+    converter: c.Tree,
+    reverseConverter: c.Tree
+  ): c.Tree = {
+    import c.universe._
+    val path = extractPath(c)(source)
+    q"${c.prefix.tree}.changeType($path, $converter, $reverseConverter)"
+  }
+
+  def transformElementsImpl[A, B](c: whitebox.Context)(
+    source: c.Tree,
+    transform: c.Tree,
+    reverseTransform: c.Tree
+  ): c.Tree = {
+    import c.universe._
+    val path = extractPath(c)(source)
+    q"${c.prefix.tree}.transformElements($path, $transform, $reverseTransform)"
+  }
+
+  def transformKeysImpl[A, B](c: whitebox.Context)(
+    source: c.Tree,
+    transform: c.Tree,
+    reverseTransform: c.Tree
+  ): c.Tree = {
+    import c.universe._
+    val path = extractPath(c)(source)
+    q"${c.prefix.tree}.transformKeys($path, $transform, $reverseTransform)"
+  }
+
+  def transformValuesImpl[A, B](c: whitebox.Context)(
+    source: c.Tree,
+    transform: c.Tree,
+    reverseTransform: c.Tree
+  ): c.Tree = {
+    import c.universe._
+    val path = extractPath(c)(source)
+    q"${c.prefix.tree}.transformValues($path, $transform, $reverseTransform)"
   }
 }

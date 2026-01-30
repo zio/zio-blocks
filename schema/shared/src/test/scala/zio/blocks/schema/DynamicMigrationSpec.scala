@@ -24,6 +24,10 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     transformCaseSuite,
     transformValueSuite,
     changeTypeSuite,
+    transformElementsSuite,
+    transformKeysSuite,
+    transformValuesSuite,
+    joinSplitSuite,
     compositionSuite,
     errorSuite
   )
@@ -375,6 +379,164 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
 
       val expected = DynamicValue.Record("name" -> nameVal, "age" -> DynamicValue.string("30"))
       assertTrue(result == Right(expected))
+    }
+  )
+
+  // ─── TransformElements ─────────────────────────────────────────────────
+
+  lazy val transformElementsSuite: Spec[Any, Nothing] = suite("TransformElements")(
+    test("replaces all elements in a sequence") {
+      val seq    = DynamicValue.Sequence(DynamicValue.int(1), DynamicValue.int(2), DynamicValue.int(3))
+      val record = DynamicValue.Record("items" -> seq)
+
+      val action    = MigrationAction.TransformElements(DynamicOptic.root.field("items"), DynamicValue.int(0), None)
+      val migration = DynamicMigration(action)
+      val result    = migration(record)
+
+      val expected = DynamicValue.Record(
+        "items" -> DynamicValue.Sequence(DynamicValue.int(0), DynamicValue.int(0), DynamicValue.int(0))
+      )
+      assertTrue(result == Right(expected))
+    },
+    test("handles empty sequence") {
+      val record = DynamicValue.Record("items" -> DynamicValue.Sequence.empty)
+
+      val action    = MigrationAction.TransformElements(DynamicOptic.root.field("items"), DynamicValue.int(0), None)
+      val migration = DynamicMigration(action)
+      val result    = migration(record)
+
+      val expected = DynamicValue.Record("items" -> DynamicValue.Sequence.empty)
+      assertTrue(result == Right(expected))
+    },
+    test("fails on non-sequence value") {
+      val action    = MigrationAction.TransformElements(DynamicOptic.root, DynamicValue.int(0), None)
+      val migration = DynamicMigration(action)
+      val result    = migration(personRecord)
+
+      assertTrue(result.isLeft)
+    }
+  )
+
+  // ─── TransformKeys ────────────────────────────────────────────────────
+
+  lazy val transformKeysSuite: Spec[Any, Nothing] = suite("TransformKeys")(
+    test("replaces all keys in a map") {
+      val map = DynamicValue.Map(
+        (DynamicValue.string("a"), DynamicValue.int(1)),
+        (DynamicValue.string("b"), DynamicValue.int(2))
+      )
+      val record = DynamicValue.Record("data" -> map)
+
+      val action    = MigrationAction.TransformKeys(DynamicOptic.root.field("data"), DynamicValue.string("key"), None)
+      val migration = DynamicMigration(action)
+      val result    = migration(record)
+
+      val expected = DynamicValue.Record(
+        "data" -> DynamicValue.Map(
+          (DynamicValue.string("key"), DynamicValue.int(1)),
+          (DynamicValue.string("key"), DynamicValue.int(2))
+        )
+      )
+      assertTrue(result == Right(expected))
+    },
+    test("handles empty map") {
+      val record = DynamicValue.Record("data" -> DynamicValue.Map.empty)
+
+      val action    = MigrationAction.TransformKeys(DynamicOptic.root.field("data"), DynamicValue.string("key"), None)
+      val migration = DynamicMigration(action)
+      val result    = migration(record)
+
+      val expected = DynamicValue.Record("data" -> DynamicValue.Map.empty)
+      assertTrue(result == Right(expected))
+    },
+    test("fails on non-map value") {
+      val action    = MigrationAction.TransformKeys(DynamicOptic.root, DynamicValue.string("key"), None)
+      val migration = DynamicMigration(action)
+      val result    = migration(personRecord)
+
+      assertTrue(result.isLeft)
+    }
+  )
+
+  // ─── TransformValues (map) ────────────────────────────────────────────
+
+  lazy val transformValuesSuite: Spec[Any, Nothing] = suite("TransformValues")(
+    test("replaces all values in a map") {
+      val map = DynamicValue.Map(
+        (DynamicValue.string("a"), DynamicValue.int(1)),
+        (DynamicValue.string("b"), DynamicValue.int(2))
+      )
+      val record = DynamicValue.Record("data" -> map)
+
+      val action    = MigrationAction.TransformValues(DynamicOptic.root.field("data"), DynamicValue.int(0), None)
+      val migration = DynamicMigration(action)
+      val result    = migration(record)
+
+      val expected = DynamicValue.Record(
+        "data" -> DynamicValue.Map(
+          (DynamicValue.string("a"), DynamicValue.int(0)),
+          (DynamicValue.string("b"), DynamicValue.int(0))
+        )
+      )
+      assertTrue(result == Right(expected))
+    },
+    test("fails on non-map value") {
+      val action    = MigrationAction.TransformValues(DynamicOptic.root, DynamicValue.int(0), None)
+      val migration = DynamicMigration(action)
+      val result    = migration(personRecord)
+
+      assertTrue(result.isLeft)
+    }
+  )
+
+  // ─── Join / Split ─────────────────────────────────────────────────────
+
+  lazy val joinSplitSuite: Spec[Any, Nothing] = suite("Join and Split")(
+    test("join replaces value at path with combiner") {
+      val action = MigrationAction.Join(
+        DynamicOptic.root.field("name"),
+        Vector(DynamicOptic.root.field("name"), DynamicOptic.root.field("age")),
+        DynamicValue.string("Alice-30"),
+        None
+      )
+      val migration = DynamicMigration(action)
+      val result    = migration(personRecord)
+
+      val expected = DynamicValue.Record("name" -> DynamicValue.string("Alice-30"), "age" -> ageVal)
+      assertTrue(result == Right(expected))
+    },
+    test("split replaces value at path with splitter") {
+      val splitResult =
+        DynamicValue.Record("first" -> DynamicValue.string("Alice"), "last" -> DynamicValue.string("Smith"))
+      val action = MigrationAction.Split(
+        DynamicOptic.root.field("name"),
+        Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
+        splitResult,
+        None
+      )
+      val migration = DynamicMigration(action)
+      val result    = migration(personRecord)
+
+      val expected = DynamicValue.Record("name" -> splitResult, "age" -> ageVal)
+      assertTrue(result == Right(expected))
+    },
+    test("join reverse.reverse structural identity") {
+      val action = MigrationAction.Join(
+        DynamicOptic.root.field("name"),
+        Vector(DynamicOptic.root.field("name")),
+        DynamicValue.string("combined"),
+        Some(DynamicValue.string("split-back"))
+      )
+      assertTrue(action.reverse.reverse == action)
+    },
+    test("split reverse.reverse structural identity") {
+      val action = MigrationAction.Split(
+        DynamicOptic.root.field("name"),
+        Vector(DynamicOptic.root.field("first")),
+        DynamicValue.string("split"),
+        Some(DynamicValue.string("join-back"))
+      )
+      assertTrue(action.reverse.reverse == action)
     }
   )
 

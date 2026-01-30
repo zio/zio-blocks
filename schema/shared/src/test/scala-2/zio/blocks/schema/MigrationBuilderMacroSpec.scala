@@ -41,10 +41,23 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
     implicit val schema: Schema[PersonWithAddress2] = Schema.derived
   }
 
+  case class PersonWithList(name: String, scores: List[Int])
+
+  object PersonWithList {
+    implicit val schema: Schema[PersonWithList] = Schema.derived
+  }
+
+  case class PersonWithMap(name: String, data: Map[String, Int])
+
+  object PersonWithMap {
+    implicit val schema: Schema[PersonWithMap] = Schema.derived
+  }
+
   val defaultEmail: DynamicValue = DynamicValue.string("unknown@example.com")
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationBuilderMacroSpec")(
     selectorSuite,
+    transformSuite,
     endToEndSuite
   )
 
@@ -84,6 +97,56 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
 
       val result = migration(PersonWithAddress("Alice", Address("123 Main", "NYC")))
       assert(result)(isRight(equalTo(PersonWithAddress2("Alice", Address("123 Main", "NYC"), true))))
+    }
+  )
+
+  val transformSuite: Spec[Any, Nothing] = suite("Transform macros")(
+    test("transformField with selector") {
+      val migration = Migration
+        .builder[PersonV1, PersonV1]
+        .transformField(_.age, DynamicValue.int(99), None)
+        .buildPartial
+
+      val result = migration(PersonV1("Alice", 30))
+      assert(result)(isRight(equalTo(PersonV1("Alice", 99))))
+    },
+    test("changeFieldType with selector") {
+      val migration = Migration
+        .builder[PersonV1, PersonV1]
+        .changeFieldType(_.age, DynamicValue.int(42), None)
+        .buildPartial
+
+      val result = migration(PersonV1("Alice", 30))
+      assert(result)(isRight(equalTo(PersonV1("Alice", 42))))
+    },
+    test("transformElements with selector") {
+      val migration = Migration
+        .builder[PersonWithList, PersonWithList]
+        .transformElements(_.scores, DynamicValue.int(0), None)
+        .buildPartial
+
+      val result = migration(PersonWithList("Alice", List(1, 2, 3)))
+      assert(result)(isRight(equalTo(PersonWithList("Alice", List(0, 0, 0)))))
+    },
+    test("transformKeys with selector") {
+      val migration = Migration
+        .builder[PersonWithMap, PersonWithMap]
+        .transformKeys(_.data, DynamicValue.string("key"), None)
+        .buildPartial
+
+      val input  = PersonWithMap("Alice", Map("a" -> 1, "b" -> 2))
+      val result = migration(input)
+      assertTrue(result.isRight)
+    },
+    test("transformValues with selector") {
+      val migration = Migration
+        .builder[PersonWithMap, PersonWithMap]
+        .transformValues(_.data, DynamicValue.int(0), None)
+        .buildPartial
+
+      val input  = PersonWithMap("Alice", Map("a" -> 1, "b" -> 2))
+      val result = migration(input)
+      assert(result)(isRight(equalTo(PersonWithMap("Alice", Map("a" -> 0, "b" -> 0)))))
     }
   )
 
