@@ -57,11 +57,37 @@ object ToMarkdownSpec extends MarkdownBaseSpec {
         val result = ToMarkdown[Seq[String]].toMarkdown(Seq("m", "n"))
         assertTrue(result == Text("m, n"))
       },
-      test("List of Inline elements renders correctly") {
-        val inlines = List(Code("a"), Code("b"))
-        val result  = ToMarkdown[List[Inline]].toMarkdown(inlines)
-        assertTrue(result == Text("`a`, `b`"))
-      }
-    )
+       test("List of Inline elements renders correctly") {
+         val inlines = List(Code("a"), Code("b"))
+         val result  = ToMarkdown[List[Inline]].toMarkdown(inlines)
+         assertTrue(result == Text("`a`, `b`"))
+       }
+     ),
+     suite("Blocks")(
+       test("Paragraph converts to rendered markdown") {
+         val block = Paragraph(Chunk(Text("hello")))
+         val result = ToMarkdown[Block].toMarkdown(block)
+         assertTrue(result == Text("hello"))
+       },
+       test("Heading converts to rendered markdown") {
+         val block = Heading(HeadingLevel.H1, Chunk(Text("Title")))
+         val result = ToMarkdown[Block].toMarkdown(block)
+         assertTrue(result == Text("# Title"))
+       },
+       test("CodeBlock converts to rendered markdown") {
+         val block = CodeBlock(Some("scala"), "val x = 1")
+         val result = ToMarkdown[Block].toMarkdown(block)
+         assertTrue(result == Text("```scala\nval x = 1\n```"))
+       },
+       test("ThematicBreak converts to rendered markdown") {
+         val result = ToMarkdown[Block].toMarkdown(ThematicBreak)
+         assertTrue(result == Text("---"))
+       },
+       test("BlockQuote converts to rendered markdown") {
+         val block = BlockQuote(Chunk(Paragraph(Chunk(Text("quoted")))))
+         val result = ToMarkdown[Block].toMarkdown(block)
+         assertTrue(result == Text("> quoted\n>"))
+       }
+     )
   )
 }
