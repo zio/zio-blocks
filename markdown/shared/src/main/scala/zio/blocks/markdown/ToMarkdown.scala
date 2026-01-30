@@ -32,6 +32,7 @@ trait ToMarkdown[-A] {
 }
 
 object ToMarkdown {
+  import zio.blocks.chunk.Chunk
 
   /**
    * Summon an implicit ToMarkdown instance.
@@ -60,4 +61,20 @@ object ToMarkdown {
 
   /** Identity conversion for inline elements. */
   implicit val inlineToMarkdown: ToMarkdown[Inline] = (a: Inline) => a
+
+  /** Convert List[A] to comma-separated text when A has ToMarkdown. */
+  implicit def listToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[List[A]] = (as: List[A]) =>
+    Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
+
+  /** Convert Chunk[A] to comma-separated text when A has ToMarkdown. */
+  implicit def chunkToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[Chunk[A]] = (as: Chunk[A]) =>
+    Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
+
+  /** Convert Vector[A] to comma-separated text when A has ToMarkdown. */
+  implicit def vectorToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[Vector[A]] = (as: Vector[A]) =>
+    Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
+
+  /** Convert Seq[A] to comma-separated text when A has ToMarkdown. */
+  implicit def seqToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[Seq[A]] = (as: Seq[A]) =>
+    Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
 }
