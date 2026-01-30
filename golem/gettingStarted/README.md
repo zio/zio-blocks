@@ -244,6 +244,23 @@ components:
     templates: scala.js
 ```
 
+### Adding Golem AI provider dependencies
+
+Golem AI is a unified API, but you still need to add the provider WASM as a
+component dependency. Add a `dependencies:` section under your component in
+`components-js/<component>/golem.yaml`.
+
+Example (Ollama provider for LLMs):
+
+```yaml
+components:
+  scala:demo:
+    templates: scala.js
+    dependencies:
+    - type: wasm
+      url: https://github.com/golemcloud/golem-ai/releases/download/v0.4.0/golem_llm_ollama.wasm
+```
+
 Create `build-scalajs.sh`:
 
 ```bash

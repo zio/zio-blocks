@@ -242,6 +242,23 @@ env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes repl org:component --disable-strea
 
 The same approach applies: the `scala.js` template can invoke `mill` instead of `sbt` to produce the JS module.
 
+### Golem AI provider dependencies
+
+Golem AI exposes a unified API, but you must still add the provider WASM as a
+component dependency in your app manifest. Add a `dependencies:` section under
+your component entry in `components-js/<component>/golem.yaml`.
+
+Example (Ollama provider for LLMs):
+
+```yaml
+components:
+  scala:demo:
+    templates: scala.js
+    dependencies:
+    - type: wasm
+      url: https://github.com/golemcloud/golem-ai/releases/download/v0.4.0/golem_llm_ollama.wasm
+```
+
 ## Host API surface (Scala.js)
 
 The Scala SDK exposes host APIs in two layers:
