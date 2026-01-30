@@ -849,8 +849,8 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     }
 
     var currentOffset: Long = 0L
-    val fields = members.map { case (name, memberTpe) =>
-      val kind = structuralRegisterKind(memberTpe)
+    val fields              = members.map { case (name, memberTpe) =>
+      val kind        = structuralRegisterKind(memberTpe)
       val fieldOffset = currentOffset
       currentOffset += offsetDelta(kind)
       FieldInfo(name, memberTpe, kind, fieldOffset)
@@ -859,8 +859,8 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
 
     // Generate anonymous class method definitions for the constructor
     val methodDefs = fields.zipWithIndex.map { case (f, idx) =>
-      val fieldName = TermName(f.name)
-      val fieldTpe = f.tpe
+      val fieldName  = TermName(f.name)
+      val fieldTpe   = f.tpe
       val idxLiteral = Literal(Constant(idx))
       q"def $fieldName: $fieldTpe = values($idxLiteral).asInstanceOf[$fieldTpe]"
     }
@@ -884,7 +884,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     // Generate deconstructor statements using reflection
     val deconstructStatements = fields.map { f =>
       val fieldNameStr = f.name
-      val offsetLit = Literal(Constant(f.fieldOffset))
+      val offsetLit    = Literal(Constant(f.fieldOffset))
       f.kind match {
         case "boolean" =>
           q"""

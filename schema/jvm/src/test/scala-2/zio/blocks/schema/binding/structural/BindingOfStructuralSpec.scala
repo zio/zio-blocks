@@ -9,8 +9,8 @@ import scala.language.reflectiveCalls
 /**
  * Tests for Binding.of derivation for structural types (Scala 2 version).
  *
- * Scala 2 supports structural records with `with` for intersection types.
- * Union types are not supported (Scala 3 only).
+ * Scala 2 supports structural records with `with` for intersection types. Union
+ * types are not supported (Scala 3 only).
  */
 object BindingOfStructuralSpec extends SchemaBaseSpec {
 
@@ -336,7 +336,7 @@ object BindingOfStructuralSpec extends SchemaBaseSpec {
       val baseOffset = RegisterOffset(objects = 5, ints = 3)
 
       val person: Person = new { def name = "Eve"; def age = 40 }
-      val registers                            = createRegisters(record)
+      val registers      = createRegisters(record)
       record.deconstructor.deconstruct(registers, baseOffset, person)
 
       val age  = registers.getInt(RegisterOffset.add(baseOffset, 0L))
