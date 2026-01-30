@@ -32,13 +32,14 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses heading with inline formatting") {
         val result = Parser.parse("# Hello *world*")
-        val doc    = result.toOption.get
-        val h      = doc.blocks.head.asInstanceOf[Heading]
         assertTrue(
-          h.level == HeadingLevel.H1,
-          h.content.size == 2,
-          h.content(0) == Text("Hello "),
-          h.content(1).isInstanceOf[Emphasis]
+          result == Right(
+            Document(
+              Chunk(
+                Heading(HeadingLevel.H1, Chunk(Text("Hello "), Emphasis(Chunk(Text("world")))))
+              )
+            )
+          )
         )
       },
       test("parses heading with trailing hashes") {
@@ -53,33 +54,51 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses multiple paragraphs") {
         val result = Parser.parse("Para 1\n\nPara 2")
-        assertTrue(result.isRight && result.toOption.get.blocks.size == 2)
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(Chunk(Text("Para 1"))),
+                Paragraph(Chunk(Text("Para 2")))
+              )
+            )
+          )
+        )
       },
       test("parses paragraph with soft break") {
         val result = Parser.parse("Line 1\nLine 2")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
         assertTrue(
-          para.content.size == 3,
-          para.content(0) == Text("Line 1"),
-          para.content(1) == SoftBreak,
-          para.content(2) == Text("Line 2")
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(Chunk(Text("Line 1"), SoftBreak, Text("Line 2")))
+              )
+            )
+          )
         )
       },
       test("parses paragraph with hard break (two spaces)") {
         val result = Parser.parse("Line 1  \nLine 2")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
         assertTrue(
-          para.content.contains(HardBreak)
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(Chunk(Text("Line 1"), HardBreak, Text("Line 2")))
+              )
+            )
+          )
         )
       },
       test("parses paragraph with hard break (backslash)") {
         val result = Parser.parse("Line 1\\\nLine 2")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
         assertTrue(
-          para.content.contains(HardBreak)
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(Chunk(Text("Line 1"), HardBreak, Text("Line 2")))
+              )
+            )
+          )
         )
       }
     ),
@@ -130,65 +149,160 @@ object ParserSpec extends MarkdownBaseSpec {
     suite("Block quotes")(
       test("parses simple block quote") {
         val result = Parser.parse("> quoted text")
-        val doc    = result.toOption.get
-        val bq     = doc.blocks.head.asInstanceOf[BlockQuote]
         assertTrue(
-          bq.content.size == 1,
-          bq.content.head.isInstanceOf[Paragraph]
+          result == Right(
+            Document(
+              Chunk(
+                BlockQuote(Chunk(Paragraph(Chunk(Text("quoted text")))))
+              )
+            )
+          )
         )
       },
       test("parses multi-line block quote") {
         val result = Parser.parse("> line 1\n> line 2")
-        val doc    = result.toOption.get
-        val bq     = doc.blocks.head.asInstanceOf[BlockQuote]
-        assertTrue(bq.content.size == 1)
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                BlockQuote(
+                  Chunk(
+                    Paragraph(Chunk(Text("line 1"), SoftBreak, Text("line 2")))
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("parses nested block quote") {
         val result = Parser.parse("> > nested")
-        val doc    = result.toOption.get
-        val bq     = doc.blocks.head.asInstanceOf[BlockQuote]
-        assertTrue(bq.content.head.isInstanceOf[BlockQuote])
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                BlockQuote(
+                  Chunk(
+                    BlockQuote(Chunk(Paragraph(Chunk(Text("nested")))))
+                  )
+                )
+              )
+            )
+          )
+        )
       }
     ),
     suite("Bullet lists")(
       test("parses bullet list with dash") {
         val input  = "- item 1\n- item 2"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        val list   = doc.blocks.head.asInstanceOf[BulletList]
         assertTrue(
-          list.items.size == 2
+          result == Right(
+            Document(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("item 1")))), None),
+                    ListItem(Chunk(Paragraph(Chunk(Text("item 2")))), None)
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
         )
       },
       test("parses bullet list with asterisk") {
         val input  = "* item 1\n* item 2"
         val result = Parser.parse(input)
-        assertTrue(result.isRight && result.toOption.get.blocks.head.isInstanceOf[BulletList])
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("item 1")))), None),
+                    ListItem(Chunk(Paragraph(Chunk(Text("item 2")))), None)
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
       },
       test("parses bullet list with plus") {
         val input  = "+ item 1\n+ item 2"
         val result = Parser.parse(input)
-        assertTrue(result.isRight && result.toOption.get.blocks.head.isInstanceOf[BulletList])
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("item 1")))), None),
+                    ListItem(Chunk(Paragraph(Chunk(Text("item 2")))), None)
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
       },
       test("parses task list unchecked") {
         val input  = "- [ ] unchecked"
         val result = Parser.parse(input)
-        val list   = result.toOption.get.blocks.head.asInstanceOf[BulletList]
-        assertTrue(list.items(0).checked == Some(false))
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("unchecked")))), Some(false))
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
       },
       test("parses task list checked") {
         val input  = "- [x] checked"
         val result = Parser.parse(input)
-        val list   = result.toOption.get.blocks.head.asInstanceOf[BulletList]
-        assertTrue(list.items(0).checked == Some(true))
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("checked")))), Some(true))
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
       },
       test("parses mixed task list") {
         val input  = "- [ ] unchecked\n- [x] checked"
         val result = Parser.parse(input)
-        val list   = result.toOption.get.blocks.head.asInstanceOf[BulletList]
         assertTrue(
-          list.items(0).checked == Some(false),
-          list.items(1).checked == Some(true)
+          result == Right(
+            Document(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("unchecked")))), Some(false)),
+                    ListItem(Chunk(Paragraph(Chunk(Text("checked")))), Some(true))
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
         )
       }
     ),
@@ -196,59 +310,110 @@ object ParserSpec extends MarkdownBaseSpec {
       test("parses ordered list") {
         val input  = "1. first\n2. second"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        val list   = doc.blocks.head.asInstanceOf[OrderedList]
         assertTrue(
-          list.start == 1,
-          list.items.size == 2
+          result == Right(
+            Document(
+              Chunk(
+                OrderedList(
+                  1,
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("first")))), None),
+                    ListItem(Chunk(Paragraph(Chunk(Text("second")))), None)
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
         )
       },
       test("parses ordered list starting at different number") {
         val input  = "5. fifth\n6. sixth"
         val result = Parser.parse(input)
-        val list   = result.toOption.get.blocks.head.asInstanceOf[OrderedList]
-        assertTrue(list.start == 5)
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                OrderedList(
+                  5,
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("fifth")))), None),
+                    ListItem(Chunk(Paragraph(Chunk(Text("sixth")))), None)
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
       }
     ),
     suite("Tables")(
       test("parses simple table") {
         val input  = "| a | b |\n|---|---|\n| 1 | 2 |"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        val table  = doc.blocks.head.asInstanceOf[Table]
         assertTrue(
-          table.header.cells.size == 2,
-          table.rows.size == 1
+          result == Right(
+            Document(
+              Chunk(
+                Table(
+                  TableRow(Chunk(Chunk(Text("a")), Chunk(Text("b")))),
+                  Chunk(Alignment.None, Alignment.None),
+                  Chunk(TableRow(Chunk(Chunk(Text("1")), Chunk(Text("2")))))
+                )
+              )
+            )
+          )
         )
       },
       test("parses table with alignment") {
         val input  = "| left | center | right |\n|:---|:---:|---:|\n| a | b | c |"
         val result = Parser.parse(input)
-        val table  = result.toOption.get.blocks.head.asInstanceOf[Table]
         assertTrue(
-          table.alignments(0) == Alignment.Left,
-          table.alignments(1) == Alignment.Center,
-          table.alignments(2) == Alignment.Right
+          result == Right(
+            Document(
+              Chunk(
+                Table(
+                  TableRow(Chunk(Chunk(Text("left")), Chunk(Text("center")), Chunk(Text("right")))),
+                  Chunk(Alignment.Left, Alignment.Center, Alignment.Right),
+                  Chunk(TableRow(Chunk(Chunk(Text("a")), Chunk(Text("b")), Chunk(Text("c")))))
+                )
+              )
+            )
+          )
         )
       },
       test("parses table with multiple rows") {
         val input  = "| h1 | h2 |\n|---|---|\n| r1c1 | r1c2 |\n| r2c1 | r2c2 |"
         val result = Parser.parse(input)
-        val table  = result.toOption.get.blocks.head.asInstanceOf[Table]
-        assertTrue(table.rows.size == 2)
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Table(
+                  TableRow(Chunk(Chunk(Text("h1")), Chunk(Text("h2")))),
+                  Chunk(Alignment.None, Alignment.None),
+                  Chunk(
+                    TableRow(Chunk(Chunk(Text("r1c1")), Chunk(Text("r1c2")))),
+                    TableRow(Chunk(Chunk(Text("r2c1")), Chunk(Text("r2c2"))))
+                  )
+                )
+              )
+            )
+          )
+        )
       }
     ),
     suite("HTML blocks")(
       test("parses HTML block") {
         val input  = "<div>\n  content\n</div>"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[HtmlBlock])
+        assertTrue(result == Right(Document(Chunk(HtmlBlock("<div>\n  content\n</div>")))))
       },
       test("parses self-closing HTML") {
         val input  = "<br/>"
         val result = Parser.parse(input)
-        assertTrue(result.isRight && result.toOption.get.blocks.head.isInstanceOf[HtmlBlock])
+        assertTrue(result == Right(Document(Chunk(HtmlBlock("<br/>")))))
       }
     ),
     suite("Inline formatting")(
@@ -260,8 +425,15 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses emphasis with underscore") {
         val result = Parser.parse("_hello_")
-        val para   = result.toOption.get.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.head.isInstanceOf[Emphasis])
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(Chunk(Emphasis(Chunk(Text("hello")))))
+              )
+            )
+          )
+        )
       },
       test("parses strong with double asterisk") {
         val result = Parser.parse("**bold**")
@@ -271,8 +443,15 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses strong with double underscore") {
         val result = Parser.parse("__bold__")
-        val para   = result.toOption.get.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.head.isInstanceOf[Strong])
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(Chunk(Strong(Chunk(Text("bold")))))
+              )
+            )
+          )
+        )
       },
       test("parses strikethrough") {
         val result = Parser.parse("~~deleted~~")
@@ -350,25 +529,57 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses bare URL") {
         val result = Parser.parse("Visit https://example.com today")
-        val para   = result.toOption.get.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists(_.isInstanceOf[Autolink]))
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(
+                  Chunk(
+                    Text("Visit "),
+                    Autolink("https://example.com", false),
+                    Text(" today")
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("parses nested emphasis in strong") {
         val result = Parser.parse("**bold *and italic***")
-        val para   = result.toOption.get.blocks.head.asInstanceOf[Paragraph]
-        val strong = para.content.head.asInstanceOf[Strong]
-        assertTrue(strong.content.exists(_.isInstanceOf[Emphasis]))
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(
+                  Chunk(
+                    Strong(
+                      Chunk(
+                        Text("bold "),
+                        Emphasis(Chunk(Text("and italic")))
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
       }
     ),
     suite("Mixed content")(
       test("parses heading followed by paragraph") {
         val input  = "# Title\n\nSome text"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
         assertTrue(
-          doc.blocks.size == 2,
-          doc.blocks(0).isInstanceOf[Heading],
-          doc.blocks(1).isInstanceOf[Paragraph]
+          result == Right(
+            Document(
+              Chunk(
+                Heading(HeadingLevel.H1, Chunk(Text("Title"))),
+                Paragraph(Chunk(Text("Some text")))
+              )
+            )
+          )
         )
       },
       test("parses complex document") {
@@ -386,7 +597,33 @@ object ParserSpec extends MarkdownBaseSpec {
                       |- item 2
                       |""".stripMargin
         val result = Parser.parse(input)
-        assertTrue(result.isRight && result.toOption.get.blocks.size >= 5)
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Heading(HeadingLevel.H1, Chunk(Text("Title"))),
+                Paragraph(
+                  Chunk(
+                    Text("A paragraph with "),
+                    Emphasis(Chunk(Text("emphasis"))),
+                    Text(" and "),
+                    Strong(Chunk(Text("strong"))),
+                    Text(".")
+                  )
+                ),
+                Heading(HeadingLevel.H2, Chunk(Text("Subtitle"))),
+                CodeBlock(Some("scala"), "val x = 1"),
+                BulletList(
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("item 1")))), None),
+                    ListItem(Chunk(Paragraph(Chunk(Text("item 2")))), None)
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
       }
     ),
     suite("Empty and whitespace")(
@@ -402,200 +639,258 @@ object ParserSpec extends MarkdownBaseSpec {
     suite("Edge cases")(
       test("parses heading without space after hash") {
         val result = Parser.parse("#NoSpace")
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[Heading])
+        assertTrue(result == Right(Document(Chunk(Heading(HeadingLevel.H1, Chunk(Text("#NoSpace")))))))
       },
       test("parses thematic break with less than 3 chars as paragraph") {
         val result = Parser.parse("--")
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[Paragraph])
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("--")))))))
       },
       test("parses thematic break with mixed chars as paragraph") {
         val result = Parser.parse("-*-")
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[Paragraph])
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("-*-")))))))
       },
       test("parses multi-line HTML block") {
         val input  = "<div>\n  <p>content</p>\n</div>"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[HtmlBlock])
+        assertTrue(result == Right(Document(Chunk(HtmlBlock("<div>\n  <p>content</p>\n</div>")))))
       },
       test("parses HTML block followed by blank line") {
         val input  = "<div>content</div>\n\nParagraph"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
         assertTrue(
-          doc.blocks.size == 2,
-          doc.blocks(0).isInstanceOf[HtmlBlock],
-          doc.blocks(1).isInstanceOf[Paragraph]
+          result == Right(
+            Document(
+              Chunk(
+                HtmlBlock("<div>content</div>"),
+                Paragraph(Chunk(Text("Paragraph")))
+              )
+            )
+          )
         )
       },
       test("parses unclosed angle bracket as text") {
         val result = Parser.parse("a < b")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists(_.isInstanceOf[Text]))
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("a < b")))))))
       },
       test("parses unclosed emphasis as text") {
         val result = Parser.parse("*unclosed")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v.contains("*")
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("*unclosed")))))))
       },
       test("parses unclosed strong as text") {
         val result = Parser.parse("**unclosed")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v.contains("**")
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("**unclosed")))))))
       },
       test("parses unclosed strikethrough as text") {
         val result = Parser.parse("~~unclosed")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v.contains("~~")
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("~~unclosed")))))))
       },
       test("parses unclosed inline code as text") {
         val result = Parser.parse("`unclosed")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v.contains("`")
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("`unclosed")))))))
       },
       test("parses unclosed link as text") {
         val result = Parser.parse("[unclosed")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v.contains("[")
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("[unclosed")))))))
       },
       test("parses unclosed image as text") {
         val result = Parser.parse("![unclosed")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v.contains("!")
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("![unclosed")))))))
       },
       test("parses link without closing paren as text") {
         val result = Parser.parse("[text](url")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v.contains("[")
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("[text](url")))))))
       },
       test("parses table without delimiter row as paragraph") {
         val result = Parser.parse("| a | b |")
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[Paragraph])
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("| a | b |")))))))
       },
       test("parses table with invalid delimiter as paragraph") {
         val input  = "| a | b |\n| x | y |"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[Paragraph])
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(Chunk(Text("| a | b |"), SoftBreak, Text("| x | y |")))
+              )
+            )
+          )
+        )
       },
       test("parses triple asterisk emphasis") {
         val result = Parser.parse("***bold and italic***")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        val strong = para.content.head.asInstanceOf[Strong]
-        assertTrue(strong.content.head.isInstanceOf[Emphasis])
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(
+                  Chunk(
+                    Strong(
+                      Chunk(
+                        Emphasis(Chunk(Text("bold and italic")))
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("parses triple underscore emphasis") {
         val result = Parser.parse("___bold and italic___")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        val strong = para.content.head.asInstanceOf[Strong]
-        assertTrue(strong.content.head.isInstanceOf[Emphasis])
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(
+                  Chunk(
+                    Strong(
+                      Chunk(
+                        Emphasis(Chunk(Text("bold and italic")))
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("parses unclosed triple asterisk") {
         val result = Parser.parse("***unclosed")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.nonEmpty)
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("***unclosed")))))))
       },
       test("parses double backtick code without closing") {
         val result = Parser.parse("``unclosed")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v.contains("``")
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("``unclosed")))))))
       },
       test("parses HTML inline tag") {
         val result = Parser.parse("text <span>inline</span> more")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists(_.isInstanceOf[HtmlInline]))
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(
+                  Chunk(
+                    Text("text "),
+                    HtmlInline("<span>"),
+                    Text("inline"),
+                    HtmlInline("</span>"),
+                    Text(" more")
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("parses bare http URL") {
         val result = Parser.parse("Visit http://example.com today")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Autolink(url, _) => url.startsWith("http://")
-          case _                => false
-        })
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(
+                  Chunk(
+                    Text("Visit "),
+                    Autolink("http://example.com", false),
+                    Text(" today")
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("parses link with title using single quotes") {
         val result = Parser.parse("[text](url)")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        val link   = para.content.head.asInstanceOf[Link]
-        assertTrue(link.url == "url")
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(Chunk(Link(Chunk(Text("text")), "url", None)))
+              )
+            )
+          )
+        )
       },
       test("parses nested list item content") {
         val input  = "- item 1\n  continuation"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        val list   = doc.blocks.head.asInstanceOf[BulletList]
-        assertTrue(list.items.size == 1)
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(
+                      Chunk(
+                        Paragraph(Chunk(Text("item 1"), SoftBreak, Text("continuation")))
+                      ),
+                      None
+                    )
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
       },
       test("parses ordered list with continuation") {
         val input  = "1. item 1\n   continuation"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        val list   = doc.blocks.head.asInstanceOf[OrderedList]
-        assertTrue(list.items.size == 1)
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                OrderedList(
+                  1,
+                  Chunk(
+                    ListItem(
+                      Chunk(
+                        Paragraph(Chunk(Text("item 1"), SoftBreak, Text("continuation")))
+                      ),
+                      None
+                    )
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
       },
       test("handles empty paragraph lines") {
         val result = Parser.parse("text\n\n")
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.size == 1)
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("text")))))))
       },
       test("parses paragraph ending with block element") {
         val input  = "text\n# Heading"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
         assertTrue(
-          doc.blocks.size == 2,
-          doc.blocks(0).isInstanceOf[Paragraph],
-          doc.blocks(1).isInstanceOf[Heading]
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(Chunk(Text("text"))),
+                Heading(HeadingLevel.H1, Chunk(Text("Heading")))
+              )
+            )
+          )
         )
       },
       test("parses block quote without space after marker") {
         val result = Parser.parse(">text")
-        val doc    = result.toOption.get
-        val bq     = doc.blocks.head.asInstanceOf[BlockQuote]
-        assertTrue(bq.content.nonEmpty)
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                BlockQuote(Chunk(Paragraph(Chunk(Text("text")))))
+              )
+            )
+          )
+        )
       },
       test("parses thematic break with only spaces between chars") {
         val result = Parser.parse("- - - - -")
@@ -603,73 +898,92 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses image without closing paren") {
         val result = Parser.parse("![alt](url")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v.contains("!")
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("![alt](url")))))))
       },
       test("parses image with incomplete bracket") {
         val result = Parser.parse("![alt")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v.contains("!")
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("![alt")))))))
       },
       test("parses URL at end of text") {
         val result = Parser.parse("Visit https://example.com")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists(_.isInstanceOf[Autolink]))
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(
+                  Chunk(
+                    Text("Visit "),
+                    Autolink("https://example.com", false)
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("parses text with special char at start") {
         val result = Parser.parse("*")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.exists {
-          case Text(v) => v == "*"
-          case _       => false
-        })
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("*")))))))
       },
       test("parses HTML block without closing tag") {
         val input  = "<div>\ncontent"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[HtmlBlock])
+        assertTrue(result == Right(Document(Chunk(HtmlBlock("<div>\ncontent")))))
       },
       test("parses HTML block with unclosed angle bracket") {
         val input  = "<div"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[HtmlBlock])
+        assertTrue(result == Right(Document(Chunk(HtmlBlock("<div")))))
       },
       test("parses table without leading pipe") {
         val input  = "a | b\n---|---\n1 | 2"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[Table])
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Table(
+                  TableRow(Chunk(Chunk(Text("a")), Chunk(Text("b")))),
+                  Chunk(Alignment.None, Alignment.None),
+                  Chunk(TableRow(Chunk(Chunk(Text("1")), Chunk(Text("2")))))
+                )
+              )
+            )
+          )
+        )
       },
       test("parses table without trailing pipe") {
         val input  = "| a | b\n|---|---\n| 1 | 2"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[Table])
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Table(
+                  TableRow(Chunk(Chunk(Text("a")), Chunk(Text("b")))),
+                  Chunk(Alignment.None, Alignment.None),
+                  Chunk(TableRow(Chunk(Chunk(Text("1")), Chunk(Text("2")))))
+                )
+              )
+            )
+          )
+        )
       },
       test("parses link with malformed title") {
         val result = Parser.parse("""[text](url "title)""")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        val link   = para.content.head.asInstanceOf[Link]
-        assertTrue(link.title.isEmpty)
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                Paragraph(Chunk(Link(Chunk(Text("text")), "url \"title", None)))
+              )
+            )
+          )
+        )
       },
       test("parses triple asterisk without closing as text") {
         val result = Parser.parse("***no close")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.nonEmpty)
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("***no close")))))))
       },
       test("parses empty inline content") {
         val result = Parser.parse("")
@@ -677,27 +991,35 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses text only paragraph") {
         val result = Parser.parse("just plain text")
-        val doc    = result.toOption.get
-        val para   = doc.blocks.head.asInstanceOf[Paragraph]
-        assertTrue(para.content.size == 1 && para.content.head.isInstanceOf[Text])
+        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("just plain text")))))))
       },
       test("parses HTML comment block") {
         val input  = "<!-- comment -->"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[HtmlBlock])
+        assertTrue(result == Right(Document(Chunk(HtmlBlock("<!-- comment -->")))))
       },
       test("parses closing HTML tag block") {
         val input  = "</div>"
         val result = Parser.parse(input)
-        val doc    = result.toOption.get
-        assertTrue(doc.blocks.head.isInstanceOf[HtmlBlock])
+        assertTrue(result == Right(Document(Chunk(HtmlBlock("</div>")))))
       },
       test("parses task list with uppercase X") {
         val input  = "- [X] checked"
         val result = Parser.parse(input)
-        val list   = result.toOption.get.blocks.head.asInstanceOf[BulletList]
-        assertTrue(list.items(0).checked == Some(true))
+        assertTrue(
+          result == Right(
+            Document(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("checked")))), Some(true))
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
       }
     )
   )
