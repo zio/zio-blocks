@@ -6,7 +6,7 @@ package zio.blocks.typeid
  * TypeRepr can represent:
  *   - Simple type references (`Int`, `String`)
  *   - Applied types (`List[Int]`, `Map[String, Int]`)
- *   - Type parameter references (`A`, `F[_]`)
+ *   - Type parameter references (`A`, `F[?]`)
  *   - Structural/refinement types (`{ def foo: Int }`)
  *   - Intersection types (`A & B & C`)
  *   - Union types (`A | B | C`)
@@ -66,7 +66,7 @@ object TypeRepr {
    *   - `Int` → `Ref(intId)` where `intId.arity == 0`
    *   - `List` (unapplied) → `Ref(listId)` where `listId.arity == 1`
    */
-  final case class Ref(id: TypeId[_]) extends TypeRepr
+  final case class Ref(id: TypeId[?]) extends TypeRepr
 
   /**
    * Reference to a type parameter.

@@ -10,7 +10,7 @@ package zio.blocks.typeid
  *   - `A` would be `TypeParam("A", 0, Variance.Covariant)`
  *   - `B` would be `TypeParam("B", 1, Variance.Covariant)`
  *
- * For `Functor[F[_]]`:
+ * For `Functor[F[?]]`:
  *   - `F` would be
  *     `TypeParam("F", 0, Variance.Invariant, TypeBounds.Unbounded, Kind.Star1)`
  *
@@ -109,7 +109,7 @@ object TypeParam {
     TypeParam(name, index, bounds = TypeBounds.upper(upper))
 
   /**
-   * Creates a higher-kinded type parameter (F[_]).
+   * Creates a higher-kinded type parameter (F[?]).
    */
   def higherKinded(name: String, index: Int, arity: Int = 1): TypeParam =
     TypeParam(name, index, kind = Kind.constructor(arity))

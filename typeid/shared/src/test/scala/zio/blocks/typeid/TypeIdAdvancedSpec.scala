@@ -741,7 +741,7 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
       assertTrue(listInt.isApplied, listInt.typeArgs.nonEmpty)
     },
     test("arity returns number of type params") {
-      val list  = TypeId.of[List[_]]
+      val list  = TypeId.of[List[?]]
       val map   = TypeId.of[Map[_, _]]
       val intId = TypeId.of[Int]
       assertTrue(list.arity == 1, map.arity == 2, intId.arity == 0)
@@ -752,7 +752,7 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     },
     test("isProperType and isTypeConstructor") {
       val intId = TypeId.of[Int]
-      val list  = TypeId.of[List[_]]
+      val list  = TypeId.of[List[?]]
       assertTrue(
         intId.isProperType && !intId.isTypeConstructor,
         list.isTypeConstructor && !list.isProperType
@@ -799,7 +799,7 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
       assertTrue(intId.toString.contains("TypeId."), intId.toString.contains("Int"))
     },
     test("TypeId.applied creates applied type") {
-      val applied = TypeId.applied[List[Int]](TypeId.of[List[_]], TypeRepr.Ref(TypeId.int))
+      val applied = TypeId.applied[List[Int]](TypeId.of[List[?]], TypeRepr.Ref(TypeId.int))
       assertTrue(applied.isApplied, applied.typeArgs.size == 1)
     }
   )

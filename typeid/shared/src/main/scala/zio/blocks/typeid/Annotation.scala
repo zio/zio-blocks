@@ -15,7 +15,7 @@ package zio.blocks.typeid
  *   The arguments passed to the annotation constructor
  */
 final case class Annotation(
-  typeId: TypeId[_],
+  typeId: TypeId[?],
   args: List[AnnotationArg] = Nil
 ) {
 
@@ -89,5 +89,5 @@ object AnnotationArg {
    *
    * Used for enum constant references: `@Retention(RetentionPolicy.RUNTIME)`
    */
-  final case class EnumValue(enumType: TypeId[_], valueName: String) extends AnnotationArg
+  final case class EnumValue(enumType: TypeId[?], valueName: String) extends AnnotationArg
 }
