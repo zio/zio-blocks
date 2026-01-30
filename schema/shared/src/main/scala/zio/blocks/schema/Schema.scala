@@ -13,6 +13,8 @@ import java.util.concurrent.ConcurrentHashMap
 final case class Schema[A](reflect: Reflect.Bound[A]) {
   private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
 
+  override def toString: String = s"Schema {\n  ${reflect.typeName}\n}"
+
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]

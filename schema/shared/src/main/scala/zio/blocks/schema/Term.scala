@@ -10,6 +10,8 @@ final case class Term[F[_, _], S, A](
 ) extends Reflectable[A] {
   require(value ne null)
 
+  override def toString: String = s"$name: ${value.typeName}"
+
   type Source = S
   type Focus  = A
 

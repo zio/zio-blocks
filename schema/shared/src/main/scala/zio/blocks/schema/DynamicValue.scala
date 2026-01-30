@@ -7,6 +7,8 @@ sealed trait DynamicValue {
 
   def compare(that: DynamicValue): Int
 
+  override def toString: String = DynamicValue.render(this, 0)
+
   final def >(that: DynamicValue): Boolean = compare(that) > 0
 
   final def >=(that: DynamicValue): Boolean = compare(that) >= 0
@@ -184,4 +186,100 @@ object DynamicValue {
    */
   def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
     Differ.diff(oldValue, newValue)
+
+  private[schema] def render(dv: DynamicValue, indent: Int): String = {
+    val pad      = "  " * indent
+    val padInner = "  " * (indent + 1)
+    dv match {
+      case Primitive(pv)  => renderPrimitive(pv)
+      case Record(fields) =>
+        if (fields.isEmpty) "{}"
+        else {
+          val sb    = new StringBuilder("{\n")
+          var first = true
+          fields.foreach { case (k, v) =>
+            if (!first) sb.append(",\n")
+            first = false
+            sb.append(padInner).append(k).append(": ").append(render(v, indent + 1))
+          }
+          sb.append("\n").append(pad).append("}").toString
+        }
+      case Variant(caseName, value) =>
+        val inner = value match {
+          case Record(Vector()) => "{}"
+          case _                => render(value, indent)
+        }
+        s"$inner @ {tag: \"$caseName\"}"
+      case Sequence(elements) =>
+        if (elements.isEmpty) "[]"
+        else if (elements.forall(isSimple)) {
+          "[" + elements.map(render(_, 0)).mkString(", ") + "]"
+        } else {
+          val sb    = new StringBuilder("[\n")
+          var first = true
+          elements.foreach { e =>
+            if (!first) sb.append(",\n")
+            first = false
+            sb.append(padInner).append(render(e, indent + 1))
+          }
+          sb.append("\n").append(pad).append("]").toString
+        }
+      case Map(entries) =>
+        if (entries.isEmpty) "{}"
+        else {
+          val sb    = new StringBuilder("{\n")
+          var first = true
+          entries.foreach { case (k, v) =>
+            if (!first) sb.append(",\n")
+            first = false
+            sb.append(padInner).append(renderMapKey(k)).append(": ").append(render(v, indent + 1))
+          }
+          sb.append("\n").append(pad).append("}").toString
+        }
+    }
+  }
+
+  private def isSimple(dv: DynamicValue): Boolean = dv match {
+    case Primitive(_) => true
+    case _            => false
+  }
+
+  private def renderPrimitive(pv: PrimitiveValue): String = pv match {
+    case PrimitiveValue.Unit           => "null"
+    case PrimitiveValue.Boolean(b)     => b.toString
+    case PrimitiveValue.Byte(b)        => b.toString
+    case PrimitiveValue.Short(s)       => s.toString
+    case PrimitiveValue.Int(i)         => i.toString
+    case PrimitiveValue.Long(l)        => l.toString
+    case PrimitiveValue.Float(f)       => f.toString
+    case PrimitiveValue.Double(d)      => d.toString
+    case PrimitiveValue.Char(c)        => "\"" + c + "\""
+    case PrimitiveValue.String(s)      => "\"" + escapeString(s) + "\""
+    case PrimitiveValue.BigInt(bi)     => bi.toString
+    case PrimitiveValue.BigDecimal(bd) => bd.toString
+    case other                         => other.toString + " @ {type: \"" + other.primitiveType.typeName.name + "\"}"
+  }
+
+  private def renderMapKey(dv: DynamicValue): String = dv match {
+    case Primitive(PrimitiveValue.String(s)) => "\"" + escapeString(s) + "\""
+    case Primitive(pv)                       => renderPrimitive(pv)
+    case other                               => render(other, 0)
+  }
+
+  private def escapeString(s: String): String = {
+    val sb = new StringBuilder
+    var i  = 0
+    while (i < s.length) {
+      s.charAt(i) match {
+        case '"'  => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case c    => sb.append(c)
+      }
+      i += 1
+    }
+    sb.toString
+  }
 }
