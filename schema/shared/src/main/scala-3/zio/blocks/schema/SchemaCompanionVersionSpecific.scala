@@ -12,6 +12,22 @@ import zio.blocks.schema.CommonMacroOps
 
 trait SchemaCompanionVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }
+
+  /**
+   * Derive a schema for a structural type.
+   *
+   * This is an alias for `derived` that makes the intent clearer when working
+   * with structural types for schema migrations.
+   *
+   * Example:
+   * {{{
+   * type PersonV0 = { def firstName: String; def lastName: String }
+   * implicit val v0Schema: Schema[PersonV0] = Schema.structural[PersonV0]
+   * }}}
+   *
+   * Note: This is JVM-only due to reflection requirements for structural types.
+   */
+  inline def structural[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }
 }
 
 private object SchemaCompanionVersionSpecificImpl {

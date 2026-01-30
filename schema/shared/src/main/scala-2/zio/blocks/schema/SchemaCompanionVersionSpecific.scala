@@ -12,6 +12,16 @@ import scala.reflect.NameTransformer
 
 trait SchemaCompanionVersionSpecific {
   def derived[A]: Schema[A] = macro SchemaCompanionVersionSpecific.derived[A]
+
+  /**
+   * Derive a schema for a structural type.
+   *
+   * This is an alias for `derived` that makes the intent clearer when working
+   * with structural types for schema migrations.
+   *
+   * Note: This is JVM-only due to reflection requirements for structural types.
+   */
+  def structural[A]: Schema[A] = macro SchemaCompanionVersionSpecific.derived[A]
 }
 
 private object SchemaCompanionVersionSpecific {
