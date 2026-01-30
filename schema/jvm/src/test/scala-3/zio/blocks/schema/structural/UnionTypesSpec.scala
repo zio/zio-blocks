@@ -36,7 +36,7 @@ object UnionTypesSpec extends SchemaBaseSpec {
       typeCheck("""
         import zio.blocks.schema._
         import zio.blocks.schema.structural.UnionTypesSpec._
-        val schema = Schema.derived[Result]
+        val schema: Schema[Result] = Schema.derived[Result]
         val structural: Schema[{def Failure: {def error: String}} | {def Success: {def value: Int}}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },
@@ -44,7 +44,7 @@ object UnionTypesSpec extends SchemaBaseSpec {
       typeCheck("""
         import zio.blocks.schema._
         import zio.blocks.schema.structural.UnionTypesSpec._
-        val schema = Schema.derived[Status]
+        val schema: Schema[Status] = Schema.derived[Status]
         val structural: Schema[{def Active: {}} | {def Inactive: {}}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     }

@@ -744,7 +744,8 @@ object SchemaSpec extends SchemaBaseSpec {
               ) || // Scala 2
                 containsString(
                   "Type Mismatch"
-                ) // Scala 3
+                ) ||                                                    // Scala 3.3
+                (containsString("Found") && containsString("Required")) // Scala 3.5+
             )
           )
         )

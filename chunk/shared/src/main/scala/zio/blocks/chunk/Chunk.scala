@@ -1186,7 +1186,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    */
   def materialize[A1 >: A]: Chunk[A1] =
     if (isEmpty) Chunk.empty
-    else Chunk.fromArray(toArray(Chunk.classTagOf(self)))
+    else Chunk.fromArray(toArray(using Chunk.classTagOf(self)))
 
   /**
    * Runs `fn` if a `chunk` is not empty or returns default value

@@ -41,7 +41,7 @@ object SealedTraitToUnionSpec extends SchemaBaseSpec {
           case class Success(value: Int) extends Result
           case class Failure(error: String) extends Result
         }
-        val schema = Schema.derived[Result]
+        val schema: Schema[Result] = Schema.derived[Result]
         val structural: Schema[{def Failure: {def error: String}} | {def Success: {def value: Int}}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },
@@ -71,7 +71,7 @@ object SealedTraitToUnionSpec extends SchemaBaseSpec {
           case object Active extends Status
           case object Inactive extends Status
         }
-        val schema = Schema.derived[Status]
+        val schema: Schema[Status] = Schema.derived[Status]
         val structural: Schema[{def Active: {}} | {def Inactive: {}}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },
@@ -144,7 +144,7 @@ object SealedTraitToUnionSpec extends SchemaBaseSpec {
           case class Success(value: Int) extends Result
           case class Failure(error: String) extends Result
         }
-        val schema = Schema.derived[Result]
+        val schema: Schema[Result] = Schema.derived[Result]
         val structural: Schema[{def Failure: {def error: String}} | {def Success: {def value: Int}}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },
@@ -156,7 +156,7 @@ object SealedTraitToUnionSpec extends SchemaBaseSpec {
           case object Active extends Status
           case object Inactive extends Status
         }
-        val schema = Schema.derived[Status]
+        val schema: Schema[Status] = Schema.derived[Status]
         val structural: Schema[{def Active: {}} | {def Inactive: {}}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     }

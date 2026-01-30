@@ -2067,9 +2067,8 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val ds        = schema.toDynamicSchema
         val dv        = DynamicSchema.toDynamicValue(ds)
         val roundTrip = DynamicSchema.fromDynamicValue(dv)
-        val hasConfig = roundTrip.modifiers.exists {
-          case Modifier.config(k, v) => k == "testKey" && v == "testValue"
-          case _                     => false
+        val hasConfig = roundTrip.modifiers.exists { case Modifier.config(k, v) =>
+          k == "testKey" && v == "testValue"
         }
         assertTrue(hasConfig)
       }

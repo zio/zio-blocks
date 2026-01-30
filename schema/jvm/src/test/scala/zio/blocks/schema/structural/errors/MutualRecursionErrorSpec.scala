@@ -36,7 +36,7 @@ object MutualRecursionErrorSpec extends SchemaBaseSpec {
           case class Node(id: Int, edges: List[Edge])
           case class Edge(from: Int, to: Node)
 
-          val schema = Schema.derived[Node]
+          val schema: Schema[Node] = Schema.derived[Node]
           schema.structural
           """
         }.map { result =>
@@ -51,7 +51,7 @@ object MutualRecursionErrorSpec extends SchemaBaseSpec {
           case class Parent(name: String, children: List[Child])
           case class Child(name: String, parent: Option[Parent])
 
-          val schema = Schema.derived[Parent]
+          val schema: Schema[Parent] = Schema.derived[Parent]
           schema.structural
           """
         }.map { result =>
@@ -66,7 +66,7 @@ object MutualRecursionErrorSpec extends SchemaBaseSpec {
           case class TypeA(data: Int, ref: TypeB)
           case class TypeB(data: String, ref: TypeA)
 
-          val schemaA = Schema.derived[TypeA]
+          val schemaA: Schema[TypeA] = Schema.derived[TypeA]
           schemaA.structural
           """
         }.map { result =>
@@ -81,7 +81,7 @@ object MutualRecursionErrorSpec extends SchemaBaseSpec {
           case class TypeA(data: Int, ref: TypeB)
           case class TypeB(data: String, ref: TypeA)
 
-          val schemaB = Schema.derived[TypeB]
+          val schemaB: Schema[TypeB] = Schema.derived[TypeB]
           schemaB.structural
           """
         }.map { result =>
@@ -99,7 +99,7 @@ object MutualRecursionErrorSpec extends SchemaBaseSpec {
           case class TypeB(c: TypeC)
           case class TypeC(a: Option[TypeA])
 
-          val schema = Schema.derived[TypeA]
+          val schema: Schema[TypeA] = Schema.derived[TypeA]
           schema.structural
           """
         }.map { result =>
@@ -115,7 +115,7 @@ object MutualRecursionErrorSpec extends SchemaBaseSpec {
           case class Department(employees: List[Employee])
           case class Employee(company: Company)
 
-          val schema = Schema.derived[Company]
+          val schema: Schema[Company] = Schema.derived[Company]
           schema.structural
           """
         }.map { result =>
@@ -132,7 +132,7 @@ object MutualRecursionErrorSpec extends SchemaBaseSpec {
           case class Ping(next: Pong)
           case class Pong(next: Ping)
 
-          val schema = Schema.derived[Ping]
+          val schema: Schema[Ping] = Schema.derived[Ping]
           schema.structural
           """
         }.map { result =>
@@ -160,7 +160,7 @@ object MutualRecursionErrorSpec extends SchemaBaseSpec {
           case class Person(name: String, age: Int)
           case class Address(street: String, city: String)
 
-          val schema = Schema.derived[Person]
+          val schema: Schema[Person] = Schema.derived[Person]
           schema.structural
           """
         }.map { result =>
@@ -176,7 +176,7 @@ object MutualRecursionErrorSpec extends SchemaBaseSpec {
           case class Middle(inner: Inner)
           case class Outer(middle: Middle)
 
-          val schema = Schema.derived[Outer]
+          val schema: Schema[Outer] = Schema.derived[Outer]
           schema.structural
           """
         }.map { result =>
@@ -193,7 +193,7 @@ object MutualRecursionErrorSpec extends SchemaBaseSpec {
           case class Right(leaf: Leaf)
           case class Root(left: Left, right: Right)
 
-          val schema = Schema.derived[Root]
+          val schema: Schema[Root] = Schema.derived[Root]
           schema.structural
           """
         }.map { result =>

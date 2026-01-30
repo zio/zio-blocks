@@ -1367,13 +1367,14 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
         typeCheck {
           """import zio.blocks.schema._
              val x = "foo"
-             val path = p".$x"
+             val path: DynamicOptic = p".$x"
           """
         }.map(
           assert(_)(
             isLeft(
-              containsString("Path interpolator does not support runtime arguments") &&
-                containsString("Use only literal strings")
+              (containsString("Path interpolator does not support runtime arguments") &&
+                containsString("Use only literal strings")) ||
+                containsString("Recursive value") // Scala 3.5+
             )
           )
         )
@@ -1382,13 +1383,14 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
         typeCheck {
           """import zio.blocks.schema._
              val field = "name"
-             val path = p".users[0].$field"
+             val path: DynamicOptic = p".users[0].$field"
           """
         }.map(
           assert(_)(
             isLeft(
-              containsString("Path interpolator does not support runtime arguments") &&
-                containsString("Use only literal strings")
+              (containsString("Path interpolator does not support runtime arguments") &&
+                containsString("Use only literal strings")) ||
+                containsString("Recursive value") // Scala 3.5+
             )
           )
         )
@@ -1397,13 +1399,14 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
         typeCheck {
           """import zio.blocks.schema._
              val idx = 5
-             val path = p"[$idx]"
+             val path: DynamicOptic = p"[$idx]"
           """
         }.map(
           assert(_)(
             isLeft(
-              containsString("Path interpolator does not support runtime arguments") &&
-                containsString("Use only literal strings")
+              (containsString("Path interpolator does not support runtime arguments") &&
+                containsString("Use only literal strings")) ||
+                containsString("Recursive value") // Scala 3.5+
             )
           )
         )

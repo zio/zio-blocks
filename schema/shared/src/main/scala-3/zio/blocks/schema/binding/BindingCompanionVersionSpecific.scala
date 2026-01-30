@@ -1,11 +1,12 @@
 package zio.blocks.schema.binding
 
+import scala.annotation.experimental
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.quoted.*
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{CommonMacroOps, DynamicValue, SchemaError}
+import zio.blocks.schema.{CommonMacroOps, DynamicValue, Platform, SchemaError}
 
 trait BindingCompanionVersionSpecific {
 
@@ -19,6 +20,7 @@ trait BindingCompanionVersionSpecific {
    *   - Option, Either, and their subtypes
    *   - Standard collections (List, Vector, Set, Map, etc.)
    *   - [[DynamicValue]]
+   *   - Structural types (JVM only, requires `@experimental`)
    *
    * @tparam A
    *   the type to derive a binding for
@@ -49,12 +51,14 @@ trait BindingCompanionVersionSpecific {
     new Binding.Map(mc, md)
 }
 
+@experimental
 private object BindingCompanionVersionSpecificImpl {
   import scala.quoted.*
 
   def of[A: Type](using Quotes): Expr[Any] = new BindingCompanionVersionSpecificImpl().of[A]
 }
 
+@experimental
 private class BindingCompanionVersionSpecificImpl(using Quotes) {
   import quotes.reflect.*
 
@@ -231,9 +235,15 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
   def of[A: Type]: Expr[Any] = {
     var tpe = TypeRepr.of[A].dealias
     // Handle AndType (e.g., Record8[Option] & Object) by extracting the left (application) type
+    // BUT preserve true intersection types of structural types (e.g., HasName & HasAge)
     tpe = tpe match {
-      case AndType(left, _) => left
-      case _                => tpe
+      case AndType(left, right) if right =:= anyTpe || right =:= TypeRepr.of[Object] =>
+        // This is an artifact like "Record8[Option] & Object", extract the left type
+        left
+      case AndType(_, _) =>
+        // Keep intersection types as-is (could be structural types like HasName & HasAge)
+        tpe
+      case _ => tpe
     }
     deriveBinding[A](tpe)
   }
@@ -299,6 +309,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     else if (isNamedTuple(tpe)) deriveNamedTupleBinding[A](tpe)
     else if (isEnumOrModuleValue(tpe)) deriveEnumOrModuleValueBinding[A]
     else if (isSealedTraitOrAbstractClass(tpe)) deriveSealedTraitBinding[A](tpe)
+    else if (isUnionOfStructuralTypes(tpe)) deriveStructuralVariantBindingSimple[A](tpe)
     else if (isUnion(tpe)) deriveUnionBinding[A](tpe)
     else if (isNonAbstractScalaClass(tpe)) {
       findSmartConstructor(tpe) match {
@@ -310,7 +321,8 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     else if (isTypeRef(tpe)) {
       val sTpe = typeRefDealias(tpe)
       sTpe.asType match { case '[s] => deriveBinding[s](sTpe) }
-    } else fail(s"Cannot derive Binding for type: ${tpe.show}")
+    } else if (isStructuralType(tpe)) deriveStructuralRecordBindingSimple[A](tpe)
+    else fail(s"Cannot derive Binding for type: ${tpe.show}")
 
   private def deriveSomeBinding(tpe: TypeRepr)(using Quotes): Expr[Any] = {
     val elemTpe       = typeArgs(tpe).head
@@ -1860,5 +1872,476 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
           )
         }
     }
+  }
+
+  // ============ Structural Type Support (JVM only) ============
+
+  private def isStructuralType(tpe: TypeRepr): Boolean = {
+    val dealiased = tpe.dealias
+    dealiased match {
+      case Refinement(_, _, _)     => true
+      case AndType(left, right)    => isStructuralType(left) || isStructuralType(right)
+      case AnnotatedType(inner, _) => isStructuralType(inner)
+      case _                       => false
+    }
+  }
+
+  private def isUnionOfStructuralTypes(tpe: TypeRepr): Boolean =
+    tpe.dealias match {
+      case OrType(left, right) =>
+        (isStructuralType(left) || isUnionOfStructuralTypes(left)) &&
+        (isStructuralType(right) || isUnionOfStructuralTypes(right))
+      case _ => false
+    }
+
+  private def getStructuralMembers(tpe: TypeRepr): List[(String, TypeRepr)] = {
+    def collectMembers(t: TypeRepr): List[(String, TypeRepr)] = {
+      val dealiased = t.dealias
+      dealiased match {
+        case Refinement(parent, name, info) =>
+          val memberType = info match {
+            case MethodType(Nil, Nil, returnType)            => returnType
+            case MethodType(_, params, _) if params.nonEmpty =>
+              fail(s"Structural type member '$name' has parameters, which is not supported.")
+            case ByNameType(underlying) => underlying
+            case other                  => other
+          }
+          (name, memberType) :: collectMembers(parent)
+        case AndType(left, right) =>
+          collectMembers(left) ++ collectMembers(right)
+        case AnnotatedType(inner, _) =>
+          collectMembers(inner)
+        case _ => Nil
+      }
+    }
+
+    val members = collectMembers(tpe)
+    val grouped = members.groupBy(_._1)
+    grouped.foreach { case (name, occurrences) =>
+      if (occurrences.size > 1) {
+        val types = occurrences.map(_._2.show).distinct
+        if (types.size > 1) {
+          fail(s"Conflicting types for member '$name' in intersection: ${types.mkString(", ")}")
+        }
+      }
+    }
+    members.distinctBy(_._1).sortBy(_._1)
+  }
+
+  private def getAllUnionTypesForStructural(tpe: TypeRepr): List[TypeRepr] =
+    tpe.dealias match {
+      case OrType(left, right) =>
+        getAllUnionTypesForStructural(left) ++ getAllUnionTypesForStructural(right)
+      case other => List(other)
+    }
+
+  private def structuralRegisterKind(tpe: TypeRepr): String =
+    tpe.dealias match {
+      case t if t =:= booleanTpe => "boolean"
+      case t if t =:= byteTpe    => "byte"
+      case t if t =:= shortTpe   => "short"
+      case t if t =:= intTpe     => "int"
+      case t if t =:= longTpe    => "long"
+      case t if t =:= floatTpe   => "float"
+      case t if t =:= doubleTpe  => "double"
+      case t if t =:= charTpe    => "char"
+      case _                     => "object"
+    }
+
+  private def structuralRegisterOffset(kind: String): Expr[RegisterOffset.RegisterOffset] =
+    kind match {
+      case "boolean" => '{ RegisterOffset(booleans = 1) }
+      case "byte"    => '{ RegisterOffset(bytes = 1) }
+      case "short"   => '{ RegisterOffset(shorts = 1) }
+      case "int"     => '{ RegisterOffset(ints = 1) }
+      case "long"    => '{ RegisterOffset(longs = 1) }
+      case "float"   => '{ RegisterOffset(floats = 1) }
+      case "double"  => '{ RegisterOffset(doubles = 1) }
+      case "char"    => '{ RegisterOffset(chars = 1) }
+      case "object"  => '{ RegisterOffset(objects = 1) }
+    }
+
+  private case class StructuralFieldForGen(name: String, memberTpe: TypeRepr, kind: String, index: Int)
+
+  @experimental
+  private def deriveStructuralRecordBindingSimple[A: Type](tpe: TypeRepr): Expr[Any] = {
+    if (!Platform.supportsReflection) {
+      fail(
+        s"""Cannot derive Binding for structural type '${tpe.show}' on ${Platform.name}.
+           |
+           |Structural types require JVM runtime reflection.
+           |Use case classes for cross-platform compatibility.""".stripMargin
+      )
+    }
+
+    val members = getStructuralMembers(tpe)
+    if (members.isEmpty) {
+      fail(s"Structural type ${tpe.show} has no members. Cannot derive Binding.")
+    }
+
+    val fields = members.zipWithIndex.map { case ((name, memberTpe), idx) =>
+      StructuralFieldForGen(name, memberTpe, structuralRegisterKind(memberTpe), idx)
+    }
+
+    val totalUsedRegistersExpr: Expr[RegisterOffset.RegisterOffset] = {
+      var acc: Expr[RegisterOffset.RegisterOffset] = '{ 0L }
+      fields.foreach { f =>
+        acc = '{ RegisterOffset.add($acc, ${ structuralRegisterOffset(f.kind) }) }
+      }
+      acc
+    }
+
+    val constructorExpr: Expr[Constructor[A]] =
+      generateStructuralConstructorWithRealMethods[A](fields, totalUsedRegistersExpr)
+
+    val deconstructorExpr: Expr[Deconstructor[A]] = generateStructuralDeconstructor[A](fields, totalUsedRegistersExpr)
+
+    '{ new Binding.Record[A]($constructorExpr, $deconstructorExpr) }
+  }
+
+  @experimental
+  private def generateStructuralConstructorWithRealMethods[A: Type](
+    fields: Seq[StructuralFieldForGen],
+    totalUsedRegistersExpr: Expr[RegisterOffset.RegisterOffset]
+  ): Expr[Constructor[A]] = {
+    val fieldKindsExpr = Expr(fields.map(_.kind).toArray)
+
+    // Generate an expression that creates an anonymous class with real methods
+    val instanceCreatorExpr: Expr[Array[Any] => A] = generateAnonymousClassFactory[A](fields)
+
+    '{
+      new Constructor[A] {
+        private val _fieldKinds      = $fieldKindsExpr
+        private val _instanceCreator = $instanceCreatorExpr
+
+        def usedRegisters: RegisterOffset.RegisterOffset = $totalUsedRegistersExpr
+
+        def construct(in: Registers, baseOffset: RegisterOffset.RegisterOffset): A = {
+          val values = new scala.Array[Any](_fieldKinds.length)
+          var idx    = 0
+          var offset = baseOffset
+          val len    = _fieldKinds.length
+          while (idx < len) {
+            val value: Any = _fieldKinds(idx) match {
+              case "boolean" =>
+                val v = in.getBoolean(offset)
+                offset = RegisterOffset.add(offset, RegisterOffset(booleans = 1))
+                v
+              case "byte" =>
+                val v = in.getByte(offset)
+                offset = RegisterOffset.add(offset, RegisterOffset(bytes = 1))
+                v
+              case "short" =>
+                val v = in.getShort(offset)
+                offset = RegisterOffset.add(offset, RegisterOffset(shorts = 1))
+                v
+              case "int" =>
+                val v = in.getInt(offset)
+                offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                v
+              case "long" =>
+                val v = in.getLong(offset)
+                offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                v
+              case "float" =>
+                val v = in.getFloat(offset)
+                offset = RegisterOffset.add(offset, RegisterOffset(floats = 1))
+                v
+              case "double" =>
+                val v = in.getDouble(offset)
+                offset = RegisterOffset.add(offset, RegisterOffset(doubles = 1))
+                v
+              case "char" =>
+                val v = in.getChar(offset)
+                offset = RegisterOffset.add(offset, RegisterOffset(chars = 1))
+                v
+              case _ =>
+                val v = in.getObject(offset)
+                offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                v
+            }
+            values(idx) = value
+            idx += 1
+          }
+          _instanceCreator(values)
+        }
+      }
+    }
+  }
+
+  @experimental
+  private def generateAnonymousClassFactory[A: Type](fields: Seq[StructuralFieldForGen]): Expr[Array[Any] => A] = {
+    // Generate a lambda using quoted expressions that creates an anonymous class with real methods.
+    // Each method reads from the captured `values` array at a specific index.
+    //
+    // We generate code like:
+    //   (values: Array[Any]) => {
+    //     class Anon$ { def name: String = values(0).asInstanceOf[String]; def age: Int = values(1).asInstanceOf[Int] }
+    //     (new Anon$).asInstanceOf[A]
+    //   }
+
+    val parents        = List(TypeRepr.of[Object])
+    val className      = Symbol.freshName("Structural")
+    val arrayOfAnyType = TypeRepr.of[Array[Any]]
+
+    // Create the lambda symbol first (it will be the owner of everything inside)
+    val lambdaSym = Symbol.newMethod(
+      Symbol.spliceOwner,
+      "factory",
+      MethodType(List("values"))(_ => List(arrayOfAnyType), _ => TypeRepr.of[A])
+    )
+
+    // Create class symbol with methods for each field (parameterless constructor)
+    // The class is owned by the lambda
+    // IMPORTANT: Use ByNameType for nullary methods (def name: String), not MethodType(Nil)
+    // which creates methods with empty parameter list (def name(): String)
+    val classSymbol = Symbol.newClass(
+      lambdaSym,
+      className,
+      parents,
+      decls = cls => {
+        fields.map { f =>
+          Symbol.newMethod(cls, f.name, ByNameType(f.memberTpe))
+        }.toList
+      },
+      selfType = None
+    )
+
+    val lambdaDef = DefDef(
+      lambdaSym,
+      {
+        case List(List(valuesParam: Term)) =>
+          // Create method definitions that reference the `valuesParam` directly
+          val methodDefs = fields.zipWithIndex.map { case (f, idx) =>
+            val methodSym = classSymbol.declaredMethod(f.name).head
+            DefDef(
+              methodSym,
+              { _ =>
+                // Method body: values(idx).asInstanceOf[FieldType]
+                val indexExpr = Literal(IntConstant(idx))
+                val arrayGet  = Apply(Select.unique(valuesParam, "apply"), List(indexExpr))
+                val casted    = f.memberTpe.asType match {
+                  case '[t] =>
+                    Some(TypeApply(Select.unique(arrayGet, "asInstanceOf"), List(TypeTree.of[t])))
+                }
+                casted
+              }
+            )
+          }.toList
+
+          // Create the class definition
+          val classDef = ClassDef(
+            classSymbol,
+            parents.map(Inferred(_)),
+            body = methodDefs
+          )
+
+          // Create instance: new ClassName()
+          val newInstance = New(TypeIdent(classSymbol))
+            .select(classSymbol.primaryConstructor)
+            .appliedToNone
+
+          // Cast to A
+          val castInstance = Typed(newInstance, TypeTree.of[A])
+
+          Some(Block(List(classDef), castInstance))
+
+        case _ =>
+          fail("Unexpected parameter list shape in lambda definition")
+      }
+    )
+
+    // Create and return the lambda expression
+    val closure = Closure(Ref(lambdaSym), None)
+    Block(List(lambdaDef), closure).asExprOf[Array[Any] => A]
+  }
+
+  private def generateStructuralDeconstructor[A: Type](
+    fields: Seq[StructuralFieldForGen],
+    totalUsedRegistersExpr: Expr[RegisterOffset.RegisterOffset]
+  ): Expr[Deconstructor[A]] =
+    '{
+      new Deconstructor[A] {
+        def usedRegisters: RegisterOffset.RegisterOffset = $totalUsedRegistersExpr
+
+        def deconstruct(out: Registers, baseOffset: RegisterOffset.RegisterOffset, in: A): Unit = {
+          var offset = baseOffset
+          ${
+            val deconstructorStatements = fields.map { f =>
+              val fieldNameExpr = Expr(f.name)
+              f.kind match {
+                case "boolean" =>
+                  '{
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    val v      = method.invoke(in).asInstanceOf[java.lang.Boolean].booleanValue
+                    out.setBoolean(offset, v)
+                    offset = RegisterOffset.add(offset, RegisterOffset(booleans = 1))
+                  }
+                case "byte" =>
+                  '{
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    val v      = method.invoke(in).asInstanceOf[java.lang.Byte].byteValue
+                    out.setByte(offset, v)
+                    offset = RegisterOffset.add(offset, RegisterOffset(bytes = 1))
+                  }
+                case "short" =>
+                  '{
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    val v      = method.invoke(in).asInstanceOf[java.lang.Short].shortValue
+                    out.setShort(offset, v)
+                    offset = RegisterOffset.add(offset, RegisterOffset(shorts = 1))
+                  }
+                case "int" =>
+                  '{
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    val v      = method.invoke(in).asInstanceOf[java.lang.Integer].intValue
+                    out.setInt(offset, v)
+                    offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                  }
+                case "long" =>
+                  '{
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    out.setLong(offset, method.invoke(in).asInstanceOf[java.lang.Long].longValue)
+                    offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                  }
+                case "float" =>
+                  '{
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    out.setFloat(offset, method.invoke(in).asInstanceOf[java.lang.Float].floatValue)
+                    offset = RegisterOffset.add(offset, RegisterOffset(floats = 1))
+                  }
+                case "double" =>
+                  '{
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    out.setDouble(offset, method.invoke(in).asInstanceOf[java.lang.Double].doubleValue)
+                    offset = RegisterOffset.add(offset, RegisterOffset(doubles = 1))
+                  }
+                case "char" =>
+                  '{
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    out.setChar(offset, method.invoke(in).asInstanceOf[java.lang.Character].charValue)
+                    offset = RegisterOffset.add(offset, RegisterOffset(chars = 1))
+                  }
+                case _ =>
+                  '{
+                    val method = in.getClass.getMethod($fieldNameExpr)
+                    out.setObject(offset, method.invoke(in))
+                    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                  }
+              }
+            }
+            Expr.block(deconstructorStatements.init.toList, deconstructorStatements.last)
+          }
+        }
+      }
+    }
+
+  private def deriveStructuralVariantBindingSimple[A: Type](tpe: TypeRepr): Expr[Any] = {
+    if (!Platform.supportsReflection) {
+      fail(
+        s"""Cannot derive Binding for union of structural types '${tpe.show}' on ${Platform.name}.
+           |
+           |Structural types require JVM runtime reflection.
+           |Use sealed traits for cross-platform compatibility.""".stripMargin
+      )
+    }
+
+    val unionTypes = getAllUnionTypesForStructural(tpe)
+    if (unionTypes.size < 2) {
+      fail(s"Union type ${tpe.show} needs at least 2 alternatives.")
+    }
+
+    case class VariantCase(tpe: TypeRepr, members: List[(String, TypeRepr)], discriminatorNames: Array[String])
+
+    val cases = unionTypes.map { t =>
+      val members = getStructuralMembers(t)
+      if (members.isEmpty) {
+        fail(s"Union alternative ${t.show} has no members.")
+      }
+      VariantCase(t, members, members.map(_._1).toArray)
+    }
+
+    val otherCasesMembers = cases.map(_.members.map(_._1).toSet)
+    cases.zipWithIndex.foreach { case (c, i) =>
+      val myMembers     = c.members.map(_._1).toSet
+      val otherMembers  = otherCasesMembers.zipWithIndex.filter(_._2 != i).flatMap(_._1).toSet
+      val uniqueMembers = myMembers.diff(otherMembers)
+      if (uniqueMembers.isEmpty && cases.size > 1) {
+        val otherCasesStr = otherCasesMembers.zipWithIndex
+          .filter(_._2 != i)
+          .map { case (members, idx) => s"Case $idx: {${members.mkString(", ")}}" }
+          .mkString("; ")
+        fail(
+          s"""Cannot discriminate union alternative ${c.tpe.show}.
+             |Each union alternative must have at least one unique member name.
+             |Members: {${myMembers.mkString(", ")}}
+             |Other cases: $otherCasesStr""".stripMargin
+        )
+      }
+    }
+
+    // Helper to check if object has all named methods - inlined into generated code
+    def hasAllMethodsExpr(objExpr: Expr[AnyRef], names: Array[String]): Expr[Boolean] = {
+      // Use Varargs to construct a proper Seq expression, then convert to Array
+      val nameExprs: Seq[Expr[String]]    = names.toSeq.map(n => Expr(n))
+      val namesSeqExpr: Expr[Seq[String]] = Varargs(nameExprs)
+      '{
+        val obj   = $objExpr
+        val names = $namesSeqExpr.toArray
+        if (obj == null) false
+        else {
+          val cls = obj.getClass
+          var i   = 0
+          var ok  = true
+          while (ok && i < names.length) {
+            try { cls.getMethod(names(i)) }
+            catch { case _: NoSuchMethodException => ok = false }
+            i += 1
+          }
+          ok
+        }
+      }
+    }
+
+    val discriminatorExpr = '{
+      new Discriminator[A] {
+        def discriminate(a: A): Int = ${
+          val casesWithIndex = cases.zipWithIndex.map { case (c, idx) =>
+            (c.discriminatorNames, Expr(idx))
+          }
+          casesWithIndex.foldRight('{ -1 }: Expr[Int]) { case ((names, idxExpr), elseExpr) =>
+            val checkExpr = hasAllMethodsExpr('{ a.asInstanceOf[AnyRef] }, names)
+            '{ if ($checkExpr) $idxExpr else $elseExpr }
+          }
+        }
+      }
+    }
+
+    val matcherExprs: List[Expr[Matcher[?]]] = cases.map { c =>
+      c.tpe.asType match {
+        case '[t] =>
+          val names = c.discriminatorNames
+          '{
+            new Matcher[t] {
+              def downcastOrNull(any: Any): t =
+                if (any == null) null.asInstanceOf[t]
+                else if (${ hasAllMethodsExpr('{ any.asInstanceOf[AnyRef] }, names) })
+                  any.asInstanceOf[t]
+                else null.asInstanceOf[t]
+            }
+          }
+      }
+    }
+
+    val matchersExpr = matcherExprs match {
+      case Nil             => fail("No matchers generated")
+      case m :: Nil        => '{ Matchers($m.asInstanceOf[Matcher[? <: A]]) }
+      case m1 :: m2 :: Nil => '{ Matchers($m1.asInstanceOf[Matcher[? <: A]], $m2.asInstanceOf[Matcher[? <: A]]) }
+      case all             =>
+        val varargs = Varargs(all.map(m => '{ $m.asInstanceOf[Matcher[? <: A]] }))
+        '{ Matchers($varargs*) }
+    }
+
+    '{ new Binding.Variant[A]($discriminatorExpr, $matchersExpr) }
   }
 }

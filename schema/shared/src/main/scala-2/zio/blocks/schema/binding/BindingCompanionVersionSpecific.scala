@@ -107,6 +107,71 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
 
   private def isIterator(tpe: Type): Boolean = tpe <:< typeOf[Iterator[_]]
 
+  // Structural type detection for Scala 2
+  // Structural types appear as RefinedType with member declarations
+  // Also handles intersection types (`with`) which may have empty decls but structural parents
+  private def isStructuralType(tpe: Type): Boolean = {
+    val dealiased = tpe.dealias
+    dealiased match {
+      case RefinedType(parents, decls) =>
+        // Case 1: Has own member declarations
+        val hasOwnDecls = decls.exists {
+          case m: MethodSymbol => m.paramLists.flatten.isEmpty && !m.isConstructor
+          case _               => false
+        }
+        // Case 2: Intersection type with structural parents
+        val hasStructuralParent = parents.exists(p =>
+          !(p =:= typeOf[AnyRef] || p =:= typeOf[Any] || p =:= typeOf[Object]) && isStructuralType(p)
+        )
+        hasOwnDecls || hasStructuralParent
+      case _ => false
+    }
+  }
+
+  // Get structural members from a type (supports intersection via `with`)
+  private def getStructuralMembers(tpe: Type): List[(String, Type)] = {
+    def collectMembers(t: Type): List[(String, Type)] = {
+      val dealiased = t.dealias
+      dealiased match {
+        case RefinedType(parents, decls) =>
+          val memberDecls = decls.toList.collect {
+            case m: MethodSymbol if m.paramLists.flatten.isEmpty && !m.isConstructor =>
+              (m.name.decodedName.toString, m.returnType.asSeenFrom(t, t.typeSymbol))
+          }
+          val parentMembers = parents.flatMap(collectMembers)
+          memberDecls ++ parentMembers
+        case _ => Nil
+      }
+    }
+
+    val members = collectMembers(tpe)
+    val grouped = members.groupBy(_._1)
+    // Validate that members with the same name have compatible types
+    grouped.foreach {
+      case (name, occurrences) if occurrences.size > 1 =>
+        val types = occurrences.map(_._2).distinct
+        if (types.size > 1 && !types.tail.forall(_ =:= types.head)) {
+          fail(s"Conflicting types for member '$name' in intersection: ${types.map(_.toString).mkString(", ")}")
+        }
+      case _ => // single occurrence, no conflict possible
+    }
+    // Deduplicate by name, keeping first occurrence, then sort alphabetically
+    grouped.map(_._2.head).toList.sortBy(_._1)
+  }
+
+  private def structuralRegisterKind(tpe: Type): String = {
+    val dealiased = dealiasOnDemand(tpe)
+    if (dealiased =:= booleanTpe) "boolean"
+    else if (dealiased =:= byteTpe) "byte"
+    else if (dealiased =:= shortTpe) "short"
+    else if (dealiased =:= intTpe) "int"
+    else if (dealiased =:= longTpe) "long"
+    else if (dealiased =:= floatTpe) "float"
+    else if (dealiased =:= doubleTpe) "double"
+    else if (dealiased =:= charTpe) "char"
+    else "object"
+  }
+
   private def isTypeRef(tpe: Type): Boolean = tpe match {
     case TypeRef(_, sym, Nil) =>
       sym.isType && sym.asType.isAliasType
@@ -328,6 +393,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       fail(s"Cannot derive Binding for Iterator types: $tpe. Iterators are not round-trip serializable.")
     else if (isEnumOrModuleValue(tpe)) deriveEnumOrModuleValueBinding(tpe)
     else if (isSealedTraitOrAbstractClass(tpe)) deriveSealedTraitBinding(tpe)
+    else if (isStructuralType(tpe)) deriveStructuralRecordBinding(tpe)
     else if (isNonAbstractScalaClass(tpe)) {
       findSmartConstructor(tpe) match {
         case Some(info) => deriveSmartConstructorBinding(tpe, info)
@@ -758,4 +824,155 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       )
       """
     )
+
+  private def deriveStructuralRecordBinding(tpe: Type): c.Expr[Any] = {
+    // Check at compile-time if Platform supports reflection
+    // This is checked at macro expansion time, which runs on JVM, but we need to ensure
+    // the generated code will also run on JVM only
+    if (!zio.blocks.schema.Platform.supportsReflection) {
+      fail(
+        s"""Cannot derive Binding for structural type '$tpe' on ${zio.blocks.schema.Platform.name}.
+           |
+           |Structural types require JVM runtime reflection.
+           |Use case classes for cross-platform compatibility.""".stripMargin
+      )
+    }
+
+    val members = getStructuralMembers(tpe)
+    if (members.isEmpty) {
+      fail(s"Structural type $tpe has no members. Cannot derive Binding.")
+    }
+
+    case class FieldInfo(name: String, tpe: Type, kind: String, fieldOffset: Long)
+
+    // Compute field offsets using the same formula as RegisterOffset.apply
+    def offsetDelta(registerType: String): Long = registerType match {
+      case "boolean" => 0x100000000L
+      case "byte"    => 0x100000000L
+      case "short"   => 0x200000000L
+      case "int"     => 0x400000000L
+      case "long"    => 0x800000000L
+      case "float"   => 0x400000000L
+      case "double"  => 0x800000000L
+      case "char"    => 0x200000000L
+      case "object"  => 1L
+    }
+
+    var currentOffset: Long = 0L
+    val fields              = members.map { case (name, memberTpe) =>
+      val kind        = structuralRegisterKind(memberTpe)
+      val fieldOffset = currentOffset
+      currentOffset += offsetDelta(kind)
+      FieldInfo(name, memberTpe, kind, fieldOffset)
+    }
+    val usedRegistersLong = currentOffset
+
+    // Generate anonymous class method definitions for the constructor
+    val methodDefs = fields.zipWithIndex.map { case (f, idx) =>
+      val fieldName  = TermName(f.name)
+      val fieldTpe   = f.tpe
+      val idxLiteral = Literal(Constant(idx))
+      q"def $fieldName: $fieldTpe = values($idxLiteral).asInstanceOf[$fieldTpe]"
+    }
+
+    // Generate the values array construction from registers
+    val valueReads = fields.map { f =>
+      val offsetLit = Literal(Constant(f.fieldOffset))
+      f.kind match {
+        case "boolean" => q"in.getBoolean(offset + $offsetLit).asInstanceOf[AnyRef]"
+        case "byte"    => q"in.getByte(offset + $offsetLit).asInstanceOf[AnyRef]"
+        case "short"   => q"in.getShort(offset + $offsetLit).asInstanceOf[AnyRef]"
+        case "int"     => q"in.getInt(offset + $offsetLit).asInstanceOf[AnyRef]"
+        case "long"    => q"in.getLong(offset + $offsetLit).asInstanceOf[AnyRef]"
+        case "float"   => q"in.getFloat(offset + $offsetLit).asInstanceOf[AnyRef]"
+        case "double"  => q"in.getDouble(offset + $offsetLit).asInstanceOf[AnyRef]"
+        case "char"    => q"in.getChar(offset + $offsetLit).asInstanceOf[AnyRef]"
+        case _         => q"in.getObject(offset + $offsetLit)"
+      }
+    }
+
+    // Generate deconstructor statements using reflection
+    val deconstructStatements = fields.map { f =>
+      val fieldNameStr = f.name
+      val offsetLit    = Literal(Constant(f.fieldOffset))
+      f.kind match {
+        case "boolean" =>
+          q"""
+          val method = in.getClass.getMethod($fieldNameStr)
+          out.setBoolean(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Boolean].booleanValue)
+          """
+        case "byte" =>
+          q"""
+          val method = in.getClass.getMethod($fieldNameStr)
+          out.setByte(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Byte].byteValue)
+          """
+        case "short" =>
+          q"""
+          val method = in.getClass.getMethod($fieldNameStr)
+          out.setShort(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Short].shortValue)
+          """
+        case "int" =>
+          q"""
+          val method = in.getClass.getMethod($fieldNameStr)
+          out.setInt(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Integer].intValue)
+          """
+        case "long" =>
+          q"""
+          val method = in.getClass.getMethod($fieldNameStr)
+          out.setLong(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Long].longValue)
+          """
+        case "float" =>
+          q"""
+          val method = in.getClass.getMethod($fieldNameStr)
+          out.setFloat(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Float].floatValue)
+          """
+        case "double" =>
+          q"""
+          val method = in.getClass.getMethod($fieldNameStr)
+          out.setDouble(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Double].doubleValue)
+          """
+        case "char" =>
+          q"""
+          val method = in.getClass.getMethod($fieldNameStr)
+          out.setChar(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Character].charValue)
+          """
+        case _ =>
+          q"""
+          val method = in.getClass.getMethod($fieldNameStr)
+          out.setObject(offset + $offsetLit, method.invoke(in))
+          """
+      }
+    }
+
+    val usedRegistersLit = Literal(Constant(usedRegistersLong))
+
+    c.Expr[Any](
+      q"""
+      new _root_.zio.blocks.schema.binding.Binding.Record[$tpe](
+        constructor = new _root_.zio.blocks.schema.binding.Constructor[$tpe] {
+          def usedRegisters: _root_.zio.blocks.schema.binding.RegisterOffset.RegisterOffset = $usedRegistersLit
+
+          def construct(
+            in: _root_.zio.blocks.schema.binding.Registers,
+            offset: _root_.zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+          ): $tpe = {
+            val values: Array[AnyRef] = Array(..$valueReads)
+            new { ..$methodDefs }.asInstanceOf[$tpe]
+          }
+        },
+        deconstructor = new _root_.zio.blocks.schema.binding.Deconstructor[$tpe] {
+          def usedRegisters: _root_.zio.blocks.schema.binding.RegisterOffset.RegisterOffset = $usedRegistersLit
+
+          def deconstruct(
+            out: _root_.zio.blocks.schema.binding.Registers,
+            offset: _root_.zio.blocks.schema.binding.RegisterOffset.RegisterOffset,
+            in: $tpe
+          ): Unit = {
+            ..$deconstructStatements
+          }
+        }
+      )
+      """
+    )
+  }
 }

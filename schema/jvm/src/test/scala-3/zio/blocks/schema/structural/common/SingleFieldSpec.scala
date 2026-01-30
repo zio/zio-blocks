@@ -23,7 +23,7 @@ object SingleFieldSpec extends SchemaBaseSpec {
       typeCheck("""
         import zio.blocks.schema._
         case class Id(value: String)
-        val schema = Schema.derived[Id]
+        val schema: Schema[Id] = Schema.derived[Id]
         val structural: Schema[{def value: String}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     },
@@ -31,7 +31,7 @@ object SingleFieldSpec extends SchemaBaseSpec {
       typeCheck("""
         import zio.blocks.schema._
         case class Count(n: Int)
-        val schema = Schema.derived[Count]
+        val schema: Schema[Count] = Schema.derived[Count]
         val structural: Schema[{def n: Int}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     }

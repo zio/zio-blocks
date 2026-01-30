@@ -9,7 +9,7 @@ import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
   val Scala213: String = "2.13.18"
-  val Scala3: String   = "3.3.7"
+  val Scala3: String   = "3.7.4"
 
   lazy val isRelease: Boolean = {
     val value = sys.env.contains("CI_RELEASE_MODE")
@@ -95,12 +95,19 @@ object BuildHelper {
           "-no-indent",
           "-explain",
           "-explain-cyclic",
-          "-Xcheck-macros",
+          "-experimental",
           "-Wunused:all",
-          "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent", // workaround for `@deprecated("reasons") case class C() derives Schema`
+          "-Wconf:msg=unused.*&src=.*/test/.*:s",                          // suppress unused warnings in test sources
+          "-Wconf:msg=nowarn annotation does not suppress any warnings:s", // nowarn difference between Scala 3.3 and 3.5
+          "-Wconf:msg=with as a type operator has been deprecated:s",      // `with` works in both Scala 2 and 3, & only in Scala 3
+          "-Wconf:msg=`_` is deprecated for wildcard arguments:s",         // cross-build with Scala 2 requires [_] syntax
+          "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent",    // workaround for `@deprecated("reasons") case class C() derives Schema`
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
           "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
+          "-Wconf:id=E029:s",                                                      // suppress non-exhaustive pattern match warnings in macro code
+          "-Wconf:id=E030:s",                                                      // suppress unreachable case warnings in type pattern matching
+          "-Wconf:msg=package scala contains object and package with same name:s", // Scala.js classpath artifact
           "-Werror"
         )
       case _ =>
