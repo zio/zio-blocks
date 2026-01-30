@@ -129,51 +129,82 @@ object TypeIdMacros {
     import quotes.reflect.*
 
     val tyconSym     = tycon.typeSymbol
-    val typeParams   = tyconSym.typeMembers.filter(_.isTypeParam)
+    val tyconName    = tyconSym.name
     val typeArgsExpr = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
 
-    if (typeParams.nonEmpty) {
-      val wildcardArgs    = typeParams.map(_ => TypeRepr.of[Any])
-      val existentialType = tycon.appliedTo(wildcardArgs)
+    getPredefinedTypeConstructor(tyconName) match {
+      case Some(baseExpr) =>
+        '{
+          val base = $baseExpr.asInstanceOf[TypeId[A]]
+          TypeId.nominal[A](
+            base.name,
+            base.owner,
+            base.typeParams,
+            ${ Expr.ofList(typeArgsExpr) },
+            base.defKind,
+            base.selfType,
+            base.annotations
+          )
+        }
+      case None =>
+        val typeParams = tyconSym.typeMembers.filter(_.isTypeParam)
+        if (typeParams.nonEmpty) {
+          val wildcardArgs    = typeParams.map(_ => TypeRepr.of[Any])
+          val existentialType = tycon.appliedTo(wildcardArgs)
 
-      existentialType.asType match {
-        case '[t] =>
-          val typeIdType = TypeRepr.of[TypeId[t]]
-          Implicits.search(typeIdType) match {
-            case iss: ImplicitSearchSuccess =>
-              val foundTree = iss.tree
-              val isDerived = foundTree match {
-                case Inlined(Some(call), _, _) =>
-                  call.symbol.fullName.contains("TypeIdMacros") || call.symbol.fullName.contains("derived")
-                case _ => foundTree.symbol.fullName.contains("derived")
+          existentialType.asType match {
+            case '[t] =>
+              val typeIdType = TypeRepr.of[TypeId[t]]
+              Implicits.search(typeIdType) match {
+                case iss: ImplicitSearchSuccess =>
+                  val foundTree = iss.tree
+                  val isDerived = foundTree match {
+                    case Inlined(Some(call), _, _) =>
+                      call.symbol.fullName.contains("TypeIdMacros") || call.symbol.fullName.contains("derived")
+                    case _ => foundTree.symbol.fullName.contains("derived")
+                  }
+                  if (isDerived) {
+                    deriveAppliedTypeFresh[A](tycon, args)
+                  } else {
+                    val foundTyconId = iss.tree.asExprOf[TypeId[t]]
+                    '{
+                      val base = $foundTyconId.asInstanceOf[TypeId[A]]
+                      TypeId.nominal[A](
+                        base.name,
+                        base.owner,
+                        base.typeParams,
+                        ${ Expr.ofList(typeArgsExpr) },
+                        base.defKind,
+                        base.selfType,
+                        base.annotations
+                      )
+                    }
+                  }
+                case _: ImplicitSearchFailure =>
+                  deriveAppliedTypeFresh[A](tycon, args)
               }
-              if (isDerived) {
-                deriveAppliedTypeFresh[A](tycon, args)
-              } else {
-                val foundTyconId = iss.tree.asExprOf[TypeId[t]]
-                '{
-                  val base = $foundTyconId.asInstanceOf[TypeId[A]]
-                  TypeId.nominal[A](
-                    base.name,
-                    base.owner,
-                    base.typeParams,
-                    ${ Expr.ofList(typeArgsExpr) },
-                    base.defKind,
-                    base.selfType,
-                    base.annotations
-                  )
-                }
-              }
-            case _: ImplicitSearchFailure =>
+            case _ =>
               deriveAppliedTypeFresh[A](tycon, args)
           }
-        case _ =>
+        } else {
           deriveAppliedTypeFresh[A](tycon, args)
-      }
-    } else {
-      deriveAppliedTypeFresh[A](tycon, args)
+        }
     }
   }
+
+  private def getPredefinedTypeConstructor(name: String)(using Quotes): Option[Expr[TypeId[?]]] =
+    name match {
+      case "List"       => Some('{ TypeId.list })
+      case "Option"     => Some('{ TypeId.option })
+      case "Some"       => Some('{ TypeId.some })
+      case "Map"        => Some('{ TypeId.map })
+      case "Either"     => Some('{ TypeId.either })
+      case "Set"        => Some('{ TypeId.set })
+      case "Vector"     => Some('{ TypeId.vector })
+      case "Seq"        => Some('{ TypeId.seq })
+      case "IndexedSeq" => Some('{ TypeId.indexedSeq })
+      case _            => None
+    }
 
   private def deriveAppliedTypeFresh[A <: AnyKind: Type](using
     Quotes
