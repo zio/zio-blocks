@@ -181,14 +181,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for Map (type constructor with arity 2)") {
-        val id = TypeId.of[Map[_, _]]
+        val id = TypeId.of[Map[?, ?]]
         assertTrue(
           id.name == "Map",
           id.arity == 2
         )
       },
       test("derives TypeId for Either (type constructor with arity 2)") {
-        val id = TypeId.of[Either[_, _]]
+        val id = TypeId.of[Either[?, ?]]
         assertTrue(
           id.name == "Either",
           id.arity == 2
@@ -260,7 +260,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("derives TypeId for multi-param generic case class") {
-        val id = TypeId.of[MultiParamClass[_, _]]
+        val id = TypeId.of[MultiParamClass[?, ?]]
         assertTrue(
           id.name == "MultiParamClass",
           id.arity == 2
@@ -374,14 +374,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Tuple Types")(
       test("derives TypeId for Tuple2") {
-        val id = TypeId.of[Tuple2[_, _]]
+        val id = TypeId.of[Tuple2[?, ?]]
         assertTrue(
           id.name == "Tuple2",
           id.arity == 2
         )
       },
       test("derives TypeId for Tuple3") {
-        val id = TypeId.of[Tuple3[_, _, _]]
+        val id = TypeId.of[Tuple3[?, ?, ?]]
         assertTrue(
           id.name == "Tuple3",
           id.arity == 3
@@ -397,14 +397,14 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     ),
     suite("Function Types")(
       test("derives TypeId for Function1") {
-        val id = TypeId.of[Function1[_, _]]
+        val id = TypeId.of[Function1[?, ?]]
         assertTrue(
           id.name == "Function1",
           id.arity == 2
         )
       },
       test("derives TypeId for Function2") {
-        val id = TypeId.of[Function2[_, _, _]]
+        val id = TypeId.of[Function2[?, ?, ?]]
         assertTrue(
           id.name == "Function2",
           id.arity == 3
@@ -442,7 +442,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Map has two type parameters") {
-        val id = TypeId.of[Map[_, _]]
+        val id = TypeId.of[Map[?, ?]]
         assertTrue(
           id.typeParams.size == 2,
           id.typeParams(0).index == 0,
@@ -450,7 +450,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
         )
       },
       test("Either has two type parameters") {
-        val id = TypeId.of[Either[_, _]]
+        val id = TypeId.of[Either[?, ?]]
         assertTrue(
           id.typeParams.size == 2
         )

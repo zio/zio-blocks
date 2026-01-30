@@ -742,7 +742,7 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     },
     test("arity returns number of type params") {
       val list  = TypeId.of[List[?]]
-      val map   = TypeId.of[Map[_, _]]
+      val map   = TypeId.of[Map[?, ?]]
       val intId = TypeId.of[Int]
       assertTrue(list.arity == 1, map.arity == 2, intId.arity == 0)
     },
