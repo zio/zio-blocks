@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.test._
 
@@ -8,7 +9,7 @@ import zio.test._
  * Sum types cannot be converted to structural types in Scala 2 because they
  * require union types, which are only available in Scala 3.
  */
-object SumTypeErrorSpec extends ZIOSpecDefault {
+object SumTypeErrorSpec extends SchemaBaseSpec {
 
   def spec = suite("SumTypeErrorSpec")(
     suite("Sealed Trait Structural Conversion")(

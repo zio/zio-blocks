@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
@@ -7,7 +8,7 @@ import zio.test._
  * Round-trip tests for structural schemas through DynamicValue (JVM only).
  * Tests both product and sum type structural conversions.
  */
-object StructuralRoundTripSpec extends ZIOSpecDefault {
+object StructuralRoundTripSpec extends SchemaBaseSpec {
 
   case class Simple(x: Int, y: String)
   case class Nested(inner: Simple, flag: Boolean)

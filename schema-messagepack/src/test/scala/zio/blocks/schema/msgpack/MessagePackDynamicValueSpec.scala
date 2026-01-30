@@ -8,8 +8,7 @@ import zio.test._
 
 object MessagePackDynamicValueSpec extends ZIOSpecDefault {
 
-  private val codec: MessagePackBinaryCodec[DynamicValue] =
-    Schema[DynamicValue].derive(MessagePackFormat.deriver)
+  private val codec = Schema[DynamicValue].derive(MessagePackFormat)
 
   def spec: Spec[Any, Nothing] = suite("MessagePackDynamicValueSpec")(
     suite("DynamicValue roundtrip")(

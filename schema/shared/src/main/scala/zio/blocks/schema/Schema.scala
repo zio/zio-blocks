@@ -18,7 +18,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
-      .computeIfAbsent(format, _ => derive(format.deriver))
+      .computeIfAbsent(format, _ => derive(format))
 
   def getDefaultValue: Option[A] = reflect.getDefaultValue
 
@@ -30,6 +30,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def defaultValue(value: => A): Schema[A] = new Schema(reflect.defaultValue(value))
 
   def derive[TC[_]](deriver: Deriver[TC]): TC[A] = deriving(deriver).derive
+
+  def derive[F <: codec.Format](format: F): format.TypeClass[A] = derive(format.deriver)
 
   def deriving[TC[_]](deriver: Deriver[TC]): DerivationBuilder[TC, A] =
     new DerivationBuilder[TC, A](this, deriver, IndexedSeq.empty, IndexedSeq.empty)
@@ -65,8 +67,23 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
 
   def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
 
+  /**
+   * Converts this schema to a [[DynamicSchema]] by stripping runtime bindings.
+   *
+   * The resulting `DynamicSchema` retains all structural information (fields,
+   * cases, types, validations) but without the runtime constructors and
+   * deconstructors needed to work with actual values of type `A`. This is
+   * useful for runtime schema validation of [[DynamicValue]] instances.
+   *
+   * @return
+   *   A type-erased schema that can validate `DynamicValue` instances
+   * @see
+   *   [[DynamicSchema]] for validation capabilities
+   */
+  def toDynamicSchema: DynamicSchema = new DynamicSchema(reflect.noBinding)
+
   /** Derives a JSON Schema from this Schema. */
-  def toJsonSchema: JsonSchema = derive(JsonFormat.deriver).toJsonSchema
+  def toJsonSchema: JsonSchema = derive(JsonFormat).toJsonSchema
 
   def updated(dynamic: DynamicOptic)(f: Reflect.Updater[Binding]): Option[Schema[A]] =
     reflect.updated(dynamic)(f).map(x => new Schema(x))

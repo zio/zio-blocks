@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -67,16 +66,13 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def fail(msg: String): Nothing = CommonMacroOps.fail(msg)
 
-  private def isEnumValue(tpe: TypeRepr): Boolean = tpe.termSymbol.flags.is(Flags.Enum)
+  private def isEnumValue(tpe: TypeRepr): Boolean = CommonMacroOps.isEnumValue(tpe)
 
-  private def isEnumOrModuleValue(tpe: TypeRepr): Boolean = isEnumValue(tpe) || tpe.typeSymbol.flags.is(Flags.Module)
+  private def isEnumOrModuleValue(tpe: TypeRepr): Boolean = CommonMacroOps.isEnumOrModuleValue(tpe)
 
-  private def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
-    val flags = symbol.flags
-    flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
-  }
+  private def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = CommonMacroOps.isSealedTraitOrAbstractClass(tpe)
 
-  private def isOpaque(tpe: TypeRepr): Boolean = tpe.typeSymbol.flags.is(Flags.Opaque)
+  private def isOpaque(tpe: TypeRepr): Boolean = CommonMacroOps.isOpaque(tpe)
 
   // === Structural Type Support (JVM only) ===
 
@@ -133,70 +129,23 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     }
   }
 
-  private def opaqueDealias(tpe: TypeRepr): TypeRepr = {
-    @tailrec
-    def loop(tpe: TypeRepr): TypeRepr = tpe match {
-      case trTpe: TypeRef =>
-        if (trTpe.isOpaqueAlias) loop(trTpe.translucentSuperType.dealias)
-        else tpe
-      case AppliedType(atTpe, _)   => loop(atTpe.dealias)
-      case TypeLambda(_, _, tlTpe) => loop(tlTpe.dealias)
-      case _                       => tpe
-    }
+  private def opaqueDealias(tpe: TypeRepr): TypeRepr = CommonMacroOps.opaqueDealias(tpe)
 
-    val sTpe = loop(tpe)
-    if (sTpe =:= tpe) fail(s"Cannot dealias opaque type: ${tpe.show}.")
-    sTpe
-  }
+  private def isZioPreludeNewtype(tpe: TypeRepr): Boolean = CommonMacroOps.isZioPreludeNewtype(tpe)
 
-  private def isZioPreludeNewtype(tpe: TypeRepr): Boolean = tpe match {
-    case TypeRef(compTpe, "Type") => compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
-    case _                        => false
-  }
+  private def zioPreludeNewtypeDealias(tpe: TypeRepr): TypeRepr = CommonMacroOps.zioPreludeNewtypeDealias(tpe)
 
-  private def zioPreludeNewtypeDealias(tpe: TypeRepr): TypeRepr = tpe match {
-    case TypeRef(compTpe, _) =>
-      compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
-        case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
-        case _         => cannotDealiasZioPreludeNewtype(tpe)
-      }
-    case _ => cannotDealiasZioPreludeNewtype(tpe)
-  }
+  private def isTypeRef(tpe: TypeRepr): Boolean = CommonMacroOps.isTypeRef(tpe)
 
-  private def cannotDealiasZioPreludeNewtype(tpe: TypeRepr): Nothing =
-    fail(s"Cannot dealias zio-prelude newtype: ${tpe.show}.")
+  private def typeRefDealias(tpe: TypeRepr): TypeRepr = CommonMacroOps.typeRefDealias(tpe)
 
-  private def isTypeRef(tpe: TypeRepr): Boolean = tpe match {
-    case trTpe: TypeRef =>
-      val typeSymbol = trTpe.typeSymbol
-      typeSymbol.isTypeDef && typeSymbol.isAliasType
-    case _ => false
-  }
-
-  private def typeRefDealias(tpe: TypeRepr): TypeRepr = tpe match {
-    case trTpe: TypeRef =>
-      val sTpe = trTpe.translucentSuperType.dealias
-      if (sTpe == trTpe) cannotDealiasTypeRef(tpe)
-      sTpe
-    case _ => cannotDealiasTypeRef(tpe)
-  }
-
-  private def cannotDealiasTypeRef(tpe: TypeRepr): Nothing = fail(s"Cannot dealias type reference: ${tpe.show}.")
-
-  private def dealiasOnDemand(tpe: TypeRepr): TypeRepr =
-    if (isOpaque(tpe)) opaqueDealias(tpe)
-    else if (isZioPreludeNewtype(tpe)) zioPreludeNewtypeDealias(tpe)
-    else if (isTypeRef(tpe)) typeRefDealias(tpe)
-    else tpe
+  private def dealiasOnDemand(tpe: TypeRepr): TypeRepr = CommonMacroOps.dealiasOnDemand(tpe)
 
   private def isUnion(tpe: TypeRepr): Boolean = CommonMacroOps.isUnion(tpe)
 
   private def allUnionTypes(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.allUnionTypes(tpe)
 
-  private def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
-    val flags = symbol.flags
-    !(flags.is(Flags.Abstract) || flags.is(Flags.JavaDefined) || flags.is(Flags.Trait))
-  }
+  private def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = CommonMacroOps.isNonAbstractScalaClass(tpe)
 
   private def typeArgs(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.typeArgs(tpe)
 
@@ -210,10 +159,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private def normalizeGenericTuple(tpe: TypeRepr): TypeRepr =
     CommonMacroOps.normalizeGenericTuple(genericTupleTypeArgs(tpe))
 
-  private def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
-    case AppliedType(ntTpe, _) => ntTpe.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple"
-    case _                     => false
-  }
+  private def isNamedTuple(tpe: TypeRepr): Boolean = CommonMacroOps.isNamedTuple(tpe)
 
   private def isJavaTime(tpe: TypeRepr): Boolean = tpe.typeSymbol.fullName.startsWith("java.time.") &&
     (tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount])

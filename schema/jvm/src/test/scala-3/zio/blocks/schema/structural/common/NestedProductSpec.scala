@@ -1,10 +1,11 @@
 package zio.blocks.schema.structural.common
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
 /** Tests for nested product types to structural conversion. */
-object NestedProductSpec extends ZIOSpecDefault {
+object NestedProductSpec extends SchemaBaseSpec {
 
   case class Address(street: String, city: String, zip: Int)
   case class Person(name: String, age: Int, address: Address)

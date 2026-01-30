@@ -1,10 +1,11 @@
 package zio.blocks.schema.structural.common
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
 /** Tests for collections in structural types. */
-object CollectionsSpec extends ZIOSpecDefault {
+object CollectionsSpec extends SchemaBaseSpec {
 
   case class Team(name: String, members: List[String], leader: Option[String])
   case class Config(settings: Map[String, Int])

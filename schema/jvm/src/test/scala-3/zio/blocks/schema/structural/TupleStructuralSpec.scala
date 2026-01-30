@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
@@ -6,7 +7,7 @@ import zio.test._
 /**
  * Tests for tuple to structural type conversion (JVM only).
  */
-object TupleStructuralSpec extends ZIOSpecDefault {
+object TupleStructuralSpec extends SchemaBaseSpec {
 
   def spec = suite("TupleStructuralSpec")(
     suite("Tuple2 structural conversion")(

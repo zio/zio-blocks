@@ -1,10 +1,11 @@
 package zio.blocks.schema.structural.common
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
 
 /** Tests for large product types (>22 fields) to structural conversion. */
-object LargeProductSpec extends ZIOSpecDefault {
+object LargeProductSpec extends SchemaBaseSpec {
 
   case class Record25(
     f1: Int,

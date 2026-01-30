@@ -1,4 +1,5 @@
 package zio.blocks.schema.structural
+import zio.blocks.schema.SchemaBaseSpec
 
 import zio.blocks.schema._
 import zio.test._
@@ -10,7 +11,7 @@ import zio.test._
  * Example: sealed trait Result { Success, Failure } → Schema[{ type Tag =
  * "Success"; def value: Int } | { type Tag = "Failure"; def error: String }]
  */
-object SealedTraitToUnionSpec extends ZIOSpecDefault {
+object SealedTraitToUnionSpec extends SchemaBaseSpec {
 
   sealed trait Result
   object Result {

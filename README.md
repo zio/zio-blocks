@@ -37,12 +37,12 @@ object Person {
 }
 
 // Get everything for free:
-val jsonCodec    = Schema[Person].derive(JsonFormat.deriver)        // JSON serialization
-val avroCodec    = Schema[Person].derive(AvroFormat.deriver)        // Avro serialization
-val toonCodec    = Schema[Person].derive(ToonFormat.deriver)        // TOON serialization
-val msgpackCodec = Schema[Person].derive(MessagePackFormat.deriver) // MessagePack serialization
-val protobuf     = Schema[Person].derive(ProtobufFormat.deriver)    // Protobuf serialization (not implemented yet)
-val thrift       = Schema[Person].derive(ThriftFormat.deriver)      // Thrift serialization (not implemented yet)
+val jsonCodec    = Schema[Person].derive(JsonFormat)        // JSON serialization
+val avroCodec    = Schema[Person].derive(AvroFormat)        // Avro serialization
+val toonCodec    = Schema[Person].derive(ToonFormat)        // TOON serialization
+val msgpackCodec = Schema[Person].derive(MessagePackFormat) // MessagePack serialization
+val protobuf     = Schema[Person].derive(ProtobufFormat)    // Protobuf serialization (not implemented yet)
+val thrift       = Schema[Person].derive(ThriftFormat)      // Thrift serialization (not implemented yet)
 // ...
 ```
 

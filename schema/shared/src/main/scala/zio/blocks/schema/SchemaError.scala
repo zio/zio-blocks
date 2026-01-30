@@ -17,6 +17,27 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
         sb.append(e.message)
     }
     .toString
+
+  /** Prepends a field access to the path of all errors in this SchemaError. */
+  def atField(name: String): SchemaError =
+    mapSource(path => DynamicOptic.root.field(name)(path))
+
+  /** Prepends an index access to the path of all errors in this SchemaError. */
+  def atIndex(index: Int): SchemaError =
+    mapSource(path => DynamicOptic.root.at(index)(path))
+
+  /** Prepends a case access to the path of all errors in this SchemaError. */
+  def atCase(name: String): SchemaError =
+    mapSource(path => DynamicOptic.root.caseOf(name)(path))
+
+  /**
+   * Prepends a map key access to the path of all errors in this SchemaError.
+   */
+  def atKey(key: DynamicValue): SchemaError =
+    mapSource(path => new DynamicOptic(DynamicOptic.Node.AtMapKey(key) +: path.nodes))
+
+  private def mapSource(f: DynamicOptic => DynamicOptic): SchemaError =
+    SchemaError(new ::(SchemaError.remapSource(errors.head, f), errors.tail.map(SchemaError.remapSource(_, f))))
 }
 
 object SchemaError {
@@ -54,6 +75,29 @@ object SchemaError {
    */
   def validationFailed(message: String): SchemaError =
     conversionFailed(Nil, message)
+
+  /**
+   * Creates a SchemaError with a simple message at the given path. This is the
+   * primary replacement for JsonError(message, path) and
+   * DynamicValueError(message, path).
+   */
+  def message(details: String, path: DynamicOptic = DynamicOptic.root): SchemaError =
+    new SchemaError(new ::(Message(path, details), Nil))
+
+  /**
+   * Creates a SchemaError with just a message at the root path.
+   */
+  def apply(details: String): SchemaError = message(details)
+
+  private[schema] def remapSource(single: Single, f: DynamicOptic => DynamicOptic): Single =
+    single match {
+      case ConversionFailed(src, details, cause) => ConversionFailed(f(src), details, cause)
+      case MissingField(src, fieldName)          => MissingField(f(src), fieldName)
+      case DuplicatedField(src, fieldName)       => DuplicatedField(f(src), fieldName)
+      case ExpectationMismatch(src, exp)         => ExpectationMismatch(f(src), exp)
+      case UnknownCase(src, caseName)            => UnknownCase(f(src), caseName)
+      case Message(src, details)                 => Message(f(src), details)
+    }
 
   private[this] def toDynamicOptic(trace: List[DynamicOptic.Node]): DynamicOptic = {
     val nodes = trace.toArray
@@ -116,5 +160,15 @@ object SchemaError {
 
   case class UnknownCase(source: DynamicOptic, caseName: String) extends Single {
     override def message: String = s"Unknown case '$caseName' at: ${source.toScalaString}"
+  }
+
+  /**
+   * A generic message error with a path. This is the primary replacement for
+   * JsonError and DynamicValueError.
+   */
+  case class Message(source: DynamicOptic, details: String) extends Single {
+    override def message: String =
+      if (source.nodes.isEmpty) details
+      else s"$details at: ${source.toString}"
   }
 }
