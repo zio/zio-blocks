@@ -2,6 +2,7 @@ package zio.blocks.schema.tostring
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.TypeId
 import zio.test._
 
 object ReflectSpec extends ZIOSpecDefault {
@@ -321,6 +322,15 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders dynamic as its type name") {
         val schema = Schema.dynamic
         assertTrue(schema.reflect.toString == "DynamicValue")
+      },
+      test("renders sequence of dynamic values") {
+        lazy implicit val schema: Schema[List[DynamicValue]] = Schema.list[DynamicValue]
+        assertTrue(schema.reflect.toString == "sequence List[DynamicValue]")
+      },
+      test("renders map with dynamic values") {
+        lazy implicit val schema: Schema[collection.immutable.Map[DynamicValue, DynamicValue]] =
+          Schema.map[DynamicValue, DynamicValue]
+        assertTrue(schema.reflect.toString == "map Map[DynamicValue, DynamicValue]")
       }
     ),
 
@@ -339,6 +349,21 @@ object ReflectSpec extends ZIOSpecDefault {
             |  }
             |}""".stripMargin
         assertTrue(level1Schema.reflect.toString == expected)
+      },
+      test("renders map with complex key type") {
+        lazy implicit val complexKeySchema: Schema[ComplexKey]                         = Schema.derived[ComplexKey]
+        lazy implicit val mapSchema: Schema[collection.immutable.Map[ComplexKey, Int]] =
+          Schema.map[ComplexKey, Int]
+
+        val expected =
+          """map Map[
+            |  record ComplexKey {
+            |    id: Int
+            |    name: String
+            |  },
+            |  Int
+            |]""".stripMargin
+        assertTrue(mapSchema.reflect.toString == expected)
       }
     ),
 
@@ -346,7 +371,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders String with NonEmpty validation") {
         val reflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.NonEmpty),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "String @NonEmpty")
@@ -354,7 +379,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders String with Empty validation") {
         val reflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Empty),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "String @Empty")
@@ -362,7 +387,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders String with Blank validation") {
         val reflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Blank),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "String @Blank")
@@ -370,7 +395,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders String with NonBlank validation") {
         val reflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.NonBlank),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "String @NonBlank")
@@ -378,7 +403,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders String with Length validation (both bounds)") {
         val reflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Length(Some(3), Some(50))),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "String @Length(min=3, max=50)")
@@ -386,7 +411,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders String with Length validation (min only)") {
         val reflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Length(Some(3), None)),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "String @Length(min=3)")
@@ -394,7 +419,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders String with Length validation (max only)") {
         val reflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Length(None, Some(50))),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "String @Length(max=50)")
@@ -402,7 +427,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders String with Pattern validation") {
         val reflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "String @Pattern(\"^[a-z]+$\")")
@@ -410,7 +435,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders Int with Positive validation") {
         val reflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Positive),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "Int @Positive")
@@ -418,7 +443,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders Int with Negative validation") {
         val reflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Negative),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "Int @Negative")
@@ -426,7 +451,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders Int with NonPositive validation") {
         val reflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.NonPositive),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "Int @NonPositive")
@@ -434,7 +459,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders Int with NonNegative validation") {
         val reflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.NonNegative),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "Int @NonNegative")
@@ -442,7 +467,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders Int with Range validation (both bounds)") {
         val reflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(100))),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "Int @Range(min=0, max=100)")
@@ -450,7 +475,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders Int with Range validation (min only)") {
         val reflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Range(Some(0), None)),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "Int @Range(min=0)")
@@ -458,7 +483,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders Int with Set validation") {
         val reflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Set(Set(1, 2, 3))),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         // Set iteration order may vary, so we just check it contains the expected elements
@@ -471,7 +496,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders Long with Negative validation") {
         val reflect = Reflect.Primitive[Binding, Long](
           new PrimitiveType.Long(Validation.Numeric.Negative),
-          TypeName.long,
+          TypeId.long,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "Long @Negative")
@@ -479,7 +504,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders Double with NonNegative validation") {
         val reflect = Reflect.Primitive[Binding, Double](
           new PrimitiveType.Double(Validation.Numeric.NonNegative),
-          TypeName.double,
+          TypeId.double,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "Double @NonNegative")
@@ -487,7 +512,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders primitives without validation (Validation.None) unchanged") {
         val reflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.None),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
         assertTrue(reflect.toString == "Int")
@@ -500,12 +525,12 @@ object ReflectSpec extends ZIOSpecDefault {
         // Create validated primitives
         val nameReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.NonEmpty),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         val ageReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Positive),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
 
@@ -528,13 +553,13 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders sequence with validated element type") {
         val intReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.NonNegative),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
 
         val listReflect = Reflect.Sequence[Binding, Int, List](
           element = intReflect,
-          typeName = TypeName.list(TypeName.int),
+          typeId = TypeId.of[List[Int]],
           seqBinding = Binding.Seq.list
         )
 
@@ -543,19 +568,19 @@ object ReflectSpec extends ZIOSpecDefault {
       test("renders map with validated key and value types") {
         val keyReflect = Reflect.Primitive[Binding, String](
           new PrimitiveType.String(Validation.String.NonEmpty),
-          TypeName.string,
+          TypeId.string,
           Binding.Primitive()
         )
         val valueReflect = Reflect.Primitive[Binding, Int](
           new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(100))),
-          TypeName.int,
+          TypeId.int,
           Binding.Primitive()
         )
 
         val mapReflect = Reflect.Map[Binding, String, Int, scala.collection.immutable.Map](
           key = keyReflect,
           value = valueReflect,
-          typeName = TypeName.map(TypeName.string, TypeName.int),
+          typeId = TypeId.of[Map[String, Int]],
           mapBinding = Binding.Map.map
         )
 
@@ -609,4 +634,6 @@ object ReflectSpec extends ZIOSpecDefault {
   case class ValidatedUser(name: String, age: Int)
   case class ValidatedUserWithEmail(name: String, age: Int, email: String)
   case class Transaction(currencyCode: String, amount: BigDecimal)
+
+  case class ComplexKey(id: Int, name: String)
 }

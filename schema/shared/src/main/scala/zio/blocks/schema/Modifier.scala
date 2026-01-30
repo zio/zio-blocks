@@ -4,6 +4,7 @@ import scala.annotation.meta.field
 import scala.annotation.StaticAnnotation
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.typeid.TypeId
 
 /**
  * A sealed trait that represents a modifier used to annotate terms or reflect
@@ -66,7 +67,7 @@ object Modifier {
   implicit lazy val transientSchema: Schema[transient] = new Schema(
     reflect = new Reflect.Record[Binding, transient](
       fields = Vector.empty,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Modifier")), "transient"),
+      typeId = TypeId.of[transient],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[transient](transient()),
         deconstructor = new ConstantDeconstructor[transient]
@@ -77,17 +78,20 @@ object Modifier {
 
   implicit lazy val renameSchema: Schema[rename] = new Schema(
     reflect = new Reflect.Record[Binding, rename](
-      fields = Vector(Schema[String].reflect.asTerm("name")),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Modifier")), "rename"),
+      fields = Vector(
+        Schema[String].reflect.asTerm("name")
+      ),
+      typeId = TypeId.of[rename],
       recordBinding = new Binding.Record(
         constructor = new Constructor[rename] {
           def usedRegisters: RegisterOffset                            = 1
           def construct(in: Registers, offset: RegisterOffset): rename =
-            new rename(in.getObject(offset).asInstanceOf[String])
+            rename(in.getObject(offset + 0).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[rename] {
           def usedRegisters: RegisterOffset                                         = 1
-          def deconstruct(out: Registers, offset: RegisterOffset, in: rename): Unit = out.setObject(offset, in.name)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: rename): Unit =
+            out.setObject(offset + 0, in.name)
         }
       ),
       modifiers = Vector.empty
@@ -96,17 +100,20 @@ object Modifier {
 
   implicit lazy val aliasSchema: Schema[alias] = new Schema(
     reflect = new Reflect.Record[Binding, alias](
-      fields = Vector(Schema[String].reflect.asTerm("name")),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Modifier")), "alias"),
+      fields = Vector(
+        Schema[String].reflect.asTerm("name")
+      ),
+      typeId = TypeId.of[alias],
       recordBinding = new Binding.Record(
         constructor = new Constructor[alias] {
           def usedRegisters: RegisterOffset                           = 1
           def construct(in: Registers, offset: RegisterOffset): alias =
-            new alias(in.getObject(offset).asInstanceOf[String])
+            alias(in.getObject(offset + 0).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[alias] {
           def usedRegisters: RegisterOffset                                        = 1
-          def deconstruct(out: Registers, offset: RegisterOffset, in: alias): Unit = out.setObject(offset, in.name)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: alias): Unit =
+            out.setObject(offset + 0, in.name)
         }
       ),
       modifiers = Vector.empty
@@ -119,20 +126,20 @@ object Modifier {
         Schema[String].reflect.asTerm("key"),
         Schema[String].reflect.asTerm("value")
       ),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Modifier")), "config"),
+      typeId = TypeId.of[config],
       recordBinding = new Binding.Record(
         constructor = new Constructor[config] {
           def usedRegisters: RegisterOffset                            = 2
           def construct(in: Registers, offset: RegisterOffset): config =
-            new config(
-              in.getObject(offset).asInstanceOf[String],
+            config(
+              in.getObject(offset + 0).asInstanceOf[String],
               in.getObject(offset + 1).asInstanceOf[String]
             )
         },
         deconstructor = new Deconstructor[config] {
           def usedRegisters: RegisterOffset                                         = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: config): Unit = {
-            out.setObject(offset, in.key)
+            out.setObject(offset + 0, in.key)
             out.setObject(offset + 1, in.value)
           }
         }
@@ -149,7 +156,7 @@ object Modifier {
         aliasSchema.reflect.asTerm("alias"),
         configSchema.reflect.asTerm("config")
       ),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Modifier")), "Term"),
+      typeId = TypeId.of[Term],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Term] {
           def discriminate(a: Term): Int = a match {
@@ -192,8 +199,10 @@ object Modifier {
 
   implicit lazy val reflectSchema: Schema[Reflect] = new Schema(
     reflect = new Reflect.Variant[Binding, Reflect](
-      cases = Vector(configSchema.reflect.asTerm("config")),
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema", "Modifier")), "Reflect"),
+      cases = Vector(
+        configSchema.reflect.asTerm("config")
+      ),
+      typeId = TypeId.of[Reflect],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Reflect] {
           def discriminate(a: Reflect): Int = a match {
@@ -221,7 +230,7 @@ object Modifier {
         aliasSchema.reflect.asTerm("alias"),
         configSchema.reflect.asTerm("config")
       ),
-      typeName = new TypeName(Namespace(List("zio", "blocks", "schema")), "Modifier"),
+      typeId = TypeId.of[Modifier],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Modifier] {
           def discriminate(a: Modifier): Int = a match {

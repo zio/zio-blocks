@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.TypeId
 import zio.test.Assertion.{equalTo, isNone, isSome}
 import zio.test.{Spec, TestEnvironment, assert}
 
@@ -89,6 +90,34 @@ object DynamicOpticSpec extends SchemaBaseSpec {
         equalTo("[0,1,2]{\"X\", \"Y\", \"Z\"}")
       ) &&
       assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo("[*]{*:}{*}.~"))
+    },
+    test("toString returns dot for empty optic") {
+      assert(DynamicOptic.root.toString)(equalTo("."))
+    },
+    test("toScalaString returns Scala method syntax") {
+      assert(A.x.toDynamic.toScalaString)(equalTo(".when[X]")) &&
+      assert(A.x(X.y).toDynamic.toScalaString)(equalTo(".when[X].y")) &&
+      assert(DynamicOptic.root.at(0).toScalaString)(equalTo(".at(0)")) &&
+      assert(DynamicOptic.root.atIndices(0, 1, 2).toScalaString)(equalTo(".atIndices(0, 1, 2)")) &&
+      assert(DynamicOptic.root.atKey("Z").toScalaString)(equalTo(".atKey(\"Z\")")) &&
+      assert(DynamicOptic.root.atKeys("X", "Y").toScalaString)(equalTo(".atKeys(\"X\", \"Y\")")) &&
+      assert(DynamicOptic.elements.toScalaString)(equalTo(".each")) &&
+      assert(DynamicOptic.mapKeys.toScalaString)(equalTo(".eachKey")) &&
+      assert(DynamicOptic.mapValues.toScalaString)(equalTo(".eachValue")) &&
+      assert(DynamicOptic.wrapped.toScalaString)(equalTo(".wrapped"))
+    },
+    test("toScalaString returns dot for empty optic") {
+      assert(DynamicOptic.root.toScalaString)(equalTo("."))
+    },
+    test("toString handles special characters in string keys") {
+      assert(DynamicOptic.root.atKey("hello\nworld").toString)(equalTo("{\"hello\\nworld\"}")) &&
+      assert(DynamicOptic.root.atKey("tab\there").toString)(equalTo("{\"tab\\there\"}")) &&
+      assert(DynamicOptic.root.atKey("quote\"test").toString)(equalTo("{\"quote\\\"test\"}"))
+    },
+    test("toString handles numeric primitive keys") {
+      assert(DynamicOptic.root.atKey(42).toString)(equalTo("{42}")) &&
+      assert(DynamicOptic.root.atKey(123L).toString)(equalTo("{123}")) &&
+      assert(DynamicOptic.root.atKey(true).toString)(equalTo("{true}"))
     }
   )
 
@@ -125,7 +154,8 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
+    val typeId: TypeId[PosInt]          = TypeId.of
     implicit val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).asOpaqueType[PosInt]
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).asOpaqueType[PosInt](typeId)
   }
 }

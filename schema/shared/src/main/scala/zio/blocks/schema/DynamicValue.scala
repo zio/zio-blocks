@@ -248,6 +248,33 @@ sealed trait DynamicValue {
   def normalize: DynamicValue = sortFields.sortMapKeys.dropNulls.dropUnits.dropEmpty
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Schema Conformance
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Validates this value against a [[DynamicSchema]].
+   *
+   * @param schema
+   *   The schema to validate against
+   * @return
+   *   `None` if this value conforms to the schema, or `Some(SchemaError)`
+   *   describing the validation failure
+   * @see
+   *   [[DynamicSchema.check]] for the underlying validation logic
+   */
+  def check(schema: DynamicSchema): Option[SchemaError] = schema.check(this)
+
+  /**
+   * Tests whether this value conforms to a [[DynamicSchema]].
+   *
+   * @param schema
+   *   The schema to validate against
+   * @return
+   *   `true` if this value passes all validation checks, `false` otherwise
+   */
+  def conforms(schema: DynamicSchema): Boolean = check(schema).isEmpty
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Transformation
   // ─────────────────────────────────────────────────────────────────────────
 

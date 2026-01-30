@@ -5,6 +5,7 @@ import zio.blocks.schema.DynamicOptic.Node._
 import zio.blocks.schema.OpticCheck._
 import zio.ZIO
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.{Owner, TypeId}
 import zio.test.Assertion._
 import zio.test._
 
@@ -3449,7 +3450,7 @@ object OpticSpecTypes {
 
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpticSpec")), "Wrapper"),
+      typeId = TypeId.nominal[Wrapper]("Wrapper", Owner.fromPackagePath("zio.blocks.schema").term("OpticSpec")),
       wrapperPrimitiveType = None,
       wrapperBinding = Binding.Wrapper(
         wrap = Wrapper.apply,
@@ -3471,10 +3472,10 @@ object OpticSpecTypes {
   }
 
   object Collections {
-    val alb: Optional[List[Byte], Byte]         = Optional.at(Reflect.list(Reflect.byte), 1)
-    val ailb: Traversal[List[Byte], Byte]       = Traversal.atIndices(Reflect.list(Reflect.byte), Seq(1, 2))
-    val alc1_d: Optional[List[Case1], Double]   = Optional.at(Reflect.list(Case1.reflect), 1)(Case1.d)
-    val aabl: Optional[Array[Boolean], Boolean] =
+    lazy val alb: Optional[List[Byte], Byte]         = Optional.at(Reflect.list(Reflect.byte), 1)
+    lazy val ailb: Traversal[List[Byte], Byte]       = Traversal.atIndices(Reflect.list(Reflect.byte), Seq(1, 2))
+    lazy val alc1_d: Optional[List[Case1], Double]   = Optional.at(Reflect.list(Case1.reflect), 1)(Case1.d)
+    lazy val aabl: Optional[Array[Boolean], Boolean] =
       Optional.at(
         Schema
           .derived[Array[Boolean]]
@@ -3485,7 +3486,7 @@ object OpticSpecTypes {
           .asInstanceOf[Reflect.Sequence[Binding, Boolean, Array]],
         1
       )
-    val aab: Optional[Array[Byte], Byte] =
+    lazy val aab: Optional[Array[Byte], Byte] =
       Optional.at(
         Schema
           .derived[Array[Byte]]
@@ -3496,7 +3497,7 @@ object OpticSpecTypes {
           .asInstanceOf[Reflect.Sequence[Binding, Byte, Array]],
         1
       )
-    val aash: Optional[Array[Short], Short] =
+    lazy val aash: Optional[Array[Short], Short] =
       Optional.at(
         Schema
           .derived[Array[Short]]
@@ -3507,7 +3508,7 @@ object OpticSpecTypes {
           .asInstanceOf[Reflect.Sequence[Binding, Short, Array]],
         1
       )
-    val aai: Optional[Array[Int], Int] =
+    lazy val aai: Optional[Array[Int], Int] =
       Optional.at(
         Schema
           .derived[Array[Int]]
@@ -3518,7 +3519,7 @@ object OpticSpecTypes {
           .asInstanceOf[Reflect.Sequence[Binding, Int, Array]],
         1
       )
-    val aal: Optional[Array[Long], Long] =
+    lazy val aal: Optional[Array[Long], Long] =
       Optional.at(
         Schema
           .derived[Array[Long]]
@@ -3529,7 +3530,7 @@ object OpticSpecTypes {
           .asInstanceOf[Reflect.Sequence[Binding, Long, Array]],
         1
       )
-    val aad: Optional[Array[Double], Double] =
+    lazy val aad: Optional[Array[Double], Double] =
       Optional.at(
         Schema
           .derived[Array[Double]]
@@ -3540,7 +3541,7 @@ object OpticSpecTypes {
           .asInstanceOf[Reflect.Sequence[Binding, Double, Array]],
         1
       )
-    val aaf: Optional[Array[Float], Float] =
+    lazy val aaf: Optional[Array[Float], Float] =
       Optional.at(
         Schema
           .derived[Array[Float]]
@@ -3551,7 +3552,7 @@ object OpticSpecTypes {
           .asInstanceOf[Reflect.Sequence[Binding, Float, Array]],
         1
       )
-    val aac: Optional[Array[Char], Char] =
+    lazy val aac: Optional[Array[Char], Char] =
       Optional.at(
         Schema
           .derived[Array[Char]]
@@ -3562,7 +3563,7 @@ object OpticSpecTypes {
           .asInstanceOf[Reflect.Sequence[Binding, Char, Array]],
         1
       )
-    val aas: Optional[Array[String], String] =
+    lazy val aas: Optional[Array[String], String] =
       Optional.at(
         Schema
           .derived[Array[String]]
@@ -3573,9 +3574,9 @@ object OpticSpecTypes {
           .asInstanceOf[Reflect.Sequence[Binding, String, Array]],
         1
       )
-    val lb: Traversal[List[Byte], Byte]         = Traversal.listValues(Reflect.byte)
-    val vs: Traversal[Vector[Short], Short]     = Traversal.vectorValues(Reflect.short)
-    val abl: Traversal[Array[Boolean], Boolean] =
+    lazy val lb: Traversal[List[Byte], Byte]         = Traversal.listValues(Reflect.byte)
+    lazy val vs: Traversal[Vector[Short], Short]     = Traversal.vectorValues(Reflect.short)
+    lazy val abl: Traversal[Array[Boolean], Boolean] =
       Traversal.seqValues(
         Schema
           .derived[Array[Boolean]]
@@ -3585,7 +3586,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Boolean, Array]]
       )
-    val ab: Traversal[Array[Byte], Byte] =
+    lazy val ab: Traversal[Array[Byte], Byte] =
       Traversal.seqValues(
         Schema
           .derived[Array[Byte]]
@@ -3595,7 +3596,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Byte, Array]]
       )
-    val ash: Traversal[Array[Short], Short] =
+    lazy val ash: Traversal[Array[Short], Short] =
       Traversal.seqValues(
         Schema
           .derived[Array[Short]]
@@ -3605,7 +3606,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Short, Array]]
       )
-    val ai: Traversal[Array[Int], Int] =
+    lazy val ai: Traversal[Array[Int], Int] =
       Traversal.seqValues(
         Schema
           .derived[Array[Int]]
@@ -3615,7 +3616,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Int, Array]]
       )
-    val al: Traversal[Array[Long], Long] =
+    lazy val al: Traversal[Array[Long], Long] =
       Traversal.seqValues(
         Schema
           .derived[Array[Long]]
@@ -3625,7 +3626,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Long, Array]]
       )
-    val ad: Traversal[Array[Double], Double] =
+    lazy val ad: Traversal[Array[Double], Double] =
       Traversal.seqValues(
         Schema
           .derived[Array[Double]]
@@ -3635,7 +3636,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Double, Array]]
       )
-    val af: Traversal[Array[Float], Float] =
+    lazy val af: Traversal[Array[Float], Float] =
       Traversal.seqValues(
         Schema
           .derived[Array[Float]]
@@ -3645,7 +3646,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Float, Array]]
       )
-    val ac: Traversal[Array[Char], Char] =
+    lazy val ac: Traversal[Array[Char], Char] =
       Traversal.seqValues(
         Schema
           .derived[Array[Char]]
@@ -3655,7 +3656,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Char, Array]]
       )
-    val as: Traversal[Array[String], String] =
+    lazy val as: Traversal[Array[String], String] =
       Traversal.seqValues(
         Schema
           .derived[Array[String]]
@@ -3665,7 +3666,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, String, Array]]
       )
-    val abi: Traversal[Array[BigInt], BigInt] =
+    lazy val abi: Traversal[Array[BigInt], BigInt] =
       Traversal.seqValues(
         Schema
           .derived[Array[BigInt]]
@@ -3675,7 +3676,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, BigInt, Array]]
       )
-    val abd: Traversal[Array[BigDecimal], BigDecimal] =
+    lazy val abd: Traversal[Array[BigDecimal], BigDecimal] =
       Traversal.seqValues(
         Schema
           .derived[Array[BigDecimal]]
@@ -3685,7 +3686,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, BigDecimal, Array]]
       )
-    val asbl: Traversal[ArraySeq[Boolean], Boolean] =
+    lazy val asbl: Traversal[ArraySeq[Boolean], Boolean] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[Boolean]]
@@ -3695,7 +3696,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Boolean, ArraySeq]]
       )
-    val asb: Traversal[ArraySeq[Byte], Byte] =
+    lazy val asb: Traversal[ArraySeq[Byte], Byte] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[Byte]]
@@ -3705,7 +3706,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Byte, ArraySeq]]
       )
-    val assh: Traversal[ArraySeq[Short], Short] =
+    lazy val assh: Traversal[ArraySeq[Short], Short] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[Short]]
@@ -3715,7 +3716,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Short, ArraySeq]]
       )
-    val asi: Traversal[ArraySeq[Int], Int] =
+    lazy val asi: Traversal[ArraySeq[Int], Int] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[Int]]
@@ -3725,7 +3726,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]]
       )
-    val asl: Traversal[ArraySeq[Long], Long] =
+    lazy val asl: Traversal[ArraySeq[Long], Long] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[Long]]
@@ -3735,7 +3736,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Long, ArraySeq]]
       )
-    val asd: Traversal[ArraySeq[Double], Double] =
+    lazy val asd: Traversal[ArraySeq[Double], Double] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[Double]]
@@ -3745,7 +3746,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Double, ArraySeq]]
       )
-    val asf: Traversal[ArraySeq[Float], Float] =
+    lazy val asf: Traversal[ArraySeq[Float], Float] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[Float]]
@@ -3755,7 +3756,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Float, ArraySeq]]
       )
-    val asc: Traversal[ArraySeq[Char], Char] =
+    lazy val asc: Traversal[ArraySeq[Char], Char] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[Char]]
@@ -3765,7 +3766,7 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, Char, ArraySeq]]
       )
-    val ass: Traversal[ArraySeq[String], String] =
+    lazy val ass: Traversal[ArraySeq[String], String] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[String]]
@@ -3775,24 +3776,24 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, String, ArraySeq]]
       )
-    val sf: Traversal[Set[Float], Float]         = Traversal.setValues(Reflect.float)
-    val lr1: Traversal[List[Record1], Boolean]   = Traversal.listValues(Record1.reflect)(Record1.b)
-    val lc4_lr3: Traversal[List[Case4], Record3] = Traversal.listValues(Case4.reflect)(Case4.lr3)
-    val lc1: Traversal[List[Variant1], Case1]    = Traversal.listValues(Variant1.reflect)(Variant1.c1)
-    val lc1_d: Traversal[List[Variant1], Double] = Traversal.listValues(Variant1.reflect)(Variant1.c1_d)
-    val mkc: Traversal[Map[Char, String], Char]  =
+    lazy val sf: Traversal[Set[Float], Float]         = Traversal.setValues(Reflect.float)
+    lazy val lr1: Traversal[List[Record1], Boolean]   = Traversal.listValues(Record1.reflect)(Record1.b)
+    lazy val lc4_lr3: Traversal[List[Case4], Record3] = Traversal.listValues(Case4.reflect)(Case4.lr3)
+    lazy val lc1: Traversal[List[Variant1], Case1]    = Traversal.listValues(Variant1.reflect)(Variant1.c1)
+    lazy val lc1_d: Traversal[List[Variant1], Double] = Traversal.listValues(Variant1.reflect)(Variant1.c1_d)
+    lazy val mkc: Traversal[Map[Char, String], Char]  =
       Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
-    val mvs: Traversal[Map[Char, String], String] =
+    lazy val mvs: Traversal[Map[Char, String], String] =
       Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))
-    val mkv1_c1_d: Traversal[Map[Variant1, Int], Double] =
+    lazy val mkv1_c1_d: Traversal[Map[Variant1, Int], Double] =
       Traversal.mapKeys(Reflect.map(Variant1.reflect, Reflect.int[Binding]))(Variant1.c1)(Case1.d)
-    val mvv1_c1_d: Traversal[Map[Int, Variant1], Double] =
+    lazy val mvv1_c1_d: Traversal[Map[Int, Variant1], Double] =
       Traversal.mapValues(Reflect.map(Reflect.int[Binding], Variant1.reflect))(Variant1.c1)(Case1.d)
-    val akms: Optional[Map[Char, String], String] =
+    lazy val akms: Optional[Map[Char, String], String] =
       Optional.atKey(Reflect.map(Reflect.char[Binding], Reflect.string[Binding]), 'A')
-    val akmc1_d: Optional[Map[Char, Case1], Double] =
+    lazy val akmc1_d: Optional[Map[Char, Case1], Double] =
       Optional.atKey(Reflect.map(Reflect.char[Binding], Case1.reflect), 'A')(Case1.d)
-    val aasasi_asi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
+    lazy val aasasi_asi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
       Optional.at(
         Schema
           .derived[ArraySeq[ArraySeq[Int]]]
@@ -3813,7 +3814,7 @@ object OpticSpecTypes {
             .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]]
         )
       )
-    val aiasasi_asi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
+    lazy val aiasasi_asi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
       Traversal.atIndices(
         Schema
           .derived[ArraySeq[ArraySeq[Int]]]
@@ -3834,7 +3835,7 @@ object OpticSpecTypes {
             .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]]
         )
       )
-    val asasb_aasb: Traversal[ArraySeq[ArraySeq[Byte]], Byte] =
+    lazy val asasb_aasb: Traversal[ArraySeq[ArraySeq[Byte]], Byte] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Byte]]]
@@ -3855,7 +3856,7 @@ object OpticSpecTypes {
           1
         )
       )
-    val asasbl_aasbl: Traversal[ArraySeq[ArraySeq[Boolean]], Boolean] =
+    lazy val asasbl_aasbl: Traversal[ArraySeq[ArraySeq[Boolean]], Boolean] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Boolean]]]
@@ -3876,7 +3877,7 @@ object OpticSpecTypes {
           1
         )
       )
-    val asassh_aassh: Traversal[ArraySeq[ArraySeq[Short]], Short] =
+    lazy val asassh_aassh: Traversal[ArraySeq[ArraySeq[Short]], Short] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Short]]]
@@ -3897,7 +3898,7 @@ object OpticSpecTypes {
           1
         )
       )
-    val asasc_aasc: Traversal[ArraySeq[ArraySeq[Char]], Char] =
+    lazy val asasc_aasc: Traversal[ArraySeq[ArraySeq[Char]], Char] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Char]]]
@@ -3918,7 +3919,7 @@ object OpticSpecTypes {
           1
         )
       )
-    val asasi_aasi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
+    lazy val asasi_aasi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Int]]]
@@ -3939,7 +3940,7 @@ object OpticSpecTypes {
           1
         )
       )
-    val asasf_aasf: Traversal[ArraySeq[ArraySeq[Float]], Float] =
+    lazy val asasf_aasf: Traversal[ArraySeq[ArraySeq[Float]], Float] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Float]]]
@@ -3960,7 +3961,7 @@ object OpticSpecTypes {
           1
         )
       )
-    val asasl_aasl: Traversal[ArraySeq[ArraySeq[Long]], Long] =
+    lazy val asasl_aasl: Traversal[ArraySeq[ArraySeq[Long]], Long] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Long]]]
@@ -3981,7 +3982,7 @@ object OpticSpecTypes {
           1
         )
       )
-    val asasd_aasd: Traversal[ArraySeq[ArraySeq[Double]], Double] =
+    lazy val asasd_aasd: Traversal[ArraySeq[ArraySeq[Double]], Double] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Double]]]
@@ -4002,7 +4003,7 @@ object OpticSpecTypes {
           1
         )
       )
-    val asass_aass: Traversal[ArraySeq[ArraySeq[String]], String] =
+    lazy val asass_aass: Traversal[ArraySeq[ArraySeq[String]], String] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[String]]]
@@ -4023,7 +4024,7 @@ object OpticSpecTypes {
           1
         )
       )
-    val asasb_aiasb: Traversal[ArraySeq[ArraySeq[Byte]], Byte] =
+    lazy val asasb_aiasb: Traversal[ArraySeq[ArraySeq[Byte]], Byte] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Byte]]]
@@ -4044,7 +4045,7 @@ object OpticSpecTypes {
           Seq(1, 2)
         )
       )
-    val asasbl_aiasbl: Traversal[ArraySeq[ArraySeq[Boolean]], Boolean] =
+    lazy val asasbl_aiasbl: Traversal[ArraySeq[ArraySeq[Boolean]], Boolean] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Boolean]]]
@@ -4065,7 +4066,7 @@ object OpticSpecTypes {
           Seq(1, 2)
         )
       )
-    val asassh_aiassh: Traversal[ArraySeq[ArraySeq[Short]], Short] =
+    lazy val asassh_aiassh: Traversal[ArraySeq[ArraySeq[Short]], Short] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Short]]]
@@ -4086,7 +4087,7 @@ object OpticSpecTypes {
           Seq(1, 2)
         )
       )
-    val asasc_aiasc: Traversal[ArraySeq[ArraySeq[Char]], Char] =
+    lazy val asasc_aiasc: Traversal[ArraySeq[ArraySeq[Char]], Char] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Char]]]
@@ -4107,7 +4108,7 @@ object OpticSpecTypes {
           Seq(1, 2)
         )
       )
-    val asasi_aiasi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
+    lazy val asasi_aiasi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Int]]]
@@ -4128,7 +4129,7 @@ object OpticSpecTypes {
           Seq(1, 2)
         )
       )
-    val asasf_aiasf: Traversal[ArraySeq[ArraySeq[Float]], Float] =
+    lazy val asasf_aiasf: Traversal[ArraySeq[ArraySeq[Float]], Float] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Float]]]
@@ -4149,7 +4150,7 @@ object OpticSpecTypes {
           Seq(1, 2)
         )
       )
-    val asasl_aiasl: Traversal[ArraySeq[ArraySeq[Long]], Long] =
+    lazy val asasl_aiasl: Traversal[ArraySeq[ArraySeq[Long]], Long] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Long]]]
@@ -4170,7 +4171,7 @@ object OpticSpecTypes {
           Seq(1, 2)
         )
       )
-    val asasd_aiasd: Traversal[ArraySeq[ArraySeq[Double]], Double] =
+    lazy val asasd_aiasd: Traversal[ArraySeq[ArraySeq[Double]], Double] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[Double]]]
@@ -4191,7 +4192,7 @@ object OpticSpecTypes {
           Seq(1, 2)
         )
       )
-    val asass_aiass: Traversal[ArraySeq[ArraySeq[String]], String] =
+    lazy val asass_aiass: Traversal[ArraySeq[ArraySeq[String]], String] =
       Traversal.seqValues(
         Schema
           .derived[ArraySeq[ArraySeq[String]]]
@@ -4212,27 +4213,27 @@ object OpticSpecTypes {
           Seq(1, 2)
         )
       )
-    val alli_li: Traversal[List[List[Int]], Int] =
+    lazy val alli_li: Traversal[List[List[Int]], Int] =
       Optional.at(Reflect.list(Reflect.list(Reflect.int[Binding])), 1)(Traversal.listValues(Reflect.int[Binding]))
-    val ailli_li: Traversal[List[List[Int]], Int] =
+    lazy val ailli_li: Traversal[List[List[Int]], Int] =
       Traversal.atIndices(Reflect.list(Reflect.list(Reflect.int[Binding])), Seq(1))(
         Traversal.listValues(Reflect.int[Binding])
       )
-    val lli_ali: Traversal[List[List[Int]], Int] =
+    lazy val lli_ali: Traversal[List[List[Int]], Int] =
       Traversal.listValues(Reflect.list(Reflect.int[Binding]))(Optional.at(Reflect.list(Reflect.int[Binding]), 1))
-    val akmill_ll: Traversal[Map[Int, List[Long]], Long] =
+    lazy val akmill_ll: Traversal[Map[Int, List[Long]], Long] =
       Optional.atKey(Reflect.map(Reflect.int, Reflect.list(Reflect.long)), 1)(Traversal.listValues(Reflect.long))
-    val aksmill_ll: Traversal[Map[Int, List[Long]], Long] =
+    lazy val aksmill_ll: Traversal[Map[Int, List[Long]], Long] =
       Traversal.atKeys(Reflect.map(Reflect.int, Reflect.list(Reflect.long)), Seq(1))(Traversal.listValues(Reflect.long))
-    val lmil_akmil: Traversal[List[Map[Int, Long]], Long] =
+    lazy val lmil_akmil: Traversal[List[Map[Int, Long]], Long] =
       Traversal.listValues(Reflect.map(Reflect.int, Reflect.long))(
         Optional.atKey(Reflect.map(Reflect.int, Reflect.long), 1)
       )
-    val lmil_aksmil: Traversal[List[Map[Int, Long]], Long] =
+    lazy val lmil_aksmil: Traversal[List[Map[Int, Long]], Long] =
       Traversal.listValues(Reflect.map(Reflect.int, Reflect.long))(
         Traversal.atKeys(Reflect.map(Reflect.int, Reflect.long), Seq(1, 2))
       )
-    val lw_r1: Traversal[List[Wrapper], Record1]   = Traversal.listValues(Wrapper.reflect)(Wrapper.r1)
-    val lw_r1_b: Traversal[List[Wrapper], Boolean] = Traversal.listValues(Wrapper.reflect)(Wrapper.r1_b)
+    lazy val lw_r1: Traversal[List[Wrapper], Record1]   = Traversal.listValues(Wrapper.reflect)(Wrapper.r1)
+    lazy val lw_r1_b: Traversal[List[Wrapper], Boolean] = Traversal.listValues(Wrapper.reflect)(Wrapper.r1_b)
   }
 }

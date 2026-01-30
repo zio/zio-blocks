@@ -470,6 +470,225 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
           isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Currency")))
         )
       }
+    ),
+    suite("Schema[PrimitiveType[_]] round-trip")(
+      test("PrimitiveType.Unit round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Unit
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Unit))
+      },
+      test("PrimitiveType.Boolean round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Boolean(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Boolean(None)))
+      },
+      test("PrimitiveType.Byte round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Byte(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Byte(None)))
+      },
+      test("PrimitiveType.Short round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Short(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Short(None)))
+      },
+      test("PrimitiveType.Int round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Int(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Int(None)))
+      },
+      test("PrimitiveType.Long round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Long(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Long(None)))
+      },
+      test("PrimitiveType.Float round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Float(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Float(None)))
+      },
+      test("PrimitiveType.Double round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Double(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Double(None)))
+      },
+      test("PrimitiveType.Char round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Char(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Char(None)))
+      },
+      test("PrimitiveType.String round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.String(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.String(None)))
+      },
+      test("PrimitiveType.BigInt round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.BigInt(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.BigInt(None)))
+      },
+      test("PrimitiveType.BigDecimal round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.BigDecimal(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.BigDecimal(None)))
+      },
+      test("PrimitiveType.DayOfWeek round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.DayOfWeek(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.DayOfWeek(None)))
+      },
+      test("PrimitiveType.Duration round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Duration(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Duration(None)))
+      },
+      test("PrimitiveType.Instant round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Instant(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Instant(None)))
+      },
+      test("PrimitiveType.LocalDate round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.LocalDate(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.LocalDate(None)))
+      },
+      test("PrimitiveType.LocalDateTime round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.LocalDateTime(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.LocalDateTime(None)))
+      },
+      test("PrimitiveType.LocalTime round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.LocalTime(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.LocalTime(None)))
+      },
+      test("PrimitiveType.Month round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Month(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Month(None)))
+      },
+      test("PrimitiveType.MonthDay round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.MonthDay(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.MonthDay(None)))
+      },
+      test("PrimitiveType.OffsetDateTime round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.OffsetDateTime(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.OffsetDateTime(None)))
+      },
+      test("PrimitiveType.OffsetTime round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.OffsetTime(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.OffsetTime(None)))
+      },
+      test("PrimitiveType.Period round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Period(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Period(None)))
+      },
+      test("PrimitiveType.Year round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Year(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Year(None)))
+      },
+      test("PrimitiveType.YearMonth round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.YearMonth(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.YearMonth(None)))
+      },
+      test("PrimitiveType.ZoneId round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.ZoneId(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.ZoneId(None)))
+      },
+      test("PrimitiveType.ZoneOffset round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.ZoneOffset(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.ZoneOffset(None)))
+      },
+      test("PrimitiveType.ZonedDateTime round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.ZonedDateTime(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.ZonedDateTime(None)))
+      },
+      test("PrimitiveType.Currency round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Currency(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Currency(None)))
+      },
+      test("PrimitiveType.UUID round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.UUID(None)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.UUID(None)))
+      },
+      test("PrimitiveType with validation round-trips via schema") {
+        val pt: PrimitiveType[_] = PrimitiveType.Int(Validation.Numeric.Positive)
+        val schema               = DynamicSchema.primitiveTypeSchema
+        val dv                   = schema.toDynamicValue(pt)
+        val roundTrip            = schema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(PrimitiveType.Int(Validation.Numeric.Positive)))
+      }
     )
   )
 }

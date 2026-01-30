@@ -55,7 +55,18 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
         check(genChunk(Gen.string)) { as =>
           val builder = ChunkBuilder.make[String]()
           as.foreach(builder += _)
-          assertTrue(builder.result() == as)
+          assertTrue(
+            builder.result() == as,
+            builder.result() == as,
+            as.isEmpty || (builder.result() ne builder.result())
+          )
+        } && {
+          val builder = ChunkBuilder.make[AnyRef]()
+          builder.addOne(1.asInstanceOf[AnyRef])
+          builder.addOne("2".asInstanceOf[AnyRef])
+          assertTrue(
+            builder.result() == Chunk(1.asInstanceOf[AnyRef], "2".asInstanceOf[AnyRef])
+          )
         }
       ),
       test("addAll") {
@@ -63,7 +74,26 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
           val builder = ChunkBuilder.make[String]()
           builder ++= as
           assertTrue(builder.result() == as)
+        } &&
+        check(Gen.chunkOf(Gen.string)) { as =>
+          val builder = ChunkBuilder.make[String]()
+          builder ++= as
+          assertTrue(builder.result().toList == as.toList)
+        } && {
+          val builder = ChunkBuilder.make[AnyRef]()
+          builder += 1.asInstanceOf[AnyRef]
+          builder ++= Chunk(2.asInstanceOf[AnyRef], "3".asInstanceOf[AnyRef])
+          assertTrue(
+            builder.result() == Chunk(1.asInstanceOf[AnyRef], 2.asInstanceOf[AnyRef], "3".asInstanceOf[AnyRef])
+          )
         }
+      },
+      test("equals") {
+        assertTrue(
+          ChunkBuilder.make[String]().addOne("a") == ChunkBuilder.make[String]().addOne("a"),
+          ChunkBuilder.make[String]().addOne("a").addOne("b") != ChunkBuilder.make[String](),
+          !ChunkBuilder.make[String]().addOne("a").equals("")
+        )
       },
       test("toString") {
         assert(ChunkBuilder.make[String]().toString)(equalTo("ChunkBuilder"))
@@ -103,7 +133,11 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
         check(genChunk(Gen.boolean)) { as =>
           val builder = new ChunkBuilder.Boolean
           as.foreach(builder += _)
-          assertTrue(builder.result() == as)
+          assertTrue(
+            builder.result() == as,
+            builder.result() == as,
+            as.isEmpty || (builder.result() ne builder.result())
+          )
         }
       ),
       test("addAll") {
@@ -111,7 +145,19 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
           val builder = new ChunkBuilder.Boolean
           builder ++= as
           assertTrue(builder.result() == as)
+        } &&
+        check(Gen.chunkOf(Gen.boolean)) { as =>
+          val builder = new ChunkBuilder.Boolean
+          builder ++= as
+          assertTrue(builder.result().toList == as.toList)
         }
+      },
+      test("equals") {
+        assertTrue(
+          (new ChunkBuilder.Boolean).addOne(true) == (new ChunkBuilder.Boolean).addOne(true),
+          (new ChunkBuilder.Boolean).addOne(true) != new ChunkBuilder.Boolean,
+          !(new ChunkBuilder.Boolean).addOne(true).equals(true)
+        )
       },
       test("toString") {
         assert((new ChunkBuilder.Boolean).toString)(equalTo("ChunkBuilder.Boolean"))
@@ -151,7 +197,11 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
         check(genChunk(Gen.byte)) { as =>
           val builder = new ChunkBuilder.Byte
           as.foreach(builder += _)
-          assertTrue(builder.result() == as)
+          assertTrue(
+            builder.result() == as,
+            builder.result() == as,
+            as.isEmpty || (builder.result() ne builder.result())
+          )
         }
       ),
       test("addAll") {
@@ -159,7 +209,19 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
           val builder = new ChunkBuilder.Byte
           builder ++= as
           assertTrue(builder.result() == as)
+        } &&
+        check(Gen.chunkOf(Gen.byte)) { as =>
+          val builder = new ChunkBuilder.Byte
+          builder ++= as
+          assertTrue(builder.result().toList == as.toList)
         }
+      },
+      test("equals") {
+        assertTrue(
+          (new ChunkBuilder.Byte).addOne(1.toByte) == (new ChunkBuilder.Byte).addOne(1.toByte),
+          (new ChunkBuilder.Byte).addOne(1.toByte) != new ChunkBuilder.Byte,
+          !(new ChunkBuilder.Byte).addOne(1.toByte).equals("")
+        )
       },
       test("toString") {
         assert((new ChunkBuilder.Byte).toString)(equalTo("ChunkBuilder.Byte"))
@@ -199,7 +261,11 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
         check(genChunk(Gen.char)) { as =>
           val builder = new ChunkBuilder.Char
           as.foreach(builder += _)
-          assertTrue(builder.result() == as)
+          assertTrue(
+            builder.result() == as,
+            builder.result() == as,
+            as.isEmpty || (builder.result() ne builder.result())
+          )
         }
       ),
       test("addAll") {
@@ -207,7 +273,19 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
           val builder = new ChunkBuilder.Char
           builder ++= as
           assertTrue(builder.result() == as)
+        } &&
+        check(Gen.chunkOf(Gen.char)) { as =>
+          val builder = new ChunkBuilder.Char
+          builder ++= as
+          assertTrue(builder.result().toList == as.toList)
         }
+      },
+      test("equals") {
+        assertTrue(
+          (new ChunkBuilder.Char).addOne(1.toChar) == (new ChunkBuilder.Char).addOne(1.toChar),
+          (new ChunkBuilder.Char).addOne(1.toChar) != new ChunkBuilder.Char,
+          !(new ChunkBuilder.Char).addOne(1.toChar).equals(1.toChar)
+        )
       },
       test("toString") {
         assert((new ChunkBuilder.Char).toString)(equalTo("ChunkBuilder.Char"))
@@ -247,7 +325,11 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
         check(genChunk(Gen.double)) { as =>
           val builder = new ChunkBuilder.Double
           as.foreach(builder += _)
-          assertTrue(builder.result() == as)
+          assertTrue(
+            builder.result() == as,
+            builder.result() == as,
+            as.isEmpty || (builder.result() ne builder.result())
+          )
         }
       ),
       test("addAll") {
@@ -255,7 +337,19 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
           val builder = new ChunkBuilder.Double
           builder ++= as
           assertTrue(builder.result() == as)
+        } &&
+        check(Gen.chunkOf(Gen.double)) { as =>
+          val builder = new ChunkBuilder.Double
+          builder ++= as
+          assertTrue(builder.result().toList == as.toList)
         }
+      },
+      test("equals") {
+        assertTrue(
+          (new ChunkBuilder.Double).addOne(1.toDouble) == (new ChunkBuilder.Double).addOne(1.toDouble),
+          (new ChunkBuilder.Double).addOne(1.toDouble) != new ChunkBuilder.Double,
+          !(new ChunkBuilder.Double).addOne(1.toDouble).equals(1.toDouble)
+        )
       },
       test("toString") {
         assert((new ChunkBuilder.Double).toString)(equalTo("ChunkBuilder.Double"))
@@ -295,7 +389,11 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
         check(genChunk(Gen.float)) { as =>
           val builder = new ChunkBuilder.Float
           as.foreach(builder += _)
-          assertTrue(builder.result() == as)
+          assertTrue(
+            builder.result() == as,
+            builder.result() == as,
+            as.isEmpty || (builder.result() ne builder.result())
+          )
         }
       ),
       test("addAll") {
@@ -303,7 +401,19 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
           val builder = new ChunkBuilder.Float
           builder ++= as
           assertTrue(builder.result() == as)
+        } &&
+        check(Gen.chunkOf(Gen.float)) { as =>
+          val builder = new ChunkBuilder.Float
+          builder ++= as
+          assertTrue(builder.result().toList == as.toList)
         }
+      },
+      test("equals") {
+        assertTrue(
+          (new ChunkBuilder.Float).addOne(1.toFloat) == (new ChunkBuilder.Float).addOne(1.toFloat),
+          (new ChunkBuilder.Float).addOne(1.toFloat) != new ChunkBuilder.Float,
+          !(new ChunkBuilder.Float).addOne(1.toFloat).equals(1.toFloat)
+        )
       },
       test("toString") {
         assert((new ChunkBuilder.Float).toString)(equalTo("ChunkBuilder.Float"))
@@ -343,7 +453,11 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
         check(genChunk(Gen.int)) { as =>
           val builder = new ChunkBuilder.Int
           as.foreach(builder += _)
-          assertTrue(builder.result() == as)
+          assertTrue(
+            builder.result() == as,
+            builder.result() == as,
+            as.isEmpty || (builder.result() ne builder.result())
+          )
         }
       ),
       test("addAll") {
@@ -351,7 +465,19 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
           val builder = new ChunkBuilder.Int
           builder ++= as
           assertTrue(builder.result() == as)
+        } &&
+        check(Gen.chunkOf(Gen.int)) { as =>
+          val builder = new ChunkBuilder.Int
+          builder ++= as
+          assertTrue(builder.result().toList == as.toList)
         }
+      },
+      test("equals") {
+        assertTrue(
+          (new ChunkBuilder.Int).addOne(1) == (new ChunkBuilder.Int).addOne(1),
+          (new ChunkBuilder.Int).addOne(1) != new ChunkBuilder.Int,
+          !(new ChunkBuilder.Int).addOne(1).equals(1)
+        )
       },
       test("toString") {
         assert((new ChunkBuilder.Int).toString)(equalTo("ChunkBuilder.Int"))
@@ -391,7 +517,11 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
         check(genChunk(Gen.long)) { as =>
           val builder = new ChunkBuilder.Long
           as.foreach(builder += _)
-          assertTrue(builder.result() == as)
+          assertTrue(
+            builder.result() == as,
+            builder.result() == as,
+            as.isEmpty || (builder.result() ne builder.result())
+          )
         }
       ),
       test("addAll") {
@@ -399,7 +529,19 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
           val builder = new ChunkBuilder.Long
           builder ++= as
           assertTrue(builder.result() == as)
+        } &&
+        check(Gen.chunkOf(Gen.long)) { as =>
+          val builder = new ChunkBuilder.Long
+          builder ++= as
+          assertTrue(builder.result().toList == as.toList)
         }
+      },
+      test("equals") {
+        assertTrue(
+          (new ChunkBuilder.Long).addOne(1.toLong) == (new ChunkBuilder.Long).addOne(1.toLong),
+          (new ChunkBuilder.Long).addOne(1.toLong) != new ChunkBuilder.Long,
+          !(new ChunkBuilder.Long).addOne(1.toLong).equals(1.toLong)
+        )
       },
       test("toString") {
         assert((new ChunkBuilder.Long).toString)(equalTo("ChunkBuilder.Long"))
@@ -439,7 +581,11 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
         check(genChunk(Gen.short)) { as =>
           val builder = new ChunkBuilder.Short
           as.foreach(builder += _)
-          assertTrue(builder.result() == as)
+          assertTrue(
+            builder.result() == as,
+            builder.result() == as,
+            as.isEmpty || (builder.result() ne builder.result())
+          )
         }
       ),
       test("addAll") {
@@ -447,7 +593,19 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
           val builder = new ChunkBuilder.Short
           builder ++= as
           assertTrue(builder.result() == as)
+        } &&
+        check(Gen.chunkOf(Gen.short)) { as =>
+          val builder = new ChunkBuilder.Short
+          builder ++= as
+          assertTrue(builder.result().toList == as.toList)
         }
+      },
+      test("equals") {
+        assertTrue(
+          (new ChunkBuilder.Short).addOne(1.toShort) == (new ChunkBuilder.Short).addOne(1.toShort),
+          (new ChunkBuilder.Short).addOne(1.toShort) != new ChunkBuilder.Short,
+          !(new ChunkBuilder.Short).addOne(1.toShort).equals(1.toShort)
+        )
       },
       test("toString") {
         assert((new ChunkBuilder.Short).toString)(equalTo("ChunkBuilder.Short"))

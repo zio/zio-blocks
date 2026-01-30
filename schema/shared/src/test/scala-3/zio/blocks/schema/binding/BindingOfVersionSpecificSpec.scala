@@ -576,12 +576,12 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val caseNames = variant.cases.map(_.name).toList
 
         val testCases: List[(Value, String)] = List(
-          (1: Value, "Int"),
-          (true: Value, "Boolean"),
-          ("hello": Value, "String"),
-          ((1, true): Value, "Tuple2"),
-          (List(1): Value, "collection.immutable.List"),
-          ((): Value, "Unit")
+          (1: Value, "scala.Int"),
+          (true: Value, "scala.Boolean"),
+          ("hello": Value, "java.lang.String"),
+          ((1, true): Value, "scala.Tuple2"),
+          (List(1): Value, "scala.collection.immutable.List"),
+          ((): Value, "scala.Unit")
         )
 
         val results = testCases.map { case (value, expectedCaseName) =>

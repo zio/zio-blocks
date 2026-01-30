@@ -1210,7 +1210,7 @@ object Optional {
           case _: PrismBinding =>
             sb.append(".when[").append(focusTerms(idx).name).append(']')
           case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-            sb.append(".wrapped[").append(focus.typeName.toString).append(']')
+            sb.append(".wrapped[").append(focus.typeId.name).append(']')
           case at: AtBinding[Col] @scala.unchecked =>
             sb.append(".at(").append(at.index).append(')')
           case _ =>
@@ -2907,7 +2907,7 @@ object Traversal {
           case _: PrismBinding =>
             sb.append(".when[").append(focusTerms(idx).name).append(']')
           case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-            sb.append(".wrapped[").append(focus.typeName.toString).append(']')
+            sb.append(".wrapped[").append(focus.typeId.name).append(']')
           case at: AtBinding[Col] @scala.unchecked =>
             sb.append(".at(").append(at.index).append(')')
           case _: AtKeyBinding[Key, Map] @scala.unchecked =>

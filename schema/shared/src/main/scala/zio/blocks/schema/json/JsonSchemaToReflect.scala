@@ -4,6 +4,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.typeid.TypeId
 
 object JsonSchemaToReflect {
 
@@ -287,7 +288,7 @@ object JsonSchemaToReflect {
   private def wrapPrimitive[A](primitiveType: PrimitiveType[A]): Reflect[Binding, DynamicValue] = {
     val innerReflect: Reflect[Binding, A] = new Reflect.Primitive[Binding, A](
       primitiveType = primitiveType,
-      typeName = primitiveType.typeName,
+      typeId = primitiveType.typeId,
       primitiveBinding = primitiveType.binding
     )
 
@@ -310,7 +311,7 @@ object JsonSchemaToReflect {
 
     new Reflect.Wrapper[Binding, DynamicValue, A](
       wrapped = innerReflect,
-      typeName = TypeName.dynamicValue,
+      typeId = TypeId.of[DynamicValue],
       wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
@@ -370,7 +371,7 @@ object JsonSchemaToReflect {
 
     val baseRecord = new Reflect.Record[Binding, DynamicValue](
       fields = fieldTerms,
-      typeName = TypeName.dynamicValue,
+      typeId = TypeId.of[DynamicValue],
       recordBinding = recordBinding
     )
 
@@ -398,7 +399,7 @@ object JsonSchemaToReflect {
 
     new Reflect.Wrapper[Binding, DynamicValue, Map[DynamicValue, DynamicValue]](
       wrapped = mapReflect,
-      typeName = TypeName.dynamicValue,
+      typeId = TypeId.of[DynamicValue],
       wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
@@ -420,7 +421,7 @@ object JsonSchemaToReflect {
 
     new Reflect.Wrapper[Binding, DynamicValue, Chunk[DynamicValue]](
       wrapped = seqReflect,
-      typeName = TypeName.dynamicValue,
+      typeId = TypeId.of[DynamicValue],
       wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
@@ -473,7 +474,7 @@ object JsonSchemaToReflect {
 
     new Reflect.Record[Binding, DynamicValue](
       fields = fieldTerms,
-      typeName = TypeName.dynamicValue,
+      typeId = TypeId.of[DynamicValue],
       recordBinding = recordBinding
     )
   }
@@ -494,7 +495,7 @@ object JsonSchemaToReflect {
 
       val caseReflect: Reflect[Binding, DynamicValue] = new Reflect.Record[Binding, DynamicValue](
         fields = IndexedSeq.empty,
-        typeName = TypeName.dynamicValue,
+        typeId = TypeId.of[DynamicValue],
         recordBinding = emptyRecordBinding
       )
 
@@ -526,7 +527,7 @@ object JsonSchemaToReflect {
 
     new Reflect.Variant[Binding, DynamicValue](
       cases = caseTerms,
-      typeName = TypeName.dynamicValue,
+      typeId = TypeId.of[DynamicValue],
       variantBinding = variantBinding
     )
   }
@@ -562,7 +563,7 @@ object JsonSchemaToReflect {
 
     new Reflect.Variant[Binding, DynamicValue](
       cases = caseTerms,
-      typeName = TypeName.dynamicValue,
+      typeId = TypeId.of[DynamicValue],
       variantBinding = variantBinding
     )
   }
@@ -583,7 +584,7 @@ object JsonSchemaToReflect {
 
     new Reflect.Wrapper[Binding, DynamicValue, DynamicValue](
       wrapped = innerReflect,
-      typeName = TypeName.dynamicValue,
+      typeId = TypeId.of[DynamicValue],
       wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
@@ -617,7 +618,7 @@ object JsonSchemaToReflect {
 
     new Reflect.Wrapper[Binding, DynamicValue, DynamicValue](
       wrapped = inner,
-      typeName = TypeName.dynamicValue,
+      typeId = TypeId.of[DynamicValue],
       wrapperPrimitiveType = None,
       wrapperBinding = validatingBinding
     )
