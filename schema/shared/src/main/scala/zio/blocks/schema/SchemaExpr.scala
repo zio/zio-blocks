@@ -309,4 +309,40 @@ object SchemaExpr {
     private[this] def toDynamicValue(value: Int): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Int(value))
   }
+
+  /**
+   * An expression that evaluates to a schema's default value.
+   *
+   * Used in migrations to provide default values for added fields and reverse
+   * migrations.
+   */
+  final case class DefaultValue[S, A](schema: Schema[A]) extends SchemaExpr[S, A] {
+    def eval(input: S): Either[OpticCheck, Seq[A]] = result
+
+    def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = dynamicResult
+
+    private[this] val noDefaultError: OpticCheck =
+      new OpticCheck(
+        new ::(
+          OpticCheck.WrappingError(
+            DynamicOptic.root,
+            DynamicOptic.root,
+            SchemaError.conversionFailed(Nil, "No default value defined for schema")
+          ),
+          Nil
+        )
+      )
+
+    private[this] val result: Either[OpticCheck, Seq[A]] =
+      schema.getDefaultValue match {
+        case Some(v) => new Right(v :: Nil)
+        case None    => new Left(noDefaultError)
+      }
+
+    private[this] val dynamicResult: Either[OpticCheck, Seq[DynamicValue]] =
+      schema.getDefaultValue match {
+        case Some(v) => new Right(schema.toDynamicValue(v) :: Nil)
+        case None    => new Left(noDefaultError)
+      }
+  }
 }
