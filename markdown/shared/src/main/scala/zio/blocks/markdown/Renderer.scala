@@ -140,63 +140,63 @@ object Renderer {
    * Render a single inline element.
    */
   def renderInline(inline: Inline): String = inline match {
-    case zio.blocks.markdown.Text(value) =>
+    case Text(value) =>
       value
-    case zio.blocks.markdown.Inline.Text(value) =>
+    case Inline.Text(value) =>
       value
 
-    case zio.blocks.markdown.Code(value) =>
+    case Code(value) =>
       s"`$value`"
-    case zio.blocks.markdown.Inline.Code(value) =>
+    case Inline.Code(value) =>
       s"`$value`"
 
-    case zio.blocks.markdown.Emphasis(content) =>
+    case Emphasis(content) =>
       s"*${renderInlines(content)}*"
-    case zio.blocks.markdown.Inline.Emphasis(content) =>
+    case Inline.Emphasis(content) =>
       s"*${renderInlines(content)}*"
 
-    case zio.blocks.markdown.Strong(content) =>
+    case Strong(content) =>
       s"**${renderInlines(content)}**"
-    case zio.blocks.markdown.Inline.Strong(content) =>
+    case Inline.Strong(content) =>
       s"**${renderInlines(content)}**"
 
-    case zio.blocks.markdown.Strikethrough(content) =>
+    case Strikethrough(content) =>
       s"~~${renderInlines(content)}~~"
-    case zio.blocks.markdown.Inline.Strikethrough(content) =>
+    case Inline.Strikethrough(content) =>
       s"~~${renderInlines(content)}~~"
 
-    case zio.blocks.markdown.Link(text, url, titleOpt) =>
+    case Link(text, url, titleOpt) =>
       val titleStr = titleOpt.map(t => s""" "$t"""").getOrElse("")
       s"[${renderInlines(text)}]($url$titleStr)"
-    case zio.blocks.markdown.Inline.Link(text, url, titleOpt) =>
+    case Inline.Link(text, url, titleOpt) =>
       val titleStr = titleOpt.map(t => s""" "$t"""").getOrElse("")
       s"[${renderInlines(text)}]($url$titleStr)"
 
-    case zio.blocks.markdown.Image(alt, url, titleOpt) =>
+    case Image(alt, url, titleOpt) =>
       val titleStr = titleOpt.map(t => s""" "$t"""").getOrElse("")
       s"![${alt}]($url$titleStr)"
-    case zio.blocks.markdown.Inline.Image(alt, url, titleOpt) =>
+    case Inline.Image(alt, url, titleOpt) =>
       val titleStr = titleOpt.map(t => s""" "$t"""").getOrElse("")
       s"![${alt}]($url$titleStr)"
 
-    case zio.blocks.markdown.HtmlInline(content) =>
+    case HtmlInline(content) =>
       content
-    case zio.blocks.markdown.Inline.HtmlInline(content) =>
+    case Inline.HtmlInline(content) =>
       content
 
-    case zio.blocks.markdown.SoftBreak =>
+    case SoftBreak =>
       "\n"
-    case zio.blocks.markdown.Inline.SoftBreak =>
+    case Inline.SoftBreak =>
       "\n"
 
-    case zio.blocks.markdown.HardBreak =>
+    case HardBreak =>
       "  \n"
-    case zio.blocks.markdown.Inline.HardBreak =>
+    case Inline.HardBreak =>
       "  \n"
 
-    case zio.blocks.markdown.Autolink(url, isEmail) =>
+    case Autolink(url, _) =>
       s"<$url>"
-    case zio.blocks.markdown.Inline.Autolink(url, isEmail) =>
+    case Inline.Autolink(url, _) =>
       s"<$url>"
   }
 }
