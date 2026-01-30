@@ -4,7 +4,8 @@ package zio.blocks.typeid
  * Provides idiomatic Scala type rendering for TypeId, TypeRepr, and TypeParam.
  *
  * This object converts type representations into readable Scala syntax strings,
- * making them suitable for display in error messages, documentation, and debugging output.
+ * making them suitable for display in error messages, documentation, and
+ * debugging output.
  */
 object TypeIdPrinter {
 
@@ -147,15 +148,17 @@ object TypeIdPrinter {
    */
   def render(param: TypeParam): String = {
     val varianceStr = param.variance.symbol
-    val kindSuffix = if (param.kind.isProperType) ""
-    else "[" + List.fill(param.kind.arity)("_").mkString(", ") + "]"
+    val kindSuffix  =
+      if (param.kind.isProperType) ""
+      else "[" + List.fill(param.kind.arity)("_").mkString(", ") + "]"
     s"$varianceStr${param.name}$kindSuffix"
   }
 
   // ========== Private Helpers ==========
 
   /**
-   * Determines whether to use the full name or simple name for a type based on its owner.
+   * Determines whether to use the full name or simple name for a type based on
+   * its owner.
    */
   private def shouldUseFullName(owner: Owner): Boolean = {
     val packages = owner.segments.collect { case Owner.Package(name) => name }
@@ -191,7 +194,7 @@ object TypeIdPrinter {
       s"def $name$tpStr$psStr: ${render(result)}"
 
     case Member.TypeMember(name, typeParams, lower, upper) =>
-      val tpStr = if (typeParams.isEmpty) "" else s"[${typeParams.map(render).mkString(", ")}]"
+      val tpStr     = if (typeParams.isEmpty) "" else s"[${typeParams.map(render).mkString(", ")}]"
       val boundsStr = (lower, upper) match {
         case (Some(l), Some(u)) if l == u => s" = ${render(l)}"
         case (Some(l), Some(u))           => s" >: ${render(l)} <: ${render(u)}"
