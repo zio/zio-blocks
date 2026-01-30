@@ -362,7 +362,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         val wrapped     = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
         val structure   = wrapped.map(_.toString).getOrElse("")
 
-        val expected = """record DynamicValue {
+        val expected = """record Person {
   name: wrapper DynamicValue(String)
   age: wrapper DynamicValue(BigInt)
 }"""
@@ -390,7 +390,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         val wrapped     = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
         val structure   = wrapped.map(_.toString).getOrElse("")
 
-        val expected = """variant DynamicValue {
+        val expected = """variant Color {
   | Red
   | Green
   | Blue
@@ -403,7 +403,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         val wrapped     = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
         val structure   = wrapped.map(_.toString).getOrElse("")
 
-        val expected = """variant DynamicValue {
+        val expected = """variant Shape {
   | Circle(radius: wrapper DynamicValue(BigDecimal))
   | Rectangle(
       width: wrapper DynamicValue(BigDecimal),

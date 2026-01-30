@@ -474,7 +474,8 @@ class JsonBinaryCodecDeriver private[json] (
               override def toJsonSchema: JsonSchema = codec.toJsonSchema.withNullable
             }
           case _ =>
-            val discr = variant.variantBinding.asInstanceOf[Binding.Variant[A]].discriminator
+            val discr           = variant.variantBinding.asInstanceOf[Binding.Variant[A]].discriminator
+            val variantTypeName = variant.typeId.name
             if (isEnumeration(variant)) {
               val map = new StringMap[Constructor[?]](variant.cases.length)
 
@@ -520,10 +521,12 @@ class JsonBinaryCodecDeriver private[json] (
 
               val enumInfos = getInfos(variant)
 
+              val enumTypeName = variantTypeName
               new JsonBinaryCodec[A]() {
                 private[this] val root           = new EnumNodeInfo(discr, enumInfos)
                 private[this] val constructorMap = map
                 private[this] val enumNames      = collectEnumNames(enumInfos)
+                private[this] val typeName       = enumTypeName
 
                 def decodeValue(in: JsonReader, default: A): A = {
                   val valueLen    = in.readStringAsCharBuf()
@@ -536,7 +539,10 @@ class JsonBinaryCodecDeriver private[json] (
 
                 override def toJsonSchema: JsonSchema = enumNames match {
                   case head :: tail =>
-                    JsonSchema.Object(`enum` = Some(new ::(Json.String(head), tail.map(Json.String.apply))))
+                    JsonSchema.Object(
+                      `enum` = Some(new ::(Json.String(head), tail.map(Json.String.apply))),
+                      title = Some(typeName)
+                    )
                   case Nil => JsonSchema.string()
                 }
               }
@@ -577,10 +583,12 @@ class JsonBinaryCodecDeriver private[json] (
                     infos
                   }
 
+                  val fieldVariantTypeName = variantTypeName
                   new JsonBinaryCodec[A]() {
                     private[this] val root                   = new CaseNodeInfo(discr, getInfos(variant, Nil))
                     private[this] val caseMap                = map
                     private[this] val discriminatorFieldName = fieldName
+                    private[this] val typeName               = fieldVariantTypeName
 
                     def decodeValue(in: JsonReader, default: A): A = {
                       in.setMark()
@@ -608,7 +616,7 @@ class JsonBinaryCodecDeriver private[json] (
                     override def toJsonSchema: JsonSchema = {
                       val caseSchemas = collectCaseSchemas(root.caseInfos).toList
                       caseSchemas match {
-                        case head :: tail => JsonSchema.Object(oneOf = Some(new ::(head, tail)))
+                        case head :: tail => JsonSchema.Object(oneOf = Some(new ::(head, tail)), title = Some(typeName))
                         case Nil          => JsonSchema.True
                       }
                     }
@@ -642,9 +650,11 @@ class JsonBinaryCodecDeriver private[json] (
                     infos
                   }
 
+                  val noneVariantTypeName = variantTypeName
                   new JsonBinaryCodec[A]() {
                     private[this] val root           = new CaseNodeInfo(discr, getInfos(variant))
                     private[this] val caseLeafCodecs = codecs.result()
+                    private[this] val typeName       = noneVariantTypeName
 
                     def decodeValue(in: JsonReader, default: A): A = {
                       var idx = 0
@@ -669,7 +679,7 @@ class JsonBinaryCodecDeriver private[json] (
                     override def toJsonSchema: JsonSchema = {
                       val caseSchemas = caseLeafCodecs.map(_.toJsonSchema).toList
                       caseSchemas match {
-                        case head :: tail => JsonSchema.Object(oneOf = Some(new ::(head, tail)))
+                        case head :: tail => JsonSchema.Object(oneOf = Some(new ::(head, tail)), title = Some(typeName))
                         case Nil          => JsonSchema.True
                       }
                     }
@@ -707,9 +717,11 @@ class JsonBinaryCodecDeriver private[json] (
                     infos
                   }
 
+                  val keyVariantTypeName = variantTypeName
                   new JsonBinaryCodec[A]() {
-                    private[this] val root    = new CaseNodeInfo(discr, getInfos(variant, Nil))
-                    private[this] val caseMap = map
+                    private[this] val root     = new CaseNodeInfo(discr, getInfos(variant, Nil))
+                    private[this] val caseMap  = map
+                    private[this] val typeName = keyVariantTypeName
 
                     def decodeValue(in: JsonReader, default: A): A =
                       if (in.isNextToken('{')) {
@@ -744,7 +756,7 @@ class JsonBinaryCodecDeriver private[json] (
                     override def toJsonSchema: JsonSchema = {
                       val caseSchemas = collectCaseSchemas(root.caseInfos).toList
                       caseSchemas match {
-                        case head :: tail => JsonSchema.Object(oneOf = Some(new ::(head, tail)))
+                        case head :: tail => JsonSchema.Object(oneOf = Some(new ::(head, tail)), title = Some(typeName))
                         case Nil          => JsonSchema.True
                       }
                     }
@@ -1826,6 +1838,7 @@ class JsonBinaryCodecDeriver private[json] (
             idx += 1
           }
           if (deriveCodecs) discriminatorFields.set(discriminatorFields.get.tail)
+          val typeName = typeId.name
           new JsonBinaryCodec[A]() {
             private[this] val deconstructor       = binding.deconstructor
             private[this] val constructor         = binding.constructor
@@ -1837,6 +1850,7 @@ class JsonBinaryCodecDeriver private[json] (
             private[this] val skipEmptyCollection = transientEmptyCollection
             private[this] val skipDefaultValue    = transientDefaultValue
             private[this] val doReject            = rejectExtraFields
+            private[this] val recordTypeName      = typeName
 
             require(fieldInfos.length <= 128, "expected up to 128 fields")
 
@@ -1952,7 +1966,8 @@ class JsonBinaryCodecDeriver private[json] (
               JsonSchema.obj(
                 properties = Some(properties),
                 required = if (requiredFields.nonEmpty) Some(requiredFields) else None,
-                additionalProperties = if (doReject) Some(JsonSchema.False) else None
+                additionalProperties = if (doReject) Some(JsonSchema.False) else None,
+                title = Some(recordTypeName)
               )
             }
           }
