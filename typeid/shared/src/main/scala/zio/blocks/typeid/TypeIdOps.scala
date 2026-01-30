@@ -17,10 +17,10 @@ private[typeid] object TypeIdOps {
   ): TypeId[A] =
     TypeId.makeImpl[A](name, owner, typeParams, typeArgs, defKind, selfType, aliasedTo, representation, annotations)
 
-  def normalize(id: TypeId[?]): TypeId[?] = normalizeWithArgs(id, id.typeArgs)
+  def normalize(id: TypeId[_]): TypeId[_] = normalizeWithArgs(id, id.typeArgs)
 
   @tailrec
-  private[typeid] def normalizeWithArgs(id: TypeId[?], accumulatedArgs: List[TypeRepr]): TypeId[?] =
+  private[typeid] def normalizeWithArgs(id: TypeId[_], accumulatedArgs: List[TypeRepr]): TypeId[_] =
     id.aliasedTo match {
       case Some(TypeRepr.Ref(aliased)) =>
         normalizeWithArgs(aliased, accumulatedArgs)
@@ -70,7 +70,7 @@ private[typeid] object TypeIdOps {
     case _ => repr
   }
 
-  def structurallyEqual(a: TypeId[?], b: TypeId[?]): Boolean = {
+  def structurallyEqual(a: TypeId[_], b: TypeId[_]): Boolean = {
     val normA = normalize(a)
     val normB = normalize(b)
 
@@ -151,10 +151,10 @@ private[typeid] object TypeIdOps {
       }
     }
 
-  private def isEmptyTuple(id: TypeId[?]): Boolean =
+  private def isEmptyTuple(id: TypeId[_]): Boolean =
     id.fullName == "scala.Tuple$package.EmptyTuple" || id.name == "EmptyTuple"
 
-  def structuralHash(id: TypeId[?]): Int = {
+  def structuralHash(id: TypeId[_]): Int = {
     val norm = normalize(id)
     if (norm.isOpaque) {
       ("opaque", norm.fullName, norm.typeParams, typeArgsHash(norm.typeArgs)).hashCode()
@@ -183,7 +183,7 @@ private[typeid] object TypeIdOps {
     case other                         => other.hashCode()
   }
 
-  def checkParents(parents: List[TypeRepr], target: TypeId[?], visited: Set[String]): Boolean =
+  def checkParents(parents: List[TypeRepr], target: TypeId[_], visited: Set[String]): Boolean =
     parents.exists {
       case TypeRepr.Ref(id) =>
         if (visited.contains(id.fullName)) false
@@ -196,7 +196,7 @@ private[typeid] object TypeIdOps {
       case _ => false
     }
 
-  def checkAppliedSubtyping(sub: TypeId[?], sup: TypeId[?]): Boolean = {
+  def checkAppliedSubtyping(sub: TypeId[_], sup: TypeId[_]): Boolean = {
     if (sub.fullName != sup.fullName) return false
     if (sub.typeArgs.size != sup.typeArgs.size) return false
     if (sub.typeParams.size != sub.typeArgs.size) return false

@@ -10,8 +10,8 @@ trait TypeIdInstances {
 
   implicit val charSequence: TypeId[CharSequence] =
     TypeId.nominal[CharSequence]("CharSequence", javaLang, defKind = TypeDefKind.Trait(isSealed = false))
-  implicit val comparable: TypeId[Comparable[?]] =
-    TypeId.nominal[Comparable[?]]("Comparable", javaLang, List(TypeParam("T", 0, Variance.Invariant)))
+  implicit val comparable: TypeId[Comparable[_]] =
+    TypeId.nominal[Comparable[_]]("Comparable", javaLang, List(TypeParam("T", 0, Variance.Invariant)))
   implicit val serializable: TypeId[java.io.Serializable] =
     TypeId.nominal[java.io.Serializable]("Serializable", javaIo, defKind = TypeDefKind.Trait(isSealed = false))
 
@@ -34,7 +34,7 @@ trait TypeIdInstances {
       isValue = false,
       bases = List(
         TypeRepr.Ref(charSequence),
-        TypeRepr.Ref(comparable.asInstanceOf[TypeId[?]]),
+        TypeRepr.Ref(comparable.asInstanceOf[TypeId[_]]),
         TypeRepr.Ref(serializable)
       )
     )
@@ -42,30 +42,30 @@ trait TypeIdInstances {
   implicit val bigInt: TypeId[BigInt]         = TypeId.nominal[BigInt]("BigInt", TypeIdOps.Owners.scala)
   implicit val bigDecimal: TypeId[BigDecimal] = TypeId.nominal[BigDecimal]("BigDecimal", TypeIdOps.Owners.scala)
 
-  implicit val option: TypeId[Option[?]] =
-    TypeId.nominal[Option[?]]("Option", TypeIdOps.Owners.scala, List(TypeParam.A))
-  implicit val some: TypeId[Some[?]]     = TypeId.nominal[Some[?]]("Some", TypeIdOps.Owners.scala, List(TypeParam.A))
+  implicit val option: TypeId[Option[_]] =
+    TypeId.nominal[Option[_]]("Option", TypeIdOps.Owners.scala, List(TypeParam.A))
+  implicit val some: TypeId[Some[_]]     = TypeId.nominal[Some[_]]("Some", TypeIdOps.Owners.scala, List(TypeParam.A))
   implicit val none: TypeId[None.type]   = TypeId.nominal[None.type]("None", TypeIdOps.Owners.scala)
-  implicit val list: TypeId[List[?]]     = TypeId.nominal[List[?]]("List", scalaCollectionImmutable, List(TypeParam.A))
-  implicit val vector: TypeId[Vector[?]] =
-    TypeId.nominal[Vector[?]]("Vector", scalaCollectionImmutable, List(TypeParam.A))
-  implicit val set: TypeId[Set[?]] =
-    TypeId.nominal[Set[?]]("Set", scalaCollectionImmutable, List(TypeParam("A", 0, Variance.Invariant)))
-  implicit val seq: TypeId[Seq[?]]               = TypeId.nominal[Seq[?]]("Seq", scalaCollectionImmutable, List(TypeParam.A))
-  implicit val indexedSeq: TypeId[IndexedSeq[?]] =
-    TypeId.nominal[IndexedSeq[?]]("IndexedSeq", scalaCollectionImmutable, List(TypeParam.A))
-  implicit val map: TypeId[Map[?, ?]] =
-    TypeId.nominal[Map[?, ?]]("Map", scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
-  implicit val either: TypeId[Either[?, ?]] =
-    TypeId.nominal[Either[?, ?]]("Either", scalaUtil, List(TypeParam.A, TypeParam.B))
-  implicit val array: TypeId[Array[?]] =
-    TypeId.nominal[Array[?]]("Array", TypeIdOps.Owners.scala, List(TypeParam("T", 0, Variance.Invariant)))
-  implicit val arraySeq: TypeId[_root_.scala.collection.immutable.ArraySeq[?]] =
+  implicit val list: TypeId[List[_]]     = TypeId.nominal[List[_]]("List", scalaCollectionImmutable, List(TypeParam.A))
+  implicit val vector: TypeId[Vector[_]] =
+    TypeId.nominal[Vector[_]]("Vector", scalaCollectionImmutable, List(TypeParam.A))
+  implicit val set: TypeId[Set[_]] =
+    TypeId.nominal[Set[_]]("Set", scalaCollectionImmutable, List(TypeParam("A", 0, Variance.Invariant)))
+  implicit val seq: TypeId[Seq[_]]               = TypeId.nominal[Seq[_]]("Seq", scalaCollectionImmutable, List(TypeParam.A))
+  implicit val indexedSeq: TypeId[IndexedSeq[_]] =
+    TypeId.nominal[IndexedSeq[_]]("IndexedSeq", scalaCollectionImmutable, List(TypeParam.A))
+  implicit val map: TypeId[Map[_, _]] =
+    TypeId.nominal[Map[_, _]]("Map", scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
+  implicit val either: TypeId[Either[_, _]] =
+    TypeId.nominal[Either[_, _]]("Either", scalaUtil, List(TypeParam.A, TypeParam.B))
+  implicit val array: TypeId[Array[_]] =
+    TypeId.nominal[Array[_]]("Array", TypeIdOps.Owners.scala, List(TypeParam("T", 0, Variance.Invariant)))
+  implicit val arraySeq: TypeId[_root_.scala.collection.immutable.ArraySeq[_]] =
     TypeId
-      .nominal[_root_.scala.collection.immutable.ArraySeq[?]]("ArraySeq", scalaCollectionImmutable, List(TypeParam.A))
+      .nominal[_root_.scala.collection.immutable.ArraySeq[_]]("ArraySeq", scalaCollectionImmutable, List(TypeParam.A))
 
-  implicit val chunk: TypeId[zio.blocks.chunk.Chunk[?]] =
-    TypeId.nominal[zio.blocks.chunk.Chunk[?]]("Chunk", zioBlocksChunk, List(TypeParam.A))
+  implicit val chunk: TypeId[zio.blocks.chunk.Chunk[_]] =
+    TypeId.nominal[zio.blocks.chunk.Chunk[_]]("Chunk", zioBlocksChunk, List(TypeParam.A))
 
   implicit val dayOfWeek: TypeId[java.time.DayOfWeek]         = TypeId.nominal[java.time.DayOfWeek]("DayOfWeek", javaTime)
   implicit val duration: TypeId[java.time.Duration]           = TypeId.nominal[java.time.Duration]("Duration", javaTime)

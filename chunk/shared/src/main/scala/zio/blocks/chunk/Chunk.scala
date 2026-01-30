@@ -695,12 +695,12 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   final def ++[A1 >: A](that: Chunk[A1]): Chunk[A1] = {
     if (length == 0) return that
     if (that.isEmpty) return self
-    if (self.isInstanceOf[Chunk.AppendN[?]]) {
+    if (self.isInstanceOf[Chunk.AppendN[_]]) {
       val appendN = self.asInstanceOf[Chunk.AppendN[A1]]
       val chunk   = Chunk.fromArray(Array.copyOf(appendN.buffer, appendN.bufferUsed).asInstanceOf[Array[A1]])
       return appendN.start ++ chunk ++ that
     }
-    if (that.isInstanceOf[Chunk.PrependN[?]]) {
+    if (that.isInstanceOf[Chunk.PrependN[_]]) {
       val prependN = that.asInstanceOf[Chunk.PrependN[A1]]
       val chunk    = Chunk.fromArray(prependN.buffer.asInstanceOf[Array[A1]]).takeRight(prependN.bufferUsed)
       return self ++ chunk ++ prependN.end
@@ -1792,7 +1792,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     val iterator = iterable.iterator()
     if (iterator.hasNext) {
       val builder = ChunkBuilder.make[A](iterable match {
-        case value: util.Collection[?] => value.size()
+        case value: util.Collection[_] => value.size()
         case _                         => 4
       })
       while (iterator.hasNext) builder.addOne(iterator.next())

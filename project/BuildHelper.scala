@@ -100,6 +100,7 @@ object BuildHelper {
           "-Wconf:msg=unused.*&src=.*/test/.*:s",                          // suppress unused warnings in test sources
           "-Wconf:msg=nowarn annotation does not suppress any warnings:s", // nowarn difference between Scala 3.3 and 3.5
           "-Wconf:msg=with as a type operator has been deprecated:s",      // `with` works in both Scala 2 and 3, & only in Scala 3
+          "-Wconf:msg=`_` is deprecated for wildcard arguments:s",         // cross-build with Scala 2 requires [_] syntax
           "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent",    // workaround for `@deprecated("reasons") case class C() derives Schema`
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
