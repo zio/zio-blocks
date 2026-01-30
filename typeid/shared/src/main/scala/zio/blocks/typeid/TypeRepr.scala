@@ -123,16 +123,16 @@ object TypeRepr {
    *
    * Note: Equality is order-independent, so `A & B` equals `B & A`.
    */
-  final class Intersection private (val types: List[TypeRepr]) extends TypeRepr {
-    override def equals(other: Any): Boolean = other match {
-      case that: Intersection => this.types.toSet == that.types.toSet
-      case _                  => false
-    }
+   final class Intersection private (val types: List[TypeRepr]) extends TypeRepr {
+     override def equals(other: Any): Boolean = other match {
+       case that: Intersection => this.types.toSet == that.types.toSet
+       case _                  => false
+     }
 
-    override def hashCode(): Int = types.toSet.hashCode()
+     override def hashCode(): Int = types.toSet.hashCode()
 
-    override def toString: String = s"Intersection(${types.mkString(", ")})"
-  }
+     override def toString: String = TypeIdPrinter.render(this)
+   }
 
   object Intersection {
     def apply(types: List[TypeRepr]): Intersection = new Intersection(types)
@@ -148,16 +148,16 @@ object TypeRepr {
    *
    * Note: Equality is order-independent, so `A | B` equals `B | A`.
    */
-  final class Union private (val types: List[TypeRepr]) extends TypeRepr {
-    override def equals(other: Any): Boolean = other match {
-      case that: Union => this.types.toSet == that.types.toSet
-      case _           => false
-    }
+   final class Union private (val types: List[TypeRepr]) extends TypeRepr {
+     override def equals(other: Any): Boolean = other match {
+       case that: Union => this.types.toSet == that.types.toSet
+       case _           => false
+     }
 
-    override def hashCode(): Int = types.toSet.hashCode()
+     override def hashCode(): Int = types.toSet.hashCode()
 
-    override def toString: String = s"Union(${types.mkString(", ")})"
-  }
+     override def toString: String = TypeIdPrinter.render(this)
+   }
 
   object Union {
     def apply(types: List[TypeRepr]): Union = new Union(types)

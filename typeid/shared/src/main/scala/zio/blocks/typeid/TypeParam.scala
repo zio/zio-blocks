@@ -69,14 +69,10 @@ final case class TypeParam(
    */
   def isTypeConstructor: Boolean = !kind.isProperType
 
-  /**
-   * Returns a string representation of this type parameter.
-   */
-  override def toString: String = {
-    val varianceStr = variance.symbol
-    val kindStr     = if (kind.isProperType) "" else s"[${kind.arity}]"
-    s"$varianceStr$name$kindStr@$index"
-  }
+   /**
+    * Returns a string representation of this type parameter.
+    */
+   override def toString: String = TypeIdPrinter.render(this)
 }
 
 object TypeParam {
