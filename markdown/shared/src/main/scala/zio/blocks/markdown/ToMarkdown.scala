@@ -74,10 +74,10 @@ object ToMarkdown {
   implicit def vectorToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[Vector[A]] = (as: Vector[A]) =>
     Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
 
-   /** Convert Seq[A] to comma-separated text when A has ToMarkdown. */
-   implicit def seqToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[Seq[A]] = (as: Seq[A]) =>
-     Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
+  /** Convert Seq[A] to comma-separated text when A has ToMarkdown. */
+  implicit def seqToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[Seq[A]] = (as: Seq[A]) =>
+    Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
 
-   /** Convert Block to rendered markdown text. */
-   implicit val blockToMarkdown: ToMarkdown[Block] = (b: Block) => Text(Renderer.render(Doc(Chunk(b))).trim)
+  /** Convert Block to rendered markdown text. */
+  implicit val blockToMarkdown: ToMarkdown[Block] = (b: Block) => Text(Renderer.render(Doc(Chunk(b))).trim)
 }

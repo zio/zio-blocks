@@ -241,7 +241,75 @@ object AdtSpec extends MarkdownBaseSpec {
         val meta = Map("author" -> "John", "date" -> "2024-01-30")
         val doc  = Doc(Chunk(Paragraph(Chunk(Text("hi")))), meta)
         assertTrue(doc.metadata == meta)
-      }
+      },
+      suite("++ concatenation")(
+        test("concatenates blocks") {
+          val doc1     = Doc(Chunk(Paragraph(Chunk(Text("a")))))
+          val doc2     = Doc(Chunk(Paragraph(Chunk(Text("b")))))
+          val combined = doc1 ++ doc2
+          assertTrue(combined.blocks.size == 2)
+        },
+        test("merges metadata") {
+          val doc1 = Doc(Chunk.empty, Map("k1" -> "v1"))
+          val doc2 = Doc(Chunk.empty, Map("k2" -> "v2"))
+          assertTrue((doc1 ++ doc2).metadata == Map("k1" -> "v1", "k2" -> "v2"))
+        },
+        test("right metadata wins on conflict") {
+          val doc1 = Doc(Chunk.empty, Map("k" -> "left"))
+          val doc2 = Doc(Chunk.empty, Map("k" -> "right"))
+          assertTrue((doc1 ++ doc2).metadata == Map("k" -> "right"))
+        }
+      ),
+      suite("toString")(
+        test("renders as markdown") {
+          val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hi")))))
+          assertTrue(doc.toString == "# Hi\n")
+        }
+      ),
+      suite("normalize")(
+        test("merges adjacent Text nodes") {
+          val doc        = Doc(Chunk(Paragraph(Chunk(Text("a"), Text("b"), Text("c")))))
+          val normalized = doc.normalize
+          assertTrue(normalized.blocks == Chunk(Paragraph(Chunk(Text("abc")))))
+        },
+        test("removes empty Text nodes") {
+          val doc        = Doc(Chunk(Paragraph(Chunk(Text(""), Text("x"), Text("")))))
+          val normalized = doc.normalize
+          assertTrue(normalized.blocks == Chunk(Paragraph(Chunk(Text("x")))))
+        },
+        test("removes empty Paragraphs") {
+          val doc        = Doc(Chunk(Paragraph(Chunk.empty), Paragraph(Chunk(Text("keep")))))
+          val normalized = doc.normalize
+          assertTrue(normalized.blocks == Chunk(Paragraph(Chunk(Text("keep")))))
+        },
+        test("normalizes nested structures") {
+          val doc        = Doc(Chunk(Paragraph(Chunk(Strong(Chunk(Text("a"), Text("b")))))))
+          val normalized = doc.normalize
+          assertTrue(normalized.blocks == Chunk(Paragraph(Chunk(Strong(Chunk(Text("ab")))))))
+        },
+        test("normalizes BlockQuote content") {
+          val doc        = Doc(Chunk(BlockQuote(Chunk(Paragraph(Chunk(Text("a"), Text("b")))))))
+          val normalized = doc.normalize
+          assertTrue(normalized.blocks == Chunk(BlockQuote(Chunk(Paragraph(Chunk(Text("ab")))))))
+        }
+      ),
+      suite("equality via normalization")(
+        test("structurally different but semantically equal docs are equal") {
+          val doc1 = Doc(Chunk(Paragraph(Chunk(Text("a"), Text("b")))))
+          val doc2 = Doc(Chunk(Paragraph(Chunk(Text("ab")))))
+          assertTrue(doc1 == doc2)
+        },
+        test("hashCode is consistent with equals") {
+          val doc1 = Doc(Chunk(Paragraph(Chunk(Text("a"), Text("b")))))
+          val doc2 = Doc(Chunk(Paragraph(Chunk(Text("ab")))))
+          assertTrue(doc1.hashCode == doc2.hashCode)
+        },
+        test("different content docs are not equal") {
+          val doc1 = Doc(Chunk(Paragraph(Chunk(Text("hello")))))
+          val doc2 = Doc(Chunk(Paragraph(Chunk(Text("world")))))
+          assertTrue(doc1 != doc2)
+        }
+      )
     )
   )
 }
