@@ -10,22 +10,24 @@ import scala.language.reflectiveCalls
  *
  * In Scala 2, we support pure structural types (refinement types like
  * `{ def name: String; def age: Int }`):
- * - Schema derivation generates an anonymous Dynamic class at compile time
- * - Works on ALL platforms (JVM, JS, Native) without runtime reflection for construction
- * - Deconstruction uses reflection but the generated methods satisfy the structural contract
+ *   - Schema derivation generates an anonymous Dynamic class at compile time
+ *   - Works on ALL platforms (JVM, JS, Native) without runtime reflection for
+ *     construction
+ *   - Deconstruction uses reflection but the generated methods satisfy the
+ *     structural contract
  */
 object DynamicImplementationSpec extends ZIOSpecDefault {
 
   // === Pure structural types (no Dynamic base) ===
-  type PersonLike = { def name: String; def age: Int }
-  type PointLike = { def x: Int; def y: Int }
+  type PersonLike  = { def name: String; def age: Int }
+  type PointLike   = { def x: Int; def y: Int }
   type SingleField = { def value: String }
 
   // Helper class for testing Dynamic field access
   class DynamicPerson(fields: Map[String, Any]) extends Dynamic {
     def selectDynamic(name: String): Any = fields(name)
-    def name: String = fields("name").asInstanceOf[String]
-    def age: Int = fields("age").asInstanceOf[Int]
+    def name: String                     = fields("name").asInstanceOf[String]
+    def age: Int                         = fields("age").asInstanceOf[Int]
   }
 
   def spec = suite("DynamicImplementationSpec")(
@@ -46,13 +48,14 @@ object DynamicImplementationSpec extends ZIOSpecDefault {
       },
       test("missing field access throws appropriate error") {
         val person = new DynamicPerson(Map("name" -> "Dave"))
-        val thrown = try {
-          person.selectDynamic("age")
-          false
-        } catch {
-          case _: NoSuchElementException => true
-          case _: Throwable              => false
-        }
+        val thrown =
+          try {
+            person.selectDynamic("age")
+            false
+          } catch {
+            case _: NoSuchElementException => true
+            case _: Throwable              => false
+          }
         assertTrue(thrown)
       }
     ),
@@ -76,14 +79,14 @@ object DynamicImplementationSpec extends ZIOSpecDefault {
         assertTrue(reflectClassName.contains("Record"))
       },
       test("pure structural schema has correct field count") {
-        val schema = Schema.derived[PointLike]
+        val schema           = Schema.derived[PointLike]
         val reflectClassName = schema.reflect.getClass.getSimpleName
         assertTrue(reflectClassName.contains("Record"))
       }
     ),
     suite("Pure Structural Type fromDynamicValue")(
       test("constructs PersonLike from DynamicValue") {
-        val schema = Schema.derived[PersonLike]
+        val schema  = Schema.derived[PersonLike]
         val dynamic = DynamicValue.Record(
           Vector(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
@@ -102,7 +105,7 @@ object DynamicImplementationSpec extends ZIOSpecDefault {
         }
       },
       test("constructs PointLike from DynamicValue") {
-        val schema = Schema.derived[PointLike]
+        val schema  = Schema.derived[PointLike]
         val dynamic = DynamicValue.Record(
           Vector(
             "x" -> DynamicValue.Primitive(PrimitiveValue.Int(42)),
@@ -121,7 +124,7 @@ object DynamicImplementationSpec extends ZIOSpecDefault {
         }
       },
       test("constructs SingleField from DynamicValue") {
-        val schema = Schema.derived[SingleField]
+        val schema  = Schema.derived[SingleField]
         val dynamic = DynamicValue.Record(
           Vector("value" -> DynamicValue.Primitive(PrimitiveValue.String("hello")))
         )
@@ -136,7 +139,7 @@ object DynamicImplementationSpec extends ZIOSpecDefault {
     ),
     suite("Pure Structural Type Round-Trip")(
       test("PersonLike round-trips through DynamicValue") {
-        val schema = Schema.derived[PersonLike]
+        val schema  = Schema.derived[PersonLike]
         val dynamic = DynamicValue.Record(
           Vector(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("Eve")),
@@ -162,7 +165,7 @@ object DynamicImplementationSpec extends ZIOSpecDefault {
         }
       },
       test("PointLike round-trips through DynamicValue") {
-        val schema = Schema.derived[PointLike]
+        val schema  = Schema.derived[PointLike]
         val dynamic = DynamicValue.Record(
           Vector(
             "x" -> DynamicValue.Primitive(PrimitiveValue.Int(100)),

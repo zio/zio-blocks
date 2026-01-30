@@ -9,7 +9,7 @@ import zio.test._
 object TypeNameNormalizationSpec extends ZIOSpecDefault {
 
   case class Person(name: String, age: Int)
-  case class User(age: Int, name: String) // Different field order, same structure
+  case class User(age: Int, name: String)
 
   type PersonLike = { def name: String; def age: Int }
 
@@ -46,9 +46,9 @@ object TypeNameNormalizationSpec extends ZIOSpecDefault {
       assertTrue(typeName == "{age:Int,name:String}")
     },
     test("nominal and direct structural produce same type name") {
-      val nominalSchema = Schema.derived[Person]
+      val nominalSchema    = Schema.derived[Person]
       val structuralSchema = nominalSchema.structural
-      val directSchema = Schema.derived[PersonLike]
+      val directSchema     = Schema.derived[PersonLike]
 
       assertTrue(
         structuralSchema.reflect.typeName.name == directSchema.reflect.typeName.name
@@ -56,23 +56,23 @@ object TypeNameNormalizationSpec extends ZIOSpecDefault {
     },
     test("different field order case classes produce same structural type name") {
       val personSchema = Schema.derived[Person]
-      val userSchema = Schema.derived[User]
+      val userSchema   = Schema.derived[User]
 
       val personStructural = personSchema.structural
-      val userStructural = userSchema.structural
+      val userStructural   = userSchema.structural
 
       assertTrue(
         personStructural.reflect.typeName.name == userStructural.reflect.typeName.name
       )
     },
     test("type name has no whitespace") {
-      val schema = Schema.derived[PersonLike]
+      val schema   = Schema.derived[PersonLike]
       val typeName = schema.reflect.typeName.name
 
       assertTrue(!typeName.contains(" "))
     },
     test("type name uses simple type names for primitives") {
-      val schema = Schema.derived[PersonLike]
+      val schema   = Schema.derived[PersonLike]
       val typeName = schema.reflect.typeName.name
 
       assertTrue(
@@ -82,4 +82,3 @@ object TypeNameNormalizationSpec extends ZIOSpecDefault {
     }
   )
 }
-

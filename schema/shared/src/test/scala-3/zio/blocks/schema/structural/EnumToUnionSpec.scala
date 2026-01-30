@@ -4,8 +4,9 @@ import zio.blocks.schema._
 import zio.test._
 
 /**
- * Tests for Scala 3 enum schema derivation and structural conversion (Scala 3 only).
- * 
+ * Tests for Scala 3 enum schema derivation and structural conversion (Scala 3
+ * only).
+ *
  * Scala 3 enums are a more concise way to define sum types.
  */
 object EnumToUnionSpec extends ZIOSpecDefault {
@@ -41,26 +42,26 @@ object EnumToUnionSpec extends ZIOSpecDefault {
     ),
     suite("Schema Structure")(
       test("simple enum schema is a Variant") {
-        val schema = Schema.derived[Color]
+        val schema    = Schema.derived[Color]
         val isVariant = schema.reflect match {
           case _: Reflect.Variant[_, _] => true
-          case _ => false
+          case _                        => false
         }
         assertTrue(isVariant)
       },
       test("simple enum has correct number of cases") {
-        val schema = Schema.derived[Color]
+        val schema    = Schema.derived[Color]
         val caseCount = schema.reflect match {
           case v: Reflect.Variant[_, _] => v.cases.size
-          case _ => -1
+          case _                        => -1
         }
         assertTrue(caseCount == 3)
       },
       test("simple enum case names are correct") {
-        val schema = Schema.derived[Color]
+        val schema    = Schema.derived[Color]
         val caseNames = schema.reflect match {
           case v: Reflect.Variant[_, _] => v.cases.map(_.name).toSet
-          case _ => Set.empty[String]
+          case _                        => Set.empty[String]
         }
         assertTrue(
           caseNames.contains("Red"),
@@ -69,13 +70,13 @@ object EnumToUnionSpec extends ZIOSpecDefault {
         )
       },
       test("parameterized enum cases have correct fields") {
-        val schema = Schema.derived[Shape]
+        val schema       = Schema.derived[Shape]
         val circleFields = schema.reflect match {
           case v: Reflect.Variant[_, _] =>
             v.cases.find(_.name == "Circle").flatMap { c =>
               c.value match {
                 case r: Reflect.Record[_, _] => Some(r.fields.map(_.name).toSet)
-                case _ => None
+                case _                       => None
               }
             }
           case _ => None
@@ -88,21 +89,21 @@ object EnumToUnionSpec extends ZIOSpecDefault {
     ),
     suite("DynamicValue Round-Trip")(
       test("simple enum case round-trips correctly") {
-        val schema = Schema.derived[Color]
+        val schema       = Schema.derived[Color]
         val value: Color = Color.Red
-        
+
         val dynamic = schema.toDynamicValue(value)
-        val result = schema.fromDynamicValue(dynamic)
-        
+        val result  = schema.fromDynamicValue(dynamic)
+
         assertTrue(result == Right(value))
       },
       test("all simple enum cases round-trip correctly") {
         val schema = Schema.derived[Color]
-        
-        val redResult = schema.fromDynamicValue(schema.toDynamicValue(Color.Red))
+
+        val redResult   = schema.fromDynamicValue(schema.toDynamicValue(Color.Red))
         val greenResult = schema.fromDynamicValue(schema.toDynamicValue(Color.Green))
-        val blueResult = schema.fromDynamicValue(schema.toDynamicValue(Color.Blue))
-        
+        val blueResult  = schema.fromDynamicValue(schema.toDynamicValue(Color.Blue))
+
         assertTrue(
           redResult == Right(Color.Red),
           greenResult == Right(Color.Green),
@@ -110,25 +111,25 @@ object EnumToUnionSpec extends ZIOSpecDefault {
         )
       },
       test("parameterized enum case round-trips correctly") {
-        val schema = Schema.derived[Shape]
+        val schema        = Schema.derived[Shape]
         val circle: Shape = Shape.Circle(5.0)
-        
+
         val dynamic = schema.toDynamicValue(circle)
-        val result = schema.fromDynamicValue(dynamic)
-        
+        val result  = schema.fromDynamicValue(dynamic)
+
         assertTrue(result == Right(circle))
       },
       test("all parameterized enum cases round-trip correctly") {
         val schema = Schema.derived[Shape]
-        
+
         val circle: Shape = Shape.Circle(3.14)
-        val rect: Shape = Shape.Rectangle(10.0, 20.0)
-        val tri: Shape = Shape.Triangle(5.0, 8.0)
-        
+        val rect: Shape   = Shape.Rectangle(10.0, 20.0)
+        val tri: Shape    = Shape.Triangle(5.0, 8.0)
+
         val circleResult = schema.fromDynamicValue(schema.toDynamicValue(circle))
-        val rectResult = schema.fromDynamicValue(schema.toDynamicValue(rect))
-        val triResult = schema.fromDynamicValue(schema.toDynamicValue(tri))
-        
+        val rectResult   = schema.fromDynamicValue(schema.toDynamicValue(rect))
+        val triResult    = schema.fromDynamicValue(schema.toDynamicValue(tri))
+
         assertTrue(
           circleResult == Right(circle),
           rectResult == Right(rect),
@@ -138,35 +139,35 @@ object EnumToUnionSpec extends ZIOSpecDefault {
     ),
     suite("DynamicValue Structure")(
       test("simple enum produces Variant DynamicValue") {
-        val schema = Schema.derived[Color]
+        val schema       = Schema.derived[Color]
         val value: Color = Color.Green
-        
+
         val dynamic = schema.toDynamicValue(value)
-        
+
         val isVariant = dynamic match {
           case DynamicValue.Variant(_, _) => true
-          case _ => false
+          case _                          => false
         }
         assertTrue(isVariant)
       },
       test("Variant DynamicValue has correct case name") {
-        val schema = Schema.derived[Color]
+        val schema       = Schema.derived[Color]
         val value: Color = Color.Blue
-        
+
         val dynamic = schema.toDynamicValue(value)
-        
+
         val caseName = dynamic match {
           case DynamicValue.Variant(name, _) => Some(name)
-          case _ => None
+          case _                             => None
         }
         assertTrue(caseName == Some("Blue"))
       },
       test("parameterized enum Variant contains case data") {
-        val schema = Schema.derived[Shape]
+        val schema       = Schema.derived[Shape]
         val value: Shape = Shape.Rectangle(10.0, 20.0)
-        
+
         val dynamic = schema.toDynamicValue(value)
-        
+
         val hasCorrectData = dynamic match {
           case DynamicValue.Variant("Rectangle", DynamicValue.Record(fields)) =>
             val fieldMap = fields.toMap
