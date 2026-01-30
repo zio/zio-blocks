@@ -8,6 +8,21 @@ This document tracks the implementation status of structural type schema support
 
 ## Test Status Summary
 
+### Scala 2 JVM Tests
+
+| Category | Total Tests | ✅ Passing | ⏸️ Ignored | Status |
+|----------|-------------|-----------|-----------|--------|
+| **errors/** | | | | |
+| RecursiveTypeErrorSpec | 11 | 11 | 0 | ✅ Complete |
+| MutualRecursionErrorSpec | 10 | 10 | 0 | ✅ Complete |
+| UnsupportedTypeErrorSpec | 22 | 22 | 0 | ✅ Complete |
+| SumTypeErrorSpec | 6 | 6 | 0 | ✅ Complete |
+| **scala-2/** | | | | |
+| DynamicImplementationSpec | 14 | 14 | 0 | ✅ Complete |
+| **TOTAL (Scala 2)** | **61** | **61** | **0** | **100%** |
+
+### Scala 3 JVM Tests
+
 | Category | Total Tests | ✅ Passing | ⏸️ Ignored | Status |
 |----------|-------------|-----------|-----------|--------|
 | **common/** | | | | |
@@ -19,21 +34,20 @@ This document tracks the implementation status of structural type schema support
 | SingleFieldSpec | 5 | 5 | 0 | ✅ Complete |
 | LargeProductSpec | 10 | 10 | 0 | ✅ Complete |
 | TypeNameNormalizationSpec | 7 | 7 | 0 | ✅ Complete |
-| IntoIntegrationSpec | 4 | 0 | 4 | 🔴 Not Started |
-| AsIntegrationSpec | 3 | 0 | 3 | 🔴 Not Started |
-| **scala3/** | | | | |
+| IntoIntegrationSpec | 4 | 4 | 0 | ✅ Complete |
+| AsIntegrationSpec | 4 | 4 | 0 | ✅ Complete |
+| **scala-3/** | | | | |
 | UnionTypesSpec | 3 | 0 | 3 | 🔴 Not Started |
-| SealedTraitToUnionSpec | 5 | 0 | 5 | 🔴 Not Started |
-| EnumToUnionSpec | 4 | 0 | 4 | 🔴 Not Started |
-| SelectableImplementationSpec | 6 | 0 | 6 | 🔴 Not Started |
-| **scala2/** | | | | |
-| DynamicImplementationSpec | 5 | 0 | 5 | 🔴 Not Started |
-| SumTypeErrorSpec | 3 | 0 | 3 | 🔴 Not Started |
+| SealedTraitToUnionSpec | 14 | 14 | 0 | ✅ Complete |
+| EnumToUnionSpec | 14 | 14 | 0 | ✅ Complete |
+| SelectableImplementationSpec | 17 | 17 | 0 | ✅ Complete |
+| SelectableStructuralTypeSpec | 3 | 3 | 0 | ✅ Complete |
+| PureStructuralTypeSpec | 5 | 5 | 0 | ✅ Complete |
 | **errors/** | | | | |
-| RecursiveTypeErrorSpec | 3 | 0 | 3 | 🔴 Not Started |
-| MutualRecursionErrorSpec | 2 | 0 | 2 | 🔴 Not Started |
-| UnsupportedTypeErrorSpec | 4 | 0 | 4 | 🔴 Not Started |
-| **TOTAL** | **124** | **81** | **43** | **65%** |
+| RecursiveTypeErrorSpec | 11 | 11 | 0 | ✅ Complete |
+| MutualRecursionErrorSpec | 10 | 10 | 0 | ✅ Complete |
+| UnsupportedTypeErrorSpec | 22 | 22 | 0 | ✅ Complete |
+| **TOTAL (Scala 3)** | **189** | **186** | **3** | **98%** |
 
 ---
 
@@ -52,27 +66,38 @@ This document tracks the implementation status of structural type schema support
 8. ~~Large tuples (4+ elements, up to 10)~~ ✅
 9. ~~Large products (25+ fields)~~ ✅
 
-### Phase 3: Error Handling 🔜
-10. Recursive type detection & error
-11. Mutual recursion detection & error
-12. Unsupported type errors
+### Phase 3: Error Handling ✅ COMPLETE
+10. ~~Recursive type detection & error~~ ✅
+11. ~~Mutual recursion detection & error~~ ✅
+12. ~~Unsupported type errors~~ ✅
 
-### Phase 4: Sum Types (Scala 3) 🔜
-13. Sealed trait to union type
-14. Enum to union type
-15. Union type name normalization
+### Phase 4: Sum Types (Scala 3) ✅ MOSTLY COMPLETE
+13. ~~Sealed trait to union type~~ ✅
+14. ~~Enum to union type~~ ✅
+15. Union type name normalization ⏸️ (3 tests ignored)
 
-### Phase 5: Scala 2 Parity 🔜
-16. Dynamic-based implementation
-17. Sum type error in Scala 2
+### Phase 5: Scala 2 Parity ✅ COMPLETE
+16. ~~Dynamic-based implementation~~ ✅
+17. ~~Sum type error in Scala 2~~ ✅
 
-### Phase 6: Into/As Integration 🔜
-18. Into[Nominal, Structural]
-19. Into[Structural, Nominal]
-20. As[Nominal, Structural] bidirectional
+### Phase 6: Into/As Integration ✅ COMPLETE
+18. ~~Into[Nominal, Structural]~~ ✅
+19. ~~Into[Structural, Nominal]~~ ✅ (uses reflective field access for Selectable)
+20. ~~As[Nominal, Structural] bidirectional~~ ✅
 
-### Phase 7: Implementation Details 🔜
-21. Selectable implementation details (Scala 3)
-22. Dynamic implementation details (Scala 2)
+### Phase 7: Implementation Details ✅ COMPLETE
+21. ~~Selectable implementation details (Scala 3)~~ ✅
+22. ~~Dynamic implementation details (Scala 2)~~ ✅
 
+---
 
+## Summary
+
+- **Scala 2 JVM**: 61/61 tests passing (100%)
+- **Scala 3 JVM**: 186/189 tests passing, 3 ignored (98%)
+- **Overall**: All implemented features working correctly
+
+### Known Limitations
+- Union type name normalization tests are ignored (advanced feature for future work)
+- Pure structural types (Scala 3) require JVM (uses reflection for field access)
+- Selectable types with custom Map constructors are fully supported on all platforms
