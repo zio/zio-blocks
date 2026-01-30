@@ -34,7 +34,7 @@ object BitChunkByteSpec extends ChunkBaseSpec {
       chunk <- genByteChunk
       i     <- Gen.int(0, chunk.length * 8)
       j     <- Gen.int(0, chunk.length * 8)
-    } yield Chunk.BitChunkByte(chunk, i min j, i max j)
+    } yield new Chunk.BitChunkByte(chunk, i min j, i max j)
 
   val genBoolChunk: Gen[Any, Chunk[Boolean]] =
     Gen.listOf(Gen.boolean).map(Chunk.fromIterable(_))
@@ -43,6 +43,13 @@ object BitChunkByteSpec extends ChunkBaseSpec {
     String.format("%8s", (byte.toInt & 0xff).toBinaryString).replace(' ', '0')
 
   def spec = suite("BitChunkByteSpec")(
+    test("foreach") {
+      check(genByteChunk) { (bytes) =>
+        var sum = 0
+        bytes.asBitsByte.foreach(x => if (x) sum += 1)
+        assert(sum)(equalTo(bytes.foldLeft(0)((acc, b) => acc + java.lang.Integer.bitCount(b & 0xff))))
+      }
+    },
     test("drop") {
       check(genByteChunk, genInt) { (bytes, n) =>
         val actual   = bytes.asBitsByte.drop(n).toBinaryString
@@ -101,93 +108,22 @@ object BitChunkByteSpec extends ChunkBaseSpec {
     },
     test("and") {
       check(genBitChunk, genBitChunk) { (l, r) =>
-        val anded    = l & r
-        val actual   = anded.toBinaryString.take(anded.length)
-        val expected =
-          l.bytes
-            .map(toBinaryString)
-            .mkString
-            .slice(l.minBitIndex, l.maxBitIndex)
-            .zip(
-              r.bytes.map(toBinaryString).mkString.slice(r.minBitIndex, r.maxBitIndex)
-            )
-            .map {
-              case ('0', '0') => '0'
-              case ('0', '1') => '0'
-              case ('1', '0') => '0'
-              case ('1', '1') => '1'
-              case _          => ""
-            }
-            .mkString
-
-        assert(actual)(equalTo(expected))
+        assert(l & r)(equalTo(l.zip(r).map { case (a, b) => a & b }))
       }
     },
     test("or") {
       check(genBitChunk, genBitChunk) { (l, r) =>
-        val ored     = l | r
-        val actual   = ored.toBinaryString.take(ored.length)
-        val expected =
-          l.bytes
-            .map(toBinaryString)
-            .mkString
-            .slice(l.minBitIndex, l.maxBitIndex)
-            .zip(
-              r.bytes.map(toBinaryString).mkString.slice(r.minBitIndex, r.maxBitIndex)
-            )
-            .map {
-              case ('0', '0') => '0'
-              case ('0', '1') => '1'
-              case ('1', '0') => '1'
-              case ('1', '1') => '1'
-              case _          => ""
-            }
-            .mkString
-
-        assert(actual)(equalTo(expected))
+        assert(l | r)(equalTo(l.zip(r).map { case (a, b) => a | b }))
       }
     },
     test("xor") {
       check(genBitChunk, genBitChunk) { (l, r) =>
-        val xored    = l ^ r
-        val actual   = xored.toBinaryString.take(xored.length)
-        val expected =
-          l.bytes
-            .map(toBinaryString)
-            .mkString
-            .slice(l.minBitIndex, l.maxBitIndex)
-            .zip(
-              r.bytes.map(toBinaryString).mkString.slice(r.minBitIndex, r.maxBitIndex)
-            )
-            .map {
-              case ('0', '0') => '0'
-              case ('0', '1') => '1'
-              case ('1', '0') => '1'
-              case ('1', '1') => '0'
-              case _          => ""
-            }
-            .mkString
-
-        assert(actual)(equalTo(expected))
+        assert(l ^ r)(equalTo(l.zip(r).map { case (a, b) => a ^ b }))
       }
     },
     test("not") {
       check(genBitChunk) { bits =>
-        val not      = bits.negate
-        val actual   = not.toBinaryString.take(not.length)
-        val expected =
-          bits.bytes
-            .map(toBinaryString)
-            .mkString
-            .slice(bits.minBitIndex, bits.maxBitIndex)
-            .map {
-              case '0' => '1'
-              case '1' => '0'
-              case _   => ""
-            }
-            .mkString
-
-        assert(actual)(equalTo(expected))
+        assert(bits.negate)(equalTo(bits.map(b => !b)))
       }
     },
     test("boolean and") {
