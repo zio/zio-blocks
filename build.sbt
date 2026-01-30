@@ -190,8 +190,8 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 72,
-    coverageMinimumBranchTotal := 72
+    coverageMinimumStmtTotal   := 87,
+    coverageMinimumBranchTotal := 83
   )
 
 lazy val `schema-avro` = project
