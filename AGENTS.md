@@ -1,146 +1,103 @@
 # ZIO Blocks Agent Guidelines
 
-Zero-dependency building blocks for Scala. Supports Scala 2.13 and 3.3+ with source compatibility across JVM, JS, and Native.
+Zero-dependency Scala building blocks (2.13 + 3.x; JVM/JS/Native).
 
-## Staged Verification Workflow
+## Setup
 
-**Goal:** Zero duplication. Each operation runs once at the smallest necessary scope.
+If `.git/bin/sbtn` doesn't exist, download [sbtn](https://github.com/sbt/sbtn-dist/releases) and place it there. Always run: `export PATH="$PWD/.git/bin:$PATH"`
 
-### What needs work?
+## Mindset
 
-| Modified | Action |
-|----------|--------|
-| Project sources | Compile, test (with coverage), format — both Scala versions, all modified platforms |
-| Downstream projects | Test only — both Scala versions, all applicable platforms |
-| Unmodified + not downstream | Nothing |
+**sbt is slow—minutes per compile/test.** Wasted cycles waste hours.
 
-### Stages
+- **Batch edits.** Do not: edit → compile → edit → compile. Do: edit everything → compile once.
+- **Design tests with code.** Cover every statement and branch; if coverage reveals gaps, fix all at once.
+- **Extreme ownership.** "Optional" means required; do the work completely.
 
-Examples use `<module>` as placeholder — substitute the actual project (e.g., `schemaJVM`, `streamsJVM`, `chunkNative`).
+## Commands
 
-**Stage 1 — Fast Dev Loop** (iterate until ready)
-- Single module, Scala 3, JVM: `sbt <module>JVM/test`
-- If editing `scala-2/` sources: use Scala 2.13 instead
-- If editing `js/` or `native/`: include that platform
-
-**Stage 2 — Coverage** (once, replaces final test run)
-- **Before pushing: final test run MUST use coverage, not plain `test`**
-- Modified module(s) only
-- New/changed code must be fully covered; CI module minimums are a floor
-- `sbt "project <module>JVM; coverage; test; coverageReport"`
-- This IS the test run — no separate test step needed
-
-**Stage 3 — Cross-Scala** (once)
-- Test modified module(s) on the OTHER Scala version only
-- Example: `sbt "++2.13.18; <module>JVM/test"`
-
-**Stage 4 — Cross-Platform** (once, if applicable)
-- Modified module(s) on JS/Native if supported and sources touched
-- Both Scala versions: `sbt "++3.3.7; <module>JS/test" && sbt "++2.13.18; <module>JS/test"`
-
-**Stage 5 — Downstream** (once)
-- Test ALL downstream modules (direct + transitive) of any modified module
-- Discover them from the dependency graph below — don't rely on migration guides or memory
-- Both Scala versions, all applicable platforms
-- Skip if no downstream deps exist
-
-**Stage 6 — Format** (once, last)
-- Modified module(s) only, matching platforms/versions touched
-- **Important:** `scalafmt` only formats main sources; use `Test/scalafmt` for test sources
-- Example: `sbt "<module>JVM/scalafmt; <module>JVM/Test/scalafmt"`
-- If `build.sbt` or `project/**` changed: `sbt scalafmtSbt`
-
-### Anti-patterns
-
-- ❌ `sbt testJVM` — tests everything, not just modified
-- ❌ `sbt fmt` — formats everything, not just modified
-- ❌ Running tests then coverage separately (coverage includes test run)
-- ❌ Testing a module twice at the same Scala version
-- ❌ Formatting downstream modules
-- ❌ Committing merge resolutions without test + format
-
-### After merging
-
-Conflict resolution = code change. Before committing:
-- Run Stage 1 (test) and Stage 6 (format) on touched modules
-- Add `sbt scalafmtSbt` if build files changed
-
-## Command Execution
-
-**Slow command workflow** (compile/test/format):
 ```bash
-ROOT="$(git rev-parse --show-toplevel)" || exit 1
-mkdir -p "$ROOT/.git/agent-logs"
-LOG="$ROOT/.git/agent-logs/sbt-$(date +%s)-$$.log"; echo "LOG=$LOG"
-set -o pipefail
-sbt -Dsbt.color=false schemaJVM/test >"$LOG" 2>&1
-status=$?; echo "Exit: $status"; exit "$status"
+# Discover project names and Scala versions
+sbt projects
+sbt 'show crossScalaVersions'              # note the 2.13.x version
+
+# sbt command template (use for ALL sbt invocations):
+ROOT="$(git rev-parse --show-toplevel)" && mkdir -p "$ROOT/.git/agent-logs"
+LOG="$ROOT/.git/agent-logs/sbt-$(date +%s)-$$.log"
+sbt --client -Dsbt.color=false <command> >"$LOG" 2>&1; echo "Exit: $? | Log: $LOG"
+# Query: tail -50 "$LOG" or grep -i error "$LOG"
+
+# <command> examples:
+#   <project>/test                                        — fast loop, Scala 3 (default)
+#   "++<scala2>; <project>/test"                          — fast loop, Scala 2
+#   "project <project>; coverage; test; coverageReport"   — coverage, Scala 3
+#   "++<scala2>; project <project>; coverage; test; coverageReport"  — coverage, Scala 2
+#   "<project>/test; ++<scala2>; <project>/test"          — cross-Scala
+#   <project>/scalafmt                                    — format main sources
+#   <project>/Test/scalafmt                               — format test sources
+#   scalafmtSbt                                           — format build files
 ```
 
-Query logs (set LOG path from step above):
-```bash
-tail -n 50 "$LOG"
-grep -n -i -E 'error|exception|failed|failure' "$LOG" | head -30 || true
-```
+`<project>` = any project name from `sbt projects` (e.g., `schemaJVM`, `schemaJS`, `schema-avro`).
+`<scala2>` = the 2.13.x version from `show crossScalaVersions`.
 
-## Project Structure & Dependencies
+## Workflow
 
-```
-chunk             # No dependencies (cross-platform)
-  ├─→ schema      # Depends on chunk (cross-platform)
-  │     ├─→ schema-avro        # JVM only
-  │     ├─→ schema-bson        # JVM only
-  │     ├─→ schema-thrift      # JVM only
-  │     ├─→ schema-messagepack # cross-platform
-  │     ├─→ schema-toon        # cross-platform
-  │     └─→ docs               # JVM only
-  └─→ streams     # Depends on chunk (cross-platform)
-```
+Phases 1-3 repeat until verify passes. Phase 4 runs once at the end.
 
-Arrows show dependencies (downstream projects). All projects are top-level directories.
+### 1. Edit
+Batch code and tests together. For large changes, split into batches—each batch includes its tests.
 
-CI handles: `scalaNextTests`, `benchmarks` (Scala 3.7.4 only)
+### 2. Fast Loop
+One project, one Scala version: get `<project>/test` green. Default Scala 3; use Scala 2 if editing `scala-2/` sources. No coverage here.
 
-## Source Organization
+### 3. Verify
+Enter only when fast loop is green. Run in order:
 
-- `shared/src/main/scala/` — common code (default)
-- `shared/src/main/scala-2/` — Scala 2.x specific (blackbox macros)
-- `shared/src/main/scala-3/` — Scala 3.x specific (quoted macros)
-- `jvm/`, `js/`, `native/` — platform-specific code
+1. **Coverage** (Scala version you developed with)
+2. **Cross-Scala** (the other Scala version, same project)
+3. **Cross-platform** (other platform projects, if cross-built and you touched shared/ or platform sources)
+4. **Downstream** (all projects that depend on what you changed—see below)
 
-If editing `scala-2/` → Stage 1 uses Scala 2.13, Stage 3 uses Scala 3
-If editing `scala-3/` → Stage 1 uses Scala 3, Stage 3 uses Scala 2.13
+If any step fails: return to phase 1, fix, get green in phase 2, rerun the failing step.
 
-## Testing Requirements
+### 4. Format
+Run once after verify passes.
 
-**New code = new tests.** Every new/changed line requires tests covering all branches.
+## Downstream
 
-- Framework: ZIO Test (`zio.test.sbt.ZTestFramework`)
-- Tests extend `SchemaBaseSpec`
-- Coverage minimums enforced (see build.sbt per module)
-- Good patterns: `schema/shared/src/test/scala/zio/blocks/schema/SchemaSpec.scala`
+When you change a module, test everything downstream:
+- `chunk*` → `schema*`, `benchmarks`
+- `schema*` → `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
 
-## Code Style
+If unsure, check `dependsOn` in `build.sbt` / `project/*.scala`.
 
-- Scalafmt enforced (maxColumn: 120, Scala 3 dialect)
-- New public APIs require Scaladoc
-- Follow existing patterns in neighboring files
-- No ecosystem dependencies (ZIO, Cats, Akka, etc.)
+## Testing
+
+ZIO Test framework. Search codebase for `SchemaBaseSpec` for patterns.
+
+## Git & CI
+
+Commit at stable points (minimum: when fast loop is green).
+
+PR open and think you're done? Run verify + format, push, then loop: wait if necessary, check CI and review comments, fix CI issues and **valid** CI comments via workflow, push. Repeat until green and approved.
 
 ## Boundaries
 
 ### Always
-- Follow staged verification workflow
-- Add comprehensive tests for all new code
-- Run coverage and meet minimums before cross-Scala testing
-- **If you discover AGENTS.md is wrong or missing guidance, fix it in the same PR**
+- Follow workflow phases in order
+- Batch edits; keep sbt runs scoped to one project
+- Update AGENTS.md if you find errors or gaps
 
-### Ask first
+### Ask First
 - Adding dependencies (even test-only)
-- Creating new subprojects
-- Changing build configuration
+- Creating or removing subprojects
+- Any repo-wide test or coverage run
 
 ### Never
-- Skip tests or reduce coverage to pass CI
-- Use repo-wide commands when module-specific suffices
-- Format or test unmodified/non-downstream modules
+- Use coverage as starting point for test design (think first, verify with coverage)
+- Iterate coverage in tiny steps (if gaps exist, fix ALL at once, then rerun once)
+- Cheat: delete code/tests, lower thresholds, or game metrics to appear compliant
+- Retest after formatting (unless formatting broke the build)
+- Use `sbt test` (repo-wide) when `sbt <project>/test` works
+- Call work "optional" or "good enough" to justify not doing it
