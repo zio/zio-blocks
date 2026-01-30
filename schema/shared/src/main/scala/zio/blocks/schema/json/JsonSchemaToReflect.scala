@@ -12,12 +12,11 @@ private[schema] object JsonSchemaToReflect {
   private[json] object Shape {
     sealed trait PrimKind
     object PrimKind {
-      case object String     extends PrimKind
-      case object Integer    extends PrimKind
-      case object Number     extends PrimKind
-      case object Boolean    extends PrimKind
-      case object Null       extends PrimKind
-      case object StringEnum extends PrimKind
+      case object String  extends PrimKind
+      case object Integer extends PrimKind
+      case object Number  extends PrimKind
+      case object Boolean extends PrimKind
+      case object Null    extends PrimKind
     }
 
     case class Primitive(kind: PrimKind, schema: JsonSchema.Object)                               extends Shape
@@ -235,9 +234,6 @@ private[schema] object JsonSchemaToReflect {
         wrapPrimitive(primitiveType)
 
       case Shape.PrimKind.Null =>
-        Reflect.dynamic[Binding]
-
-      case Shape.PrimKind.StringEnum =>
         Reflect.dynamic[Binding]
     }
 
