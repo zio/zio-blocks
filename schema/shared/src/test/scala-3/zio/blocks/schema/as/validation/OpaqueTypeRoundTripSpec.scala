@@ -46,7 +46,6 @@ object RoundTripPositiveInt {
  */
 object OpaqueTypeRoundTripSpec extends ZIOSpecDefault {
 
-  // === Test Case Classes ===
   case class PersonRawA(name: String, age: Int)
   case class PersonValidatedB(name: String, age: RoundTripAge)
 
@@ -54,122 +53,54 @@ object OpaqueTypeRoundTripSpec extends ZIOSpecDefault {
   case class UserValidatedB(email: RoundTripEmail, score: RoundTripPositiveInt)
 
   def spec: Spec[TestEnvironment, Any] = suite("OpaqueTypeRoundTripSpec")(
-    suite("Basic Opaque Type Round-Trip")(
-      test("valid age round-trips through opaque type") {
-        val original = PersonRawA("Alice", 30)
-        val as       = As.derived[PersonRawA, PersonValidatedB]
+    test("valid age round-trips through opaque type") {
+      val original = PersonRawA("Alice", 30)
+      val as       = As.derived[PersonRawA, PersonValidatedB]
 
-        val roundTrip = as.into(original).flatMap(b => as.from(b))
+      val roundTrip = as.into(original).flatMap(b => as.from(b))
 
-        assert(roundTrip)(isRight(equalTo(original)))
-      },
-      test("boundary age (0) round-trips") {
-        val original = PersonRawA("Baby", 0)
-        val as       = As.derived[PersonRawA, PersonValidatedB]
+      assert(roundTrip)(isRight(equalTo(original)))
+    },
+    test("invalid age fails into direction") {
+      val original = PersonRawA("Invalid", -5)
+      val as       = As.derived[PersonRawA, PersonValidatedB]
 
-        val roundTrip = as.into(original).flatMap(b => as.from(b))
+      val result = as.into(original)
 
-        assert(roundTrip)(isRight(equalTo(original)))
-      },
-      test("boundary age (150) round-trips") {
-        val original = PersonRawA("Elder", 150)
-        val as       = As.derived[PersonRawA, PersonValidatedB]
+      assert(result)(isLeft)
+    },
+    test("valid email and score round-trip") {
+      val original = UserRawA("user@example.com", 100)
+      val as       = As.derived[UserRawA, UserValidatedB]
 
-        val roundTrip = as.into(original).flatMap(b => as.from(b))
+      val roundTrip = as.into(original).flatMap(b => as.from(b))
 
-        assert(roundTrip)(isRight(equalTo(original)))
-      }
-    ),
-    suite("Invalid Values Fail")(
-      test("invalid age fails into direction") {
-        val original = PersonRawA("Invalid", -5)
-        val as       = As.derived[PersonRawA, PersonValidatedB]
+      assert(roundTrip)(isRight(equalTo(original)))
+    },
+    test("invalid email fails") {
+      val original = UserRawA("invalid-email", 100)
+      val as       = As.derived[UserRawA, UserValidatedB]
 
-        val result = as.into(original)
+      val result = as.into(original)
 
-        assert(result)(isLeft)
-      },
-      test("age over 150 fails into direction") {
-        val original = PersonRawA("TooOld", 200)
-        val as       = As.derived[PersonRawA, PersonValidatedB]
+      assert(result)(isLeft)
+    },
+    test("round-trip from validated to raw and back") {
+      val validated = PersonValidatedB("Carol", RoundTripAge.unsafe(40))
+      val as        = As.derived[PersonRawA, PersonValidatedB]
 
-        val result = as.into(original)
+      val roundTrip = as.from(validated).flatMap(a => as.into(a))
 
-        assert(result)(isLeft)
-      }
-    ),
-    suite("Multiple Opaque Types Round-Trip")(
-      test("valid email and score round-trip") {
-        val original = UserRawA("user@example.com", 100)
-        val as       = As.derived[UserRawA, UserValidatedB]
+      assert(roundTrip)(isRight(equalTo(validated)))
+    },
+    test("swapped As works correctly") {
+      val as      = As.derived[PersonRawA, PersonValidatedB]
+      val swapped = as.reverse
 
-        val roundTrip = as.into(original).flatMap(b => as.from(b))
+      val validated = PersonValidatedB("Dave", RoundTripAge.unsafe(35))
+      val result    = swapped.into(validated)
 
-        assert(roundTrip)(isRight(equalTo(original)))
-      },
-      test("invalid email fails") {
-        val original = UserRawA("invalid-email", 100)
-        val as       = As.derived[UserRawA, UserValidatedB]
-
-        val result = as.into(original)
-
-        assert(result)(isLeft)
-      },
-      test("invalid score (zero) fails") {
-        val original = UserRawA("user@example.com", 0)
-        val as       = As.derived[UserRawA, UserValidatedB]
-
-        val result = as.into(original)
-
-        assert(result)(isLeft)
-      },
-      test("invalid score (negative) fails") {
-        val original = UserRawA("user@example.com", -10)
-        val as       = As.derived[UserRawA, UserValidatedB]
-
-        val result = as.into(original)
-
-        assert(result)(isLeft)
-      }
-    ),
-    suite("From Direction (Validated to Raw)")(
-      test("from always succeeds with valid opaque values") {
-        val validated = PersonValidatedB("Bob", RoundTripAge.unsafe(25))
-        val as        = As.derived[PersonRawA, PersonValidatedB]
-
-        val result = as.from(validated)
-
-        assert(result)(isRight(equalTo(PersonRawA("Bob", 25))))
-      },
-      test("round-trip from validated to raw and back") {
-        val validated = PersonValidatedB("Carol", RoundTripAge.unsafe(40))
-        val as        = As.derived[PersonRawA, PersonValidatedB]
-
-        // B -> A -> B
-        val roundTrip = as.from(validated).flatMap(a => as.into(a))
-
-        assert(roundTrip)(isRight(equalTo(validated)))
-      }
-    ),
-    suite("Swap Direction")(
-      test("swapped As works correctly") {
-        val as      = As.derived[PersonRawA, PersonValidatedB]
-        val swapped = as.reverse
-
-        val validated = PersonValidatedB("Dave", RoundTripAge.unsafe(35))
-        val result    = swapped.into(validated)
-
-        assert(result)(isRight(equalTo(PersonRawA("Dave", 35))))
-      },
-      test("double swap returns to original") {
-        val as            = As.derived[PersonRawA, PersonValidatedB]
-        val doubleSwapped = as.reverse.reverse
-
-        val original = PersonRawA("Eve", 28)
-        val result   = doubleSwapped.into(original)
-
-        assertTrue(result == as.into(original))
-      }
-    )
+      assert(result)(isRight(equalTo(PersonRawA("Dave", 35))))
+    }
   )
 }

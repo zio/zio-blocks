@@ -63,7 +63,7 @@ object IntoOpaqueTypeSpec extends ZIOSpecDefault {
           result.isLeft,
           result.swap.exists(err => err.toString.contains("Invalid age"))
         )
-      },
+      }
     ),
     suite("Product type with Opaque Type field")(
       test("converts to opaque types with successful validation") {
@@ -91,15 +91,15 @@ object IntoOpaqueTypeSpec extends ZIOSpecDefault {
       val person = PersonV1("Invalid", -5, "bad-email")
       val result = Into.derived[PersonV1, PersonV2].into(person)
 
+      val message = result.swap.map(_.getMessage).getOrElse("")
+
       assertTrue(
         result.isLeft,
-        result.swap.exists { err =>
-          err.getMessage ==
-            """converting field PersonWithEmailV1.email to PersonWithEmailV2.email failed
-              |  Caused by: Validation failed for field 'email': Invalid email: bad-email
-              |converting field PersonWithEmailV1.age to PersonWithEmailV2.age failed
-              |  Caused by: Validation failed for field 'age': Invalid age: -5""".stripMargin
-        }
+        message ==
+          """converting field PersonV1.email to PersonV2.email failed
+            |  Caused by: Validation failed for field 'email': Invalid email: bad-email
+            |converting field PersonV1.age to PersonV2.age failed
+            |  Caused by: Validation failed for field 'age': Invalid age: -5""".stripMargin
       )
     },
     test("opaque type in collection - error propagates from collection element") {
