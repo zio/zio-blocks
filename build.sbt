@@ -64,6 +64,9 @@ lazy val root = project
     chunk.jvm,
     chunk.js,
     chunk.native,
+    markdown.jvm,
+    markdown.js,
+    markdown.native,
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
@@ -162,6 +165,29 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     ),
     coverageMinimumStmtTotal   := 72,
     coverageMinimumBranchTotal := 72
+  )
+
+lazy val markdown = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-markdown"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.markdown"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .dependsOn(chunk)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ => Seq()
+    }),
+    coverageMinimumStmtTotal   := 95,
+    coverageMinimumBranchTotal := 90
   )
 
 lazy val `schema-avro` = project
