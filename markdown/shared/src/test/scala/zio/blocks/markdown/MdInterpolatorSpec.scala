@@ -475,14 +475,14 @@ This is $bold information."""
           """
         }.map(assert(_)(isLeft(containsString("No ToMarkdown instance"))))
       } @@ exceptNative,
-      test("rejects List without ToMarkdown instance") {
+      test("accepts List with ToMarkdown instance") {
         typeCheck {
           """
           import zio.blocks.markdown._
           val list: List[Int] = List(1, 2, 3)
           md"Items: $list"
           """
-        }.map(assert(_)(isLeft(containsString("No ToMarkdown instance"))))
+        }.map(assert(_)(isRight))
       } @@ exceptNative,
       test("rejects Map without ToMarkdown instance") {
         typeCheck {
