@@ -271,22 +271,25 @@ object ChunkMap extends MapFactory[ChunkMap] {
 
   override def apply[K, V](elems: (K, V)*): ChunkMap[K, V] = from(elems)
 
-  def fromChunk[K, V](chunk: Chunk[(K, V)]): ChunkMap[K, V] = {
-    val len    = chunk.length
-    val keys   = Chunk.newBuilder[K]
-    val values = Chunk.newBuilder[V]
-    keys.sizeHint(len)
-    values.sizeHint(len)
-    var idx = 0
-    while (idx < len) {
-      val (k, v) = chunk(idx)
-      keys.addOne(k)
-      values.addOne(v)
-      idx += 1
-    }
-    new ChunkMap(keys.result(), values.result())
-  }
+  /**
+   * Creates a ChunkMap from a Chunk of key-value pairs, handling duplicate keys
+   * by keeping the last value for each key (preserving the position of the
+   * first occurrence).
+   */
+  def fromChunk[K, V](chunk: Chunk[(K, V)]): ChunkMap[K, V] =
+    from(chunk)
 
+  /**
+   * Creates a ChunkMap from parallel Chunks of keys and values.
+   *
+   * '''Precondition:''' The keys Chunk must not contain duplicate elements. If
+   * duplicate keys are present, behavior is undefined (lookups may return any
+   * of the duplicate values). Use `from()` or the builder if duplicate handling
+   * is needed.
+   *
+   * @throws IllegalArgumentException
+   *   if keys and values have different lengths
+   */
   def fromChunks[K, V](keys: Chunk[K], values: Chunk[V]): ChunkMap[K, V] = {
     require(keys.length == values.length, "keys and values must have the same length")
     new ChunkMap(keys, values)
