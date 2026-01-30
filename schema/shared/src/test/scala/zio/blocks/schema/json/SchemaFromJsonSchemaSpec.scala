@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.ChunkMap
 import zio.blocks.schema._
 import zio.test._
 
@@ -52,7 +53,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("object schema accepts object values with required properties") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
@@ -62,11 +63,11 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("nested object schema validates correctly") {
         val addressSchema = JsonSchema.obj(
-          properties = Some(Map("city" -> JsonSchema.string(), "zip" -> JsonSchema.string())),
+          properties = Some(ChunkMap("city" -> JsonSchema.string(), "zip" -> JsonSchema.string())),
           required = Some(Set("city", "zip"))
         )
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "address" -> addressSchema)),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "address" -> addressSchema)),
           required = Some(Set("name", "address"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
@@ -106,7 +107,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("object schema rejects non-object values") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string()))
+          properties = Some(ChunkMap("name" -> JsonSchema.string()))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
         val codec       = schemaForJs.derive(JsonFormat)
@@ -115,7 +116,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("object schema rejects missing required properties") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
@@ -132,11 +133,11 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("nested object validation fails for invalid nested property") {
         val addressSchema = JsonSchema.obj(
-          properties = Some(Map("city" -> JsonSchema.string())),
+          properties = Some(ChunkMap("city" -> JsonSchema.string())),
           required = Some(Set("city"))
         )
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "address" -> addressSchema)),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "address" -> addressSchema)),
           required = Some(Set("name", "address"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
@@ -155,7 +156,8 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("error for nested property is descriptive") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("user" -> JsonSchema.obj(properties = Some(Map("age" -> JsonSchema.integer())))))
+          properties =
+            Some(ChunkMap("user" -> JsonSchema.obj(properties = Some(ChunkMap("age" -> JsonSchema.integer())))))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
         val codec       = schemaForJs.derive(JsonFormat)
@@ -171,7 +173,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("missing required field error is descriptive") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string())),
           required = Some(Set("name"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
@@ -248,7 +250,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("validated Schema[Json] accepts valid JSON") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("status" -> JsonSchema.string())),
+          properties = Some(ChunkMap("status" -> JsonSchema.string())),
           required = Some(Set("status"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
@@ -259,7 +261,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("validated Schema[Json] rejects invalid JSON") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("status" -> JsonSchema.string())),
+          properties = Some(ChunkMap("status" -> JsonSchema.string())),
           required = Some(Set("status"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
@@ -285,7 +287,7 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       test("complex schema with constraints validates correctly") {
         val jsonSchema = JsonSchema.obj(
           properties = Some(
-            Map(
+            ChunkMap(
               "name" -> JsonSchema.string(minLength = Some(NonNegativeInt.one)),
               "age"  -> JsonSchema.integer(minimum = Some(BigDecimal(0)), maximum = Some(BigDecimal(150))),
               "tags" -> JsonSchema.array(items = Some(JsonSchema.string()))

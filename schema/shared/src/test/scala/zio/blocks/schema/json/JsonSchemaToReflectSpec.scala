@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.ChunkMap
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonSchema.{NonNegativeInt, RegexPattern}
 import zio.test._
@@ -82,7 +83,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
       suite("Record shapes")(
         test("object with properties produces Record") {
           val schema = JsonSchema.obj(
-            properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer()))
+            properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer()))
           )
           val shape = analyze(schema)
           shape match {
@@ -92,7 +93,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         },
         test("Record captures required set") {
           val schema = JsonSchema.obj(
-            properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+            properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
             required = Some(Set("name"))
           )
           val shape = analyze(schema)
@@ -103,7 +104,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         },
         test("Record with additionalProperties:false is closed") {
           val schema = JsonSchema.obj(
-            properties = Some(Map("name" -> JsonSchema.string())),
+            properties = Some(ChunkMap("name" -> JsonSchema.string())),
             additionalProperties = Some(JsonSchema.False)
           )
           val shape = analyze(schema)
@@ -114,7 +115,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         },
         test("Record without additionalProperties:false is open") {
           val schema = JsonSchema.obj(
-            properties = Some(Map("name" -> JsonSchema.string()))
+            properties = Some(ChunkMap("name" -> JsonSchema.string()))
           )
           val shape = analyze(schema)
           shape match {
@@ -124,11 +125,12 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         },
         test("Record preserves field order") {
           val schema = JsonSchema.obj(
-            properties = Some(Map("z" -> JsonSchema.string(), "a" -> JsonSchema.integer(), "m" -> JsonSchema.boolean))
+            properties =
+              Some(ChunkMap("z" -> JsonSchema.string(), "a" -> JsonSchema.integer(), "m" -> JsonSchema.boolean))
           )
           val shape = analyze(schema)
           shape match {
-            case Record(fields, _, _) => assertTrue(fields.map(_._1).toSet == Set("z", "a", "m"))
+            case Record(fields, _, _) => assertTrue(fields.map(_._1) == List("z", "a", "m"))
             case _                    => assertTrue(false)
           }
         }
@@ -157,7 +159,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         },
         test("object with properties takes precedence over additionalProperties") {
           val schema = JsonSchema.obj(
-            properties = Some(Map("name" -> JsonSchema.string())),
+            properties = Some(ChunkMap("name" -> JsonSchema.string())),
             additionalProperties = Some(JsonSchema.integer())
           )
           val shape = analyze(schema)
@@ -301,13 +303,19 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
             oneOf = Some(
               new ::(
                 JsonSchema.obj(
-                  properties =
-                    Some(Map("CreditCard" -> JsonSchema.obj(properties = Some(Map("ccNum" -> JsonSchema.string()))))),
+                  properties = Some(
+                    ChunkMap(
+                      "CreditCard" -> JsonSchema.obj(properties = Some(ChunkMap("ccNum" -> JsonSchema.string())))
+                    )
+                  ),
                   required = Some(Set("CreditCard"))
                 ),
                 JsonSchema.obj(
-                  properties =
-                    Some(Map("BankAccount" -> JsonSchema.obj(properties = Some(Map("accNo" -> JsonSchema.string()))))),
+                  properties = Some(
+                    ChunkMap(
+                      "BankAccount" -> JsonSchema.obj(properties = Some(ChunkMap("accNo" -> JsonSchema.string())))
+                    )
+                  ),
                   required = Some(Set("BankAccount"))
                 ) :: Nil
               )
@@ -320,14 +328,14 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
           }
         },
         test("KeyVariant captures body schemas") {
-          val ccBody = JsonSchema.obj(properties = Some(Map("ccNum" -> JsonSchema.string())))
-          val baBody = JsonSchema.obj(properties = Some(Map("accNo" -> JsonSchema.string())))
+          val ccBody = JsonSchema.obj(properties = Some(ChunkMap("ccNum" -> JsonSchema.string())))
+          val baBody = JsonSchema.obj(properties = Some(ChunkMap("accNo" -> JsonSchema.string())))
           val schema = JsonSchema.Object(
             oneOf = Some(
               new ::(
-                JsonSchema.obj(properties = Some(Map("CreditCard" -> ccBody)), required = Some(Set("CreditCard"))),
+                JsonSchema.obj(properties = Some(ChunkMap("CreditCard" -> ccBody)), required = Some(Set("CreditCard"))),
                 JsonSchema.obj(
-                  properties = Some(Map("BankAccount" -> baBody)),
+                  properties = Some(ChunkMap("BankAccount" -> baBody)),
                   required = Some(Set("BankAccount"))
                 ) :: Nil
               )
@@ -345,11 +353,11 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
             oneOf = Some(
               new ::(
                 JsonSchema.obj(
-                  properties = Some(Map("a" -> JsonSchema.string(), "b" -> JsonSchema.string())),
+                  properties = Some(ChunkMap("a" -> JsonSchema.string(), "b" -> JsonSchema.string())),
                   required = Some(Set("a", "b"))
                 ),
                 JsonSchema.obj(
-                  properties = Some(Map("c" -> JsonSchema.string())),
+                  properties = Some(ChunkMap("c" -> JsonSchema.string())),
                   required = Some(Set("c"))
                 ) :: Nil
               )
@@ -369,7 +377,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
               new ::(
                 JsonSchema.obj(
                   properties = Some(
-                    Map(
+                    ChunkMap(
                       "type" -> JsonSchema.Object(const = Some(Json.String("dog"))),
                       "name" -> JsonSchema.string()
                     )
@@ -377,7 +385,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
                 ),
                 JsonSchema.obj(
                   properties = Some(
-                    Map(
+                    ChunkMap(
                       "type" -> JsonSchema.Object(const = Some(Json.String("cat"))),
                       "age"  -> JsonSchema.integer()
                     )
@@ -399,7 +407,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
               new ::(
                 JsonSchema.obj(
                   properties = Some(
-                    Map(
+                    ChunkMap(
                       "kind"  -> JsonSchema.Object(const = Some(Json.String("a"))),
                       "value" -> JsonSchema.string()
                     )
@@ -407,7 +415,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
                 ),
                 JsonSchema.obj(
                   properties = Some(
-                    Map(
+                    ChunkMap(
                       "kind"  -> JsonSchema.Object(const = Some(Json.String("b"))),
                       "count" -> JsonSchema.integer()
                     )
@@ -447,8 +455,8 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
           val schema = JsonSchema.Object(
             oneOf = Some(
               new ::(
-                JsonSchema.obj(properties = Some(Map("left" -> JsonSchema.string()))),
-                JsonSchema.obj(properties = Some(Map("right" -> JsonSchema.integer()))) :: Nil
+                JsonSchema.obj(properties = Some(ChunkMap("left" -> JsonSchema.string()))),
+                JsonSchema.obj(properties = Some(ChunkMap("right" -> JsonSchema.integer()))) :: Nil
               )
             )
           )
@@ -483,14 +491,14 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
       suite("Record Reflect types")(
         test("closed object produces Reflect.Record") {
           val schema = JsonSchema.obj(
-            properties = Some(Map("name" -> JsonSchema.string())),
+            properties = Some(ChunkMap("name" -> JsonSchema.string())),
             additionalProperties = Some(JsonSchema.False)
           )
           val reflect = toReflect(schema)
           assertTrue(reflect.isRecord)
         },
         test("open object produces Reflect.Record with open modifier") {
-          val schema  = JsonSchema.obj(properties = Some(Map("name" -> JsonSchema.string())))
+          val schema  = JsonSchema.obj(properties = Some(ChunkMap("name" -> JsonSchema.string())))
           val reflect = toReflect(schema)
           val hasOpen = reflect.modifiers.exists {
             case Modifier.config("json.closure", "open") => true
@@ -500,7 +508,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         },
         test("Record has correct field names") {
           val schema = JsonSchema.obj(
-            properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer()))
+            properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer()))
           )
           val reflect = toReflect(schema)
           val record  = reflect.asRecord
@@ -568,13 +576,19 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
             oneOf = Some(
               new ::(
                 JsonSchema.obj(
-                  properties =
-                    Some(Map("CreditCard" -> JsonSchema.obj(properties = Some(Map("ccNum" -> JsonSchema.string()))))),
+                  properties = Some(
+                    ChunkMap(
+                      "CreditCard" -> JsonSchema.obj(properties = Some(ChunkMap("ccNum" -> JsonSchema.string())))
+                    )
+                  ),
                   required = Some(Set("CreditCard"))
                 ),
                 JsonSchema.obj(
-                  properties =
-                    Some(Map("BankAccount" -> JsonSchema.obj(properties = Some(Map("accNo" -> JsonSchema.string()))))),
+                  properties = Some(
+                    ChunkMap(
+                      "BankAccount" -> JsonSchema.obj(properties = Some(ChunkMap("accNo" -> JsonSchema.string())))
+                    )
+                  ),
                   required = Some(Set("BankAccount"))
                 ) :: Nil
               )
@@ -587,9 +601,9 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
           val schema = JsonSchema.Object(
             oneOf = Some(
               new ::(
-                JsonSchema.obj(properties = Some(Map("Foo" -> JsonSchema.string())), required = Some(Set("Foo"))),
+                JsonSchema.obj(properties = Some(ChunkMap("Foo" -> JsonSchema.string())), required = Some(Set("Foo"))),
                 JsonSchema.obj(
-                  properties = Some(Map("Bar" -> JsonSchema.integer())),
+                  properties = Some(ChunkMap("Bar" -> JsonSchema.integer())),
                   required = Some(Set("Bar"))
                 ) :: Nil
               )
@@ -804,7 +818,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
       },
       test("object schema decodes successfully") {
         val schema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
         val schemaForJs = Schema.fromJsonSchema(schema)
@@ -814,7 +828,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
       },
       test("object schema rejects missing required fields") {
         val schema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
         val schemaForJs = Schema.fromJsonSchema(schema)

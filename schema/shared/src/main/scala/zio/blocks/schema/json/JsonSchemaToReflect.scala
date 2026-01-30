@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -123,7 +123,7 @@ private[schema] object JsonSchemaToReflect {
 
     val allConstFields: List[Set[String]] = caseObjects.map { obj =>
       obj.properties
-        .getOrElse(Map.empty)
+        .getOrElse(ChunkMap.empty)
         .collect {
           case (name, propSchema: JsonSchema.Object) if propSchema.const.isDefined => name
         }
@@ -134,11 +134,11 @@ private[schema] object JsonSchemaToReflect {
 
     commonConstFields.headOption.flatMap { discField =>
       val extracted = caseObjects.flatMap { obj =>
-        val props = obj.properties.getOrElse(Map.empty)
+        val props = obj.properties.getOrElse(ChunkMap.empty)
         props.get(discField) match {
           case Some(propSchema: JsonSchema.Object) =>
             propSchema.const.collect { case Json.String(caseName) =>
-              val bodyProps    = props - discField
+              val bodyProps    = props.removed(discField)
               val bodyRequired = obj.required.map(_ - discField).filter(_.nonEmpty)
               val bodySchema   = JsonSchema.obj(
                 properties = if (bodyProps.nonEmpty) Some(bodyProps) else None,
@@ -178,7 +178,7 @@ private[schema] object JsonSchemaToReflect {
     if (hasOnlyAdditionalProps) {
       Some(Shape.MapShape(obj.additionalProperties.get))
     } else if (hasProperties) {
-      val props    = obj.properties.getOrElse(Map.empty).toList
+      val props    = obj.properties.getOrElse(ChunkMap.empty).toList
       val required = obj.required.getOrElse(Set.empty)
       val closed   = obj.additionalProperties.contains(JsonSchema.False)
       Some(Shape.Record(props, required, closed))
