@@ -30,7 +30,7 @@ object Renderer {
 
     case BlockQuote(content) =>
       val rendered = content.map(renderBlock).mkString
-      val lines = rendered.split("\n", -1).toList.dropRight(1)
+      val lines    = rendered.split("\n", -1).toList.dropRight(1)
       lines.map { line =>
         if (line.isEmpty) ">" else "> " + line
       }.mkString("", "\n", "\n")
@@ -55,8 +55,8 @@ object Renderer {
 
     case Table(header, alignments, rows) =>
       val headerStr = renderTableRow(header)
-      val alignStr = renderAlignmentRow(alignments)
-      val rowsStr = rows.map(renderTableRow).mkString
+      val alignStr  = renderAlignmentRow(alignments)
+      val rowsStr   = rows.map(renderTableRow).mkString
       headerStr + alignStr + rowsStr
   }
 
@@ -64,13 +64,13 @@ object Renderer {
    * Render a single list item.
    */
   private def renderListItemForList(
-      item: ListItem,
-      numberOpt: Option[Int],
-      tight: Boolean
+    item: ListItem,
+    numberOpt: Option[Int],
+    tight: Boolean
   ): String = {
     val prefix = numberOpt match {
       case Some(n) => s"$n. "
-      case None =>
+      case None    =>
         item.checked match {
           case Some(true)  => "- [x] "
           case Some(false) => "- [ ] "
@@ -81,11 +81,11 @@ object Renderer {
     val contentStr = item.content.map(renderBlock).mkString.stripTrailing
     if (tight) {
       val content = contentStr.replaceAll("\n\n+", "\n")
-      val lines = content.split("\n").toList
+      val lines   = content.split("\n").toList
       lines match {
-        case Nil => prefix + "\n"
+        case Nil           => prefix + "\n"
         case first :: rest =>
-          val firstLine = prefix + first + "\n"
+          val firstLine    = prefix + first + "\n"
           val indentedRest = rest.map { line =>
             if (line.isEmpty) "\n"
             else "  " + line + "\n"
@@ -95,9 +95,9 @@ object Renderer {
     } else {
       val lines = contentStr.split("\n").toList
       lines match {
-        case Nil => prefix + "\n"
+        case Nil           => prefix + "\n"
         case first :: rest =>
-          val firstLine = prefix + first + "\n"
+          val firstLine    = prefix + first + "\n"
           val indentedRest = rest.map { line =>
             if (line.isEmpty) "\n"
             else "  " + line + "\n"

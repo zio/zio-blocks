@@ -5,8 +5,8 @@ import zio.test._
 object RoundTripSpec extends MarkdownBaseSpec {
   def spec = suite("Round-trip")(
     test("heading round-trips") {
-      val input  = "# Hello\n"
-      val parsed = Parser.parse(input)
+      val input    = "# Hello\n"
+      val parsed   = Parser.parse(input)
       val rendered = parsed.map(Renderer.render)
       val reparsed = rendered.flatMap(Parser.parse)
       assertTrue(parsed == reparsed)
@@ -142,7 +142,7 @@ object RoundTripSpec extends MarkdownBaseSpec {
       assertTrue(parsed == reparsed)
     },
     test("complex document round-trips") {
-      val input = """# Title
+      val input    = """# Title
 
 Some **bold** and *italic* text.
 
@@ -169,9 +169,9 @@ val x = 1
     },
     test("table round-trips") {
       val input = """| a | b |
-                    ||:---|---:|
-                    || 1 | 2 |
-                    |""".stripMargin
+                     ||:---|---:|
+                     || 1 | 2 |
+                     |""".stripMargin
       val parsed   = Parser.parse(input)
       val rendered = parsed.map(Renderer.render)
       val reparsed = rendered.flatMap(Parser.parse)

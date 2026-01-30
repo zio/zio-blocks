@@ -1,3 +1,3 @@
 package zio.blocks
 
-package object markdown {}
+package object markdown extends MdInterpolator
