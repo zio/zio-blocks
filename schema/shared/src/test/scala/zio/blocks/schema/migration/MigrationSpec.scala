@@ -1,6 +1,11 @@
+/* scalac: -Wunused */
+
 package zio.blocks.schema.migration
 
+import scala.annotation.unused
+
 import zio.blocks.schema._
+import zio.blocks.chunk.Chunk
 import zio.test._
 import zio.test.Assertion._
 
@@ -477,8 +482,8 @@ object MigrationSpec extends ZIOSpecDefault {
       assert(migration(v1))(isRight(equalTo(expected)))
     },
     test("Transform field with bidirectional conversion") {
-      case class V1(value: Int)
-      case class V2(value: String)
+      @unused case class V1(value: Int)
+      @unused case class V2(value: String)
 
       implicit val v1Schema: Schema[V1] = Schema.derived
       implicit val v2Schema: Schema[V2] = Schema.derived
@@ -497,11 +502,11 @@ object MigrationSpec extends ZIOSpecDefault {
       assert(migration(v1))(isRight(equalTo(V2("42"))))
     },
     test("Transform preserves other fields") {
-      case class V1(name: String, age: Int)
-      case class V2(name: String, age: Int)
+      @unused case class V1(name: String, age: Int)
+      @unused case class V2(name: String, age: Int)
 
-      implicit val v1Schema: Schema[V1] = Schema.derived
-      implicit val v2Schema: Schema[V2] = Schema.derived
+      @unused implicit val v1Schema: Schema[V1] = Schema.derived
+      @unused implicit val v2Schema: Schema[V2] = Schema.derived
 
       val migration = Migration
         .newBuilder[V1, V2]
@@ -653,11 +658,11 @@ object MigrationSpec extends ZIOSpecDefault {
 
   def joinFieldsSuite = suite("JoinFields")(
     test("JoinFields concatenates string fields") {
-      case class V1(firstName: String, lastName: String)
-      case class V2(fullName: String)
+      @unused case class V1(firstName: String, lastName: String)
+      @unused case class V2(fullName: String)
 
-      implicit val v1Schema: Schema[V1] = Schema.derived
-      implicit val v2Schema: Schema[V2] = Schema.derived
+      @unused implicit val v1Schema: Schema[V1] = Schema.derived
+      @unused implicit val v2Schema: Schema[V2] = Schema.derived
 
       val migration = Migration
         .newBuilder[V1, V2]
@@ -681,11 +686,11 @@ object MigrationSpec extends ZIOSpecDefault {
 
   def splitFieldSuite = suite("SplitField")(
     test("SplitField divides string into parts") {
-      case class V1(fullName: String)
-      case class V2(firstName: String, lastName: String)
+      @unused case class V1(fullName: String)
+      @unused case class V2(firstName: String, lastName: String)
 
-      implicit val v1Schema: Schema[V1] = Schema.derived
-      implicit val v2Schema: Schema[V2] = Schema.derived
+      @unused implicit val v1Schema: Schema[V1] = Schema.derived
+      @unused implicit val v2Schema: Schema[V2] = Schema.derived
 
       val migration = Migration
         .newBuilder[V1, V2]
@@ -721,11 +726,11 @@ object MigrationSpec extends ZIOSpecDefault {
       assert(result.map(_.address.country))(isRight(equalTo("Unknown")))
     },
     test("Rename field in nested record") {
-      case class V1(address: Address)
-      case class V2(address: AddressV2)
+      @unused case class V1(address: Address)
+      @unused case class V2(address: AddressV2)
 
-      implicit val v1Schema: Schema[V1] = Schema.derived
-      implicit val v2Schema: Schema[V2] = Schema.derived
+      @unused implicit val v1Schema: Schema[V1] = Schema.derived
+      @unused implicit val v2Schema: Schema[V2] = Schema.derived
 
       val migration = Migration
         .newBuilder[V1, V2]
@@ -920,7 +925,7 @@ object MigrationSpec extends ZIOSpecDefault {
     test("TransformKeys operation exists") {
       val action = MigrationAction.TransformKeys(
         DynamicOptic.root.field("values"),
-        SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("newKey")), Schema.string)
+        SchemaExpr.Literal("newKey", Schema.string)
       )
 
       assert(action.at)(equalTo(DynamicOptic.root.field("values")))
@@ -965,7 +970,7 @@ object MigrationSpec extends ZIOSpecDefault {
       val actions = Vector(
         MigrationAction.AddField(
           DynamicOptic.root.field("newField"),
-          SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")), Schema.string)
+          SchemaExpr.Literal("default", Schema.string)
         )
       )
 
@@ -1171,7 +1176,7 @@ object MigrationSpec extends ZIOSpecDefault {
         Vector(
           MigrationAction.AddField(
             DynamicOptic.root.field("age"),
-            SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema.int)
+            SchemaExpr.Literal(0, Schema.int)
           )
         )
       )
@@ -1284,8 +1289,8 @@ object MigrationSpec extends ZIOSpecDefault {
         .addField(_.age, 0)
         .build
 
-      val doubleReverse = migration.reverse.reverse
-      val v0            = PersonV0("Alice")
+      @unused val doubleReverse = migration.reverse.reverse
+      val v0                    = PersonV0("Alice")
 
       // After double reverse, migration should work the same
       assert(migration(v0))(isRight(equalTo(PersonV1("Alice", 0))))
@@ -1300,7 +1305,7 @@ object MigrationSpec extends ZIOSpecDefault {
     test("PathNotFound error for non-existent field") {
       val action = MigrationAction.TransformValue(
         DynamicOptic.root.field("nonExistent"),
-        SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)), Schema.int),
+        SchemaExpr.Literal(42, Schema.int),
         None
       )
 
@@ -1316,7 +1321,7 @@ object MigrationSpec extends ZIOSpecDefault {
       // Try to add a field to a primitive value
       val action = MigrationAction.AddField(
         DynamicOptic.root.field("newField"),
-        SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)), Schema.int)
+        SchemaExpr.Literal(42, Schema.int)
       )
 
       val primitiveValue   = DynamicValue.Primitive(PrimitiveValue.String("test"))
@@ -1332,7 +1337,7 @@ object MigrationSpec extends ZIOSpecDefault {
         "newName"
       )
 
-      val recordValue      = DynamicValue.Record(Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
+      val recordValue      = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
       val dynamicMigration = DynamicMigration(Vector(action))
 
       val result = dynamicMigration(recordValue)
@@ -1402,7 +1407,7 @@ object MigrationSpec extends ZIOSpecDefault {
       val actions = Vector(
         MigrationAction.AddField(
           DynamicOptic.root.field("age"),
-          SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema.int)
+          SchemaExpr.Literal(0, Schema.int)
         )
       )
 

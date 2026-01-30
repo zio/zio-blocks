@@ -85,7 +85,9 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
       currency: String // New field
     ) extends DomainEvent
 
-    implicit val schema: Schema[DomainEvent] = Schema.derived
+    implicit val schema: Schema[DomainEvent]      = Schema.derived
+    implicit val schemaV1: Schema[OrderCreatedV1] = Schema.derived
+    implicit val schemaV2: Schema[OrderCreatedV2] = Schema.derived
   }
 
   // ==========================================================================

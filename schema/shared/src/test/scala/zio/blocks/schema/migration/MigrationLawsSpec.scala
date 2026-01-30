@@ -145,7 +145,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         Vector(
           MigrationAction.AddField(
             DynamicOptic.root.field("age"),
-            SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema.int)
+            SchemaExpr.Literal(0, Schema.int)
           )
         )
       )

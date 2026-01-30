@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema, SchemaExpr}
+import zio.blocks.schema.{DynamicOptic, SchemaExpr}
 
 /**
  * A migration action represents a single transformation step in a schema
@@ -119,7 +119,7 @@ object MigrationAction {
     def reverse: MigrationAction =
       // Reverse requires a default, which must be provided by the user
       // This is a placeholder - the actual reverse should be constructed with a proper default
-      Mandate(at, SchemaExpr.Literal(None, Schema.option(Schema.unit)))
+      throw new UnsupportedOperationException("Optionalize.reverse requires a default value - use Mandate directly")
   }
 
   /**

@@ -1,6 +1,9 @@
 package zio.blocks.schema.migration
 
+import scala.annotation.unused
+
 import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
+import zio.blocks.schema.migration.ToDynamicOptic
 
 /**
  * A builder for constructing schema migrations.
@@ -183,7 +186,7 @@ class MigrationBuilder[A, B](
    */
   def transformField[C, D](
     from: A => C,
-    to: B => D,
+    @unused `_param`: B => D,
     transform: SchemaExpr[A, D]
   ): MigrationBuilder[A, B] = {
     val fromOptic = ToDynamicOptic.derive(from).optic
@@ -214,7 +217,7 @@ class MigrationBuilder[A, B](
    */
   def transformField[C, D](
     from: A => C,
-    to: B => D,
+    @unused `_param`: B => D,
     transform: SchemaExpr[A, D],
     reverseTransform: SchemaExpr[B, C]
   ): MigrationBuilder[A, B] = {
@@ -244,7 +247,7 @@ class MigrationBuilder[A, B](
    */
   def mandateField[C](
     source: A => Option[C],
-    target: B => C,
+    @unused `_param`: B => C,
     default: SchemaExpr[A, C]
   ): MigrationBuilder[A, B] = {
     val sourceOptic = ToDynamicOptic.derive(source).optic
@@ -269,7 +272,7 @@ class MigrationBuilder[A, B](
    */
   def optionalizeField[C](
     source: A => C,
-    target: B => Option[C]
+    @unused `_param`: B => Option[C]
   ): MigrationBuilder[A, B] = {
     val sourceOptic = ToDynamicOptic.derive(source).optic
     new MigrationBuilder(
@@ -297,7 +300,7 @@ class MigrationBuilder[A, B](
    */
   def changeFieldType[C, D](
     source: A => C,
-    target: B => D,
+    @unused `_param`: B => D,
     converter: SchemaExpr[A, D]
   ): MigrationBuilder[A, B] = {
     val sourceOptic = ToDynamicOptic.derive(source).optic
@@ -328,7 +331,7 @@ class MigrationBuilder[A, B](
    */
   def changeFieldType[C, D](
     source: A => C,
-    target: B => D,
+    @unused `_param`: B => D,
     converter: SchemaExpr[A, D],
     reverseConverter: SchemaExpr[B, C]
   ): MigrationBuilder[A, B] = {

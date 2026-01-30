@@ -205,8 +205,7 @@ object IntoVersionSpecificSpec extends SchemaBaseSpec {
       },
       test("opaque type in collection - error propagates from collection element") {
         case class AgeList(ages: List[Int])
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class ValidatedAgeList(ages: List[SimpleAge])
+        @unused case class ValidatedAgeList(ages: List[SimpleAge])
 
         val result = Into.derived[AgeList, ValidatedAgeList].into(AgeList(List(30, 200, 40)))
         assertTrue(
@@ -219,8 +218,7 @@ object IntoVersionSpecificSpec extends SchemaBaseSpec {
         case class CreateV1(name: String, age: Int) extends RequestV1
 
         sealed trait RequestV2
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class CreateV2(name: String, age: SimpleAge) extends RequestV2
+        @unused case class CreateV2(name: String, age: SimpleAge) extends RequestV2
 
         val result = Into.derived[RequestV1, RequestV2].into(CreateV1("Alice", -5))
         assertTrue(

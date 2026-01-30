@@ -241,7 +241,6 @@ object DynamicSchemaExpr {
           case SchemaExpr.ArithmeticOperator.Add      => DynamicValue.Primitive(PrimitiveValue.Int(l + r))
           case SchemaExpr.ArithmeticOperator.Subtract => DynamicValue.Primitive(PrimitiveValue.Int(l - r))
           case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Int(l * r))
-          case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Int(l * r))
         }
         Right(result)
       case _ =>
@@ -251,7 +250,6 @@ object DynamicSchemaExpr {
               case SchemaExpr.ArithmeticOperator.Add      => DynamicValue.Primitive(PrimitiveValue.Long(l + r))
               case SchemaExpr.ArithmeticOperator.Subtract => DynamicValue.Primitive(PrimitiveValue.Long(l - r))
               case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Long(l * r))
-              case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Long(l * r))
             }
             Right(result)
           case _ =>
@@ -260,7 +258,6 @@ object DynamicSchemaExpr {
                 val result = op match {
                   case SchemaExpr.ArithmeticOperator.Add      => DynamicValue.Primitive(PrimitiveValue.Double(l + r))
                   case SchemaExpr.ArithmeticOperator.Subtract => DynamicValue.Primitive(PrimitiveValue.Double(l - r))
-                  case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Double(l * r))
                   case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Double(l * r))
                 }
                 Right(result)
@@ -277,8 +274,8 @@ object DynamicSchemaExpr {
    * Converts a typed SchemaExpr to a DynamicSchemaExpr.
    */
   def fromSchemaExpr[A, B](expr: SchemaExpr[A, B]): DynamicSchemaExpr = expr match {
-    case lit: SchemaExpr.Literal[A, b] =>
-      Literal(lit.schema.toDynamicValue(lit.value))
+    case SchemaExpr.Literal(value, schema) =>
+      Literal(schema.toDynamicValue(value))
 
     case SchemaExpr.Optic(optic) =>
       Path(optic.toDynamic)
