@@ -3454,7 +3454,7 @@ object OpticSpecTypes {
       wrapperPrimitiveType = None,
       wrapperBinding = Binding.Wrapper(
         wrap = Wrapper.apply,
-        unwrap = (x: Wrapper) => x.value
+        unwrap = (x: Wrapper) => Right(x.value)
       )
     )
     implicit val schema: Schema[Wrapper] = new Schema(reflect)

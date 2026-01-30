@@ -116,7 +116,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
       Schema[B].reflect,
       reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(wrap, unwrap)
+      new Binding.Wrapper(wrap, a => Right(unwrap(a)))
     )
   )
 
@@ -126,7 +126,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
       Schema[B].reflect,
       reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
+      new Binding.Wrapper(x => new Right(wrap(x)), a => Right(unwrap(a)))
     )
   )
 
@@ -172,7 +172,49 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
       reflect,
       reflect.typeId.asInstanceOf[TypeId[B]],
       None,
-      new Binding.Wrapper(to, from)
+      new Binding.Wrapper(to, b => Right(from(b)))
+    )
+  )
+
+  /**
+   * Transforms this schema from type `A` to type `B` using partial functions
+   * that can fail in both directions.
+   *
+   * This is useful for creating schemas for types with bidirectional validation
+   * requirements, where both constructing the type AND extracting the underlying
+   * value may need validation.
+   *
+   * @example
+   *   {{{
+   * case class ValidatedInt(value: Int)
+   * object ValidatedInt {
+   *   implicit val schema: Schema[ValidatedInt] =
+   *     Schema[Int].transform(
+   *       wrap = n =>
+   *         if (n > 0) Right(ValidatedInt(n))
+   *         else Left(SchemaError.validationFailed("Expected positive")),
+   *       unwrap = v =>
+   *         if (v.value < 100) Right(v.value)
+   *         else Left(SchemaError.validationFailed("Value too large"))
+   *     ).withTypeId[ValidatedInt]
+   * }
+   *   }}}
+   *
+   * @param wrap
+   *   Partial function to transform `A` to `B` (used during decoding), returns `Left` on failure
+   * @param unwrap
+   *   Partial function to transform `B` back to `A` (used during encoding), returns `Left` on failure
+   * @tparam B
+   *   The target type
+   * @return
+   *   A new schema for type `B`
+   */
+  def transform[B](wrap: A => Either[SchemaError, B], unwrap: B => Either[SchemaError, A]): Schema[B] = new Schema(
+    new Reflect.Wrapper[Binding, B, A](
+      reflect,
+      reflect.typeId.asInstanceOf[TypeId[B]],
+      None,
+      new Binding.Wrapper(wrap, unwrap)
     )
   )
 
@@ -200,12 +242,12 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * @return
    *   A new schema for type `B`
    */
-  def transform[B](to: A => B, from: B => A): Schema[B] = new Schema(
+  def transform[B](to: A => B, from: B => A)(implicit d: DummyImplicit): Schema[B] = new Schema(
     new Reflect.Wrapper[Binding, B, A](
       reflect,
       reflect.typeId.asInstanceOf[TypeId[B]],
       None,
-      new Binding.Wrapper(a => Right(to(a)), from)
+      new Binding.Wrapper(a => Right(to(a)), b => Right(from(b)))
     )
   )
 
@@ -407,7 +449,7 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
             case Some(error) => Left(error)
           }
         },
-        unwrap = j => j.toDynamicValue
+        unwrap = j => Right(j.toDynamicValue)
       )
     )
   )

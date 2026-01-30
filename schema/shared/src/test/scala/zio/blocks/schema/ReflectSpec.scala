@@ -887,7 +887,7 @@ object ReflectSpec extends SchemaBaseSpec {
     wrapperPrimitiveType = None,
     wrapperBinding = Binding.Wrapper(
       wrap = (x: Long) => Right(Wrapper(x)),
-      unwrap = (x: Wrapper) => x.value
+      unwrap = (x: Wrapper) => Right(x.value)
     )
   )
 

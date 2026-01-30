@@ -556,7 +556,7 @@ object BindingOfSpec extends SchemaBaseSpec {
       test("smart constructor unwrap extracts underlying value") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
         val email   = binding.wrap("test@example.com").toOption.get
-        assertTrue(binding.unwrap(email) == "test@example.com")
+        assertTrue(binding.unwrap(email) == Right("test@example.com"))
       },
       test("smart constructor with SchemaError return type") {
         val binding = Binding.of[PositiveDouble].asInstanceOf[Binding.Wrapper[PositiveDouble, Double]]
