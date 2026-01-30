@@ -6,7 +6,7 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
 
-object JsonSchemaToReflect {
+private[schema] object JsonSchemaToReflect {
 
   private[json] sealed trait Shape
   private[json] object Shape {
