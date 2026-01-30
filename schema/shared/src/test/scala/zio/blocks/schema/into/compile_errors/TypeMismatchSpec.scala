@@ -1,6 +1,5 @@
 package zio.blocks.schema.into.compile_errors
 
-import zio.blocks.schema._
 import zio.test._
 
 /**

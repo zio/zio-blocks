@@ -241,9 +241,26 @@ Tests are written to accept both behaviors using `assertTrue(result.isRight || r
 
 ---
 
+### ✅ Phase 15: Macro Cleanup & Error Message Improvements - COMPLETE
+**Status**: Fixed warnings and improved compile error tests
+
+**Macro Fixes (Scala 2)**:
+1. Removed unused `optionalFieldInTarget` variable in `AsVersionSpecific.scala`
+2. Removed unused `getOptionInnerType` method in `AsVersionSpecific.scala`
+3. Fixed unused parameter warning in `convertToNewtypeEither` with `@annotation.unused`
+4. Fixed unused pattern variables (`outerPre`, `other`) in `IntoVersionSpecific.scala`
+5. Removed unused `sourceModule` and `sourceSym` variables in `generateCaseClause`
+
+**Test Improvements**:
+1. Updated compile error tests to have more explicit error message assertions
+2. Error checks now verify specific error message fragments (e.g., "Cannot derive As", field names, types involved)
+3. Removed unused imports from test files
+
+---
+
 ## Statistics
 
-- **Phases Completed**: 14/14 ✅ ALL COMPLETE
+- **Phases Completed**: 15/15 ✅ ALL COMPLETE
 - **Files Created**: 68
 - **Tests Passing**: ~1022 (106 + 66 + 154 + 149 + 58 + 65 + 106 + 22 + 90 + 62 + 40 + 56 + 23 + 25)
 - **Scala 2.13**: ✅ All passing
