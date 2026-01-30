@@ -7,8 +7,8 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
 object JsonSchemaToReflect {
 
-  sealed trait Shape
-  object Shape {
+  private[json] sealed trait Shape
+  private[json] object Shape {
     sealed trait PrimKind
     object PrimKind {
       case object String     extends PrimKind
@@ -37,7 +37,7 @@ object JsonSchemaToReflect {
     wrapWithValidation(jsonSchema, shape, base)
   }
 
-  def analyze(schema: JsonSchema): Shape = schema match {
+  private[json] def analyze(schema: JsonSchema): Shape = schema match {
     case JsonSchema.True        => Shape.Dynamic
     case JsonSchema.False       => Shape.Dynamic
     case obj: JsonSchema.Object =>
@@ -219,12 +219,12 @@ object JsonSchemaToReflect {
         wrapPrimitive(primitiveType)
 
       case Shape.PrimKind.Integer =>
-        val validation    = buildNumericValidation[BigInt](schemaObj)
+        val validation    = buildBigIntValidation(schemaObj)
         val primitiveType = new PrimitiveType.BigInt(validation)
         wrapPrimitive(primitiveType)
 
       case Shape.PrimKind.Number =>
-        val validation    = buildNumericValidation[BigDecimal](schemaObj)
+        val validation    = buildBigDecimalValidation(schemaObj)
         val primitiveType = new PrimitiveType.BigDecimal(validation)
         wrapPrimitive(primitiveType)
 
@@ -260,19 +260,27 @@ object JsonSchemaToReflect {
     }
   }
 
-  private def buildNumericValidation[A](obj: JsonSchema.Object): Validation[A] = {
+  private def buildBigIntValidation(obj: JsonSchema.Object): Validation[BigInt] = {
+    val min = obj.minimum.orElse(obj.exclusiveMinimum).map(_.toBigInt)
+    val max = obj.maximum.orElse(obj.exclusiveMaximum).map(_.toBigInt)
+
+    (min, max) match {
+      case (Some(minVal), Some(maxVal)) => Validation.Numeric.Range(Some(minVal), Some(maxVal))
+      case (Some(minVal), None)         => Validation.Numeric.Range(Some(minVal), None)
+      case (None, Some(maxVal))         => Validation.Numeric.Range(None, Some(maxVal))
+      case (None, None)                 => Validation.None
+    }
+  }
+
+  private def buildBigDecimalValidation(obj: JsonSchema.Object): Validation[BigDecimal] = {
     val min = obj.minimum.orElse(obj.exclusiveMinimum)
     val max = obj.maximum.orElse(obj.exclusiveMaximum)
 
     (min, max) match {
-      case (Some(minVal), Some(maxVal)) =>
-        Validation.Numeric.Range(Some(minVal.asInstanceOf[A]), Some(maxVal.asInstanceOf[A]))
-      case (Some(minVal), None) =>
-        Validation.Numeric.Range(Some(minVal.asInstanceOf[A]), None)
-      case (None, Some(maxVal)) =>
-        Validation.Numeric.Range(None, Some(maxVal.asInstanceOf[A]))
-      case (None, None) =>
-        Validation.None
+      case (Some(minVal), Some(maxVal)) => Validation.Numeric.Range(Some(minVal), Some(maxVal))
+      case (Some(minVal), None)         => Validation.Numeric.Range(Some(minVal), None)
+      case (None, Some(maxVal))         => Validation.Numeric.Range(None, Some(maxVal))
+      case (None, None)                 => Validation.None
     }
   }
 
