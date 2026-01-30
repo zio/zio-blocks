@@ -69,10 +69,10 @@ final case class TypeParam(
    */
   def isTypeConstructor: Boolean = !kind.isProperType
 
-   /**
-    * Returns a string representation of this type parameter.
-    */
-   override def toString: String = TypeIdPrinter.render(this)
+  /**
+   * Returns a string representation of this type parameter.
+   */
+  override def toString: String = TypeIdPrinter.render(this)
 }
 
 object TypeParam {
