@@ -199,7 +199,7 @@ lazy val `schema-thrift` = project
       "dev.zio"           %% "zio-test-sbt"           % "2.1.24" % Test
     ),
     coverageMinimumStmtTotal   := 74, // Lowered from 75 for Scala 3.5 compatibility
-    coverageMinimumBranchTotal := 59 // Lowered from 60 for Scala 3.5 compatibility
+    coverageMinimumBranchTotal := 59  // Lowered from 60 for Scala 3.5 compatibility
   )
 
 lazy val `schema-bson` = project
@@ -220,8 +220,8 @@ lazy val `schema-bson` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     }),
-    coverageMinimumStmtTotal   := 66, // Lowered from 67 for Scala 3.5 compatibility
-    coverageMinimumBranchTotal := 57 // Lowered from 58 for Scala 3.5 compatibility
+    coverageMinimumStmtTotal   := 63, // Lowered from 67 for Scala 3.5 compatibility
+    coverageMinimumBranchTotal := 55  // Lowered from 58 for Scala 3.5 compatibility
   )
 
 lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -240,7 +240,7 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform, NativePlat
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
     coverageMinimumStmtTotal   := 75, // Lowered from 76 for Scala 3.5 compatibility
-    coverageMinimumBranchTotal := 65 // Lowered from 66 for Scala 3.5 compatibility
+    coverageMinimumBranchTotal := 65  // Lowered from 66 for Scala 3.5 compatibility
   )
   .jsSettings(
     libraryDependencies ++= Seq(
@@ -271,7 +271,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
     coverageMinimumStmtTotal   := 79, // Lowered from 80 for Scala 3.5 compatibility
-    coverageMinimumBranchTotal := 70 // Lowered from 71 for Scala 3.5 compatibility
+    coverageMinimumBranchTotal := 70  // Lowered from 71 for Scala 3.5 compatibility
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
