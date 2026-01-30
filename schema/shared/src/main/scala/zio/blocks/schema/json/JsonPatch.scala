@@ -273,7 +273,7 @@ object JsonPatch {
    */
   sealed trait Op
 
-  object Op {
+  object Op extends OpVersionSpecific {
 
     /**
      * Set a value directly (replacement).
@@ -321,7 +321,7 @@ object JsonPatch {
    */
   sealed trait PrimitiveOp
 
-  object PrimitiveOp {
+  object PrimitiveOp extends PrimitiveOpVersionSpecific {
 
     /**
      * Add a delta to a JSON number.
@@ -347,7 +347,7 @@ object JsonPatch {
    */
   sealed trait StringOp
 
-  object StringOp {
+  object StringOp extends StringOpVersionSpecific {
 
     /** Insert text at the given index. */
     final case class Insert(index: Int, text: java.lang.String) extends StringOp
@@ -379,7 +379,7 @@ object JsonPatch {
    */
   sealed trait ArrayOp
 
-  object ArrayOp {
+  object ArrayOp extends ArrayOpVersionSpecific {
 
     /** Insert values at the given index. */
     final case class Insert(index: Int, values: Chunk[Json]) extends ArrayOp
@@ -405,7 +405,7 @@ object JsonPatch {
    */
   sealed trait ObjectOp
 
-  object ObjectOp {
+  object ObjectOp extends ObjectOpVersionSpecific {
 
     /** Add a field to the object. */
     final case class Add(key: java.lang.String, value: Json) extends ObjectOp
