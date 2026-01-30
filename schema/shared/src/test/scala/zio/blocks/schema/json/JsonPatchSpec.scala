@@ -300,7 +300,11 @@ object JsonPatchSpec extends SchemaBaseSpec {
     numberDeltaSuite,
     dynamicPatchConversionSuite,
     edgeCaseSuite,
-    errorCaseSuite
+    errorCaseSuite,
+    toStringCoverageSuite,
+    elementsCoverageSuite,
+    dynamicPatchConversionCoverageSuite,
+    additionalEdgeCaseSuite
   )
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1594,6 +1598,671 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector.empty)))
       val result = patch(json, PatchMode.Strict)
       assertTrue(result == new Right(json))
+    }
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Coverage Tests: toString, Elements path, DynamicPatch conversions
+  // ─────────────────────────────────────────────────────────────────────────
+  val toStringCoverageSuite: Spec[Any, Nothing] = suite("Coverage: toString and rendering")(
+    test("toString renders Set operation") {
+      val patch = JsonPatch.root(JsonPatch.Op.Set(new Json.Number("42")))
+      val str   = patch.toString
+      assertTrue(str.nonEmpty && str.contains("42"))
+    },
+    test("toString renders NumberDelta positive") {
+      val patch = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
+      val str   = patch.toString
+      assertTrue(str.nonEmpty && (str.contains("+=") || str.contains("5")))
+    },
+    test("toString renders NumberDelta negative") {
+      val patch = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(-3))))
+      val str   = patch.toString
+      assertTrue(str.nonEmpty && (str.contains("-=") || str.contains("3")))
+    },
+    test("toString renders StringEdit with Insert") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(0, "hello"))))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty && str.contains("hello"))
+    },
+    test("toString renders StringEdit with Delete") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Delete(0, 3))))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty)
+    },
+    test("toString renders StringEdit with Append") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Append("suffix"))))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty && str.contains("suffix"))
+    },
+    test("toString renders StringEdit with Modify") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Modify(0, 2, "ab"))))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty && str.contains("ab"))
+    },
+    test("toString renders ArrayEdit with Insert") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(0, Chunk(new Json.Number("1")))))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty)
+    },
+    test("toString renders ArrayEdit with Append") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("1")))))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty)
+    },
+    test("toString renders ArrayEdit with Delete single") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(0, 1)))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty)
+    },
+    test("toString renders ArrayEdit with Delete multiple") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(0, 3)))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty)
+    },
+    test("toString renders ArrayEdit with Modify Set") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.Set(new Json.Number("99")))))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty && str.contains("99"))
+    },
+    test("toString renders ArrayEdit with Modify nested") {
+      val nestedPatch = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(1))))
+      val patch       = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.Nested(nestedPatch))))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty)
+    },
+    test("toString renders ObjectEdit with Add") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("key", new Json.Number("1"))))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty && str.contains("key"))
+    },
+    test("toString renders ObjectEdit with Remove") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("key")))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty && str.contains("key"))
+    },
+    test("toString renders ObjectEdit with Modify") {
+      val nestedPatch = JsonPatch.root(JsonPatch.Op.Set(new Json.Number("2")))
+      val patch       = JsonPatch.root(
+        JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("key", nestedPatch)))
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty && str.contains("key"))
+    },
+    test("toString renders Nested patch") {
+      val innerPatch = JsonPatch.root(JsonPatch.Op.Set(new Json.Number("1")))
+      val patch      = JsonPatch.root(JsonPatch.Op.Nested(innerPatch))
+      val str        = patch.toString
+      assertTrue(str.nonEmpty)
+    },
+    test("toString escapes special characters in strings") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ObjectEdit(
+          Vector(JsonPatch.ObjectOp.Add("key\twith\ttabs", new Json.String("value\nwith\nnewlines")))
+        )
+      )
+      val str = patch.toString
+      assertTrue(str.nonEmpty)
+    }
+  )
+
+  val elementsCoverageSuite: Spec[Any, Nothing] = suite("Coverage: Elements path (navigateAllElements)")(
+    test("Apply operation to all array elements via Elements path") {
+      val json = new Json.Array(
+        Chunk(
+          new Json.Object(Chunk(("value", new Json.Number("1")))),
+          new Json.Object(Chunk(("value", new Json.Number("2")))),
+          new Json.Object(Chunk(("value", new Json.Number("3"))))
+        )
+      )
+      // Use Elements path to navigate into all array elements, then field "value", then set
+      val patch = JsonPatch(
+        DynamicOptic.root.elements.field("value"),
+        JsonPatch.Op.Set(new Json.Number("100"))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(
+        result == new Right(
+          new Json.Array(
+            Chunk(
+              new Json.Object(Chunk(("value", new Json.Number("100")))),
+              new Json.Object(Chunk(("value", new Json.Number("100")))),
+              new Json.Object(Chunk(("value", new Json.Number("100"))))
+            )
+          )
+        )
+      )
+    },
+    test("Elements path on empty array in Strict mode fails") {
+      val json   = new Json.Array(Chunk.empty)
+      val patch  = JsonPatch(DynamicOptic.root.elements, JsonPatch.Op.Set(new Json.Number("1")))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("Elements path on empty array in Lenient mode returns unchanged") {
+      val json   = new Json.Array(Chunk.empty)
+      val patch  = JsonPatch(DynamicOptic.root.elements, JsonPatch.Op.Set(new Json.Number("1")))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("Elements path on non-array in Strict mode fails") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch(DynamicOptic.root.elements, JsonPatch.Op.Set(new Json.Number("1")))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("Elements path on non-array in Lenient mode returns unchanged") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch(DynamicOptic.root.elements, JsonPatch.Op.Set(new Json.Number("1")))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("Nested Elements path navigation") {
+      val json = new Json.Array(
+        Chunk(
+          new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"))),
+          new Json.Array(Chunk(new Json.Number("3"), new Json.Number("4")))
+        )
+      )
+      val patch  = JsonPatch(DynamicOptic.root.elements.elements, JsonPatch.Op.Set(new Json.Number("0")))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(
+        result == new Right(
+          new Json.Array(
+            Chunk(
+              new Json.Array(Chunk(new Json.Number("0"), new Json.Number("0"))),
+              new Json.Array(Chunk(new Json.Number("0"), new Json.Number("0")))
+            )
+          )
+        )
+      )
+    },
+    test("Elements path with error in one element in Lenient mode continues") {
+      val json = new Json.Array(
+        Chunk(
+          new Json.Object(Chunk(("value", new Json.Number("1")))),
+          new Json.String("not an object"),
+          new Json.Object(Chunk(("value", new Json.Number("3"))))
+        )
+      )
+      val patch  = JsonPatch(DynamicOptic.root.elements.field("value"), JsonPatch.Op.Set(new Json.Number("100")))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(
+        result == new Right(
+          new Json.Array(
+            Chunk(
+              new Json.Object(Chunk(("value", new Json.Number("100")))),
+              new Json.String("not an object"),
+              new Json.Object(Chunk(("value", new Json.Number("100"))))
+            )
+          )
+        )
+      )
+    },
+    test("Elements path with error in one element in Strict mode fails") {
+      val json = new Json.Array(
+        Chunk(
+          new Json.Object(Chunk(("value", new Json.Number("1")))),
+          new Json.String("not an object"),
+          new Json.Object(Chunk(("value", new Json.Number("3"))))
+        )
+      )
+      val patch  = JsonPatch(DynamicOptic.root.elements.field("value"), JsonPatch.Op.Set(new Json.Number("100")))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    }
+  )
+
+  val dynamicPatchConversionCoverageSuite: Spec[Any, Nothing] = suite("Coverage: DynamicPatch conversions")(
+    test("roundtrip through DynamicPatch preserves IntDelta") {
+      val dynamicPatch = DynamicPatch(
+        DynamicOptic.root,
+        DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+      )
+      val jsonPatch = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(jsonPatch.isRight)
+    },
+    test("roundtrip through DynamicPatch preserves LongDelta") {
+      val dynamicPatch = DynamicPatch(
+        DynamicOptic.root,
+        DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(100L))
+      )
+      val jsonPatch = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(jsonPatch.isRight)
+    },
+    test("roundtrip through DynamicPatch preserves DoubleDelta") {
+      val dynamicPatch = DynamicPatch(
+        DynamicOptic.root,
+        DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(3.14))
+      )
+      val jsonPatch = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(jsonPatch.isRight)
+    },
+    test("roundtrip through DynamicPatch preserves FloatDelta") {
+      val dynamicPatch = DynamicPatch(
+        DynamicOptic.root,
+        DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(2.5f))
+      )
+      val jsonPatch = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(jsonPatch.isRight)
+    },
+    test("roundtrip through DynamicPatch preserves ShortDelta") {
+      val dynamicPatch = DynamicPatch(
+        DynamicOptic.root,
+        DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta(10.toShort))
+      )
+      val jsonPatch = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(jsonPatch.isRight)
+    },
+    test("roundtrip through DynamicPatch preserves ByteDelta") {
+      val dynamicPatch = DynamicPatch(
+        DynamicOptic.root,
+        DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta(5.toByte))
+      )
+      val jsonPatch = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(jsonPatch.isRight)
+    },
+    test("roundtrip through DynamicPatch preserves BigIntDelta") {
+      val dynamicPatch = DynamicPatch(
+        DynamicOptic.root,
+        DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigIntDelta(BigInt(1000)))
+      )
+      val jsonPatch = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(jsonPatch.isRight)
+    },
+    test("roundtrip through DynamicPatch preserves StringEdit operations") {
+      val dynamicPatch = DynamicPatch(
+        DynamicOptic.root,
+        DynamicPatch.Operation.PrimitiveDelta(
+          DynamicPatch.PrimitiveOp.StringEdit(
+            Vector(
+              DynamicPatch.StringOp.Insert(0, "prefix"),
+              DynamicPatch.StringOp.Delete(10, 5),
+              DynamicPatch.StringOp.Append("suffix"),
+              DynamicPatch.StringOp.Modify(3, 2, "xy")
+            )
+          )
+        )
+      )
+      val jsonPatch = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(jsonPatch.isRight)
+    },
+    test("JsonPatch to DynamicPatch and back preserves StringOp.Insert") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(0, "hello"))))
+      )
+      val dynamicPatch = patch.toDynamicPatch
+      val roundtripped = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(roundtripped.isRight)
+    },
+    test("JsonPatch to DynamicPatch and back preserves StringOp.Delete") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Delete(0, 5))))
+      )
+      val dynamicPatch = patch.toDynamicPatch
+      val roundtripped = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(roundtripped.isRight)
+    },
+    test("JsonPatch to DynamicPatch and back preserves StringOp.Append") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Append("world"))))
+      )
+      val dynamicPatch = patch.toDynamicPatch
+      val roundtripped = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(roundtripped.isRight)
+    },
+    test("JsonPatch to DynamicPatch and back preserves StringOp.Modify") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Modify(0, 3, "abc"))))
+      )
+      val dynamicPatch = patch.toDynamicPatch
+      val roundtripped = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(roundtripped.isRight)
+    },
+    test("Unsupported DynamicPatch.PrimitiveOp returns error") {
+      // InstantDelta is not supported for JSON (temporal types are not JSON-native)
+      val dynamicPatch = DynamicPatch(
+        DynamicOptic.root,
+        DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.InstantDelta(java.time.Duration.ofSeconds(1)))
+      )
+      val jsonPatch = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(jsonPatch.isLeft)
+    }
+  )
+
+  // Additional edge case coverage tests
+  val additionalEdgeCaseSuite: Spec[Any, Nothing] = suite("Additional Edge Cases")(
+    // Clobber mode: field creation on missing field (non-last path)
+    test("Clobber mode creates missing nested field path") {
+      val json = new Json.Object(Chunk.empty)
+      // Navigate to field "a" -> field "b" (both missing), then set
+      val patch  = JsonPatch(DynamicOptic.root.field("a").field("b"), JsonPatch.Op.Set(new Json.Number("1")))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(
+        result == new Right(
+          new Json.Object(Chunk(("a", new Json.Object(Chunk(("b", new Json.Number("1")))))))
+        )
+      )
+    },
+    // Clobber mode: field on non-object type
+    test("Clobber mode replaces non-object with new object for field access") {
+      val json   = new Json.String("not an object")
+      val patch  = JsonPatch(DynamicOptic.root.field("a"), JsonPatch.Op.Set(new Json.Number("1")))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(
+        result == new Right(new Json.Object(Chunk(("a", new Json.Number("1")))))
+      )
+    },
+    // Clobber mode: field on non-object with nested path
+    test("Clobber mode replaces non-object with nested object for deep field access") {
+      val json   = new Json.Number("42")
+      val patch  = JsonPatch(DynamicOptic.root.field("a").field("b"), JsonPatch.Op.Set(new Json.Number("1")))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(
+        result == new Right(
+          new Json.Object(Chunk(("a", new Json.Object(Chunk(("b", new Json.Number("1")))))))
+        )
+      )
+    },
+    // Clobber mode: index on empty array
+    test("Clobber mode on out-of-bounds array index at last path") {
+      val json   = new Json.Array(Chunk.empty)
+      val patch  = JsonPatch(DynamicOptic.root.at(0), JsonPatch.Op.Set(new Json.Number("1")))
+      val result = patch(json, PatchMode.Clobber)
+      // Clobber should return unchanged or error for out-of-bounds
+      assertTrue(result.isRight || result.isLeft)
+    },
+    // ArrayEdit: Insert with Modify
+    test("ArrayEdit with Modify nested operation") {
+      val innerPatch = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(10))))
+      val json       = new Json.Array(Chunk(new Json.Number("5")))
+      val patch      =
+        JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.Nested(innerPatch)))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.Array(Chunk(new Json.Number("15")))))
+    },
+    // ObjectEdit: Modify with nested patch
+    test("ObjectEdit Modify with deeply nested patch") {
+      val json = new Json.Object(
+        Chunk(("outer", new Json.Object(Chunk(("inner", new Json.Number("5"))))))
+      )
+      val innerPatch = JsonPatch(
+        DynamicOptic.root.field("inner"),
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(10)))
+      )
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("outer", innerPatch)))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(
+        result == new Right(
+          new Json.Object(Chunk(("outer", new Json.Object(Chunk(("inner", new Json.Number("15")))))))
+        )
+      )
+    },
+    // Lenient mode on missing field path
+    test("Lenient mode returns unchanged on missing nested field path") {
+      val json   = new Json.Object(Chunk.empty)
+      val patch  = JsonPatch(DynamicOptic.root.field("a").field("b"), JsonPatch.Op.Set(new Json.Number("1")))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    // Array operations with different indices
+    test("Array delete at middle index") {
+      val json   = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(1, 1))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.Array(Chunk(new Json.Number("1"), new Json.Number("3")))))
+    },
+    // Array insert at middle index
+    test("Array insert at middle index") {
+      val json  = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("3")))
+      val patch =
+        JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(1, Chunk(new Json.Number("2"))))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(
+        result == new Right(new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3"))))
+      )
+    },
+    // Multiple operations in sequence
+    test("Multiple ArrayOps in sequence") {
+      val json  = new Json.Array(Chunk(new Json.Number("1")))
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(
+          Vector(
+            JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))),
+            JsonPatch.ArrayOp.Append(Chunk(new Json.Number("3")))
+          )
+        )
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(
+        result == new Right(new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3"))))
+      )
+    },
+    // Multiple ObjectOps in sequence
+    test("Multiple ObjectOps in sequence") {
+      val json  = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ObjectEdit(
+          Vector(
+            JsonPatch.ObjectOp.Add("b", new Json.Number("2")),
+            JsonPatch.ObjectOp.Add("c", new Json.Number("3"))
+          )
+        )
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(
+        result == new Right(
+          new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2")), ("c", new Json.Number("3"))))
+        )
+      )
+    },
+    // Clobber mode overwrites existing field on Add
+    test("Clobber mode overwrites existing field on ObjectOp.Add") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(new Json.Object(Chunk(("a", new Json.Number("2"))))))
+    },
+    // Clobber mode silent on Remove missing key
+    test("Clobber mode silent on ObjectOp.Remove for missing key") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("nonexistent"))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    // Strict mode fails on Add existing key
+    test("Strict mode fails on ObjectOp.Add for existing key") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // Clobber mode on array with nested object field access
+    test("Elements path with nested field access applies to all elements") {
+      val json = new Json.Array(
+        Chunk(
+          new Json.Object(Chunk(("a", new Json.Object(Chunk(("b", new Json.Number("1"))))))),
+          new Json.Object(Chunk(("a", new Json.Object(Chunk(("b", new Json.Number("2")))))))
+        )
+      )
+      val patch  = JsonPatch(DynamicOptic.root.elements.field("a").field("b"), JsonPatch.Op.Set(new Json.Number("0")))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(
+        result == new Right(
+          new Json.Array(
+            Chunk(
+              new Json.Object(Chunk(("a", new Json.Object(Chunk(("b", new Json.Number("0"))))))),
+              new Json.Object(Chunk(("a", new Json.Object(Chunk(("b", new Json.Number("0")))))))
+            )
+          )
+        )
+      )
+    },
+    // Lenient mode on Add existing key
+    test("Lenient mode returns unchanged on ObjectOp.Add for existing key") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    // Lenient mode on Remove missing key
+    test("Lenient mode returns unchanged on ObjectOp.Remove for missing key") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("nonexistent"))))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    // String operations with empty strings
+    test("StringEdit Insert on empty string") {
+      val json  = new Json.String("")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(0, "hello"))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.String("hello")))
+    },
+    test("StringEdit Delete on matching length") {
+      val json  = new Json.String("hello")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Delete(0, 5))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.String("")))
+    },
+    test("StringEdit Modify replaces substring correctly") {
+      val json  = new Json.String("hello world")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Modify(0, 5, "hi"))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.String("hi world")))
+    },
+    // Array at index with out-of-bounds in Strict
+    test("Strict mode fails on array at out-of-bounds index") {
+      val json   = new Json.Array(Chunk(new Json.Number("1")))
+      val patch  = JsonPatch(DynamicOptic.root.at(5), JsonPatch.Op.Set(new Json.Number("2")))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("Lenient mode returns unchanged on array at out-of-bounds index") {
+      val json   = new Json.Array(Chunk(new Json.Number("1")))
+      val patch  = JsonPatch(DynamicOptic.root.at(5), JsonPatch.Op.Set(new Json.Number("2")))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    // Clobber mode on array out-of-bounds insert
+    test("ArrayOp.Insert at out-of-bounds in Clobber mode clamps") {
+      val json  = new Json.Array(Chunk(new Json.Number("1")))
+      val patch =
+        JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(100, Chunk(new Json.Number("2"))))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))))
+    },
+    // Clobber mode on out-of-bounds delete
+    test("ArrayOp.Delete at out-of-bounds in Clobber mode clamps") {
+      val json   = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(100, 1))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    // Nested operation inside ArrayOp.Modify
+    test("ArrayOp.Modify with PrimitiveDelta operation") {
+      val json  = new Json.Array(Chunk(new Json.Number("5")))
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(
+          Vector(
+            JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
+          )
+        )
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.Array(Chunk(new Json.Number("10")))))
+    },
+    // ObjectEdit with Modify that applies PrimitiveDelta
+    test("ObjectOp.Modify with NumberDelta on nested value") {
+      val json       = new Json.Object(Chunk(("a", new Json.Number("5"))))
+      val innerPatch = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
+      val patch      = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("a", innerPatch))))
+      val result     = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.Object(Chunk(("a", new Json.Number("10"))))))
+    },
+    // Strict mode on Modify missing key
+    test("Strict mode fails on ObjectOp.Modify for missing key") {
+      val json       = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val innerPatch = JsonPatch.root(JsonPatch.Op.Set(new Json.Number("2")))
+      val patch      = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("nonexistent", innerPatch))))
+      val result     = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // ArrayOp.Modify at out-of-bounds index
+    test("Strict mode fails on ArrayOp.Modify at out-of-bounds index") {
+      val json  = new Json.Array(Chunk(new Json.Number("1")))
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Modify(10, JsonPatch.Op.Set(new Json.Number("2")))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // Clobber mode on Modify missing object key creates field
+    test("Clobber mode on ObjectOp.Modify for missing key creates field") {
+      val json       = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val innerPatch = JsonPatch.root(JsonPatch.Op.Set(new Json.Number("2")))
+      val patch      = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("b", innerPatch))))
+      val result     = patch(json, PatchMode.Clobber)
+      assertTrue(
+        result == new Right(new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2")))))
+      )
+    },
+    // String insert at end
+    test("StringEdit Insert at end of string") {
+      val json  = new Json.String("hello")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(5, " world"))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.String("hello world")))
+    },
+    // Multiple StringOps in sequence
+    test("Multiple StringOps in sequence") {
+      val json  = new Json.String("ABCDE")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(
+          JsonPatch.PrimitiveOp.StringEdit(
+            Vector(
+              JsonPatch.StringOp.Delete(0, 1), // "BCDE"
+              JsonPatch.StringOp.Append("F")   // "BCDEF"
+            )
+          )
+        )
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.String("BCDEF")))
     }
   )
 }

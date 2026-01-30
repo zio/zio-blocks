@@ -2,9 +2,6 @@ package zio.blocks.schema.json
 
 import zio.blocks.schema.Schema
 
-// $COVERAGE-OFF$ Schema.derived generates macro code with untested branches.
-// Functionality is verified by JsonPatchSchemasSpec roundtrip tests.
-
 /** Scala 3 version provides Schema.derived for Op. */
 private[json] trait OpVersionSpecific {
   implicit lazy val schema: Schema[JsonPatch.Op] = Schema.derived
@@ -29,5 +26,3 @@ private[json] trait ArrayOpVersionSpecific {
 private[json] trait ObjectOpVersionSpecific {
   implicit lazy val schema: Schema[JsonPatch.ObjectOp] = Schema.derived
 }
-
-// $COVERAGE-ON$
