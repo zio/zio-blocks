@@ -292,15 +292,15 @@ private[schema] object JsonSchemaToReflect {
       wrap = a => Right(primitiveType.toDynamicValue(a)),
       unwrap = dv =>
         primitiveType.fromDynamicValue(dv) match {
-          case Right(a) => a
+          case Right(a) => Right(a)
           case Left(_)  =>
             primitiveType match {
-              case _: PrimitiveType.String     => "".asInstanceOf[A]
-              case _: PrimitiveType.BigInt     => BigInt(0).asInstanceOf[A]
-              case _: PrimitiveType.BigDecimal => BigDecimal(0).asInstanceOf[A]
-              case _: PrimitiveType.Boolean    => false.asInstanceOf[A]
-              case PrimitiveType.Unit          => ().asInstanceOf[A]
-              case _                           => null.asInstanceOf[A]
+              case _: PrimitiveType.String     => Right("".asInstanceOf[A])
+              case _: PrimitiveType.BigInt     => Right(BigInt(0).asInstanceOf[A])
+              case _: PrimitiveType.BigDecimal => Right(BigDecimal(0).asInstanceOf[A])
+              case _: PrimitiveType.Boolean    => Right(false.asInstanceOf[A])
+              case PrimitiveType.Unit          => Right(().asInstanceOf[A])
+              case _                           => Right(null.asInstanceOf[A])
             }
         }
     )
@@ -388,8 +388,8 @@ private[schema] object JsonSchemaToReflect {
     val wrapperBinding = new Binding.Wrapper[DynamicValue, Map[DynamicValue, DynamicValue]](
       wrap = map => Right(DynamicValue.Map(Chunk.from(map.toSeq))),
       unwrap = {
-        case DynamicValue.Map(entries) => entries.toMap
-        case _                         => Map.empty
+        case DynamicValue.Map(entries) => Right(entries.toMap)
+        case _                         => Right(Map.empty)
       }
     )
 
@@ -410,8 +410,8 @@ private[schema] object JsonSchemaToReflect {
     val wrapperBinding = new Binding.Wrapper[DynamicValue, Chunk[DynamicValue]](
       wrap = chunk => Right(DynamicValue.Sequence(chunk)),
       unwrap = {
-        case DynamicValue.Sequence(elements) => elements
-        case _                               => Chunk.empty
+        case DynamicValue.Sequence(elements) => Right(elements)
+        case _                               => Right(Chunk.empty)
       }
     )
 
@@ -575,7 +575,7 @@ private[schema] object JsonSchemaToReflect {
 
     val wrapperBinding = new Binding.Wrapper[DynamicValue, DynamicValue](
       wrap = dv => Right(dv),
-      unwrap = identity
+      unwrap = dv => Right(dv)
     )
 
     new Reflect.Wrapper[Binding, DynamicValue, DynamicValue](
@@ -609,7 +609,7 @@ private[schema] object JsonSchemaToReflect {
           case None        => Right(dv)
         }
       },
-      unwrap = identity
+      unwrap = dv => Right(dv)
     )
 
     new Reflect.Wrapper[Binding, DynamicValue, DynamicValue](

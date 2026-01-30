@@ -353,7 +353,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
       test("smart constructor unwrap extracts underlying value") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
         val email   = binding.wrap("test@example.com").toOption.get
-        assertTrue(binding.unwrap(email) == "test@example.com")
+        assertTrue(binding.unwrap(email) == Right("test@example.com"))
       },
       test("smart constructor with SchemaError return type") {
         val binding = Binding.of[PositiveDouble].asInstanceOf[Binding.Wrapper[PositiveDouble, Double]]
@@ -416,7 +416,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val wrapped = binding.wrap(25)
         assertTrue(
           wrapped.isRight &&
-            binding.unwrap(wrapped.toOption.get) == 25
+            binding.unwrap(wrapped.toOption.get) == Right(25)
         )
       },
       test("opaque type with String error smart constructor returns Binding.Wrapper") {
@@ -435,7 +435,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
       test("opaque type smart constructor unwrap extracts value") {
         val binding = Binding.of[ValidatedEmail].asInstanceOf[Binding.Wrapper[ValidatedEmail, String]]
         val wrapped = binding.wrap("test@example.com").toOption.get
-        assertTrue(binding.unwrap(wrapped) == "test@example.com")
+        assertTrue(binding.unwrap(wrapped) == Right("test@example.com"))
       },
       test("opaque type with SchemaError smart constructor returns Binding.Wrapper") {
         val binding = Binding.of[PositiveInt]
@@ -469,7 +469,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val wrapped = binding.wrap(12345L)
         assertTrue(
           wrapped.isRight &&
-            binding.unwrap(wrapped.toOption.get) == 12345L
+            binding.unwrap(wrapped.toOption.get) == Right(12345L)
         )
       },
       test("newtype wrap and unwrap work for String") {
@@ -477,7 +477,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val wrapped = binding.wrap("alice")
         assertTrue(
           wrapped.isRight &&
-            binding.unwrap(wrapped.toOption.get) == "alice"
+            binding.unwrap(wrapped.toOption.get) == Right("alice")
         )
       }
     ),

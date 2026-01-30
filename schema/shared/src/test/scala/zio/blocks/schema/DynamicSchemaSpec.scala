@@ -781,7 +781,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
       test("wrapper schema validates wrapped value") {
         case class PositiveInt(value: Int)
         object PositiveInt {
-          implicit val schema: Schema[PositiveInt] = Schema[Int].transform(PositiveInt(_), _.value)
+          implicit val schema: Schema[PositiveInt] = Schema[Int].transform(to = PositiveInt(_), from = _.value)
         }
         val ds = PositiveInt.schema.toDynamicSchema
         val dv = DynamicValue.Primitive(PrimitiveValue.Int(42))
@@ -790,7 +790,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
       test("wrapper schema rejects wrong type") {
         case class PositiveInt(value: Int)
         object PositiveInt {
-          implicit val schema: Schema[PositiveInt] = Schema[Int].transform(PositiveInt(_), _.value)
+          implicit val schema: Schema[PositiveInt] = Schema[Int].transform(to = PositiveInt(_), from = _.value)
         }
         val ds = PositiveInt.schema.toDynamicSchema
         val dv = DynamicValue.Primitive(PrimitiveValue.String("not an int"))
@@ -896,7 +896,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
       test("Wrapper defaultValue and getDefaultValue") {
         case class WrappedInt(value: Int)
         object WrappedInt {
-          implicit val schema: Schema[WrappedInt] = Schema[Int].transform(WrappedInt(_), _.value)
+          implicit val schema: Schema[WrappedInt] = Schema[Int].transform(to = WrappedInt(_), from = _.value)
         }
         val ds  = WrappedInt.schema.toDynamicSchema
         val dv  = DynamicValue.Primitive(PrimitiveValue.Int(42))
@@ -906,7 +906,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
       test("Wrapper examples sets and retrieves") {
         case class WrappedInt(value: Int)
         object WrappedInt {
-          implicit val schema: Schema[WrappedInt] = Schema[Int].transform(WrappedInt(_), _.value)
+          implicit val schema: Schema[WrappedInt] = Schema[Int].transform(to = WrappedInt(_), from = _.value)
         }
         val ds  = WrappedInt.schema.toDynamicSchema
         val dv1 = DynamicValue.Primitive(PrimitiveValue.Int(42))
@@ -2207,7 +2207,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           locally(value)
         }
         object PositiveInt {
-          implicit val schema: Schema[PositiveInt] = Schema[Int].transform(PositiveInt(_), _.value)
+          implicit val schema: Schema[PositiveInt] = Schema[Int].transform(to = PositiveInt(_), from = _.value)
         }
         val _         = PositiveInt(1)
         val ds        = PositiveInt.schema.toDynamicSchema
@@ -3094,7 +3094,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           locally(value)
         }
         object WrappedInt {
-          implicit val schema: Schema[WrappedInt] = Schema[Int].transform(WrappedInt(_), _.value)
+          implicit val schema: Schema[WrappedInt] = Schema[Int].transform(to = WrappedInt(_), from = _.value)
         }
         val _         = WrappedInt(1)
         val original  = WrappedInt.schema.toDynamicSchema

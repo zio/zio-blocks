@@ -640,7 +640,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
         """
       }
 
-    val unwrapTree = q"""(a: $tpe) => a.$fieldName"""
+    val unwrapTree = q"""(a: $tpe) => _root_.scala.Right(a.$fieldName)"""
 
     c.Expr[Any](
       q"""
@@ -672,9 +672,9 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
 
     val unwrapTree =
       if (unwrapMethod != NoSymbol) {
-        q"""(a: $tpe) => $companion.unwrap(a)"""
+        q"""(a: $tpe) => _root_.scala.Right($companion.unwrap(a))"""
       } else {
-        q"""(a: $tpe) => a.asInstanceOf[$underlyingType]"""
+        q"""(a: $tpe) => _root_.scala.Right(a.asInstanceOf[$underlyingType])"""
       }
 
     c.Expr[Any](

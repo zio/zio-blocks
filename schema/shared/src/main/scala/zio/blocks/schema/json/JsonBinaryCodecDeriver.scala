@@ -1983,7 +1983,11 @@ class JsonBinaryCodecDeriver private[json] (
                 wrappedCodec.decodeValue(
                   in, {
                     if (default == null) null
-                    else unwrap(default)
+                    else
+                      unwrap(default) match {
+                        case Right(b)    => b
+                        case Left(error) => in.decodeError(error.message)
+                      }
                   }.asInstanceOf[Wrapped]
                 )
               } catch {
@@ -1994,7 +1998,11 @@ class JsonBinaryCodecDeriver private[json] (
               case Left(error) => in.decodeError(error.message)
             }
 
-          override def encodeValue(x: A, out: JsonWriter): Unit = wrappedCodec.encodeValue(unwrap(x), out)
+          override def encodeValue(x: A, out: JsonWriter): Unit =
+            unwrap(x) match {
+              case Right(b)    => wrappedCodec.encodeValue(b, out)
+              case Left(error) => out.encodeError(error.message)
+            }
 
           override def decodeKey(in: JsonReader): A =
             wrap(
@@ -2007,7 +2015,11 @@ class JsonBinaryCodecDeriver private[json] (
               case Left(error) => in.decodeError(error.message)
             }
 
-          override def encodeKey(x: A, out: JsonWriter): Unit = wrappedCodec.encodeKey(unwrap(x), out)
+          override def encodeKey(x: A, out: JsonWriter): Unit =
+            unwrap(x) match {
+              case Right(b)    => wrappedCodec.encodeKey(b, out)
+              case Left(error) => out.encodeError(error.message)
+            }
 
           override def toJsonSchema: JsonSchema = wrappedCodec.toJsonSchema
         }

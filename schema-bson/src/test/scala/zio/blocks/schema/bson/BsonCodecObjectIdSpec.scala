@@ -35,7 +35,7 @@ object BsonCodecObjectIdSpec extends SchemaBaseSpec {
         wrapperPrimitiveType = None,
         wrapperBinding = new zio.blocks.schema.binding.Binding.Wrapper[CustomerId, ObjectId](
           wrap = oid => Right(CustomerId(oid)),
-          unwrap = _.value
+          unwrap = cid => Right(cid.value)
         )
       )
     )

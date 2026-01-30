@@ -1030,7 +1030,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
             case x @ EmailRegex(_*) => new Right(new Email(x))
             case _                  => new Left(SchemaError.validationFailed("Expected Email"))
           },
-          _.value
+          e => Right(e.value)
         )
       )
     )

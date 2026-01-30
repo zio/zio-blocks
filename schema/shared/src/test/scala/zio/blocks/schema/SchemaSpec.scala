@@ -669,7 +669,7 @@ object SchemaSpec extends SchemaBaseSpec {
               Schema.list[V].reflect,
               zio.blocks.typeid.TypeId.of[Chunk[V]],
               None,
-              new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
+              new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), x => Right(x.toList))
             )
           )
 
@@ -1795,20 +1795,20 @@ object SchemaSpec extends SchemaBaseSpec {
     suite("transform")(
       test("transforms schema with total functions") {
         case class UserId(value: Long)
-        val userIdSchema: Schema[UserId] = Schema[Long].transform(UserId(_), _.value)
+        val userIdSchema: Schema[UserId] = Schema[Long].transform(to = UserId(_), from = _.value)
         val dv                           = Schema[Long].toDynamicValue(42L)
         assert(userIdSchema.fromDynamicValue(dv))(isRight(equalTo(UserId(42L))))
       },
       test("round-trips correctly") {
         case class UserId(value: Long)
-        val userIdSchema: Schema[UserId] = Schema[Long].transform(UserId(_), _.value)
+        val userIdSchema: Schema[UserId] = Schema[Long].transform(to = UserId(_), from = _.value)
         val value                        = UserId(123L)
         val dv                           = userIdSchema.toDynamicValue(value)
         assert(userIdSchema.fromDynamicValue(dv))(isRight(equalTo(value)))
       },
       test("creates Wrapper reflect") {
         case class UserId(value: Long)
-        val userIdSchema: Schema[UserId] = Schema[Long].transform(UserId(_), _.value)
+        val userIdSchema: Schema[UserId] = Schema[Long].transform(to = UserId(_), from = _.value)
         assertTrue(userIdSchema.reflect.isWrapper)
       },
       test("works with String-based wrappers") {
@@ -1816,6 +1816,66 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Email.schema.fromDynamicValue(Schema[String].toDynamicValue("test@example.com")))(
           isRight(equalTo(Email("test@example.com")))
         )
+      }
+    ),
+    suite("transform (failable in both directions)")(
+      test("succeeds when both wrap and unwrap succeed") {
+        case class ValidatedInt(value: Int)
+        val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
+          wrap = (n: Int) =>
+            if (n > 0) Right(ValidatedInt(n))
+            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+          unwrap = (v: ValidatedInt) =>
+            if (v.value < 100) Right(v.value)
+            else Left(SchemaError.validationFailed(s"Value too large: ${v.value}"))
+        )
+        val dv = Schema[Int].toDynamicValue(42)
+        assert(schema.fromDynamicValue(dv))(isRight(equalTo(ValidatedInt(42))))
+      },
+      test("fails when wrap fails") {
+        case class ValidatedInt(value: Int)
+        val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
+          wrap = (n: Int) =>
+            if (n > 0) Right(ValidatedInt(n))
+            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+          unwrap = (v: ValidatedInt) => Right(v.value)
+        )
+        val dv = Schema[Int].toDynamicValue(-1)
+        assert(schema.fromDynamicValue(dv))(isLeft(hasError("Expected positive, got -1")))
+      },
+      test("fails when unwrap fails during toDynamicValue") {
+        case class ValidatedInt(value: Int)
+        val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
+          wrap = (n: Int) => Right(ValidatedInt(n)),
+          unwrap = (v: ValidatedInt) =>
+            if (v.value < 100) Right(v.value)
+            else Left(SchemaError.validationFailed(s"Value too large: ${v.value}"))
+        )
+        val result = scala.util.Try(schema.toDynamicValue(ValidatedInt(200)))
+        assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.getMessage.contains("Value too large: 200"))
+      },
+      test("round-trips correctly when both directions succeed") {
+        case class ValidatedInt(value: Int)
+        val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
+          wrap = (n: Int) =>
+            if (n > 0) Right(ValidatedInt(n))
+            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+          unwrap = (v: ValidatedInt) =>
+            if (v.value < 100) Right(v.value)
+            else Left(SchemaError.validationFailed(s"Value too large: ${v.value}"))
+        )
+        val value = ValidatedInt(42)
+        val dv    = schema.toDynamicValue(value)
+        assert(schema.fromDynamicValue(dv))(isRight(equalTo(value)))
+      },
+      test("creates Wrapper reflect") {
+        case class ValidatedInt(value: Int)
+        val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
+          wrap = (n: Int) => Right(ValidatedInt(n)),
+          unwrap = (v: ValidatedInt) => Right(v.value)
+        )
+        assertTrue(schema.reflect.isWrapper)
       }
     ),
     test("doesn't generate schema for unsupported classes") {

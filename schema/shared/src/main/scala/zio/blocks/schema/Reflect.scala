@@ -1160,7 +1160,10 @@ object Reflect {
       copy(modifiers = this.modifiers ++ modifiers)
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue =
-      wrapped.toDynamicValue(binding.unwrap(value))
+      binding.unwrap(value) match {
+        case Right(unwrapped) => wrapped.toDynamicValue(unwrapped)
+        case Left(error)      => throw error
+      }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {

@@ -861,8 +861,8 @@ object AvroFormat
                 case _: PrimitiveType.Unit.type => AvroBinaryCodec.unitType
                 case _                          => AvroBinaryCodec.objectType
               }) {
-                private[this] val unwrap       = binding.unwrap
                 private[this] val wrap         = binding.wrap
+                private[this] val unwrap       = binding.unwrap
                 private[this] val wrappedCodec = codec
 
                 val avroSchema: AvroSchema = wrappedCodec.avroSchema
@@ -879,7 +879,11 @@ object AvroFormat
                   }
                 }
 
-                def encode(value: A, encoder: BinaryEncoder): Unit = wrappedCodec.encode(unwrap(value), encoder)
+                def encode(value: A, encoder: BinaryEncoder): Unit =
+                  unwrap(value) match {
+                    case Right(wrapped) => wrappedCodec.encode(wrapped, encoder)
+                    case Left(err)      => throw err
+                  }
               }
             } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else {

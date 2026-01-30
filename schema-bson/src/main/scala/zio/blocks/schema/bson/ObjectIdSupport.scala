@@ -28,7 +28,7 @@ object ObjectIdSupport {
       wrapperPrimitiveType = None,
       wrapperBinding = new Binding.Wrapper[ObjectId, String](
         wrap = str => Right(new ObjectId(str)),
-        unwrap = _.toHexString
+        unwrap = oid => Right(oid.toHexString)
       )
     )
   )

@@ -603,8 +603,8 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         case _: PrimitiveType.Unit.type => unitType
         case _                          => objectType
       }) {
-        private[this] val unwrap       = binding.unwrap
         private[this] val wrap         = binding.wrap
+        private[this] val unwrap       = binding.unwrap
         private[this] val wrappedCodec = codec
 
         def decodeValue(in: MessagePackReader): A =
@@ -620,7 +620,10 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
           }
 
         def encodeValue(value: A, out: MessagePackWriter): Unit =
-          wrappedCodec.encodeValue(unwrap(value), out)
+          unwrap(value) match {
+            case Right(wrapped) => wrappedCodec.encodeValue(wrapped, out)
+            case Left(error)    => throw error
+          }
       }
     } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, A]].instance.force
 

@@ -3103,7 +3103,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             case x @ EmailRegex(_*) => new Right(new Email(x))
             case _                  => new Left(SchemaError.validationFailed("expected e-mail"))
           },
-          _.value
+          x => Right(x.value)
         )
       )
     )
