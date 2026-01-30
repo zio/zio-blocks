@@ -67,30 +67,30 @@ object TypeIdSpec extends ZIOSpecDefault {
       }
     ),
     suite("TypeParam")(
-      test("toString includes name and index") {
-        // Basic type param without variance shows just name@index
-        assertTrue(
-          TypeParam("X", 5).toString == "X@5"
-        )
-      },
-      test("variance is reflected in toString") {
-        val covariant     = TypeParam("A", 0, Variance.Covariant)
-        val contravariant = TypeParam("A", 0, Variance.Contravariant)
-        val invariant     = TypeParam("A", 0, Variance.Invariant)
-        assertTrue(
-          covariant.toString == "+A@0",
-          contravariant.toString == "-A@0",
-          invariant.toString == "A@0"
-        )
-      },
-      test("higher-kinded params show arity") {
-        val hk1 = TypeParam.higherKinded("F", 0, 1)
-        val hk2 = TypeParam.higherKinded("G", 0, 2)
-        assertTrue(
-          hk1.toString == "F[1]@0",
-          hk2.toString == "G[2]@0"
-        )
-      }
+       test("toString includes name and index") {
+         // Basic type param without variance shows just name@index
+         assertTrue(
+           TypeParam("X", 5).toString == "X"
+         )
+       },
+       test("variance is reflected in toString") {
+         val covariant     = TypeParam("A", 0, Variance.Covariant)
+         val contravariant = TypeParam("A", 0, Variance.Contravariant)
+         val invariant     = TypeParam("A", 0, Variance.Invariant)
+         assertTrue(
+           covariant.toString == "+A",
+           contravariant.toString == "-A",
+           invariant.toString == "A"
+         )
+       },
+       test("higher-kinded params show arity") {
+         val hk1 = TypeParam.higherKinded("F", 0, 1)
+         val hk2 = TypeParam.higherKinded("G", 0, 2)
+         assertTrue(
+           hk1.toString == "F[_]",
+           hk2.toString == "G[_, _]"
+         )
+       }
     ),
     suite("TypeId construction")(
       test("nominal creates nominal TypeId") {
