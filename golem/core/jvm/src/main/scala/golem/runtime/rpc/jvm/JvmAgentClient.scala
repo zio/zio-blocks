@@ -105,12 +105,34 @@ object JvmAgentClient {
       val fut: Future[Any] =
         Future {
           val cliBase = Vector("env", "-u", "ARGV0", cfg.golemCli) ++ cfg.golemCliFlags
-          val cmd     = cliBase ++ Vector("--yes", "agent", "invoke", agentId, fn) ++ payloads
 
-          val out = GolemCliProcess.run(new java.io.File("."), cmd) match {
-            case Left(err)  => throw new RuntimeException(err)
-            case Right(out) => out
+          def runInvoke(targetAgentId: String, targetFn: String): Either[String, String] = {
+            val cmd = cliBase ++ Vector("--yes", "agent", "invoke", targetAgentId, targetFn) ++ payloads
+            GolemCliProcess.run(new java.io.File("."), cmd)
           }
+
+          def isTypeNotFound(err: String): Boolean =
+            err.contains("Agent type not found") || err.contains("Failed to parse agent name")
+
+          val primary = runInvoke(agentId, fn)
+          val out =
+            primary match {
+              case Right(ok) => ok
+              case Left(err) =>
+                val typeName  = agentType.typeName
+                val kebabType = kebab(typeName)
+                if (kebabType != typeName && isTypeNotFound(err)) {
+                  val ctorPart   = agentId.stripPrefix(s"${cfg.component}/$typeName")
+                  val fallbackId = s"${cfg.component}/$kebabType$ctorPart"
+                  val fallbackFn = s"${cfg.component}/$kebabType.{${kebab(name)}}"
+                  runInvoke(fallbackId, fallbackFn) match {
+                    case Right(ok) => ok
+                    case Left(_)   => throw new RuntimeException(err)
+                  }
+                } else {
+                  throw new RuntimeException(err)
+                }
+            }
 
           val wave = WaveTextCodec.parseLastWaveResult(out).getOrElse {
             throw new RuntimeException(s"Could not find WAVE result in golem-cli output:\n$out")

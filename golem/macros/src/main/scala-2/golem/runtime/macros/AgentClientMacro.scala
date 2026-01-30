@@ -67,7 +67,7 @@ object AgentClientMacroImpl {
   private def agentTypeNameOrDefault(c: blackbox.Context)(symbol: c.universe.Symbol): String = {
     import c.universe._
     def defaultTypeNameFromTrait(sym: Symbol): String =
-      kebabCase(sym.name.decodedName.toString)
+      sym.name.decodedName.toString
 
     def extractTypeName(args: List[Tree]): Option[String] =
       // Keep this simple and resilient across Scala 2 minor versions:
@@ -86,21 +86,14 @@ object AgentClientMacroImpl {
         c.abort(c.enclosingPosition, s"Missing @agentDefinition(...) on agent trait: ${symbol.fullName}")
       case Some(ann) =>
         extractTypeName(ann.tree.children.tail) match {
-          case Some(s) if s.trim.nonEmpty => validateTypeName(c)(s)
+          case Some(s) if s.trim.nonEmpty => validateTypeName(s)
           case _                          => defaultTypeNameFromTrait(symbol)
         }
     }
   }
 
-  private def validateTypeName(c: blackbox.Context)(value: String): String = {
-    if (value.contains("_")) {
-      c.abort(
-        c.enclosingPosition,
-        s"Invalid agentDefinition typeName '$value': use kebab-case (e.g. 'counter-agent') and avoid underscores."
-      )
-    }
+  private def validateTypeName(value: String): String =
     value
-  }
 
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {
     import c.universe._

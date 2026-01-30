@@ -13,14 +13,8 @@ object AgentNameMacroImpl {
     val tpe = weakTypeOf[T]
     val sym = tpe.typeSymbol
 
-    def defaultTypeNameFromTrait(sym: Symbol): String = {
-      val raw = sym.name.decodedName.toString
-      // CamelCase -> kebab-case (good enough for SDK defaults)
-      raw
-        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
-        .toLowerCase
-    }
+    def defaultTypeNameFromTrait(sym: Symbol): String =
+      sym.name.decodedName.toString
 
     val maybe = sym.annotations.collectFirst {
       case ann

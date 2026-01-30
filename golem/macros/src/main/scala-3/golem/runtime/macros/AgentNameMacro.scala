@@ -10,15 +10,8 @@ object AgentNameMacro {
     import quotes.reflect.*
     val sym = TypeRepr.of[T].typeSymbol
 
-    def defaultTypeNameFromTrait(sym: Symbol): String = {
-      val raw = sym.name
-      // CamelCase -> kebab-case (good enough for SDK defaults)
-      val s = raw
-        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
-        .toLowerCase
-      s
-    }
+    def defaultTypeNameFromTrait(sym: Symbol): String =
+      sym.name
 
     def extractAgentDefinitionTypeName(args: List[Term]): Option[String] =
       args.collectFirst {

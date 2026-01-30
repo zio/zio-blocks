@@ -23,13 +23,8 @@ object AgentDefinitionMacro {
     if !typeSymbol.flags.is(Flags.Trait) then
       report.errorAndAbort(s"@agent target must be a trait, found: ${typeSymbol.fullName}")
 
-    def defaultTypeNameFromTrait(sym: Symbol): String = {
-      val raw = sym.name
-      raw
-        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
-        .toLowerCase
-    }
+    def defaultTypeNameFromTrait(sym: Symbol): String =
+      sym.name
 
     val hasAgentDefinition =
       typeSymbol.annotations.exists {
@@ -91,15 +86,8 @@ object AgentDefinitionMacro {
     }.flatten.map(_.trim).filter(_.nonEmpty)
   }
 
-  private def validateTypeName(using Quotes)(value: String): String = {
-    import quotes.reflect.*
-    if (value.contains("_")) {
-      report.errorAndAbort(
-        s"Invalid agentDefinition typeName '$value': use kebab-case (e.g. 'counter-agent') and avoid underscores."
-      )
-    }
+  private def validateTypeName(value: String): String =
     value
-  }
 
   private def agentDefinitionMode(using
     Quotes

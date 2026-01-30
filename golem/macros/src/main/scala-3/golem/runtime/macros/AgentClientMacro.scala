@@ -82,7 +82,7 @@ object AgentClientMacro {
   private def agentTypeNameOrDefault(using Quotes)(traitSymbol: quotes.reflect.Symbol): String = {
     import quotes.reflect.*
     def defaultTypeNameFromTrait(sym: Symbol): String =
-      kebabCase(sym.name)
+      sym.name
 
     def extractTypeName(args: List[Term]): Option[String] =
       args.collectFirst {
@@ -109,15 +109,8 @@ object AgentClientMacro {
     }
   }
 
-  private def validateTypeName(using Quotes)(value: String): String = {
-    import quotes.reflect.*
-    if (value.contains("_")) {
-      report.errorAndAbort(
-        s"Invalid agentDefinition typeName '$value': use kebab-case (e.g. 'counter-agent') and avoid underscores."
-      )
-    }
+  private def validateTypeName(value: String): String =
     value
-  }
 
   private def agentInputType(using
     Quotes

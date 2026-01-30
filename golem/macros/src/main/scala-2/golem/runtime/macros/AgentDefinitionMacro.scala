@@ -26,13 +26,8 @@ object AgentDefinitionMacroImpl {
     }
 
     val agentDefinitionType                           = typeOf[golem.runtime.annotations.agentDefinition]
-    def defaultTypeNameFromTrait(sym: Symbol): String = {
-      val raw = sym.name.decodedName.toString
-      raw
-        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
-        .toLowerCase
-    }
+    def defaultTypeNameFromTrait(sym: Symbol): String =
+      sym.name.decodedName.toString
 
     val rawTypeName: String =
       typeSymbol.annotations.collectFirst {
@@ -51,7 +46,7 @@ object AgentDefinitionMacroImpl {
             c.abort(c.enclosingPosition, s"Missing @agentDefinition(...) on agent trait: ${typeSymbol.fullName}")
           defaultTypeNameFromTrait(typeSymbol)
         }
-      validateTypeName(c)(resolved)
+      validateTypeName(resolved)
     }
 
     val descriptionType = typeOf[golem.runtime.annotations.description]
@@ -83,15 +78,8 @@ object AgentDefinitionMacroImpl {
     """)
   }
 
-  private def validateTypeName(c: blackbox.Context)(value: String): String = {
-    if (value.contains("_")) {
-      c.abort(
-        c.enclosingPosition,
-        s"Invalid agentDefinition typeName '$value': use kebab-case (e.g. 'counter-agent') and avoid underscores."
-      )
-    }
+  private def validateTypeName(value: String): String =
     value
-  }
 
   private def methodMetadata(c: blackbox.Context)(
     method: c.universe.MethodSymbol,

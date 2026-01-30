@@ -15,13 +15,8 @@ object AgentSdkMacro {
 
     val traitSym = TypeRepr.of[Trait].typeSymbol
 
-    def defaultTypeNameFromTrait(sym: Symbol): String = {
-      val raw = sym.name
-      raw
-        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
-        .toLowerCase
-    }
+    def defaultTypeNameFromTrait(sym: Symbol): String =
+      sym.name
 
     def extractTypeNameFromAgentDefinition(sym: Symbol): Option[String] =
       sym.annotations.collectFirst {
@@ -74,13 +69,6 @@ object AgentSdkMacro {
     }
   }
 
-  private def validateTypeName(using Quotes)(value: String): String = {
-    import quotes.reflect.*
-    if (value.contains("_")) {
-      report.errorAndAbort(
-        s"Invalid agentDefinition typeName '$value': use kebab-case (e.g. 'counter-agent') and avoid underscores."
-      )
-    }
+  private def validateTypeName(value: String): String =
     value
-  }
 }
