@@ -215,17 +215,17 @@ object AdtSpec extends MarkdownBaseSpec {
         assertTrue(tr.cells.size == 1, tr.cells(0).size == 2)
       }
     ),
-    suite("Document")(
-      test("Document wraps Chunk[Block]") {
-        val doc = Document(Chunk(Paragraph(Chunk(Text("hello")))))
+    suite("Doc")(
+      test("Doc wraps Chunk[Block]") {
+        val doc = Doc(Chunk(Paragraph(Chunk(Text("hello")))))
         assertTrue(doc.blocks.size == 1)
       },
-      test("Document with empty blocks") {
-        val doc = Document(Chunk.empty)
+      test("Doc with empty blocks") {
+        val doc = Doc(Chunk.empty)
         assertTrue(doc.blocks.size == 0)
       },
-      test("Document with multiple blocks") {
-        val doc = Document(
+      test("Doc with multiple blocks") {
+        val doc = Doc(
           Chunk(
             Heading(HeadingLevel.H1, Chunk(Text("Title"))),
             Paragraph(Chunk(Text("Content")))
@@ -233,13 +233,13 @@ object AdtSpec extends MarkdownBaseSpec {
         )
         assertTrue(doc.blocks.size == 2)
       },
-      test("Document with default metadata") {
-        val doc = Document(Chunk(Paragraph(Chunk(Text("hi")))))
+      test("Doc with default metadata") {
+        val doc = Doc(Chunk(Paragraph(Chunk(Text("hi")))))
         assertTrue(doc.metadata.isEmpty)
       },
-      test("Document with custom metadata") {
+      test("Doc with custom metadata") {
         val meta = Map("author" -> "John", "date" -> "2024-01-30")
-        val doc  = Document(Chunk(Paragraph(Chunk(Text("hi")))), meta)
+        val doc  = Doc(Chunk(Paragraph(Chunk(Text("hi")))), meta)
         assertTrue(doc.metadata == meta)
       }
     )

@@ -6,13 +6,13 @@ import scala.reflect.macros.blackbox
 trait MdInterpolator {
 
   implicit class MdStringContext(val sc: StringContext) {
-    def md(args: Any*): Document = macro MdMacros.mdImpl
+    def md(args: Any*): Doc = macro MdMacros.mdImpl
   }
 }
 
 private[markdown] object MdMacros {
 
-  def mdImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Document] = {
+  def mdImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Doc] = {
     import c.universe._
 
     val parts = c.prefix.tree match {

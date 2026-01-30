@@ -8,33 +8,33 @@ object ParserSpec extends MarkdownBaseSpec {
     suite("Headings")(
       test("parses H1") {
         val result = Parser.parse("# Hello")
-        assertTrue(result == Right(Document(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))))
+        assertTrue(result == Right(Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))))
       },
       test("parses H2") {
         val result = Parser.parse("## World")
-        assertTrue(result == Right(Document(Chunk(Heading(HeadingLevel.H2, Chunk(Text("World")))))))
+        assertTrue(result == Right(Doc(Chunk(Heading(HeadingLevel.H2, Chunk(Text("World")))))))
       },
       test("parses H3") {
         val result = Parser.parse("### Level 3")
-        assertTrue(result == Right(Document(Chunk(Heading(HeadingLevel.H3, Chunk(Text("Level 3")))))))
+        assertTrue(result == Right(Doc(Chunk(Heading(HeadingLevel.H3, Chunk(Text("Level 3")))))))
       },
       test("parses H4") {
         val result = Parser.parse("#### Level 4")
-        assertTrue(result == Right(Document(Chunk(Heading(HeadingLevel.H4, Chunk(Text("Level 4")))))))
+        assertTrue(result == Right(Doc(Chunk(Heading(HeadingLevel.H4, Chunk(Text("Level 4")))))))
       },
       test("parses H5") {
         val result = Parser.parse("##### Level 5")
-        assertTrue(result == Right(Document(Chunk(Heading(HeadingLevel.H5, Chunk(Text("Level 5")))))))
+        assertTrue(result == Right(Doc(Chunk(Heading(HeadingLevel.H5, Chunk(Text("Level 5")))))))
       },
       test("parses H6") {
         val result = Parser.parse("###### Deep")
-        assertTrue(result == Right(Document(Chunk(Heading(HeadingLevel.H6, Chunk(Text("Deep")))))))
+        assertTrue(result == Right(Doc(Chunk(Heading(HeadingLevel.H6, Chunk(Text("Deep")))))))
       },
       test("parses heading with inline formatting") {
         val result = Parser.parse("# Hello *world*")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Heading(HeadingLevel.H1, Chunk(Text("Hello "), Emphasis(Chunk(Text("world")))))
               )
@@ -44,19 +44,19 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses heading with trailing hashes") {
         val result = Parser.parse("## Heading ##")
-        assertTrue(result == Right(Document(Chunk(Heading(HeadingLevel.H2, Chunk(Text("Heading")))))))
+        assertTrue(result == Right(Doc(Chunk(Heading(HeadingLevel.H2, Chunk(Text("Heading")))))))
       }
     ),
     suite("Paragraphs")(
       test("parses simple paragraph") {
         val result = Parser.parse("Hello world")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("Hello world")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("Hello world")))))))
       },
       test("parses multiple paragraphs") {
         val result = Parser.parse("Para 1\n\nPara 2")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(Chunk(Text("Para 1"))),
                 Paragraph(Chunk(Text("Para 2")))
@@ -69,7 +69,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("Line 1\nLine 2")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(Chunk(Text("Line 1"), SoftBreak, Text("Line 2")))
               )
@@ -81,7 +81,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("Line 1  \nLine 2")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(Chunk(Text("Line 1"), HardBreak, Text("Line 2")))
               )
@@ -93,7 +93,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("Line 1\\\nLine 2")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(Chunk(Text("Line 1"), HardBreak, Text("Line 2")))
               )
@@ -106,44 +106,44 @@ object ParserSpec extends MarkdownBaseSpec {
       test("parses fenced code block with backticks") {
         val input  = "```scala\nval x = 1\n```"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(CodeBlock(Some("scala"), "val x = 1")))))
+        assertTrue(result == Right(Doc(Chunk(CodeBlock(Some("scala"), "val x = 1")))))
       },
       test("parses fenced code block with tildes") {
         val input  = "~~~python\nprint('hello')\n~~~"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(CodeBlock(Some("python"), "print('hello')")))))
+        assertTrue(result == Right(Doc(Chunk(CodeBlock(Some("python"), "print('hello')")))))
       },
       test("parses fenced code block without info string") {
         val input  = "```\ncode here\n```"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(CodeBlock(None, "code here")))))
+        assertTrue(result == Right(Doc(Chunk(CodeBlock(None, "code here")))))
       },
       test("parses fenced code block with multiple lines") {
         val input  = "```\nline 1\nline 2\nline 3\n```"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(CodeBlock(None, "line 1\nline 2\nline 3")))))
+        assertTrue(result == Right(Doc(Chunk(CodeBlock(None, "line 1\nline 2\nline 3")))))
       }
     ),
     suite("Thematic breaks")(
       test("parses thematic break with dashes") {
         val result = Parser.parse("---")
-        assertTrue(result == Right(Document(Chunk(ThematicBreak))))
+        assertTrue(result == Right(Doc(Chunk(ThematicBreak))))
       },
       test("parses thematic break with asterisks") {
         val result = Parser.parse("***")
-        assertTrue(result == Right(Document(Chunk(ThematicBreak))))
+        assertTrue(result == Right(Doc(Chunk(ThematicBreak))))
       },
       test("parses thematic break with underscores") {
         val result = Parser.parse("___")
-        assertTrue(result == Right(Document(Chunk(ThematicBreak))))
+        assertTrue(result == Right(Doc(Chunk(ThematicBreak))))
       },
       test("parses thematic break with more than 3 chars") {
         val result = Parser.parse("-----")
-        assertTrue(result == Right(Document(Chunk(ThematicBreak))))
+        assertTrue(result == Right(Doc(Chunk(ThematicBreak))))
       },
       test("parses thematic break with spaces") {
         val result = Parser.parse("- - -")
-        assertTrue(result == Right(Document(Chunk(ThematicBreak))))
+        assertTrue(result == Right(Doc(Chunk(ThematicBreak))))
       }
     ),
     suite("Block quotes")(
@@ -151,7 +151,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("> quoted text")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BlockQuote(Chunk(Paragraph(Chunk(Text("quoted text")))))
               )
@@ -163,7 +163,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("> line 1\n> line 2")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BlockQuote(
                   Chunk(
@@ -179,7 +179,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("> > nested")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BlockQuote(
                   Chunk(
@@ -198,7 +198,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BulletList(
                   Chunk(
@@ -217,7 +217,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BulletList(
                   Chunk(
@@ -236,7 +236,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BulletList(
                   Chunk(
@@ -255,7 +255,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BulletList(
                   Chunk(
@@ -273,7 +273,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BulletList(
                   Chunk(
@@ -291,7 +291,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BulletList(
                   Chunk(
@@ -312,7 +312,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 OrderedList(
                   1,
@@ -332,7 +332,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 OrderedList(
                   5,
@@ -354,7 +354,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Table(
                   TableRow(Chunk(Chunk(Text("a")), Chunk(Text("b")))),
@@ -371,7 +371,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Table(
                   TableRow(Chunk(Chunk(Text("left")), Chunk(Text("center")), Chunk(Text("right")))),
@@ -388,7 +388,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Table(
                   TableRow(Chunk(Chunk(Text("h1")), Chunk(Text("h2")))),
@@ -408,12 +408,12 @@ object ParserSpec extends MarkdownBaseSpec {
       test("parses HTML block") {
         val input  = "<div>\n  content\n</div>"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(HtmlBlock("<div>\n  content\n</div>")))))
+        assertTrue(result == Right(Doc(Chunk(HtmlBlock("<div>\n  content\n</div>")))))
       },
       test("parses self-closing HTML") {
         val input  = "<br/>"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(HtmlBlock("<br/>")))))
+        assertTrue(result == Right(Doc(Chunk(HtmlBlock("<br/>")))))
       }
     ),
     suite("Inline formatting")(
@@ -427,7 +427,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("_hello_")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(Chunk(Emphasis(Chunk(Text("hello")))))
               )
@@ -445,7 +445,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("__bold__")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(Chunk(Strong(Chunk(Text("bold")))))
               )
@@ -531,7 +531,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("Visit https://example.com today")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(
                   Chunk(
@@ -549,7 +549,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("**bold *and italic***")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(
                   Chunk(
@@ -573,7 +573,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Heading(HeadingLevel.H1, Chunk(Text("Title"))),
                 Paragraph(Chunk(Text("Some text")))
@@ -599,7 +599,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Heading(HeadingLevel.H1, Chunk(Text("Title"))),
                 Paragraph(
@@ -629,37 +629,37 @@ object ParserSpec extends MarkdownBaseSpec {
     suite("Empty and whitespace")(
       test("parses empty input") {
         val result = Parser.parse("")
-        assertTrue(result == Right(Document(Chunk.empty)))
+        assertTrue(result == Right(Doc(Chunk.empty)))
       },
       test("parses whitespace only") {
         val result = Parser.parse("   \n\n   ")
-        assertTrue(result == Right(Document(Chunk.empty)))
+        assertTrue(result == Right(Doc(Chunk.empty)))
       }
     ),
     suite("Edge cases")(
       test("parses heading without space after hash") {
         val result = Parser.parse("#NoSpace")
-        assertTrue(result == Right(Document(Chunk(Heading(HeadingLevel.H1, Chunk(Text("#NoSpace")))))))
+        assertTrue(result == Right(Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("#NoSpace")))))))
       },
       test("parses thematic break with less than 3 chars as paragraph") {
         val result = Parser.parse("--")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("--")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("--")))))))
       },
       test("parses thematic break with mixed chars as paragraph") {
         val result = Parser.parse("-*-")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("-*-")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("-*-")))))))
       },
       test("parses multi-line HTML block") {
         val input  = "<div>\n  <p>content</p>\n</div>"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(HtmlBlock("<div>\n  <p>content</p>\n</div>")))))
+        assertTrue(result == Right(Doc(Chunk(HtmlBlock("<div>\n  <p>content</p>\n</div>")))))
       },
       test("parses HTML block followed by blank line") {
         val input  = "<div>content</div>\n\nParagraph"
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 HtmlBlock("<div>content</div>"),
                 Paragraph(Chunk(Text("Paragraph")))
@@ -670,46 +670,46 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses unclosed angle bracket as text") {
         val result = Parser.parse("a < b")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("a < b")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("a < b")))))))
       },
       test("parses unclosed emphasis as text") {
         val result = Parser.parse("*unclosed")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("*unclosed")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("*unclosed")))))))
       },
       test("parses unclosed strong as text") {
         val result = Parser.parse("**unclosed")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("**unclosed")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("**unclosed")))))))
       },
       test("parses unclosed strikethrough as text") {
         val result = Parser.parse("~~unclosed")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("~~unclosed")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("~~unclosed")))))))
       },
       test("parses unclosed inline code as text") {
         val result = Parser.parse("`unclosed")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("`unclosed")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("`unclosed")))))))
       },
       test("parses unclosed link as text") {
         val result = Parser.parse("[unclosed")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("[unclosed")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("[unclosed")))))))
       },
       test("parses unclosed image as text") {
         val result = Parser.parse("![unclosed")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("![unclosed")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("![unclosed")))))))
       },
       test("parses link without closing paren as text") {
         val result = Parser.parse("[text](url")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("[text](url")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("[text](url")))))))
       },
       test("parses table without delimiter row as paragraph") {
         val result = Parser.parse("| a | b |")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("| a | b |")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("| a | b |")))))))
       },
       test("parses table with invalid delimiter as paragraph") {
         val input  = "| a | b |\n| x | y |"
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(Chunk(Text("| a | b |"), SoftBreak, Text("| x | y |")))
               )
@@ -721,7 +721,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("***bold and italic***")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(
                   Chunk(
@@ -741,7 +741,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("___bold and italic___")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(
                   Chunk(
@@ -759,17 +759,17 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses unclosed triple asterisk") {
         val result = Parser.parse("***unclosed")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("***unclosed")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("***unclosed")))))))
       },
       test("parses double backtick code without closing") {
         val result = Parser.parse("``unclosed")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("``unclosed")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("``unclosed")))))))
       },
       test("parses HTML inline tag") {
         val result = Parser.parse("text <span>inline</span> more")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(
                   Chunk(
@@ -789,7 +789,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("Visit http://example.com today")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(
                   Chunk(
@@ -807,7 +807,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("[text](url)")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(Chunk(Link(Chunk(Text("text")), "url", None)))
               )
@@ -820,7 +820,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BulletList(
                   Chunk(
@@ -843,7 +843,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 OrderedList(
                   1,
@@ -864,14 +864,14 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("handles empty paragraph lines") {
         val result = Parser.parse("text\n\n")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("text")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("text")))))))
       },
       test("parses paragraph ending with block element") {
         val input  = "text\n# Heading"
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(Chunk(Text("text"))),
                 Heading(HeadingLevel.H1, Chunk(Text("Heading")))
@@ -884,7 +884,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(">text")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BlockQuote(Chunk(Paragraph(Chunk(Text("text")))))
               )
@@ -894,21 +894,21 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses thematic break with only spaces between chars") {
         val result = Parser.parse("- - - - -")
-        assertTrue(result == Right(Document(Chunk(ThematicBreak))))
+        assertTrue(result == Right(Doc(Chunk(ThematicBreak))))
       },
       test("parses image without closing paren") {
         val result = Parser.parse("![alt](url")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("![alt](url")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("![alt](url")))))))
       },
       test("parses image with incomplete bracket") {
         val result = Parser.parse("![alt")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("![alt")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("![alt")))))))
       },
       test("parses URL at end of text") {
         val result = Parser.parse("Visit https://example.com")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(
                   Chunk(
@@ -923,24 +923,24 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses text with special char at start") {
         val result = Parser.parse("*")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("*")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("*")))))))
       },
       test("parses HTML block without closing tag") {
         val input  = "<div>\ncontent"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(HtmlBlock("<div>\ncontent")))))
+        assertTrue(result == Right(Doc(Chunk(HtmlBlock("<div>\ncontent")))))
       },
       test("parses HTML block with unclosed angle bracket") {
         val input  = "<div"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(HtmlBlock("<div")))))
+        assertTrue(result == Right(Doc(Chunk(HtmlBlock("<div")))))
       },
       test("parses table without leading pipe") {
         val input  = "a | b\n---|---\n1 | 2"
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Table(
                   TableRow(Chunk(Chunk(Text("a")), Chunk(Text("b")))),
@@ -957,7 +957,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Table(
                   TableRow(Chunk(Chunk(Text("a")), Chunk(Text("b")))),
@@ -973,7 +973,7 @@ object ParserSpec extends MarkdownBaseSpec {
         val result = Parser.parse("""[text](url "title)""")
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 Paragraph(Chunk(Link(Chunk(Text("text")), "url \"title", None)))
               )
@@ -983,32 +983,32 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses triple asterisk without closing as text") {
         val result = Parser.parse("***no close")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("***no close")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("***no close")))))))
       },
       test("parses empty inline content") {
         val result = Parser.parse("")
-        assertTrue(result == Right(Document(Chunk.empty)))
+        assertTrue(result == Right(Doc(Chunk.empty)))
       },
       test("parses text only paragraph") {
         val result = Parser.parse("just plain text")
-        assertTrue(result == Right(Document(Chunk(Paragraph(Chunk(Text("just plain text")))))))
+        assertTrue(result == Right(Doc(Chunk(Paragraph(Chunk(Text("just plain text")))))))
       },
       test("parses HTML comment block") {
         val input  = "<!-- comment -->"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(HtmlBlock("<!-- comment -->")))))
+        assertTrue(result == Right(Doc(Chunk(HtmlBlock("<!-- comment -->")))))
       },
       test("parses closing HTML tag block") {
         val input  = "</div>"
         val result = Parser.parse(input)
-        assertTrue(result == Right(Document(Chunk(HtmlBlock("</div>")))))
+        assertTrue(result == Right(Doc(Chunk(HtmlBlock("</div>")))))
       },
       test("parses task list with uppercase X") {
         val input  = "- [X] checked"
         val result = Parser.parse(input)
         assertTrue(
           result == Right(
-            Document(
+            Doc(
               Chunk(
                 BulletList(
                   Chunk(

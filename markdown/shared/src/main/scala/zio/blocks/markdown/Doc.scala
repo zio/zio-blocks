@@ -18,9 +18,7 @@ import zio.blocks.chunk.Chunk
  *
  * // Parse from string val doc = Parser.parse("# Hello World")
  *
- * // Construct programmatically val doc2 = Document(Chunk(
- * Heading(HeadingLevel.H1, Chunk(Text("Hello World"))) )) }}}
+ * // Construct programmatically val doc2 = Doc(Chunk( Heading(HeadingLevel.H1,
+ * Chunk(Text("Hello World"))) )) }}}
  */
-final case class Document(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)
-    extends Product
-    with Serializable
+final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty) extends Product with Serializable

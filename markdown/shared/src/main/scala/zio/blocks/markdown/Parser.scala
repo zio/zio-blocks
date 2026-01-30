@@ -5,8 +5,8 @@ import zio.blocks.chunk.Chunk
 /**
  * Parser for GitHub Flavored Markdown.
  *
- * Provides strict parsing of GFM documents, returning either a parsed
- * [[Document]] or a [[ParseError]] with position information.
+ * Provides strict parsing of GFM documents, returning either a parsed [[Doc]]
+ * or a [[ParseError]] with position information.
  *
  * ==Supported Features==
  *   - ATX headings (# to ######)
@@ -30,19 +30,19 @@ import zio.blocks.chunk.Chunk
 object Parser {
 
   /**
-   * Parses a markdown string into a Document.
+   * Parses a markdown string into a Doc.
    *
    * @param input
    *   The markdown string to parse
    * @return
-   *   Either a [[ParseError]] with position info, or the parsed [[Document]]
+   *   Either a [[ParseError]] with position info, or the parsed [[Doc]]
    *
    * @example
    *   {{{ Parser.parse("# Hello") match { case Right(doc) => println(s"Parsed
    *   $${doc.blocks.size} blocks") case Left(err) => println(s"Error at line
    *   $${err.line}: $${err.message}") } }}}
    */
-  def parse(input: String): Either[ParseError, Document] = {
+  def parse(input: String): Either[ParseError, Doc] = {
     val state = new ParserState(input)
     state.parseDocument()
   }
@@ -51,11 +51,11 @@ object Parser {
     private val lines: Array[String] = input.split("\n", -1)
     private var lineIndex: Int       = 0
 
-    def parseDocument(): Either[ParseError, Document] =
+    def parseDocument(): Either[ParseError, Doc] =
       for {
         _      <- checkFrontmatter()
         blocks <- parseBlocks()
-      } yield Document(blocks)
+      } yield Doc(blocks)
 
     private def checkFrontmatter(): Either[ParseError, Unit] =
       if (lines.nonEmpty && lines(0) == "---") {

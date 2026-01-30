@@ -7,28 +7,28 @@ object RendererSpec extends MarkdownBaseSpec {
   def spec = suite("Renderer")(
     suite("Blocks")(
       test("renders heading H1") {
-        val doc = Document(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))
+        val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))
         assertTrue(Renderer.render(doc) == "# Hello\n")
       },
       test("renders heading H2") {
-        val doc = Document(Chunk(Heading(HeadingLevel.H2, Chunk(Text("Title")))))
+        val doc = Doc(Chunk(Heading(HeadingLevel.H2, Chunk(Text("Title")))))
         assertTrue(Renderer.render(doc) == "## Title\n")
       },
       test("renders heading H6") {
-        val doc = Document(Chunk(Heading(HeadingLevel.H6, Chunk(Text("Small")))))
+        val doc = Doc(Chunk(Heading(HeadingLevel.H6, Chunk(Text("Small")))))
         assertTrue(Renderer.render(doc) == "###### Small\n")
       },
       test("renders heading with multiple inlines") {
         val doc =
-          Document(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello "), Strong(Chunk(Text("world")))))))
+          Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello "), Strong(Chunk(Text("world")))))))
         assertTrue(Renderer.render(doc) == "# Hello **world**\n")
       },
       test("renders paragraph") {
-        val doc = Document(Chunk(Paragraph(Chunk(Text("Hello world")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Text("Hello world")))))
         assertTrue(Renderer.render(doc) == "Hello world\n\n")
       },
       test("renders multiple paragraphs") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             Paragraph(Chunk(Text("First"))),
             Paragraph(Chunk(Text("Second")))
@@ -37,27 +37,27 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "First\n\nSecond\n\n")
       },
       test("renders code block without info") {
-        val doc = Document(Chunk(CodeBlock(None, "val x = 1")))
+        val doc = Doc(Chunk(CodeBlock(None, "val x = 1")))
         assertTrue(Renderer.render(doc) == "```\nval x = 1\n```\n")
       },
       test("renders code block with info") {
-        val doc = Document(Chunk(CodeBlock(Some("scala"), "val x = 1")))
+        val doc = Doc(Chunk(CodeBlock(Some("scala"), "val x = 1")))
         assertTrue(Renderer.render(doc) == "```scala\nval x = 1\n```\n")
       },
       test("renders code block with multiple lines") {
-        val doc = Document(Chunk(CodeBlock(Some("scala"), "val x = 1\nval y = 2")))
+        val doc = Doc(Chunk(CodeBlock(Some("scala"), "val x = 1\nval y = 2")))
         assertTrue(Renderer.render(doc) == "```scala\nval x = 1\nval y = 2\n```\n")
       },
       test("renders thematic break") {
-        val doc = Document(Chunk(ThematicBreak))
+        val doc = Doc(Chunk(ThematicBreak))
         assertTrue(Renderer.render(doc) == "---\n")
       },
       test("renders block quote single line") {
-        val doc = Document(Chunk(BlockQuote(Chunk(Paragraph(Chunk(Text("quote")))))))
+        val doc = Doc(Chunk(BlockQuote(Chunk(Paragraph(Chunk(Text("quote")))))))
         assertTrue(Renderer.render(doc) == "> quote\n>\n")
       },
       test("renders block quote multiple lines") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             BlockQuote(
               Chunk(
@@ -70,7 +70,7 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "> line 1\n>\n> line 2\n>\n")
       },
       test("renders bullet list tight") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             BulletList(
               Chunk(
@@ -84,7 +84,7 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "- item 1\n- item 2\n")
       },
       test("renders bullet list loose") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             BulletList(
               Chunk(
@@ -98,7 +98,7 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "- item 1\n\n- item 2\n\n")
       },
       test("renders ordered list") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             OrderedList(
               1,
@@ -113,7 +113,7 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "1. first\n2. second\n")
       },
       test("renders ordered list with start number") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             OrderedList(
               5,
@@ -128,7 +128,7 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "5. fifth\n6. sixth\n")
       },
       test("renders task list unchecked") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             BulletList(
               Chunk(
@@ -142,7 +142,7 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "- [ ] unchecked\n- [x] checked\n")
       },
       test("renders task list checked") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             BulletList(
               Chunk(
@@ -155,11 +155,11 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "- [x] done\n")
       },
       test("renders html block") {
-        val doc = Document(Chunk(HtmlBlock("<div>test</div>")))
+        val doc = Doc(Chunk(HtmlBlock("<div>test</div>")))
         assertTrue(Renderer.render(doc) == "<div>test</div>\n")
       },
       test("renders table simple") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             Table(
               TableRow(Chunk(Chunk(Text("a")), Chunk(Text("b")))),
@@ -171,7 +171,7 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "| a | b |\n|:---|---:|\n| 1 | 2 |\n")
       },
       test("renders table with center alignment") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             Table(
               TableRow(Chunk(Chunk(Text("x")), Chunk(Text("y")))),
@@ -183,7 +183,7 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "| x | y |\n|:--:|---|\n| 1 | 2 |\n")
       },
       test("renders table multiple rows") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             Table(
               TableRow(Chunk(Chunk(Text("a")), Chunk(Text("b")))),
@@ -202,63 +202,63 @@ object RendererSpec extends MarkdownBaseSpec {
     ),
     suite("Inlines")(
       test("renders text") {
-        val doc = Document(Chunk(Paragraph(Chunk(Text("hello")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Text("hello")))))
         assertTrue(Renderer.render(doc) == "hello\n\n")
       },
       test("renders emphasis") {
-        val doc = Document(Chunk(Paragraph(Chunk(Emphasis(Chunk(Text("em")))))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Emphasis(Chunk(Text("em")))))))
         assertTrue(Renderer.render(doc) == "*em*\n\n")
       },
       test("renders strong") {
-        val doc = Document(Chunk(Paragraph(Chunk(Strong(Chunk(Text("bold")))))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Strong(Chunk(Text("bold")))))))
         assertTrue(Renderer.render(doc) == "**bold**\n\n")
       },
       test("renders strikethrough") {
-        val doc = Document(Chunk(Paragraph(Chunk(Strikethrough(Chunk(Text("strike")))))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Strikethrough(Chunk(Text("strike")))))))
         assertTrue(Renderer.render(doc) == "~~strike~~\n\n")
       },
       test("renders code") {
-        val doc = Document(Chunk(Paragraph(Chunk(Code("x + y")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Code("x + y")))))
         assertTrue(Renderer.render(doc) == "`x + y`\n\n")
       },
       test("renders link without title") {
-        val doc = Document(Chunk(Paragraph(Chunk(Link(Chunk(Text("text")), "url", None)))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Link(Chunk(Text("text")), "url", None)))))
         assertTrue(Renderer.render(doc) == "[text](url)\n\n")
       },
       test("renders link with title") {
-        val doc = Document(Chunk(Paragraph(Chunk(Link(Chunk(Text("text")), "url", Some("title"))))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Link(Chunk(Text("text")), "url", Some("title"))))))
         assertTrue(Renderer.render(doc) == "[text](url \"title\")\n\n")
       },
       test("renders image without title") {
-        val doc = Document(Chunk(Paragraph(Chunk(Image("alt", "url", None)))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Image("alt", "url", None)))))
         assertTrue(Renderer.render(doc) == "![alt](url)\n\n")
       },
       test("renders image with title") {
-        val doc = Document(Chunk(Paragraph(Chunk(Image("alt", "url", Some("title"))))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Image("alt", "url", Some("title"))))))
         assertTrue(Renderer.render(doc) == "![alt](url \"title\")\n\n")
       },
       test("renders html inline") {
-        val doc = Document(Chunk(Paragraph(Chunk(HtmlInline("<br>")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(HtmlInline("<br>")))))
         assertTrue(Renderer.render(doc) == "<br>\n\n")
       },
       test("renders soft break") {
-        val doc = Document(Chunk(Paragraph(Chunk(Text("line1"), SoftBreak, Text("line2")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Text("line1"), SoftBreak, Text("line2")))))
         assertTrue(Renderer.render(doc) == "line1\nline2\n\n")
       },
       test("renders hard break") {
-        val doc = Document(Chunk(Paragraph(Chunk(Text("line1"), HardBreak, Text("line2")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Text("line1"), HardBreak, Text("line2")))))
         assertTrue(Renderer.render(doc) == "line1  \nline2\n\n")
       },
       test("renders autolink url") {
-        val doc = Document(Chunk(Paragraph(Chunk(Autolink("http://example.com", false)))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Autolink("http://example.com", false)))))
         assertTrue(Renderer.render(doc) == "<http://example.com>\n\n")
       },
       test("renders autolink email") {
-        val doc = Document(Chunk(Paragraph(Chunk(Autolink("test@example.com", true)))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Autolink("test@example.com", true)))))
         assertTrue(Renderer.render(doc) == "<test@example.com>\n\n")
       },
       test("renders mixed inlines") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             Paragraph(
               Chunk(
@@ -274,7 +274,7 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "Hello **world** with `code`.\n\n")
       },
       test("renders nested emphasis") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             Paragraph(
               Chunk(
@@ -288,67 +288,67 @@ object RendererSpec extends MarkdownBaseSpec {
     ),
     suite("Inlines - Inline.* versions")(
       test("renders Inline.Text") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Text("hello")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Text("hello")))))
         assertTrue(Renderer.render(doc) == "hello\n\n")
       },
       test("renders Inline.Code") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Code("x + y")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Code("x + y")))))
         assertTrue(Renderer.render(doc) == "`x + y`\n\n")
       },
       test("renders Inline.Emphasis") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Emphasis(Chunk(Inline.Text("em")))))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Emphasis(Chunk(Inline.Text("em")))))))
         assertTrue(Renderer.render(doc) == "*em*\n\n")
       },
       test("renders Inline.Strong") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Strong(Chunk(Inline.Text("bold")))))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Strong(Chunk(Inline.Text("bold")))))))
         assertTrue(Renderer.render(doc) == "**bold**\n\n")
       },
       test("renders Inline.Strikethrough") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Strikethrough(Chunk(Inline.Text("strike")))))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Strikethrough(Chunk(Inline.Text("strike")))))))
         assertTrue(Renderer.render(doc) == "~~strike~~\n\n")
       },
       test("renders Inline.Link without title") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Link(Chunk(Inline.Text("text")), "url", None)))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Link(Chunk(Inline.Text("text")), "url", None)))))
         assertTrue(Renderer.render(doc) == "[text](url)\n\n")
       },
       test("renders Inline.Link with title") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(Paragraph(Chunk(Inline.Link(Chunk(Inline.Text("text")), "url", Some("title")))))
         )
         assertTrue(Renderer.render(doc) == "[text](url \"title\")\n\n")
       },
       test("renders Inline.Image without title") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Image("alt", "url", None)))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Image("alt", "url", None)))))
         assertTrue(Renderer.render(doc) == "![alt](url)\n\n")
       },
       test("renders Inline.Image with title") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Image("alt", "url", Some("title"))))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Image("alt", "url", Some("title"))))))
         assertTrue(Renderer.render(doc) == "![alt](url \"title\")\n\n")
       },
       test("renders Inline.HtmlInline") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.HtmlInline("<br>")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.HtmlInline("<br>")))))
         assertTrue(Renderer.render(doc) == "<br>\n\n")
       },
       test("renders Inline.SoftBreak") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Text("line1"), Inline.SoftBreak, Inline.Text("line2")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Text("line1"), Inline.SoftBreak, Inline.Text("line2")))))
         assertTrue(Renderer.render(doc) == "line1\nline2\n\n")
       },
       test("renders Inline.HardBreak") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Text("line1"), Inline.HardBreak, Inline.Text("line2")))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Text("line1"), Inline.HardBreak, Inline.Text("line2")))))
         assertTrue(Renderer.render(doc) == "line1  \nline2\n\n")
       },
       test("renders Inline.Autolink url") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Autolink("http://example.com", false)))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Autolink("http://example.com", false)))))
         assertTrue(Renderer.render(doc) == "<http://example.com>\n\n")
       },
       test("renders Inline.Autolink email") {
-        val doc = Document(Chunk(Paragraph(Chunk(Inline.Autolink("test@example.com", true)))))
+        val doc = Doc(Chunk(Paragraph(Chunk(Inline.Autolink("test@example.com", true)))))
         assertTrue(Renderer.render(doc) == "<test@example.com>\n\n")
       }
     ),
     suite("Complex documents")(
       test("renders document with multiple block types") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             Heading(HeadingLevel.H1, Chunk(Text("Title"))),
             Paragraph(Chunk(Text("Introduction"))),

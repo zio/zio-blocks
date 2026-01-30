@@ -11,7 +11,7 @@ import zio.blocks.chunk.Chunk
 object Renderer {
 
   /**
-   * Render a Document to a GitHub Flavored Markdown string.
+   * Render a Doc to a GitHub Flavored Markdown string.
    *
    * @param doc
    *   The document to render
@@ -19,11 +19,10 @@ object Renderer {
    *   GFM markdown string
    *
    * @example
-   *   {{{ val doc = Document(Chunk( Heading(HeadingLevel.H1,
-   *   Chunk(Text("Hello"))) )) val markdown = Renderer.render(doc) // markdown ==
-   *   "# Hello\n" }}}
+   *   {{{ val doc = Doc(Chunk( Heading(HeadingLevel.H1, Chunk(Text("Hello")))
+   *   )) val markdown = Renderer.render(doc) // markdown == "# Hello\n" }}}
    */
-  def render(doc: Document): String =
+  def render(doc: Doc): String =
     doc.blocks.map(renderBlock).mkString
 
   /**

@@ -2,7 +2,7 @@ package zio.blocks.markdown
 
 object MdInterpolatorRuntime {
 
-  def parseAndBuild(sc: StringContext, args: Seq[Inline]): Document = {
+  def parseAndBuild(sc: StringContext, args: Seq[Inline]): Doc = {
     val combined = buildMarkdownString(sc.parts, args)
     Parser.parse(combined) match {
       case Right(doc) => doc

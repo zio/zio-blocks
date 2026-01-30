@@ -27,7 +27,7 @@ package zio.blocks
  * interpolation of any type with a [[ToMarkdown]] instance.
  *
  * {{{
- *   val title = "My Document"
+ *   val title = "My Doc"
  *   val count = 42
  *   val doc = md"""
  *     # $$title
@@ -37,7 +37,7 @@ package zio.blocks
  * }}}
  *
  * ==Core Types==
- *   - [[Document]] - A complete markdown document
+ *   - [[Doc]] - A complete markdown document
  *   - [[Block]] - Block-level elements (headings, paragraphs, lists, etc.)
  *   - [[Inline]] - Inline elements (text, emphasis, links, etc.)
  *   - [[Parser]] - Strict GFM parser

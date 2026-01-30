@@ -5,13 +5,13 @@ import scala.quoted._
 trait MdInterpolator {
 
   extension (inline sc: StringContext) {
-    inline def md(inline args: Any*): Document = ${ MdMacros.mdImpl('sc, 'args) }
+    inline def md(inline args: Any*): Doc = ${ MdMacros.mdImpl('sc, 'args) }
   }
 }
 
 private[markdown] object MdMacros {
 
-  def mdImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Document] = {
+  def mdImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Doc] = {
     import quotes.reflect._
 
     val parts = sc match {

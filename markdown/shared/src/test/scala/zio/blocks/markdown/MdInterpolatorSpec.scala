@@ -10,32 +10,32 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
     suite("Headings")(
       test("parses H1") {
         val doc = md"# Hello"
-        assertTrue(doc == Document(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello"))))))
+        assertTrue(doc == Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello"))))))
       },
       test("parses H2") {
         val doc = md"## World"
-        assertTrue(doc == Document(Chunk(Heading(HeadingLevel.H2, Chunk(Text("World"))))))
+        assertTrue(doc == Doc(Chunk(Heading(HeadingLevel.H2, Chunk(Text("World"))))))
       },
       test("parses H3") {
         val doc = md"### Level 3"
-        assertTrue(doc == Document(Chunk(Heading(HeadingLevel.H3, Chunk(Text("Level 3"))))))
+        assertTrue(doc == Doc(Chunk(Heading(HeadingLevel.H3, Chunk(Text("Level 3"))))))
       },
       test("parses H4") {
         val doc = md"#### Level 4"
-        assertTrue(doc == Document(Chunk(Heading(HeadingLevel.H4, Chunk(Text("Level 4"))))))
+        assertTrue(doc == Doc(Chunk(Heading(HeadingLevel.H4, Chunk(Text("Level 4"))))))
       },
       test("parses H5") {
         val doc = md"##### Level 5"
-        assertTrue(doc == Document(Chunk(Heading(HeadingLevel.H5, Chunk(Text("Level 5"))))))
+        assertTrue(doc == Doc(Chunk(Heading(HeadingLevel.H5, Chunk(Text("Level 5"))))))
       },
       test("parses H6") {
         val doc = md"###### Deep"
-        assertTrue(doc == Document(Chunk(Heading(HeadingLevel.H6, Chunk(Text("Deep"))))))
+        assertTrue(doc == Doc(Chunk(Heading(HeadingLevel.H6, Chunk(Text("Deep"))))))
       },
       test("parses heading with emphasis") {
         val doc = md"# Hello *world*"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Heading(HeadingLevel.H1, Chunk(Text("Hello "), Emphasis(Chunk(Text("world")))))
             )
@@ -45,7 +45,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
       test("parses heading with strong") {
         val doc = md"## Title with **bold**"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Heading(HeadingLevel.H2, Chunk(Text("Title with "), Strong(Chunk(Text("bold")))))
             )
@@ -56,12 +56,12 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
     suite("Paragraphs")(
       test("simple paragraph") {
         val doc = md"Hello world"
-        assertTrue(doc == Document(Chunk(Paragraph(Chunk(Text("Hello world"))))))
+        assertTrue(doc == Doc(Chunk(Paragraph(Chunk(Text("Hello world"))))))
       },
       test("paragraph with emphasis") {
         val doc = md"Text with *emphasis* here"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(Chunk(Text("Text with "), Emphasis(Chunk(Text("emphasis"))), Text(" here")))
             )
@@ -71,7 +71,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
       test("paragraph with strong") {
         val doc = md"Text with **strong** here"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(Chunk(Text("Text with "), Strong(Chunk(Text("strong"))), Text(" here")))
             )
@@ -81,7 +81,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
       test("paragraph with strikethrough") {
         val doc = md"Text with ~~deleted~~ here"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(Chunk(Text("Text with "), Strikethrough(Chunk(Text("deleted"))), Text(" here")))
             )
@@ -91,7 +91,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
       test("paragraph with inline code") {
         val doc = md"Use `code` here"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(Chunk(Text("Use "), Code("code"), Text(" here")))
             )
@@ -101,7 +101,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
       test("paragraph with link") {
         val doc = md"Visit [example](https://example.com) now"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(
                 Chunk(
@@ -117,7 +117,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
       test("paragraph with image") {
         val doc = md"See ![alt text](url) here"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(Chunk(Text("See "), Image("alt text", "url", None), Text(" here")))
             )
@@ -127,7 +127,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
       test("paragraph with mixed inline formatting") {
         val doc = md"Mix *emphasis* and **strong** with `code`"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(
                 Chunk(
@@ -148,40 +148,40 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
       test("interpolates String into paragraph") {
         val name = "World"
         val doc  = md"Hello $name"
-        assertTrue(doc == Document(Chunk(Paragraph(Chunk(Text("Hello World"))))))
+        assertTrue(doc == Doc(Chunk(Paragraph(Chunk(Text("Hello World"))))))
       },
       test("interpolates String with surrounding text") {
         val user = "Alice"
         val doc  = md"Welcome, $user!"
-        assertTrue(doc == Document(Chunk(Paragraph(Chunk(Text("Welcome, Alice!"))))))
+        assertTrue(doc == Doc(Chunk(Paragraph(Chunk(Text("Welcome, Alice!"))))))
       },
       test("interpolates multiple Strings") {
         val first = "John"
         val last  = "Doe"
         val doc   = md"Name: $first $last"
-        assertTrue(doc == Document(Chunk(Paragraph(Chunk(Text("Name: John Doe"))))))
+        assertTrue(doc == Doc(Chunk(Paragraph(Chunk(Text("Name: John Doe"))))))
       }
     ),
     suite("Numeric interpolation")(
       test("interpolates Int") {
         val n   = 42
         val doc = md"Value: $n"
-        assertTrue(doc == Document(Chunk(Paragraph(Chunk(Text("Value: 42"))))))
+        assertTrue(doc == Doc(Chunk(Paragraph(Chunk(Text("Value: 42"))))))
       },
       test("interpolates Long") {
         val n   = 1234567890L
         val doc = md"Large: $n"
-        assertTrue(doc == Document(Chunk(Paragraph(Chunk(Text("Large: 1234567890"))))))
+        assertTrue(doc == Doc(Chunk(Paragraph(Chunk(Text("Large: 1234567890"))))))
       },
       test("interpolates Double") {
         val n   = 3.14
         val doc = md"Pi: $n"
-        assertTrue(doc == Document(Chunk(Paragraph(Chunk(Text("Pi: 3.14"))))))
+        assertTrue(doc == Doc(Chunk(Paragraph(Chunk(Text("Pi: 3.14"))))))
       },
       test("interpolates Boolean") {
         val flag = true
         val doc  = md"Flag: $flag"
-        assertTrue(doc == Document(Chunk(Paragraph(Chunk(Text("Flag: true"))))))
+        assertTrue(doc == Doc(Chunk(Paragraph(Chunk(Text("Flag: true"))))))
       }
     ),
     suite("Inline interpolation")(
@@ -189,7 +189,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
         val bold: Inline = Strong(Chunk(Text("bold")))
         val doc          = md"This is $bold text"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(Chunk(Text("This is "), Strong(Chunk(Text("bold"))), Text(" text")))
             )
@@ -200,7 +200,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
         val em: Inline = Emphasis(Chunk(Text("italic")))
         val doc        = md"This is $em text"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(Chunk(Text("This is "), Emphasis(Chunk(Text("italic"))), Text(" text")))
             )
@@ -211,7 +211,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
         val code: Inline = Code("x + y")
         val doc          = md"Formula: $code"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(Chunk(Text("Formula: "), Code("x + y")))
             )
@@ -223,7 +223,7 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
         val italic: Inline = Emphasis(Chunk(Text("italic")))
         val doc            = md"Mix $bold and $italic here"
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Paragraph(
                 Chunk(
@@ -244,20 +244,20 @@ object MdInterpolatorSpec extends MarkdownBaseSpec {
         val doc = md"""```scala
 val x = 1
 ```"""
-        assertTrue(doc == Document(Chunk(CodeBlock(Some("scala"), "val x = 1"))))
+        assertTrue(doc == Doc(Chunk(CodeBlock(Some("scala"), "val x = 1"))))
       },
       test("fenced code block without language") {
         val doc = md"""```
 code here
 ```"""
-        assertTrue(doc == Document(Chunk(CodeBlock(None, "code here"))))
+        assertTrue(doc == Doc(Chunk(CodeBlock(None, "code here"))))
       },
       test("fenced code block with multiple lines") {
         val doc = md"""```
 line 1
 line 2
 ```"""
-        assertTrue(doc == Document(Chunk(CodeBlock(None, "line 1\nline 2"))))
+        assertTrue(doc == Doc(Chunk(CodeBlock(None, "line 1\nline 2"))))
       }
     ),
     suite("Lists")(
@@ -265,7 +265,7 @@ line 2
         val doc = md"""- item 1
 - item 2"""
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               BulletList(
                 Chunk(
@@ -282,7 +282,7 @@ line 2
         val doc = md"""1. first
 2. second"""
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               OrderedList(
                 1,
@@ -300,7 +300,7 @@ line 2
         val doc = md"""- [ ] unchecked
 - [x] checked"""
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               BulletList(
                 Chunk(
@@ -320,7 +320,7 @@ line 2
 |---|---|
 | 1 | 2 |"""
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Table(
                 TableRow(Chunk(Chunk(Text("a")), Chunk(Text("b")))),
@@ -336,7 +336,7 @@ line 2
 |:---|:---:|---:|
 | a | b | c |"""
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Table(
                 TableRow(Chunk(Chunk(Text("left")), Chunk(Text("center")), Chunk(Text("right")))),
@@ -352,7 +352,7 @@ line 2
       test("simple block quote") {
         val doc = md"""> quoted text"""
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               BlockQuote(Chunk(Paragraph(Chunk(Text("quoted text")))))
             )
@@ -363,7 +363,7 @@ line 2
         val doc = md"""> line 1
 > line 2"""
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               BlockQuote(
                 Chunk(
@@ -381,7 +381,7 @@ line 2
 
 Some text here."""
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Heading(HeadingLevel.H1, Chunk(Text("Title"))),
               Paragraph(Chunk(Text("Some text here.")))
@@ -403,7 +403,7 @@ val x = 1
 - item 1
 - item 2"""
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Heading(HeadingLevel.H1, Chunk(Text("Main Title"))),
               Paragraph(Chunk(Text("Introduction paragraph."))),
@@ -427,7 +427,7 @@ val x = 1
 
 This is $bold information."""
         assertTrue(
-          doc == Document(
+          doc == Doc(
             Chunk(
               Heading(HeadingLevel.H1, Chunk(Text("Count: 5"))),
               Paragraph(Chunk(Text("This is "), Strong(Chunk(Text("important"))), Text(" information.")))
@@ -439,11 +439,11 @@ This is $bold information."""
     suite("Thematic breaks")(
       test("thematic break with dashes") {
         val doc = md"---"
-        assertTrue(doc == Document(Chunk(ThematicBreak)))
+        assertTrue(doc == Doc(Chunk(ThematicBreak)))
       },
       test("thematic break with asterisks") {
         val doc = md"***"
-        assertTrue(doc == Document(Chunk(ThematicBreak)))
+        assertTrue(doc == Doc(Chunk(ThematicBreak)))
       }
     ),
     suite("Compile-time validation")(

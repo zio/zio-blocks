@@ -108,7 +108,7 @@ object CoverageBranchesSpec extends MarkdownBaseSpec {
     ),
     suite("Renderer - Empty Cases")(
       test("renders list item with empty content") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             BulletList(
               Chunk(
@@ -122,7 +122,7 @@ object CoverageBranchesSpec extends MarkdownBaseSpec {
         assertTrue(rendered.contains("- "))
       },
       test("renders loose list item with empty paragraph") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             BulletList(
               Chunk(
@@ -136,7 +136,7 @@ object CoverageBranchesSpec extends MarkdownBaseSpec {
         assertTrue(rendered.contains("- "))
       },
       test("renders empty emphasis") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             Paragraph(
               Chunk(
@@ -151,7 +151,7 @@ object CoverageBranchesSpec extends MarkdownBaseSpec {
     ),
     suite("Renderer - Blockquote Empty Lines")(
       test("blockquote with empty lines preserved") {
-        val doc = Document(
+        val doc = Doc(
           Chunk(
             BlockQuote(
               Chunk(
@@ -191,17 +191,17 @@ object CoverageBranchesSpec extends MarkdownBaseSpec {
     ),
     suite("Renderer - Block Edge Cases")(
       test("renders thematic break") {
-        val doc      = Document(Chunk(ThematicBreak))
+        val doc      = Doc(Chunk(ThematicBreak))
         val rendered = Renderer.render(doc)
         assertTrue(rendered.contains("---"))
       },
       test("renders code block") {
-        val doc      = Document(Chunk(CodeBlock(None, "let x = 1")))
+        val doc      = Doc(Chunk(CodeBlock(None, "let x = 1")))
         val rendered = Renderer.render(doc)
         assertTrue(rendered.contains("```"))
       },
       test("renders html block") {
-        val doc      = Document(Chunk(HtmlBlock("<div>content</div>")))
+        val doc      = Doc(Chunk(HtmlBlock("<div>content</div>")))
         val rendered = Renderer.render(doc)
         assertTrue(rendered.contains("<div>"))
       }
