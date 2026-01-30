@@ -328,6 +328,115 @@ object AdtSpec extends MarkdownBaseSpec {
           val doc1 = Doc(Chunk(Paragraph(Chunk(Text("hello")))))
           val doc2 = Doc(Chunk(Paragraph(Chunk(Text("world")))))
           assertTrue(doc1 != doc2)
+        },
+        test("equals returns false for non-Doc objects") {
+          val doc = Doc(Chunk(Paragraph(Chunk(Text("Hello")))))
+          assertTrue(
+            !doc.equals("a string"),
+            !doc.equals(42),
+            !doc.equals(null)
+          )
+        }
+      ),
+      suite("instance methods")(
+        test("toHtml returns HTML via Doc instance method") {
+          val doc = Doc(Chunk(Paragraph(Chunk(Text("Hello")))))
+          assertTrue(doc.toHtml.contains("<p>Hello</p>"))
+        },
+        test("toHtmlFragment returns fragment via Doc instance method") {
+          val doc = Doc(Chunk(Paragraph(Chunk(Text("Hello")))))
+          assertTrue(
+            doc.toHtmlFragment.contains("<p>Hello</p>"),
+            !doc.toHtmlFragment.contains("<!DOCTYPE")
+          )
+        },
+        test("toTerminal returns ANSI output via Doc instance method") {
+          val doc = Doc(Chunk(Paragraph(Chunk(Text("Hello")))))
+          assertTrue(doc.toTerminal.contains("Hello"))
+        }
+      ),
+      suite("normalize edge cases")(
+        test("normalizes ListItem blocks in BulletList") {
+          val doc = Doc(
+            Chunk(
+              BulletList(
+                Chunk(ListItem(Chunk(Paragraph(Chunk(Text("a"), Text("b")))), None)),
+                tight = true
+              )
+            )
+          )
+          val normalized = doc.normalize
+          val list       = normalized.blocks.head.asInstanceOf[BulletList]
+          val item       = list.items.head
+          val para       = item.content.head.asInstanceOf[Paragraph]
+          assertTrue(para.content.size == 1, para.content.head == Text("ab"))
+        },
+        test("normalizes ListItem blocks in OrderedList") {
+          val doc = Doc(
+            Chunk(
+              OrderedList(
+                1,
+                Chunk(ListItem(Chunk(Paragraph(Chunk(Text("x"), Text("y")))), Some(true))),
+                tight = true
+              )
+            )
+          )
+          val normalized = doc.normalize
+          val list       = normalized.blocks.head.asInstanceOf[OrderedList]
+          val item       = list.items.head
+          val para       = item.content.head.asInstanceOf[Paragraph]
+          assertTrue(para.content.size == 1, para.content.head == Text("xy"))
+        },
+        test("normalizeInlines merges adjacent Inline.Text variants") {
+          val inlines    = Chunk[Inline](Inline.Text("a"), Inline.Text("b"))
+          val normalized = Doc.normalizeInlines(inlines)
+          assertTrue(normalized.size == 1, normalized.head == Text("ab"))
+        },
+        test("normalizeInlines merges Text with Inline.Text") {
+          val inlines    = Chunk[Inline](Text("a"), Inline.Text("b"))
+          val normalized = Doc.normalizeInlines(inlines)
+          assertTrue(normalized.size == 1, normalized.head == Text("ab"))
+        },
+        test("normalizeInlines merges Inline.Text with Text") {
+          val inlines    = Chunk[Inline](Inline.Text("a"), Text("b"))
+          val normalized = Doc.normalizeInlines(inlines)
+          assertTrue(normalized.size == 1, normalized.head == Text("ab"))
+        },
+        test("normalizeInlines filters empty Inline.Text") {
+          val inlines    = Chunk[Inline](Inline.Text("a"), Inline.Text(""), Text("b"))
+          val normalized = Doc.normalizeInlines(inlines)
+          assertTrue(normalized.size == 1, normalized.head == Text("ab"))
+        },
+        test("isEmpty returns true for paragraph with only empty Inline.Text") {
+          val para = Paragraph(Chunk(Inline.Text("")))
+          assertTrue(Doc.isEmpty(para))
+        },
+        test("normalizes Table row content") {
+          val header     = TableRow(Chunk(Chunk(Text("a"), Text("b"))))
+          val row        = TableRow(Chunk(Chunk(Text("x"), Text("y"))))
+          val doc        = Doc(Chunk(Table(header, Chunk(Alignment.Left), Chunk(row))))
+          val normalized = doc.normalize
+          val table      = normalized.blocks.head.asInstanceOf[Table]
+          assertTrue(
+            table.header.cells.head.head == Text("ab"),
+            table.rows.head.cells.head.head == Text("xy")
+          )
+        },
+        test("normalizeBlock handles standalone ListItem") {
+          val item           = ListItem(Chunk(Paragraph(Chunk(Text("a"), Text("b")))), Some(true))
+          val normalized     = Doc.normalizeBlock(item)
+          val normalizedItem = normalized.asInstanceOf[ListItem]
+          val para           = normalizedItem.content.head.asInstanceOf[Paragraph]
+          assertTrue(para.content.size == 1, para.content.head == Text("ab"))
+        },
+        test("normalizeInlines filters empty Text") {
+          val inlines    = Chunk[Inline](Text("a"), Text(""), Text("b"))
+          val normalized = Doc.normalizeInlines(inlines)
+          assertTrue(normalized.size == 1, normalized.head == Text("ab"))
+        },
+        test("isEmpty returns true for paragraph with only empty Text") {
+          val para = Paragraph(Chunk(Text("")))
+          assertTrue(Doc.isEmpty(para))
         }
       )
     )
