@@ -332,26 +332,173 @@ private object IntoVersionSpecificImpl {
       )
     }
 
+    // === Coproduct utilities ===
+
+    def isSealedTrait(tpe: Type): Boolean = {
+      val sym = tpe.typeSymbol
+      sym.isClass && sym.asClass.isSealed
+    }
+
+    def directSubTypes(tpe: Type): List[Type] = CommonMacroOps.directSubTypes(c)(tpe)
+
+    def isEnumOrModuleValue(tpe: Type): Boolean = tpe.typeSymbol.isModuleClass
+
+    /** Get the name of a subtype - handles case objects and case classes */
+    def getSubtypeName(tpe: Type): String = {
+      val sym = tpe.typeSymbol
+      if (sym.isModuleClass) {
+        // Case object - use the module name
+        sym.name.decodedName.toString.stripSuffix("$")
+      } else {
+        sym.name.decodedName.toString
+      }
+    }
+
+    /** Get the type signature of a case class/object - list of field types */
+    def getTypeSignature(tpe: Type): List[Type] = {
+      if (isEnumOrModuleValue(tpe)) {
+        // Case object - no fields
+        Nil
+      } else if (isProductType(tpe)) {
+        // Case class - get field types
+        val info = new ProductInfo(tpe)
+        info.fields.map(_.tpe)
+      } else {
+        Nil
+      }
+    }
+
+    def signaturesMatch(source: List[Type], target: List[Type]): Boolean = {
+      source.size == target.size && source.zip(target).forall { case (s, t) =>
+        s =:= t || isCoercible(s, t)
+      }
+    }
+
+    def findMatchingTargetSubtype(
+      sourceSubtype: Type,
+      targetSubtypes: List[Type],
+      sourceSubtypes: List[Type]
+    ): Option[Type] = {
+      val sourceName = getSubtypeName(sourceSubtype)
+
+      // Priority 1: Match by name
+      val nameMatch = targetSubtypes.find { targetSubtype =>
+        getSubtypeName(targetSubtype) == sourceName
+      }
+      if (nameMatch.isDefined) return nameMatch
+
+      // Priority 2: Match by signature (field types) - only for non-empty signatures
+      val sourceSignature = getTypeSignature(sourceSubtype)
+      if (sourceSignature.nonEmpty) {
+        val signatureMatch = targetSubtypes.find { targetSubtype =>
+          val targetSignature = getTypeSignature(targetSubtype)
+          targetSignature.nonEmpty && signaturesMatch(sourceSignature, targetSignature)
+        }
+        if (signatureMatch.isDefined) return signatureMatch
+      }
+
+      // Priority 3: Match by position if same count
+      val sourceIdx = sourceSubtypes.indexOf(sourceSubtype)
+      if (sourceIdx >= 0 && sourceIdx < targetSubtypes.size) {
+        return Some(targetSubtypes(sourceIdx))
+      }
+
+      None
+    }
+
+    // === Derivation: Coproduct to Coproduct ===
+
+    def deriveCoproductToCoproduct(): c.Expr[Into[A, B]] = {
+      val sourceSubtypes = directSubTypes(aTpe)
+      val targetSubtypes = directSubTypes(bTpe)
+
+      // Build case mapping: for each source subtype, find matching target subtype
+      val caseMappings = sourceSubtypes.map { sourceSubtype =>
+        findMatchingTargetSubtype(sourceSubtype, targetSubtypes, sourceSubtypes) match {
+          case Some(targetSubtype) => (sourceSubtype, targetSubtype)
+          case None =>
+            fail(
+              s"Cannot derive Into[$aTpe, $bTpe]: " +
+                s"no matching target case found for source case '${sourceSubtype.typeSymbol.name}'"
+            )
+        }
+      }
+
+      // Generate match cases
+      val cases = caseMappings.map { case (sourceSubtype, targetSubtype) =>
+        generateCaseClause(sourceSubtype, targetSubtype)
+      }
+
+      c.Expr[Into[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              a match { case ..$cases }
+            }
+          }
+        """
+      )
+    }
+
+    def generateCaseClause(sourceSubtype: Type, targetSubtype: Type): CaseDef = {
+      val sourceSym = sourceSubtype.typeSymbol
+      val targetSym = targetSubtype.typeSymbol
+
+      if (isEnumOrModuleValue(sourceSubtype) && isEnumOrModuleValue(targetSubtype)) {
+        // Case object to case object
+        val sourceModule = sourceSym.asClass.module
+        val targetModule = targetSym.asClass.module
+        cq"_: $sourceSubtype => _root_.scala.Right($targetModule)"
+      } else {
+        // Case class to case class
+        generateCaseClassClause(sourceSubtype, targetSubtype)
+      }
+    }
+
+    def generateCaseClassClause(sourceSubtype: Type, targetSubtype: Type): CaseDef = {
+      val sourceInfo = new ProductInfo(sourceSubtype)
+      val targetInfo = new ProductInfo(targetSubtype)
+
+      // Match fields between source and target case classes
+      val fieldMappings = matchFields(sourceInfo, targetInfo)
+
+      // Generate binding pattern: case x: SourceType => ...
+      val bindingName = TermName("x")
+
+      // Build constructor arguments
+      val args = fieldMappings.map { mapping =>
+        val getter = mapping.sourceField.getter
+        q"$bindingName.$getter"
+      }
+
+      cq"$bindingName: $sourceSubtype => _root_.scala.Right(new $targetSubtype(..$args))"
+    }
+
     // === Main entry point ===
 
     val aIsProduct = isProductType(aTpe)
     val bIsProduct = isProductType(bTpe)
     val aIsTuple = isTupleType(aTpe)
     val bIsTuple = isTupleType(bTpe)
+    val aIsCoproduct = isSealedTrait(aTpe)
+    val bIsCoproduct = isSealedTrait(bTpe)
 
-    (aIsProduct, bIsProduct, aIsTuple, bIsTuple) match {
-      case (true, true, _, _) =>
+    (aIsProduct, bIsProduct, aIsTuple, bIsTuple, aIsCoproduct, bIsCoproduct) match {
+      case (true, true, _, _, _, _) =>
         // Case class to case class
         deriveProductToProduct()
-      case (true, _, _, true) =>
+      case (true, _, _, true, _, _) =>
         // Case class to tuple
         deriveCaseClassToTuple()
-      case (_, true, true, _) =>
+      case (_, true, true, _, _, _) =>
         // Tuple to case class
         deriveTupleToCaseClass()
-      case (_, _, true, true) =>
+      case (_, _, true, true, _, _) =>
         // Tuple to tuple
         deriveTupleToTuple()
+      case (_, _, _, _, true, true) =>
+        // Coproduct to coproduct (sealed trait to sealed trait)
+        deriveCoproductToCoproduct()
       case _ =>
         fail(s"Cannot derive Into[$aTpe, $bTpe]: unsupported type combination")
     }
