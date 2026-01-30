@@ -564,8 +564,8 @@ object ThriftFormat
                 case _: PrimitiveType.Unit.type => ThriftBinaryCodec.unitType
                 case _                          => ThriftBinaryCodec.objectType
               }) {
-                private[this] val unwrap       = binding.unwrap
                 private[this] val wrap         = binding.wrap
+                private[this] val unwrap       = binding.unwrap
                 private[this] val wrappedCodec = codec
 
                 def decodeUnsafe(protocol: TProtocol): A = {
@@ -580,7 +580,11 @@ object ThriftFormat
                   }
                 }
 
-                def encode(value: A, protocol: TProtocol): Unit = wrappedCodec.encode(unwrap(value), protocol)
+                def encode(value: A, protocol: TProtocol): Unit =
+                  unwrap(value) match {
+                    case Right(wrapped) => wrappedCodec.encode(wrapped, protocol)
+                    case Left(err)      => throw err
+                  }
               }
             } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else {

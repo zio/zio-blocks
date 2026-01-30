@@ -735,7 +735,7 @@ object Optional {
           case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
             wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
               case Right(unwrapped) => x = unwrapped
-              case Left(error) =>
+              case Left(error)      =>
                 val wrappingError = new OpticCheck.WrappingError(toDynamic, toDynamic(idx), error)
                 return new Some(new OpticCheck(new ::(wrappingError, Nil)))
             }

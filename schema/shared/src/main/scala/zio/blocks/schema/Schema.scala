@@ -181,8 +181,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * that can fail in both directions.
    *
    * This is useful for creating schemas for types with bidirectional validation
-   * requirements, where both constructing the type AND extracting the underlying
-   * value may need validation.
+   * requirements, where both constructing the type AND extracting the
+   * underlying value may need validation.
    *
    * @example
    *   {{{
@@ -201,9 +201,11 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    *   }}}
    *
    * @param wrap
-   *   Partial function to transform `A` to `B` (used during decoding), returns `Left` on failure
+   *   Partial function to transform `A` to `B` (used during decoding), returns
+   *   `Left` on failure
    * @param unwrap
-   *   Partial function to transform `B` back to `A` (used during encoding), returns `Left` on failure
+   *   Partial function to transform `B` back to `A` (used during encoding),
+   *   returns `Left` on failure
    * @tparam B
    *   The target type
    * @return

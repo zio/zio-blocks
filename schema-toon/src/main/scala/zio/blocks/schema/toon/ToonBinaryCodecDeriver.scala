@@ -399,7 +399,11 @@ class ToonBinaryCodecDeriver private[toon] (
             case Left(error) => in.decodeError(error.message)
           }
 
-        override def encodeValue(x: A, out: ToonWriter): Unit = wrappedCodec.encodeValue(unwrap(x), out)
+        override def encodeValue(x: A, out: ToonWriter): Unit =
+          unwrap(x) match {
+            case Right(wrapped) => wrappedCodec.encodeValue(wrapped, out)
+            case Left(error)    => throw error
+          }
 
         override def decodeKey(in: ToonReader): A =
           wrap(
@@ -412,7 +416,11 @@ class ToonBinaryCodecDeriver private[toon] (
             case Left(error) => in.decodeError(error.message)
           }
 
-        override def encodeKey(x: A, out: ToonWriter): Unit = wrappedCodec.encodeKey(unwrap(x), out)
+        override def encodeKey(x: A, out: ToonWriter): Unit =
+          unwrap(x) match {
+            case Right(wrapped) => wrappedCodec.encodeKey(wrapped, out)
+            case Left(error)    => throw error
+          }
       }
     } else {
       wrapper.wrapperBinding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, A]].instance.force

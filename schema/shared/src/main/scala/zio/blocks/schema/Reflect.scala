@@ -1163,7 +1163,7 @@ object Reflect {
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue =
       binding.unwrap(value) match {
         case Right(unwrapped) => wrapped.toDynamicValue(unwrapped)
-        case Left(error)      => throw new RuntimeException(error.message)
+        case Left(error)      => throw error
       }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =

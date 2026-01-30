@@ -240,7 +240,7 @@ object DerivedOptics {
           val b = reader(registers, offset).asInstanceOf[B]
           wrapper.binding.wrap(b) match {
             case Right(a)  => a
-            case Left(err) => throw new RuntimeException(s"Wrapper validation failed: ${err.message}")
+            case Left(err) => throw err
           }
         }
       },
@@ -250,7 +250,7 @@ object DerivedOptics {
         override def deconstruct(registers: Registers, offset: RegisterOffset, value: A): Unit =
           wrapper.binding.unwrap(value) match {
             case Right(b)    => writer(registers, offset, b)
-            case Left(error) => throw new RuntimeException(error.message)
+            case Left(error) => throw error
           }
       }
     )
