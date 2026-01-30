@@ -9,7 +9,7 @@ import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
   val Scala213: String = "2.13.18"
-  val Scala3: String   = "3.5.2"
+  val Scala3: String   = "3.7.4"
 
   lazy val isRelease: Boolean = {
     val value = sys.env.contains("CI_RELEASE_MODE")
@@ -105,6 +105,8 @@ object BuildHelper {
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
           "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
+          "-Wconf:id=E029:s", // suppress non-exhaustive pattern match warnings in macro code
+          "-Wconf:id=E030:s", // suppress unreachable case warnings in type pattern matching
           "-Werror"
         )
       case _ =>

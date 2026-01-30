@@ -145,8 +145,18 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     }
 
     val members = collectMembers(tpe)
+    val grouped = members.groupBy(_._1)
+    // Validate that members with the same name have compatible types
+    grouped.foreach {
+      case (name, occurrences) if occurrences.size > 1 =>
+        val types = occurrences.map(_._2).distinct
+        if (types.size > 1 && !types.tail.forall(_ =:= types.head)) {
+          fail(s"Conflicting types for member '$name' in intersection: ${types.map(_.toString).mkString(", ")}")
+        }
+      case _ => // single occurrence, no conflict possible
+    }
     // Deduplicate by name, keeping first occurrence, then sort alphabetically
-    members.groupBy(_._1).map(_._2.head).toList.sortBy(_._1)
+    grouped.map(_._2.head).toList.sortBy(_._1)
   }
 
   private def structuralRegisterKind(tpe: Type): String = {
