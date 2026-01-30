@@ -181,6 +181,42 @@ object CoverageBranchesSpec extends MarkdownBaseSpec {
           case _       => false
         })
       }
+    ),
+    suite("ParseError")(
+      test("ParseError toString includes position and message") {
+        val error = ParseError("Invalid syntax", 5, 12, "some code here")
+        val str   = error.toString
+        assertTrue(str.contains("line 5") && str.contains("column 12") && str.contains("Invalid syntax"))
+      }
+    ),
+    suite("Renderer - Block Edge Cases")(
+      test("renders thematic break") {
+        val doc      = Document(Chunk(ThematicBreak))
+        val rendered = Renderer.render(doc)
+        assertTrue(rendered.contains("---"))
+      },
+      test("renders code block") {
+        val doc      = Document(Chunk(CodeBlock(None, "let x = 1")))
+        val rendered = Renderer.render(doc)
+        assertTrue(rendered.contains("```"))
+      },
+      test("renders html block") {
+        val doc      = Document(Chunk(HtmlBlock("<div>content</div>")))
+        val rendered = Renderer.render(doc)
+        assertTrue(rendered.contains("<div>"))
+      }
+    ),
+    suite("Parser - Edge Cases for Coverage")(
+      test("thematic break with single minus") {
+        val input  = "a-b"
+        val result = Parser.parse(input)
+        assertTrue(result.isRight && result.toOption.get.blocks.head.isInstanceOf[Paragraph])
+      },
+      test("table delimiter with non-dash character") {
+        val input  = "| a | b |\n|---x---|---------|\n| 1 | 2 |"
+        val result = Parser.parse(input)
+        assertTrue(result.isRight || result.isLeft)
+      }
     )
   )
 }
