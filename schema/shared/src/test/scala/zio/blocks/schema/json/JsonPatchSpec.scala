@@ -1523,6 +1523,77 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
       val result = patch(json, PatchMode.Clobber)
       assertTrue(result == new Right(json))
+    },
+    // Additional coverage tests for Clobber mode with nested structures
+    test("Clobber mode with number delta on string replaces with delta") {
+      val json   = new Json.String("hello")
+      val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    test("Clobber mode with string edit on number returns unchanged") {
+      val json  = new Json.Number("42")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(0, "x"))))
+      )
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    // Tests for nested patch operations through multiple levels
+    test("Nested patch through object field works correctly") {
+      val json = new Json.Object(
+        Chunk(
+          ("outer", new Json.Object(Chunk(("inner", new Json.Number("10")))))
+        )
+      )
+      val nestedPatch = JsonPatch.root(JsonPatch.Op.Set(new Json.Number("20")))
+      val patch       = JsonPatch(DynamicOptic.root.field("outer").field("inner"), JsonPatch.Op.Nested(nestedPatch))
+      val result      = patch(json, PatchMode.Strict)
+      assertTrue(
+        result == new Right(
+          new Json.Object(
+            Chunk(
+              ("outer", new Json.Object(Chunk(("inner", new Json.Number("20")))))
+            )
+          )
+        )
+      )
+    },
+    // Tests for array element modification at different indices
+    test("Array modify at index 0") {
+      val json   = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
+      val patch  = JsonPatch(DynamicOptic.root.at(0), JsonPatch.Op.Set(new Json.Number("100")))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(
+        result == new Right(new Json.Array(Chunk(new Json.Number("100"), new Json.Number("2"), new Json.Number("3"))))
+      )
+    },
+    test("Array modify at last index") {
+      val json   = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
+      val patch  = JsonPatch(DynamicOptic.root.at(2), JsonPatch.Op.Set(new Json.Number("300")))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(
+        result == new Right(new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("300"))))
+      )
+    },
+    // Tests for empty operations
+    test("Empty ArrayEdit is a no-op") {
+      val json   = new Json.Array(Chunk(new Json.Number("1")))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector.empty))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(json))
+    },
+    test("Empty ObjectEdit is a no-op") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector.empty))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(json))
+    },
+    test("Empty StringEdit is a no-op") {
+      val json   = new Json.String("hello")
+      val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector.empty)))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(json))
     }
   )
 }
