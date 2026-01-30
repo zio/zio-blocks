@@ -2,16 +2,37 @@ package zio.blocks.markdown
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * Renderer for GitHub Flavored Markdown.
+ *
+ * Converts markdown AST elements back to GFM-compliant markdown strings. The
+ * rendered output can be re-parsed to produce an equivalent AST.
+ */
 object Renderer {
 
   /**
    * Render a Document to a GitHub Flavored Markdown string.
+   *
+   * @param doc
+   *   The document to render
+   * @return
+   *   GFM markdown string
+   *
+   * @example
+   *   {{{ val doc = Document(Chunk( Heading(HeadingLevel.H1,
+   *   Chunk(Text("Hello"))) )) val markdown = Renderer.render(doc) // markdown ==
+   *   "# Hello\n" }}}
    */
   def render(doc: Document): String =
     doc.blocks.map(renderBlock).mkString
 
   /**
    * Render a Block to its GFM representation.
+   *
+   * @param block
+   *   The block element to render
+   * @return
+   *   GFM markdown string for this block
    */
   def renderBlock(block: Block): String = block match {
     case Heading(level, content) =>
@@ -62,6 +83,15 @@ object Renderer {
 
   /**
    * Render a single list item.
+   *
+   * @param item
+   *   The list item to render
+   * @param numberOpt
+   *   If Some(n), render as ordered list item; if None, render as bullet
+   * @param tight
+   *   Whether to use tight list rendering (no blank lines)
+   * @return
+   *   GFM markdown string for this list item
    */
   private def renderListItemForList(
     item: ListItem,
@@ -109,6 +139,11 @@ object Renderer {
 
   /**
    * Render a table row.
+   *
+   * @param row
+   *   The table row to render
+   * @return
+   *   GFM markdown string for this row
    */
   private def renderTableRow(row: TableRow): String = {
     val cells = row.cells.map(renderInlines).mkString(" | ")
@@ -117,6 +152,11 @@ object Renderer {
 
   /**
    * Render the alignment row of a table.
+   *
+   * @param alignments
+   *   The column alignments
+   * @return
+   *   GFM markdown string for the alignment row
    */
   private def renderAlignmentRow(alignments: Chunk[Alignment]): String = {
     val cells = alignments.map { alignment =>
@@ -132,12 +172,22 @@ object Renderer {
 
   /**
    * Render a chunk of inlines as a single string.
+   *
+   * @param inlines
+   *   The inline elements to render
+   * @return
+   *   Concatenated GFM markdown string
    */
   def renderInlines(inlines: Chunk[Inline]): String =
     inlines.map(renderInline).mkString
 
   /**
    * Render a single inline element.
+   *
+   * @param inline
+   *   The inline element to render
+   * @return
+   *   GFM markdown string for this inline
    */
   def renderInline(inline: Inline): String = inline match {
     case Text(value) =>

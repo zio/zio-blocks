@@ -2,8 +2,46 @@ package zio.blocks.markdown
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * Parser for GitHub Flavored Markdown.
+ *
+ * Provides strict parsing of GFM documents, returning either a parsed
+ * [[Document]] or a [[ParseError]] with position information.
+ *
+ * ==Supported Features==
+ *   - ATX headings (# to ######)
+ *   - Fenced code blocks (``` or ~~~)
+ *   - Thematic breaks (---, ***, ___)
+ *   - Block quotes (> prefix)
+ *   - Bullet and ordered lists
+ *   - Task lists (- [ ] and - [x])
+ *   - Tables with alignment
+ *   - Inline formatting (emphasis, strong, strikethrough, code)
+ *   - Links and images
+ *   - Autolinks
+ *   - HTML blocks and inline HTML
+ *
+ * ==Not Supported==
+ *   - YAML frontmatter (causes parse error)
+ *   - Setext headings (use ATX style)
+ *   - Indented code blocks (use fenced)
+ *   - Link reference definitions
+ */
 object Parser {
 
+  /**
+   * Parses a markdown string into a Document.
+   *
+   * @param input
+   *   The markdown string to parse
+   * @return
+   *   Either a [[ParseError]] with position info, or the parsed [[Document]]
+   *
+   * @example
+   *   {{{ Parser.parse("# Hello") match { case Right(doc) => println(s"Parsed
+   *   $${doc.blocks.size} blocks") case Left(err) => println(s"Error at line
+   *   $${err.line}: $${err.message}") } }}}
+   */
   def parse(input: String): Either[ParseError, Document] = {
     val state = new ParserState(input)
     state.parseDocument()

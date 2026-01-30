@@ -1,10 +1,19 @@
 package zio.blocks.markdown
 
+/** Table column alignment in GFM tables. */
 sealed trait Alignment extends Product with Serializable
 
 object Alignment {
-  case object Left   extends Alignment
-  case object Right  extends Alignment
+
+  /** Left-aligned column (:---). */
+  case object Left extends Alignment
+
+  /** Right-aligned column (---:). */
+  case object Right extends Alignment
+
+  /** Center-aligned column (:---:). */
   case object Center extends Alignment
-  case object None   extends Alignment
+
+  /** No explicit alignment (---). */
+  case object None extends Alignment
 }
