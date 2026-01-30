@@ -212,8 +212,8 @@ lazy val markdown = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 65,
-    coverageMinimumBranchTotal := 65
+    coverageMinimumStmtTotal   := 100,
+    coverageMinimumBranchTotal := 100
   )
 
 lazy val `schema-avro` = project
