@@ -1,6 +1,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaExpr}
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.migration.MigrationAction._
 import zio.blocks.schema.migration.MigrationError._
 
@@ -11,15 +12,18 @@ import zio.blocks.schema.migration.MigrationError._
  * applied to transform values between schema versions. It supports composition
  * and reversal for bidirectional migrations.
  *
- * @param actions the sequence of migration actions
+ * @param actions
+ *   the sequence of migration actions
  */
 final case class DynamicMigration(actions: Vector[MigrationAction]) {
 
   /**
    * Applies this migration to a DynamicValue.
    *
-   * @param value the input value
-   * @return either an error or the migrated value
+   * @param value
+   *   the input value
+   * @return
+   *   either an error or the migrated value
    */
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
     actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
@@ -32,8 +36,10 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
    *
    * The resulting migration first applies this migration, then applies `that`.
    *
-   * @param that the migration to apply after this one
-   * @return the composed migration
+   * @param that
+   *   the migration to apply after this one
+   * @return
+   *   the composed migration
    */
   def ++(that: DynamicMigration): DynamicMigration =
     DynamicMigration(this.actions ++ that.actions)
@@ -46,7 +52,8 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
   /**
    * Returns the reverse of this migration.
    *
-   * The reverse of a sequence [a1, a2, ..., an] is [an.reverse, ..., a2.reverse, a1.reverse].
+   * The reverse of a sequence [a1, a2, ..., an] is [an.reverse, ...,
+   * a2.reverse, a1.reverse].
    */
   def reverse: DynamicMigration =
     DynamicMigration(MigrationAction.reverseActions(actions))
@@ -217,7 +224,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
                 Left(FieldError(at, to, "Target field name already exists"))
               } else {
                 val (_, fieldValue) = record.fields(index)
-                val newFields = record.fields.updated(index, (to, fieldValue))
+                val newFields       = record.fields.updated(index, (to, fieldValue))
                 Right(DynamicValue.Record(newFields))
               }
             case other =>
@@ -274,12 +281,11 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
   private def applyOptionalize(
     at: DynamicOptic,
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     // Optionalize wraps the value in an Option (Some)
     // This is primarily a type-level change in the schema
     // At the DynamicValue level, we just pass through
     Right(value)
-  }
 
   private def applyJoin(
     at: DynamicOptic,
@@ -288,9 +294,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     value: DynamicValue
   ): Either[MigrationError, DynamicValue] = {
     // Collect values from source paths
-    val sourceValues = sourcePaths.map(path =>
-      value.get(path).values.flatMap(_.headOption).toRight(PathNotFound(path))
-    )
+    val sourceValues = sourcePaths.map(path => value.get(path).values.flatMap(_.headOption).toRight(PathNotFound(path)))
 
     // Sequence the results
     sourceValues.foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
@@ -301,9 +305,9 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
       case Right(sv) =>
         // For now, just concatenate string values
         // A full implementation would evaluate the combiner expression
-        val joined = sv.collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }.mkString(" ")
+        val joined     = sv.collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }.mkString(" ")
         val parentPath = DynamicOptic(at.nodes.init)
-        val fieldName = at.nodes.last match {
+        val fieldName  = at.nodes.last match {
           case DynamicOptic.Node.Field(name) => name
           case _                             => return Left(UnsupportedOperationError(at, "Join requires a field path"))
         }
@@ -313,7 +317,9 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
             if (record.fields.exists(_._1 == fieldName)) {
               Left(FieldError(at, fieldName, "Field already exists"))
             } else {
-              Right(DynamicValue.Record(record.fields :+ (fieldName, DynamicValue.Primitive(PrimitiveValue.String(joined)))))
+              Right(
+                DynamicValue.Record(record.fields :+ (fieldName, DynamicValue.Primitive(PrimitiveValue.String(joined))))
+              )
             }
           case other =>
             Left(TypeMismatchError(parentPath, "Record", other.valueType.toString))
@@ -333,13 +339,13 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     selection.values.flatMap(_.headOption) match {
       case Some(DynamicValue.Primitive(PrimitiveValue.String(s))) =>
         // Simple split by whitespace for demonstration
-        val parts = s.split("\\s+").toVector
+        val parts                                        = s.split("\\s+").toVector
         var result: Either[MigrationError, DynamicValue] = Right(value)
 
         for ((path, part) <- targetPaths.zip(parts)) {
           result = result.flatMap { v =>
             val parentPath = DynamicOptic(path.nodes.init)
-            val fieldName = path.nodes.last match {
+            val fieldName  = path.nodes.last match {
               case DynamicOptic.Node.Field(name) => name
               case _                             => return Left(UnsupportedOperationError(path, "Split target must be a field path"))
             }
@@ -349,7 +355,11 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
                 if (record.fields.exists(_._1 == fieldName)) {
                   Left(FieldError(path, fieldName, "Field already exists"))
                 } else {
-                  Right(DynamicValue.Record(record.fields :+ (fieldName, DynamicValue.Primitive(PrimitiveValue.String(part)))))
+                  Right(
+                    DynamicValue.Record(
+                      record.fields :+ (fieldName, DynamicValue.Primitive(PrimitiveValue.String(part)))
+                    )
+                  )
                 }
               case other =>
                 Left(TypeMismatchError(parentPath, "Record", other.valueType.toString))
@@ -369,10 +379,9 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     at: DynamicOptic,
     converter: SchemaExpr[_, _],
     value: DynamicValue
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     // For primitive-to-primitive conversions
     applyTransformValue(at, converter, value)
-  }
 
   // ==========================================================================
   // Enum Actions
@@ -387,8 +396,11 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     val selection = value.get(at)
     selection.values.flatMap(_.headOption) match {
       case Some(variant: DynamicValue.Variant) =>
-        if (variant.caseName == from) {
-          val renamed = DynamicValue.Variant(to, variant.caseValue)
+        if (variant.caseName.contains(from)) {
+          val renamed = variant.caseValue match {
+            case Some(cv) => DynamicValue.Variant(to, cv)
+            case None     => return Left(ValidationError(at, "Variant has no value"))
+          }
           value.setOrFail(at, renamed).left.map(e => EvaluationError(at, e.message))
         } else {
           Right(value) // Not the case we're renaming
@@ -409,14 +421,18 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     val selection = value.get(at)
     selection.values.flatMap(_.headOption) match {
       case Some(variant: DynamicValue.Variant) =>
-        if (variant.caseName == caseName) {
+        if (variant.caseName.contains(caseName)) {
           // Apply the case-specific migration
           val caseMigration = DynamicMigration(caseActions)
-          caseMigration(variant.caseValue) match {
-            case Right(newCaseValue) =>
-              val transformed = DynamicValue.Variant(caseName, newCaseValue)
-              value.setOrFail(at, transformed).left.map(e => EvaluationError(at, e.message))
-            case Left(e) => Left(e)
+          variant.caseValue match {
+            case Some(cv) =>
+              caseMigration(cv) match {
+                case Right(newCaseValue) =>
+                  val transformed = DynamicValue.Variant(caseName, newCaseValue)
+                  value.setOrFail(at, transformed).left.map(e => EvaluationError(at, e.message))
+                case Left(e) => Left(e)
+              }
+            case None => Left(ValidationError(at, "Variant has no value"))
           }
         } else {
           Right(value) // Not the case we're transforming
@@ -440,7 +456,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     val selection = value.get(at)
     selection.values.flatMap(_.headOption) match {
       case Some(seq: DynamicValue.Sequence) =>
-        val dynamicExpr = DynamicSchemaExpr.fromSchemaExpr(transform)
+        val dynamicExpr         = DynamicSchemaExpr.fromSchemaExpr(transform)
         val transformedElements = seq.elements.map { elem =>
           DynamicSchemaExpr.eval(dynamicExpr, elem)
         }
@@ -451,7 +467,10 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
           case (_, Left(e))           => Left(e)
         } match {
           case Right(newElements) =>
-            value.setOrFail(at, DynamicValue.Sequence(newElements)).left.map(e => EvaluationError(at, e.message))
+            value
+              .setOrFail(at, DynamicValue.Sequence(Chunk.fromIterable(newElements)))
+              .left
+              .map(e => EvaluationError(at, e.message))
           case Left(e) => Left(e)
         }
       case Some(other) =>
@@ -473,7 +492,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     val selection = value.get(at)
     selection.values.flatMap(_.headOption) match {
       case Some(map: DynamicValue.Map) =>
-        val dynamicExpr = DynamicSchemaExpr.fromSchemaExpr(transform)
+        val dynamicExpr        = DynamicSchemaExpr.fromSchemaExpr(transform)
         val transformedEntries = map.entries.map { case (k, v) =>
           DynamicSchemaExpr.eval(dynamicExpr, k).map(newKey => (newKey, v))
         }
@@ -484,7 +503,10 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
           case (_, Left(e))               => Left(e)
         } match {
           case Right(newEntries) =>
-            value.setOrFail(at, DynamicValue.Map(newEntries)).left.map(e => EvaluationError(at, e.message))
+            value
+              .setOrFail(at, DynamicValue.Map(Chunk.fromIterable(newEntries)))
+              .left
+              .map(e => EvaluationError(at, e.message))
           case Left(e) => Left(e)
         }
       case Some(other) =>
@@ -502,7 +524,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     val selection = value.get(at)
     selection.values.flatMap(_.headOption) match {
       case Some(map: DynamicValue.Map) =>
-        val dynamicExpr = DynamicSchemaExpr.fromSchemaExpr(transform)
+        val dynamicExpr        = DynamicSchemaExpr.fromSchemaExpr(transform)
         val transformedEntries = map.entries.map { case (k, v) =>
           DynamicSchemaExpr.eval(dynamicExpr, v).map(newVal => (k, newVal))
         }
@@ -513,7 +535,10 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
           case (_, Left(e))               => Left(e)
         } match {
           case Right(newEntries) =>
-            value.setOrFail(at, DynamicValue.Map(newEntries)).left.map(e => EvaluationError(at, e.message))
+            value
+              .setOrFail(at, DynamicValue.Map(Chunk.fromIterable(newEntries)))
+              .left
+              .map(e => EvaluationError(at, e.message))
           case Left(e) => Left(e)
         }
       case Some(other) =>
@@ -530,7 +555,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
   private def modifyAtPath(
     value: DynamicValue,
     path: DynamicOptic
-  )(f: DynamicValue => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] = {
+  )(f: DynamicValue => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] =
     if (path.nodes.isEmpty) {
       f(value)
     } else {
@@ -547,7 +572,6 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
           Left(PathNotFound(path))
       }
     }
-  }
 }
 
 object DynamicMigration {

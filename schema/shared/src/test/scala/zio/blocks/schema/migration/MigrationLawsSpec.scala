@@ -10,10 +10,11 @@ import zio.test.Assertion._
  * This suite verifies that the migration system satisfies the algebraic
  * properties required by the specification:
  *
- * 1. Identity: Migration.identity[A].apply(a) == Right(a)
- * 2. Associativity: (m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)
- * 3. Structural Reverse: m.reverse.reverse == m
- * 4. Best-Effort Semantic Inverse: m.apply(a) == Right(b) => m.reverse.apply(b) == Right(a)
+ *   1. Identity: Migration.identity[A].apply(a) == Right(a)
+ *   2. Associativity: (m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)
+ *   3. Structural Reverse: m.reverse.reverse == m
+ *   4. Best-Effort Semantic Inverse: m.apply(a) == Right(b) =>
+ *      m.reverse.apply(b) == Right(a)
  */
 object MigrationLawsSpec extends ZIOSpecDefault {
 
@@ -93,7 +94,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
     },
     test("identity ++ m == m (when types align)") {
       val id = Migration.identity[SimpleV1]
-      val m = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 0).build
+      val m  = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 0).build
 
       val composed = id ++ m
 
@@ -101,7 +102,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       assert(composed(v1))(isRight(equalTo(m(v1).toOption.get)))
     },
     test("m ++ identity == m (when types align)") {
-      val m = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 0).build
+      val m  = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 0).build
       val id = Migration.identity[SimpleV2]
 
       val composed = m ++ id
@@ -130,7 +131,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       val m2 = Migration.newBuilder[SimpleV2, SimpleV3].addField(_.active, false).build
 
       val composed = m1 ++ m2
-      val v1 = SimpleV1("John")
+      val v1       = SimpleV1("John")
 
       val result = composed(v1).toOption.get
 
@@ -140,12 +141,14 @@ object MigrationLawsSpec extends ZIOSpecDefault {
     },
     test("Empty migration is neutral element") {
       val empty = DynamicMigration(Vector.empty)
-      val m = DynamicMigration(Vector(
-        MigrationAction.AddField(
-          DynamicOptic.root.field("age"),
-          SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema.int)
+      val m     = DynamicMigration(
+        Vector(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("age"),
+            SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema.int)
+          )
         )
-      ))
+      )
 
       assert((empty ++ m).actions)(equalTo(m.actions))
       assert((m ++ empty).actions)(equalTo(m.actions))
@@ -155,7 +158,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       val m2 = Migration.newBuilder[SimpleV2, SimpleV3].addField(_.active, true).build
 
       val composed = m1 ++ m2
-      val v1 = SimpleV1("test")
+      val v1       = SimpleV1("test")
 
       // Verify the composed migration works end-to-end
       assert(composed(v1).isRight)(isTrue)
@@ -168,26 +171,26 @@ object MigrationLawsSpec extends ZIOSpecDefault {
 
   def reverseLaws = suite("ReverseLaws")(
     test("reverse.reverse is structurally equivalent to original") {
-      val m = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 0).build
+      val m             = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 0).build
       val doubleReverse = m.reverse.reverse
 
       // Structural: same number of actions
       assert(doubleReverse.actions.length)(equalTo(m.actions.length))
     },
     test("AddField reverse is DropField") {
-      val m = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 100).build
+      val m       = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 100).build
       val reverse = m.reverse
 
       assert(reverse.actions.head.isInstanceOf[MigrationAction.DropField])(isTrue)
     },
     test("DropField reverse is AddField") {
-      val m = Migration.newBuilder[SimpleV2, SimpleV1].dropField(_.age, 100).build
+      val m       = Migration.newBuilder[SimpleV2, SimpleV1].dropField(_.age, 100).build
       val reverse = m.reverse
 
       assert(reverse.actions.head.isInstanceOf[MigrationAction.AddField])(isTrue)
     },
     test("Rename reverse swaps names") {
-      val m = Migration.newBuilder[RenameV1, RenameV2].renameField(_.n, _.name).build
+      val m       = Migration.newBuilder[RenameV1, RenameV2].renameField(_.n, _.name).build
       val reverse = m.reverse
 
       val v2 = RenameV2("test")
@@ -214,7 +217,8 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       assert(reversed.targetSchema)(equalTo(identity.targetSchema))
     },
     test("Reverse preserves migration structure") {
-      val m = Migration.newBuilder[SimpleV1, SimpleV2]
+      val m = Migration
+        .newBuilder[SimpleV1, SimpleV2]
         .addField(_.age, 25)
         .build
 
@@ -235,8 +239,8 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       val forward = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 99).build
       val reverse = forward.reverse
 
-      val v1 = SimpleV1("Alice")
-      val v2 = forward(v1).toOption.get
+      val v1       = SimpleV1("Alice")
+      val v2       = forward(v1).toOption.get
       val restored = reverse(v2).toOption.get
 
       assert(restored.name)(equalTo(v1.name))
@@ -244,29 +248,30 @@ object MigrationLawsSpec extends ZIOSpecDefault {
     test("Rename is its own inverse") {
       val m = Migration.newBuilder[RenameV1, RenameV2].renameField(_.n, _.name).build
 
-      val v1 = RenameV1("test")
-      val v2 = m(v1).toOption.get
+      val v1       = RenameV1("test")
+      val v2       = m(v1).toOption.get
       val restored = m.reverse(v2).toOption.get
 
       assert(restored)(equalTo(v1))
     },
     test("Double reverse equals original for pure migrations") {
-      val m = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 0).build
+      val m             = Migration.newBuilder[SimpleV1, SimpleV2].addField(_.age, 0).build
       val doubleReverse = m.reverse.reverse
 
-      val v1 = SimpleV1("Bob")
-      val originalResult = m(v1).toOption.get
+      val v1                  = SimpleV1("Bob")
+      val originalResult      = m(v1).toOption.get
       val doubleReverseResult = doubleReverse(v1).toOption.get
 
       assert(doubleReverseResult)(equalTo(originalResult))
     },
     test("Best-effort inverse for complex migrations") {
-      val m = Migration.newBuilder[SimpleV1, SimpleV2]
+      val m = Migration
+        .newBuilder[SimpleV1, SimpleV2]
         .addField(_.age, 42)
         .build
 
-      val v1 = SimpleV1("Charlie")
-      val v2 = m(v1).toOption.get
+      val v1       = SimpleV1("Charlie")
+      val v2       = m(v1).toOption.get
       val restored = m.reverse(v2).toOption.get
 
       // Name should be preserved
@@ -307,7 +312,8 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       assert(composed)(anything)
     },
     test("Multiple operations in single migration compose") {
-      val m = Migration.newBuilder[SimpleV1, SimpleV3]
+      val m = Migration
+        .newBuilder[SimpleV1, SimpleV3]
         .addField(_.age, 25)
         .addField(_.active, true)
         .build

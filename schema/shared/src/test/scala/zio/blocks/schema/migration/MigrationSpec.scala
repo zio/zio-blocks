@@ -8,12 +8,12 @@ import zio.test.Assertion._
  * Comprehensive test suite for the schema migration system.
  *
  * This suite tests:
- * - All migration actions with edge cases
- * - Algebraic laws (identity, associativity, reversibility)
- * - Complex nested migrations
- * - Real-world migration patterns
- * - Error handling and edge cases
- * - Macro selector validation
+ *   - All migration actions with edge cases
+ *   - Algebraic laws (identity, associativity, reversibility)
+ *   - Complex nested migrations
+ *   - Real-world migration patterns
+ *   - Error handling and edge cases
+ *   - Macro selector validation
  */
 object MigrationSpec extends ZIOSpecDefault {
 
@@ -148,8 +148,8 @@ object MigrationSpec extends ZIOSpecDefault {
 
   sealed trait PaymentMethod
   object PaymentMethod {
-    case class CreditCard(number: String, expiry: String) extends PaymentMethod
-    case class PayPal(email: String) extends PaymentMethod
+    case class CreditCard(number: String, expiry: String)     extends PaymentMethod
+    case class PayPal(email: String)                          extends PaymentMethod
     case class BankTransfer(account: String, routing: String) extends PaymentMethod
 
     implicit val schema: Schema[PaymentMethod] = Schema.derived
@@ -157,9 +157,9 @@ object MigrationSpec extends ZIOSpecDefault {
 
   sealed trait PaymentMethodV2
   object PaymentMethodV2 {
-    case class Card(number: String, expiry: String) extends PaymentMethodV2  // Renamed from CreditCard
-    case class PayPal(email: String) extends PaymentMethodV2
-    case class WireTransfer(account: String, routing: String) extends PaymentMethodV2  // Renamed from BankTransfer
+    case class Card(number: String, expiry: String)           extends PaymentMethodV2 // Renamed from CreditCard
+    case class PayPal(email: String)                          extends PaymentMethodV2
+    case class WireTransfer(account: String, routing: String) extends PaymentMethodV2 // Renamed from BankTransfer
 
     implicit val schema: Schema[PaymentMethodV2] = Schema.derived
   }
@@ -184,10 +184,10 @@ object MigrationSpec extends ZIOSpecDefault {
 
   case class UserProfileV2(
     username: String,
-    displayName: String,  // New field
+    displayName: String, // New field
     addresses: Vector[AddressV2],
     preferences: Map[String, String],
-    newsletterSubscribed: Boolean  // New field
+    newsletterSubscribed: Boolean // New field
   )
   object UserProfileV2 {
     implicit val schema: Schema[UserProfileV2] = Schema.derived
@@ -307,7 +307,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .addField(_.age, 0)
         .build
 
-      val v0 = PersonV0("OriginalName")
+      val v0     = PersonV0("OriginalName")
       val result = migration(v0)
 
       assert(result.map(_.name))(isRight(equalTo("OriginalName")))
@@ -319,7 +319,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .build
 
       val reverse = migration.reverse
-      val v1 = PersonV1("John", 30)
+      val v1      = PersonV1("John", 30)
 
       // Reverse should drop the age field and use default 100
       assert(reverse(v1).map(_.name))(isRight(equalTo("John")))
@@ -349,7 +349,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .build
 
       val reverse = migration.reverse
-      val v0 = PersonV0("Alice")
+      val v0      = PersonV0("Alice")
 
       assert(reverse(v0))(isRight(equalTo(PersonV1("Alice", 25))))
     },
@@ -376,7 +376,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .build
 
       val reverse = migration.reverse
-      val v0 = PersonV0("Test")
+      val v0      = PersonV0("Test")
 
       assert(reverse(v0))(isRight(equalTo(PersonV1("Test", 99))))
     }
@@ -414,8 +414,8 @@ object MigrationSpec extends ZIOSpecDefault {
         .renameField(_.n, _.name)
         .build
 
-      val reverse = migration.reverse
-      val newInfo = NewInfo("Bob")
+      val reverse  = migration.reverse
+      val newInfo  = NewInfo("Bob")
       val expected = OldInfo("Bob")
 
       assert(reverse(newInfo))(isRight(equalTo(expected)))
@@ -427,7 +427,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .build
 
       val doubleReverse = migration.reverse.reverse
-      val old = OldInfo("Test")
+      val old           = OldInfo("Test")
 
       assert(doubleReverse(old))(isRight(equalTo(NewInfo("Test"))))
     },
@@ -443,7 +443,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .renameField(_.firstName, _.fullName)
         .build
 
-      val v1 = V1("John", "Doe", 30)
+      val v1       = V1("John", "Doe", 30)
       val expected = V2("John", "Doe", 30)
 
       assert(migration(v1))(isRight(equalTo(expected)))
@@ -471,7 +471,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val v1 = V1("John", 25)
+      val v1       = V1("John", 25)
       val expected = V2("John", 100)
 
       assert(migration(v1))(isRight(equalTo(expected)))
@@ -512,7 +512,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val v1 = V1("Alice", 25)
+      val v1     = V1("Alice", 25)
       val result = migration(v1)
 
       assert(result.map(_.name))(isRight(equalTo("Alice")))
@@ -531,7 +531,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .mandateField(_.age, _.age, SchemaExpr.Literal(0, Schema.int))
         .build
 
-      val v0 = WithOptional("John", None)
+      val v0       = WithOptional("John", None)
       val expected = WithMandatory("John", 0)
 
       assert(migration(v0))(isRight(equalTo(expected)))
@@ -542,7 +542,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .mandateField(_.age, _.age, SchemaExpr.Literal(0, Schema.int))
         .build
 
-      val v0 = WithOptional("John", Some(25))
+      val v0       = WithOptional("John", Some(25))
       val expected = WithMandatory("John", 25)
 
       assert(migration(v0))(isRight(equalTo(expected)))
@@ -553,7 +553,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .mandateField(_.age, _.age, SchemaExpr.Literal(99, Schema.int))
         .build
 
-      val v0 = WithOptional("Alice", None)
+      val v0       = WithOptional("Alice", None)
       val expected = WithMandatory("Alice", 99)
 
       assert(migration(v0))(isRight(equalTo(expected)))
@@ -582,7 +582,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .optionalizeField(_.age, _.age)
         .build
 
-      val v0 = WithMandatory("John", 25)
+      val v0       = WithMandatory("John", 25)
       val expected = WithOptional("John", Some(25))
 
       assert(migration(v0))(isRight(equalTo(expected)))
@@ -620,7 +620,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val v1 = V1(25)
+      val v1       = V1(25)
       val expected = V2("twenty-five")
 
       assert(migration(v1))(isRight(equalTo(expected)))
@@ -668,7 +668,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val v1 = V1("John", "Doe")
+      val v1     = V1("John", "Doe")
       val result = migration(v1)
 
       assert(result)(isRight(anything))
@@ -696,7 +696,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val v1 = V1("John Doe")
+      val v1     = V1("John Doe")
       val result = migration(v1)
 
       assert(result)(isRight(anything))
@@ -714,7 +714,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .addField(_.address.country, "Unknown")
         .build
 
-      val v1 = PersonWithAddress("John", Address("Main St", "NYC", "10001"))
+      val v1     = PersonWithAddress("John", Address("Main St", "NYC", "10001"))
       val result = migration(v1)
 
       assert(result.map(_.name))(isRight(equalTo("John")))
@@ -733,7 +733,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .addField(_.address.country, "USA")
         .build
 
-      val v1 = V1(Address("St", "City", "12345"))
+      val v1     = V1(Address("St", "City", "12345"))
       val result = migration(v1)
 
       assert(result)(isRight(anything))
@@ -748,7 +748,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val v1 = PersonWithAddress("John", Address("Main St", "NYC", "10001"))
+      val v1     = PersonWithAddress("John", Address("Main St", "NYC", "10001"))
       val result = migration(v1)
 
       assert(result.map(_.address.city))(isRight(equalTo("Los Angeles")))
@@ -763,7 +763,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val v1 = PersonWithAddress("John", Address("Main St", "NYC", "10001"))
+      val v1     = PersonWithAddress("John", Address("Main St", "NYC", "10001"))
       val result = migration(v1)
 
       assert(result.map(_.address.street))(isRight(equalTo("Main St")))
@@ -787,7 +787,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .build
 
       val company = Company("Acme", Address("Market St", "NYC", "10001"))
-      val result = migration(company)
+      val result  = migration(company)
 
       assert(result.map(_.headquarters.city))(isRight(equalTo("San Francisco")))
       assert(result.map(_.name))(isRight(equalTo("Acme")))
@@ -808,7 +808,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val order = Order(Vector(Item("A", 10.0), Item("B", 20.0)), 30.0)
+      val order  = Order(Vector(Item("A", 10.0), Item("B", 20.0)), 30.0)
       val result = migration(order)
 
       assert(result.map(_.total))(isRight(equalTo(30.0)))
@@ -824,7 +824,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .build
 
       val catalog = Catalog(Vector.empty)
-      val result = migration(catalog)
+      val result  = migration(catalog)
 
       assert(result)(isRight(equalTo(catalog)))
     },
@@ -837,7 +837,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val order = Order(Vector(Item("A", 10.0), Item("B", 20.0), Item("C", 30.0)), 60.0)
+      val order  = Order(Vector(Item("A", 10.0), Item("B", 20.0), Item("C", 30.0)), 60.0)
       val result = migration(order)
 
       assert(result.map(_.items.length))(isRight(equalTo(3)))
@@ -855,7 +855,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .addField(_.customerName, "Guest")
         .build
 
-      val order = Order(Vector(Item("A", 10.0)), 10.0)
+      val order  = Order(Vector(Item("A", 10.0)), 10.0)
       val result = migration(order)
 
       assert(result.map(_.customerName))(isRight(equalTo("Guest")))
@@ -877,7 +877,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val map = StringMap(Map("key1" -> "value1", "key2" -> "value2"))
+      val map    = StringMap(Map("key1" -> "value1", "key2" -> "value2"))
       val result = migration(map)
 
       assert(result)(isRight(anything))
@@ -891,7 +891,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val map = StringMap(Map.empty)
+      val map    = StringMap(Map.empty)
       val result = migration(map)
 
       assert(result)(isRight(equalTo(map)))
@@ -905,7 +905,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         .build
 
-      val map = StringMap(Map("k1" -> "v1", "k2" -> "v2"))
+      val map    = StringMap(Map("k1" -> "v1", "k2" -> "v2"))
       val result = migration(map)
 
       assert(result.map(_.values.keySet))(isRight(equalTo(Set("k1", "k2"))))
@@ -949,7 +949,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .renameCaseAt(_.method, "CreditCard", "Card")
         .build
 
-      val tx = Transaction("1", 100.0, PaymentMethod.CreditCard("1234", "12/25"))
+      val tx     = Transaction("1", 100.0, PaymentMethod.CreditCard("1234", "12/25"))
       val result = migration(tx)
 
       assert(result)(isRight(anything))
@@ -962,10 +962,12 @@ object MigrationSpec extends ZIOSpecDefault {
 
   def transformCaseSuite = suite("TransformCase")(
     test("TransformCase action structure") {
-      val actions = Vector(MigrationAction.AddField(
-        DynamicOptic.root.field("newField"),
-        SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")), Schema.string)
-      ))
+      val actions = Vector(
+        MigrationAction.AddField(
+          DynamicOptic.root.field("newField"),
+          SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")), Schema.string)
+        )
+      )
 
       val action = MigrationAction.TransformCase(
         DynamicOptic.root,
@@ -991,7 +993,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .addField(_.country, "Unknown")
         .build
 
-      val v0 = PersonV0("John")
+      val v0       = PersonV0("John")
       val expected = PersonV2("John", 0, "Unknown")
 
       assert(migration(v0))(isRight(equalTo(expected)))
@@ -1027,7 +1029,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .addField(_.version, 1)
         .build
 
-      val v1 = ConfigV1(Map("key" -> "value"))
+      val v1       = ConfigV1(Map("key" -> "value"))
       val expected = ConfigV2(Map("key" -> "value"), 1)
 
       assert(migration(v1))(isRight(equalTo(expected)))
@@ -1044,7 +1046,7 @@ object MigrationSpec extends ZIOSpecDefault {
       case class UserRow(id: Long, name: String)
       case class UserRowV2(id: Long, name: String, createdAt: Long)
 
-      implicit val v1Schema: Schema[UserRow] = Schema.derived
+      implicit val v1Schema: Schema[UserRow]   = Schema.derived
       implicit val v2Schema: Schema[UserRowV2] = Schema.derived
 
       val migration = Migration
@@ -1052,7 +1054,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .addField(_.createdAt, 0L)
         .build
 
-      val row = UserRow(1L, "Alice")
+      val row      = UserRow(1L, "Alice")
       val expected = UserRowV2(1L, "Alice", 0L)
 
       assert(migration(row))(isRight(equalTo(expected)))
@@ -1070,7 +1072,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .renameField(_.userAge, _.age)
         .build
 
-      val v1 = ApiV1Response("john", 30)
+      val v1       = ApiV1Response("john", 30)
       val expected = ApiV2Response("john", 30)
 
       assert(migration(v1))(isRight(equalTo(expected)))
@@ -1087,7 +1089,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .addField(_.email, "")
         .build
 
-      val event = UserCreatedEventV1("123", "Alice")
+      val event    = UserCreatedEventV1("123", "Alice")
       val expected = UserCreatedEventV2("123", "Alice", "")
 
       assert(migration(event))(isRight(equalTo(expected)))
@@ -1101,7 +1103,7 @@ object MigrationSpec extends ZIOSpecDefault {
   def identityLawSuite = suite("IdentityLaw")(
     test("Identity migration returns input unchanged") {
       val identity = Migration.identity[PersonV0]
-      val person = PersonV0("John")
+      val person   = PersonV0("John")
 
       assert(identity(person))(isRight(equalTo(person)))
     },
@@ -1112,27 +1114,27 @@ object MigrationSpec extends ZIOSpecDefault {
     },
     test("Identity for complex type") {
       val identity = Migration.identity[PersonWithAddress]
-      val person = PersonWithAddress("John", Address("Main St", "NYC", "10001"))
+      val person   = PersonWithAddress("John", Address("Main St", "NYC", "10001"))
 
       assert(identity(person))(isRight(equalTo(person)))
     },
     test("m ++ identity == m") {
-      val m = Migration.newBuilder[PersonV0, PersonV1].addField(_.age, 0).build
+      val m  = Migration.newBuilder[PersonV0, PersonV1].addField(_.age, 0).build
       val id = Migration.identity[PersonV1]
 
       val composed = m ++ id
-      val v0 = PersonV0("John")
+      val v0       = PersonV0("John")
 
       assert(composed(v0))(isRight(equalTo(PersonV1("John", 0))))
     },
     test("identity ++ m == m") {
       val id = Migration.identity[PersonV0]
-      val m = Migration.newBuilder[PersonV0, PersonV1].addField(_.age, 0).build
+      val m  = Migration.newBuilder[PersonV0, PersonV1].addField(_.age, 0).build
 
       // Note: This requires the identity source to match m's source
       // Which it does in this case
       val composed = id ++ m
-      val v0 = PersonV0("John")
+      val v0       = PersonV0("John")
 
       assert(composed(v0))(isRight(equalTo(PersonV1("John", 0))))
     }
@@ -1157,7 +1159,7 @@ object MigrationSpec extends ZIOSpecDefault {
       val m2 = Migration.newBuilder[PersonV1, PersonV2].addField(_.country, "USA").build
 
       val composed = m1 ++ m2
-      val v0 = PersonV0("John")
+      val v0       = PersonV0("John")
 
       // After m1: PersonV1("John", 10)
       // After m2: PersonV2("John", 10, "USA")
@@ -1165,10 +1167,14 @@ object MigrationSpec extends ZIOSpecDefault {
     },
     test("Empty composition is identity") {
       val identity = DynamicMigration(Vector.empty)
-      val m = DynamicMigration(Vector(MigrationAction.AddField(
-        DynamicOptic.root.field("age"),
-        SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema.int)
-      )))
+      val m        = DynamicMigration(
+        Vector(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("age"),
+            SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema.int)
+          )
+        )
+      )
 
       assert((identity ++ m).actions)(equalTo(m.actions))
       assert((m ++ identity).actions)(equalTo(m.actions))
@@ -1252,10 +1258,10 @@ object MigrationSpec extends ZIOSpecDefault {
         .build
 
       val reverse = forward.reverse
-      val v0 = PersonV0("John")
+      val v0      = PersonV0("John")
 
       // Forward then reverse should give back original (with default)
-      val v1 = forward(v0).toOption.get
+      val v1       = forward(v0).toOption.get
       val restored = reverse(v1)
 
       assert(restored.map(_.name))(isRight(equalTo("John")))
@@ -1266,8 +1272,8 @@ object MigrationSpec extends ZIOSpecDefault {
         .renameField(_.n, _.name)
         .build
 
-      val old = OldInfo("Test")
-      val newInfo = migration(old).toOption.get
+      val old      = OldInfo("Test")
+      val newInfo  = migration(old).toOption.get
       val restored = migration.reverse(newInfo).toOption.get
 
       assert(restored)(equalTo(old))
@@ -1279,7 +1285,7 @@ object MigrationSpec extends ZIOSpecDefault {
         .build
 
       val doubleReverse = migration.reverse.reverse
-      val v0 = PersonV0("Alice")
+      val v0            = PersonV0("Alice")
 
       // After double reverse, migration should work the same
       assert(migration(v0))(isRight(equalTo(PersonV1("Alice", 0))))
@@ -1299,8 +1305,8 @@ object MigrationSpec extends ZIOSpecDefault {
       )
 
       val dynamicMigration = DynamicMigration(Vector(action))
-      val person = PersonV0("John")
-      val dynamicValue = PersonV0.schema.toDynamicValue(person)
+      val person           = PersonV0("John")
+      val dynamicValue     = PersonV0.schema.toDynamicValue(person)
 
       val result = dynamicMigration(dynamicValue)
 
@@ -1313,7 +1319,7 @@ object MigrationSpec extends ZIOSpecDefault {
         SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)), Schema.int)
       )
 
-      val primitiveValue = DynamicValue.Primitive(PrimitiveValue.String("test"))
+      val primitiveValue   = DynamicValue.Primitive(PrimitiveValue.String("test"))
       val dynamicMigration = DynamicMigration(Vector(action))
 
       val result = dynamicMigration(primitiveValue)
@@ -1326,7 +1332,7 @@ object MigrationSpec extends ZIOSpecDefault {
         "newName"
       )
 
-      val recordValue = DynamicValue.Record(Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
+      val recordValue      = DynamicValue.Record(Vector("name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
       val dynamicMigration = DynamicMigration(Vector(action))
 
       val result = dynamicMigration(recordValue)

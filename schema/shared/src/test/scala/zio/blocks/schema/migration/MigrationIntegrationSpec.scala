@@ -7,12 +7,12 @@ import zio.test.Assertion._
 /**
  * Integration tests for real-world migration scenarios.
  *
- * These tests demonstrate how the migration system can be used in
- * practical applications like:
- * - Database schema evolution
- * - API versioning
- * - Event sourcing
- * - Configuration migration
+ * These tests demonstrate how the migration system can be used in practical
+ * applications like:
+ *   - Database schema evolution
+ *   - API versioning
+ *   - Event sourcing
+ *   - Configuration migration
  */
 object MigrationIntegrationSpec extends ZIOSpecDefault {
 
@@ -29,8 +29,8 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
     id: Long,
     username: String,
     email: String,
-    createdAt: Long,     // New field
-    isActive: Boolean    // New field
+    createdAt: Long,  // New field
+    isActive: Boolean // New field
   )
   object UserRowV2 {
     implicit val schema: Schema[UserRowV2] = Schema.derived
@@ -42,7 +42,7 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
     email: String,
     createdAt: Long,
     isActive: Boolean,
-    profile: Option[String]  // New optional field
+    profile: Option[String] // New optional field
   )
   object UserRowV3 {
     implicit val schema: Schema[UserRowV3] = Schema.derived
@@ -82,7 +82,7 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
       orderId: String,
       customerId: String,
       total: Double,
-      currency: String  // New field
+      currency: String // New field
     ) extends DomainEvent
 
     implicit val schema: Schema[DomainEvent] = Schema.derived
@@ -103,8 +103,8 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
   case class AppConfigV2(
     databaseUrl: String,
     maxConnections: Int,
-    timeout: Int,           // New field
-    retryPolicy: String     // New field
+    timeout: Int,       // New field
+    retryPolicy: String // New field
   )
   object AppConfigV2 {
     implicit val schema: Schema[AppConfigV2] = Schema.derived
@@ -123,7 +123,7 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
     street: String,
     city: String,
     zip: String,
-    country: String  // New field
+    country: String // New field
   )
   object AddressV2 {
     implicit val schema: Schema[AddressV2] = Schema.derived
@@ -140,10 +140,10 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
 
   case class CustomerV2(
     id: String,
-    firstName: String,  // Renamed from name
-    lastName: String,   // New field
+    firstName: String, // Renamed from name
+    lastName: String,  // New field
     address: AddressV2,
-    email: Option[String]  // New optional field
+    email: Option[String] // New optional field
   )
   object CustomerV2 {
     implicit val schema: Schema[CustomerV2] = Schema.derived
@@ -162,7 +162,7 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
     sku: String,
     name: String,
     price: Double,
-    inStock: Boolean  // New field
+    inStock: Boolean // New field
   )
   object ProductV2 {
     implicit val schema: Schema[ProductV2] = Schema.derived
@@ -175,7 +175,7 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
 
   case class CatalogV2(
     products: Vector[ProductV2],
-    lastUpdated: Long  // New field
+    lastUpdated: Long // New field
   )
   object CatalogV2 {
     implicit val schema: Schema[CatalogV2] = Schema.derived
@@ -236,8 +236,8 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
         .build
 
       val rollback = migration.reverse
-      val v2 = UserRowV2(1L, "charlie", "charlie@example.com", 999L, false)
-      val v1 = rollback(v2).toOption.get
+      val v2       = UserRowV2(1L, "charlie", "charlie@example.com", 999L, false)
+      val v1       = rollback(v2).toOption.get
 
       assert(v1.id)(equalTo(1L))
       assert(v1.username)(equalTo("charlie"))
@@ -256,8 +256,8 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
         .build
 
       val v1ToV3 = v1ToV2 ++ v2ToV3
-      val v1 = UserRowV1(1L, "dave", "dave@example.com")
-      val v3 = v1ToV3(v1).toOption.get
+      val v1     = UserRowV1(1L, "dave", "dave@example.com")
+      val v3     = v1ToV3(v1).toOption.get
 
       assert(v3.id)(equalTo(1L))
       assert(v3.profile)(isNone)
@@ -296,8 +296,8 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
         .build
 
       val backward = forward.reverse
-      val v2 = ApiV2UserResponse("456", "Jane", "jane@example.com", "2024-01-01")
-      val v1 = backward(v2).toOption.get
+      val v2       = ApiV2UserResponse("456", "Jane", "jane@example.com", "2024-01-01")
+      val v1       = backward(v2).toOption.get
 
       assert(v1.userId)(equalTo("456"))
       assert(v1.userName)(equalTo("Jane"))
@@ -357,8 +357,8 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
         .build
 
       val rollback = migration.reverse
-      val v2 = AppConfigV2("url", 5, 60, "linear")
-      val v1 = rollback(v2).toOption.get
+      val v2       = AppConfigV2("url", 5, 60, "linear")
+      val v1       = rollback(v2).toOption.get
 
       assert(v1.databaseUrl)(equalTo("url"))
       assert(v1.maxConnections)(equalTo(5))
@@ -415,10 +415,12 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
         .addField(_.lastUpdated, 0L)
         .build
 
-      val v1 = CatalogV1(Vector(
-        ProductV1("SKU-1", "Widget", 9.99),
-        ProductV1("SKU-2", "Gadget", 19.99)
-      ))
+      val v1 = CatalogV1(
+        Vector(
+          ProductV1("SKU-1", "Widget", 9.99),
+          ProductV1("SKU-2", "Gadget", 19.99)
+        )
+      )
       val v2 = migration(v1).toOption.get
 
       assert(v2.products.length)(equalTo(2))
@@ -456,7 +458,7 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
         .addField(_.profile, None: Option[String])
         .build
 
-      val forward = v1ToV2 ++ v2ToV3
+      val forward  = v1ToV2 ++ v2ToV3
       val rollback = forward.reverse
 
       val v3 = UserRowV3(1L, "test", "test@test.com", 123L, true, Some("bio"))
@@ -475,8 +477,8 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
 
       // Rollback just one step
       val partialRollback = migration.reverse
-      val v2 = UserRowV2(1L, "user", "user@test.com", 999L, false)
-      val v1 = partialRollback(v2).toOption.get
+      val v2              = UserRowV2(1L, "user", "user@test.com", 999L, false)
+      val v1              = partialRollback(v2).toOption.get
 
       assert(v1.username)(equalTo("user"))
     }
@@ -543,7 +545,7 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
         .build
 
       val fullMigration = v1ToV2 ++ v2ToV3
-      val fullRollback = fullMigration.reverse
+      val fullRollback  = fullMigration.reverse
 
       val v3 = UserRowV3(1L, "rollback", "rb@test.com", 123L, true, Some("data"))
       val v1 = fullRollback(v3).toOption.get

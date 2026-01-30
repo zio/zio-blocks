@@ -6,8 +6,8 @@ import zio.blocks.schema._
  * A serializable expression that operates on DynamicValue.
  *
  * This is used for all value-level transformations in migrations. Unlike
- * SchemaExpr which operates on typed values, DynamicSchemaExpr works with
- * the untyped DynamicValue representation.
+ * SchemaExpr which operates on typed values, DynamicSchemaExpr works with the
+ * untyped DynamicValue representation.
  */
 sealed trait DynamicSchemaExpr
 
@@ -91,9 +91,12 @@ object DynamicSchemaExpr {
   /**
    * Evaluates a DynamicSchemaExpr against an input DynamicValue.
    *
-   * @param expr the expression to evaluate
-   * @param input the input value
-   * @return either an error or the resulting DynamicValue
+   * @param expr
+   *   the expression to evaluate
+   * @param input
+   *   the input value
+   * @return
+   *   either an error or the resulting DynamicValue
    */
   def eval(expr: DynamicSchemaExpr, input: DynamicValue): Either[MigrationError, DynamicValue] =
     expr match {
@@ -130,23 +133,23 @@ object DynamicSchemaExpr {
 
       case Arithmetic(left, right, op) =>
         for {
-          l <- eval(left, input)
-          r <- eval(right, input)
+          l      <- eval(left, input)
+          r      <- eval(right, input)
           result <- evalArithmetic(l, r, op)
         } yield result
 
       case StringConcat(left, right) =>
         for {
-          l <- eval(left, input)
-          r <- eval(right, input)
+          l  <- eval(left, input)
+          r  <- eval(right, input)
           ls <- asString(l).toRight(MigrationError.ValidationError("Expected String in left operand"))
           rs <- asString(r).toRight(MigrationError.ValidationError("Expected String in right operand"))
         } yield DynamicValue.Primitive(PrimitiveValue.String(ls + rs))
 
       case StringRegexMatch(regex, string) =>
         for {
-          r <- eval(regex, input)
-          s <- eval(string, input)
+          r  <- eval(regex, input)
+          s  <- eval(string, input)
           rs <- asString(r).toRight(MigrationError.ValidationError("Expected String regex"))
           ss <- asString(s).toRight(MigrationError.ValidationError("Expected String"))
         } yield DynamicValue.Primitive(PrimitiveValue.Boolean(ss.matches(rs)))
@@ -168,7 +171,7 @@ object DynamicSchemaExpr {
         }
 
       case DefaultValue(schema) =>
-        schema.defaultValue match {
+        schema.getDefaultValue match {
           case Some(value) => Right(schema.toDynamicValue(value))
           case None        => Left(MigrationError.ValidationError(s"Schema has no default value"))
         }
@@ -208,7 +211,7 @@ object DynamicSchemaExpr {
     right: DynamicValue,
     op: SchemaExpr.RelationalOperator
   ): DynamicValue = {
-    val cmp = left.compare(right)
+    val cmp    = left.compare(right)
     val result = op match {
       case SchemaExpr.RelationalOperator.Equal              => cmp == 0
       case SchemaExpr.RelationalOperator.NotEqual           => cmp != 0
@@ -230,7 +233,7 @@ object DynamicSchemaExpr {
     left: DynamicValue,
     right: DynamicValue,
     op: SchemaExpr.ArithmeticOperator
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     // Try to handle numeric types
     (asInt(left), asInt(right)) match {
       case (Some(l), Some(r)) =>
@@ -238,12 +241,7 @@ object DynamicSchemaExpr {
           case SchemaExpr.ArithmeticOperator.Add      => DynamicValue.Primitive(PrimitiveValue.Int(l + r))
           case SchemaExpr.ArithmeticOperator.Subtract => DynamicValue.Primitive(PrimitiveValue.Int(l - r))
           case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Int(l * r))
-          case SchemaExpr.ArithmeticOperator.Divide   =>
-            if (r == 0) return Left(MigrationError.ValidationError("Division by zero"))
-            DynamicValue.Primitive(PrimitiveValue.Int(l / r))
-          case SchemaExpr.ArithmeticOperator.Modulo =>
-            if (r == 0) return Left(MigrationError.ValidationError("Modulo by zero"))
-            DynamicValue.Primitive(PrimitiveValue.Int(l % r))
+          case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Int(l * r))
         }
         Right(result)
       case _ =>
@@ -253,12 +251,7 @@ object DynamicSchemaExpr {
               case SchemaExpr.ArithmeticOperator.Add      => DynamicValue.Primitive(PrimitiveValue.Long(l + r))
               case SchemaExpr.ArithmeticOperator.Subtract => DynamicValue.Primitive(PrimitiveValue.Long(l - r))
               case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Long(l * r))
-              case SchemaExpr.ArithmeticOperator.Divide   =>
-                if (r == 0) return Left(MigrationError.ValidationError("Division by zero"))
-                DynamicValue.Primitive(PrimitiveValue.Long(l / r))
-              case SchemaExpr.ArithmeticOperator.Modulo =>
-                if (r == 0) return Left(MigrationError.ValidationError("Modulo by zero"))
-                DynamicValue.Primitive(PrimitiveValue.Long(l % r))
+              case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Long(l * r))
             }
             Right(result)
           case _ =>
@@ -268,18 +261,13 @@ object DynamicSchemaExpr {
                   case SchemaExpr.ArithmeticOperator.Add      => DynamicValue.Primitive(PrimitiveValue.Double(l + r))
                   case SchemaExpr.ArithmeticOperator.Subtract => DynamicValue.Primitive(PrimitiveValue.Double(l - r))
                   case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Double(l * r))
-                  case SchemaExpr.ArithmeticOperator.Divide   =>
-                    if (r == 0.0) return Left(MigrationError.ValidationError("Division by zero"))
-                    DynamicValue.Primitive(PrimitiveValue.Double(l / r))
-                  case SchemaExpr.ArithmeticOperator.Modulo =>
-                    DynamicValue.Primitive(PrimitiveValue.Double(l % r))
+                  case SchemaExpr.ArithmeticOperator.Multiply => DynamicValue.Primitive(PrimitiveValue.Double(l * r))
                 }
                 Right(result)
               case _ => Left(MigrationError.ValidationError("Arithmetic operations require numeric operands"))
             }
         }
     }
-  }
 
   // ==========================================================================
   // Conversion from SchemaExpr
