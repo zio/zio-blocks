@@ -21,6 +21,54 @@ object JsonDifferSpec extends ZIOSpecDefault {
   val genSmallString: Gen[Any, String] = Gen.alphaNumericStringBounded(1, 20)
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Tweak-Based Generators (for property-based tests)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  val genObjectWithAddedField: Gen[Any, (Json.Object, Json.Object)] =
+    for {
+      baseKeys <- Gen.listOfBounded(0, 3)(Gen.alphaNumericStringBounded(1, 5))
+      baseVals <- Gen.listOfN(baseKeys.length)(Gen.int(-100, 100).map(i => new Json.Number(i.toString)))
+      newKey   <- Gen.alphaNumericStringBounded(1, 5).map(k => s"new_$k")
+      newVal   <- Gen.int(-100, 100).map(i => new Json.Number(i.toString))
+    } yield {
+      val baseFields = Chunk.fromIterable(baseKeys.zip(baseVals.map(v => v: Json)))
+      val base       = new Json.Object(baseFields)
+      val tweaked    = new Json.Object(baseFields :+ (newKey, newVal))
+      (base, tweaked)
+    }
+
+  val genArrayWithAppendedElement: Gen[Any, (Json.Array, Json.Array)] =
+    for {
+      baseLen <- Gen.int(0, 5)
+      baseVals <- Gen.listOfN(baseLen)(Gen.int(-100, 100).map(i => new Json.Number(i.toString)))
+      newVal   <- Gen.int(-100, 100).map(i => new Json.Number(i.toString))
+    } yield {
+      val base    = new Json.Array(Chunk.fromIterable(baseVals))
+      val tweaked = new Json.Array(Chunk.fromIterable(baseVals) :+ newVal)
+      (base, tweaked)
+    }
+
+  val genStringWithAppend: Gen[Any, (Json.String, Json.String)] =
+    for {
+      base   <- Gen.alphaNumericStringBounded(1, 20)
+      suffix <- Gen.alphaNumericStringBounded(1, 10)
+    } yield {
+      val baseStr    = new Json.String(base)
+      val tweakedStr = new Json.String(base + suffix)
+      (baseStr, tweakedStr)
+    }
+
+  val genNumberWithDelta: Gen[Any, (Json.Number, Json.Number)] =
+    for {
+      base  <- Gen.bigDecimal(BigDecimal(-1000), BigDecimal(1000))
+      delta <- Gen.bigDecimal(BigDecimal(-100), BigDecimal(100)).filter(_ != BigDecimal(0))
+    } yield {
+      val baseNum    = new Json.Number(base.toString)
+      val tweakedNum = new Json.Number((base + delta).toString)
+      (baseNum, tweakedNum)
+    }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Correctness Tests
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -57,6 +105,31 @@ object JsonDifferSpec extends ZIOSpecDefault {
       val b: Json = new Json.Number("42")
       val patch   = JsonDiffer.diff(a, b)
       assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    // Property-based correctness tests
+    test("diff(a, b).apply(a) == Right(b) for tweaked objects (property)") {
+      check(genObjectWithAddedField) { case (a, b) =>
+        val patch = JsonDiffer.diff(a, b)
+        assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+      }
+    },
+    test("diff(a, b).apply(a) == Right(b) for tweaked arrays (property)") {
+      check(genArrayWithAppendedElement) { case (a, b) =>
+        val patch = JsonDiffer.diff(a, b)
+        assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+      }
+    },
+    test("diff(a, b).apply(a) == Right(b) for tweaked strings (property)") {
+      check(genStringWithAppend) { case (a, b) =>
+        val patch = JsonDiffer.diff(a, b)
+        assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+      }
+    },
+    test("diff(a, b).apply(a) == Right(b) for tweaked numbers (property)") {
+      check(genNumberWithDelta) { case (a, b) =>
+        val patch = JsonDiffer.diff(a, b)
+        assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+      }
     }
   )
 
@@ -114,6 +187,19 @@ object JsonDifferSpec extends ZIOSpecDefault {
       val patch = JsonDiffer.diff(a, b)
       // Either Set or StringEdit is acceptable for completely different strings
       assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    // Property-based minimality test
+    test("appended strings produce StringEdit (property)") {
+      check(genStringWithAppend) { case (a, b) =>
+        val patch = JsonDiffer.diff(a, b)
+        val usesStringEdit = patch.ops.exists { op =>
+          op.op match {
+            case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(_)) => true
+            case _                                                                => false
+          }
+        }
+        assertTrue(usesStringEdit)
+      }
     }
   )
 
@@ -191,6 +277,19 @@ object JsonDifferSpec extends ZIOSpecDefault {
       }
       assertTrue(usesArrayEdit) &&
       assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    // Property-based minimality test
+    test("appended arrays produce ArrayEdit (property)") {
+      check(genArrayWithAppendedElement) { case (a, b) =>
+        val patch = JsonDiffer.diff(a, b)
+        val usesArrayEdit = patch.ops.exists { op =>
+          op.op match {
+            case JsonPatch.Op.ArrayEdit(_) => true
+            case _                         => false
+          }
+        }
+        assertTrue(usesArrayEdit)
+      }
     }
   )
 
@@ -254,6 +353,19 @@ object JsonDifferSpec extends ZIOSpecDefault {
       }
       assertTrue(usesObjectEdit) &&
       assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    // Property-based minimality test
+    test("objects with added field produce ObjectEdit (property)") {
+      check(genObjectWithAddedField) { case (a, b) =>
+        val patch = JsonDiffer.diff(a, b)
+        val usesObjectEdit = patch.ops.exists { op =>
+          op.op match {
+            case JsonPatch.Op.ObjectEdit(_) => true
+            case _                          => false
+          }
+        }
+        assertTrue(usesObjectEdit)
+      }
     }
   )
 
@@ -301,6 +413,19 @@ object JsonDifferSpec extends ZIOSpecDefault {
       val b     = new Json.Number("15.75")
       val patch = JsonDiffer.diff(a, b)
       assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    // Property-based minimality test
+    test("number deltas produce NumberDelta (property)") {
+      check(genNumberWithDelta) { case (a, b) =>
+        val patch = JsonDiffer.diff(a, b)
+        val usesNumberDelta = patch.ops.exists { op =>
+          op.op match {
+            case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(_)) => true
+            case _                                                                 => false
+          }
+        }
+        assertTrue(usesNumberDelta)
+      }
     }
   )
 
