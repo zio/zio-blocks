@@ -286,6 +286,66 @@ object RendererSpec extends MarkdownBaseSpec {
         assertTrue(Renderer.render(doc) == "*outer **inner***\n\n")
       }
     ),
+    suite("Inlines - Inline.* versions")(
+      test("renders Inline.Text") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Text("hello")))))
+        assertTrue(Renderer.render(doc) == "hello\n\n")
+      },
+      test("renders Inline.Code") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Code("x + y")))))
+        assertTrue(Renderer.render(doc) == "`x + y`\n\n")
+      },
+      test("renders Inline.Emphasis") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Emphasis(Chunk(Inline.Text("em")))))))
+        assertTrue(Renderer.render(doc) == "*em*\n\n")
+      },
+      test("renders Inline.Strong") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Strong(Chunk(Inline.Text("bold")))))))
+        assertTrue(Renderer.render(doc) == "**bold**\n\n")
+      },
+      test("renders Inline.Strikethrough") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Strikethrough(Chunk(Inline.Text("strike")))))))
+        assertTrue(Renderer.render(doc) == "~~strike~~\n\n")
+      },
+      test("renders Inline.Link without title") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Link(Chunk(Inline.Text("text")), "url", None)))))
+        assertTrue(Renderer.render(doc) == "[text](url)\n\n")
+      },
+      test("renders Inline.Link with title") {
+        val doc = Document(
+          Chunk(Paragraph(Chunk(Inline.Link(Chunk(Inline.Text("text")), "url", Some("title")))))
+        )
+        assertTrue(Renderer.render(doc) == "[text](url \"title\")\n\n")
+      },
+      test("renders Inline.Image without title") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Image("alt", "url", None)))))
+        assertTrue(Renderer.render(doc) == "![alt](url)\n\n")
+      },
+      test("renders Inline.Image with title") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Image("alt", "url", Some("title"))))))
+        assertTrue(Renderer.render(doc) == "![alt](url \"title\")\n\n")
+      },
+      test("renders Inline.HtmlInline") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.HtmlInline("<br>")))))
+        assertTrue(Renderer.render(doc) == "<br>\n\n")
+      },
+      test("renders Inline.SoftBreak") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Text("line1"), Inline.SoftBreak, Inline.Text("line2")))))
+        assertTrue(Renderer.render(doc) == "line1\nline2\n\n")
+      },
+      test("renders Inline.HardBreak") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Text("line1"), Inline.HardBreak, Inline.Text("line2")))))
+        assertTrue(Renderer.render(doc) == "line1  \nline2\n\n")
+      },
+      test("renders Inline.Autolink url") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Autolink("http://example.com", false)))))
+        assertTrue(Renderer.render(doc) == "<http://example.com>\n\n")
+      },
+      test("renders Inline.Autolink email") {
+        val doc = Document(Chunk(Paragraph(Chunk(Inline.Autolink("test@example.com", true)))))
+        assertTrue(Renderer.render(doc) == "<test@example.com>\n\n")
+      }
+    ),
     suite("Complex documents")(
       test("renders document with multiple block types") {
         val doc = Document(
