@@ -29,15 +29,15 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; markdownJVM/test"
 )
 addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; markdownJS/test"
 )
 addCommandAlias(
   "testNative",
-  "typeidNative/test; chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test; schema-messagepackNative/test"
+  "typeidNative/test; chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test; schema-messagepackNative/test; markdownNative/test"
 )
 
 lazy val root = project
@@ -67,6 +67,9 @@ lazy val root = project
     chunk.jvm,
     chunk.js,
     chunk.native,
+    markdown.jvm,
+    markdown.js,
+    markdown.native,
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
@@ -192,6 +195,25 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     ),
     coverageMinimumStmtTotal   := 84, // Lowered from 87 for Scala 3.5 compatibility
     coverageMinimumBranchTotal := 80  // Lowered from 83 for Scala 3.5 compatibility
+  )
+
+lazy val markdown = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-markdown"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.markdown"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .dependsOn(chunk)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 65,
+    coverageMinimumBranchTotal := 65
   )
 
 lazy val `schema-avro` = project
