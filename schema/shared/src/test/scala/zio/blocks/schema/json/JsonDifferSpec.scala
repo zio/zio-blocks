@@ -513,6 +513,21 @@ object JsonDifferSpec extends ZIOSpecDefault {
       )
       val patch = JsonDiffer.diff(a, b)
       assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    test("unparseable number falls back to Set") {
+      // When Json.Number.toBigDecimalOption returns None, differ should use Set
+      val a     = new Json.Number("NaN")
+      val b     = new Json.Number("42")
+      val patch = JsonDiffer.diff(a, b)
+
+      val usesSet = patch.ops.exists { op =>
+        op.op match {
+          case JsonPatch.Op.Set(_) => true
+          case _                   => false
+        }
+      }
+      assertTrue(usesSet) &&
+      assertTrue(patch(a, PatchMode.Strict) == new Right(b))
     }
   )
 

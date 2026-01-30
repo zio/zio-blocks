@@ -146,7 +146,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
   val genNumberWithDelta: Gen[Any, (Json.Number, Json.Number)] =
     for {
       base  <- Gen.bigDecimal(BigDecimal(-1000), BigDecimal(1000))
-      delta <- Gen.bigDecimal(BigDecimal(-100), BigDecimal(100))
+      delta <- Gen.bigDecimal(BigDecimal(-100), BigDecimal(100)).filter(_ != BigDecimal(0))
     } yield {
       val baseNum    = new Json.Number(base.toString)
       val tweakedNum = new Json.Number((base + delta).toString)
@@ -612,15 +612,14 @@ object JsonPatchSpec extends SchemaBaseSpec {
         val result = patch(source, PatchMode.Strict)
         // Verify roundtrip works
         assertTrue(result == new Right(target)) &&
-        // Verify patch uses NumberDelta (not Set) when values differ
+        // Verify patch uses NumberDelta (not Set) - delta is always non-zero
         assertTrue(
-          patch.isEmpty || // Empty if source == target
-            patch.ops.exists(op =>
-              op.op match {
-                case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(_)) => true
-                case _                                                                 => false
-              }
-            )
+          patch.ops.exists(op =>
+            op.op match {
+              case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(_)) => true
+              case _                                                                 => false
+            }
+          )
         )
       }
     },
