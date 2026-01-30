@@ -644,6 +644,281 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
           roundtripCodec.decode("\"\"").isLeft,
           roundtripCodec.decode(""""ab"""").isLeft
         )
+      },
+      test("Int constraints survive roundtrip (no range limits)") {
+        val original       = Schema[Int]
+        val jsonSchema     = original.toJsonSchema
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("0").isRight,
+          roundtripCodec.decode("2147483647").isRight,
+          roundtripCodec.decode("-2147483648").isRight
+        )
+      },
+      test("Long constraints survive roundtrip (no range limits)") {
+        val original       = Schema[Long]
+        val jsonSchema     = original.toJsonSchema
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("0").isRight,
+          roundtripCodec.decode("9223372036854775807").isRight,
+          roundtripCodec.decode("-9223372036854775808").isRight
+        )
+      },
+      test("BigInt constraints survive roundtrip") {
+        val original       = Schema[BigInt]
+        val jsonSchema     = original.toJsonSchema
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("0").isRight,
+          roundtripCodec.decode("999999999999999999999999999999").isRight,
+          roundtripCodec.decode("-999999999999999999999999999999").isRight
+        )
+      },
+      test("BigDecimal constraints survive roundtrip") {
+        val original       = Schema[BigDecimal]
+        val jsonSchema     = original.toJsonSchema
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("0.0").isRight,
+          roundtripCodec.decode("3.14159265358979323846").isRight,
+          roundtripCodec.decode("-999999999999.999999999999").isRight
+        )
+      },
+      test("Float constraints survive roundtrip") {
+        val original       = Schema[Float]
+        val jsonSchema     = original.toJsonSchema
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("0.0").isRight,
+          roundtripCodec.decode("3.14").isRight,
+          roundtripCodec.decode("-123.456").isRight
+        )
+      },
+      test("Double constraints survive roundtrip") {
+        val original       = Schema[Double]
+        val jsonSchema     = original.toJsonSchema
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("0.0").isRight,
+          roundtripCodec.decode("3.141592653589793").isRight,
+          roundtripCodec.decode("-1.7976931348623157E308").isRight
+        )
+      },
+      test("Boolean constraints survive roundtrip") {
+        val original       = Schema[Boolean]
+        val jsonSchema     = original.toJsonSchema
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("true").isRight,
+          roundtripCodec.decode("false").isRight,
+          roundtripCodec.decode("\"true\"").isLeft
+        )
+      },
+      test("String constraints survive roundtrip") {
+        val original       = Schema[String]
+        val jsonSchema     = original.toJsonSchema
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("\"\"").isRight,
+          roundtripCodec.decode(""""hello world"""").isRight,
+          roundtripCodec.decode(""""special chars: \n\t\r"""").isRight
+        )
+      }
+    ),
+    suite("JsonSchema validation constraints roundtrip")(
+      test("string minLength constraint survives roundtrip") {
+        val jsonSchema     = JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(3)))
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode(""""abc"""").isRight,
+          roundtripCodec.decode(""""abcd"""").isRight,
+          roundtripCodec.decode(""""ab"""").isLeft,
+          roundtripCodec.decode(""""a"""").isLeft,
+          roundtripCodec.decode("\"\"").isLeft
+        )
+      },
+      test("string maxLength constraint survives roundtrip") {
+        val jsonSchema     = JsonSchema.string(maxLength = Some(NonNegativeInt.unsafe(5)))
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("\"\"").isRight,
+          roundtripCodec.decode(""""abc"""").isRight,
+          roundtripCodec.decode(""""abcde"""").isRight,
+          roundtripCodec.decode(""""abcdef"""").isLeft,
+          roundtripCodec.decode(""""this is too long"""").isLeft
+        )
+      },
+      test("string minLength and maxLength together survive roundtrip") {
+        val jsonSchema = JsonSchema.string(
+          minLength = Some(NonNegativeInt.unsafe(2)),
+          maxLength = Some(NonNegativeInt.unsafe(4))
+        )
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode(""""ab"""").isRight,
+          roundtripCodec.decode(""""abc"""").isRight,
+          roundtripCodec.decode(""""abcd"""").isRight,
+          roundtripCodec.decode(""""a"""").isLeft,
+          roundtripCodec.decode(""""abcde"""").isLeft
+        )
+      },
+      test("string pattern constraint survives roundtrip") {
+        val jsonSchema     = JsonSchema.string(pattern = Some(RegexPattern.unsafe("^[a-z]+$")))
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode(""""abc"""").isRight,
+          roundtripCodec.decode(""""hello"""").isRight,
+          roundtripCodec.decode(""""ABC"""").isLeft,
+          roundtripCodec.decode(""""Hello"""").isLeft,
+          roundtripCodec.decode(""""hello123"""").isLeft
+        )
+      },
+      test("string email-like pattern constraint survives roundtrip") {
+        val jsonSchema     = JsonSchema.string(pattern = Some(RegexPattern.unsafe("^[^@]+@[^@]+\\.[^@]+$")))
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode(""""test@example.com"""").isRight,
+          roundtripCodec.decode(""""user@domain.org"""").isRight,
+          roundtripCodec.decode(""""invalid"""").isLeft,
+          roundtripCodec.decode(""""@missing.com"""").isLeft
+        )
+      },
+      test("integer minimum constraint survives roundtrip") {
+        val jsonSchema     = JsonSchema.integer(minimum = Some(BigDecimal(0)))
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("0").isRight,
+          roundtripCodec.decode("1").isRight,
+          roundtripCodec.decode("100").isRight,
+          roundtripCodec.decode("-1").isLeft,
+          roundtripCodec.decode("-100").isLeft
+        )
+      },
+      test("integer maximum constraint survives roundtrip") {
+        val jsonSchema     = JsonSchema.integer(maximum = Some(BigDecimal(100)))
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("-1000").isRight,
+          roundtripCodec.decode("0").isRight,
+          roundtripCodec.decode("100").isRight,
+          roundtripCodec.decode("101").isLeft,
+          roundtripCodec.decode("1000").isLeft
+        )
+      },
+      test("integer minimum and maximum together survive roundtrip") {
+        val jsonSchema = JsonSchema.integer(
+          minimum = Some(BigDecimal(10)),
+          maximum = Some(BigDecimal(20))
+        )
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("10").isRight,
+          roundtripCodec.decode("15").isRight,
+          roundtripCodec.decode("20").isRight,
+          roundtripCodec.decode("9").isLeft,
+          roundtripCodec.decode("21").isLeft
+        )
+      },
+      test("number minimum constraint survives roundtrip") {
+        val jsonSchema     = JsonSchema.number(minimum = Some(BigDecimal(0.0)))
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("0.0").isRight,
+          roundtripCodec.decode("0.001").isRight,
+          roundtripCodec.decode("100.5").isRight,
+          roundtripCodec.decode("-0.001").isLeft,
+          roundtripCodec.decode("-100.0").isLeft
+        )
+      },
+      test("number maximum constraint survives roundtrip") {
+        val jsonSchema     = JsonSchema.number(maximum = Some(BigDecimal(100.0)))
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("-1000.0").isRight,
+          roundtripCodec.decode("0.0").isRight,
+          roundtripCodec.decode("100.0").isRight,
+          roundtripCodec.decode("100.001").isLeft,
+          roundtripCodec.decode("1000.0").isLeft
+        )
+      },
+      test("number minimum and maximum together survive roundtrip") {
+        val jsonSchema = JsonSchema.number(
+          minimum = Some(BigDecimal(-1.0)),
+          maximum = Some(BigDecimal(1.0))
+        )
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("-1.0").isRight,
+          roundtripCodec.decode("0.0").isRight,
+          roundtripCodec.decode("0.5").isRight,
+          roundtripCodec.decode("1.0").isRight,
+          roundtripCodec.decode("-1.001").isLeft,
+          roundtripCodec.decode("1.001").isLeft
+        )
+      },
+      test("exclusiveMinimum constraint survives roundtrip") {
+        val jsonSchema     = JsonSchema.integer(exclusiveMinimum = Some(BigDecimal(0)))
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("1").isRight,
+          roundtripCodec.decode("100").isRight,
+          roundtripCodec.decode("0").isLeft,
+          roundtripCodec.decode("-1").isLeft
+        )
+      },
+      test("exclusiveMaximum constraint survives roundtrip") {
+        val jsonSchema     = JsonSchema.integer(exclusiveMaximum = Some(BigDecimal(100)))
+        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
+        val roundtripCodec = schemaForJs.derive(JsonFormat)
+
+        assertTrue(
+          roundtripCodec.decode("-100").isRight,
+          roundtripCodec.decode("0").isRight,
+          roundtripCodec.decode("99").isRight,
+          roundtripCodec.decode("100").isLeft,
+          roundtripCodec.decode("101").isLeft
+        )
       }
     )
   )
