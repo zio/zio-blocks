@@ -3,6 +3,7 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
+import zio.blocks.typeid.TypeId
 import zio.blocks.schema.json.{Json, JsonFormat, JsonSchema}
 import zio.blocks.schema.patch.{Patch, PatchMode}
 import java.util.concurrent.ConcurrentHashMap
@@ -109,21 +110,21 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def patch(value: A, patch: Patch[A]): Either[SchemaError, A] =
     patch.apply(value, PatchMode.Strict)
 
-  @deprecated("Use Schema[B].transformOrFail(...).withTypeName[A] instead", "1.0.0")
+  @deprecated("Use Schema[B].transformOrFail(...).withTypeId[A] instead", "1.0.0")
   def wrap[B: Schema](wrap: B => Either[SchemaError, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
-      reflect.typeName,
+      reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(wrap, unwrap)
     )
   )
 
-  @deprecated("Use Schema[B].transform(...).withTypeName[A] instead", "1.0.0")
+  @deprecated("Use Schema[B].transform(...).withTypeId[A] instead", "1.0.0")
   def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
-      reflect.typeName,
+      reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
@@ -152,7 +153,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    *     else Left(SchemaError.validationFailed("must be positive"))
    *
    *   implicit val schema: Schema[PositiveInt] =
-   *     Schema[Int].transformOrFail(make, _.value).withTypeName[PositiveInt]
+   *     Schema[Int].transformOrFail(make, _.value).withTypeId[PositiveInt]
    * }
    *   }}}
    *
@@ -169,7 +170,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A): Schema[B] = new Schema(
     new Reflect.Wrapper[Binding, B, A](
       reflect,
-      reflect.typeName.asInstanceOf[TypeName[B]],
+      reflect.typeId.asInstanceOf[TypeId[B]],
       None,
       new Binding.Wrapper(to, from)
     )
@@ -202,37 +203,37 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def transform[B](to: A => B, from: B => A): Schema[B] = new Schema(
     new Reflect.Wrapper[Binding, B, A](
       reflect,
-      reflect.typeName.asInstanceOf[TypeName[B]],
+      reflect.typeId.asInstanceOf[TypeId[B]],
       None,
       new Binding.Wrapper(a => Right(to(a)), from)
     )
   )
 
   /**
-   * Updates the TypeName of this schema to match type `B`.
+   * Updates the TypeId of this schema to match type `B`.
    *
    * This is typically used after `transform` or `transformOrFail` to give the
-   * resulting schema the correct nominal type name.
+   * resulting schema the correct nominal type identifier.
    *
    * @example
    *   {{{
    * case class UserId(value: Long)
    * object UserId {
    *   implicit val schema: Schema[UserId] =
-   *     Schema[Long].transform(UserId(_), _.value).withTypeName[UserId]
+   *     Schema[Long].transform(UserId(_), _.value).withTypeId[UserId]
    * }
    *   }}}
    *
    * @tparam B
-   *   The type whose TypeName should be used
+   *   The type whose TypeId should be used
    * @return
-   *   A new schema with the updated TypeName
+   *   A new schema with the updated TypeId
    */
-  def withTypeName[B](implicit typeName: TypeName[B]): Schema[B] =
-    new Schema(reflect.typeName(typeName.asInstanceOf[TypeName[A]])).asInstanceOf[Schema[B]]
+  def withTypeId[B](implicit typeId: TypeId[B]): Schema[B] =
+    new Schema(reflect.typeId(typeId.asInstanceOf[TypeId[A]])).asInstanceOf[Schema[B]]
 
   /**
-   * Marks this schema as an opaque type, setting both the TypeName and the
+   * Marks this schema as an opaque type, setting both the TypeId and the
    * underlying primitive type for optimized register storage.
    *
    * Use this after `transform` or `transformOrFail` when creating schemas for
@@ -240,7 +241,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * underlying primitive type.
    *
    * For case class wrappers (where the runtime representation differs from the
-   * primitive), use `withTypeName` instead.
+   * primitive), use `withTypeId` instead.
    *
    * @example
    *   {{{
@@ -256,22 +257,22 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    *   }}}
    *
    * @tparam B
-   *   The opaque type whose TypeName should be used
+   *   The opaque type whose TypeId should be used
    * @return
-   *   A new schema with the updated TypeName and primitive type set
+   *   A new schema with the updated TypeId and primitive type set
    */
-  def asOpaqueType[B](implicit typeName: TypeName[B]): Schema[B] =
+  def asOpaqueType[B](implicit typeId: TypeId[B]): Schema[B] =
     reflect match {
       case w: Reflect.Wrapper[Binding, A, ?] =>
         val primitiveType = Reflect.unwrapToPrimitiveTypeOption(w.wrapped)
         new Schema(
           w.copy(
-            typeName = typeName.asInstanceOf[TypeName[A]],
+            typeId = typeId.asInstanceOf[TypeId[A]],
             wrapperPrimitiveType = primitiveType.asInstanceOf[Option[PrimitiveType[A]]]
           )
         ).asInstanceOf[Schema[B]]
       case _ =>
-        new Schema(reflect.typeName(typeName.asInstanceOf[TypeName[A]])).asInstanceOf[Schema[B]]
+        new Schema(reflect.typeId(typeId.asInstanceOf[TypeId[A]])).asInstanceOf[Schema[B]]
     }
 
   override def toString: String = {
@@ -284,7 +285,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   }
 }
 
-object Schema extends SchemaCompanionVersionSpecific {
+object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
@@ -389,9 +390,6 @@ object Schema extends SchemaCompanionVersionSpecific {
   implicit def either[A, B](implicit l: Schema[A], r: Schema[B]): Schema[Either[A, B]] =
     new Schema(Reflect.either(l.reflect, r.reflect))
 
-  private val jsonTypeName: TypeName[Json] =
-    new TypeName[Json](Namespace.zioBlocksSchema, "Json")
-
   /**
    * Construct a Schema[Json] from a JsonSchema. Values are validated against
    * the JsonSchema during construction.
@@ -399,7 +397,7 @@ object Schema extends SchemaCompanionVersionSpecific {
   def fromJsonSchema(jsonSchema: JsonSchema): Schema[Json] = new Schema(
     new Reflect.Wrapper[Binding, Json, DynamicValue](
       Schema[DynamicValue].reflect,
-      jsonTypeName,
+      TypeId.of[Json],
       None,
       new Binding.Wrapper[Json, DynamicValue](
         wrap = { dv =>

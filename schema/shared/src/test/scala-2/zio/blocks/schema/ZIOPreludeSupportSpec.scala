@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.{Owner, TypeId}
 import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._
@@ -21,26 +22,24 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
+      assert(Planet.name.focus.typeId)(
         equalTo(
-          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
+          TypeId.nominal[Name]("Name", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
         )
       ) &&
-      assert(Planet.mass.focus.typeName)(
+      assert(Planet.mass.focus.typeId)(
         equalTo(
-          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
+          TypeId.nominal[Kilogram]("Kilogram", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
         )
       ) &&
-      assert(Planet.radius.focus.typeName)(
+      assert(Planet.radius.focus.typeId)(
         equalTo(
-          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          TypeId.nominal[Meter]("Meter", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
         )
       ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
+      assert(Planet.distanceFromSun.focus.typeId)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-          )
+          TypeId.of[Option[Meter]]
         )
       )
     },
@@ -62,11 +61,14 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
     }
   )
 
+  private val zioPreludeOwner: Owner = Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec")
+
   type Name = Name.Type
 
   object Name extends Newtype[String] {
     override def assertion = assert(!zio.prelude.Assertion.isEmptyString)
 
+    val typeId: TypeId[Name]          = TypeId.nominal[Name]("Name", zioPreludeOwner)
     implicit val schema: Schema[Name] = Schema[String]
       .transformOrFail[Name](
         s =>
@@ -74,16 +76,25 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
           else Left(SchemaError.validationFailed("String must not be empty")),
         (n: Name) => n.asInstanceOf[String]
       )
-      .asOpaqueType[Name]
+      .asOpaqueType[Name](typeId)
   }
 
   type Kilogram = Kilogram.Type
 
-  object Kilogram extends Subtype[Double]
+  object Kilogram extends Subtype[Double] {
+    val typeId: TypeId[Kilogram]          = TypeId.nominal[Kilogram]("Kilogram", zioPreludeOwner)
+    implicit val schema: Schema[Kilogram] = Schema[Double]
+      .transform[Kilogram](_.asInstanceOf[Kilogram], _.asInstanceOf[Double])
+      .asOpaqueType[Kilogram](typeId)
+  }
 
   type Meter = Meter.Type
 
-  object Meter extends Newtype[Double]
+  object Meter extends Newtype[Double] {
+    val typeId: TypeId[Meter]          = TypeId.nominal[Meter]("Meter", zioPreludeOwner)
+    implicit val schema: Schema[Meter] =
+      Schema[Double].transform[Meter](_.asInstanceOf[Meter], _.asInstanceOf[Double]).asOpaqueType[Meter](typeId)
+  }
 
   case class Planet(name: Name, mass: Kilogram, radius: Meter, distanceFromSun: Option[Meter])
 

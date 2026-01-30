@@ -191,7 +191,7 @@ object DerivedOptics {
 
     Reflect.Record(
       fields = IndexedSeq(fieldTerm.asInstanceOf[Term[Binding, A, ?]]),
-      typeName = wrapper.typeName,
+      typeId = wrapper.typeId,
       recordBinding = syntheticBinding
     )
   }

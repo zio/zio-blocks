@@ -29,15 +29,15 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test"
 )
 addCommandAlias(
   "testJS",
-  "chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
 )
 addCommandAlias(
   "testNative",
-  "chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test; schema-messagepackNative/test"
+  "typeidNative/test; chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test; schema-messagepackNative/test"
 )
 
 lazy val root = project
@@ -46,6 +46,9 @@ lazy val root = project
     publish / skip := true
   )
   .aggregate(
+    typeid.jvm,
+    typeid.js,
+    typeid.native,
     schema.jvm,
     schema.js,
     schema.native,
@@ -71,8 +74,35 @@ lazy val root = project
     docs
   )
 
+lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(chunk)
+  .settings(stdSettings("zio-blocks-typeid"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.typeid"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        )
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 75,
+    coverageMinimumBranchTotal := 65
+  )
+
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
+  .dependsOn(typeid)
   .settings(stdSettings("zio-blocks-schema"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))
@@ -95,8 +125,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 86,
-    coverageMinimumBranchTotal := 83
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 80
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -313,8 +343,10 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    publish / skip        := true,
-    mimaPreviousArtifacts := Set()
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)

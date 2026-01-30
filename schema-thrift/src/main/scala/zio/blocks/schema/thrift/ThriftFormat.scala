@@ -6,6 +6,7 @@ import zio.blocks.schema.thrift.ThriftBinaryCodec
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
+import zio.blocks.typeid.TypeId
 import scala.util.control.NonFatal
 
 /**
@@ -59,26 +60,26 @@ object ThriftFormat
 
         // Thread-local cache for recursive type handling
         private[this] val recursiveRecordCache =
-          new ThreadLocal[java.util.HashMap[TypeName[?], Array[ThriftBinaryCodec[?]]]] {
-            override def initialValue: java.util.HashMap[TypeName[?], Array[ThriftBinaryCodec[?]]] =
+          new ThreadLocal[java.util.HashMap[TypeId[?], Array[ThriftBinaryCodec[?]]]] {
+            override def initialValue: java.util.HashMap[TypeId[?], Array[ThriftBinaryCodec[?]]] =
               new java.util.HashMap
           }
 
         // Deriver implementation
         override def derivePrimitive[A](
           primitiveType: PrimitiveType[A],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           binding: Binding[BindingType.Primitive, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
           defaultValue: Option[A],
           examples: Seq[A]
         ): Lazy[ThriftBinaryCodec[A]] =
-          Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)))
+          Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)))
 
         override def deriveRecord[F[_, _], A](
           fields: IndexedSeq[Term[F, A, ?]],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           binding: Binding[BindingType.Record, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
@@ -86,13 +87,19 @@ object ThriftFormat
           examples: Seq[A]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ThriftBinaryCodec[A]] = Lazy {
           deriveCodec(
-            new Reflect.Record(fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]], typeName, binding, doc, modifiers)
+            new Reflect.Record(
+              fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
+              typeId,
+              binding,
+              doc,
+              modifiers
+            )
           )
         }
 
         override def deriveVariant[F[_, _], A](
           cases: IndexedSeq[Term[F, A, ?]],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           binding: Binding[BindingType.Variant, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
@@ -102,7 +109,7 @@ object ThriftFormat
           deriveCodec(
             new Reflect.Variant(
               cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
-              typeName,
+              typeId,
               binding,
               doc,
               modifiers
@@ -112,7 +119,7 @@ object ThriftFormat
 
         override def deriveSequence[F[_, _], C[_], A](
           element: Reflect[F, A],
-          typeName: TypeName[C[A]],
+          typeId: TypeId[C[A]],
           binding: Binding[BindingType.Seq[C], C[A]],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
@@ -120,14 +127,14 @@ object ThriftFormat
           examples: Seq[C[A]]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ThriftBinaryCodec[C[A]]] = Lazy {
           deriveCodec(
-            new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeName, binding, doc, modifiers)
+            new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeId, binding, doc, modifiers)
           )
         }
 
         override def deriveMap[F[_, _], M[_, _], K, V](
           key: Reflect[F, K],
           value: Reflect[F, V],
-          typeName: TypeName[M[K, V]],
+          typeId: TypeId[M[K, V]],
           binding: Binding[BindingType.Map[M], M[K, V]],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
@@ -138,7 +145,7 @@ object ThriftFormat
             new Reflect.Map(
               key.asInstanceOf[Reflect[Binding, K]],
               value.asInstanceOf[Reflect[Binding, V]],
-              typeName,
+              typeId,
               binding,
               doc,
               modifiers
@@ -153,11 +160,11 @@ object ThriftFormat
           defaultValue: Option[DynamicValue],
           examples: Seq[DynamicValue]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ThriftBinaryCodec[DynamicValue]] =
-          Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeName.dynamicValue, doc, modifiers)))
+          Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)))
 
         override def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           wrapperPrimitiveType: Option[PrimitiveType[A]],
           binding: Binding[BindingType.Wrapper[A, B], A],
           doc: Doc,
@@ -168,7 +175,7 @@ object ThriftFormat
           deriveCodec(
             new Reflect.Wrapper(
               wrapped.asInstanceOf[Reflect[Binding, B]],
-              typeName,
+              typeId,
               wrapperPrimitiveType,
               binding,
               doc,
@@ -390,20 +397,20 @@ object ThriftFormat
               val binding    = record.recordBinding.asInstanceOf[Binding.Record[A]]
               val fields     = record.fields
               val fieldCount = fields.length
-              val typeName   = record.typeName
+              val typeId     = record.typeId
               // Check for cached recursive codec
               val cache  = recursiveRecordCache.get()
-              val cached = cache.get(typeName)
+              val cached = cache.get(typeId)
               if (cached ne null) {
                 return new ThriftBinaryCodec[A]() {
                   def decodeUnsafe(protocol: TProtocol): A = {
-                    val actualCodecs = cache.get(typeName)
+                    val actualCodecs = cache.get(typeId)
                     if (actualCodecs != null && actualCodecs.length > 0)
                       actualCodecs(0).asInstanceOf[ThriftBinaryCodec[A]].decodeUnsafe(protocol)
                     else decodeError("Recursive type not yet initialized")
                   }
                   def encode(value: A, protocol: TProtocol): Unit = {
-                    val actualCodecs = cache.get(typeName)
+                    val actualCodecs = cache.get(typeId)
                     if (actualCodecs != null && actualCodecs.length > 0)
                       actualCodecs(0).asInstanceOf[ThriftBinaryCodec[A]].encode(value, protocol)
                     else throw new IllegalStateException("Recursive type not yet initialized")
@@ -412,7 +419,7 @@ object ThriftFormat
               }
               val isRecursive = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
               val placeholder = new Array[ThriftBinaryCodec[?]](1)
-              if (isRecursive) cache.put(typeName, placeholder)
+              if (isRecursive) cache.put(typeId, placeholder)
               val fieldCodecs = new Array[ThriftBinaryCodec[?]](fieldCount)
               var offset      = 0L
               var idx         = 0
