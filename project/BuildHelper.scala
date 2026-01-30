@@ -97,9 +97,10 @@ object BuildHelper {
           "-explain-cyclic",
           "-experimental",
           "-Wunused:all",
-          "-Wconf:msg=unused.*&src=.*/test/.*:s", // suppress unused warnings in test sources
+          "-Wconf:msg=unused.*&src=.*/test/.*:s",                          // suppress unused warnings in test sources
           "-Wconf:msg=nowarn annotation does not suppress any warnings:s", // nowarn difference between Scala 3.3 and 3.5
-          "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent", // workaround for `@deprecated("reasons") case class C() derives Schema`
+          "-Wconf:msg=with as a type operator has been deprecated:s",      // `with` works in both Scala 2 and 3, & only in Scala 3
+          "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent",    // workaround for `@deprecated("reasons") case class C() derives Schema`
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
           "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",

@@ -2,7 +2,6 @@ package zio.blocks.schema.thrift
 
 import org.apache.thrift.protocol._
 import zio.blocks.schema._
-import zio.blocks.schema.thrift.ThriftBinaryCodec
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
