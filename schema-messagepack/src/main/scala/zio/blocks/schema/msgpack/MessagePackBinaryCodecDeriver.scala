@@ -108,7 +108,6 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: zio.blocks.typeid.TypeId[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -119,7 +118,6 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
       new Reflect.Wrapper(
         wrapped.asInstanceOf[Reflect[Binding, B]],
         typeId,
-        wrapperPrimitiveType,
         binding,
         doc,
         modifiers

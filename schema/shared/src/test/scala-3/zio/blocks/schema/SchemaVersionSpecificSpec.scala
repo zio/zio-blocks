@@ -798,14 +798,13 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
       }
     ),
     suite("asOpaqueType")(
-      test("sets TypeId and primitive type on Wrapper reflect") {
+      test("sets TypeId on Wrapper reflect for case class wrappers") {
         case class Score(value: Int)
         val scoreTypeId: TypeId[Score] = TypeId.of
         val scoreSchema: Schema[Score] =
           Schema[Int].transform(to = Score(_), from = _.value).asOpaqueType[Score](scoreTypeId)
         val wrapper = scoreSchema.reflect.asWrapperUnknown
-        assert(wrapper.map(_.wrapper.typeId.name))(isSome(equalTo("Score"))) &&
-        assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Int(Validation.None))))
+        assert(wrapper.map(_.wrapper.typeId.name))(isSome(equalTo("Score")))
       },
       test("round-trips correctly with asOpaqueType") {
         case class Score(value: Int)
@@ -820,29 +819,16 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val intSchema: Schema[Int] = Schema[Int].asOpaqueType[Int]
         assert(intSchema.reflect.typeId.name)(equalTo("Int"))
       },
-      test("works with Long primitive type") {
-        case class LongWrapper(value: Long)
-        val lwTypeId: TypeId[LongWrapper] = TypeId.of
-        val schema: Schema[LongWrapper]   =
-          Schema[Long].transform(to = LongWrapper(_), from = _.value).asOpaqueType[LongWrapper](lwTypeId)
-        val wrapper = schema.reflect.asWrapperUnknown
-        assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Long(Validation.None))))
-      },
-      test("works with String primitive type") {
-        case class StringWrapper(value: String)
-        val swTypeId: TypeId[StringWrapper] = TypeId.of
-        val schema: Schema[StringWrapper]   =
-          Schema[String].transform(to = StringWrapper(_), from = _.value).asOpaqueType[StringWrapper](swTypeId)
-        val wrapper = schema.reflect.asWrapperUnknown
+      test("wrapperPrimitiveType returns Some for actual opaque types") {
+        val wrapper = InnerId.schema.reflect.asWrapperUnknown
         assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.String(Validation.None))))
       },
-      test("works with Double primitive type") {
-        case class DoubleWrapper(value: Double)
-        val dwTypeId: TypeId[DoubleWrapper] = TypeId.of
-        val schema: Schema[DoubleWrapper]   =
-          Schema[Double].transform(to = DoubleWrapper(_), from = _.value).asOpaqueType[DoubleWrapper](dwTypeId)
+      test("wrapperPrimitiveType returns None for case class wrappers") {
+        case class IntWrapper(value: Int)
+        val schema: Schema[IntWrapper] =
+          Schema[Int].transform(to = IntWrapper(_), from = _.value).asOpaqueType[IntWrapper]
         val wrapper = schema.reflect.asWrapperUnknown
-        assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Double(Validation.None))))
+        assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isNone)
       }
     )
   )
@@ -904,7 +890,6 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
       Reflect.Wrapper(
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
         typeId = TypeId.of[InnerId],
-        wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
         wrapperBinding = Binding.Wrapper(s => InnerId(s).left.map(SchemaError.validationFailed), s => Right(s))
       )
     )
@@ -950,7 +935,6 @@ object Id {
     Reflect.Wrapper(
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
       typeId = TypeId.of[Id],
-      wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
       wrapperBinding = Binding.Wrapper(s => Id(s).left.map(SchemaError.validationFailed), s => Right(s))
     )
   )

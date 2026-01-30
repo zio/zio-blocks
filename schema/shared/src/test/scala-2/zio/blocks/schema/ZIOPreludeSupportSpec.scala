@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
-import zio.blocks.typeid.{Owner, TypeId}
+import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._
@@ -24,17 +24,29 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
       assert(Planet.name.focus.typeId)(
         equalTo(
-          TypeId.nominal[Name]("Name", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
+          TypeId.opaque[Name](
+            "Name",
+            Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"),
+            representation = TypeRepr.Ref(TypeId.string)
+          )
         )
       ) &&
       assert(Planet.mass.focus.typeId)(
         equalTo(
-          TypeId.nominal[Kilogram]("Kilogram", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
+          TypeId.opaque[Kilogram](
+            "Kilogram",
+            Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"),
+            representation = TypeRepr.Ref(TypeId.double)
+          )
         )
       ) &&
       assert(Planet.radius.focus.typeId)(
         equalTo(
-          TypeId.nominal[Meter]("Meter", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
+          TypeId.opaque[Meter](
+            "Meter",
+            Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"),
+            representation = TypeRepr.Ref(TypeId.double)
+          )
         )
       ) &&
       assert(Planet.distanceFromSun.focus.typeId)(
@@ -68,7 +80,8 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   object Name extends Newtype[String] {
     override def assertion = assert(!zio.prelude.Assertion.isEmptyString)
 
-    val typeId: TypeId[Name]          = TypeId.nominal[Name]("Name", zioPreludeOwner)
+    val typeId: TypeId[Name] =
+      TypeId.opaque[Name]("Name", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.string))
     implicit val schema: Schema[Name] = Schema[String]
       .transformOrFail[Name](
         s =>
@@ -82,7 +95,8 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   type Kilogram = Kilogram.Type
 
   object Kilogram extends Subtype[Double] {
-    val typeId: TypeId[Kilogram]          = TypeId.nominal[Kilogram]("Kilogram", zioPreludeOwner)
+    val typeId: TypeId[Kilogram] =
+      TypeId.opaque[Kilogram]("Kilogram", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.double))
     implicit val schema: Schema[Kilogram] = Schema[Double]
       .transform[Kilogram](_.asInstanceOf[Kilogram], _.asInstanceOf[Double])
       .asOpaqueType[Kilogram](typeId)
@@ -91,7 +105,8 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   type Meter = Meter.Type
 
   object Meter extends Newtype[Double] {
-    val typeId: TypeId[Meter]          = TypeId.nominal[Meter]("Meter", zioPreludeOwner)
+    val typeId: TypeId[Meter] =
+      TypeId.opaque[Meter]("Meter", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.double))
     implicit val schema: Schema[Meter] =
       Schema[Double].transform[Meter](_.asInstanceOf[Meter], _.asInstanceOf[Double]).asOpaqueType[Meter](typeId)
   }

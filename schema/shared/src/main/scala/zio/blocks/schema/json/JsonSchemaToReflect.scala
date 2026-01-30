@@ -308,7 +308,6 @@ private[schema] object JsonSchemaToReflect {
     new Reflect.Wrapper[Binding, DynamicValue, A](
       wrapped = innerReflect,
       typeId = TypeId.of[DynamicValue],
-      wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
   }
@@ -396,7 +395,6 @@ private[schema] object JsonSchemaToReflect {
     new Reflect.Wrapper[Binding, DynamicValue, Map[DynamicValue, DynamicValue]](
       wrapped = mapReflect,
       typeId = TypeId.of[DynamicValue],
-      wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
   }
@@ -418,7 +416,6 @@ private[schema] object JsonSchemaToReflect {
     new Reflect.Wrapper[Binding, DynamicValue, Chunk[DynamicValue]](
       wrapped = seqReflect,
       typeId = TypeId.of[DynamicValue],
-      wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
   }
@@ -581,7 +578,6 @@ private[schema] object JsonSchemaToReflect {
     new Reflect.Wrapper[Binding, DynamicValue, DynamicValue](
       wrapped = innerReflect,
       typeId = TypeId.of[DynamicValue],
-      wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
   }
@@ -615,7 +611,6 @@ private[schema] object JsonSchemaToReflect {
     new Reflect.Wrapper[Binding, DynamicValue, DynamicValue](
       wrapped = inner,
       typeId = TypeId.of[DynamicValue],
-      wrapperPrimitiveType = None,
       wrapperBinding = validatingBinding
     )
   }

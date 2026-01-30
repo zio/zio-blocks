@@ -668,7 +668,6 @@ object SchemaSpec extends SchemaBaseSpec {
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
               zio.blocks.typeid.TypeId.of[Chunk[V]],
-              None,
               new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), x => Right(x.toList))
             )
           )
@@ -2125,7 +2124,6 @@ object SchemaSpec extends SchemaBaseSpec {
           override def deriveWrapper[F[_, _], A, B](
             wrapped: Reflect[F, B],
             typeId: zio.blocks.typeid.TypeId[A],
-            wrapperPrimitiveType: Option[PrimitiveType[A]],
             binding: Binding[BindingType.Wrapper[A, B], A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect],

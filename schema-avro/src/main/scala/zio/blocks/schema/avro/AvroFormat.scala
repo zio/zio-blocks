@@ -114,7 +114,6 @@ object AvroFormat
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
           typeId: TypeId[A],
-          wrapperPrimitiveType: Option[PrimitiveType[A]],
           binding: Binding[BindingType.Wrapper[A, B], A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
@@ -125,7 +124,6 @@ object AvroFormat
             new Reflect.Wrapper(
               wrapped.asInstanceOf[Reflect[Binding, B]],
               typeId,
-              wrapperPrimitiveType,
               binding,
               doc,
               modifiers

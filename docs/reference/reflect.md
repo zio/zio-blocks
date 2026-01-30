@@ -311,8 +311,7 @@ Each of these patterns shares a common characteristic: they wrap an underlying t
 ```
 case class Wrapper[F[_, _], A, B](
   wrapped: Reflect[F, B],
-  typeName: TypeName[A],
-  wrapperPrimitiveType: Option[PrimitiveType[A]],
+  typeId: TypeId[A],
   wrapperBinding: F[BindingType.Wrapper[A, B], A],
   doc: Doc = Doc.Empty,
   modifiers: Seq[Modifier.Reflect] = Nil
@@ -343,8 +342,7 @@ object PosInt {
   implicit val schema: Schema[PosInt] = Schema(
     Reflect.Wrapper(
       wrapped = Schema[Int].reflect,
-      typeName = TypeName(Namespace(Nil), "PosInt"),
-      wrapperPrimitiveType = None,
+      typeId = TypeId.of[PosInt],
       wrapperBinding = Binding.Wrapper[PosInt, Int](
         wrap = v => PosInt(v), 
         unwrap = _.value

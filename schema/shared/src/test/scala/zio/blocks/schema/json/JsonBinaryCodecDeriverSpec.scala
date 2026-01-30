@@ -3097,7 +3097,6 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
         TypeId.of[Email],
-        None,
         new Binding.Wrapper(
           {
             case x @ EmailRegex(_*) => new Right(new Email(x))

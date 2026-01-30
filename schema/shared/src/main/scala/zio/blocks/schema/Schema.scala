@@ -115,7 +115,6 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
       reflect.typeId,
-      Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(wrap, a => Right(unwrap(a)))
     )
   )
@@ -125,7 +124,6 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
       reflect.typeId,
-      Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(x => new Right(wrap(x)), a => Right(unwrap(a)))
     )
   )
@@ -171,7 +169,6 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
     new Reflect.Wrapper[Binding, B, A](
       reflect,
       reflect.typeId.asInstanceOf[TypeId[B]],
-      None,
       new Binding.Wrapper(to, b => Right(from(b)))
     )
   )
@@ -215,7 +212,6 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
     new Reflect.Wrapper[Binding, B, A](
       reflect,
       reflect.typeId.asInstanceOf[TypeId[B]],
-      None,
       new Binding.Wrapper(wrap, unwrap)
     )
   )
@@ -248,7 +244,6 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
     new Reflect.Wrapper[Binding, B, A](
       reflect,
       reflect.typeId.asInstanceOf[TypeId[B]],
-      None,
       new Binding.Wrapper(a => Right(to(a)), b => Right(from(b)))
     )
   )
@@ -306,18 +301,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    *   A new schema with the updated TypeId and primitive type set
    */
   def asOpaqueType[B](implicit typeId: TypeId[B]): Schema[B] =
-    reflect match {
-      case w: Reflect.Wrapper[Binding, A, ?] =>
-        val primitiveType = Reflect.unwrapToPrimitiveTypeOption(w.wrapped)
-        new Schema(
-          w.copy(
-            typeId = typeId.asInstanceOf[TypeId[A]],
-            wrapperPrimitiveType = primitiveType.asInstanceOf[Option[PrimitiveType[A]]]
-          )
-        ).asInstanceOf[Schema[B]]
-      case _ =>
-        new Schema(reflect.typeId(typeId.asInstanceOf[TypeId[A]])).asInstanceOf[Schema[B]]
-    }
+    new Schema(reflect.typeId(typeId.asInstanceOf[TypeId[A]])).asInstanceOf[Schema[B]]
 
   override def toString: String = {
     val reflectStr = reflect.toString
@@ -445,7 +429,6 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
       new Reflect.Wrapper[Binding, Json, DynamicValue](
         structuredReflect,
         TypeId.of[Json],
-        None,
         new Binding.Wrapper[Json, DynamicValue](
           wrap = { dv =>
             val j = Json.fromDynamicValue(dv)

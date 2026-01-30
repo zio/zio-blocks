@@ -1117,14 +1117,16 @@ object Reflect {
   case class Wrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
     wrapperBinding: F[BindingType.Wrapper[A, B], A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
     storedDefaultValue: Option[DynamicValue] = None,
     storedExamples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Reflect[F, A] { self =>
-    protected def inner: Any = (wrapped, typeId, wrapperPrimitiveType, doc, modifiers)
+    protected def inner: Any = (wrapped, typeId, doc, modifiers)
+
+    def wrapperPrimitiveType: Option[PrimitiveType[A]] =
+      Reflect.primitiveTypeFromTypeId(typeId)
 
     type NodeBinding = BindingType.Wrapper[A, B]
 
@@ -1172,7 +1174,6 @@ object Reflect {
                      path,
                      wrapped,
                      typeId,
-                     wrapperPrimitiveType,
                      wrapperBinding,
                      doc,
                      modifiers,
@@ -1863,6 +1864,54 @@ object Reflect {
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
+  }
+
+  private[schema] def primitiveTypeFromTypeId[A](typeId: TypeId[A]): Option[PrimitiveType[A]] = {
+    val underlyingRepr: Option[TypeRepr] =
+      if (typeId.isOpaque) typeId.representation
+      else if (typeId.isAlias) typeId.aliasedTo
+      else None
+
+    underlyingRepr.flatMap { repr =>
+      typeReprToPrimitiveType(repr).asInstanceOf[Option[PrimitiveType[A]]]
+    }
+  }
+
+  private def typeReprToPrimitiveType(repr: TypeRepr): Option[PrimitiveType[?]] = repr match {
+    case TypeRepr.Ref(id) =>
+      val fullName = id.fullName
+      if (fullName == "scala.Unit") Some(PrimitiveType.Unit)
+      else if (fullName == "scala.Boolean") Some(PrimitiveType.Boolean(Validation.None))
+      else if (fullName == "scala.Byte") Some(PrimitiveType.Byte(Validation.None))
+      else if (fullName == "scala.Short") Some(PrimitiveType.Short(Validation.None))
+      else if (fullName == "scala.Int") Some(PrimitiveType.Int(Validation.None))
+      else if (fullName == "scala.Long") Some(PrimitiveType.Long(Validation.None))
+      else if (fullName == "scala.Float") Some(PrimitiveType.Float(Validation.None))
+      else if (fullName == "scala.Double") Some(PrimitiveType.Double(Validation.None))
+      else if (fullName == "scala.Char") Some(PrimitiveType.Char(Validation.None))
+      else if (fullName == "java.lang.String") Some(PrimitiveType.String(Validation.None))
+      else if (fullName == "scala.BigInt") Some(PrimitiveType.BigInt(Validation.None))
+      else if (fullName == "scala.BigDecimal") Some(PrimitiveType.BigDecimal(Validation.None))
+      else if (fullName == "java.util.UUID") Some(PrimitiveType.UUID(Validation.None))
+      else if (fullName == "java.util.Currency") Some(PrimitiveType.Currency(Validation.None))
+      else if (fullName == "java.time.DayOfWeek") Some(PrimitiveType.DayOfWeek(Validation.None))
+      else if (fullName == "java.time.Duration") Some(PrimitiveType.Duration(Validation.None))
+      else if (fullName == "java.time.Instant") Some(PrimitiveType.Instant(Validation.None))
+      else if (fullName == "java.time.LocalDate") Some(PrimitiveType.LocalDate(Validation.None))
+      else if (fullName == "java.time.LocalDateTime") Some(PrimitiveType.LocalDateTime(Validation.None))
+      else if (fullName == "java.time.LocalTime") Some(PrimitiveType.LocalTime(Validation.None))
+      else if (fullName == "java.time.Month") Some(PrimitiveType.Month(Validation.None))
+      else if (fullName == "java.time.MonthDay") Some(PrimitiveType.MonthDay(Validation.None))
+      else if (fullName == "java.time.OffsetDateTime") Some(PrimitiveType.OffsetDateTime(Validation.None))
+      else if (fullName == "java.time.OffsetTime") Some(PrimitiveType.OffsetTime(Validation.None))
+      else if (fullName == "java.time.Period") Some(PrimitiveType.Period(Validation.None))
+      else if (fullName == "java.time.Year") Some(PrimitiveType.Year(Validation.None))
+      else if (fullName == "java.time.YearMonth") Some(PrimitiveType.YearMonth(Validation.None))
+      else if (fullName == "java.time.ZoneId") Some(PrimitiveType.ZoneId(Validation.None))
+      else if (fullName == "java.time.ZoneOffset") Some(PrimitiveType.ZoneOffset(Validation.None))
+      else if (fullName == "java.time.ZonedDateTime") Some(PrimitiveType.ZonedDateTime(Validation.None))
+      else None
+    case _ => None
   }
 
   private[schema] def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =

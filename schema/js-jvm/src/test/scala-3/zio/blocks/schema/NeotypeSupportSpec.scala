@@ -3,7 +3,7 @@ package zio.blocks.schema
 import neotype._
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.JsonTestUtils._
-import zio.blocks.typeid.{Owner, TypeId}
+import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import zio.test.Assertion._
 import zio.test._
 
@@ -24,15 +24,31 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
       assert(Planet.name.focus.typeId)(
-        equalTo(TypeId.nominal[Name]("Name", Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec")))
+        equalTo(
+          TypeId.opaque[Name](
+            "Name",
+            Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec"),
+            representation = TypeRepr.Ref(TypeId.string)
+          )
+        )
       ) &&
       assert(Planet.mass.focus.typeId)(
         equalTo(
-          TypeId.nominal[Kilogram]("Kilogram", Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec"))
+          TypeId.opaque[Kilogram](
+            "Kilogram",
+            Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec"),
+            representation = TypeRepr.Ref(TypeId.double)
+          )
         )
       ) &&
       assert(Planet.radius.focus.typeId)(
-        equalTo(TypeId.nominal[Meter]("Meter", Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec")))
+        equalTo(
+          TypeId.opaque[Meter](
+            "Meter",
+            Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec"),
+            representation = TypeRepr.Ref(TypeId.double)
+          )
+        )
       ) &&
       assert(Planet.distanceFromSun.focus.typeId)(
         equalTo(TypeId.of[Option[Meter]])
@@ -171,21 +187,22 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
 
   object Name extends Newtype[String] {
     override inline def validate(string: String): Boolean = string.length > 0
-    given TypeId[Name]                                    = TypeId.nominal("Name", neotypeSupportOwner)
+    given TypeId[Name]                                    = TypeId.opaque("Name", neotypeSupportOwner, representation = TypeRepr.Ref(TypeId.string))
   }
 
   type Kilogram = Kilogram.Type
 
   object Kilogram extends Subtype[Double] {
     override inline def validate(value: Double): Boolean = value >= 0.0
-    given TypeId[Kilogram]                               = TypeId.nominal("Kilogram", neotypeSupportOwner)
+    given TypeId[Kilogram]                               =
+      TypeId.opaque("Kilogram", neotypeSupportOwner, representation = TypeRepr.Ref(TypeId.double))
   }
 
   type Meter = Meter.Type
 
   object Meter extends Newtype[Double] {
     override inline def validate(value: Double): Boolean = value >= 0.0
-    given TypeId[Meter]                                  = TypeId.nominal("Meter", neotypeSupportOwner)
+    given TypeId[Meter]                                  = TypeId.opaque("Meter", neotypeSupportOwner, representation = TypeRepr.Ref(TypeId.double))
   }
 
   case class Planet(name: Name, mass: Kilogram, radius: Meter, distanceFromSun: Option[Meter])
@@ -308,6 +325,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
   type EmojiDataId = EmojiDataId.Type
 
   object EmojiDataId extends Subtype[Int] {
-    given TypeId[EmojiDataId] = TypeId.nominal("EmojiDataId", neotypeSupportOwner)
+    given TypeId[EmojiDataId] =
+      TypeId.opaque("EmojiDataId", neotypeSupportOwner, representation = TypeRepr.Ref(TypeId.int))
   }
 }
