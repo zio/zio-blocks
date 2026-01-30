@@ -19,7 +19,7 @@ private[markdown] object MdMacros {
       case Apply(_, List(Apply(_, rawParts))) =>
         rawParts.map {
           case Literal(Constant(part: String)) => part
-          case _ => c.abort(c.enclosingPosition, "Expected string literal parts")
+          case _                               => c.abort(c.enclosingPosition, "Expected string literal parts")
         }
       case _ => c.abort(c.enclosingPosition, "Expected StringContext")
     }
