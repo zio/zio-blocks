@@ -80,7 +80,7 @@ ZIO Test framework. Search codebase for `SchemaBaseSpec` for patterns.
 
 Commit at stable points (minimum: when fast loop is green).
 
-PR open and think you're done? Run verify + format, push, then loop: wait if necessary, check CI and review comments, fix CI issues and **valid** CI comments via workflow, push. Repeat until green and approved.
+PR open and think you're done? Run verify + format, push, then loop: wait if necessary, check CI and review comments (prefer `gh` CLI), fix CI issues and **valid** CI comments via workflow, push. Repeat until green and approved.
 
 ## Boundaries
 
@@ -88,6 +88,7 @@ PR open and think you're done? Run verify + format, push, then loop: wait if nec
 - Follow workflow phases in order
 - Batch edits; keep sbt runs scoped to one project
 - Update AGENTS.md if you find errors or gaps
+- Document new data types in `docs/`; update existing docs when behavior changes
 
 ### Ask First
 - Adding dependencies (even test-only)
