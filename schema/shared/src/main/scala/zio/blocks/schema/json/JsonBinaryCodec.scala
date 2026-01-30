@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.time._
 import java.util.{Currency, UUID}
 import scala.annotation.switch
-import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
 import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
@@ -434,7 +434,7 @@ object JsonBinaryCodec {
     }
 
     override def toJsonSchema: JsonSchema = JsonSchema.obj(
-      properties = Some(Map.empty),
+      properties = Some(ChunkMap.empty),
       additionalProperties = Some(JsonSchema.False)
     )
   }

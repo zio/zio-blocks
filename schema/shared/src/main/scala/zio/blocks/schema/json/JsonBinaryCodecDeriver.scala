@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.ChunkMap
 import zio.blocks.schema.json._
 import zio.blocks.schema.json.JsonBinaryCodec._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
@@ -756,7 +757,7 @@ class JsonBinaryCodecDeriver private[json] (
                           if (name ne null) {
                             Array(
                               JsonSchema.obj(
-                                properties = Some(Map(name -> innerSchema)),
+                                properties = Some(ChunkMap(name -> innerSchema)),
                                 required = Some(Set(name)),
                                 additionalProperties = Some(JsonSchema.False)
                               )
@@ -1939,10 +1940,11 @@ class JsonBinaryCodecDeriver private[json] (
               } else in.skip()
 
             override def toJsonSchema: JsonSchema = {
-              val properties = fieldInfos.iterator
-                .filter(_.nonTransient)
-                .map(fi => (fi.getName, fi.getCodec.toJsonSchema))
-                .toMap
+              val properties = ChunkMap.from(
+                fieldInfos.iterator
+                  .filter(_.nonTransient)
+                  .map(fi => (fi.getName, fi.getCodec.toJsonSchema))
+              )
               val requiredFields = fieldInfos.iterator
                 .filter(fi => fi.nonTransient && !fi.isOptional && !fi.isCollection && !fi.hasDefault)
                 .map(_.getName)
