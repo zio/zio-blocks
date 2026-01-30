@@ -36,13 +36,13 @@ object IntoSpec extends ZIOSpecDefault {
   // Sealed trait to sealed trait (by name)
   sealed trait Color
   object Color {
-    case object Red extends Color
+    case object Red  extends Color
     case object Blue extends Color
   }
 
   sealed trait Hue
   object Hue {
-    case object Red extends Hue
+    case object Red  extends Hue
     case object Blue extends Hue
   }
 
@@ -50,23 +50,22 @@ object IntoSpec extends ZIOSpecDefault {
   sealed trait EventV1
   object EventV1 {
     case class Created(id: String, ts: Long) extends EventV1
-    case class Deleted(id: String) extends EventV1
+    case class Deleted(id: String)           extends EventV1
   }
 
   sealed trait EventV2
   object EventV2 {
     case class Spawned(id: String, ts: Long) extends EventV2
-    case class Removed(id: String) extends EventV2
+    case class Removed(id: String)           extends EventV2
   }
-
 
   // ADT with payload conversion
   sealed trait ResultV1
-  case class SuccessV1(value: Int) extends ResultV1
+  case class SuccessV1(value: Int)  extends ResultV1
   case class FailureV1(msg: String) extends ResultV1
 
   sealed trait ResultV2
-  case class SuccessV2(value: Int) extends ResultV2
+  case class SuccessV2(value: Int)  extends ResultV2
   case class FailureV2(msg: String) extends ResultV2
 
   def spec: Spec[TestEnvironment, Any] = suite("IntoSpec")(
@@ -162,30 +161,30 @@ object IntoSpec extends ZIOSpecDefault {
       suite("Sealed Trait to Sealed Trait (by name)")(
         test("maps case objects by matching names") {
           val color: Color = Color.Red
-          val result = Into.derived[Color, Hue].into(color)
-          
+          val result       = Into.derived[Color, Hue].into(color)
+
           // Red → Red (matched by name)
           assert(result)(isRight(equalTo(Hue.Red: Hue)))
         },
         test("maps Blue to Blue") {
           val color: Color = Color.Blue
-          val result = Into.derived[Color, Hue].into(color)
-          
+          val result       = Into.derived[Color, Hue].into(color)
+
           assert(result)(isRight(equalTo(Hue.Blue: Hue)))
         }
       ),
       suite("Sealed Trait to Sealed Trait (by signature)")(
         test("maps case classes by constructor signature when names differ") {
           val event: EventV1 = EventV1.Created("abc", 123L)
-          val result = Into.derived[EventV1, EventV2].into(event)
-          
+          val result         = Into.derived[EventV1, EventV2].into(event)
+
           // Created(String, Long) → Spawned(String, Long) matched by signature
           assert(result)(isRight(equalTo(EventV2.Spawned("abc", 123L): EventV2)))
         },
         test("maps Deleted to Removed by signature") {
           val event: EventV1 = EventV1.Deleted("xyz")
-          val result = Into.derived[EventV1, EventV2].into(event)
-          
+          val result         = Into.derived[EventV1, EventV2].into(event)
+
           // Deleted(String) → Removed(String) matched by signature
           assert(result)(isRight(equalTo(EventV2.Removed("xyz"): EventV2)))
         }
@@ -193,17 +192,125 @@ object IntoSpec extends ZIOSpecDefault {
       suite("ADT with Payload Conversion")(
         test("maps case classes within sealed trait by matching structure") {
           val result1: ResultV1 = SuccessV1(42)
-          val converted = Into.derived[ResultV1, ResultV2].into(result1)
-          
+          val converted         = Into.derived[ResultV1, ResultV2].into(result1)
+
           assert(converted)(isRight(equalTo(SuccessV2(42): ResultV2)))
         },
         test("maps Failure case by matching structure") {
           val result1: ResultV1 = FailureV1("error message")
-          val converted = Into.derived[ResultV1, ResultV2].into(result1)
-          
+          val converted         = Into.derived[ResultV1, ResultV2].into(result1)
+
           assert(converted)(isRight(equalTo(FailureV2("error message"): ResultV2)))
         }
       )
+    ),
+    suite("Primitive Type Coercions")(
+      suite("Numeric Widening (Lossless)")(
+        test("Byte to Short") {
+          assert(Into[Byte, Short].into(42.toByte))(isRight(equalTo(42.toShort)))
+        },
+        test("Short to Int") {
+          assert(Into[Short, Int].into(1000.toShort))(isRight(equalTo(1000)))
+        },
+        test("Int to Long") {
+          assert(Into[Int, Long].into(100000))(isRight(equalTo(100000L)))
+        },
+        test("Float to Double") {
+          assert(Into[Float, Double].into(3.14f))(isRight(equalTo(3.14f.toDouble)))
+        },
+        test("Byte to Long") {
+          assert(Into[Byte, Long].into(42.toByte))(isRight(equalTo(42L)))
+        },
+        test("Int to Double") {
+          assert(Into[Int, Double].into(42))(isRight(equalTo(42.0)))
+        }
+      ),
+      suite("Numeric Narrowing (with Runtime Validation)")(
+        test("Long to Int - success") {
+          assert(Into[Long, Int].into(42L))(isRight(equalTo(42)))
+        },
+        test("Long to Int - overflow") {
+          assert(Into[Long, Int].into(3000000000L))(isLeft)
+        },
+        test("Double to Float - success") {
+          assert(Into[Double, Float].into(3.14))(isRight(equalTo(3.14f)))
+        },
+        test("Double to Float - overflow") {
+          assert(Into[Double, Float].into(1e100))(isLeft)
+        },
+        test("Int to Byte - success") {
+          assert(Into[Int, Byte].into(100))(isRight(equalTo(100.toByte)))
+        },
+        test("Int to Byte - overflow") {
+          assert(Into[Int, Byte].into(200))(isLeft)
+        },
+        test("Int to Short - success") {
+          assert(Into[Int, Short].into(1000))(isRight(equalTo(1000.toShort)))
+        },
+        test("Int to Short - overflow") {
+          assert(Into[Int, Short].into(100000))(isLeft)
+        }
+      )
+    ),
+    suite("Collection Element Coercion")(
+      test("List[Int] to List[Long]") {
+        assert(Into[List[Int], List[Long]].into(List(1, 2, 3)))(isRight(equalTo(List(1L, 2L, 3L))))
+      },
+      test("Vector[Float] to Vector[Double]") {
+        val result = Into[Vector[Float], Vector[Double]].into(Vector(1.5f, 2.5f))
+        assert(result)(isRight(equalTo(Vector(1.5f.toDouble, 2.5f.toDouble))))
+      },
+      test("Set[Short] to Set[Int]") {
+        assert(Into[Set[Short], Set[Int]].into(Set(10.toShort, 20.toShort)))(isRight(equalTo(Set(10, 20))))
+      },
+      test("List[Long] to List[Int] - with overflow error") {
+        assert(Into[List[Long], List[Int]].into(List(42L, 3000000000L)))(isLeft)
+      },
+      test("Seq[Int] to Seq[Long]") {
+        assert(Into[Seq[Int], Seq[Long]].into(Seq(1, 2, 3)))(isRight(equalTo(Seq(1L, 2L, 3L))))
+      }
+    ),
+    suite("Map Key/Value Coercion")(
+      test("Map[Int, Float] to Map[Long, Double]") {
+        val result = Into[Map[Int, Float], Map[Long, Double]].into(Map(1 -> 1.5f, 2 -> 2.5f))
+        assert(result)(isRight(equalTo(Map(1L -> 1.5f.toDouble, 2L -> 2.5f.toDouble))))
+      },
+      test("Map[Long, String] to Map[Int, String] - with key overflow error") {
+        assert(Into[Map[Long, String], Map[Int, String]].into(Map(42L -> "a", 3000000000L -> "b")))(isLeft)
+      },
+      test("Map[String, Int] to Map[String, Long]") {
+        assert(Into[Map[String, Int], Map[String, Long]].into(Map("a" -> 1, "b" -> 2)))(
+          isRight(equalTo(Map("a" -> 1L, "b" -> 2L)))
+        )
+      }
+    ),
+    suite("Option Type Coercion")(
+      test("Option[Int] to Option[Long] - Some") {
+        assert(Into[Option[Int], Option[Long]].into(Some(42)))(isRight(equalTo(Some(42L))))
+      },
+      test("Option[Int] to Option[Long] - None") {
+        assert(Into[Option[Int], Option[Long]].into(None))(isRight(equalTo(None)))
+      },
+      test("Option[Long] to Option[Int] - with overflow error") {
+        assert(Into[Option[Long], Option[Int]].into(Some(3000000000L)))(isLeft)
+      },
+      test("Option[Long] to Option[Int] - None is always valid") {
+        assert(Into[Option[Long], Option[Int]].into(None))(isRight(equalTo(None)))
+      }
+    ),
+    suite("Either Type Coercion")(
+      test("Either[String, Int] to Either[String, Long] - Right") {
+        assert(Into[Either[String, Int], Either[String, Long]].into(Right(42)))(isRight(equalTo(Right(42L))))
+      },
+      test("Either[String, Int] to Either[String, Long] - Left") {
+        assert(Into[Either[String, Int], Either[String, Long]].into(Left("error")))(isRight(equalTo(Left("error"))))
+      },
+      test("Either[Int, String] to Either[Long, String] - Left") {
+        assert(Into[Either[Int, String], Either[Long, String]].into(Left(100)))(isRight(equalTo(Left(100L))))
+      },
+      test("Either[Long, String] to Either[Int, String] - Left with overflow") {
+        assert(Into[Either[Long, String], Either[Int, String]].into(Left(3000000000L)))(isLeft)
+      }
     )
   )
 }
