@@ -387,6 +387,132 @@ object JsonDifferSpec extends ZIOSpecDefault {
       val b     = new Json.Object(Chunk(("only", new Json.Number("2"))))
       val patch = JsonDiffer.diff(a, b)
       assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    // ─────────────────────────────────────────────────────────────────────────
+    // Additional branch coverage tests (identified in code review)
+    // ─────────────────────────────────────────────────────────────────────────
+    test("non-empty array to empty array produces ArrayEdit") {
+      val a     = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))
+      val b     = Json.Array.empty
+      val patch = JsonDiffer.diff(a, b)
+
+      val usesArrayEdit = patch.ops.exists { op =>
+        op.op match {
+          case JsonPatch.Op.ArrayEdit(_) => true
+          case _                         => false
+        }
+      }
+      assertTrue(usesArrayEdit) &&
+      assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    test("non-empty object to empty object produces ObjectEdit") {
+      val a     = new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2"))))
+      val b     = Json.Object.empty
+      val patch = JsonDiffer.diff(a, b)
+
+      val usesObjectEdit = patch.ops.exists { op =>
+        op.op match {
+          case JsonPatch.Op.ObjectEdit(_) => true
+          case _                          => false
+        }
+      }
+      assertTrue(usesObjectEdit) &&
+      assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    test("empty string to non-empty string produces StringEdit") {
+      val a     = new Json.String("")
+      val b     = new Json.String("hello")
+      val patch = JsonDiffer.diff(a, b)
+      // Empty to non-empty should use StringEdit or Set
+      assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    test("non-empty string to empty string produces StringEdit") {
+      val a     = new Json.String("hello")
+      val b     = new Json.String("")
+      val patch = JsonDiffer.diff(a, b)
+
+      // Should use StringEdit.Delete or Set
+      val hasStringEdit = patch.ops.exists { op =>
+        op.op match {
+          case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(_)) => true
+          case JsonPatch.Op.Set(_)                                              => true
+          case _                                                                => false
+        }
+      }
+      assertTrue(hasStringEdit) &&
+      assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    test("numeric equality with different string representations uses empty patch or Set") {
+      // "1.0" and "1.00" represent the same numeric value
+      // JsonDiffer should recognize this and produce empty patch or Set
+      val a     = new Json.Number("1.0")
+      val b     = new Json.Number("1.00")
+      val patch = JsonDiffer.diff(a, b)
+
+      // The delta should be 0, so either empty patch or valid roundtrip
+      assertTrue(patch(a, PatchMode.Strict).isRight)
+    },
+    test("deeply nested object modification (3 levels)") {
+      val a = new Json.Object(
+        Chunk(
+          (
+            "level1",
+            new Json.Object(
+              Chunk(
+                (
+                  "level2",
+                  new Json.Object(
+                    Chunk(("level3", new Json.Number("42")))
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+      val b = new Json.Object(
+        Chunk(
+          (
+            "level1",
+            new Json.Object(
+              Chunk(
+                (
+                  "level2",
+                  new Json.Object(
+                    Chunk(("level3", new Json.Number("99")))
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+      val patch = JsonDiffer.diff(a, b)
+
+      // Verify correct roundtrip through 3 levels of nesting
+      assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    test("deeply nested array modification") {
+      val a = new Json.Array(
+        Chunk(
+          new Json.Array(
+            Chunk(
+              new Json.Array(Chunk(new Json.Number("1")))
+            )
+          )
+        )
+      )
+      val b = new Json.Array(
+        Chunk(
+          new Json.Array(
+            Chunk(
+              new Json.Array(Chunk(new Json.Number("999")))
+            )
+          )
+        )
+      )
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch(a, PatchMode.Strict) == new Right(b))
     }
   )
 

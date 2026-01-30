@@ -169,6 +169,20 @@ object JsonPatch {
    * This implementation leverages [[DynamicPatch]] as an intermediate format,
    * since DynamicValue is a superset of JSON and the conversion is lossless for
    * JSON-representable patches.
+   *
+   * ==Design Note (re: "friends")==
+   *
+   * The inner types [[Op]], [[StringOp]], [[ArrayOp]], [[ObjectOp]], and
+   * [[PrimitiveOp]] do not require separate implicit Schema instances because:
+   *
+   *   1. They are never serialized independently - they only appear as part of
+   *      a [[JsonPatch]] which is converted to/from [[DynamicPatch]].
+   *   2. [[DynamicPatch]] already has comprehensive Schema instances for all
+   *      its inner types (see `DynamicPatch.scala`), and the bidirectional
+   *      conversion functions [[toDynamicPatch]] and [[fromDynamicPatch]]
+   *      handle the mapping.
+   *   3. Roundtrip through DynamicValue preserves all information because
+   *      DynamicValue is a superset of JSON's data model.
    */
   implicit lazy val schema: Schema[JsonPatch] =
     Schema[DynamicPatch]
