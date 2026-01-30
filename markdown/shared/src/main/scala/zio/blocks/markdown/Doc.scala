@@ -82,9 +82,8 @@ final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.e
     (normalized.blocks, normalized.metadata).hashCode()
   }
 
-  // TODO: Uncomment after HtmlRenderer is implemented
-  // def toHtml: String = HtmlRenderer.render(this)
-  // def toHtmlFragment: String = HtmlRenderer.renderFragment(this)
+  def toHtml: String         = HtmlRenderer.render(this)
+  def toHtmlFragment: String = HtmlRenderer.renderFragment(this)
 
   // TODO: Uncomment after TerminalRenderer is implemented
   // def toTerminal: String = TerminalRenderer.render(this)
