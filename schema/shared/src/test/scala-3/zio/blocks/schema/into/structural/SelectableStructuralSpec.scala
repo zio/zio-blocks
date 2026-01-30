@@ -7,18 +7,19 @@ import zio.test.Assertion._
 /**
  * Tests for Selectable structural type conversions.
  *
- * Selectable is a Scala 3 feature that enables structural type member access
- * at compile time without runtime reflection. This means these conversions work on
+ * Selectable is a Scala 3 feature that enables structural type member access at
+ * compile time without runtime reflection. This means these conversions work on
  * all platforms (JVM, JS, Native).
- * 
+ *
  * Supported conversions:
- * - Selectable source → Case class target (using selectDynamic)
- * - Case class source → Selectable target (using Map constructor or companion apply)
- * 
+ *   - Selectable source → Case class target (using selectDynamic)
+ *   - Case class source → Selectable target (using Map constructor or companion
+ *     apply)
+ *
  * Requirements for cross-platform Product → Selectable:
- * - Selectable class must have either:
- *   1. A constructor taking Map[String, Any] (primary or secondary)
- *   2. A companion object with apply(Map[String, Any])
+ *   - Selectable class must have either:
+ *     1. A constructor taking Map[String, Any] (primary or secondary)
+ *     2. A companion object with apply(Map[String, Any])
  */
 object SelectableStructuralSpec extends ZIOSpecDefault {
 
@@ -38,7 +39,7 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
   // A Selectable class that uses companion apply instead of constructor
   case class RecordWithApply(fields: List[(String, Any)]) extends Selectable {
     private val fieldsMap: Map[String, Any] = fields.toMap
-    def selectDynamic(name: String): Any = fieldsMap(name)
+    def selectDynamic(name: String): Any    = fieldsMap(name)
   }
 
   object RecordWithApply {
@@ -46,12 +47,12 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
   }
 
   // Type aliases for structural types backed by Record
-  type PointLike = Record { def x: Int; def y: Int }
-  type PersonLike = Record { def name: String; def age: Int }
+  type PointLike          = Record { def x: Int; def y: Int }
+  type PersonLike         = Record { def name: String; def age: Int }
   type PersonWithDeptLike = Record { def name: String; def age: Int; def department: String }
 
   // Type aliases for structural types backed by RecordWithApply
-  type PointLikeApply = RecordWithApply { def x: Int; def y: Int }
+  type PointLikeApply  = RecordWithApply { def x: Int; def y: Int }
   type PersonLikeApply = RecordWithApply { def name: String; def age: Int }
 
   def makePoint(x: Int, y: Int): PointLike =
@@ -67,14 +68,14 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
     suite("Selectable to Case Class - Exact Match")(
       test("converts Selectable structural type with matching fields") {
         val source = makePoint(10, 20)
-        val into = Into.derived[PointLike, Point]
+        val into   = Into.derived[PointLike, Point]
         val result = into.into(source)
 
         assert(result)(isRight(equalTo(Point(10, 20))))
       },
       test("converts Selectable person to case class") {
         val source = makePerson("Alice", 30)
-        val into = Into.derived[PersonLike, Person]
+        val into   = Into.derived[PersonLike, Person]
         val result = into.into(source)
 
         assert(result)(isRight(equalTo(Person("Alice", 30))))
@@ -83,7 +84,7 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
     suite("Selectable to Case Class - Extra Source Fields")(
       test("converts Selectable with extra fields (drops extras)") {
         val source = makePersonWithDept("Bob", 25, "Engineering")
-        val into = Into.derived[PersonWithDeptLike, Person]
+        val into   = Into.derived[PersonWithDeptLike, Person]
         val result = into.into(source)
 
         assert(result)(isRight(equalTo(Person("Bob", 25))))
@@ -92,7 +93,7 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
     suite("Selectable to Case Class - Target with Defaults")(
       test("converts Selectable with fewer fields using defaults") {
         val source = makePerson("Carol", 28)
-        val into = Into.derived[PersonLike, PersonWithDefault]
+        val into   = Into.derived[PersonLike, PersonWithDefault]
         val result = into.into(source)
 
         assert(result)(isRight(equalTo(PersonWithDefault("Carol", 28, true))))
@@ -101,7 +102,7 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
     suite("Selectable to Case Class - Target with Optional")(
       test("converts Selectable with fewer fields using None for optional") {
         val source = makePerson("Dave", 35)
-        val into = Into.derived[PersonLike, PersonWithOptional]
+        val into   = Into.derived[PersonLike, PersonWithOptional]
         val result = into.into(source)
 
         assert(result)(isRight(equalTo(PersonWithOptional("Dave", 35, None))))
@@ -111,7 +112,7 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
       test("converts multiple values") {
         val source1 = makePoint(1, 2)
         val source2 = makePoint(3, 4)
-        val into = Into.derived[PointLike, Point]
+        val into    = Into.derived[PointLike, Point]
 
         val result1 = into.into(source1)
         val result2 = into.into(source2)
@@ -125,7 +126,7 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
     suite("Case Class to Selectable - Using Map Constructor")(
       test("converts case class Point to PointLike Selectable") {
         val source = Point(10, 20)
-        val into = Into.derived[Point, PointLike]
+        val into   = Into.derived[Point, PointLike]
         val result = into.into(source)
 
         result match {
@@ -140,7 +141,7 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
       },
       test("converts case class Person to PersonLike Selectable") {
         val source = Person("Alice", 30)
-        val into = Into.derived[Person, PersonLike]
+        val into   = Into.derived[Person, PersonLike]
         val result = into.into(source)
 
         result match {
@@ -156,9 +157,9 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
       test("converts case class with extra fields to Selectable (ignores extras)") {
         // PersonWithDefault has extra 'active' field not in PersonLike
         val source = PersonWithDefault("Bob", 25, true)
-        val into = Into.derived[PersonWithDefault, PersonLike]
+        val into   = Into.derived[PersonWithDefault, PersonLike]
         val result = into.into(source)
-        
+
         result match {
           case Right(selectable) =>
             assertTrue(
@@ -173,9 +174,9 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
     suite("Case Class to Selectable - Using Companion Apply")(
       test("converts case class Point to PointLikeApply using companion apply") {
         val source = Point(100, 200)
-        val into = Into.derived[Point, PointLikeApply]
+        val into   = Into.derived[Point, PointLikeApply]
         val result = into.into(source)
-        
+
         result match {
           case Right(selectable) =>
             assertTrue(
@@ -188,9 +189,9 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
       },
       test("converts case class Person to PersonLikeApply using companion apply") {
         val source = Person("Charlie", 45)
-        val into = Into.derived[Person, PersonLikeApply]
+        val into   = Into.derived[Person, PersonLikeApply]
         val result = into.into(source)
-        
+
         result match {
           case Right(selectable) =>
             assertTrue(
@@ -204,4 +205,3 @@ object SelectableStructuralSpec extends ZIOSpecDefault {
     )
   )
 }
-
