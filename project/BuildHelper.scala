@@ -107,6 +107,7 @@ object BuildHelper {
           "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
           "-Wconf:id=E029:s", // suppress non-exhaustive pattern match warnings in macro code
           "-Wconf:id=E030:s", // suppress unreachable case warnings in type pattern matching
+          "-Wconf:msg=package scala contains object and package with same name:s", // Scala.js classpath artifact
           "-Werror"
         )
       case _ =>
