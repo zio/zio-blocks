@@ -92,7 +92,7 @@ private[schema] object JsonSchemaToReflect {
 
   private def analyzeVariant(obj: JsonSchema.Object): Option[Shape] =
     obj.oneOf match {
-      case Some(cases) if cases.nonEmpty =>
+      case Some(cases) =>
         analyzeKeyDiscriminatedVariant(cases)
           .orElse(analyzeFieldDiscriminatedVariant(cases))
       case _ => None
