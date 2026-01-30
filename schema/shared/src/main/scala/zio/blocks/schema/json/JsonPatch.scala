@@ -168,11 +168,8 @@ object JsonPatch {
    *
    * This implementation leverages [[DynamicPatch]] as an intermediate format,
    * since DynamicValue is a superset of JSON and the conversion is lossless for
-   * JSON-representable patches.
-   *
-   * Schema instances are also provided for all inner types: [[Op]], [[PrimitiveOp]],
-   * [[StringOp]], [[ArrayOp]], and [[ObjectOp]], enabling direct serialization
-   * and roundtripping through DynamicValue when needed.
+   * JSON-representable patches. The inner types are serialized through this
+   * Schema[JsonPatch] instance via the DynamicPatch bridge.
    */
   implicit lazy val schema: Schema[JsonPatch] =
     Schema[DynamicPatch]
@@ -310,9 +307,6 @@ object JsonPatch {
      * Used to group operations sharing a common path prefix.
      */
     final case class Nested(patch: JsonPatch) extends Op
-
-    /** Schema instance for Op enabling serialization. */
-    implicit lazy val schema: Schema[Op] = Schema.derived
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -340,9 +334,6 @@ object JsonPatch {
      * Apply string edit operations.
      */
     final case class StringEdit(ops: Vector[StringOp]) extends PrimitiveOp
-
-    /** Schema instance for PrimitiveOp enabling serialization. */
-    implicit lazy val schema: Schema[PrimitiveOp] = Schema.derived
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -375,9 +366,6 @@ object JsonPatch {
 
     /** Replace characters starting at index with new text. */
     final case class Modify(index: Int, length: Int, text: java.lang.String) extends StringOp
-
-    /** Schema instance for StringOp enabling serialization. */
-    implicit lazy val schema: Schema[StringOp] = Schema.derived
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -404,9 +392,6 @@ object JsonPatch {
 
     /** Modify the element at the given index with a nested operation. */
     final case class Modify(index: Int, op: Op) extends ArrayOp
-
-    /** Schema instance for ArrayOp enabling serialization. */
-    implicit lazy val schema: Schema[ArrayOp] = Schema.derived
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -430,9 +415,6 @@ object JsonPatch {
 
     /** Modify a field's value with a nested patch. */
     final case class Modify(key: java.lang.String, patch: JsonPatch) extends ObjectOp
-
-    /** Schema instance for ObjectOp enabling serialization. */
-    implicit lazy val schema: Schema[ObjectOp] = Schema.derived
   }
 
   // ─────────────────────────────────────────────────────────────────────────

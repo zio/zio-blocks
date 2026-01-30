@@ -1259,69 +1259,6 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val roundtripResult = roundtrip.flatMap(p => p(testJson, PatchMode.Strict))
 
       assertTrue(roundtripResult == originalResult)
-    },
-    test("Schema[Op] roundtrip for Set") {
-      val op: JsonPatch.Op = JsonPatch.Op.Set(new Json.Number("42"))
-      val schema           = implicitly[Schema[JsonPatch.Op]]
-      val dynamicValue     = schema.toDynamicValue(op)
-      val roundtrip        = schema.fromDynamicValue(dynamicValue)
-      assertTrue(roundtrip == new Right(op))
-    },
-    test("Schema[Op] roundtrip for PrimitiveDelta") {
-      val op: JsonPatch.Op = JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5)))
-      val schema           = implicitly[Schema[JsonPatch.Op]]
-      val dynamicValue     = schema.toDynamicValue(op)
-      val roundtrip        = schema.fromDynamicValue(dynamicValue)
-      assertTrue(roundtrip == new Right(op))
-    },
-    test("Schema[PrimitiveOp] roundtrip for NumberDelta and StringEdit") {
-      val schema = implicitly[Schema[JsonPatch.PrimitiveOp]]
-
-      val numOp: JsonPatch.PrimitiveOp = JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(-10))
-      val numRoundtrip                 = schema.fromDynamicValue(schema.toDynamicValue(numOp))
-      assertTrue(numRoundtrip == new Right(numOp)) &&
-      assertTrue({
-        val strOp: JsonPatch.PrimitiveOp = JsonPatch.PrimitiveOp.StringEdit(
-          Vector(JsonPatch.StringOp.Insert(0, "hello"))
-        )
-        val strRoundtrip = schema.fromDynamicValue(schema.toDynamicValue(strOp))
-        strRoundtrip == new Right(strOp)
-      })
-    },
-    test("Schema[StringOp] roundtrip for Insert, Delete, Append, Modify") {
-      val schema = implicitly[Schema[JsonPatch.StringOp]]
-
-      val insert: JsonPatch.StringOp = JsonPatch.StringOp.Insert(0, "prefix")
-      val delete: JsonPatch.StringOp = JsonPatch.StringOp.Delete(5, 3)
-      val append: JsonPatch.StringOp = JsonPatch.StringOp.Append("suffix")
-      val modify: JsonPatch.StringOp = JsonPatch.StringOp.Modify(2, 5, "replacement")
-
-      assertTrue(schema.fromDynamicValue(schema.toDynamicValue(insert)) == new Right(insert)) &&
-      assertTrue(schema.fromDynamicValue(schema.toDynamicValue(delete)) == new Right(delete)) &&
-      assertTrue(schema.fromDynamicValue(schema.toDynamicValue(append)) == new Right(append)) &&
-      assertTrue(schema.fromDynamicValue(schema.toDynamicValue(modify)) == new Right(modify))
-    },
-    test("Schema[ArrayOp] roundtrip for Insert, Delete, Append") {
-      val schema = implicitly[Schema[JsonPatch.ArrayOp]]
-
-      val insert: JsonPatch.ArrayOp = JsonPatch.ArrayOp.Insert(0, Chunk(new Json.Number("1")))
-      val delete: JsonPatch.ArrayOp = JsonPatch.ArrayOp.Delete(2, 1)
-      val append: JsonPatch.ArrayOp = JsonPatch.ArrayOp.Append(Chunk(new Json.String("new")))
-
-      assertTrue(schema.fromDynamicValue(schema.toDynamicValue(insert)) == new Right(insert)) &&
-      assertTrue(schema.fromDynamicValue(schema.toDynamicValue(delete)) == new Right(delete)) &&
-      assertTrue(schema.fromDynamicValue(schema.toDynamicValue(append)) == new Right(append))
-    },
-    test("Schema[ObjectOp] roundtrip for Add, Remove, Modify") {
-      val schema = implicitly[Schema[JsonPatch.ObjectOp]]
-
-      val add: JsonPatch.ObjectOp    = JsonPatch.ObjectOp.Add("key", new Json.String("value"))
-      val remove: JsonPatch.ObjectOp = JsonPatch.ObjectOp.Remove("obsolete")
-      val modify: JsonPatch.ObjectOp = JsonPatch.ObjectOp.Modify("nested", JsonPatch.empty)
-
-      assertTrue(schema.fromDynamicValue(schema.toDynamicValue(add)) == new Right(add)) &&
-      assertTrue(schema.fromDynamicValue(schema.toDynamicValue(remove)) == new Right(remove)) &&
-      assertTrue(schema.fromDynamicValue(schema.toDynamicValue(modify)) == new Right(modify))
     }
   )
 

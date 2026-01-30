@@ -39,7 +39,7 @@ object JsonDifferSpec extends ZIOSpecDefault {
 
   val genArrayWithAppendedElement: Gen[Any, (Json.Array, Json.Array)] =
     for {
-      baseLen <- Gen.int(0, 5)
+      baseLen  <- Gen.int(0, 5)
       baseVals <- Gen.listOfN(baseLen)(Gen.int(-100, 100).map(i => new Json.Number(i.toString)))
       newVal   <- Gen.int(-100, 100).map(i => new Json.Number(i.toString))
     } yield {
@@ -191,7 +191,7 @@ object JsonDifferSpec extends ZIOSpecDefault {
     // Property-based minimality test
     test("appended strings produce StringEdit (property)") {
       check(genStringWithAppend) { case (a, b) =>
-        val patch = JsonDiffer.diff(a, b)
+        val patch          = JsonDiffer.diff(a, b)
         val usesStringEdit = patch.ops.exists { op =>
           op.op match {
             case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(_)) => true
@@ -281,7 +281,7 @@ object JsonDifferSpec extends ZIOSpecDefault {
     // Property-based minimality test
     test("appended arrays produce ArrayEdit (property)") {
       check(genArrayWithAppendedElement) { case (a, b) =>
-        val patch = JsonDiffer.diff(a, b)
+        val patch         = JsonDiffer.diff(a, b)
         val usesArrayEdit = patch.ops.exists { op =>
           op.op match {
             case JsonPatch.Op.ArrayEdit(_) => true
@@ -357,7 +357,7 @@ object JsonDifferSpec extends ZIOSpecDefault {
     // Property-based minimality test
     test("objects with added field produce ObjectEdit (property)") {
       check(genObjectWithAddedField) { case (a, b) =>
-        val patch = JsonDiffer.diff(a, b)
+        val patch          = JsonDiffer.diff(a, b)
         val usesObjectEdit = patch.ops.exists { op =>
           op.op match {
             case JsonPatch.Op.ObjectEdit(_) => true
@@ -417,7 +417,7 @@ object JsonDifferSpec extends ZIOSpecDefault {
     // Property-based minimality test
     test("number deltas produce NumberDelta (property)") {
       check(genNumberWithDelta) { case (a, b) =>
-        val patch = JsonDiffer.diff(a, b)
+        val patch           = JsonDiffer.diff(a, b)
         val usesNumberDelta = patch.ops.exists { op =>
           op.op match {
             case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(_)) => true
