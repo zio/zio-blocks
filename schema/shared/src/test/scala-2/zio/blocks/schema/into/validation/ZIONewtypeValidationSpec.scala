@@ -167,8 +167,8 @@ object ZIONewtypeValidationSpec extends ZIOSpecDefault {
         case class PersonWithAddressV2(name: NonEmptyString, address: AddressV2)
 
         implicit val addressInto: Into[AddressV1, AddressV2] = Into.derived[AddressV1, AddressV2]
-        val source = PersonWithAddressV1("Alice", AddressV1("NYC", 10001))
-        val result = Into.derived[PersonWithAddressV1, PersonWithAddressV2].into(source)
+        val source                                           = PersonWithAddressV1("Alice", AddressV1("NYC", 10001))
+        val result                                           = Into.derived[PersonWithAddressV1, PersonWithAddressV2].into(source)
 
         assertTrue(result.isRight)
       },
@@ -179,8 +179,8 @@ object ZIONewtypeValidationSpec extends ZIOSpecDefault {
         case class PersonWithAddressV2(name: NonEmptyString, address: AddressV2)
 
         implicit val addressInto: Into[AddressV1, AddressV2] = Into.derived[AddressV1, AddressV2]
-        val source = PersonWithAddressV1("Alice", AddressV1("", 10001)) // empty city
-        val result = Into.derived[PersonWithAddressV1, PersonWithAddressV2].into(source)
+        val source                                           = PersonWithAddressV1("Alice", AddressV1("", 10001)) // empty city
+        val result                                           = Into.derived[PersonWithAddressV1, PersonWithAddressV2].into(source)
 
         assertTrue(result.isLeft)
       }
@@ -194,7 +194,7 @@ object ZIONewtypeValidationSpec extends ZIOSpecDefault {
         case class CreateV2(name: NonEmptyString, age: Age) extends RequestV2
 
         val source: RequestV1 = CreateV1("Alice", 30)
-        val result = Into.derived[RequestV1, RequestV2].into(source)
+        val result            = Into.derived[RequestV1, RequestV2].into(source)
 
         assertTrue(result.isRight)
       },
@@ -206,11 +206,10 @@ object ZIONewtypeValidationSpec extends ZIOSpecDefault {
         case class CreateV2(name: NonEmptyString, age: Age) extends RequestV2
 
         val source: RequestV1 = CreateV1("Alice", -5) // invalid age
-        val result = Into.derived[RequestV1, RequestV2].into(source)
+        val result            = Into.derived[RequestV1, RequestV2].into(source)
 
         assertTrue(result.isLeft)
       }
     )
   )
 }
-

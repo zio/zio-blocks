@@ -3,13 +3,7 @@ package zio.blocks.schema
 import zio.test._
 import zio.prelude._
 
-/**
- * Tests for ZIO Prelude Newtype and Subtype support in the Into type class.
- * These tests verify that the macro automatically detects ZIO Prelude newtypes
- * and uses the 'make' method for validation without requiring explicit implicit instances.
- *
- * Scala 2 version - uses assert macro for ZIO Prelude newtypes.
- */
+/** Tests for ZIO Prelude Newtype and Subtype support in Into.derived. */
 object IntoZIOPreludeNewtypeSpec extends ZIOSpecDefault {
 
   // Define newtypes with validation using Scala 2 syntax
@@ -61,7 +55,7 @@ object IntoZIOPreludeNewtypeSpec extends ZIOSpecDefault {
         case class UserV1(name: String, email: String)
         case class UserV2(name: String, email: Email)
 
-        val user = UserV1("Alice", "alice@example.com")
+        val user   = UserV1("Alice", "alice@example.com")
         val result = Into.derived[UserV1, UserV2].into(user)
 
         assertTrue(result.isRight)
@@ -74,9 +68,9 @@ object IntoZIOPreludeNewtypeSpec extends ZIOSpecDefault {
         val result = Into.derived[PersonV1, PersonV2].into(person)
 
         assertTrue(result.isLeft) &&
-        assertTrue(result.swap.exists(err =>
-          err.toString.toLowerCase.contains("validation") || err.toString.contains("-5")
-        ))
+        assertTrue(
+          result.swap.exists(err => err.toString.toLowerCase.contains("validation") || err.toString.contains("-5"))
+        )
       },
       test("fails when Age validation fails - too old") {
         case class PersonV1(name: String, age: Int)
@@ -86,22 +80,21 @@ object IntoZIOPreludeNewtypeSpec extends ZIOSpecDefault {
         val result = Into.derived[PersonV1, PersonV2].into(person)
 
         assertTrue(result.isLeft) &&
-        assertTrue(result.swap.exists(err =>
-          err.toString.toLowerCase.contains("validation") || err.toString.contains("200")
-        ))
+        assertTrue(
+          result.swap.exists(err => err.toString.toLowerCase.contains("validation") || err.toString.contains("200"))
+        )
       },
       test("fails when Email validation fails - missing @") {
         case class UserV1(name: String, email: String)
         case class UserV2(name: String, email: Email)
 
-
-        val user = UserV1("Alice", "invalid")
+        val user   = UserV1("Alice", "invalid")
         val result = Into.derived[UserV1, UserV2].into(user)
 
         assertTrue(result.isLeft) &&
-        assertTrue(result.swap.exists(err =>
-          err.toString.toLowerCase.contains("validation") || err.toString.contains("invalid")
-        ))
+        assertTrue(
+          result.swap.exists(err => err.toString.toLowerCase.contains("validation") || err.toString.contains("invalid"))
+        )
       }
     ),
     suite("Multiple Newtype Fields")(
@@ -110,7 +103,7 @@ object IntoZIOPreludeNewtypeSpec extends ZIOSpecDefault {
         case class RequestV2(userId: PositiveInt, email: Email)
 
         val request = RequestV1(42, "user@example.com")
-        val result = Into.derived[RequestV1, RequestV2].into(request)
+        val result  = Into.derived[RequestV1, RequestV2].into(request)
 
         assertTrue(result.isRight)
       },
@@ -119,24 +112,24 @@ object IntoZIOPreludeNewtypeSpec extends ZIOSpecDefault {
         case class RequestV2(userId: PositiveInt, email: Email)
 
         val request = RequestV1(-1, "user@example.com")
-        val result = Into.derived[RequestV1, RequestV2].into(request)
+        val result  = Into.derived[RequestV1, RequestV2].into(request)
 
         assertTrue(result.isLeft) &&
-        assertTrue(result.swap.exists(err =>
-          err.toString.contains("-1") || err.toString.toLowerCase.contains("validation")
-        ))
+        assertTrue(
+          result.swap.exists(err => err.toString.contains("-1") || err.toString.toLowerCase.contains("validation"))
+        )
       },
       test("fails when second field validation fails") {
         case class RequestV1(userId: Int, email: String)
         case class RequestV2(userId: PositiveInt, email: Email)
 
         val request = RequestV1(42, "invalid")
-        val result = Into.derived[RequestV1, RequestV2].into(request)
+        val result  = Into.derived[RequestV1, RequestV2].into(request)
 
         assertTrue(result.isLeft) &&
-        assertTrue(result.swap.exists(err =>
-          err.toString.contains("invalid") || err.toString.toLowerCase.contains("validation")
-        ))
+        assertTrue(
+          result.swap.exists(err => err.toString.contains("invalid") || err.toString.toLowerCase.contains("validation"))
+        )
       }
     ),
     suite("Nested Structures with Newtypes")(
@@ -182,7 +175,7 @@ object IntoZIOPreludeNewtypeSpec extends ZIOSpecDefault {
         case class MixedV1(id: Int, name: String, age: Int, country: String)
         case class MixedV2(id: PositiveInt, name: String, age: Age, country: String)
 
-        val data = MixedV1(1, "Alice", 30, "USA")
+        val data   = MixedV1(1, "Alice", 30, "USA")
         val result = Into.derived[MixedV1, MixedV2].into(data)
 
         assertTrue(result.isRight)
@@ -191,7 +184,7 @@ object IntoZIOPreludeNewtypeSpec extends ZIOSpecDefault {
         case class MixedV1(id: Int, name: String, age: Int)
         case class MixedV2(id: PositiveInt, name: String, age: Age)
 
-        val data = MixedV1(-1, "Alice", 30)
+        val data   = MixedV1(-1, "Alice", 30)
         val result = Into.derived[MixedV1, MixedV2].into(data)
 
         assertTrue(result.isLeft)
@@ -199,4 +192,3 @@ object IntoZIOPreludeNewtypeSpec extends ZIOSpecDefault {
     )
   )
 }
-

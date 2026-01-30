@@ -5,21 +5,9 @@ import zio.test._
 import zio.test.Assertion._
 import scala.language.dynamics
 
-/**
- * Cross-platform tests for As with Dynamic structural types in Scala 2.
- *
- * As[A, B] requires bidirectional conversion (A → B and B → A).
- * These tests verify that Dynamic structural types work with As derivation.
- *
- * Note: These tests work on JVM and JS. Native is excluded due to long build times.
- *
- * The pure structural type tests (As[Person, { def name: String }]) are in JVM-only
- * tests because the reverse direction requires reflection to read from the generated
- * anonymous Dynamic class.
- */
+/** Tests for As with Dynamic structural types. */
 object DynamicAsSpec extends ZIOSpecDefault {
 
-  // === Case Classes ===
   case class Person(name: String, age: Int)
   case class Point(x: Int, y: Int)
 
@@ -29,7 +17,7 @@ object DynamicAsSpec extends ZIOSpecDefault {
 
     override def equals(obj: Any): Boolean = obj match {
       case other: DynamicRecord => fields == other.fields
-      case _ => false
+      case _                    => false
     }
 
     override def hashCode(): Int = fields.hashCode()
@@ -42,12 +30,12 @@ object DynamicAsSpec extends ZIOSpecDefault {
 
   // Refined type aliases for Dynamic
   type PersonLike = DynamicRecord { def name: String; def age: Int }
-  type PointLike = DynamicRecord { def x: Int; def y: Int }
+  type PointLike  = DynamicRecord { def x: Int; def y: Int }
 
   def spec: Spec[TestEnvironment, Any] = suite("DynamicAsSpec")(
     suite("As between Case Class and Dynamic")(
       test("derives As[Person, PersonLike]") {
-        val as = As.derived[Person, PersonLike]
+        val as     = As.derived[Person, PersonLike]
         val person = Person("Alice", 30)
 
         val toResult = as.into(person)
@@ -61,23 +49,23 @@ object DynamicAsSpec extends ZIOSpecDefault {
         }
       },
       test("As[Person, PersonLike] round-trip works") {
-        val as = As.derived[Person, PersonLike]
+        val as       = As.derived[Person, PersonLike]
         val original = Person("Bob", 25)
 
         val roundTrip = for {
           dynamic <- as.into(original)
-          back <- as.from(dynamic)
+          back    <- as.from(dynamic)
         } yield back
 
         assert(roundTrip)(isRight(equalTo(original)))
       },
       test("As[Point, PointLike] round-trip works") {
-        val as = As.derived[Point, PointLike]
+        val as       = As.derived[Point, PointLike]
         val original = Point(10, 20)
 
         val roundTrip = for {
           dynamic <- as.into(original)
-          back <- as.from(dynamic)
+          back    <- as.from(dynamic)
         } yield back
 
         assert(roundTrip)(isRight(equalTo(original)))
@@ -85,7 +73,7 @@ object DynamicAsSpec extends ZIOSpecDefault {
     ),
     suite("As reverse functionality")(
       test("reverse reverses As direction") {
-        val as = As.derived[Person, PersonLike]
+        val as       = As.derived[Person, PersonLike]
         val reversed = as.reverse
 
         val dynamic: PersonLike = DynamicRecord("name" -> "Eve", "age" -> 28).asInstanceOf[PersonLike]
@@ -97,9 +85,9 @@ object DynamicAsSpec extends ZIOSpecDefault {
         assert(result)(isRight(equalTo(Person("Eve", 28))))
       },
       test("double reverse returns equivalent As") {
-        val as = As.derived[Person, PersonLike]
+        val as             = As.derived[Person, PersonLike]
         val doubleReversed = as.reverse.reverse
-        val original = Person("Frank", 45)
+        val original       = Person("Frank", 45)
 
         val result1 = as.into(original)
         val result2 = doubleReversed.into(original)
@@ -116,7 +104,7 @@ object DynamicAsSpec extends ZIOSpecDefault {
     ),
     suite("As used as Into")(
       test("As can be used where Into is expected") {
-        val as: As[Person, PersonLike] = As.derived[Person, PersonLike]
+        val as: As[Person, PersonLike]     = As.derived[Person, PersonLike]
         val into: Into[Person, PersonLike] = as // As extends Into
 
         val person = Person("Grace", 32)
@@ -133,4 +121,3 @@ object DynamicAsSpec extends ZIOSpecDefault {
     )
   )
 }
-

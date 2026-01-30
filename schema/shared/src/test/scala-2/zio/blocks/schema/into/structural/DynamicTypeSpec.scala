@@ -8,9 +8,9 @@ import scala.language.dynamics
 /**
  * Cross-platform tests for Dynamic structural types in Scala 2.
  *
- * These tests work on JVM, JS, and Native because they use scala.Dynamic
- * which provides selectDynamic - a compile-time generated call that doesn't
- * require reflection.
+ * These tests work on JVM, JS, and Native because they use scala.Dynamic which
+ * provides selectDynamic - a compile-time generated call that doesn't require
+ * reflection.
  *
  * The macro supports:
  *   - Dynamic source → Case class target (using selectDynamic)
@@ -22,8 +22,8 @@ import scala.language.dynamics
  *     - A constructor taking Map[String, Any]
  *     - A companion apply method taking Map[String, Any]
  *
- * Note: Tests that use ad-hoc structural types (new { def name = ... }) as SOURCE
- * are in JVM-only tests because accessing them requires reflection.
+ * Note: Tests that use ad-hoc structural types (new { def name = ... }) as
+ * SOURCE are in JVM-only tests because accessing them requires reflection.
  */
 object DynamicTypeSpec extends ZIOSpecDefault {
 
@@ -45,14 +45,14 @@ object DynamicTypeSpec extends ZIOSpecDefault {
 
   // Refined type aliases for Dynamic
   type PersonLike = DynamicRecord { def name: String; def age: Int }
-  type PointLike = DynamicRecord { def x: Int; def y: Int }
+  type PointLike  = DynamicRecord { def x: Int; def y: Int }
 
   def spec: Spec[TestEnvironment, Any] = suite("DynamicTypeSpec")(
     suite("Case Class to Structural Type (Cross-Platform)")(
       // These work cross-platform because the macro generates an anonymous Dynamic class
       test("converts case class to structural type") {
         val source = Person("Dave", 40)
-        val into = Into.derived[Person, { def name: String; def age: Int }]
+        val into   = Into.derived[Person, { def name: String; def age: Int }]
         val result = into.into(source)
 
         result match {
@@ -65,7 +65,7 @@ object DynamicTypeSpec extends ZIOSpecDefault {
       },
       test("converts case class to structural subset") {
         val source = Employee("Eve", 28, "Marketing")
-        val into = Into.derived[Employee, { def name: String; def age: Int }]
+        val into   = Into.derived[Employee, { def name: String; def age: Int }]
         val result = into.into(source)
 
         result match {
@@ -80,7 +80,7 @@ object DynamicTypeSpec extends ZIOSpecDefault {
     suite("Case Class to Dynamic (with Map apply)")(
       test("converts case class to Dynamic structural type") {
         val source = Point(10, 20)
-        val into = Into.derived[Point, PointLike]
+        val into   = Into.derived[Point, PointLike]
         val result = into.into(source)
 
         result match {
@@ -93,7 +93,7 @@ object DynamicTypeSpec extends ZIOSpecDefault {
       },
       test("converts Person to Dynamic structural type") {
         val source = Person("Grace", 32)
-        val into = Into.derived[Person, PersonLike]
+        val into   = Into.derived[Person, PersonLike]
         val result = into.into(source)
 
         result match {
@@ -109,15 +109,15 @@ object DynamicTypeSpec extends ZIOSpecDefault {
       // These work cross-platform because selectDynamic is called at compile time
       test("converts Dynamic structural type to case class") {
         val source: PersonLike = DynamicRecord("name" -> "Henry", "age" -> 45).asInstanceOf[PersonLike]
-        val into = Into.derived[PersonLike, Person]
-        val result = into.into(source)
+        val into               = Into.derived[PersonLike, Person]
+        val result             = into.into(source)
 
         assert(result)(isRight(equalTo(Person("Henry", 45))))
       },
       test("converts Dynamic Point to case class") {
         val source: PointLike = DynamicRecord("x" -> 5, "y" -> 15).asInstanceOf[PointLike]
-        val into = Into.derived[PointLike, Point]
-        val result = into.into(source)
+        val into              = Into.derived[PointLike, Point]
+        val result            = into.into(source)
 
         assert(result)(isRight(equalTo(Point(5, 15))))
       }
@@ -126,11 +126,11 @@ object DynamicTypeSpec extends ZIOSpecDefault {
       test("case class to Dynamic to case class round trip") {
         val original = Person("Ivy", 29)
 
-        val toDynamic = Into.derived[Person, PersonLike]
+        val toDynamic   = Into.derived[Person, PersonLike]
         val fromDynamic = Into.derived[PersonLike, Person]
 
         val intermediate = toDynamic.into(original)
-        val result = intermediate.flatMap(d => fromDynamic.into(d))
+        val result       = intermediate.flatMap(d => fromDynamic.into(d))
 
         assert(result)(isRight(equalTo(original)))
       }
@@ -140,7 +140,7 @@ object DynamicTypeSpec extends ZIOSpecDefault {
       // at compile time, so users don't need to define their own DynamicRecord class
       test("case class to pure structural type with single field") {
         val source = Person("Jack", 33)
-        val into = Into.derived[Person, { def name: String }]
+        val into   = Into.derived[Person, { def name: String }]
         val result = into.into(source)
 
         result match {
@@ -152,7 +152,7 @@ object DynamicTypeSpec extends ZIOSpecDefault {
       },
       test("case class to pure structural type with multiple fields") {
         val source = Person("Kate", 27)
-        val into = Into.derived[Person, { def name: String; def age: Int }]
+        val into   = Into.derived[Person, { def name: String; def age: Int }]
         val result = into.into(source)
 
         result match {
@@ -165,7 +165,7 @@ object DynamicTypeSpec extends ZIOSpecDefault {
       },
       test("case class to pure structural type with subset of fields") {
         val source = Employee("Leo", 42, "Finance")
-        val into = Into.derived[Employee, { def name: String; def department: String }]
+        val into   = Into.derived[Employee, { def name: String; def department: String }]
         val result = into.into(source)
 
         result match {
@@ -179,4 +179,3 @@ object DynamicTypeSpec extends ZIOSpecDefault {
     )
   )
 }
-
