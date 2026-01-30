@@ -801,17 +801,19 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
       test("sets TypeId and primitive type on Wrapper reflect") {
         case class Score(value: Int)
         val scoreTypeId: TypeId[Score] = TypeId.of
-        val scoreSchema: Schema[Score] = Schema[Int].transform(to = Score(_), from = _.value).asOpaqueType[Score](scoreTypeId)
-        val wrapper                    = scoreSchema.reflect.asWrapperUnknown
+        val scoreSchema: Schema[Score] =
+          Schema[Int].transform(to = Score(_), from = _.value).asOpaqueType[Score](scoreTypeId)
+        val wrapper = scoreSchema.reflect.asWrapperUnknown
         assert(wrapper.map(_.wrapper.typeId.name))(isSome(equalTo("Score"))) &&
         assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.Int(Validation.None))))
       },
       test("round-trips correctly with asOpaqueType") {
         case class Score(value: Int)
         val scoreTypeId: TypeId[Score] = TypeId.of
-        val scoreSchema: Schema[Score] = Schema[Int].transform(to = Score(_), from = _.value).asOpaqueType[Score](scoreTypeId)
-        val value                      = Score(100)
-        val dv                         = scoreSchema.toDynamicValue(value)
+        val scoreSchema: Schema[Score] =
+          Schema[Int].transform(to = Score(_), from = _.value).asOpaqueType[Score](scoreTypeId)
+        val value = Score(100)
+        val dv    = scoreSchema.toDynamicValue(value)
         assert(scoreSchema.fromDynamicValue(dv))(isRight(equalTo(value)))
       },
       test("falls back to withTypeId behavior when called on non-Wrapper reflect") {
