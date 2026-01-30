@@ -96,23 +96,63 @@ private[typeid] object TypeIdOps {
     if (argsA.size != argsB.size) false
     else argsA.zip(argsB).forall { case (a, b) => typeReprEqual(a, b) }
 
-  private[typeid] def typeReprEqual(a: TypeRepr, b: TypeRepr): Boolean = (a, b) match {
+  private[typeid] def typeReprEqual(a: TypeRepr, b: TypeRepr): Boolean = {
+    val normA = flattenTupleRepr(a)
+    val normB = flattenTupleRepr(b)
+    normalizedTypeReprEqual(normA, normB)
+  }
+
+  private[typeid] def normalizedTypeReprEqual(a: TypeRepr, b: TypeRepr): Boolean = (a, b) match {
     case (TypeRepr.Ref(idA), TypeRepr.Ref(idB)) =>
       structurallyEqual(idA, idB)
     case (TypeRepr.Applied(tyconA, argsA), TypeRepr.Applied(tyconB, argsB)) =>
-      typeReprEqual(tyconA, tyconB) && typeArgsEqual(argsA, argsB)
+      normalizedTypeReprEqual(tyconA, tyconB) && normalizedTypeArgsEqual(argsA, argsB)
     case (TypeRepr.ParamRef(paramA, depthA), TypeRepr.ParamRef(paramB, depthB)) =>
       paramA.name == paramB.name && paramA.index == paramB.index && depthA == depthB
     case (TypeRepr.Union(typesA), TypeRepr.Union(typesB)) =>
-      typeReprsEqualAsSet(typesA, typesB)
+      normalizedTypeReprsEqualAsSet(typesA, typesB)
     case (TypeRepr.Intersection(typesA), TypeRepr.Intersection(typesB)) =>
-      typeReprsEqualAsSet(typesA, typesB)
+      normalizedTypeReprsEqualAsSet(typesA, typesB)
+    case (TypeRepr.Tuple(elemsA), TypeRepr.Tuple(elemsB)) =>
+      elemsA.size == elemsB.size && elemsA.zip(elemsB).forall { case (ea, eb) =>
+        ea.label == eb.label && normalizedTypeReprEqual(ea.tpe, eb.tpe)
+      }
     case _ =>
       a == b
   }
 
+  private[typeid] def normalizedTypeArgsEqual(argsA: List[TypeRepr], argsB: List[TypeRepr]): Boolean =
+    if (argsA.size != argsB.size) false
+    else argsA.zip(argsB).forall { case (a, b) => normalizedTypeReprEqual(a, b) }
+
+  private[typeid] def normalizedTypeReprsEqualAsSet(as: List[TypeRepr], bs: List[TypeRepr]): Boolean =
+    as.size == bs.size && as.forall(a => bs.exists(b => normalizedTypeReprEqual(a, b)))
+
   private[typeid] def typeReprsEqualAsSet(as: List[TypeRepr], bs: List[TypeRepr]): Boolean =
     as.size == bs.size && as.forall(a => bs.exists(b => typeReprEqual(a, b)))
+
+  private[typeid] def flattenTupleRepr(repr: TypeRepr): TypeRepr = repr match {
+    case TypeRepr.Tuple(elems) =>
+      TypeRepr.Tuple(flattenTupleElements(elems))
+    case TypeRepr.Applied(tycon, args) =>
+      TypeRepr.Applied(flattenTupleRepr(tycon), args.map(flattenTupleRepr))
+    case other => other
+  }
+
+  private def flattenTupleElements(elems: List[TupleElement]): List[TupleElement] =
+    elems.flatMap { elem =>
+      flattenTupleRepr(elem.tpe) match {
+        case TypeRepr.Tuple(innerElems) if elem.label.isEmpty =>
+          flattenTupleElements(innerElems)
+        case TypeRepr.Ref(id) if isEmptyTuple(id) =>
+          Nil
+        case normalizedTpe =>
+          List(TupleElement(elem.label, normalizedTpe))
+      }
+    }
+
+  private def isEmptyTuple(id: TypeId[_]): Boolean =
+    id.fullName == "scala.Tuple$package.EmptyTuple" || id.name == "EmptyTuple"
 
   def structuralHash(id: TypeId[_]): Int = {
     val norm = normalize(id)
@@ -129,12 +169,18 @@ private[typeid] object TypeIdOps {
   private[typeid] def typeArgsHash(args: List[TypeRepr]): Int =
     args.map(typeReprHash).hashCode()
 
-  private[typeid] def typeReprHash(repr: TypeRepr): Int = repr match {
+  private[typeid] def typeReprHash(repr: TypeRepr): Int = {
+    val normalized = flattenTupleRepr(repr)
+    normalizedTypeReprHash(normalized)
+  }
+
+  private[typeid] def normalizedTypeReprHash(repr: TypeRepr): Int = repr match {
     case TypeRepr.Ref(id)              => structuralHash(id)
-    case TypeRepr.Applied(tycon, args) => (typeReprHash(tycon), typeArgsHash(args)).hashCode()
-    case TypeRepr.Union(types)         => ("union", types.map(typeReprHash).toSet).hashCode()
-    case TypeRepr.Intersection(types)  => ("intersection", types.map(typeReprHash).toSet).hashCode()
-    case _                             => repr.hashCode()
+    case TypeRepr.Applied(tycon, args) => (normalizedTypeReprHash(tycon), args.map(normalizedTypeReprHash)).hashCode()
+    case TypeRepr.Union(types)         => ("union", types.map(normalizedTypeReprHash).toSet).hashCode()
+    case TypeRepr.Intersection(types)  => ("intersection", types.map(normalizedTypeReprHash).toSet).hashCode()
+    case TypeRepr.Tuple(elems)         => ("tuple", elems.map(e => (e.label, normalizedTypeReprHash(e.tpe)))).hashCode()
+    case other                         => other.hashCode()
   }
 
   def checkParents(parents: List[TypeRepr], target: TypeId[_], visited: Set[String]): Boolean =
