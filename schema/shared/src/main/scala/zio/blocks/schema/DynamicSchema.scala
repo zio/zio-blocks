@@ -913,7 +913,10 @@ object DynamicSchema {
     case _ => null
   }
 
-  /** Helper to convert DynamicValue to Option[Any], handling Null and non-primitives. */
+  /**
+   * Helper to convert DynamicValue to Option[Any], handling Null and
+   * non-primitives.
+   */
   private def dynamicValueToNumericOpt(dv: DynamicValue): Option[Any] = dv match {
     case DynamicValue.Null => scala.None
     case other             =>
@@ -1996,7 +1999,7 @@ object DynamicSchema {
         Validation.Numeric.Range(min, max).asInstanceOf[Validation[Any]]
       case DynamicValue.Variant("Set", DynamicValue.Record(fields)) =>
         val fieldMap = fields.toMap
-        val values = fieldMap.get("values") match {
+        val values   = fieldMap.get("values") match {
           case Some(DynamicValue.Sequence(elems)) =>
             elems.flatMap(dynamicValueToNumericOpt).toSet
           case _ => Set.empty[Any]
