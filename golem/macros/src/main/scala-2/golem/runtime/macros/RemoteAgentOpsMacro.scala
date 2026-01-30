@@ -73,14 +73,8 @@ object RemoteAgentOpsMacro {
             }
 
           val outType: Type =
-            if (m.returnType =:= typeOf[Unit]) typeOf[Unit]
-            else if (isFutureReturn(m.returnType) || isPromiseReturn(m.returnType)) unwrapAsync(m.returnType)
-            else {
-              c.abort(
-                c.enclosingPosition,
-                s"RemoteAgentOps.rpc method $methodNameStr must return scala.concurrent.Future[...] (or js.Promise[...]) or Unit, found: ${m.returnType}"
-              )
-            }
+            if (isFutureReturn(m.returnType) || isPromiseReturn(m.returnType)) unwrapAsync(m.returnType)
+            else m.returnType
 
           val methodLookup0 = methodLookup(methodNameStr, inType, outType)
           val inValue       = inputExpr(baseParamss)

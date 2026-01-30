@@ -47,7 +47,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -89,7 +89,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -120,7 +120,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -153,7 +153,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -191,7 +191,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -240,7 +240,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -281,7 +281,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -332,7 +332,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -379,7 +379,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -432,7 +432,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -483,7 +483,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }
@@ -538,7 +538,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           Future.failed(scala.scalajs.js.JavaScriptException(err))
         case Right(resolved) =>
-          Future.successful(RemoteAgent(AgentClient.bind[Trait](resolved), resolved))
+          Future.successful(RemoteAgent(resolved))
       }
     }
   }

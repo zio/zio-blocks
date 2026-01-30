@@ -6,15 +6,13 @@ import golem.runtime.rpc.AgentClientRuntime
 import scala.concurrent.Future
 
 /**
- * A remote agent handle that exposes all three invocation styles regardless of
- * a method's declared return type.
+ * A remote agent handle that exposes explicit await/trigger/schedule flows.
  *
- *   - **await**: `call(...)` (same as calling the method on `api`)
- *   - **trigger**: `trigger(...)`
- *   - **schedule**: `schedule(...)`
+ * Prefer `remote.rpc.call_foo(...)` (or `remote.call(...)`) to always await,
+ * regardless of the method's declared return type. Use `remote.rpc.trigger_foo`
+ * or `remote.rpc.schedule_foo` for fire-and-forget behavior.
  */
 final case class RemoteAgent[Trait](
-  api: Trait,
   private[golem] val resolved: AgentClientRuntime.ResolvedAgent[Trait]
 ) {
   def agentId: String = resolved.agentId

@@ -1,6 +1,7 @@
 package golem
 
 import golem.runtime.agenttype.AgentMethod
+import golem.runtime.rpc.AgentClient
 
 import scala.concurrent.Future
 import scala.quoted.*
@@ -9,7 +10,7 @@ import scala.scalajs.js
 /**
  * Scala-3-only ergonomic RPC surface that resembles Rust/TS SDKs:
  *
- *   - `remote.api.foo(...)` -> await (normal trait call)
+ *   - `remote.api.foo(...)` -> uses the trait return type (Future/Unit)
  *   - `remote.rpc.trigger_foo(...)` -> trigger (always Future[Unit])
  *   - `remote.rpc.schedule_foo(ts, ...)` -> schedule (always Future[Unit])
  *   - `remote.rpc.call_foo(...)` -> await (always invoke-and-await, even if the
@@ -25,6 +26,9 @@ import scala.scalajs.js
  */
 object RemoteAgentOps {
   extension [Trait](remote: RemoteAgent[Trait]) {
+    transparent inline def api: Trait =
+      AgentClient.bind[Trait](remote.resolved)
+
     transparent inline def rpc =
       ${ RemoteAgentRpcMacro.rpcImpl[Trait]('remote) }
   }
@@ -348,12 +352,11 @@ private object RemoteAgentRpcMacro {
           case AppliedType(constructor, args)
               if constructor.typeSymbol.fullName == "scala.concurrent.Future" && args.nonEmpty =>
             (args.head, tpe)
-          case other if other =:= TypeRepr.of[Unit] =>
-            (TypeRepr.of[Unit], other)
+          case AppliedType(constructor, args)
+              if constructor.typeSymbol.fullName == "scala.scalajs.js.Promise" && args.nonEmpty =>
+            (args.head, tpe)
           case other =>
-            report.errorAndAbort(
-              s"Agent method ${method.name} must return scala.concurrent.Future[...] or Unit (for RPC compatibility). Found: ${other.show}"
-            )
+            (other, other)
         }
       case other =>
         report.errorAndAbort(s"Unable to read return type for ${method.name}: $other")

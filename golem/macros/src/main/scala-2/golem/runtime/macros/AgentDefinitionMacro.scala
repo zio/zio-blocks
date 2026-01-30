@@ -101,7 +101,6 @@ object AgentDefinitionMacroImpl {
     import c.universe._
 
     val methodName = method.name.toString
-    ensureRpcCompatibleReturnType(c)(method)
     val descExpr     = optionalStringExpr(c)(annotationString(c)(method, descriptionType))
     val promptExpr   = optionalStringExpr(c)(annotationString(c)(method, promptType))
     val inputSchema  = methodInputSchema(c)(method)
@@ -143,24 +142,6 @@ object AgentDefinitionMacroImpl {
   private def methodOutputSchema(c: blackbox.Context)(method: c.universe.MethodSymbol): c.Tree = {
     val outputType = unwrapAsyncType(c)(method.returnType)
     structuredSchemaExpr(c)(outputType)
-  }
-
-  private def ensureRpcCompatibleReturnType(c: blackbox.Context)(method: c.universe.MethodSymbol): Unit = {
-    import c.universe._
-    val returnType   = method.returnType
-    val futureSymbol = typeOf[scala.concurrent.Future[_]].typeSymbol
-
-    returnType match {
-      case TypeRef(_, sym, args) if sym == futureSymbol && args.nonEmpty =>
-        () // ok
-      case t if t =:= typeOf[Unit] =>
-        () // ok
-      case other =>
-        c.abort(
-          c.enclosingPosition,
-          s"Agent method ${method.name} must return scala.concurrent.Future[...] or Unit (for RPC compatibility). Found: $other"
-        )
-    }
   }
 
   private def structuredSchemaExpr(c: blackbox.Context)(tpe: c.universe.Type): c.Tree = {
@@ -269,6 +250,8 @@ object AgentDefinitionMacroImpl {
 
     tpe match {
       case TypeRef(_, sym, args) if sym == futureSymbol && args.nonEmpty =>
+        args.head
+      case TypeRef(_, sym, args) if sym.fullName == "scala.scalajs.js.Promise" && args.nonEmpty =>
         args.head
       case _ =>
         tpe

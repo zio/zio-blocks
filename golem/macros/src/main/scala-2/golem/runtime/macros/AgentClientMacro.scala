@@ -261,6 +261,8 @@ object AgentClientMacroImpl {
     tpe match {
       case TypeRef(_, sym, args) if sym == futureSymbol && args.nonEmpty =>
         args.head
+      case TypeRef(_, sym, args) if sym.fullName == "scala.scalajs.js.Promise" && args.nonEmpty =>
+        args.head
       case _ =>
         tpe
     }
@@ -301,13 +303,12 @@ object AgentClientMacroImpl {
     returnType match {
       case TypeRef(_, sym, args) if sym == futureSymbol && args.nonEmpty =>
         (InvocationKind.Awaitable, args.head)
+      case TypeRef(_, sym, args) if sym.fullName == "scala.scalajs.js.Promise" && args.nonEmpty =>
+        (InvocationKind.Awaitable, args.head)
       case _ if returnType =:= typeOf[Unit] =>
         (InvocationKind.FireAndForget, typeOf[Unit])
       case _ =>
-        c.abort(
-          c.enclosingPosition,
-          s"Agent client method ${method.name} must return scala.concurrent.Future[...] or Unit, found: $returnType"
-        )
+        (InvocationKind.Awaitable, returnType)
     }
   }
 

@@ -336,13 +336,10 @@ object AgentClientMacro {
         returnType match {
           case AppliedType(constructor, args) if isAsyncReturn(constructor) && args.nonEmpty =>
             (InvocationKind.Awaitable, args.head)
+          case _ if returnType =:= TypeRepr.of[Unit] =>
+            (InvocationKind.FireAndForget, TypeRepr.of[Unit])
           case _ =>
-            if returnType =:= TypeRepr.of[Unit] then (InvocationKind.FireAndForget, TypeRepr.of[Unit])
-            else {
-              report.errorAndAbort(
-                s"Agent client method ${method.name} must return scala.concurrent.Future[...] or Unit, found: ${returnType.show}"
-              )
-            }
+            (InvocationKind.Awaitable, returnType)
         }
       case other =>
         report.errorAndAbort(s"Unable to read return type for ${method.name}: $other")

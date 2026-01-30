@@ -101,10 +101,7 @@ object AgentCompanionMacro {
              _root_.scala.concurrent.Future.failed(_root_.scala.scalajs.js.JavaScriptException(err))
            case _root_.scala.util.Right(resolved) =>
              _root_.scala.concurrent.Future.successful(
-               _root_.golem.RemoteAgent(
-                 _root_.golem.runtime.rpc.AgentClient.bind[$traitTpe](resolved),
-                 resolved
-               )
+               _root_.golem.RemoteAgent(resolved)
              )
          }
      """
@@ -144,10 +141,7 @@ object AgentCompanionMacro {
            _root_.scala.concurrent.Future.failed(_root_.scala.scalajs.js.JavaScriptException(err))
          case _root_.scala.util.Right(resolved) =>
            _root_.scala.concurrent.Future.successful(
-             _root_.golem.RemoteAgent(
-               _root_.golem.runtime.rpc.AgentClient.bind[$traitTpe](resolved),
-               resolved
-             )
+             _root_.golem.RemoteAgent(resolved)
            )
        }
      """

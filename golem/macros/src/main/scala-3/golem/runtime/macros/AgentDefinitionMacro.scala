@@ -135,7 +135,6 @@ object AgentDefinitionMacro {
     import quotes.reflect.*
 
     val methodName = method.name
-    ensureRpcCompatibleReturnType(method)
     val descExpr     = optionalString(annotationString(method, TypeRepr.of[description]))
     val promptExpr   = optionalString(annotationString(method, TypeRepr.of[prompt]))
     val inputSchema  = methodInputSchema(method)
@@ -197,27 +196,6 @@ object AgentDefinitionMacro {
       case d: DefDef =>
         val outputType = unwrapAsyncType(d.returnTpt.tpe)
         structuredSchemaExpr(outputType)
-      case other =>
-        report.errorAndAbort(s"Unable to read return type for ${method.name}: $other")
-    }
-  }
-
-  private def ensureRpcCompatibleReturnType(using Quotes)(method: quotes.reflect.Symbol): Unit = {
-    import quotes.reflect.*
-    method.tree match {
-      case d: DefDef =>
-        val returnType = d.returnTpt.tpe
-        returnType match {
-          case AppliedType(constructor, args)
-              if constructor.typeSymbol.fullName == "scala.concurrent.Future" && args.nonEmpty =>
-            () // ok
-          case t if t =:= TypeRepr.of[Unit] =>
-            () // ok
-          case other =>
-            report.errorAndAbort(
-              s"Agent method ${method.name} must return scala.concurrent.Future[...] or Unit (for RPC compatibility). Found: ${other.show}"
-            )
-        }
       case other =>
         report.errorAndAbort(s"Unable to read return type for ${method.name}: $other")
     }
