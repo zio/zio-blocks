@@ -16,7 +16,10 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
     arrayEditSuite,
     objectEditSuite,
     nestedOperationSuite,
-    edgeCasesSuite
+    edgeCasesSuite,
+    elementsNavigationSuite,
+    wrappedNavigationSuite,
+    jsonPatchEmptySuite
   )
 
   // Op.Set Suite
@@ -738,6 +741,185 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
 
       val expected = elements.take(6) ++ Seq(Json.Number(100), Json.Number(101), Json.Number(102)) ++ elements.drop(6)
       assertTrue(result == Right(Json.Array(Chunk.from(expected))))
+    }
+  )
+
+  // Elements Navigation Suite
+
+  private lazy val elementsNavigationSuite = suite("Elements Navigation")(
+    test("Elements navigation applies operation to all array elements") {
+      val original = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(10))))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertTrue(result == Right(Json.Array(Json.Number("11"), Json.Number("12"), Json.Number("13"))))
+    },
+    test("Elements navigation on empty array succeeds in Lenient mode") {
+      val original = Json.Array.empty
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Lenient)
+      assertTrue(result == Right(Json.Array.empty))
+    },
+    test("Elements navigation on empty array succeeds in Clobber mode") {
+      val original = Json.Array.empty
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Clobber)
+      assertTrue(result == Right(Json.Array.empty))
+    },
+    test("Elements navigation with nested path navigates into all elements") {
+      val original = Json.Array(
+        Json.Object("value" -> Json.Number(1)),
+        Json.Object("value" -> Json.Number(2)),
+        Json.Object("value" -> Json.Number(3))
+      )
+      val path   = DynamicOptic.root.elements.field("value")
+      val patch  = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(10))))
+      val result = patch.apply(original, PatchMode.Strict)
+      assertTrue(
+        result == Right(
+          Json.Array(
+            Json.Object("value" -> Json.Number("11")),
+            Json.Object("value" -> Json.Number("12")),
+            Json.Object("value" -> Json.Number("13"))
+          )
+        )
+      )
+    },
+    test("Elements navigation with Set replaces all elements") {
+      val original = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.Set(Json.Number(0)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertTrue(result == Right(Json.Array(Json.Number(0), Json.Number(0), Json.Number(0))))
+    },
+    test("applyToAllElements keeps original on error in Lenient mode") {
+      val original = Json.Array(Json.Number(1), Json.String("not a number"), Json.Number(3))
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1))))
+      val result   = patch.apply(original, PatchMode.Lenient)
+      assertTrue(result == Right(Json.Array(Json.Number("2"), Json.String("not a number"), Json.Number("4"))))
+    },
+    test("applyToAllElements keeps original on error in Clobber mode") {
+      val original = Json.Array(Json.Number(1), Json.String("not a number"), Json.Number(3))
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1))))
+      val result   = patch.apply(original, PatchMode.Clobber)
+      assertTrue(result == Right(Json.Array(Json.Number("2"), Json.String("not a number"), Json.Number("4"))))
+    },
+    test("navigateAllElements keeps original on error in Lenient mode") {
+      val original = Json.Array(
+        Json.Object("x" -> Json.Number(1)),
+        Json.Object("y" -> Json.Number(2)) // missing field "x"
+      )
+      val path   = DynamicOptic.root.elements.field("x")
+      val patch  = JsonPatch(path, Op.Set(Json.Number(100)))
+      val result = patch.apply(original, PatchMode.Lenient)
+      assertTrue(
+        result == Right(
+          Json.Array(
+            Json.Object("x" -> Json.Number(100)),
+            Json.Object("y" -> Json.Number(2)) // unchanged
+          )
+        )
+      )
+    },
+    test("navigateAllElements keeps original on error in Clobber mode") {
+      val original = Json.Array(
+        Json.Object("x" -> Json.Number(1)),
+        Json.Object("y" -> Json.Number(2)) // missing field "x"
+      )
+      val path   = DynamicOptic.root.elements.field("x")
+      val patch  = JsonPatch(path, Op.Set(Json.Number(100)))
+      val result = patch.apply(original, PatchMode.Clobber)
+      assertTrue(
+        result == Right(
+          Json.Array(
+            Json.Object("x" -> Json.Number(100)),
+            Json.Object("y" -> Json.Number(2)) // unchanged
+          )
+        )
+      )
+    },
+    test("navigateAllElements with deeply nested path") {
+      val original = Json.Array(
+        Json.Object("outer" -> Json.Object("inner" -> Json.Number(1))),
+        Json.Object("outer" -> Json.Object("inner" -> Json.Number(2)))
+      )
+      val path   = DynamicOptic.root.elements.field("outer").field("inner")
+      val patch  = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(100))))
+      val result = patch.apply(original, PatchMode.Strict)
+      assertTrue(
+        result == Right(
+          Json.Array(
+            Json.Object("outer" -> Json.Object("inner" -> Json.Number("101"))),
+            Json.Object("outer" -> Json.Object("inner" -> Json.Number("102")))
+          )
+        )
+      )
+    }
+  )
+
+  // Wrapped Navigation Suite
+
+  private lazy val wrappedNavigationSuite = suite("Wrapped Navigation")(
+    test("Wrapped navigation passes through and applies operation") {
+      val original = Json.Number(42)
+      val path     = DynamicOptic.root.wrapped
+      val patch    = JsonPatch(path, Op.Set(Json.Number(100)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertTrue(result == Right(Json.Number(100)))
+    },
+    test("Wrapped navigation with nested path continues navigation") {
+      val original = Json.Object("value" -> Json.Number(42))
+      val path     = DynamicOptic.root.wrapped.field("value")
+      val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(8))))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertTrue(result == Right(Json.Object("value" -> Json.Number("50"))))
+    },
+    test("Wrapped navigation with NumberDelta") {
+      val original = Json.Number(10)
+      val path     = DynamicOptic.root.wrapped
+      val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(5))))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertTrue(result == Right(Json.Number("15")))
+    }
+  )
+
+  // JsonPatch.empty Suite
+
+  private lazy val jsonPatchEmptySuite = suite("JsonPatch.empty")(
+    test("JsonPatch.empty has no operations") {
+      assertTrue(JsonPatch.empty.ops.isEmpty)
+    },
+    test("JsonPatch.empty.isEmpty returns true") {
+      assertTrue(JsonPatch.empty.isEmpty)
+    },
+    test("JsonPatch.empty applied to any value returns that value unchanged") {
+      val jsonValues = List(
+        Json.Null,
+        Json.Boolean(true),
+        Json.Number(42),
+        Json.String("hello"),
+        Json.Array(Json.Number(1), Json.Number(2)),
+        Json.Object("a" -> Json.Number(1))
+      )
+      assertTrue(
+        jsonValues.forall(v => JsonPatch.empty.apply(v, PatchMode.Strict) == Right(v))
+      )
+    },
+    test("JsonPatch.empty ++ patch equals patch") {
+      val patch = JsonPatch.root(Op.Set(Json.Number(42)))
+      assertTrue((JsonPatch.empty ++ patch) == patch)
+    },
+    test("patch ++ JsonPatch.empty equals patch") {
+      val patch = JsonPatch.root(Op.Set(Json.Number(42)))
+      assertTrue((patch ++ JsonPatch.empty) == patch)
+    },
+    test("JsonPatch.empty.toDynamicPatch produces empty DynamicPatch") {
+      val dynamicPatch = JsonPatch.empty.toDynamicPatch
+      assertTrue(dynamicPatch.ops.isEmpty)
     }
   )
 }

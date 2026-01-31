@@ -5,7 +5,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.json._
 import zio.blocks.schema.json.JsonPatch._
 import zio.blocks.schema.json.JsonTestUtils._
-import zio.blocks.schema.patch.PatchMode
+import zio.blocks.schema.patch.{DynamicPatch, PatchMode}
 import zio.test._
 
 object JsonPatchSerializationSpec extends SchemaBaseSpec {
@@ -19,7 +19,8 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     jsonPatchOpSuite,
     jsonPatchSuite,
     complexNestedSuite,
-    endToEndSuite
+    endToEndSuite,
+    dynamicPatchConversionSuite
   )
 
   // StringOp Serialization Suite
@@ -531,6 +532,163 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
           jsonString.nonEmpty &&
           jsonString.contains("Set") &&
           jsonString.contains("NumberDelta")
+      )
+    }
+  )
+
+  // DynamicPatch Conversion Suite
+
+  private lazy val dynamicPatchConversionSuite = suite("DynamicPatch Conversion")(
+    test("fromDynamicPatch converts ShortDelta to NumberDelta") {
+      val dynamicPatch = DynamicPatch(
+        Vector(
+          DynamicPatch.DynamicPatchOp(
+            DynamicOptic.root,
+            DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta(5.toShort))
+          )
+        )
+      )
+      val result = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(
+        result.isRight && result.exists { patch =>
+          patch.ops.head.operation match {
+            case Op.PrimitiveDelta(PrimitiveOp.NumberDelta(d)) => d == BigDecimal(5)
+            case _                                             => false
+          }
+        }
+      )
+    },
+    test("fromDynamicPatch converts ByteDelta to NumberDelta") {
+      val dynamicPatch = DynamicPatch(
+        Vector(
+          DynamicPatch.DynamicPatchOp(
+            DynamicOptic.root,
+            DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta(3.toByte))
+          )
+        )
+      )
+      val result = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(
+        result.isRight && result.exists { patch =>
+          patch.ops.head.operation match {
+            case Op.PrimitiveDelta(PrimitiveOp.NumberDelta(d)) => d == BigDecimal(3)
+            case _                                             => false
+          }
+        }
+      )
+    },
+    test("fromDynamicPatch converts FloatDelta to NumberDelta") {
+      val dynamicPatch = DynamicPatch(
+        Vector(
+          DynamicPatch.DynamicPatchOp(
+            DynamicOptic.root,
+            DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(1.5f))
+          )
+        )
+      )
+      val result = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(
+        result.isRight && result.exists { patch =>
+          patch.ops.head.operation match {
+            case Op.PrimitiveDelta(PrimitiveOp.NumberDelta(d)) => d == BigDecimal(1.5)
+            case _                                             => false
+          }
+        }
+      )
+    },
+    test("fromDynamicPatch converts DoubleDelta to NumberDelta") {
+      val dynamicPatch = DynamicPatch(
+        Vector(
+          DynamicPatch.DynamicPatchOp(
+            DynamicOptic.root,
+            DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(2.5))
+          )
+        )
+      )
+      val result = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(
+        result.isRight && result.exists { patch =>
+          patch.ops.head.operation match {
+            case Op.PrimitiveDelta(PrimitiveOp.NumberDelta(d)) => d == BigDecimal(2.5)
+            case _                                             => false
+          }
+        }
+      )
+    },
+    test("fromDynamicPatch converts BigIntDelta to NumberDelta") {
+      val dynamicPatch = DynamicPatch(
+        Vector(
+          DynamicPatch.DynamicPatchOp(
+            DynamicOptic.root,
+            DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigIntDelta(BigInt("12345678901234567890")))
+          )
+        )
+      )
+      val result = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(
+        result.isRight && result.exists { patch =>
+          patch.ops.head.operation match {
+            case Op.PrimitiveDelta(PrimitiveOp.NumberDelta(d)) => d == BigDecimal(BigInt("12345678901234567890"))
+            case _                                             => false
+          }
+        }
+      )
+    },
+    test("fromDynamicPatch converts BigDecimalDelta to NumberDelta") {
+      val dynamicPatch = DynamicPatch(
+        Vector(
+          DynamicPatch.DynamicPatchOp(
+            DynamicOptic.root,
+            DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigDecimalDelta(BigDecimal("123.456")))
+          )
+        )
+      )
+      val result = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(
+        result.isRight && result.exists { patch =>
+          patch.ops.head.operation match {
+            case Op.PrimitiveDelta(PrimitiveOp.NumberDelta(d)) => d == BigDecimal("123.456")
+            case _                                             => false
+          }
+        }
+      )
+    },
+    test("fromDynamicPatch converts IntDelta to NumberDelta") {
+      val dynamicPatch = DynamicPatch(
+        Vector(
+          DynamicPatch.DynamicPatchOp(
+            DynamicOptic.root,
+            DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(42))
+          )
+        )
+      )
+      val result = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(
+        result.isRight && result.exists { patch =>
+          patch.ops.head.operation match {
+            case Op.PrimitiveDelta(PrimitiveOp.NumberDelta(d)) => d == BigDecimal(42)
+            case _                                             => false
+          }
+        }
+      )
+    },
+    test("fromDynamicPatch converts LongDelta to NumberDelta") {
+      val dynamicPatch = DynamicPatch(
+        Vector(
+          DynamicPatch.DynamicPatchOp(
+            DynamicOptic.root,
+            DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(9999999999L))
+          )
+        )
+      )
+      val result = JsonPatch.fromDynamicPatch(dynamicPatch)
+      assertTrue(
+        result.isRight && result.exists { patch =>
+          patch.ops.head.operation match {
+            case Op.PrimitiveDelta(PrimitiveOp.NumberDelta(d)) => d == BigDecimal(9999999999L)
+            case _                                             => false
+          }
+        }
       )
     }
   )

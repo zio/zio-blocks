@@ -273,6 +273,127 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
             |    root = 42
             |}""".stripMargin
       )
+    },
+    test("renders JsonPatch.empty correctly") {
+      assertTrue(JsonPatch.empty.toString == "JsonPatch {}")
+    },
+    test("renders path with field and index") {
+      val patch = JsonPatch(
+        Vector(
+          JsonPatch.JsonPatchOp(
+            DynamicOptic.root.field("items").at(0),
+            JsonPatch.Op.Set(Json.Number("1"))
+          )
+        )
+      )
+      assertTrue(
+        patch.toString ==
+          """JsonPatch {
+            |  .items[0] = 1
+            |}""".stripMargin
+      )
+    },
+    test("renders path with multiple fields") {
+      val patch = JsonPatch(
+        Vector(
+          JsonPatch.JsonPatchOp(
+            DynamicOptic.root.field("user").field("address").field("city"),
+            JsonPatch.Op.Set(Json.String("NYC"))
+          )
+        )
+      )
+      assertTrue(
+        patch.toString ==
+          """JsonPatch {
+            |  .user.address.city = "NYC"
+            |}""".stripMargin
+      )
+    },
+    test("renders path with nested indices") {
+      val patch = JsonPatch(
+        Vector(
+          JsonPatch.JsonPatchOp(
+            DynamicOptic.root.at(0).at(1),
+            JsonPatch.Op.Set(Json.Number("42"))
+          )
+        )
+      )
+      assertTrue(
+        patch.toString ==
+          """JsonPatch {
+            |  [0][1] = 42
+            |}""".stripMargin
+      )
+    },
+    test("escapes backslash in strings") {
+      val patch = JsonPatch.root(JsonPatch.Op.Set(Json.String("path\\to\\file")))
+      assertTrue(
+        patch.toString ==
+          """JsonPatch {
+            |  root = "path\\to\\file"
+            |}""".stripMargin
+      )
+    },
+    test("escapes backspace character") {
+      val patch = JsonPatch.root(JsonPatch.Op.Set(Json.String("hello\bworld")))
+      assertTrue(
+        patch.toString ==
+          """JsonPatch {
+            |  root = "hello\bworld"
+            |}""".stripMargin
+      )
+    },
+    test("escapes form feed character") {
+      val patch = JsonPatch.root(JsonPatch.Op.Set(Json.String("hello\fworld")))
+      assertTrue(
+        patch.toString ==
+          """JsonPatch {
+            |  root = "hello\fworld"
+            |}""".stripMargin
+      )
+    },
+    test("escapes carriage return character") {
+      val patch = JsonPatch.root(JsonPatch.Op.Set(Json.String("hello\rworld")))
+      assertTrue(
+        patch.toString ==
+          """JsonPatch {
+            |  root = "hello\rworld"
+            |}""".stripMargin
+      )
+    },
+    test("escapes control characters") {
+      // ASCII control character (e.g., SOH = 0x01)
+      val patch = JsonPatch.root(JsonPatch.Op.Set(Json.String("hello\u0001world")))
+      assertTrue(
+        patch.toString ==
+          """JsonPatch {
+            |  root = "hello\u0001world"
+            |}""".stripMargin
+      )
+    },
+    test("escapes multiple special characters in one string") {
+      val patch = JsonPatch.root(JsonPatch.Op.Set(Json.String("a\tb\nc\rd\be\ff")))
+      assertTrue(
+        patch.toString ==
+          """JsonPatch {
+            |  root = "a\tb\nc\rd\be\ff"
+            |}""".stripMargin
+      )
+    },
+    test("renders array modify with non-Set nested operation") {
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(
+          Vector(
+            JsonPatch.ArrayOp.Modify(
+              0,
+              JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5)))
+            )
+          )
+        )
+      )
+      assertTrue(
+        patch.toString.contains("~ [0]:")
+      )
     }
   )
 }

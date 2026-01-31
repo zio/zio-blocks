@@ -1,7 +1,7 @@
 package zio.blocks.schema.json.patch
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicOptic, SchemaBaseSpec, SchemaError}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaBaseSpec, SchemaError}
 import zio.blocks.schema.json.{Json, JsonPatch}
 import zio.blocks.schema.json.JsonPatch._
 import zio.blocks.schema.patch.PatchMode
@@ -14,7 +14,9 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     typeMismatchSuite,
     outOfBoundsSuite,
     patchModeComparisonSuite,
-    errorMessageVerificationSuite
+    errorMessageVerificationSuite,
+    unsupportedNavigationSuite,
+    elementsNavigationErrorSuite
   )
 
   private def assertError(result: Either[SchemaError, Json], expectedMessage: String): TestResult =
@@ -508,6 +510,104 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
         case Right(_) =>
           assertTrue(false)
       }
+    }
+  )
+
+  // Unsupported Navigation Suite
+
+  private lazy val unsupportedNavigationSuite = suite("Unsupported Navigation Nodes")(
+    test("Case navigation fails with appropriate error") {
+      val original = Json.Object("type" -> Json.String("A"), "value" -> Json.Number(1))
+      val path     = DynamicOptic.root.caseOf("SomeCase")
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertError(result, "Case navigation not supported")
+    },
+    test("AtMapKey navigation fails with appropriate error") {
+      val original   = Json.Object("a" -> Json.Number(1))
+      val dynamicKey = DynamicValue.Primitive(PrimitiveValue.String("key"))
+      val path       = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(dynamicKey)))
+      val patch      = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result     = patch.apply(original, PatchMode.Strict)
+      assertError(result, "AtMapKey not supported")
+    },
+    test("AtIndices navigation fails with appropriate error") {
+      val original = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
+      val path     = DynamicOptic.root.atIndices(0, 1, 2)
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertError(result, "AtIndices not supported")
+    },
+    test("AtMapKeys navigation fails with appropriate error") {
+      val original = Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))
+      val path     = DynamicOptic.root.atKeys("a", "b")
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertError(result, "AtMapKeys not supported")
+    },
+    test("MapKeys navigation fails with appropriate error") {
+      val original = Json.Object("a" -> Json.Number(1))
+      val path     = DynamicOptic.root.mapKeys
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertError(result, "MapKeys not supported")
+    },
+    test("MapValues navigation fails with appropriate error") {
+      val original = Json.Object("a" -> Json.Number(1))
+      val path     = DynamicOptic.root.mapValues
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertError(result, "MapValues not supported")
+    }
+  )
+
+  // Elements Navigation Error Suite
+
+  private lazy val elementsNavigationErrorSuite = suite("Elements Navigation Errors")(
+    test("Elements navigation on empty array fails in Strict mode") {
+      val original = Json.Array.empty
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertError(result, "empty array")
+    },
+    test("Elements navigation on non-array fails") {
+      val original = Json.Object("a" -> Json.Number(1))
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertError(result, "Expected Array")
+    },
+    test("Elements navigation on string fails") {
+      val original = Json.String("hello")
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertError(result, "Expected Array")
+    },
+    test("Elements navigation on number fails") {
+      val original = Json.Number(42)
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.Set(Json.Number(1)))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertError(result, "Expected Array")
+    },
+    test("applyToAllElements fails in Strict mode when one element fails") {
+      val original = Json.Array(Json.Number(1), Json.String("not a number"), Json.Number(3))
+      val path     = DynamicOptic.root.elements
+      val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1))))
+      val result   = patch.apply(original, PatchMode.Strict)
+      assertError(result, "Expected Number")
+    },
+    test("navigateAllElements fails in Strict mode when navigation fails for one element") {
+      val original = Json.Array(
+        Json.Object("x" -> Json.Number(1)),
+        Json.Object("y" -> Json.Number(2)) // missing field "x"
+      )
+      val path   = DynamicOptic.root.elements.field("x")
+      val patch  = JsonPatch(path, Op.Set(Json.Number(100)))
+      val result = patch.apply(original, PatchMode.Strict)
+      assertTrue(result.isLeft)
     }
   )
 }
