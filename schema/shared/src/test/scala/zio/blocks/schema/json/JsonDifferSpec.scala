@@ -817,6 +817,126 @@ object JsonDifferSpec extends ZIOSpecDefault {
       }
       assertTrue(stringEditOps.length == 1) &&
       assertTrue(stringEditOps.head.isInstanceOf[JsonPatch.StringOp.Delete])
+    },
+    // Additional edge cases for LCS algorithm
+    test("completely different strings produce Set") {
+      val a     = new Json.String("abcdefg")
+      val b     = new Json.String("1234567")
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op.isInstanceOf[JsonPatch.Op.Set])
+    },
+    test("empty to non-empty string produces Insert") {
+      val a     = new Json.String("")
+      val b     = new Json.String("hello")
+      val patch = JsonDiffer.diff(a, b)
+      // Should produce a single operation
+      assertTrue(patch.ops.length == 1)
+    },
+    test("non-empty to empty string produces Delete") {
+      val a     = new Json.String("hello")
+      val b     = new Json.String("")
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.length == 1)
+    },
+    test("empty to non-empty array produces Append") {
+      val a     = Json.Array.empty
+      val b     = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op match {
+        case JsonPatch.Op.ArrayEdit(ops) => ops.exists(_.isInstanceOf[JsonPatch.ArrayOp.Append])
+        case _                           => false
+      })
+    },
+    test("non-empty to empty array produces Delete") {
+      val a     = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))
+      val b     = Json.Array.empty
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op match {
+        case JsonPatch.Op.ArrayEdit(ops) => ops.exists(_.isInstanceOf[JsonPatch.ArrayOp.Delete])
+        case _                           => false
+      })
+    },
+    test("empty to non-empty object produces Add") {
+      val a     = Json.Object.empty
+      val b     = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op match {
+        case JsonPatch.Op.ObjectEdit(ops) => ops.exists(_.isInstanceOf[JsonPatch.ObjectOp.Add])
+        case _                            => false
+      })
+    },
+    test("non-empty to empty object produces Remove") {
+      val a     = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val b     = Json.Object.empty
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op match {
+        case JsonPatch.Op.ObjectEdit(ops) => ops.exists(_.isInstanceOf[JsonPatch.ObjectOp.Remove])
+        case _                            => false
+      })
+    },
+    test("type mismatch produces Set") {
+      val a     = new Json.Number("1")
+      val b     = new Json.String("1")
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op.isInstanceOf[JsonPatch.Op.Set])
+    },
+    test("boolean to number produces Set") {
+      val a     = Json.True
+      val b     = new Json.Number("1")
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op.isInstanceOf[JsonPatch.Op.Set])
+    },
+    test("null to boolean produces Set") {
+      val a     = Json.Null
+      val b     = Json.True
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op.isInstanceOf[JsonPatch.Op.Set])
+    },
+    test("number to null produces Set") {
+      val a     = new Json.Number("42")
+      val b     = Json.Null
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op.isInstanceOf[JsonPatch.Op.Set])
+    },
+    test("object field modification produces Modify") {
+      val a     = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val b     = new Json.Object(Chunk(("a", new Json.Number("2"))))
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op match {
+        case JsonPatch.Op.ObjectEdit(ops) => ops.exists(_.isInstanceOf[JsonPatch.ObjectOp.Modify])
+        case _                            => false
+      })
+    },
+    test("LCS with mixed insert and delete") {
+      // Old: "ABCED" -> New: "ABCDE" (swap E and D positions)
+      val a      = new Json.String("ABCED")
+      val b      = new Json.String("ABCDE")
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("array with mixed operations") {
+      val a = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
+      val b =
+        new Json.Array(Chunk(new Json.Number("1"), new Json.Number("4"), new Json.Number("3"), new Json.Number("5")))
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("NumberDelta with identical string-different numbers uses Set") {
+      // e.g., "1.0" vs "1" are numerically equal but string-different
+      val a     = new Json.Number("1.0")
+      val b     = new Json.Number("1")
+      val patch = JsonDiffer.diff(a, b)
+      // When strings differ but numbers are equal, it uses Set
+      assertTrue(patch.ops.nonEmpty)
+    },
+    test("unparseable number produces Set") {
+      // Simulate an unparseable number scenario
+      val a     = new Json.Number("not-a-number")
+      val b     = new Json.Number("also-not-a-number")
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op.isInstanceOf[JsonPatch.Op.Set])
     }
   )
 

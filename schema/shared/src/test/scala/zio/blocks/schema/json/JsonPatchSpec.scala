@@ -1612,7 +1612,7 @@ object JsonPatchSpec extends SchemaBaseSpec {
       assertTrue(result == new Right(json))
     },
     // Additional coverage tests for Clobber mode with nested structures
-    test("Clobber mode with number delta on string replaces with delta") {
+    test("Clobber mode with number delta on string returns unchanged") {
       val json   = new Json.String("hello")
       val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5))))
       val result = patch(json, PatchMode.Clobber)
@@ -2076,8 +2076,8 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val json   = new Json.Array(Chunk.empty)
       val patch  = JsonPatch(DynamicOptic.root.at(0), JsonPatch.Op.Set(new Json.Number("1")))
       val result = patch(json, PatchMode.Clobber)
-      // Clobber should return unchanged or error for out-of-bounds
-      assertTrue(result.isRight || result.isLeft)
+      // Clobber mode inserts element at clamped index for out-of-bounds access
+      assertTrue(result == new Right(new Json.Array(Chunk(new Json.Number("1")))))
     },
     // ArrayEdit: Insert with Modify
     test("ArrayEdit with Modify nested operation") {
@@ -2346,6 +2346,250 @@ object JsonPatchSpec extends SchemaBaseSpec {
       )
       val result = patch(json, PatchMode.Strict)
       assertTrue(result == new Right(new Json.String("BCDEF")))
+    },
+    // ─────────────────────────────────────────────────────────────────────────
+    // Additional Error Path Coverage Tests
+    // ─────────────────────────────────────────────────────────────────────────
+    // Type mismatch: PrimitiveDelta on non-primitive
+    test("Strict mode fails on PrimitiveDelta applied to Object") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(1))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("Strict mode fails on PrimitiveDelta applied to Array") {
+      val json   = new Json.Array(Chunk(new Json.Number("1")))
+      val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(1))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("Strict mode fails on PrimitiveDelta applied to Boolean") {
+      val json   = Json.True
+      val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(1))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("Strict mode fails on PrimitiveDelta applied to Null") {
+      val json   = Json.Null
+      val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(1))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // Type mismatch: StringEdit on non-string
+    test("Strict mode fails on StringEdit applied to Number") {
+      val json  = new Json.Number("42")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Append("x"))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // Type mismatch: ArrayEdit on non-array
+    test("Strict mode fails on ArrayEdit applied to Object") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("Strict mode fails on ArrayEdit applied to String") {
+      val json   = new Json.String("hello")
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("Strict mode fails on ArrayEdit applied to Number") {
+      val json   = new Json.Number("42")
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // Type mismatch: ObjectEdit on non-object
+    test("Strict mode fails on ObjectEdit applied to Array") {
+      val json   = new Json.Array(Chunk(new Json.Number("1")))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("x", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("Strict mode fails on ObjectEdit applied to String") {
+      val json   = new Json.String("hello")
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("x", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("Strict mode fails on ObjectEdit applied to Number") {
+      val json   = new Json.Number("42")
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("x", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // ObjectOp.Add fails when field already exists in Strict mode
+    test("Strict mode fails on ObjectOp.Add when field exists") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // ObjectOp.Remove fails when field doesn't exist in Strict mode
+    test("Strict mode fails on ObjectOp.Remove when field missing") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("nonexistent"))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // ArrayOp.Delete at out-of-bounds
+    test("Strict mode fails on ArrayOp.Delete at out-of-bounds") {
+      val json   = new Json.Array(Chunk(new Json.Number("1")))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(5, 2))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // ArrayOp.Insert at out-of-bounds
+    test("Strict mode fails on ArrayOp.Insert at out-of-bounds") {
+      val json  = new Json.Array(Chunk(new Json.Number("1")))
+      val patch =
+        JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(10, Chunk(new Json.Number("2"))))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // StringOp.Delete at out-of-bounds
+    test("Strict mode fails on StringOp.Delete at out-of-bounds") {
+      val json  = new Json.String("hello")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Delete(10, 5))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // StringOp.Insert at out-of-bounds
+    test("Strict mode fails on StringOp.Insert at out-of-bounds") {
+      val json  = new Json.String("hello")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(100, "x"))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // StringOp.Modify at out-of-bounds
+    test("Strict mode fails on StringOp.Modify at out-of-bounds") {
+      val json  = new Json.String("hello")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Modify(100, 5, "x"))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // Clobber mode variants - should succeed or replace
+    test("Clobber mode on PrimitiveDelta applied to Object returns unchanged") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(1))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    test("Clobber mode on ArrayEdit applied to String returns unchanged") {
+      val json   = new Json.String("hello")
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2"))))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    test("Clobber mode on ObjectEdit applied to Array returns unchanged") {
+      val json   = new Json.Array(Chunk(new Json.Number("1")))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("x", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    test("Clobber mode on ObjectOp.Add when field exists replaces value") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("a", new Json.Number("2")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(new Json.Object(Chunk(("a", new Json.Number("2"))))))
+    },
+    test("Clobber mode on ObjectOp.Remove when field missing succeeds with unchanged") {
+      val json   = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("nonexistent"))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    test("Clobber mode on ArrayOp.Delete at out-of-bounds succeeds unchanged") {
+      val json   = new Json.Array(Chunk(new Json.Number("1")))
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(5, 2))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    test("Clobber mode on ArrayOp.Insert at out-of-bounds appends") {
+      val json  = new Json.Array(Chunk(new Json.Number("1")))
+      val patch =
+        JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(10, Chunk(new Json.Number("2"))))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))))
+    },
+    // Empty array edge cases
+    test("ArrayEdit on empty array with Delete fails in Strict mode") {
+      val json   = Json.Array.empty
+      val patch  = JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(0, 1))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("ArrayEdit on empty array with Modify fails in Strict mode") {
+      val json  = Json.Array.empty
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.Set(new Json.Number("1")))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // Nested patch - ensure Op.Nested works
+    test("Op.Nested applies inner patch") {
+      val json    = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val innerOp = JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("b", new Json.Number("2"))))
+      val patch   = JsonPatch.root(JsonPatch.Op.Nested(JsonPatch.root(innerOp)))
+      val result  = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2"))))))
+    },
+    // NumberDelta on valid number
+    test("NumberDelta handles valid BigDecimal") {
+      val json   = new Json.Number("100.5")
+      val patch  = JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal("0.5"))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isRight)
+    },
+    // Empty string operations
+    test("StringEdit on empty string with Append succeeds") {
+      val json  = new Json.String("")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Append("hello"))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.String("hello")))
+    },
+    test("StringEdit on empty string with Insert at 0 succeeds") {
+      val json  = new Json.String("")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(0, "hello"))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result == new Right(new Json.String("hello")))
+    },
+    test("StringEdit on empty string with Delete fails in Strict mode") {
+      val json  = new Json.String("")
+      val patch = JsonPatch.root(
+        JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Delete(0, 1))))
+      )
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    // Empty object operations
+    test("ObjectOp.Modify on empty object fails in Strict mode") {
+      val json       = Json.Object.empty
+      val innerPatch = JsonPatch.root(JsonPatch.Op.Set(new Json.Number("1")))
+      val patch      = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("any", innerPatch))))
+      val result     = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("ObjectOp.Remove on empty object fails in Strict mode") {
+      val json   = Json.Object.empty
+      val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("any"))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
     }
   )
 }
