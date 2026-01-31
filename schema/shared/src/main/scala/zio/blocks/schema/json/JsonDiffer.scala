@@ -236,11 +236,44 @@ private[json] object JsonDiffer {
         curLength += values.length
       }
 
+    // Emit Modify for 1:1 element replacements instead of Delete+Insert
+    // This produces smaller patches for modified elements (recursive diff)
+    def emitChanges(oldStart: Int, oldEnd: Int, newStart: Int, newEnd: Int): Unit = {
+      val deleteCount = oldEnd - oldStart
+      val insertCount = newEnd - newStart
+
+      if (deleteCount == insertCount && deleteCount > 0) {
+        // 1:1 replacements: use Modify with recursive diff
+        var i = 0
+        while (i < deleteCount) {
+          val oldElem = oldElems(oldStart + i)
+          val newElem = newElems(newStart + i)
+          if (oldElem != newElem) {
+            val patch = diff(oldElem, newElem)
+            if (!patch.isEmpty) {
+              // JsonDiffer.diff always produces single-op patches at root.
+              // This invariant is enforced here; if violated, it indicates a bug.
+              require(
+                patch.ops.length == 1,
+                s"JsonDiffer.diff produced ${patch.ops.length} ops, expected 1"
+              )
+              ops.addOne(JsonPatch.ArrayOp.Modify(cursor, patch.ops.head.op))
+            }
+          }
+          cursor += 1
+          i += 1
+        }
+      } else {
+        // Different counts: fall back to Delete + Insert
+        emitDelete(deleteCount)
+        emitInsert(newElems.slice(newStart, newEnd))
+      }
+    }
+
     var matchIdx = 0
     while (matchIdx < matches.length) {
       val (matchOld, matchNew) = matches(matchIdx)
-      emitDelete(matchOld - oldIdx)
-      emitInsert(newElems.slice(newIdx, matchNew))
+      emitChanges(oldIdx, matchOld, newIdx, matchNew)
 
       oldIdx = matchOld + 1
       newIdx = matchNew + 1
@@ -248,8 +281,7 @@ private[json] object JsonDiffer {
       matchIdx += 1
     }
 
-    emitDelete(oldElems.length - oldIdx)
-    emitInsert(newElems.slice(newIdx, newElems.length))
+    emitChanges(oldIdx, oldElems.length, newIdx, newElems.length)
 
     ops.result()
   }

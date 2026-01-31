@@ -241,13 +241,63 @@ object JsonDifferSpec extends ZIOSpecDefault {
       val b     = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("99")))
       val patch = JsonDiffer.diff(a, b)
 
-      val usesArrayEdit = patch.ops.exists { op =>
+      // Extract ArrayOps from the patch
+      val arrayOps = patch.ops.flatMap { op =>
         op.op match {
-          case JsonPatch.Op.ArrayEdit(_) => true
-          case _                         => false
+          case JsonPatch.Op.ArrayEdit(ops) => ops
+          case _                           => Vector.empty
         }
       }
-      assertTrue(usesArrayEdit) &&
+
+      // Verify that Modify is used (not Delete+Insert)
+      val usesModify = arrayOps.exists {
+        case JsonPatch.ArrayOp.Modify(_, _) => true
+        case _                              => false
+      }
+
+      // Verify correct index and that it contains a delta op (not just Set)
+      val modifyAtIndex1WithDelta = arrayOps.exists {
+        case JsonPatch.ArrayOp.Modify(1, JsonPatch.Op.PrimitiveDelta(_)) => true
+        case _                                                           => false
+      }
+
+      assertTrue(usesModify) &&
+      assertTrue(modifyAtIndex1WithDelta) &&
+      assertTrue(patch(a, PatchMode.Strict) == new Right(b))
+    },
+    test("modifying array element with multi-field object uses Modify with ObjectEdit") {
+      // Object with two fields changing - object diff produces single ObjectEdit with multiple inner ops
+      val obj1 = new Json.Object(
+        Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2")))
+      )
+      val obj2 = new Json.Object(
+        Chunk(("a", new Json.Number("99")), ("b", new Json.Number("88")))
+      )
+      val a     = new Json.Array(Chunk(obj1))
+      val b     = new Json.Array(Chunk(obj2))
+      val patch = JsonDiffer.diff(a, b)
+
+      // Extract ArrayOps from the patch
+      val arrayOps = patch.ops.flatMap { op =>
+        op.op match {
+          case JsonPatch.Op.ArrayEdit(ops) => ops
+          case _                           => Vector.empty
+        }
+      }
+
+      // Verify that Modify is used at index 0 with ObjectEdit containing multiple field modifications
+      val modifyWithObjectEdit = arrayOps.collectFirst {
+        case JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.ObjectEdit(objOps)) => objOps
+      }
+
+      // Should have ObjectEdit with 2 Modify ops (one for each field)
+      val hasTwoFieldModifications = modifyWithObjectEdit.exists { objOps =>
+        objOps.count(_.isInstanceOf[JsonPatch.ObjectOp.Modify]) == 2
+      }
+
+      // The patch should correctly transform a to b
+      assertTrue(modifyWithObjectEdit.isDefined) &&
+      assertTrue(hasTwoFieldModifications) &&
       assertTrue(patch(a, PatchMode.Strict) == new Right(b))
     },
     test("inserting at beginning produces ArrayEdit with Insert") {
