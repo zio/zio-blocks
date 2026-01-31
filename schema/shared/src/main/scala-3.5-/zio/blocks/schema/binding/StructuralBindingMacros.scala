@@ -6,21 +6,21 @@ import scala.quoted.*
  * Version-specific macro support for structural type bindings.
  *
  * This version (Scala 3.3/3.4 LTS) does NOT support deriving Binding instances
- * for structural types because `Symbol.newClass` is marked as @experimental
- * and only available in Scala 3.5+.
+ * for structural types because `Symbol.newClass` is marked as @experimental and
+ * only available in Scala 3.5+.
  *
  * Users on Scala 3.3 LTS should:
- * - Use case classes instead of structural types for `Binding.of`
- * - Upgrade to Scala 3.5+ to use structural types with `Binding.of`
- * - Use `schema.structural` to get structural schemas from case class schemas
+ *   - Use case classes instead of structural types for `Binding.of`
+ *   - Upgrade to Scala 3.5+ to use structural types with `Binding.of`
+ *   - Use `schema.structural` to get structural schemas from case class schemas
  */
 private[binding] object StructuralBindingMacros {
 
   case class StructuralFieldInfo(name: String, memberTpe: Any, kind: String, index: Int)
 
   /**
-   * Generates a compile-time error explaining that structural types
-   * require Scala 3.5+ due to the @experimental Symbol.newClass API.
+   * Generates a compile-time error explaining that structural types require
+   * Scala 3.5+ due to the @experimental Symbol.newClass API.
    */
   def generateAnonymousClassFactory[A: Type](
     fields: Seq[StructuralFieldInfo],
