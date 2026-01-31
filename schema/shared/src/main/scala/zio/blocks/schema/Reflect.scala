@@ -691,7 +691,7 @@ object Reflect {
           val seqTrace                       = DynamicOptic.Node.Elements :: trace
           val constructor                    = seqConstructor
           var idx                            = -1
-          implicit val classTag: ClassTag[A] = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
+          implicit val classTag: ClassTag[A] = elemClassTag
           val builder                        = constructor.newBuilder[A](elements.size)
           elements.foreach { elem =>
             idx += 1
@@ -730,6 +730,8 @@ object Reflect {
     def seqConstructor(implicit F: HasBinding[F]): SeqConstructor[C] = F.seqConstructor(seqBinding)
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
+
+    def elemClassTag: ClassTag[A] = element.typeId.classTag.asInstanceOf[ClassTag[A]]
 
     def typeId(value: TypeId[C[A]]): Sequence[F, A, C] = copy(typeId = value)
 

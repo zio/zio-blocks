@@ -689,7 +689,8 @@ object Optional {
             bindings(idx) = new AtBinding(
               seqDeconstructor = sequence.seqDeconstructor,
               seqConstructor = sequence.seqConstructor,
-              index = params(idx).asInstanceOf[Int]
+              index = params(idx).asInstanceOf[Int],
+              elemClassTag = sequence.elemClassTag
             )
           case source =>
             val map = source.asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
@@ -945,7 +946,8 @@ object Optional {
           val constructor   = atBinding.seqConstructor
           val colIdx        = atBinding.index
           val col           = x.asInstanceOf[Col[A]]
-          if (idx + 1 == bindings.length) modifySeqAt(deconstructor, constructor, col, f, colIdx)
+          if (idx + 1 == bindings.length)
+            modifySeqAt(deconstructor, constructor, col, f, colIdx, atBinding.elemClassTag)
           else {
             val sizeHint =
               deconstructor match {
@@ -991,9 +993,10 @@ object Optional {
       constructor: SeqConstructor[Col],
       s: Col[A],
       f: A => A,
-      colIdx: Int
+      colIdx: Int,
+      elemClassTag: ClassTag[?]
     ): Col[A] = {
-      implicit val classTag: ClassTag[A] = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
+      implicit val classTag: ClassTag[A] = elemClassTag.asInstanceOf[ClassTag[A]]
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
           val size    = indexed.size(s)
@@ -1332,18 +1335,21 @@ object Traversal {
               bindings(idx) = new AtBinding[Col](
                 seqDeconstructor = sequence.seqDeconstructor,
                 seqConstructor = sequence.seqConstructor,
-                index = params(idx).asInstanceOf[Int]
+                index = params(idx).asInstanceOf[Int],
+                elemClassTag = sequence.elemClassTag
               )
             } else if (focusTermName == "atIndices") {
               bindings(idx) = new AtIndicesBinding[Col](
                 seqDeconstructor = sequence.seqDeconstructor,
                 seqConstructor = sequence.seqConstructor,
-                indices = params(idx).asInstanceOf[Array[Int]]
+                indices = params(idx).asInstanceOf[Array[Int]],
+                elemClassTag = sequence.elemClassTag
               )
             } else {
               bindings(idx) = new SeqBinding[Col](
                 seqDeconstructor = sequence.seqDeconstructor,
-                seqConstructor = sequence.seqConstructor
+                seqConstructor = sequence.seqConstructor,
+                elemClassTag = sequence.elemClassTag
               )
             }
           case source =>
@@ -2105,7 +2111,8 @@ object Traversal {
           val constructor   = atBinding.seqConstructor
           val colIdx        = atBinding.index
           val col           = x.asInstanceOf[Col[A]]
-          if (idx + 1 == bindings.length) modifySeqAt(deconstructor, constructor, col, f, colIdx)
+          if (idx + 1 == bindings.length)
+            modifySeqAt(deconstructor, constructor, col, f, colIdx, atBinding.elemClassTag)
           else {
             val sizeHint =
               deconstructor match {
@@ -2147,7 +2154,8 @@ object Traversal {
           val constructor   = atIndicesBinding.seqConstructor
           val indices       = atIndicesBinding.indices
           val col           = x.asInstanceOf[Col[A]]
-          if (idx + 1 == bindings.length) modifySeqAtIndices(indices, deconstructor, constructor, col, f)
+          if (idx + 1 == bindings.length)
+            modifySeqAtIndices(indices, deconstructor, constructor, col, f, atIndicesBinding.elemClassTag)
           else {
             val sizeHint =
               deconstructor match {
@@ -2198,7 +2206,7 @@ object Traversal {
           val deconstructor = seqBinding.seqDeconstructor
           val constructor   = seqBinding.seqConstructor
           val col           = x.asInstanceOf[Col[A]]
-          if (idx + 1 == bindings.length) modifySeq(deconstructor, constructor, col, f)
+          if (idx + 1 == bindings.length) modifySeq(deconstructor, constructor, col, f, seqBinding.elemClassTag)
           else {
             val sizeHint =
               deconstructor match {
@@ -2265,9 +2273,10 @@ object Traversal {
       constructor: SeqConstructor[Col],
       x: Col[A],
       f: A => A,
-      colIdx: Int
+      colIdx: Int,
+      elemClassTag: ClassTag[?]
     ): Col[A] = {
-      implicit val classTag: ClassTag[A] = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
+      implicit val classTag: ClassTag[A] = elemClassTag.asInstanceOf[ClassTag[A]]
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
           val size    = indexed.size(x)
@@ -2306,9 +2315,10 @@ object Traversal {
       deconstructor: SeqDeconstructor[Col],
       constructor: SeqConstructor[Col],
       x: Col[A],
-      f: A => A
+      f: A => A,
+      elemClassTag: ClassTag[?]
     ): Col[A] = {
-      implicit val classTag: ClassTag[A] = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
+      implicit val classTag: ClassTag[A] = elemClassTag.asInstanceOf[ClassTag[A]]
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
           val size                = indexed.size(x)
@@ -2357,9 +2367,10 @@ object Traversal {
       deconstructor: SeqDeconstructor[Col],
       constructor: SeqConstructor[Col],
       x: Col[A],
-      f: A => A
+      f: A => A,
+      elemClassTag: ClassTag[?]
     ): Col[A] = {
-      implicit val classTag: ClassTag[A] = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
+      implicit val classTag: ClassTag[A] = elemClassTag.asInstanceOf[ClassTag[A]]
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
           val size    = indexed.size(x)
@@ -2521,7 +2532,8 @@ private[schema] case class PrismBinding(
 
 private[schema] case class SeqBinding[C[_]](
   seqDeconstructor: SeqDeconstructor[C],
-  seqConstructor: SeqConstructor[C]
+  seqConstructor: SeqConstructor[C],
+  elemClassTag: ClassTag[?]
 ) extends OpticBinding
 
 private[schema] case class MapKeyBinding[M[_, _]](
@@ -2537,7 +2549,8 @@ private[schema] case class MapValueBinding[M[_, _]](
 private[schema] case class AtBinding[C[_]](
   seqDeconstructor: SeqDeconstructor[C],
   seqConstructor: SeqConstructor[C],
-  index: Int
+  index: Int,
+  elemClassTag: ClassTag[?]
 ) extends OpticBinding
 
 private[schema] case class AtKeyBinding[K, M[_, _]](
@@ -2550,7 +2563,8 @@ private[schema] case class AtKeyBinding[K, M[_, _]](
 private[schema] case class AtIndicesBinding[C[_]](
   seqDeconstructor: SeqDeconstructor[C],
   seqConstructor: SeqConstructor[C],
-  indices: Array[Int]
+  indices: Array[Int],
+  elemClassTag: ClassTag[?]
 ) extends OpticBinding
 
 private[schema] case class AtKeysBinding[K, M[_, _]](

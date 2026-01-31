@@ -69,6 +69,30 @@ sealed trait TypeId[A <: AnyKind] {
     case _                                      => false
   }
 
+  /**
+   * Returns a ClassTag for this type, using the correct primitive ClassTag for
+   * primitive types (Int, Long, Float, Double, Boolean, Byte, Short, Char,
+   * Unit) and ClassTag.AnyRef for all reference types.
+   *
+   * This is useful for creating properly-typed arrays at runtime.
+   */
+  lazy val classTag: scala.reflect.ClassTag[?] = {
+    import scala.reflect.ClassTag
+    if (owner == Owner.scala) name match {
+      case "Int"     => ClassTag.Int
+      case "Long"    => ClassTag.Long
+      case "Float"   => ClassTag.Float
+      case "Double"  => ClassTag.Double
+      case "Boolean" => ClassTag.Boolean
+      case "Byte"    => ClassTag.Byte
+      case "Short"   => ClassTag.Short
+      case "Char"    => ClassTag.Char
+      case "Unit"    => ClassTag.Unit
+      case _         => ClassTag.AnyRef
+    }
+    else ClassTag.AnyRef
+  }
+
   /** Get enum cases if this is an enum */
   final def enumCases: List[EnumCaseInfo] = defKind match {
     case TypeDefKind.Enum(cases, _) => cases

@@ -1489,7 +1489,7 @@ class JsonBinaryCodecDeriver private[json] (
               private[this] val constructor   = binding.constructor
               private[this] val elementCodec  = codec
 
-              private[this] val elemClassTag = ClassTag.AnyRef.asInstanceOf[ClassTag[Elem]]
+              private[this] val elemClassTag = sequence.elemClassTag.asInstanceOf[ClassTag[Elem]]
 
               def decodeValue(in: JsonReader, default: Col[Elem]): Col[Elem] =
                 if (in.isNextToken('[')) {
