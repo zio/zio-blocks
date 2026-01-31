@@ -48,7 +48,7 @@ jobs:
       matrix:
         java: [11, 25]
         platform: ['JVM']
-        scala: ['2.13.x', '3.x']
+        scala: ['2.13.x', '3.3.x', '3.7.x']
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.2
@@ -69,11 +69,14 @@ jobs:
       - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
-      - name: Run Scala 3 tests with test coverage
-        if: ${{ startsWith(matrix.scala, '3.') }}
+      - name: Run Scala 3 tests with test coverage and docs (JDK 11)
+        if: ${{ startsWith(matrix.scala, '3.') && matrix.java == 11 }}
         run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport doc${{ matrix.platform }}
+      - name: Run Scala 3 tests with test coverage (JDK 25, skip docs due to scaladoc bug)
+        if: ${{ startsWith(matrix.scala, '3.') && matrix.java >= 25 }}
+        run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
       - name: Run Scala Next tests
-        if: ${{ startsWith(matrix.scala, '3.') }}
+        if: ${{ matrix.scala == '3.7.x' }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test
 
   testJS:
@@ -84,7 +87,7 @@ jobs:
       matrix:
         java: [11]
         platform: ['JS']
-        scala: ['2.13.x', '3.x']
+        scala: ['2.13.x', '3.3.x', '3.7.x']
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.2
@@ -101,7 +104,7 @@ jobs:
       - name: Run tests and compile docs
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala Next tests
-        if: ${{ startsWith(matrix.scala, '3.') }}
+        if: ${{ matrix.scala == '3.7.x' }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test
 
   testNative:
@@ -112,7 +115,7 @@ jobs:
       matrix:
         java: [11]
         platform: ['Native']
-        scala: ['2.13.x', '3.x']
+        scala: ['2.13.x', '3.3.x', '3.7.x']
     env:
       SCALANATIVE_THREAD_STACK_SIZE: 128m
     steps:
@@ -131,7 +134,7 @@ jobs:
       - name: Run tests and compile docs
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala Next tests
-        if: ${{ startsWith(matrix.scala, '3.') }}
+        if: ${{ matrix.scala == '3.7.x' }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test
 
   ci:
