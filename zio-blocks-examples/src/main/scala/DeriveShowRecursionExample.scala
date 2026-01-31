@@ -1,9 +1,9 @@
-import zio.blocks.schema.*
-import zio.blocks.schema.binding.*
+import zio.blocks.schema._
+import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.derive.*
+import zio.blocks.schema.derive._
 
-object DeriveShowExample extends App {
+object DeriveShowRecursionExample extends App {
 
   /**
    * A simple type class for converting values to their string representation.
@@ -184,45 +184,43 @@ object DeriveShowExample extends App {
     private[this] def derivePrimitiveShow[F[_, _], A](
       primitive: Reflect.Primitive[F, A]
     ): Show[A] =
-      // Check if there's a custom instance provided via BindingInstance
-      if (!primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
-        primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
-      } else
-        {
-          // Derive based on primitive type
+      // Check if binding is a raw Binding (needs derivation)
+      // vs BindingInstance (already has a derived instance)
+      if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
+        // This is a raw Binding - we need to derive the Show instance ourselves
+        Show.instance[A] { a =>
+          // Pattern match on the primitive type to format appropriately
           primitive.primitiveType match {
-            case _: PrimitiveType.Unit.type      => Show.instance(_ => "()")
-            case _: PrimitiveType.Boolean        => Show.instance(_.toString)
-            case _: PrimitiveType.Byte           => Show.instance(_.toString)
-            case _: PrimitiveType.Short          => Show.instance(_.toString)
-            case _: PrimitiveType.Int            => Show.instance(_.toString)
-            case _: PrimitiveType.Long           => Show.instance(v => s"${v}L")
-            case _: PrimitiveType.Float          => Show.instance(v => s"${v}f")
-            case _: PrimitiveType.Double         => Show.instance(_.toString)
-            case _: PrimitiveType.Char           => Show.instance(v => s"'$v'")
-            case _: PrimitiveType.String         => Show.instance(v => s""""$v"""")
-            case _: PrimitiveType.BigInt         => Show.instance(v => s"BigInt($v)")
-            case _: PrimitiveType.BigDecimal     => Show.instance(v => s"BigDecimal($v)")
-            case _: PrimitiveType.DayOfWeek      => Show.instance(_.toString)
-            case _: PrimitiveType.Duration       => Show.instance(_.toString)
-            case _: PrimitiveType.Instant        => Show.instance(_.toString)
-            case _: PrimitiveType.LocalDate      => Show.instance(_.toString)
-            case _: PrimitiveType.LocalDateTime  => Show.instance(_.toString)
-            case _: PrimitiveType.LocalTime      => Show.instance(_.toString)
-            case _: PrimitiveType.Month          => Show.instance(_.toString)
-            case _: PrimitiveType.MonthDay       => Show.instance(_.toString)
-            case _: PrimitiveType.OffsetDateTime => Show.instance(_.toString)
-            case _: PrimitiveType.OffsetTime     => Show.instance(_.toString)
-            case _: PrimitiveType.Period         => Show.instance(_.toString)
-            case _: PrimitiveType.Year           => Show.instance(_.toString)
-            case _: PrimitiveType.YearMonth      => Show.instance(_.toString)
-            case _: PrimitiveType.ZoneId         => Show.instance(_.toString)
-            case _: PrimitiveType.ZoneOffset     => Show.instance(_.toString)
-            case _: PrimitiveType.ZonedDateTime  => Show.instance(_.toString)
-            case _: PrimitiveType.Currency       => Show.instance(_.toString)
-            case _: PrimitiveType.UUID           => Show.instance(_.toString)
+            case PrimitiveType.Unit =>
+              // Unit has only one value: ()
+              "()"
+
+            case PrimitiveType.Char(_) =>
+              // Characters are shown with single quotes: 'a'
+              s"'$a'"
+
+            case PrimitiveType.String(_) =>
+              // Strings are shown with double quotes: "hello"
+              s""""$a""""
+
+            case _ =>
+              // All other primitives (Int, Long, Double, etc.)
+              // use their natural string representation
+              String.valueOf(a)
           }
-        }.asInstanceOf[Show[A]]
+        }
+      } else {
+        println("-----")
+        // This is a BindingInstance - it wraps an already-derived Show instance
+        // This happens when a type manually provides its own Show instance
+        // We just extract and return that instance
+        //
+        // The type parameters of BindingInstance:
+        // - TC: The type class (Show in our case)
+        // - ?: The binding type marker
+        // - A: The value type
+        primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
+      }
 
     private[this] def deriveRecordShow[F[_, _], A](
       record: Reflect.Record[F, A]

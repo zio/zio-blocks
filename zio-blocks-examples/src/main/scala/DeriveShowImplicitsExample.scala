@@ -3,7 +3,7 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.BindingType.Wrapper
 import zio.blocks.schema.derive.Deriver
 
-object DeriveShowExampleUsingImplicits extends App {
+object DeriveShowImplicitsExample extends App {
 
   trait Show[A] {
     def show(value: A): String
