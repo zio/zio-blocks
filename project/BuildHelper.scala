@@ -44,12 +44,22 @@ object BuildHelper {
   /**
    * Find all applicable Scala 3.x minor version directories.
    *
-   * Given a target minor version (e.g., 7 for Scala 3.7), finds all scala-3.X
-   * directories where X <= target. For example:
-   *   - If scala-3.4 and scala-3.7 exist, Scala 3.5 uses scala-3.4 only
-   *   - If scala-3.4 and scala-3.7 exist, Scala 3.7 uses both scala-3.4 AND
-   *     scala-3.7
-   *   - If scala-3.4 and scala-3.7 exist, Scala 3.3 uses neither (too old)
+   * Supports two directory naming conventions:
+   *   - `scala-3.X` (without +): for version X up to but not including the next
+   *     version-specific directory. Only the best match (highest X <= target)
+   *     is included.
+   *   - `scala-3.X+` (with +): for version X and ALL later versions. All
+   *     matching directories are included.
+   *
+   * Examples with scala-3, scala-3.5+, scala-3.7:
+   *   - Scala 3.7 uses: scala-3, scala-3.5+, scala-3.7
+   *   - Scala 3.6 uses: scala-3, scala-3.5+
+   *   - Scala 3.4 uses: scala-3
+   *
+   * Examples with scala-3, scala-3.5, scala-3.7:
+   *   - Scala 3.7 uses: scala-3, scala-3.7 (scala-3.5 superseded)
+   *   - Scala 3.6 uses: scala-3, scala-3.5
+   *   - Scala 3.4 uses: scala-3
    *
    * @param targetMinor
    *   the minor version of the Scala 3 compiler being used
@@ -60,8 +70,8 @@ object BuildHelper {
    * @param baseDir
    *   the base directory of the project
    * @return
-   *   all applicable version strings (e.g., Seq("3.4", "3.7")), sorted
-   *   ascending
+   *   all applicable version strings (e.g., Seq("3.5+", "3.7")), sorted
+   *   ascending by minor version
    */
   def findApplicableScala3MinorDirs(
     targetMinor: Int,
@@ -69,21 +79,29 @@ object BuildHelper {
     conf: String,
     baseDir: File
   ): Seq[String] = {
-    val availableMinors = for {
+    val Scala3PlusPattern  = """scala-3\.(\d+)\+""".r
+    val Scala3ExactPattern = """scala-3\.(\d+)""".r
+
+    val allDirs = for {
       platform <- platforms
       dir       = baseDir.getParentFile / platform.toLowerCase / "src" / conf
       if dir.exists
       child <- dir.listFiles().toSeq
       if child.isDirectory
-      name = child.getName
-      if name.startsWith("scala-3.")
-      minor <- scala.util.Try(name.stripPrefix("scala-3.").toInt).toOption
-    } yield minor
+    } yield child.getName
 
-    availableMinors.distinct
-      .filter(_ <= targetMinor)
-      .sorted
-      .map(m => s"3.$m")
+    val plusMinors = allDirs.collect { case Scala3PlusPattern(m) =>
+      scala.util.Try(m.toInt).toOption
+    }.flatten.distinct.filter(_ <= targetMinor)
+
+    val exactMinors = allDirs.collect { case Scala3ExactPattern(m) =>
+      scala.util.Try(m.toInt).toOption
+    }.flatten.distinct.filter(_ <= targetMinor)
+
+    val bestExact = exactMinors.sorted.lastOption
+
+    val result = plusMinors.map(m => s"3.$m+") ++ bestExact.map(m => s"3.$m").toSeq
+    result.sortBy(s => s.stripSuffix("+").stripPrefix("3.").toInt)
   }
 
   def crossPlatformSources(scalaVer: String, platform: String, conf: String, baseDir: File): Seq[File] = {
