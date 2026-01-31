@@ -7,15 +7,14 @@ private[context] object PlatformCache {
   def empty: Cache = new NativeCache(mutable.HashMap.empty[TypeId.Erased, Any])
 
   private final class NativeCache(underlying: mutable.HashMap[TypeId.Erased, Any]) extends Cache {
-    def get(key: TypeId.Erased): Any = underlying.getOrElse(key, null)
-    def put(key: TypeId.Erased, value: Any): Unit = { underlying.update(key, value); () }
-    def putIfAbsent(key: TypeId.Erased, value: Any): Any = {
+    def get(key: TypeId.Erased): Any                     = underlying.getOrElse(key, null)
+    def put(key: TypeId.Erased, value: Any): Unit        = { underlying.update(key, value); () }
+    def putIfAbsent(key: TypeId.Erased, value: Any): Any =
       underlying.get(key) match {
         case Some(existing) => existing
-        case None =>
+        case None           =>
           underlying.update(key, value)
           null
       }
-    }
   }
 }
