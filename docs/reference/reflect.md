@@ -311,8 +311,7 @@ Each of these patterns shares a common characteristic: they wrap an underlying t
 ```
 case class Wrapper[F[_, _], A, B](
   wrapped: Reflect[F, B],
-  typeName: TypeName[A],
-  wrapperPrimitiveType: Option[PrimitiveType[A]],
+  typeId: TypeId[A],
   wrapperBinding: F[BindingType.Wrapper[A, B], A],
   doc: Doc = Doc.Empty,
   modifiers: Seq[Modifier.Reflect] = Nil
@@ -343,8 +342,7 @@ object PosInt {
   implicit val schema: Schema[PosInt] = Schema(
     Reflect.Wrapper(
       wrapped = Schema[Int].reflect,
-      typeName = TypeName(Namespace(Nil), "PosInt"),
-      wrapperPrimitiveType = None,
+      typeId = TypeId.of[PosInt],
       wrapperBinding = Binding.Wrapper[PosInt, Int](
         wrap = v => PosInt(v), 
         unwrap = _.value
@@ -354,33 +352,33 @@ object PosInt {
 }
 ```
 
-To use auto-derivation for wrappers, you can use the `wrap` and `wrapTotal` methods on `Schema`:
+To create schemas for wrapper types, use `transform` or `transformOrFail` followed by `withTypeId`:
 
 ```scala
 import zio.blocks.schema.Schema
 
-// Wrapper with validation using wrap (can fail)
+// Wrapper with validation using transformOrFail (can fail)
 case class PosInt private (value: Int) extends AnyVal
 
 object PosInt {
-  def apply(value: Int): Either[String, PosInt] =
+  def apply(value: Int): Either[SchemaError, PosInt] =
     if (value >= 0) Right(new PosInt(value))
-    else Left("Expected positive value")
+    else Left(SchemaError.validationFailed("Expected positive value"))
 
   implicit val schema: Schema[PosInt] = 
-    Schema.derived.wrap(PosInt.apply, _.value)
+    Schema[Int].transformOrFail(PosInt.apply, _.value)
 }
 ```
 
-If the wrapping function is total (i.e., cannot fail), you can use `wrapTotal`:
+If the wrapping function is total (i.e., cannot fail), you can use `transform`:
 
 ```scala
-// Simple wrapper using wrapTotal (no validation, always succeeds)
+// Simple wrapper using transform (no validation, always succeeds)
 case class UserId(value: Long) extends AnyVal
 
 object UserId {
   implicit val schema: Schema[UserId] =
-    Schema.derived[UserId].wrapTotal(UserId.apply, _.value)
+    Schema[Long].transform(UserId(_), _.value)
 }
 ```
 

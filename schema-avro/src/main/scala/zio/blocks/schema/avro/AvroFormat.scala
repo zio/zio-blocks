@@ -114,7 +114,6 @@ object AvroFormat
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
           typeId: TypeId[A],
-          wrapperPrimitiveType: Option[PrimitiveType[A]],
           binding: Binding[BindingType.Wrapper[A, B], A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
@@ -125,7 +124,6 @@ object AvroFormat
             new Reflect.Wrapper(
               wrapped.asInstanceOf[Reflect[Binding, B]],
               typeId,
-              wrapperPrimitiveType,
               binding,
               doc,
               modifiers
@@ -849,7 +847,7 @@ object AvroFormat
             if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
               val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
               val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[AvroBinaryCodec[Wrapped]]
-              new AvroBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(AvroBinaryCodec.objectType) {
+              new AvroBinaryCodec[A](wrapper.underlyingPrimitiveType.fold(AvroBinaryCodec.objectType) {
                 case _: PrimitiveType.Boolean   => AvroBinaryCodec.booleanType
                 case _: PrimitiveType.Byte      => AvroBinaryCodec.byteType
                 case _: PrimitiveType.Char      => AvroBinaryCodec.charType

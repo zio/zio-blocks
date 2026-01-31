@@ -110,26 +110,6 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def patch(value: A, patch: Patch[A]): Either[SchemaError, A] =
     patch.apply(value, PatchMode.Strict)
 
-  @deprecated("Use Schema[B].transformOrFail(...).withTypeId[A] instead", "1.0.0")
-  def wrap[B: Schema](wrap: B => Either[SchemaError, A], unwrap: A => B): Schema[A] = new Schema(
-    new Reflect.Wrapper[Binding, A, B](
-      Schema[B].reflect,
-      reflect.typeId,
-      Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(wrap, a => Right(unwrap(a)))
-    )
-  )
-
-  @deprecated("Use Schema[B].transform(...).withTypeId[A] instead", "1.0.0")
-  def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
-    new Reflect.Wrapper[Binding, A, B](
-      Schema[B].reflect,
-      reflect.typeId,
-      Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(x => new Right(wrap(x)), a => Right(unwrap(a)))
-    )
-  )
-
   /**
    * Transforms this schema from type `A` to type `B` using the provided partial
    * transformation function and its inverse.
@@ -144,6 +124,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * The `from` function is called during encoding (e.g., `toDynamicValue`) to
    * convert `B` back to `A` for serialization.
    *
+   * The `TypeId[B]` is captured implicitly to ensure correct type
+   * identification.
+   *
    * @example
    *   {{{
    * case class PositiveInt private (value: Int)
@@ -153,7 +136,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    *     else Left(SchemaError.validationFailed("must be positive"))
    *
    *   implicit val schema: Schema[PositiveInt] =
-   *     Schema[Int].transformOrFail(make, _.value).withTypeId[PositiveInt]
+   *     Schema[Int].transformOrFail(make, _.value)
    * }
    *   }}}
    *
@@ -167,14 +150,14 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * @return
    *   A new schema for type `B`
    */
-  def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A): Schema[B] = new Schema(
-    new Reflect.Wrapper[Binding, B, A](
-      reflect,
-      reflect.typeId.asInstanceOf[TypeId[B]],
-      None,
-      new Binding.Wrapper(to, b => Right(from(b)))
+  def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A)(implicit typeId: TypeId[B]): Schema[B] =
+    new Schema(
+      new Reflect.Wrapper[Binding, B, A](
+        reflect,
+        typeId,
+        new Binding.Wrapper(to, b => Right(from(b)))
+      )
     )
-  )
 
   /**
    * Transforms this schema from type `A` to type `B` using partial functions
@@ -183,6 +166,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * This is useful for creating schemas for types with bidirectional validation
    * requirements, where both constructing the type AND extracting the
    * underlying value may need validation.
+   *
+   * The `TypeId[B]` is captured implicitly to ensure correct type
+   * identification.
    *
    * @example
    *   {{{
@@ -196,7 +182,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    *       unwrap = v =>
    *         if (v.value < 100) Right(v.value)
    *         else Left(SchemaError.validationFailed("Value too large"))
-   *     ).withTypeId[ValidatedInt]
+   *     )
    * }
    *   }}}
    *
@@ -211,11 +197,12 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * @return
    *   A new schema for type `B`
    */
-  def transform[B](wrap: A => Either[SchemaError, B], unwrap: B => Either[SchemaError, A]): Schema[B] = new Schema(
+  def transform[B](wrap: A => Either[SchemaError, B], unwrap: B => Either[SchemaError, A])(implicit
+    typeId: TypeId[B]
+  ): Schema[B] = new Schema(
     new Reflect.Wrapper[Binding, B, A](
       reflect,
-      reflect.typeId.asInstanceOf[TypeId[B]],
-      None,
+      typeId,
       new Binding.Wrapper(wrap, unwrap)
     )
   )
@@ -226,12 +213,15 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * This is useful for creating schemas for simple wrapper types where the
    * transformation cannot fail.
    *
+   * The `TypeId[B]` is captured implicitly to ensure correct type
+   * identification.
+   *
    * @example
    *   {{{
    * case class UserId(value: Long)
    * object UserId {
    *   implicit val schema: Schema[UserId] =
-   *     Schema[Long].transform(UserId(_), _.value).withTypeName[UserId]
+   *     Schema[Long].transform(UserId(_), _.value)
    * }
    *   }}}
    *
@@ -244,80 +234,13 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * @return
    *   A new schema for type `B`
    */
-  def transform[B](to: A => B, from: B => A)(implicit d: DummyImplicit): Schema[B] = new Schema(
+  def transform[B](to: A => B, from: B => A)(implicit typeId: TypeId[B], d: DummyImplicit): Schema[B] = new Schema(
     new Reflect.Wrapper[Binding, B, A](
       reflect,
-      reflect.typeId.asInstanceOf[TypeId[B]],
-      None,
+      typeId,
       new Binding.Wrapper(a => Right(to(a)), b => Right(from(b)))
     )
   )
-
-  /**
-   * Updates the TypeId of this schema to match type `B`.
-   *
-   * This is typically used after `transform` or `transformOrFail` to give the
-   * resulting schema the correct nominal type identifier.
-   *
-   * @example
-   *   {{{
-   * case class UserId(value: Long)
-   * object UserId {
-   *   implicit val schema: Schema[UserId] =
-   *     Schema[Long].transform(UserId(_), _.value).withTypeId[UserId]
-   * }
-   *   }}}
-   *
-   * @tparam B
-   *   The type whose TypeId should be used
-   * @return
-   *   A new schema with the updated TypeId
-   */
-  def withTypeId[B](implicit typeId: TypeId[B]): Schema[B] =
-    new Schema(reflect.typeId(typeId.asInstanceOf[TypeId[A]])).asInstanceOf[Schema[B]]
-
-  /**
-   * Marks this schema as an opaque type, setting both the TypeId and the
-   * underlying primitive type for optimized register storage.
-   *
-   * Use this after `transform` or `transformOrFail` when creating schemas for
-   * opaque types or newtypes whose runtime representation is the same as the
-   * underlying primitive type.
-   *
-   * For case class wrappers (where the runtime representation differs from the
-   * primitive), use `withTypeId` instead.
-   *
-   * @example
-   *   {{{
-   * // For opaque types / newtypes
-   * opaque type Age = Int
-   * object Age {
-   *   def apply(n: Int): Age = n
-   *   def unwrap(a: Age): Int = a
-   *
-   *   implicit val schema: Schema[Age] =
-   *     Schema[Int].transform(Age.apply, Age.unwrap).asOpaqueType[Age]
-   * }
-   *   }}}
-   *
-   * @tparam B
-   *   The opaque type whose TypeId should be used
-   * @return
-   *   A new schema with the updated TypeId and primitive type set
-   */
-  def asOpaqueType[B](implicit typeId: TypeId[B]): Schema[B] =
-    reflect match {
-      case w: Reflect.Wrapper[Binding, A, ?] =>
-        val primitiveType = Reflect.unwrapToPrimitiveTypeOption(w.wrapped)
-        new Schema(
-          w.copy(
-            typeId = typeId.asInstanceOf[TypeId[A]],
-            wrapperPrimitiveType = primitiveType.asInstanceOf[Option[PrimitiveType[A]]]
-          )
-        ).asInstanceOf[Schema[B]]
-      case _ =>
-        new Schema(reflect.typeId(typeId.asInstanceOf[TypeId[A]])).asInstanceOf[Schema[B]]
-    }
 
   override def toString: String = {
     val reflectStr = reflect.toString
@@ -445,7 +368,6 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
       new Reflect.Wrapper[Binding, Json, DynamicValue](
         structuredReflect,
         TypeId.of[Json],
-        None,
         new Binding.Wrapper[Json, DynamicValue](
           wrap = { dv =>
             val j = Json.fromDynamicValue(dv)
