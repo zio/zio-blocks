@@ -952,11 +952,12 @@ object Optional {
                 case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
                 case _                                                 => 8
               }
-            val builder = constructor.newObjectBuilder[Any](sizeHint)
-            val it      = deconstructor.deconstruct(col)
-            var currIdx = 0
+            implicit val classTag: ClassTag[Any] = ClassTag.Any
+            val builder                          = constructor.newBuilder[Any](sizeHint)
+            val it                               = deconstructor.deconstruct(col)
+            var currIdx                          = 0
             while (it.hasNext) {
-              constructor.addObject(
+              constructor.add(
                 builder, {
                   val value = it.next()
                   if (currIdx != colIdx) value
@@ -965,7 +966,7 @@ object Optional {
               )
               currIdx += 1
             }
-            constructor.resultObject(builder)
+            constructor.result(builder)
           }
         case binding =>
           val atKeyBinding  = binding.asInstanceOf[AtKeyBinding[Key, Map]]
@@ -991,144 +992,30 @@ object Optional {
       s: Col[A],
       f: A => A,
       colIdx: Int
-    ): Col[A] =
+    ): Col[A] = {
+      implicit val classTag: ClassTag[A] = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-          val size = indexed.size(s)
-          indexed.elementType(s) match {
-            case _: RegisterType.Boolean.type =>
-              val builder = constructor.newBooleanBuilder(size)
-              var idx     = 0
-              while (idx < size) {
-                constructor.addBoolean(
-                  builder, {
-                    val value = indexed.booleanAt(s.asInstanceOf[Col[Boolean]], idx)
-                    if (idx == colIdx) f.asInstanceOf[Boolean => Boolean](value)
-                    else value
-                  }
-                )
-                idx += 1
+          val size    = indexed.size(s)
+          val builder = constructor.newBuilder[A](size)
+          var idx     = 0
+          while (idx < size) {
+            constructor.add(
+              builder, {
+                val value = indexed.objectAt(s, idx)
+                if (idx == colIdx) f(value)
+                else value
               }
-              constructor.resultBoolean(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Byte.type =>
-              val builder = constructor.newByteBuilder(size)
-              var idx     = 0
-              while (idx < size) {
-                constructor.addByte(
-                  builder, {
-                    val value = indexed.byteAt(s.asInstanceOf[Col[Byte]], idx)
-                    if (idx == colIdx) f.asInstanceOf[Byte => Byte](value)
-                    else value
-                  }
-                )
-                idx += 1
-              }
-              constructor.resultByte(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Short.type =>
-              val builder = constructor.newShortBuilder(size)
-              var idx     = 0
-              while (idx < size) {
-                constructor.addShort(
-                  builder, {
-                    val value = indexed.shortAt(s.asInstanceOf[Col[Short]], idx)
-                    if (idx == colIdx) f.asInstanceOf[Short => Short](value)
-                    else value
-                  }
-                )
-                idx += 1
-              }
-              constructor.resultShort(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Int.type =>
-              val builder = constructor.newIntBuilder(size)
-              var idx     = 0
-              while (idx < size) {
-                constructor.addInt(
-                  builder, {
-                    val value = indexed.intAt(s.asInstanceOf[Col[Int]], idx)
-                    if (idx == colIdx) f.asInstanceOf[Int => Int](value)
-                    else value
-                  }
-                )
-                idx += 1
-              }
-              constructor.resultInt(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Long.type =>
-              val builder = constructor.newLongBuilder(size)
-              var idx     = 0
-              while (idx < size) {
-                constructor.addLong(
-                  builder, {
-                    val value = indexed.longAt(s.asInstanceOf[Col[Long]], idx)
-                    if (idx == colIdx) f.asInstanceOf[Long => Long](value)
-                    else value
-                  }
-                )
-                idx += 1
-              }
-              constructor.resultLong(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Float.type =>
-              val builder = constructor.newFloatBuilder(size)
-              var idx     = 0
-              while (idx < size) {
-                constructor.addFloat(
-                  builder, {
-                    val value = indexed.floatAt(s.asInstanceOf[Col[Float]], idx)
-                    if (idx == colIdx) f.asInstanceOf[Float => Float](value)
-                    else value
-                  }
-                )
-                idx += 1
-              }
-              constructor.resultFloat(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Double.type =>
-              val builder = constructor.newDoubleBuilder(size)
-              var idx     = 0
-              while (idx < size) {
-                constructor.addDouble(
-                  builder, {
-                    val value = indexed.doubleAt(s.asInstanceOf[Col[Double]], idx)
-                    if (idx == colIdx) f.asInstanceOf[Double => Double](value)
-                    else value
-                  }
-                )
-                idx += 1
-              }
-              constructor.resultDouble(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Char.type =>
-              val builder = constructor.newCharBuilder(size)
-              var idx     = 0
-              while (idx < size) {
-                constructor.addChar(
-                  builder, {
-                    val value = indexed.charAt(s.asInstanceOf[Col[Char]], idx)
-                    if (idx == colIdx) f.asInstanceOf[Char => Char](value)
-                    else value
-                  }
-                )
-                idx += 1
-              }
-              constructor.resultChar(builder).asInstanceOf[Col[A]]
-            case _ =>
-              val builder = constructor.newObjectBuilder[A](size)(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
-              var idx     = 0
-              while (idx < size) {
-                constructor.addObject(
-                  builder, {
-                    val value = indexed.objectAt(s, idx)
-                    if (idx == colIdx) f(value)
-                    else value
-                  }
-                )
-                idx += 1
-              }
-              constructor.resultObject(builder)
+            )
+            idx += 1
           }
+          constructor.result(builder)
         case _ =>
-          val builder = constructor.newObjectBuilder[A]()(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
+          val builder = constructor.newBuilder[A]()
           val it      = deconstructor.deconstruct(s)
           var currIdx = -1
           while (it.hasNext)
-            constructor.addObject(
+            constructor.add(
               builder, {
                 currIdx += 1
                 val value = it.next()
@@ -1136,8 +1023,9 @@ object Optional {
                 else f(value)
               }
             )
-          constructor.resultObject(builder)
+          constructor.result(builder)
       }
+    }
 
     def modifyOption(s: S, f: A => A): Option[S] = {
       if (bindings eq null) init()
@@ -2224,11 +2112,11 @@ object Traversal {
                 case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
                 case _                                                 => 8
               }
-            val builder = constructor.newObjectBuilder[Any](sizeHint)
+            val builder = constructor.newBuilder[Any](sizeHint)
             val it      = deconstructor.deconstruct(col)
             var currIdx = 0
             while (it.hasNext) {
-              constructor.addObject(
+              constructor.add(
                 builder, {
                   val value = it.next()
                   if (currIdx != colIdx) value
@@ -2237,7 +2125,7 @@ object Traversal {
               )
               currIdx += 1
             }
-            constructor.resultObject(builder)
+            constructor.result(builder)
           }
         case atKeyBinding: AtKeyBinding[Key, Map] @scala.unchecked =>
           val deconstructor = atKeyBinding.mapDeconstructor
@@ -2266,12 +2154,12 @@ object Traversal {
                 case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
                 case _                                                 => 8
               }
-            val builder             = constructor.newObjectBuilder[Any](sizeHint)
+            val builder             = constructor.newBuilder[Any](sizeHint)
             val it                  = deconstructor.deconstruct(col)
             var colIdx              = indices(0)
             var currIdx, indicesIdx = 0
             while (it.hasNext) {
-              constructor.addObject(
+              constructor.add(
                 builder, {
                   val value = it.next()
                   if (currIdx != colIdx) value
@@ -2284,7 +2172,7 @@ object Traversal {
               )
               currIdx += 1
             }
-            constructor.resultObject(builder)
+            constructor.result(builder)
           }
         case atKeysBinding: AtKeysBinding[Key, Map] @scala.unchecked =>
           val deconstructor = atKeysBinding.mapDeconstructor
@@ -2317,10 +2205,10 @@ object Traversal {
                 case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
                 case _                                                 => 8
               }
-            val builder = constructor.newObjectBuilder[Any](sizeHint)
+            val builder = constructor.newBuilder[Any](sizeHint)
             val it      = deconstructor.deconstruct(col)
-            while (it.hasNext) constructor.addObject(builder, modifyRecursive(registers, idx + 1, it.next(), f))
-            constructor.resultObject(builder)
+            while (it.hasNext) constructor.add(builder, modifyRecursive(registers, idx + 1, it.next(), f))
+            constructor.result(builder)
           }
         case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
           val deconstructor = mapKeyBinding.mapDeconstructor
@@ -2378,144 +2266,30 @@ object Traversal {
       x: Col[A],
       f: A => A,
       colIdx: Int
-    ): Col[A] =
+    ): Col[A] = {
+      implicit val classTag: ClassTag[A] = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-          val size = indexed.size(x)
-          indexed.elementType(x) match {
-            case _: RegisterType.Boolean.type =>
-              val builder = constructor.newBooleanBuilder(size)
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addBoolean(
-                  builder, {
-                    val value = indexed.booleanAt(x.asInstanceOf[Col[Boolean]], currIdx)
-                    if (currIdx != colIdx) value
-                    else f.asInstanceOf[Boolean => Boolean](value)
-                  }
-                )
-                currIdx += 1
+          val size    = indexed.size(x)
+          val builder = constructor.newBuilder[A](size)
+          var currIdx = 0
+          while (currIdx < size) {
+            constructor.add(
+              builder, {
+                val value = indexed.objectAt(x, currIdx)
+                if (currIdx != colIdx) value
+                else f(value)
               }
-              constructor.resultBoolean(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Byte.type =>
-              val builder = constructor.newByteBuilder(size)
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addByte(
-                  builder, {
-                    val value = indexed.byteAt(x.asInstanceOf[Col[Byte]], currIdx)
-                    if (currIdx != colIdx) value
-                    else f.asInstanceOf[Byte => Byte](value)
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultByte(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Short.type =>
-              val builder = constructor.newShortBuilder(size)
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addShort(
-                  builder, {
-                    val value = indexed.shortAt(x.asInstanceOf[Col[Short]], currIdx)
-                    if (currIdx != colIdx) value
-                    else f.asInstanceOf[Short => Short](value)
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultShort(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Int.type =>
-              val builder = constructor.newIntBuilder(size)
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addInt(
-                  builder, {
-                    val value = indexed.intAt(x.asInstanceOf[Col[Int]], currIdx)
-                    if (currIdx != colIdx) value
-                    else f.asInstanceOf[Int => Int](value)
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultInt(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Long.type =>
-              val builder = constructor.newLongBuilder(size)
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addLong(
-                  builder, {
-                    val value = indexed.longAt(x.asInstanceOf[Col[Long]], currIdx)
-                    if (currIdx != colIdx) value
-                    else f.asInstanceOf[Long => Long](value)
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultLong(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Float.type =>
-              val builder = constructor.newFloatBuilder(size)
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addFloat(
-                  builder, {
-                    val value = indexed.floatAt(x.asInstanceOf[Col[Float]], currIdx)
-                    if (currIdx != colIdx) value
-                    else f.asInstanceOf[Float => Float](value)
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultFloat(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Double.type =>
-              val builder = constructor.newDoubleBuilder(size)
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addDouble(
-                  builder, {
-                    val value = indexed.doubleAt(x.asInstanceOf[Col[Double]], currIdx)
-                    if (currIdx != colIdx) value
-                    else f.asInstanceOf[Double => Double](value)
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultDouble(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Char.type =>
-              val builder = constructor.newCharBuilder(size)
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addChar(
-                  builder, {
-                    val value = indexed.charAt(x.asInstanceOf[Col[Char]], currIdx)
-                    if (currIdx != colIdx) value
-                    else f.asInstanceOf[Char => Char](value)
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultChar(builder).asInstanceOf[Col[A]]
-            case _ =>
-              val builder = constructor.newObjectBuilder[A](size)(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addObject(
-                  builder, {
-                    val value = indexed.objectAt(x, currIdx)
-                    if (currIdx != colIdx) value
-                    else f(value)
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultObject(builder)
+            )
+            currIdx += 1
           }
+          constructor.result(builder)
         case _ =>
-          val builder = constructor.newObjectBuilder[A]()(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
+          val builder = constructor.newBuilder[A]()
           val it      = deconstructor.deconstruct(x)
           var currIdx = -1
           while (it.hasNext)
-            constructor.addObject(
+            constructor.add(
               builder, {
                 currIdx += 1
                 val value = it.next()
@@ -2523,8 +2297,9 @@ object Traversal {
                 else f(value)
               }
             )
-          constructor.resultObject(builder)
+          constructor.result(builder)
       }
+    }
 
     private[this] def modifySeqAtIndices(
       indices: Array[Int],
@@ -2532,190 +2307,36 @@ object Traversal {
       constructor: SeqConstructor[Col],
       x: Col[A],
       f: A => A
-    ): Col[A] =
+    ): Col[A] = {
+      implicit val classTag: ClassTag[A] = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
           val size                = indexed.size(x)
           var colIdx              = indices(0)
           var currIdx, indicesIdx = 0
-          indexed.elementType(x) match {
-            case _: RegisterType.Boolean.type =>
-              val builder = constructor.newBooleanBuilder(size)
-              val col     = x.asInstanceOf[Col[Boolean]]
-              val sf      = f.asInstanceOf[Boolean => Boolean]
-              while (currIdx < size) {
-                constructor.addBoolean(
-                  builder, {
-                    val value = indexed.booleanAt(col, currIdx)
-                    if (currIdx != colIdx) value
-                    else {
-                      indicesIdx += 1
-                      if (indicesIdx < indices.length) colIdx = indices(indicesIdx)
-                      sf(value)
-                    }
-                  }
-                )
-                currIdx += 1
+          val builder             = constructor.newBuilder[A](size)
+          while (currIdx < size) {
+            constructor.add(
+              builder, {
+                val value = indexed.objectAt(x, currIdx)
+                if (currIdx != colIdx) value
+                else {
+                  indicesIdx += 1
+                  if (indicesIdx < indices.length) colIdx = indices(indicesIdx)
+                  f(value)
+                }
               }
-              constructor.resultBoolean(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Byte.type =>
-              val builder = constructor.newByteBuilder(size)
-              val col     = x.asInstanceOf[Col[Byte]]
-              val sf      = f.asInstanceOf[Byte => Byte]
-              while (currIdx < size) {
-                constructor.addByte(
-                  builder, {
-                    val value = indexed.byteAt(col, currIdx)
-                    if (currIdx != colIdx) value
-                    else {
-                      indicesIdx += 1
-                      if (indicesIdx < indices.length) colIdx = indices(indicesIdx)
-                      sf(value)
-                    }
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultByte(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Short.type =>
-              val builder = constructor.newShortBuilder(size)
-              val col     = x.asInstanceOf[Col[Short]]
-              val sf      = f.asInstanceOf[Short => Short]
-              while (currIdx < size) {
-                constructor.addShort(
-                  builder, {
-                    val value = indexed.shortAt(col, currIdx)
-                    if (currIdx != colIdx) value
-                    else {
-                      indicesIdx += 1
-                      if (indicesIdx < indices.length) colIdx = indices(indicesIdx)
-                      sf(value)
-                    }
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultShort(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Int.type =>
-              val builder = constructor.newIntBuilder(size)
-              val col     = x.asInstanceOf[Col[Int]]
-              val sf      = f.asInstanceOf[Int => Int]
-              while (currIdx < size) {
-                constructor.addInt(
-                  builder, {
-                    val value = indexed.intAt(col, currIdx)
-                    if (currIdx != colIdx) value
-                    else {
-                      indicesIdx += 1
-                      if (indicesIdx < indices.length) colIdx = indices(indicesIdx)
-                      sf(value)
-                    }
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultInt(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Long.type =>
-              val builder = constructor.newLongBuilder(size)
-              val col     = x.asInstanceOf[Col[Long]]
-              val sf      = f.asInstanceOf[Long => Long]
-              while (currIdx < size) {
-                constructor.addLong(
-                  builder, {
-                    val value = indexed.longAt(col, currIdx)
-                    if (currIdx != colIdx) value
-                    else {
-                      indicesIdx += 1
-                      if (indicesIdx < indices.length) colIdx = indices(indicesIdx)
-                      sf(value)
-                    }
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultLong(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Float.type =>
-              val builder = constructor.newFloatBuilder(size)
-              val col     = x.asInstanceOf[Col[Float]]
-              val sf      = f.asInstanceOf[Float => Float]
-              while (currIdx < size) {
-                constructor.addFloat(
-                  builder, {
-                    val value = indexed.floatAt(col, currIdx)
-                    if (currIdx != colIdx) value
-                    else {
-                      indicesIdx += 1
-                      if (indicesIdx < indices.length) colIdx = indices(indicesIdx)
-                      sf(value)
-                    }
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultFloat(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Double.type =>
-              val builder = constructor.newDoubleBuilder(size)
-              val col     = x.asInstanceOf[Col[Double]]
-              val sf      = f.asInstanceOf[Double => Double]
-              while (currIdx < size) {
-                constructor.addDouble(
-                  builder, {
-                    val value = indexed.doubleAt(col, currIdx)
-                    if (currIdx != colIdx) value
-                    else {
-                      indicesIdx += 1
-                      if (indicesIdx < indices.length) colIdx = indices(indicesIdx)
-                      sf(value)
-                    }
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultDouble(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Char.type =>
-              val builder = constructor.newCharBuilder(size)
-              val col     = x.asInstanceOf[Col[Char]]
-              val sf      = f.asInstanceOf[Char => Char]
-              while (currIdx < size) {
-                constructor.addChar(
-                  builder, {
-                    val value = indexed.charAt(col, currIdx)
-                    if (currIdx != colIdx) value
-                    else {
-                      indicesIdx += 1
-                      if (indicesIdx < indices.length) colIdx = indices(indicesIdx)
-                      sf(value)
-                    }
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultChar(builder).asInstanceOf[Col[A]]
-            case _ =>
-              val builder = constructor.newObjectBuilder[A](size)(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
-              while (currIdx < size) {
-                constructor.addObject(
-                  builder, {
-                    val value = indexed.objectAt(x, currIdx)
-                    if (currIdx != colIdx) value
-                    else {
-                      indicesIdx += 1
-                      if (indicesIdx < indices.length) colIdx = indices(indicesIdx)
-                      f(value)
-                    }
-                  }
-                )
-                currIdx += 1
-              }
-              constructor.resultObject(builder)
+            )
+            currIdx += 1
           }
+          constructor.result(builder)
         case _ =>
-          val builder             = constructor.newObjectBuilder[A]()(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
+          val builder             = constructor.newBuilder[A]()
           val it                  = deconstructor.deconstruct(x)
           var colIdx              = indices(0)
           var currIdx, indicesIdx = 0
           while (it.hasNext) {
-            constructor.addObject(
+            constructor.add(
               builder, {
                 val value = it.next()
                 if (currIdx != colIdx) value
@@ -2728,114 +2349,34 @@ object Traversal {
             )
             currIdx += 1
           }
-          constructor.resultObject(builder)
+          constructor.result(builder)
       }
+    }
 
     private[this] def modifySeq(
       deconstructor: SeqDeconstructor[Col],
       constructor: SeqConstructor[Col],
       x: Col[A],
       f: A => A
-    ): Col[A] =
+    ): Col[A] = {
+      implicit val classTag: ClassTag[A] = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-          val size = indexed.size(x)
-          indexed.elementType(x) match {
-            case _: RegisterType.Boolean.type =>
-              val builder = constructor.newBooleanBuilder(size)
-              val col     = x.asInstanceOf[Col[Boolean]]
-              val sf      = f.asInstanceOf[Boolean => Boolean]
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addBoolean(builder, sf(indexed.booleanAt(col, currIdx)))
-                currIdx += 1
-              }
-              constructor.resultBoolean(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Byte.type =>
-              val builder = constructor.newByteBuilder(size)
-              val col     = x.asInstanceOf[Col[Byte]]
-              val sf      = f.asInstanceOf[Byte => Byte]
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addByte(builder, sf(indexed.byteAt(col, currIdx)))
-                currIdx += 1
-              }
-              constructor.resultByte(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Short.type =>
-              val builder = constructor.newShortBuilder(size)
-              val col     = x.asInstanceOf[Col[Short]]
-              val sf      = f.asInstanceOf[Short => Short]
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addShort(builder, sf(indexed.shortAt(col, currIdx)))
-                currIdx += 1
-              }
-              constructor.resultShort(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Int.type =>
-              val builder = constructor.newIntBuilder(size)
-              val col     = x.asInstanceOf[Col[Int]]
-              val sf      = f.asInstanceOf[Int => Int]
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addInt(builder, sf(indexed.intAt(col, currIdx)))
-                currIdx += 1
-              }
-              constructor.resultInt(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Long.type =>
-              val builder = constructor.newLongBuilder(size)
-              val col     = x.asInstanceOf[Col[Long]]
-              val sf      = f.asInstanceOf[Long => Long]
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addLong(builder, sf(indexed.longAt(col, currIdx)))
-                currIdx += 1
-              }
-              constructor.resultLong(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Float.type =>
-              val builder = constructor.newFloatBuilder(size)
-              val col     = x.asInstanceOf[Col[Float]]
-              val sf      = f.asInstanceOf[Float => Float]
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addFloat(builder, sf(indexed.floatAt(col, currIdx)))
-                currIdx += 1
-              }
-              constructor.resultFloat(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Double.type =>
-              val builder = constructor.newDoubleBuilder(size)
-              val col     = x.asInstanceOf[Col[Double]]
-              val sf      = f.asInstanceOf[Double => Double]
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addDouble(builder, sf(indexed.doubleAt(col, currIdx)))
-                currIdx += 1
-              }
-              constructor.resultDouble(builder).asInstanceOf[Col[A]]
-            case _: RegisterType.Char.type =>
-              val builder = constructor.newCharBuilder(size)
-              val col     = x.asInstanceOf[Col[Char]]
-              val sf      = f.asInstanceOf[Char => Char]
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addChar(builder, sf(indexed.charAt(col, currIdx)))
-                currIdx += 1
-              }
-              constructor.resultChar(builder).asInstanceOf[Col[A]]
-            case _ =>
-              val builder = constructor.newObjectBuilder[A](size)(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
-              var currIdx = 0
-              while (currIdx < size) {
-                constructor.addObject(builder, f(indexed.objectAt(x, currIdx)))
-                currIdx += 1
-              }
-              constructor.resultObject(builder)
+          val size    = indexed.size(x)
+          val builder = constructor.newBuilder[A](size)
+          var currIdx = 0
+          while (currIdx < size) {
+            constructor.add(builder, f(indexed.objectAt(x, currIdx)))
+            currIdx += 1
           }
+          constructor.result(builder)
         case _ =>
-          val builder = constructor.newObjectBuilder[A]()(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
+          val builder = constructor.newBuilder[A]()
           val it      = deconstructor.deconstruct(x)
-          while (it.hasNext) constructor.addObject(builder, f(it.next()))
-          constructor.resultObject(builder)
+          while (it.hasNext) constructor.add(builder, f(it.next()))
+          constructor.result(builder)
       }
+    }
 
     def modifyOption(s: S, f: A => A): Option[S] = {
       if (bindings eq null) init()

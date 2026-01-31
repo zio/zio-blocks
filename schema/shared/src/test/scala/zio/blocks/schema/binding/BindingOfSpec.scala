@@ -613,18 +613,18 @@ object BindingOfSpec extends SchemaBaseSpec {
         val binding       = Binding.of[Array]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val result        = constructor.emptyObject[AnyRef]
+        val result        = constructor.empty[AnyRef]
         assertTrue(deconstructor.deconstruct(result).isEmpty)
       },
       test("Array construct from builder") {
         val binding       = Binding.of[Array]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](3)
-        constructor.addObject(builder, "a")
-        constructor.addObject(builder, "b")
-        constructor.addObject(builder, "c")
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](3)
+        constructor.add(builder, "a")
+        constructor.add(builder, "b")
+        constructor.add(builder, "c")
+        val result = constructor.result(builder)
         assertTrue(deconstructor.deconstruct(result).toList == List("a", "b", "c"))
       },
       test("Array deconstruct works") {
@@ -638,19 +638,19 @@ object BindingOfSpec extends SchemaBaseSpec {
         val binding       = Binding.of[Array]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](2)
-        constructor.addObject(builder, Person("Alice", 30))
-        constructor.addObject(builder, Person("Bob", 25))
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](2)
+        constructor.add(builder, Person("Alice", 30))
+        constructor.add(builder, Person("Bob", 25))
+        val result = constructor.result(builder)
         assertTrue(deconstructor.deconstruct(result).toList == List(Person("Alice", 30), Person("Bob", 25)))
       },
       test("Array builder grows correctly") {
         val binding       = Binding.of[Array]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](1)
-        (1 to 100).foreach(i => constructor.addObject(builder, i.toString))
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](1)
+        (1 to 100).foreach(i => constructor.add(builder, i.toString))
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list.length == 100 && list.head == "1" && list.last == "100")
       }
@@ -660,18 +660,18 @@ object BindingOfSpec extends SchemaBaseSpec {
         val binding       = Binding.of[ArraySeq]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val result        = constructor.emptyObject[String]
+        val result        = constructor.empty[String]
         assertTrue(deconstructor.deconstruct(result).isEmpty)
       },
       test("ArraySeq construct from builder") {
         val binding       = Binding.of[ArraySeq]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[String](3)
-        constructor.addObject(builder, "a")
-        constructor.addObject(builder, "b")
-        constructor.addObject(builder, "c")
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[String](3)
+        constructor.add(builder, "a")
+        constructor.add(builder, "b")
+        constructor.add(builder, "c")
+        val result = constructor.result(builder)
         assertTrue(deconstructor.deconstruct(result).toList == List("a", "b", "c"))
       },
       test("ArraySeq deconstruct works") {
@@ -685,9 +685,9 @@ object BindingOfSpec extends SchemaBaseSpec {
         val binding       = Binding.of[ArraySeq]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[String](1)
-        (1 to 100).foreach(i => constructor.addObject(builder, i.toString))
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[String](1)
+        (1 to 100).foreach(i => constructor.add(builder, i.toString))
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list.length == 100 && list.head == "1" && list.last == "100")
       }
@@ -802,11 +802,11 @@ object BindingOfSpec extends SchemaBaseSpec {
         val binding       = Binding.of[Array]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](3)
-        constructor.addObject(builder, Red)
-        constructor.addObject(builder, Green)
-        constructor.addObject(builder, Blue)
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](3)
+        constructor.add(builder, Red)
+        constructor.add(builder, Green)
+        constructor.add(builder, Blue)
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list == List(Red, Green, Blue))
       },
@@ -815,10 +815,10 @@ object BindingOfSpec extends SchemaBaseSpec {
         val binding       = Binding.of[Array]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](2)
-        constructor.addObject(builder, Container(Red, 1))
-        constructor.addObject(builder, Container(Blue, 2))
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](2)
+        constructor.add(builder, Container(Red, 1))
+        constructor.add(builder, Container(Blue, 2))
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list == List(Container(Red, 1), Container(Blue, 2)))
       },
@@ -826,11 +826,11 @@ object BindingOfSpec extends SchemaBaseSpec {
         val binding       = Binding.of[ArraySeq]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](3)
-        constructor.addObject(builder, Some(1))
-        constructor.addObject(builder, None)
-        constructor.addObject(builder, Some(3))
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](3)
+        constructor.add(builder, Some(1))
+        constructor.add(builder, None)
+        constructor.add(builder, Some(3))
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list == List(Some(1), None, Some(3)))
       }
@@ -840,9 +840,9 @@ object BindingOfSpec extends SchemaBaseSpec {
         val binding       = Binding.of[Array]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toString))
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](1)
+        (1 to 10).foreach(i => constructor.add(builder, i.toString))
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list.length == 10 && list.head == "1" && list.last == "10")
       },
@@ -850,10 +850,10 @@ object BindingOfSpec extends SchemaBaseSpec {
         val binding       = Binding.of[Array]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](16)
-        constructor.addObject(builder, "a")
-        constructor.addObject(builder, "b")
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](16)
+        constructor.add(builder, "a")
+        constructor.add(builder, "b")
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list == List("a", "b"))
       }
@@ -862,17 +862,17 @@ object BindingOfSpec extends SchemaBaseSpec {
       test("ArraySeq resize works when growing") {
         val binding     = Binding.of[ArraySeq]
         val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[String](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toString))
-        val result = constructor.resultObject(builder)
+        val builder     = constructor.newBuilder[String](1)
+        (1 to 10).foreach(i => constructor.add(builder, i.toString))
+        val result = constructor.result(builder)
         assertTrue(result.length == 10 && result(0) == "1" && result(9) == "10")
       },
       test("ArraySeq result trim works when oversized") {
         val binding     = Binding.of[ArraySeq]
         val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[String](16)
-        constructor.addObject(builder, "42")
-        val result = constructor.resultObject(builder)
+        val builder     = constructor.newBuilder[String](16)
+        constructor.add(builder, "42")
+        val result = constructor.result(builder)
         assertTrue(result.length == 1 && result(0) == "42")
       }
     )

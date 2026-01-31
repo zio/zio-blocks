@@ -103,18 +103,18 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val binding       = Binding.of[IArray]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val result        = constructor.emptyObject[AnyRef]
+        val result        = constructor.empty[AnyRef]
         assertTrue(deconstructor.deconstruct(result).isEmpty)
       },
       test("IArray construct from builder") {
         val binding       = Binding.of[IArray]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](3)
-        constructor.addObject(builder, "a")
-        constructor.addObject(builder, "b")
-        constructor.addObject(builder, "c")
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](3)
+        constructor.add(builder, "a")
+        constructor.add(builder, "b")
+        constructor.add(builder, "c")
+        val result = constructor.result(builder)
         assertTrue(deconstructor.deconstruct(result).toList == List("a", "b", "c"))
       },
       test("IArray deconstruct works") {
@@ -128,9 +128,9 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val binding       = Binding.of[IArray]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](1)
-        (1 to 100).foreach(i => constructor.addObject(builder, i.toString))
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](1)
+        (1 to 100).foreach(i => constructor.add(builder, i.toString))
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list.length == 100 && list.head == "1" && list.last == "100")
       },
@@ -138,9 +138,9 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val binding       = Binding.of[IArray]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](16)
-        constructor.addObject(builder, "42")
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](16)
+        constructor.add(builder, "42")
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list == List("42"))
       },
@@ -148,11 +148,11 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val binding       = Binding.of[IArray]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](3)
-        constructor.addObject(builder, Color.Red)
-        constructor.addObject(builder, Color.Green)
-        constructor.addObject(builder, Color.Blue)
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](3)
+        constructor.add(builder, Color.Red)
+        constructor.add(builder, Color.Green)
+        constructor.add(builder, Color.Blue)
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list == List(Color.Red, Color.Green, Color.Blue))
       },
@@ -160,11 +160,11 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val binding       = Binding.of[IArray]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](3)
-        constructor.addObject(builder, Some(1))
-        constructor.addObject(builder, None)
-        constructor.addObject(builder, Some(3))
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](3)
+        constructor.add(builder, Some(1))
+        constructor.add(builder, None)
+        constructor.add(builder, Some(3))
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list == List(Some(1), None, Some(3)))
       },
@@ -173,10 +173,10 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         val binding       = Binding.of[IArray]
         val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val builder       = constructor.newObjectBuilder[AnyRef](2)
-        constructor.addObject(builder, Person("Alice", 30))
-        constructor.addObject(builder, Person("Bob", 25))
-        val result = constructor.resultObject(builder)
+        val builder       = constructor.newBuilder[AnyRef](2)
+        constructor.add(builder, Person("Alice", 30))
+        constructor.add(builder, Person("Bob", 25))
+        val result = constructor.result(builder)
         val list   = deconstructor.deconstruct(result).toList
         assertTrue(list == List(Person("Alice", 30), Person("Bob", 25)))
       }

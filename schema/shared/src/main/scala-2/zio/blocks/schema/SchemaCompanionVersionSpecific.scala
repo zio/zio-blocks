@@ -438,39 +438,43 @@ private object SchemaCompanionVersionSpecific {
                 zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
               )
               new Schema(
-                reflect = new Reflect.Sequence(
-                  element = elementReflect,
-                  typeId = seqTypeId,
-                  seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.ArrayConstructor {
-                      def newObjectBuilder[B](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[B]): Builder[B] =
-                        new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+                 reflect = new Reflect.Sequence(
+                   element = elementReflect,
+                   typeId = seqTypeId,
+                   seqBinding = new Binding.Seq(
+                     constructor = new SeqConstructor[Array] {
+                       case class ArrayBuilder[A](var buffer: Array[A], var size: Int)
 
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
-                        var buf = builder.buffer
-                        val idx = builder.size
-                        if (buf.length == idx) {
-                          buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
-                          builder.buffer = buf
-                        }
-                        buf(idx) = a
-                        builder.size = idx + 1
-                      }
+                       type Builder[A] = ArrayBuilder[A]
 
-                      def resultObject[B](builder: ObjectBuilder[B]): Array[B] = {
-                        val buf  = builder.buffer
-                        val size = builder.size
-                        if (buf.length == size) buf
-                        else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
-                      }
+                       def newBuilder[B](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[B]): Builder[B] =
+                         new ArrayBuilder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
-                      def emptyObject[B](implicit ct: scala.reflect.ClassTag[B]): Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
-                    },
-                    deconstructor = SeqDeconstructor.arrayDeconstructor
-                  )
-                )
-              )
-            }"""
+                       def add[B](builder: Builder[B], a: B): Unit = {
+                         var buf = builder.buffer
+                         val idx = builder.size
+                         if (buf.length == idx) {
+                           buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                           builder.buffer = buf
+                         }
+                         buf(idx) = a
+                         builder.size = idx + 1
+                       }
+
+                       def result[B](builder: Builder[B]): Array[B] = {
+                         val buf  = builder.buffer
+                         val size = builder.size
+                         if (buf.length == size) buf
+                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
+                       }
+
+                       def empty[B](implicit ct: scala.reflect.ClassTag[B]): Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
+                     },
+                     deconstructor = SeqDeconstructor.arrayDeconstructor
+                   )
+                 )
+               )
+              }"""
         } else if (tpe <:< typeOf[ArraySeq[?]]) {
           val elementTpe = typeArgs(tpe).head
           val copyOfTpe  =
@@ -484,39 +488,43 @@ private object SchemaCompanionVersionSpecific {
                 zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
               )
               new Schema(
-                reflect = new Reflect.Sequence(
-                  element = elementReflect,
-                  typeId = seqTypeId,
-                  seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.ArraySeqConstructor {
-                      def newObjectBuilder[B](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[B]): Builder[B] =
-                        new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+                 reflect = new Reflect.Sequence(
+                   element = elementReflect,
+                   typeId = seqTypeId,
+                   seqBinding = new Binding.Seq(
+                     constructor = new SeqConstructor[ArraySeq] {
+                       case class ArrayBuilder[A](var buffer: Array[A], var size: Int)
 
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
-                        var buf = builder.buffer
-                        val idx = builder.size
-                        if (buf.length == idx) {
-                          buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
-                          builder.buffer = buf
-                        }
-                        buf(idx) = a
-                        builder.size = idx + 1
-                      }
+                       type Builder[A] = ArrayBuilder[A]
 
-                      def resultObject[B](builder: ObjectBuilder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
-                        val buf  = builder.buffer
-                        val size = builder.size
-                        if (buf.length == size) buf
-                        else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
-                      }
+                       def newBuilder[B](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[B]): Builder[B] =
+                         new ArrayBuilder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
-                      def emptyObject[B](implicit ct: scala.reflect.ClassTag[B]): ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
-                    },
-                    deconstructor = SeqDeconstructor.arraySeqDeconstructor
-                  )
-                )
-              )
-            }"""
+                       def add[B](builder: Builder[B], a: B): Unit = {
+                         var buf = builder.buffer
+                         val idx = builder.size
+                         if (buf.length == idx) {
+                           buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                           builder.buffer = buf
+                         }
+                         buf(idx) = a
+                         builder.size = idx + 1
+                       }
+
+                       def result[B](builder: Builder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
+                         val buf  = builder.buffer
+                         val size = builder.size
+                         if (buf.length == size) buf
+                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
+                       }
+
+                       def empty[B](implicit ct: scala.reflect.ClassTag[B]): ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
+                     },
+                     deconstructor = SeqDeconstructor.arraySeqDeconstructor
+                   )
+                 )
+               )
+              }"""
         } else if (tpe <:< typeOf[List[?]]) {
           val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
           q"Schema.list($schema)"

@@ -661,11 +661,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   element = elementReflect,
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.ArrayConstructor {
-                      def newObjectBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+                    constructor = new SeqConstructor[Array] {
+                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
 
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
+                      type Builder[A] = ArrayBuilder[A]
+
+                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
+                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+
+                      def add[B](builder: Builder[B], a: B): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
@@ -678,7 +682,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         builder.size = idx + 1
                       }
 
-                      def resultObject[B](builder: ObjectBuilder[B]): Array[B] = {
+                      def result[B](builder: Builder[B]): Array[B] = {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
@@ -688,7 +692,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def emptyObject[B](implicit ct: ClassTag[B]): Array[B] =
+                      def empty[B](implicit ct: ClassTag[B]): Array[B] =
                         Array.empty[et](elemClassTag).asInstanceOf[Array[B]]
                     },
                     deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -717,11 +721,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   element = elementReflect,
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.IArrayConstructor {
-                      def newObjectBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+                    constructor = new SeqConstructor[IArray] {
+                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
 
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
+                      type Builder[A] = ArrayBuilder[A]
+
+                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
+                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+
+                      def add[B](builder: Builder[B], a: B): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
@@ -734,7 +742,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         builder.size = idx + 1
                       }
 
-                      def resultObject[B](builder: ObjectBuilder[B]): IArray[B] = IArray.unsafeFromArray {
+                      def result[B](builder: Builder[B]): IArray[B] = IArray.unsafeFromArray {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
@@ -744,7 +752,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def emptyObject[B](implicit ct: ClassTag[B]): IArray[B] =
+                      def empty[B](implicit ct: ClassTag[B]): IArray[B] =
                         IArray.unsafeFromArray(Array.empty[et](elemClassTag)).asInstanceOf[IArray[B]]
                     },
                     deconstructor = SeqDeconstructor.iArrayDeconstructor
@@ -773,11 +781,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   element = elementReflect,
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.ArraySeqConstructor {
-                      def newObjectBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+                    constructor = new SeqConstructor[ArraySeq] {
+                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
 
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
+                      type Builder[A] = ArrayBuilder[A]
+
+                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
+                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+
+                      def add[B](builder: Builder[B], a: B): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
@@ -790,7 +802,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         builder.size = idx + 1
                       }
 
-                      def resultObject[B](builder: ObjectBuilder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
+                      def result[B](builder: Builder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
@@ -800,7 +812,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def emptyObject[B](implicit ct: ClassTag[B]): ArraySeq[B] =
+                      def empty[B](implicit ct: ClassTag[B]): ArraySeq[B] =
                         ArraySeq.empty[et](elemClassTag).asInstanceOf[ArraySeq[B]]
                     },
                     deconstructor = SeqDeconstructor.arraySeqDeconstructor
