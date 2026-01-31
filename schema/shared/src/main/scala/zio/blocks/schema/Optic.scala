@@ -323,6 +323,11 @@ object Lens {
     lazy val toDynamic: DynamicOptic =
       new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Field(term.name))))
 
+    override def toString: String = {
+      val path = focusTerms.map(term => s".${term.name}").mkString
+      s"Lens(_$path)"
+    }
+
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
 
@@ -503,6 +508,11 @@ object Prism {
 
     lazy val toDynamic: DynamicOptic =
       new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Case(term.name))))
+
+    override def toString: String = {
+      val path = focusTerms.map(term => s".when[${term.name}]").mkString
+      s"Prism(_$path)"
+    }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
@@ -723,7 +733,12 @@ object Optional {
               return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
             }
           case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-            x = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+            wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
+              case Right(unwrapped) => x = unwrapped
+              case Left(error)      =>
+                val wrappingError = new OpticCheck.WrappingError(toDynamic, toDynamic(idx), error)
+                return new Some(new OpticCheck(new ::(wrappingError, Nil)))
+            }
           case atBinding: AtBinding[Col] @scala.unchecked =>
             val deconstructor = atBinding.seqDeconstructor
             val col           = x.asInstanceOf[Col[A]]
@@ -794,7 +809,10 @@ object Optional {
             x = prismBinding.matcher.downcastOrNull(x)
             if (x == null) return None
           case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-            x = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+            wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
+              case Right(unwrapped) => x = unwrapped
+              case Left(_)          => return None
+            }
           case atBinding: AtBinding[Col] @scala.unchecked =>
             val deconstructor = atBinding.seqDeconstructor
             val col           = x.asInstanceOf[Col[A]]
@@ -910,7 +928,10 @@ object Optional {
           else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
           else modifyRecursive(registers, idx + 1, x1, f)
         case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
+            case Right(unwrapped) => unwrapped
+            case Left(error)      => throw toOpticCheckBuilder(idx, error)
+          }
           wrapperBinding.wrap({
             if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
             else modifyRecursive(registers, idx + 1, x1, f)
@@ -1187,6 +1208,29 @@ object Optional {
       }
       nodes.result()
     })
+
+    override def toString: String = {
+      if (bindings eq null) init()
+      val sb  = new StringBuilder
+      val len = bindings.length
+      var idx = 0
+      while (idx < len) {
+        bindings(idx) match {
+          case _: LensBinding =>
+            sb.append('.').append(focusTerms(idx).name)
+          case _: PrismBinding =>
+            sb.append(".when[").append(focusTerms(idx).name).append(']')
+          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            sb.append(".wrapped[").append(focus.typeId.name).append(']')
+          case at: AtBinding[Col] @scala.unchecked =>
+            sb.append(".at(").append(at.index).append(')')
+          case _ =>
+            sb.append(".atKey(<key>)")
+        }
+        idx += 1
+      }
+      s"Optional(_${sb.toString})"
+    }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]]) ^
@@ -1482,8 +1526,12 @@ object Traversal {
             errors.addOne(new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), x))
           } else if (idx + 1 != bindings.length) checkRecursive(registers, idx + 1, x1, errors)
         case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
-          if (idx + 1 != bindings.length) checkRecursive(registers, idx + 1, x1, errors)
+          wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
+            case Right(x1) =>
+              if (idx + 1 != bindings.length) checkRecursive(registers, idx + 1, x1, errors)
+            case Left(error) =>
+              errors.addOne(new OpticCheck.WrappingError(toDynamic, toDynamic(idx), error))
+          }
         case atBinding: AtBinding[Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
           val col           = x.asInstanceOf[Col[A]]
@@ -1600,9 +1648,12 @@ object Traversal {
           else if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
           else foldRecursive(registers, idx + 1, x1, zero, f)
         case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
-          if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
-          else foldRecursive(registers, idx + 1, x1, zero, f)
+          wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
+            case Right(x1) =>
+              if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
+              else foldRecursive(registers, idx + 1, x1, zero, f)
+            case Left(_) => zero
+          }
         case atBinding: AtBinding[Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
           val col           = x.asInstanceOf[Col[A]]
@@ -2149,7 +2200,10 @@ object Traversal {
           else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
           else modifyRecursive(registers, idx + 1, x1, f)
         case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
+            case Right(unwrapped) => unwrapped
+            case Left(error)      => throw toOpticCheckBuilder(idx, error)
+          }
           wrapperBinding.wrap({
             if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
             else modifyRecursive(registers, idx + 1, x1, f)
@@ -2862,6 +2916,39 @@ object Traversal {
       nodes.result()
     })
 
+    override def toString: String = {
+      if (bindings eq null) init()
+      val sb  = new StringBuilder
+      val len = bindings.length
+      var idx = 0
+      while (idx < len) {
+        bindings(idx) match {
+          case _: LensBinding =>
+            sb.append('.').append(focusTerms(idx).name)
+          case _: PrismBinding =>
+            sb.append(".when[").append(focusTerms(idx).name).append(']')
+          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            sb.append(".wrapped[").append(focus.typeId.name).append(']')
+          case at: AtBinding[Col] @scala.unchecked =>
+            sb.append(".at(").append(at.index).append(')')
+          case _: AtKeyBinding[Key, Map] @scala.unchecked =>
+            sb.append(".atKey(<key>)")
+          case _: AtIndicesBinding[Col] @scala.unchecked =>
+            sb.append(".atIndices(<indices>)")
+          case _: AtKeysBinding[Key, Map] @scala.unchecked =>
+            sb.append(".atKeys(<keys>)")
+          case _: SeqBinding[Col] @scala.unchecked =>
+            sb.append(".each")
+          case _: MapKeyBinding[Map] @scala.unchecked =>
+            sb.append(".eachKey")
+          case _ =>
+            sb.append(".eachValue")
+        }
+        idx += 1
+      }
+      s"Traversal(_${sb.toString})"
+    }
+
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(params.asInstanceOf[Array[AnyRef]])
@@ -2933,7 +3020,7 @@ private[schema] case class AtKeysBinding[K, M[_, _]](
 
 private[schema] case class WrappedBinding[A, B](
   wrap: B => Either[SchemaError, A],
-  unwrap: A => B
+  unwrap: A => Either[SchemaError, B]
 ) extends OpticBinding
 
 private[schema] case class OpticCheckBuilder(toOpticCheck: () => OpticCheck) extends Exception with NoStackTrace

@@ -1,7 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.SchemaError
-
 import scala.collection.Factory
 
 trait Into[-A, +B] {
@@ -168,12 +166,12 @@ trait IntoContainerInstances {
     val iter           = list.iterator
     while (iter.hasNext) {
       iter.next() match {
-        case Right(a) => successBuilder += a
-        case Left(e)  => errorBuilder += e
+        case Right(a) => successBuilder.addOne(a)
+        case Left(e)  => errorBuilder.addOne(e)
       }
     }
     val errors = errorBuilder.result()
-    if (errors.isEmpty) Right(successBuilder.result())
-    else Left(errors.reduceLeft(_ ++ _))
+    if (errors.isEmpty) new Right(successBuilder.result())
+    else new Left(errors.reduceLeft(_ ++ _))
   }
 }

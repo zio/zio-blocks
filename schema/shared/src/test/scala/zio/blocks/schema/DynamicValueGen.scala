@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.DynamicValue._
 import zio.blocks.schema.JavaTimeGen._
 import zio.test.Gen
@@ -40,18 +41,22 @@ object DynamicValueGen {
       Gen.currency.map(PrimitiveValue.Currency.apply)
     )
 
+  // Null generator
+  val genNull: Gen[Any, DynamicValue.Null.type] = Gen.const(DynamicValue.Null)
+
   // Depth-limited generators for Scala Native compatibility
   val genDynamicValue: Gen[Any, DynamicValue] = genDynamicValueWithDepth(2)
 
   private[this] def genDynamicValueWithDepth(maxDepth: Int): Gen[Any, DynamicValue] =
-    if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_))
+    if (maxDepth <= 0) Gen.oneOf(genPrimitiveValue.map(Primitive(_)), genNull)
     else {
       Gen.oneOf(
         genPrimitiveValue.map(Primitive(_)),
         genRecordWithDepth(maxDepth - 1),
         genVariantWithDepth(maxDepth - 1),
         genSequenceWithDepth(maxDepth - 1),
-        genMapWithDepth(maxDepth - 1)
+        genMapWithDepth(maxDepth - 1),
+        genNull
       )
     }
 
@@ -65,7 +70,7 @@ object DynamicValueGen {
       } yield key -> value
     }
     .map(_.distinctBy(_._1)) // Now safe since all keys are non-empty strings
-    .map(f => Record(f.toVector))
+    .map(f => Record(Chunk.from(f)))
 
   val genVariant: Gen[Any, Variant] = genVariantWithDepth(2)
 
@@ -81,7 +86,7 @@ object DynamicValueGen {
       .listOfBounded(0, 5)(
         if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
       )
-      .map(f => Sequence(f.toVector))
+      .map(f => Sequence(Chunk.from(f)))
 
   val genAlphaNumericSequence: Gen[Any, Sequence] =
     Gen
@@ -93,7 +98,7 @@ object DynamicValueGen {
           )
           .map(Primitive(_))
       )
-      .map(f => Sequence(f.toVector))
+      .map(f => Sequence(Chunk.from(f)))
 
   val genMap: Gen[Any, DynamicValue.Map] = genMapWithDepth(2)
 
@@ -107,5 +112,5 @@ object DynamicValueGen {
         } yield key -> value
       }
       .map(_.distinctBy(_._1.value)) // Now safe since all keys are non-empty strings
-      .map(list => Map(list.toVector))
+      .map(list => Map(Chunk.from(list)))
 }

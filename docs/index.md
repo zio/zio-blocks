@@ -19,6 +19,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 |-------|-------------|--------|
 | **Schema** | Type-safe schemas with automatic codec derivation | ✅ Available |
 | **Chunk** | High-performance immutable indexed sequences | ✅ Available |
+| **Docs** | GitHub Flavored Markdown parsing and rendering | ✅ Available |
 | **Streams** | Pull-based streaming primitives | 🚧 In Development |
 | **TypeId** | Type-safe unique identifiers | 📋 Planned |
 
@@ -27,7 +28,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 - **Zero Lock-In**: No dependencies on ZIO, Cats Effect, or any effect system. Use with whatever stack you prefer.
 - **Modular**: Each block is a separate artifact. Import only what you need.
 - **Cross-Platform**: Full support for JVM, Scala.js, and Scala Native.
-- **Cross-Version**: Full support for Scala 2.13 and Scala 3.5+ with source compatibility—adopt Scala 3 on your timeline, not ours.
+- **Cross-Version**: Full support for Scala 2.13 and Scala 3.x with source compatibility—adopt Scala 3 on your timeline, not ours.
 - **High Performance**: Optimized implementations that avoid boxing, minimize allocations, and leverage platform-specific features.
 - **Type Safety**: Leverage Scala's type system for correctness without runtime overhead.
 
@@ -60,9 +61,10 @@ object Person {
 }
 
 // Derive codecs for any format:
-val jsonCodec = Schema[Person].derive(JsonFormat.deriver)      // JSON
-val avroCodec = Schema[Person].derive(AvroFormat.deriver)      // Avro
-val toonCodec = Schema[Person].derive(ToonFormat.deriver)      // TOON (LLM-optimized)
+val jsonCodec    = Schema[Person].derive(JsonFormat)        // JSON
+val avroCodec    = Schema[Person].derive(AvroFormat)        // Avro
+val toonCodec    = Schema[Person].derive(ToonFormat)        // TOON (LLM-optimized)
+val msgpackCodec = Schema[Person].derive(MessagePackFormat) // MessagePack
 ```
 
 ### Key Features
@@ -80,6 +82,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 // Optional format modules:
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
 ```
 
 ### Example: Optics
@@ -163,6 +166,100 @@ val head: Int = nonEmpty.head  // Always safe, no Option needed
 
 ---
 
+## Docs
+
+A zero-dependency GitHub Flavored Markdown library for parsing, rendering, and programmatic construction of Markdown documents.
+
+### Why Docs?
+
+Generating documentation, README files, or any Markdown content programmatically is common but error-prone with string concatenation. Docs provides:
+
+- **Type-safe AST**: Build Markdown documents with compile-time guarantees
+- **Compile-time validation**: The `md"..."` interpolator validates syntax at compile time
+- **Multiple renderers**: Output to Markdown, HTML, or ANSI terminal
+- **Round-trip parsing**: Parse Markdown to AST and render back to Markdown
+
+### Key Features
+
+- **GFM Compliant**: Tables, strikethrough, autolinks, task lists, fenced code blocks
+- **Zero Dependencies**: Only depends on zio-blocks-chunk
+- **Cross-Platform**: Full support for JVM, Scala.js, and Scala Native
+- **Type-Safe Interpolator**: `md"# Hello $name"` with compile-time validation
+- **Multiple Renderers**: Markdown, HTML (full document or fragment), ANSI terminal
+
+### Installation
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "@VERSION@"
+```
+
+### Example
+
+```scala
+import zio.blocks.docs._
+
+// Parse Markdown
+val doc = Parser.parse("# Hello\n\nThis is **bold** text.")
+// Right(Doc(Chunk(Heading(H1, "Hello"), Paragraph(...))))
+
+// Render to HTML
+val html = doc.map(_.toHtml)
+// Full HTML5 document with <html>, <head>, <body>
+
+// Render to HTML fragment (just the content)
+val fragment = doc.map(_.toHtmlFragment)
+// "<h1>Hello</h1><p>This is <strong>bold</strong> text.</p>"
+
+// Render to terminal with ANSI colors
+val terminal = doc.map(_.toTerminal)
+
+// Use the type-safe interpolator
+val name = "World"
+val greeting = md"# Hello $name"
+// Doc containing: Heading(H1, Chunk(Text("Hello World")))
+
+// Build documents programmatically
+import zio.blocks.chunk.Chunk
+
+val manual = Doc(Chunk(
+  Block.Heading(HeadingLevel.H1, Chunk(Inline.Text("API Reference"))),
+  Block.Paragraph(Chunk(
+    Inline.Text("See "),
+    Inline.Link(Chunk(Inline.Text("docs")), "/docs", None),
+    Inline.Text(" for details.")
+  ))
+))
+
+// Render back to Markdown
+val markdown = Renderer.render(manual)
+```
+
+### Supported GFM Features
+
+| Feature | Supported |
+|---------|-----------|
+| Headings (ATX) | ✅ |
+| Paragraphs | ✅ |
+| Emphasis/Strong | ✅ |
+| Code (inline & fenced) | ✅ |
+| Links & Images | ✅ |
+| Lists (bullet, ordered, task) | ✅ |
+| Blockquotes | ✅ |
+| Tables | ✅ |
+| Strikethrough | ✅ |
+| Autolinks | ✅ |
+| Hard/Soft breaks | ✅ |
+| HTML (passthrough) | ✅ |
+
+### Limitations
+
+- **No frontmatter**: YAML/TOML headers are not parsed
+- **No HTML entity decoding**: `&amp;` stays as-is
+- **No footnotes**: GFM footnote extension not supported
+- **No emoji shortcodes**: `:smile:` not converted to emoji
+
+---
+
 ## Streams (In Development)
 
 A pull-based streaming library for composable, backpressure-aware data processing.
@@ -193,10 +290,10 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ## Scala & Platform Support
 
-ZIO Blocks supports **Scala 2.13** and **Scala 3.5+** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
+ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Streams |
-|----------|--------|-------|---------|
-| JVM | ✅ | ✅ | ✅ |
-| Scala.js | ✅ | ✅ | ✅ |
-| Scala Native | ✅ | ✅ | ✅ |
+| Platform | Schema | Chunk | Docs | Streams |
+|----------|--------|-------|------|---------|
+| JVM | ✅ | ✅ | ✅ | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ |
+| Scala Native | ✅ | ✅ | ✅ | ✅ |

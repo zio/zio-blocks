@@ -311,8 +311,7 @@ Each of these patterns shares a common characteristic: they wrap an underlying t
 ```
 case class Wrapper[F[_, _], A, B](
   wrapped: Reflect[F, B],
-  typeName: TypeName[A],
-  wrapperPrimitiveType: Option[PrimitiveType[A]],
+  typeId: TypeId[A],
   wrapperBinding: F[BindingType.Wrapper[A, B], A],
   doc: Doc = Doc.Empty,
   modifiers: Seq[Modifier.Reflect] = Nil
@@ -343,8 +342,7 @@ object PosInt {
   implicit val schema: Schema[PosInt] = Schema(
     Reflect.Wrapper(
       wrapped = Schema[Int].reflect,
-      typeName = TypeName(Namespace(Nil), "PosInt"),
-      wrapperPrimitiveType = None,
+      typeId = TypeId.of[PosInt],
       wrapperBinding = Binding.Wrapper[PosInt, Int](
         wrap = v => PosInt(v), 
         unwrap = _.value
@@ -354,33 +352,33 @@ object PosInt {
 }
 ```
 
-To use auto-derivation for wrappers, you can use the `wrap` and `wrapTotal` methods on `Schema`:
+To create schemas for wrapper types, use `transform` or `transformOrFail` followed by `withTypeId`:
 
 ```scala
 import zio.blocks.schema.Schema
 
-// Wrapper with validation using wrap (can fail)
+// Wrapper with validation using transformOrFail (can fail)
 case class PosInt private (value: Int) extends AnyVal
 
 object PosInt {
-  def apply(value: Int): Either[String, PosInt] =
+  def apply(value: Int): Either[SchemaError, PosInt] =
     if (value >= 0) Right(new PosInt(value))
-    else Left("Expected positive value")
+    else Left(SchemaError.validationFailed("Expected positive value"))
 
   implicit val schema: Schema[PosInt] = 
-    Schema.derived.wrap(PosInt.apply, _.value)
+    Schema[Int].transformOrFail(PosInt.apply, _.value)
 }
 ```
 
-If the wrapping function is total (i.e., cannot fail), you can use `wrapTotal`:
+If the wrapping function is total (i.e., cannot fail), you can use `transform`:
 
 ```scala
-// Simple wrapper using wrapTotal (no validation, always succeeds)
+// Simple wrapper using transform (no validation, always succeeds)
 case class UserId(value: Long) extends AnyVal
 
 object UserId {
   implicit val schema: Schema[UserId] =
-    Schema.derived[UserId].wrapTotal(UserId.apply, _.value)
+    Schema[Long].transform(UserId(_), _.value)
 }
 ```
 
@@ -442,6 +440,76 @@ object Tree {
     new Schema(treeReflect)
   }
 }
+```
+
+## Debug-Friendly toString
+
+`Reflect` types have a custom `toString` that produces a human-readable SDL (Schema Definition Language) format. This makes debugging schemas much easier compared to the default case class output.
+
+```scala
+import zio.blocks.schema._
+
+case class Person(name: String, age: Int, address: Address)
+case class Address(street: String, city: String)
+
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+println(Schema[Person].reflect)
+// Output:
+// record Person {
+//   name: String
+//   age: Int
+//   address: record Address {
+//     street: String
+//     city: String
+//   }
+// }
+```
+
+**Format by Reflect type:**
+
+| Type | Format |
+|------|--------|
+| `Primitive` | Type name (e.g., `String`, `Int`, `java.time.Instant`) |
+| `Record` | `record Name { fields... }` |
+| `Variant` | `variant Name { \| Case1 \| Case2... }` |
+| `Sequence` | `sequence List[Element]` or multiline for complex elements |
+| `Map` | `map Map[Key, Value]` or multiline for complex types |
+| `Wrapper` | `wrapper Name(underlying)` |
+| `Deferred` | `deferred => TypeName` (breaks recursive cycles) |
+| `Dynamic` | `DynamicValue` |
+
+**Variant example:**
+
+```scala
+sealed trait PaymentMethod
+case object Cash extends PaymentMethod
+case class CreditCard(number: String, cvv: String) extends PaymentMethod
+
+// toString output:
+// variant PaymentMethod {
+//   | Cash
+//   | CreditCard(
+//       number: String,
+//       cvv: String
+//     )
+// }
+```
+
+**Recursive type example:**
+
+```scala
+case class Tree(value: Int, children: List[Tree])
+
+// toString output:
+// record Tree {
+//   value: Int
+//   children: sequence List[
+//     deferred => Tree
+//   ]
+// }
 ```
 
 ## Auto-Derivation

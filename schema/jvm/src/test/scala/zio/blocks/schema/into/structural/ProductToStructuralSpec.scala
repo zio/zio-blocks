@@ -12,7 +12,7 @@ import scala.language.reflectiveCalls
  * types. The case class must have all the members required by the structural
  * type.
  */
-object ProductToStructuralSpec extends ZIOSpecDefault {
+object ProductToStructuralSpec extends SchemaBaseSpec {
 
   // === Source Case Classes ===
   case class Person(name: String, age: Int)

@@ -9,7 +9,7 @@ import zio.test._
  * These tests verify that the macro can handle structures nested 5+ levels deep
  * and that conversions work correctly with complex hierarchies.
  */
-object DeepNestingStressSpec extends ZIOSpecDefault {
+object DeepNestingStressSpec extends SchemaBaseSpec {
 
   // Level 1 - innermost
   case class Level1A(value: Int)

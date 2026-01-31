@@ -39,6 +39,13 @@ object BitChunkIntSpec extends ChunkBaseSpec {
   }
 
   def spec = suite("BitChunkIntSpec")(
+    test("foreach") {
+      check(genIntChunk, genEndianness) { (ints, endianness) =>
+        var sum = 0
+        ints.asBitsInt(endianness).foreach(x => if (x) sum += 1)
+        assert(sum)(equalTo(ints.foldLeft(0)((acc, i) => acc + java.lang.Integer.bitCount(i))))
+      }
+    },
     test("drop") {
       check(genIntChunk, genInt, genEndianness) { (ints, n, endianness) =>
         val actual   = ints.asBitsInt(endianness).drop(n).toBinaryString

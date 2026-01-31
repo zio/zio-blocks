@@ -1,5 +1,6 @@
 package zio.blocks.schema.toon
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.toon.ToonTestUtils._
 import zio.blocks.schema.toon.NameMapper._
 import zio.blocks.schema._
@@ -991,7 +992,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     suite("dynamic")(
       test("DynamicValue Map encodes correctly") {
         val map = DynamicValue.Map(
-          Vector(
+          Chunk(
             (
               DynamicValue.Primitive(PrimitiveValue.String("key1")),
               DynamicValue.Primitive(PrimitiveValue.String("value1"))
@@ -1073,7 +1074,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       test("DynamicValue - Variant roundtrips with discriminatorField") {
         val variant = DynamicValue.Variant(
           "Dog",
-          DynamicValue.Record(Vector(("name", DynamicValue.Primitive(PrimitiveValue.String("Buddy")))))
+          DynamicValue.Record(Chunk(("name", DynamicValue.Primitive(PrimitiveValue.String("Buddy")))))
         )
         val codec     = ToonBinaryCodec.dynamicValueCodec
         val discField = Some("type")

@@ -1,7 +1,10 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
+import zio.blocks.typeid.TypeId
+import zio.blocks.schema.json.{Json, JsonFormat, JsonSchema, JsonSchemaToReflect}
 import zio.blocks.schema.patch.{Patch, PatchMode}
 import java.util.concurrent.ConcurrentHashMap
 
@@ -10,13 +13,13 @@ import java.util.concurrent.ConcurrentHashMap
  * of a Scala data type, together with the ability to tear down and build up
  * values of that type.
  */
-final case class Schema[A](reflect: Reflect.Bound[A]) {
+final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpecific[A] {
   private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
 
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
-      .computeIfAbsent(format, _ => derive(format.deriver))
+      .computeIfAbsent(format, _ => derive(format))
 
   def getDefaultValue: Option[A] = reflect.getDefaultValue
 
@@ -28,6 +31,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def defaultValue(value: => A): Schema[A] = new Schema(reflect.defaultValue(value))
 
   def derive[TC[_]](deriver: Deriver[TC]): TC[A] = deriving(deriver).derive
+
+  def derive[F <: codec.Format](format: F): format.TypeClass[A] = derive(format.deriver)
 
   def deriving[TC[_]](deriver: Deriver[TC]): DerivationBuilder[TC, A] =
     new DerivationBuilder[TC, A](this, deriver, IndexedSeq.empty, IndexedSeq.empty)
@@ -63,6 +68,24 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
 
+  /**
+   * Converts this schema to a [[DynamicSchema]] by stripping runtime bindings.
+   *
+   * The resulting `DynamicSchema` retains all structural information (fields,
+   * cases, types, validations) but without the runtime constructors and
+   * deconstructors needed to work with actual values of type `A`. This is
+   * useful for runtime schema validation of [[DynamicValue]] instances.
+   *
+   * @return
+   *   A type-erased schema that can validate `DynamicValue` instances
+   * @see
+   *   [[DynamicSchema]] for validation capabilities
+   */
+  def toDynamicSchema: DynamicSchema = new DynamicSchema(reflect.noBinding)
+
+  /** Derives a JSON Schema from this Schema. */
+  def toJsonSchema: JsonSchema = derive(JsonFormat).toJsonSchema
+
   def updated(dynamic: DynamicOptic)(f: Reflect.Updater[Binding]): Option[Schema[A]] =
     reflect.updated(dynamic)(f).map(x => new Schema(x))
 
@@ -87,24 +110,6 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def patch(value: A, patch: Patch[A]): Either[SchemaError, A] =
     patch.apply(value, PatchMode.Strict)
 
-  def wrap[B: Schema](wrap: B => Either[SchemaError, A], unwrap: A => B): Schema[A] = new Schema(
-    new Reflect.Wrapper[Binding, A, B](
-      Schema[B].reflect,
-      reflect.typeName,
-      Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(wrap, unwrap)
-    )
-  )
-
-  def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
-    new Reflect.Wrapper[Binding, A, B](
-      Schema[B].reflect,
-      reflect.typeName,
-      Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
-    )
-  )
-
   /**
    * Transforms this schema from type `A` to type `B` using the provided partial
    * transformation function and its inverse.
@@ -118,6 +123,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
    *
    * The `from` function is called during encoding (e.g., `toDynamicValue`) to
    * convert `B` back to `A` for serialization.
+   *
+   * The `TypeId[B]` is captured implicitly to ensure correct type
+   * identification.
    *
    * @example
    *   {{{
@@ -142,17 +150,109 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
    * @return
    *   A new schema for type `B`
    */
-  def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A): Schema[B] = new Schema(
+  def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A)(implicit typeId: TypeId[B]): Schema[B] =
+    new Schema(
+      new Reflect.Wrapper[Binding, B, A](
+        reflect,
+        typeId,
+        new Binding.Wrapper(to, b => Right(from(b)))
+      )
+    )
+
+  /**
+   * Transforms this schema from type `A` to type `B` using partial functions
+   * that can fail in both directions.
+   *
+   * This is useful for creating schemas for types with bidirectional validation
+   * requirements, where both constructing the type AND extracting the
+   * underlying value may need validation.
+   *
+   * The `TypeId[B]` is captured implicitly to ensure correct type
+   * identification.
+   *
+   * @example
+   *   {{{
+   * case class ValidatedInt(value: Int)
+   * object ValidatedInt {
+   *   implicit val schema: Schema[ValidatedInt] =
+   *     Schema[Int].transform(
+   *       wrap = n =>
+   *         if (n > 0) Right(ValidatedInt(n))
+   *         else Left(SchemaError.validationFailed("Expected positive")),
+   *       unwrap = v =>
+   *         if (v.value < 100) Right(v.value)
+   *         else Left(SchemaError.validationFailed("Value too large"))
+   *     )
+   * }
+   *   }}}
+   *
+   * @param wrap
+   *   Partial function to transform `A` to `B` (used during decoding), returns
+   *   `Left` on failure
+   * @param unwrap
+   *   Partial function to transform `B` back to `A` (used during encoding),
+   *   returns `Left` on failure
+   * @tparam B
+   *   The target type
+   * @return
+   *   A new schema for type `B`
+   */
+  def transform[B](wrap: A => Either[SchemaError, B], unwrap: B => Either[SchemaError, A])(implicit
+    typeId: TypeId[B]
+  ): Schema[B] = new Schema(
     new Reflect.Wrapper[Binding, B, A](
       reflect,
-      reflect.typeName.asInstanceOf[TypeName[B]],
-      Reflect.unwrapToPrimitiveTypeOption(reflect).asInstanceOf[Option[PrimitiveType[B]]],
-      new Binding.Wrapper(to, from)
+      typeId,
+      new Binding.Wrapper(wrap, unwrap)
     )
   )
+
+  /**
+   * Transforms this schema from type `A` to type `B` using total functions.
+   *
+   * This is useful for creating schemas for simple wrapper types where the
+   * transformation cannot fail.
+   *
+   * The `TypeId[B]` is captured implicitly to ensure correct type
+   * identification.
+   *
+   * @example
+   *   {{{
+   * case class UserId(value: Long)
+   * object UserId {
+   *   implicit val schema: Schema[UserId] =
+   *     Schema[Long].transform(UserId(_), _.value)
+   * }
+   *   }}}
+   *
+   * @param to
+   *   Total function to transform `A` to `B`
+   * @param from
+   *   Total function to transform `B` back to `A`
+   * @tparam B
+   *   The target type
+   * @return
+   *   A new schema for type `B`
+   */
+  def transform[B](to: A => B, from: B => A)(implicit typeId: TypeId[B], d: DummyImplicit): Schema[B] = new Schema(
+    new Reflect.Wrapper[Binding, B, A](
+      reflect,
+      typeId,
+      new Binding.Wrapper(a => Right(to(a)), b => Right(from(b)))
+    )
+  )
+
+  override def toString: String = {
+    val reflectStr = reflect.toString
+    if (reflectStr.contains('\n')) {
+      s"Schema {\n  ${reflectStr.replace("\n", "\n  ")}\n}"
+    } else {
+      s"Schema {\n  $reflectStr\n}"
+    }
+  }
 }
 
-object Schema extends SchemaCompanionVersionSpecific {
+object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
@@ -249,6 +349,36 @@ object Schema extends SchemaCompanionVersionSpecific {
 
   implicit def seq[A](implicit element: Schema[A]): Schema[Seq[A]] = new Schema(Reflect.seq(element.reflect))
 
+  implicit def chunk[A](implicit element: Schema[A]): Schema[Chunk[A]] = new Schema(Reflect.chunk(element.reflect))
+
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
+
+  implicit def either[A, B](implicit l: Schema[A], r: Schema[B]): Schema[Either[A, B]] =
+    new Schema(Reflect.either(l.reflect, r.reflect))
+
+  /**
+   * Construct a Schema[Json] from a JsonSchema. Values are validated against
+   * the JsonSchema during construction.
+   */
+  def fromJsonSchema(jsonSchema: JsonSchema): Schema[Json] = {
+    val structuredReflect: Reflect[Binding, DynamicValue] = JsonSchemaToReflect.toReflect(jsonSchema)
+
+    new Schema(
+      new Reflect.Wrapper[Binding, Json, DynamicValue](
+        structuredReflect,
+        TypeId.of[Json],
+        new Binding.Wrapper[Json, DynamicValue](
+          wrap = { dv =>
+            val j = Json.fromDynamicValue(dv)
+            jsonSchema.check(j) match {
+              case None        => Right(j)
+              case Some(error) => Left(error)
+            }
+          },
+          unwrap = j => Right(j.toDynamicValue)
+        )
+      )
+    )
+  }
 }

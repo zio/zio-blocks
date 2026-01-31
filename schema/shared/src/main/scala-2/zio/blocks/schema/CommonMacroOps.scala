@@ -9,6 +9,23 @@ private[schema] object CommonMacroOps {
 
   def typeArgs(c: blackbox.Context)(tpe: c.Type): List[c.Type] = tpe.typeArgs.map(_.dealias)
 
+  def companion(c: blackbox.Context)(tpe: c.Type): c.Symbol = {
+    import c.universe._
+
+    val comp = tpe.typeSymbol.companion
+    if (comp.isModule) comp
+    else {
+      val ownerChainOf = (s: Symbol) => Iterator.iterate(s)(_.owner).takeWhile(_ != NoSymbol).toArray.reverseIterator
+      val path         = ownerChainOf(tpe.typeSymbol)
+        .zipAll(ownerChainOf(c.internal.enclosingOwner), NoSymbol, NoSymbol)
+        .dropWhile(x => x._1 == x._2)
+        .takeWhile(x => x._1 != NoSymbol)
+        .map(x => x._1.name.toTermName)
+      if (path.isEmpty) NoSymbol
+      else c.typecheck(path.foldLeft[Tree](Ident(path.next()))(Select(_, _)), silent = true).symbol
+    }
+  }
+
   def directSubTypes(c: blackbox.Context)(tpe: c.Type): List[c.Type] = {
     import c.universe._
 
@@ -41,7 +58,9 @@ private[schema] object CommonMacroOps {
       .sortInPlace()
       .foreach { symbol =>
         val classSymbol = symbol.asClass
-        var classType   = classSymbol.toType
+        // For modules (case objects), use the singleton type (.type) to preserve
+        // the specific type (e.g., Status.Active.type instead of Status)
+        var classType = if (classSymbol.isModuleClass) classSymbol.module.typeSignature else classSymbol.toType
         if (tpeTypeArgs ne Nil) {
           val typeParams = classSymbol.typeParams
           if (typeParams.nonEmpty) {

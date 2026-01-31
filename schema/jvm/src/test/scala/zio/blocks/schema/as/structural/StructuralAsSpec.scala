@@ -6,7 +6,7 @@ import zio.test.Assertion._
 import scala.language.reflectiveCalls
 
 /** JVM-only tests for As with pure structural types (requires reflection). */
-object StructuralAsSpec extends ZIOSpecDefault {
+object StructuralAsSpec extends SchemaBaseSpec {
 
   case class Person(name: String, age: Int)
   case class Point(x: Int, y: Int)

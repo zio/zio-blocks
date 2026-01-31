@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 import zio.Random
@@ -456,7 +457,7 @@ object DiffSpec extends SchemaBaseSpec {
                   ops == Vector(
                     Patch.SeqOp.Insert(
                       1,
-                      Vector(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+                      Chunk(DynamicValue.Primitive(PrimitiveValue.Int(2)))
                     )
                   )
                 case _ => false
@@ -497,9 +498,9 @@ object DiffSpec extends SchemaBaseSpec {
 
         val expectedOps = Vector(
           Patch.SeqOp.Delete(1, 1),
-          Patch.SeqOp.Insert(1, Vector(DynamicValue.Primitive(PrimitiveValue.String("x")))),
+          Patch.SeqOp.Insert(1, Chunk(DynamicValue.Primitive(PrimitiveValue.String("x")))),
           Patch.SeqOp.Delete(3, 1),
-          Patch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.String("y"))))
+          Patch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.String("y"))))
         )
 
         val opsMatch =
@@ -529,7 +530,7 @@ object DiffSpec extends SchemaBaseSpec {
                 case Patch.Operation.SequenceEdit(ops) =>
                   ops == Vector(
                     Patch.SeqOp.Append(
-                      Vector(
+                      Chunk(
                         DynamicValue.Primitive(PrimitiveValue.Int(1)),
                         DynamicValue.Primitive(PrimitiveValue.Int(2)),
                         DynamicValue.Primitive(PrimitiveValue.Int(3))
@@ -990,6 +991,34 @@ object DiffSpec extends SchemaBaseSpec {
         val result = patch(old, PatchMode.Strict)
 
         assertTrue(result == Right(updated))
+      }
+    ),
+    suite("DynamicValue.Null diffing")(
+      test("diff(Null, Null) produces empty patch") {
+        val patch = Differ.diff(DynamicValue.Null, DynamicValue.Null)
+        assertTrue(patch.isEmpty)
+      },
+      test("diff(Null, other) produces Set patch") {
+        val other = DynamicValue.int(42)
+        val patch = Differ.diff(DynamicValue.Null, other)
+        assertTrue(!patch.isEmpty) &&
+        assertTrue(
+          patch.ops.head.operation match {
+            case Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(42))) => true
+            case _                                                                   => false
+          }
+        )
+      },
+      test("diff(other, Null) produces Set patch") {
+        val other = DynamicValue.string("hello")
+        val patch = Differ.diff(other, DynamicValue.Null)
+        assertTrue(!patch.isEmpty) &&
+        assertTrue(
+          patch.ops.head.operation match {
+            case Patch.Operation.Set(DynamicValue.Null) => true
+            case _                                      => false
+          }
+        )
       }
     ),
     suite("Empty-to-empty diffs")(

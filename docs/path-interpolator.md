@@ -38,7 +38,7 @@ val path = p".users[0].name"
 ## Key Features
 
 - **✅ Zero Runtime Overhead**: All parsing happens at compile time
-- **✅ Cross-Platform**: Works on Scala 2.13.x and Scala 3.3.x
+- **✅ Cross-Platform**: Works on Scala 2.13.x and Scala 3.x
 - **✅ Compile-Time Safety**: Invalid paths are rejected during compilation
 - **✅ No Runtime Interpolation**: Prevents accidental use of runtime values
 - **✅ Rich Syntax**: Supports all `DynamicOptic` operations
@@ -603,6 +603,34 @@ val dynamicPath = p".email"
 - **Map keys limited to primitives**: Only String, Int, Char, and Boolean keys are supported
 
 These limitations ensure compile-time safety and zero runtime overhead.
+
+## Debug-Friendly toString
+
+`DynamicOptic` instances have a custom `toString` that produces output matching the `p"..."` interpolator syntax. This makes debugging easier because you can copy the output directly into your code:
+
+```scala
+val optic = DynamicOptic.root.field("users").elements.field("email")
+println(optic)  // Output: .users[*].email
+
+// The output can be copy-pasted into p"..."
+val same = p".users[*].email"
+```
+
+**Examples:**
+
+| DynamicOptic Construction | toString Output |
+|---------------------------|-----------------|
+| `DynamicOptic.root.field("name")` | `.name` |
+| `DynamicOptic.root.field("address").field("street")` | `.address.street` |
+| `DynamicOptic.root.caseOf("Some")` | `<Some>` |
+| `DynamicOptic.root.at(0)` | `[0]` |
+| `DynamicOptic.root.atIndices(0, 2, 5)` | `[0,2,5]` |
+| `DynamicOptic.elements` | `[*]` |
+| `DynamicOptic.root.atKey("host")` | `{"host"}` |
+| `DynamicOptic.root.atKey(80)` | `{80}` |
+| `DynamicOptic.mapValues` | `{*}` |
+| `DynamicOptic.mapKeys` | `{*:}` |
+| `DynamicOptic.wrapped` | `.~` |
 
 ## Summary
 

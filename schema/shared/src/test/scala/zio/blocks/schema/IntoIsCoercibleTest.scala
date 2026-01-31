@@ -4,7 +4,7 @@ import zio.test._
 import zio.test.Assertion._
 
 /** Tests for implicit Into resolution handling numeric conversions. */
-object IntoIsCoercibleTest extends ZIOSpecDefault {
+object IntoIsCoercibleTest extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("IntoIsCoercibleTest")(
     suite("Numeric Widening - Should work via implicit Into instances")(
@@ -121,10 +121,10 @@ object IntoIsCoercibleTest extends ZIOSpecDefault {
       test("Long to Int in case class - overflow") {
         case class Source(value: Long)
         case class Target(value: Int)
-        locally { val _ = Target }
 
         val source = Source(Long.MaxValue)
         val result = Into.derived[Source, Target].into(source)
+        val _      = Target(0) // suppress unused warning
 
         assertTrue(
           result.isLeft,
@@ -143,10 +143,10 @@ object IntoIsCoercibleTest extends ZIOSpecDefault {
       test("Double to Float in case class - overflow") {
         case class Source(value: Double)
         case class Target(value: Float)
-        locally { val _ = Target }
 
         val source = Source(Double.MaxValue)
         val result = Into.derived[Source, Target].into(source)
+        val _      = Target(0f) // suppress unused warning
 
         assertTrue(
           result.isLeft,

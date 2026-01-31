@@ -5,34 +5,40 @@ import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema.binding.SeqDeconstructor._
 import zio.blocks.schema._
+import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
+import zio.blocks.typeid.TypeId
 import scala.util.control.NonFatal
 
 object AvroFormat
     extends BinaryFormat(
       "application/avro",
       new Deriver[AvroBinaryCodec] {
-        override def derivePrimitive[F[_, _], A](
+        override def derivePrimitive[A](
           primitiveType: PrimitiveType[A],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           binding: Binding[BindingType.Primitive, A],
           doc: Doc,
-          modifiers: Seq[Modifier.Reflect]
+          modifiers: Seq[Modifier.Reflect],
+          defaultValue: Option[A],
+          examples: Seq[A]
         ): Lazy[AvroBinaryCodec[A]] =
-          Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)))
+          Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)))
 
         override def deriveRecord[F[_, _], A](
           fields: IndexedSeq[Term[F, A, ?]],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           binding: Binding[BindingType.Record, A],
           doc: Doc,
-          modifiers: Seq[Modifier.Reflect]
+          modifiers: Seq[Modifier.Reflect],
+          defaultValue: Option[A],
+          examples: Seq[A]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
           deriveCodec(
             new Reflect.Record(
               fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
-              typeName,
+              typeId,
               binding,
               doc,
               modifiers
@@ -42,15 +48,17 @@ object AvroFormat
 
         override def deriveVariant[F[_, _], A](
           cases: IndexedSeq[Term[F, A, ?]],
-          typeName: TypeName[A],
+          typeId: TypeId[A],
           binding: Binding[BindingType.Variant, A],
           doc: Doc,
-          modifiers: Seq[Modifier.Reflect]
+          modifiers: Seq[Modifier.Reflect],
+          defaultValue: Option[A],
+          examples: Seq[A]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
           deriveCodec(
             new Reflect.Variant(
               cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
-              typeName,
+              typeId,
               binding,
               doc,
               modifiers
@@ -60,29 +68,33 @@ object AvroFormat
 
         override def deriveSequence[F[_, _], C[_], A](
           element: Reflect[F, A],
-          typeName: TypeName[C[A]],
+          typeId: TypeId[C[A]],
           binding: Binding[BindingType.Seq[C], C[A]],
           doc: Doc,
-          modifiers: Seq[Modifier.Reflect]
+          modifiers: Seq[Modifier.Reflect],
+          defaultValue: Option[C[A]],
+          examples: Seq[C[A]]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[C[A]]] = Lazy {
           deriveCodec(
-            new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeName, binding, doc, modifiers)
+            new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeId, binding, doc, modifiers)
           )
         }
 
         override def deriveMap[F[_, _], M[_, _], K, V](
           key: Reflect[F, K],
           value: Reflect[F, V],
-          typeName: TypeName[M[K, V]],
+          typeId: TypeId[M[K, V]],
           binding: Binding[BindingType.Map[M], M[K, V]],
           doc: Doc,
-          modifiers: Seq[Modifier.Reflect]
+          modifiers: Seq[Modifier.Reflect],
+          defaultValue: Option[M[K, V]],
+          examples: Seq[M[K, V]]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[M[K, V]]] = Lazy {
           deriveCodec(
             new Reflect.Map(
               key.asInstanceOf[Reflect[Binding, K]],
               value.asInstanceOf[Reflect[Binding, V]],
-              typeName,
+              typeId,
               binding,
               doc,
               modifiers
@@ -93,23 +105,25 @@ object AvroFormat
         override def deriveDynamic[F[_, _]](
           binding: Binding[BindingType.Dynamic, DynamicValue],
           doc: Doc,
-          modifiers: Seq[Modifier.Reflect]
+          modifiers: Seq[Modifier.Reflect],
+          defaultValue: Option[DynamicValue],
+          examples: Seq[DynamicValue]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[DynamicValue]] =
-          Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeName.dynamicValue, doc, modifiers)))
+          Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)))
 
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
-          typeName: TypeName[A],
-          wrapperPrimitiveType: Option[PrimitiveType[A]],
+          typeId: TypeId[A],
           binding: Binding[BindingType.Wrapper[A, B], A],
           doc: Doc,
-          modifiers: Seq[Modifier.Reflect]
+          modifiers: Seq[Modifier.Reflect],
+          defaultValue: Option[A],
+          examples: Seq[A]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
           deriveCodec(
             new Reflect.Wrapper(
               wrapped.asInstanceOf[Reflect[Binding, B]],
-              typeName,
-              wrapperPrimitiveType,
+              typeId,
               binding,
               doc,
               modifiers
@@ -132,8 +146,8 @@ object AvroFormat
         type TC[_]
 
         private[this] val recursiveRecordCache =
-          new ThreadLocal[java.util.HashMap[TypeName[?], (Array[AvroBinaryCodec[?]], AvroSchema)]] {
-            override def initialValue: java.util.HashMap[TypeName[?], (Array[AvroBinaryCodec[?]], AvroSchema)] =
+          new ThreadLocal[java.util.HashMap[TypeId[?], (Array[AvroBinaryCodec[?]], AvroSchema)]] {
+            override def initialValue: java.util.HashMap[TypeId[?], (Array[AvroBinaryCodec[?]], AvroSchema)] =
               new java.util.HashMap
           }
         private[this] val recordCounters =
@@ -723,27 +737,18 @@ object AvroFormat
               val binding              = record.recordBinding.asInstanceOf[Binding.Record[A]]
               val fields               = record.fields
               val isRecursive          = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
-              val typeName             = record.typeName
+              val typeId               = record.typeId
               var codecsWithAvroSchema =
-                if (isRecursive) recursiveRecordCache.get.get(typeName)
+                if (isRecursive) recursiveRecordCache.get.get(typeId)
                 else null
               var offset = 0L
               if (codecsWithAvroSchema eq null) {
-                val namespaceBuilder = new java.lang.StringBuilder()
-                val namespace        = typeName.namespace
-                namespace.packages.foreach { element =>
-                  if (namespaceBuilder.length > 0) namespaceBuilder.append('.')
-                  namespaceBuilder.append(element)
-                }
-                namespace.values.foreach { element =>
-                  if (namespaceBuilder.length > 0) namespaceBuilder.append('.')
-                  namespaceBuilder.append(element)
-                }
-                val avroSchema = createAvroRecord(namespaceBuilder.toString, typeName.name)
+                val namespace  = typeId.owner.asString
+                val avroSchema = createAvroRecord(namespace, typeId.name)
                 val len        = fields.length
                 val codecs     = new Array[AvroBinaryCodec[?]](len)
                 codecsWithAvroSchema = (codecs, avroSchema)
-                if (isRecursive) recursiveRecordCache.get.put(typeName, codecsWithAvroSchema)
+                if (isRecursive) recursiveRecordCache.get.put(typeId, codecsWithAvroSchema)
                 val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field](len)
                 var idx              = 0
                 while (idx < len) {
@@ -842,7 +847,7 @@ object AvroFormat
             if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
               val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
               val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[AvroBinaryCodec[Wrapped]]
-              new AvroBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(AvroBinaryCodec.objectType) {
+              new AvroBinaryCodec[A](wrapper.underlyingPrimitiveType.fold(AvroBinaryCodec.objectType) {
                 case _: PrimitiveType.Boolean   => AvroBinaryCodec.booleanType
                 case _: PrimitiveType.Byte      => AvroBinaryCodec.byteType
                 case _: PrimitiveType.Char      => AvroBinaryCodec.charType
@@ -854,8 +859,8 @@ object AvroFormat
                 case _: PrimitiveType.Unit.type => AvroBinaryCodec.unitType
                 case _                          => AvroBinaryCodec.objectType
               }) {
-                private[this] val unwrap       = binding.unwrap
                 private[this] val wrap         = binding.wrap
+                private[this] val unwrap       = binding.unwrap
                 private[this] val wrappedCodec = codec
 
                 val avroSchema: AvroSchema = wrappedCodec.avroSchema
@@ -872,7 +877,11 @@ object AvroFormat
                   }
                 }
 
-                def encode(value: A, encoder: BinaryEncoder): Unit = wrappedCodec.encode(unwrap(value), encoder)
+                def encode(value: A, encoder: BinaryEncoder): Unit =
+                  unwrap(value) match {
+                    case Right(wrapped) => wrappedCodec.encode(wrapped, encoder)
+                    case Left(err)      => throw err
+                  }
               }
             } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else {
@@ -984,7 +993,12 @@ object AvroFormat
                       )
                     )
                     createAvroRecord("zio.blocks.schema.DynamicValue", "Map", mapFields)
-                  }
+                  },
+                  createAvroRecord(
+                    "zio.blocks.schema.DynamicValue",
+                    "Null",
+                    new java.util.ArrayList[AvroSchema.Field](0)
+                  )
                 )
               )
             )
@@ -1041,7 +1055,7 @@ object AvroFormat
               }
             case 1 =>
               try {
-                val builder = Vector.newBuilder[(String, DynamicValue)]
+                val builder = ChunkBuilder.make[(String, DynamicValue)]()
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -1090,7 +1104,7 @@ object AvroFormat
               new DynamicValue.Variant(caseName, value)
             case 3 =>
               try {
-                val builder = Vector.newBuilder[DynamicValue]
+                val builder = ChunkBuilder.make[DynamicValue]()
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -1119,7 +1133,7 @@ object AvroFormat
               }
             case 4 =>
               try {
-                val builder = Vector.newBuilder[(DynamicValue, DynamicValue)]
+                val builder = ChunkBuilder.make[(DynamicValue, DynamicValue)]()
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -1154,7 +1168,9 @@ object AvroFormat
               } catch {
                 case error if NonFatal(error) => decodeError(spanMap, spanEntries, error)
               }
-            case idx => decodeError(s"Expected enum index from 0 to 4, got $idx")
+            case 5 =>
+              DynamicValue.Null
+            case idx => decodeError(s"Expected enum index from 0 to 5, got $idx")
           }
 
           def encode(value: DynamicValue, encoder: BinaryEncoder): Unit = value match {
@@ -1267,7 +1283,7 @@ object AvroFormat
               encoder.writeInt(0)
             case variant: DynamicValue.Variant =>
               encoder.writeInt(2)
-              encoder.writeString(variant.caseName)
+              encoder.writeString(variant.caseNameValue)
               encode(variant.value, encoder)
             case sequence: DynamicValue.Sequence =>
               encoder.writeInt(3)
@@ -1295,6 +1311,8 @@ object AvroFormat
                 }
               }
               encoder.writeInt(0)
+            case DynamicValue.Null =>
+              encoder.writeInt(5)
           }
 
           private[this] def createPrimitiveValueAvroRecord(name: String, codec: AvroBinaryCodec[?]): AvroSchema = {

@@ -54,7 +54,6 @@ object PathMacros {
   }
 
   private def buildNodeExpr(node: DynamicOptic.Node)(using Quotes): Expr[DynamicOptic.Node] = {
-    import quotes.reflect.*
     import DynamicOptic.Node
 
     node match {

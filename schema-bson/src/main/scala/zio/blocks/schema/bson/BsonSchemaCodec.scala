@@ -2,7 +2,7 @@ package zio.blocks.schema.bson
 
 import org.bson.{BsonReader, BsonWriter, BsonValue}
 import zio.blocks.schema._
-import zio.blocks.schema.binding.Registers
+import zio.blocks.schema.binding.{Register, RegisterOffset, Registers}
 
 object BsonSchemaCodec {
 
@@ -160,7 +160,7 @@ object BsonSchemaCodec {
             deriveWrapperCodec(w.wrapper, config).asInstanceOf[BsonCodec[A]]
           } else {
             throw new UnsupportedOperationException(
-              s"BSON codec for ${reflect.typeName} (type: ${reflect.nodeType}) is not yet implemented."
+              s"BSON codec for ${reflect.typeId.fullName} (type: ${reflect.nodeType}) is not yet implemented."
             )
           }
       }
@@ -168,11 +168,25 @@ object BsonSchemaCodec {
 
   // Record (case class) codec derivation
   private def deriveRecordCodec[A](record: Reflect.Record.Bound[A], config: Config): BsonCodec[A] = {
-    val fields        = record.fields
-    val binding       = record.binding.asInstanceOf[zio.blocks.schema.binding.Binding.Record[A]]
-    val constructor   = binding.constructor
-    val deconstructor = binding.deconstructor
-    val registers     = record.registers
+    val fields                               = record.fields
+    val binding                              = record.binding.asInstanceOf[zio.blocks.schema.binding.Binding.Record[A]]
+    val constructor                          = binding.constructor
+    val deconstructor                        = binding.deconstructor
+    val bindingUsedRegs                      = deconstructor.usedRegisters
+    val registers: IndexedSeq[Register[Any]] =
+      if (
+        RegisterOffset.getObjects(bindingUsedRegs) == fields.length &&
+        RegisterOffset.getBytes(bindingUsedRegs) == 0
+      ) {
+        var offset = 0L
+        fields.indices.map { _ =>
+          val reg = new Register.Object[AnyRef](offset).asInstanceOf[Register[Any]]
+          offset = RegisterOffset.incrementObjects(offset)
+          reg
+        }
+      } else {
+        record.registers
+      }
 
     // Derive codecs for each field
     val fieldCodecs: Array[BsonCodec[Any]] = fields.map { field =>
@@ -581,7 +595,7 @@ object BsonSchemaCodec {
       BsonCodec(encoder, decoder)
     } else {
       // Non-string keys: encode as array of [key, value] pairs
-      throw new UnsupportedOperationException(s"Map with non-string keys not yet supported for ${map.typeName}")
+      throw new UnsupportedOperationException(s"Map with non-string keys not yet supported for ${map.typeId.fullName}")
     }
   }
 
@@ -1015,8 +1029,8 @@ object BsonSchemaCodec {
   // Wrapper (newtype) codec derivation
   private def deriveWrapperCodec[A, B](wrapper: Reflect.Wrapper.Bound[A, B], config: Config): BsonCodec[A] = {
     // Check if this is ObjectId and if we should use native BSON ObjectId codec
-    val isObjectId = wrapper.typeName.name == "ObjectId" &&
-      wrapper.typeName.namespace.packages == Seq("org", "bson", "types")
+    val isObjectId = wrapper.typeId.name == "ObjectId" &&
+      wrapper.typeId.owner.asString == "org.bson.types"
 
     // Use native ObjectId codec if:
     // 1. It's detected as ObjectId by typename (from ObjectIdSupport), OR
@@ -1033,15 +1047,17 @@ object BsonSchemaCodec {
       val wrappedCodec = deriveCodec(wrappedReflect.asInstanceOf[Reflect.Bound[B]], config)
 
       val encoder = new BsonEncoder[A] {
-        def encode(writer: BsonWriter, value: A, ctx: BsonEncoder.EncoderContext): Unit = {
-          val unwrapped = binding.unwrap(value)
-          wrappedCodec.encoder.encode(writer, unwrapped, ctx)
-        }
+        def encode(writer: BsonWriter, value: A, ctx: BsonEncoder.EncoderContext): Unit =
+          binding.unwrap(value) match {
+            case Right(unwrapped) => wrappedCodec.encoder.encode(writer, unwrapped, ctx)
+            case Left(error)      => throw error
+          }
 
-        def toBsonValue(value: A): BsonValue = {
-          val unwrapped = binding.unwrap(value)
-          wrappedCodec.encoder.toBsonValue(unwrapped)
-        }
+        def toBsonValue(value: A): BsonValue =
+          binding.unwrap(value) match {
+            case Right(unwrapped) => wrappedCodec.encoder.toBsonValue(unwrapped)
+            case Left(error)      => throw error
+          }
       }
 
       val decoder = new BsonDecoder[A] {

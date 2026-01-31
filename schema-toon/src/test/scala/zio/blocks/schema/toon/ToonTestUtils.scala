@@ -1,5 +1,6 @@
 package zio.blocks.schema.toon
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test.Assertion._
 import zio.test._
@@ -78,7 +79,7 @@ object ToonTestUtils {
     assert(codec.decode(toon, readerConfig))(isRight(equalTo(expectedValue)))
   }
 
-  def record(fields: (String, DynamicValue)*): DynamicValue.Record = DynamicValue.Record(fields.toVector)
+  def record(fields: (String, DynamicValue)*): DynamicValue.Record = DynamicValue.Record(Chunk.from(fields))
 
   def dynamicUnit: DynamicValue = DynamicValue.Primitive(PrimitiveValue.Unit)
 
@@ -274,14 +275,14 @@ object ToonTestUtils {
           } yield key -> value
         }
         .map(_.distinctBy(_._1))
-        .map(f => Record(f.toVector))
+        .map(f => Record(Chunk.from(f)))
 
     private def genSequenceWithDepth(maxDepth: Int): Gen[Any, Sequence] =
       Gen
         .listOfBounded(0, 4)(
           if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
         )
-        .map(f => Sequence(f.toVector))
+        .map(f => Sequence(Chunk.from(f)))
 
     private def genVariantWithDepth(maxDepth: Int): Gen[Any, Variant] =
       for {
@@ -298,7 +299,7 @@ object ToonTestUtils {
           } yield (key: DynamicValue, value)
         }
         .map(_.distinctBy { case (k, _) => k })
-        .map(f => DynamicValue.Map(f.toVector))
+        .map(f => DynamicValue.Map(Chunk.from(f)))
 
     def normalize(value: DynamicValue, discriminatorField: Option[String] = None): DynamicValue =
       value match {
@@ -309,7 +310,7 @@ object ToonTestUtils {
         case Variant(caseName, v) =>
           discriminatorField match {
             case Some(_) => Variant(caseName, normalize(v, discriminatorField))
-            case None    => Record(Vector((caseName, normalize(v, discriminatorField))))
+            case None    => Record(Chunk((caseName, normalize(v, discriminatorField))))
           }
         case DynamicValue.Map(entries) =>
           val fields = entries.map { case (k, v) =>
@@ -320,6 +321,7 @@ object ToonTestUtils {
             (keyStr, normalize(v, discriminatorField))
           }
           Record(fields)
+        case DynamicValue.Null => DynamicValue.Null
       }
 
     private def encodeKeyToString(value: DynamicValue): String = value match {

@@ -27,7 +27,7 @@ jobs:
           sudo apt-get install -y locales
           sudo locale-gen en_US.UTF-8
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -38,20 +38,20 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
       - name: Lint code
-        run: sbt "++2.13; check; ++3.3; check; ++3.7; check"
+        run: sbt "++2.13; check; ++3.7; check"
 
   testJVM:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         java: [11, 25]
         platform: ['JVM']
-        scala: ['2.13.x', '3.x']
+        scala: ['2.13.x', '3.3.x', '3.7.x']
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Set JVM options for JDK 25+
@@ -66,14 +66,17 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run Scala 2 tests
+      - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
-      - name: Run Scala 3 tests with test coverage
-        if: ${{ startsWith(matrix.scala, '3.') }}
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
+      - name: Run Scala 3 tests with test coverage and docs (JDK 11)
+        if: ${{ startsWith(matrix.scala, '3.') && matrix.java == 11 }}
+        run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport doc${{ matrix.platform }}
+      - name: Run Scala 3 tests with test coverage (JDK 25, skip docs due to scaladoc bug)
+        if: ${{ startsWith(matrix.scala, '3.') && matrix.java >= 25 }}
         run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
       - name: Run Scala Next tests
-        if: ${{ startsWith(matrix.scala, '3.') }}
+        if: ${{ matrix.scala == '3.7.x' }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test
 
   testJS:
@@ -84,10 +87,10 @@ jobs:
       matrix:
         java: [11]
         platform: ['JS']
-        scala: ['2.13.x', '3.x']
+        scala: ['2.13.x', '3.3.x', '3.7.x']
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -98,26 +101,26 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run tests
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+      - name: Run tests and compile docs
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala Next tests
-        if: ${{ startsWith(matrix.scala, '3.') }}
+        if: ${{ matrix.scala == '3.7.x' }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test
 
   testNative:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         java: [11]
         platform: ['Native']
-        scala: ['2.13.x', '3.x']
+        scala: ['2.13.x', '3.3.x', '3.7.x']
     env:
-      SCALANATIVE_THREAD_STACK_SIZE: 32m    
+      SCALANATIVE_THREAD_STACK_SIZE: 128m
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -128,10 +131,10 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run tests
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+      - name: Run tests and compile docs
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala Next tests
-        if: ${{ startsWith(matrix.scala, '3.') }}
+        if: ${{ matrix.scala == '3.7.x' }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test
 
   ci:
@@ -148,7 +151,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' }}
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
