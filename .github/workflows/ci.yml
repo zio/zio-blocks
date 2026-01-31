@@ -66,12 +66,12 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run Scala 2 tests
+      - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala 3 tests with test coverage
         if: ${{ startsWith(matrix.scala, '3.') }}
-        run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
+        run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport doc${{ matrix.platform }}
       - name: Run Scala Next tests
         if: ${{ startsWith(matrix.scala, '3.') }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test
@@ -98,8 +98,8 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run tests
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+      - name: Run tests and compile docs
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala Next tests
         if: ${{ startsWith(matrix.scala, '3.') }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test
@@ -128,8 +128,8 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
-      - name: Run tests
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+      - name: Run tests and compile docs
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala Next tests
         if: ${{ startsWith(matrix.scala, '3.') }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test
