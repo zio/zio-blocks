@@ -364,7 +364,7 @@ class ToonBinaryCodecDeriver private[toon] (
     if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
       val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, B]]
       val codec   = deriveCodec(wrapper.wrapped)
-      new ToonBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(ToonBinaryCodec.objectType) {
+      new ToonBinaryCodec[A](wrapper.underlyingPrimitiveType.fold(ToonBinaryCodec.objectType) {
         case _: PrimitiveType.Boolean   => ToonBinaryCodec.booleanType
         case _: PrimitiveType.Byte      => ToonBinaryCodec.byteType
         case _: PrimitiveType.Char      => ToonBinaryCodec.charType

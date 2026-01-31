@@ -549,7 +549,7 @@ object ThriftFormat
             if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
               val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
               val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[ThriftBinaryCodec[Wrapped]]
-              new ThriftBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(ThriftBinaryCodec.objectType) {
+              new ThriftBinaryCodec[A](wrapper.underlyingPrimitiveType.fold(ThriftBinaryCodec.objectType) {
                 case _: PrimitiveType.Boolean   => ThriftBinaryCodec.booleanType
                 case _: PrimitiveType.Byte      => ThriftBinaryCodec.byteType
                 case _: PrimitiveType.Char      => ThriftBinaryCodec.charType
